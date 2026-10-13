@@ -253,7 +253,7 @@ const SocM12AssessmentConsole = (() => {
         moduleTwelveState.assessmentState=next;
         const stage=form.matches('[data-m12-report]')?'reporting':form.dataset.m12Action==='closure'?'closure':'query';
         moduleTwelveState.stageVisits=[...new Set([...moduleTwelveState.stageVisits,stage])];
-        moduleTwelveSave(); moduleTwelveRender();
+        moduleTwelveSave(); m03eRender('m12');
       } catch(error) { let status=form.querySelector('[role="alert"]'); if(!status){status=document.createElement('p');status.setAttribute('role','alert');form.append(status);} status.textContent=error.message; }
     });
     root.addEventListener('click',(event)=>{
@@ -265,14 +265,14 @@ const SocM12AssessmentConsole = (() => {
         const st=m03eState('m12');
         if(incidentNav.hasAttribute('data-m12-open-alert')) { st.tab='alerts'; st.selected={type:'alert',id:incidentNav.dataset.m12OpenAlert}; }
         else st.openIncident=incidentNav.dataset.m12OpenIncident||'';
-        moduleTwelveSave(); moduleTwelveRender();
+        moduleTwelveSave(); m03eRender('m12');
         document.getElementById('m03e-console-m12')?.scrollIntoView({block:'start'}); return;
       }
       const selection=event.target.closest('[data-m12-select-intel], [data-m12-select-record]');
       if(selection) {
         const st=m03eState('m12');
         st.selected={type:selection.dataset.m12SelectIntel?'intel':'record',id:selection.dataset.m12SelectIntel||selection.dataset.m12SelectRecord};
-        moduleTwelveSave(); moduleTwelveRender(); return;
+        moduleTwelveSave(); m03eRender('m12'); return;
       }
       const button=event.target.closest('[data-m03e-pin^="m12:"]'); if(!button)return;
       const id=button.dataset.m03ePin.split(':').slice(1).join(':');

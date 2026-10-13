@@ -246,20 +246,15 @@ const MODULE_TWELVE_INCIDENT_DISPOSITIONS = [['true-positive', 'True positive'],
 const moduleTwelveIncidentStatus = (record) => MODULE_TWELVE_INCIDENT_STATUS.find(([id]) => id === record?.status)?.[1] || 'New';
 const moduleTwelveIncidentAlerts = (incidentId) => [...new Set((moduleTwelveState.assessmentState?.incidentLinks || []).filter((link) => link.incidentId === incidentId).map((link) => link.alertId))];
 
-// The CASE's child incidents as an ITSM related-records list. Each row opens
-// that incident's own record; links come only from the analyst's Alerts-tab
-// associations.
-function moduleTwelveIncidentsPanel() {
+// Related-records tab strip at the top of the CASE and of each child incident:
+// CASE-… | INC-… · status. Links come only from the analyst's Alerts-tab
+// associations; each incident keeps its own record.
+function moduleTwelveRecordTabs(activeId) {
   const parent = SocM12AssessmentData.scenario.parentCase;
   const incidents = moduleTwelveState.assessmentState?.incidents || {};
-  const rows = parent.incidents.map((incident) => {
-    const record = incidents[incident.id] || {};
-    const alerts = moduleTwelveIncidentAlerts(incident.id);
-    return `<button type="button" data-m12-open-incident="${esc(incident.id)}"><strong>${esc(incident.id)} · ${esc(incident.title)}</strong><span>${esc(moduleTwelveIncidentStatus(record))}${record.disposition ? ` · ${esc(record.disposition)}` : ''} · ${alerts.length ? `${alerts.length} linked alert${alerts.length === 1 ? '' : 's'}` : 'no linked alerts'}</span></button>`;
-  }).join('');
-  return `<section class="m01-console-pane" aria-label="Incidents in ${esc(parent.id)}"><p class="m01-console-pane-title">Related incidents · ${esc(parent.id)}</p>
-    <p class="m03e-muted">${esc(parent.title)} · assigned to you · ${parent.incidents.length} incidents. Open an incident to work it. Resolve each on its own evidence; ${esc(parent.id)} can be resolved only after all of them are.</p>
-    <div class="m03e-listing">${rows}</div></section>`;
+  const tab = (id, label) => `<button type="button" role="tab" aria-selected="${activeId === id}" class="${activeId === id ? 'is-active' : ''}" data-m12-open-incident="${esc(id === parent.id ? '' : id)}">${label}</button>`;
+  return `<div class="m12-record-tabs"><nav role="tablist" aria-label="Related incidents">${tab(parent.id, esc(parent.id))}${parent.incidents.map((incident) => tab(incident.id, `${esc(incident.id)} · ${esc(moduleTwelveIncidentStatus(incidents[incident.id]))}`)).join('')}</nav>
+    <p class="m03e-muted">Resolve each incident on its own evidence.</p></div>`;
 }
 
 // One child incident's record: parent, status, linked alerts (each opens in
@@ -274,8 +269,7 @@ function moduleTwelveIncidentRecord(incidentId) {
   const option = (current) => ([id, text]) => `<option value="${esc(id)}" ${current === id ? 'selected' : ''}>${esc(text)}</option>`;
   const activity = (state.actionHistory || []).filter((action) => action.details?.incidentId === incidentId).reverse()
     .map((action) => `<li>#${esc(action.sequence)} · ${action.type === 'incident-link' ? `Linked ${esc(action.details.alertId)}` : `Set ${esc(moduleTwelveIncidentStatus(action.details))}${action.details.disposition ? ` · ${esc(action.details.disposition)}` : ''}`}</li>`).join('');
-  return `<section class="m01-console-pane m01-console-ticket" aria-label="Incident ${esc(incidentId)}">
-    <p class="m01-console-pane-title"><button type="button" class="m01-reset" data-m12-open-incident=""><i class="ri-arrow-left-line" aria-hidden="true"></i> Back to ${esc(parent.id)}</button></p>
+  return `${moduleTwelveRecordTabs(incidentId)}<section class="m01-console-pane m01-console-ticket" aria-label="Incident ${esc(incidentId)}">
     <div class="m01-ticket-case"><div class="m01-ticket-id"><span>ITSM Incident</span><strong>${esc(incidentId)}</strong><small>${esc(incident.title)}</small><small>Parent case: ${esc(parent.id)} · ${esc(parent.title)}</small></div></div>
     <p class="m03e-muted">Status: <strong>${esc(moduleTwelveIncidentStatus(record))}</strong>${record.disposition ? ` · ${esc(record.disposition)}` : ''}${record.evidenceIds?.length ? ` · Cited: ${esc(record.evidenceIds.join(', '))}` : ''}</p>
     <p class="m01-console-pane-title">Linked alerts</p>
@@ -309,13 +303,13 @@ function moduleTwelveCaseSpec() {
 function moduleTwelveTicketView() {
   const openIncident = moduleTwelveCaseMode() && typeof m03eState === 'function' && m03eState('m12').openIncident;
   if (openIncident && SocM12AssessmentData.scenario.parentCase.incidents.some((item) => item.id === openIncident)) return moduleTwelveIncidentRecord(openIncident);
-  return `${caseRecordPane(moduleTwelveState, {
+  return `${moduleTwelveCaseMode() ? moduleTwelveRecordTabs(SocM12AssessmentData.scenario.parentCase.id) : ''}${caseRecordPane(moduleTwelveState, {
     ...moduleTwelveCaseSpec(), formId: 'm12-case-form',
     saveAttr: 'data-m12-save-case', submitAttr: 'data-m12-submit-case',
     panelId: 'm12-case-panel', compactRequirements: true,
     reviewStatus: moduleTwelveReviewStatus() === 'Lab graded' ? 'graded' : 'review',
     lockedMessage: 'Your incident ticket and range actions are recorded for faculty review.',
-  })}${moduleTwelveCaseMode() ? moduleTwelveIncidentsPanel() : ''}`;
+  })}`;
 }
 
 // Record the student's authored ticket findings into the same replayable log
@@ -365,14 +359,14 @@ const MODULE_TWELVE_SHIFT_CHECKLIST = [
 ];
 
 function moduleTwelvePracticeChecklist() {
-  return `<details class="m12-section-collapsible mf-section"><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">3</span><div><p class="m12-kicker mf-kicker">Practice It · shift checklist</p><h2 id="m12-practice-title">Work the shift in this order</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body" id="m12-practice">
+  return `<details id="m12-section-practice" class="m12-section-collapsible mf-section"><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">3</span><div><p class="m12-kicker mf-kicker">Practice It · shift checklist</p><h2 id="m12-practice-title">Work the shift in this order</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body" id="m12-practice">
     <p class="m12-muted">Tick each step as you finish it. Your ticks save to your account, so your progress follows you across sessions and devices. Not scored. <span id="m12-checklist-count">${moduleTwelveState.checklist.length} of ${MODULE_TWELVE_SHIFT_CHECKLIST.length} done.</span></p>
     <div class="m12-requirements">${MODULE_TWELVE_SHIFT_CHECKLIST.map(([label, where, detail, modules], index) => `<div><span>${String(index + 1).padStart(2, '0')}</span><input type="checkbox" data-m12-checklist="${index}" aria-label="${esc(label)}"${moduleTwelveState.checklist.includes(index) ? ' checked' : ''}><p><strong>${esc(label)}</strong><small>${esc(detail)}</small><em>${esc(where)} · ${esc(modules)}</em></p></div>`).join('')}</div>
   </section></details>`;
 }
 
 function moduleTwelvePreparation() {
-  return `<details class="m12-section-collapsible mf-section" open><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">1</span><div><p class="m12-kicker mf-kicker">Learn It · capstone recap</p><h2 id="m12-preparation-title">Briefing before the independent range</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body" id="m12-preparation" aria-labelledby="m12-preparation-title">
+  return `<details id="m12-section-preparation" class="m12-section-collapsible mf-section" open><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">1</span><div><p class="m12-kicker mf-kicker">Learn It · capstone recap</p><h2 id="m12-preparation-title">Briefing before the independent range</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body" id="m12-preparation" aria-labelledby="m12-preparation-title">
     ${moduleTwelveLearnItHtml()}
     <details class="m12-deep-dive mf-deep-dive"><summary>Deep Dive · capstone preparation notes</summary>
     <p class="m12-muted">These short briefings establish the operating model for the capstone. Review them before investigating; they are guidance, not additional scored stages.</p>
@@ -417,9 +411,9 @@ function viewModuleTwelve(user, program) {
     <section class="m12-objective"><div><i class="ri-focus-3-line" aria-hidden="true"></i></div><div><p class="m12-kicker">Assessment focus</p><h2>Demonstrate preparation, cross-source investigation, scoped response, verified recovery, and clear reporting across the integrated incident.</h2></div></section>
     <section class="m12-objective"><div><i class="ri-git-merge-line" aria-hidden="true"></i></div><div><p class="m12-kicker">Prior instruction</p><h2>This capstone draws on skills from all 11 prior modules: SOC operations foundations (M01), network and identity foundations (M02), SIEM and log analysis (M03), detection rule tuning (M04), endpoint investigation (M05), threat hunting (M06), network and email analysis (M07), vulnerability prioritization (M08), incident response (M09), evidence handling and case documentation (M10), and SOC metrics and communication (M11).</h2></div></section>
     ${moduleTwelvePreparation()}
-    <details class="m12-section-collapsible mf-section" open><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">2</span><div><p class="m12-kicker mf-kicker">Mission requirements</p><h2 id="m12-mission-title">Outcomes, not a prescribed attack path</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body"><p class="m12-muted">Let the evidence set the timeline. Your deliverables are the steps in the Shift Checklist below.</p></section></details>
+    <details id="m12-section-mission" class="m12-section-collapsible mf-section" open><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">2</span><div><p class="m12-kicker mf-kicker">Mission requirements</p><h2 id="m12-mission-title">Outcomes, not a prescribed attack path</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section mf-section-body"><p class="m12-muted">Let the evidence set the timeline. Your deliverables are the steps in the Shift Checklist below.</p></section></details>
     ${moduleTwelvePracticeChecklist()}
-    <details class="m12-section-collapsible mf-section mf-lab-section" data-lab-maximize><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">4</span><div><p class="m12-kicker mf-kicker">Complete integrated range</p><h2 id="m12-range-title">Investigation consoles</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section m12-range-section mf-section-body" id="m12-range"><div id="m12-ticket"><div id="m12-console-root">${moduleTwelveConsole()}</div></div></section></details>
+    <details id="m12-section-range" class="m12-section-collapsible mf-section mf-lab-section" data-lab-maximize><summary><div class="m12-section-heading mf-section-heading"><span class="mf-section-badge">4</span><div><p class="m12-kicker mf-kicker">Complete integrated range</p><h2 id="m12-range-title">Investigation consoles</h2></div><span class="mf-section-toggle" aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></div></summary><section class="m12-section m12-range-section mf-section-body" id="m12-range"><div id="m12-ticket"><div id="m12-console-root">${moduleTwelveConsole()}</div></div></section></details>
 
   </main></div></div>`;
 }

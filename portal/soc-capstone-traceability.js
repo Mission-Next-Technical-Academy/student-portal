@@ -142,7 +142,7 @@ const SocCapstoneTraceability = (() => {
       capstone: { criterion: 'alert-incident-management', mechanic: 'Resolve each child incident of the assigned CASE with its own disposition and a note citing evidence; the CASE closes only after every child is resolved (rubric v3)', tab: 'case', recordedAs: 'incident-update { incidentId, status, disposition, note }', rubricText: ['Incidents are resolved with the supported disposition and cited evidence.', 'not resolved on cited evidence.'], checklistStep: ['Resolve incidents'], actionTypes: ['incident-update'] },
       practice: [],
       prove: [],
-      code: [...M12, 'portal/soc-analyst-module-12.js#moduleTwelveIncidentsPanel'],
+      code: [...M12, 'portal/soc-analyst-module-12.js#moduleTwelveRecordTabs'],
       related: [V('M01', 'disposition'), V('M03', 'verdict')],
       gap: 'M01–M11 tickets carry one disposition for one incident; no earlier module has a parent CASE with several child incidents resolved independently. Closes when the CASE→INC model is rolled out to M01–M11.',
     },
