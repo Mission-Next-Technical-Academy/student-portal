@@ -1,8 +1,8 @@
 # M12 Capstone Scenario Contract — Operation Amber Finch
 
-**Status:** Draft for owner/content review; based on current synthetic fixture, not yet implemented.  
-**UI constraint:** use the existing M12 console and ITSM tab. Do not add, move, or restyle UI.  
-**Learning mode:** independent capstone assessment; no procedural guidance, answer cues, or pre-submit score.  
+**Status:** Core CASE → INC model implemented 2026-10-13 (rubric v3, uncommitted on `feat/itsm-practice-prove-reverse-engineering`). See "Implementation status" at the end.\
+**UI constraint:** owner granted an M12-only exception (2026-10-13) for the Practice It checklist and the CASE/INC display in the ITSM tab. M01–M11 stay frozen until the CASE → INC rollout.\
+**Learning mode:** Practice It is a read-only, unscored, ordered shift checklist (where each action happens, never the answer). Prove It is the independent Amber Finch console with no answer cues or pre-submit score.\
 **Source scenario:** `portal/soc-m12-assessment-data.js` (`M12-AMBER-FINCH-2026-09-27`).  
 **Assessment implementation:** `portal/soc-analyst-module-12.js`, `portal/soc-m12-assessment-console.js`, `portal/soc-m12-assessment-state.js`, `portal/soc-m12-assessment-rubric.js`, `portal/soc-m12-assessment-scorer.js`.
 
@@ -93,3 +93,24 @@ Current M12 has a case-record pane with one `caseId`, one case-level status, one
 ## Existing records to preserve
 
 `INC-4821`, `AL-1201`–`AL-1214`, `EM-212`, `EP-301`, `EP-303`, `ID-402`, `NW-501`, `NW-504`, `BEN-101`, `TI-601`–`TI-605`, backup IDs, telemetry rows, submitted rubric v1/v2 payloads, and existing learner completion records. New CASE/INC identifiers and evidence links must not change a historical attempt's displayed scenario or score.
+
+## Owner decisions (2026-10-13)
+
+- `INC-4823` (WS-118, approved inventory activity) **is a separate child incident**. The CASE has three incidents.
+- M12 Practice It = **read-only ordered checklist, no new scenario, not scored** (`MODULE_TWELVE_SHIFT_CHECKLIST`).
+- UI freeze lifted **for M12 only**. Next after the capstone: roll the CASE-with-nested-INC model out to M01–M11 ("SOC shift with multiple cases, or at least multiple INCs nested inside").
+
+## Implementation status (2026-10-13)
+
+Done:
+- Fixture: `scenario.parentCase` (`CASE-124821` → `INC-4821`/`4822`/`4823`, neutral signal titles); `expectedTruth.incidentAlerts`, `incidentDispositions`, `incidentEvidence`. `scenario.caseId` stays `INC-4821` for v1/v2 and the M08/M09 packs.
+- State: `incident-update { incidentId, status, disposition, note }`; resolving needs a final disposition; cited evidence IDs are parsed from the note.
+- Rubric v3 (`extractV2(state, fixture, 3)`): alert-incident-management = dispositions 3 + one point per incident with a correctly linked alert + ticket core 3 + one point per incident resolved with the supported disposition and cited evidence. Deductions for an alert linked to an incident it does not belong to and for a wrong incident resolution. A CASE `close` earns closure credit only when every child incident is resolved. Unsubmitted attempts load at v3; submitted v1/v2 attempts keep their scores and their single-incident ticket view.
+- UI: ITSM ticket shows `CASE-124821` with its linked incidents and an "Incidents in CASE-124821" panel (status/disposition/note per incident, analyst-made alert links). The Alerts-tab link form is a select of the CASE's incidents. Missing-list items: "No incident status updated yet" and "Resolve … before resolving CASE-124821". The rail shows Practice It → Shift checklist and Prove It → Assessment Lab (the duplicate "Guided Lab" entry is gone).
+- Traceability: new `incident-resolution` and `incident-resolution-wrong-deduction` entries, listed as KNOWN_GAPS until the M01–M11 rollout.
+- Verification: all M12 unit tests plus a new `tests/soc-m12-assessment-v3.test.js`; `bin/ci-check.sh` green; headless Chrome click-through on :8768 with every Supabase request aborted and persistence stubbed (rail, checklist, CASE header, link + resolve through the real forms, refusal message, close guard).
+
+Open:
+- The instructor review panel (`adminCapstoneReviewPanel`) does not yet render `studentDeterminations.incidents` as its own section; the data is in the payload.
+- Whether incidents should have pre-existing statuses or owners at shift start (currently all `New`, unassigned links).
+- Staging UAT with a real synthetic account.

@@ -1,5 +1,10 @@
 # Read this first
 
+> **Student data before 2027-11-02 is synthetic (owner, 2026-10-13).** Every
+> student account, enrollment, submission and grade dated before **2 November
+> 2027** belongs to a fake test student, not a real learner. This does not relax
+> any production, database or deploy rule in `docs/operations/AI_AGENT_RULES.md`.
+
 **Local testing: staging by default.** Start the app with `bin/dev.sh` (stop: `bin/dev.sh stop`). It connects to the **staging** Supabase project, never production. Check `bin/dev.sh status` shows `target=STAGING` before signing in or clicking through flows. Never pass `--production` or point anything at production unless a person explicitly asks in this session. Sign in only with synthetic staging accounts; credentials come from the person, never from files in this repo. Don't serve `portal/` any other way (e.g. `python -m http.server`): that bypasses the staging swap and connects to production.
 
 Before database, staging, deploy or merge work, read docs/operations/AI_AGENT_RULES.md.
