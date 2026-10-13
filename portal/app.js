@@ -6056,6 +6056,11 @@ async function toggleCredentialsPanel(studentId, btn, trackCode) {
   btn.setAttribute('aria-expanded', 'true');
   if (chevron) chevron.style.transform = 'rotate(90deg)';
   if (!inner.dataset.loaded) {
+    // Rotate password lives inside the expanded panel, away from the row's
+    // chevron, so it can't be hit by accident. Admins only.
+    const rotateButton = btn.dataset.canRotate === '1'
+      ? `<button type="button" data-rotate-password="${esc(studentId)}" class="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-sans font-semibold text-gray-500 bg-white border border-gray-200 hover:text-[#f97316] hover:border-[#f97316]" title="Generate a new password for this account and sign out its sessions"><i class="ri-key-2-line"></i>Rotate password</button>`
+      : '';
     inner.innerHTML = '<p class="text-sm text-gray-400">Loading credentials…</p>';
     panel.style.maxHeight = '48px';
     const { data, error } = await mntSupabase
@@ -6067,12 +6072,18 @@ async function toggleCredentialsPanel(studentId, btn, trackCode) {
     if (error) {
       inner.innerHTML = `<p class="text-sm text-red-600">Could not load credentials — ${esc(error.message)}</p>`;
     } else if (!data) {
-      inner.innerHTML = '<p class="text-sm text-gray-500">No stored password for this account — it was likely created before this feature existed, or the write failed at creation time.</p>';
+      inner.innerHTML = `<div class="flex items-center gap-6">
+        <p class="text-sm text-gray-500">No stored password for this account — it was likely created before this feature existed, or the write failed at creation time.</p>
+        ${rotateButton}
+      </div>`;
     } else {
       inner.innerHTML = `
         <p class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-2">Login Credentials</p>
+        <div class="flex items-center gap-6">
         <pre data-select-all tabindex="0" class="inline-block bg-white border border-gray-200 rounded-lg p-3 text-sm font-mono text-gray-900 cursor-text overflow-x-auto" title="Click to select all">Student ID: ${esc(studentId)}
 Password:   ${esc(data.password)}</pre>
+        ${rotateButton}
+        </div>
         <p class="text-xs text-gray-400 mt-2">Generated ${new Date(data.created_at).toLocaleDateString()}</p>`;
       wireSelectAllBlocks(inner);
     }
@@ -6115,7 +6126,8 @@ Password:   ${esc(data.password)}</pre>
  * within 5s rotates via admin-provision's rotate_password action, then
  * admin_force_sign_out() revokes sessions opened with the old password. The
  * new password is shown by reloading the row's credentials panel. */
-async function rotateAccountPassword(btn) {
+async function rotateAccountPassword(rotateBtn) {
+  let btn = rotateBtn;
   const studentId = btn.getAttribute('data-rotate-password');
   if (btn.dataset.armed !== '1') {
     btn.dataset.armed = '1';
@@ -6149,6 +6161,7 @@ async function rotateAccountPassword(btn) {
       delete inner.dataset.loaded;
       if (credBtn.getAttribute('aria-expanded') === 'true') credBtn.setAttribute('aria-expanded', 'false');
       await toggleCredentialsPanel(studentId, credBtn, credBtn.getAttribute('data-credential-track'));
+      btn = inner.querySelector('[data-rotate-password]') || btn;
     }
     btn.innerHTML = '<i class="ri-check-line"></i>Rotated';
     btn.classList.remove('text-red-700', 'border-red-300');
@@ -6573,11 +6586,10 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                          <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors admin-table-row ${row.enrolled === false ? 'opacity-65' : ''}"
                              data-track="${esc(row.track_code)}" data-progress="${programmeProgress.percent}" data-started="${(programmeProgress.completed > 0 || (row.modules_in_progress || 0) > 0) ? '1' : '0'}" data-enrolled="${row.enrolled !== false ? '1' : '0'}">
                            <td class="px-6 py-4 text-sm text-gray-900 font-mono">
-                             <button type="button" data-view-credentials="${esc(row.student_id)}" data-credential-track="${esc(row.track_code)}" aria-expanded="false" class="inline-flex items-center gap-1 hover:text-[#f97316] cursor-pointer group" title="View login credentials">
+                             <button type="button" data-view-credentials="${esc(row.student_id)}" data-credential-track="${esc(row.track_code)}"${instructorDashboard ? '' : ' data-can-rotate="1"'} aria-expanded="false" class="inline-flex items-center gap-1 hover:text-[#f97316] cursor-pointer group" title="View login credentials">
                                <i class="ri-arrow-right-s-line text-gray-400 group-hover:text-[#f97316] transition-transform" data-cred-chevron="${esc(row.student_id)}"></i>
                                ${esc(row.student_id)}
                              </button>
-                             ${instructorDashboard ? '' : `<button type="button" data-rotate-password="${esc(row.student_id)}" class="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-sans font-semibold text-gray-500 border border-gray-200 hover:text-[#f97316] hover:border-[#f97316]" title="Generate a new password for this account and sign out its sessions"><i class="ri-key-2-line"></i>Rotate password</button>`}
                              ${cheatingFlagsByStudentId.has(row.student_id) ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 cursor-help" title="${esc(cheatingFlagsByStudentId.get(row.student_id).join(' · '))}">Review</span>` : ''}
                            </td>
                            <td class="px-6 py-4 text-sm text-gray-600">${esc(row.track_code)}</td>
