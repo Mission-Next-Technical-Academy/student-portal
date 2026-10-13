@@ -1,7 +1,7 @@
 'use strict';
 // Keeps portal/soc-capstone-traceability.js honest. The M12 mechanics are read
 // from the capstone code itself (rubric v2 award / deduction / miss text,
-// moduleTwelveActionMissing() messages, ticket fields, action types), so a new
+// Shift Checklist steps, ticket fields, action types), so a new
 // graded mechanic that has no traceability entry fails here.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -60,10 +60,10 @@ for (const m of v2Body.matchAll(/'((?:[^'\\\n]|\\.)*)'|`((?:[^`\\]|\\.)*)`/g)) {
 }
 
 const moduleTwelveSource = read('portal/soc-analyst-module-12.js');
-const missingBody = moduleTwelveSource.slice(moduleTwelveSource.indexOf('function moduleTwelveActionMissing'), moduleTwelveSource.indexOf('function moduleTwelveCaseSpec'));
-const missingChecks = new Set([...missingBody.matchAll(/'(No [^']*? yet)'/g)].map((m) => m[1]));
+const checklistBody = moduleTwelveSource.slice(moduleTwelveSource.indexOf('const MODULE_TWELVE_SHIFT_CHECKLIST'), moduleTwelveSource.indexOf('function moduleTwelvePracticeChecklist'));
+const checklistSteps = new Set([...checklistBody.matchAll(/^\s*\['([^']+)',/gm)].map((m) => m[1]));
 
-const findingsBody = moduleTwelveSource.slice(moduleTwelveSource.indexOf('const MODULE_TWELVE_TICKET_FINDINGS'), moduleTwelveSource.indexOf('// Presence checks describe'));
+const findingsBody = moduleTwelveSource.slice(moduleTwelveSource.indexOf('const MODULE_TWELVE_TICKET_FINDINGS'), moduleTwelveSource.indexOf('// Attempts submitted under rubric'));
 const coreMatch = /Object\.fromEntries\(\[((?:'[A-Za-z]+',?\s*)+)\]\.map/.exec(moduleTwelveSource);
 const ticketFields = new Set([
   ...[...findingsBody.matchAll(/name:\s*'([A-Za-z]+)'/g)].map((m) => m[1]),
@@ -153,11 +153,12 @@ test('every rubric v2 award, deduction and miss is traced (and no entry cites te
   assert.deepEqual(stale, [], `entries cite rubric text that no longer exists in extractV2: ${stale.join(' | ')}`);
 });
 
-test('every moduleTwelveActionMissing() check is traced', () => {
-  assert.ok(missingChecks.size >= 13, 'parsed the missing-action checks');
-  const have = covered((c) => c.missingCheck);
-  assert.deepEqual([...missingChecks].filter((m) => !have.has(m)), [], 'missing-action checks with no entry');
-  assert.deepEqual([...have].filter((m) => !missingChecks.has(m)), [], 'entries cite missing-action checks that no longer exist');
+test('every checklistStep names a Shift Checklist step, and every mechanic with an action check has one', () => {
+  assert.equal(checklistSteps.size, 13, 'parsed the Shift Checklist steps');
+  const have = covered((c) => c.checklistStep);
+  assert.deepEqual([...have].filter((step) => !checklistSteps.has(step)), [], 'entries cite checklist steps that do not exist');
+  const traced = entries.filter((entry) => (entry.capstone.actionTypes || []).length && !(entry.capstone.checklistStep || []).length);
+  assert.deepEqual(traced.map((entry) => entry.id), [], 'graded mechanics recorded as actions with no checklistStep');
 });
 
 test('every M12 ticket field is traced', () => {

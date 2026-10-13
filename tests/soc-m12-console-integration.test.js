@@ -37,7 +37,7 @@ assert.match(html, /data-m12-submit-case/);
 for (const name of ['status','severity','affectedUser','affectedDevice','disposition','escalation','notes']) assert.match(html, new RegExp(`name="${name}"`));
 for (const name of ['priorityRationale','scopeStatement','executiveSummary','closureNote']) assert.match(html, new RegExp(`<textarea name="finding:${name}"`));
 assert.match(html, /minlength="180"/);
-assert.match(html, /No response action attempted yet/);
+assert.doesNotMatch(html, /No response action attempted yet|m01-requirements-list|ticket is ready/); // compact: requirements list never shown
 assert.doesNotMatch(html, /data-m12-assessment-action|data-m12-submit-capstone|m12-action-grid|m12-evidence-grid|is-correct|rubric|\d+ of \d+ points/);
 const moduleUi = read('portal/soc-analyst-module-12.js');
 assert.doesNotMatch(moduleUi, /m12-assessment-section|moduleTwelveAssessment\(|moduleTwelveFindingsHtml\(|MODULE_TWELVE_CONSOLES|MODULE_TWELVE_EVIDENCE|data-m12-hint|data-m12-assessment-action/);
@@ -48,9 +48,6 @@ const consoleUi = read('portal/soc-m12-assessment-console.js');
 for (const marker of ['data-m12-action="hypothesis"','data-m12-action="handoff"','data-m12-action="closure"','[\'technical\',\'executive\',\'lessons\']','data-m12-report="${kind}"']) {
   assert.ok(consoleUi.includes(marker), `${marker} is available in the cumulative Operations/Reporting workspaces`);
 }
-const emptyTracker = vm.runInContext('moduleTwelveMissionStatus()', context);
-assert.equal((emptyTracker.match(/<span>\d{2}<\/span>/g) || []).length, 12, 'the tracker renders all twelve mission requirements');
-assert.doesNotMatch(emptyTracker, /is-seen|· reviewed|· open/, 'mission outcomes never report per-item correctness or visits');
 vm.runInContext(`moduleTwelveState.status='pending'; moduleTwelveState.severity='high'; moduleTwelveState.affectedUser='acct-204'; moduleTwelveState.affectedDevice='ws-204'; moduleTwelveState.disposition='true-positive'; moduleTwelveState.escalation='required'; moduleTwelveState.escalateTo='tier2-soc';
 moduleTwelveState.notes='EP-301 and ID-402 support the confirmed scope and timeline. '+ 'Technical reasoning with supported sequence and remaining uncertainty. '.repeat(5);
 moduleTwelveState.findings={ priorityRationale: 'EP-301 and ID-402 demonstrate concurrent endpoint and identity exposure requiring timely response.', scopeStatement: 'EP-301 and ID-402 identify ws-204 and acct-204. NW-504 bounds the observed scope to the supplied telemetry; remaining devices need monitoring.', executiveSummary: 'The affected user and service require a containment decision. '+ 'Business impact remains bounded while the team preserves evidence and validates recovery. '.repeat(3), closureNote: 'Keep the incident open pending validated recovery and continued monitoring. The incident lead owns the remaining follow-up and residual risk.' };
