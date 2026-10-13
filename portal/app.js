@@ -5506,18 +5506,6 @@ function viewProgram(user, slug) {
   // exportStudentRecord() at click time (Sprint F, docs/specs/architecture.md).
   window.__mntCurrentUser = user;
   window.__mntCurrentProgram = program;
-  // The lab catalogue is per-track. Tracks whose labs are not authored yet get
-  // no Capstone section at all, rather than an empty grid.
-  const trackLabs = programLabs(program);
-  const capstoneEntry = Object.entries(program.modules).find(([, module]) => module.isCapstone);
-  const capstoneModuleKey = capstoneEntry && capstoneEntry[0];
-  const capstoneModule = capstoneEntry && capstoneEntry[1];
-  const capstoneLab = capstoneModuleKey && trackLabs.find((lab) => lab.module === capstoneModuleKey && lab.isCapstone);
-  const hasCapstone = Boolean(capstoneModule && capstoneLab);
-  const capstonePrerequisites = Object.keys(program.modules)
-    .filter((key) => !program.modules[key].isCapstone);
-  const capstoneReady = hasCapstone && hasModuleAccess(user, slug, capstoneModuleKey)
-    && capstonePrerequisites.every((key) => moduleCompletion(program, key, user).complete);
   const displayTitle = (program.compliance && program.compliance.programName) || program.title;
   // Progress already states the module count, and the compliance summary owns
   // approved/lab hours. Keep the at-a-glance card to the distinct essentials.
@@ -5641,7 +5629,6 @@ function viewProgram(user, slug) {
       <div class="max-w-7xl mx-auto px-8 flex gap-1 overflow-x-auto" style="scrollbar-width: none">
         ${[
           ['Curriculum', 'curriculum'],
-          ...(hasCapstone ? [['Capstone', 'capstone']] : []),
           [program.careerReadiness ? 'M360 Companion' : 'Career Readiness', 'career-readiness'],
         ].map(([label, anchor]) => `
           <a href="#sec-${anchor}" data-section-jump="sec-${anchor}"
@@ -5678,64 +5665,6 @@ function viewProgram(user, slug) {
           </div>`).join('')}
       </div>
     </section>
-
-    <!-- capstone -->
-    ${!hasCapstone ? '' : `
-    <section id="sec-capstone" class="relative py-16 px-8 overflow-hidden scroll-mt-32"
-             style="background: linear-gradient(135deg, #0a1628 0%, #1e3a5f 45%, #0f2440 100%)">
-      <div class="mnt-stars"></div>
-      <div class="relative z-10 max-w-7xl mx-auto">
-        <div class="inline-flex items-center gap-2 bg-white/10 text-white/80 text-xs font-semibold px-4 py-1.5 rounded-full uppercase tracking-widest mb-6 border border-white/15">
-          <span class="w-1.5 h-1.5 rounded-full bg-[#f97316]"></span>Module ${String(capstoneModule.number).padStart(2, '0')} · ${formatInstructionalMinutes(capstoneLab.instructionalMinutes || capstoneLab.minutes)} · Final Assessment
-        </div>
-        <h2 class="text-3xl font-bold text-white mb-3">${esc(capstoneModule.title)}</h2>
-        <div class="w-12 h-1 bg-[#f97316] rounded-full mb-6"></div>
-        <p class="text-white/55 text-base max-w-2xl mb-10">
-          ${esc((program.capstone && program.capstone.intro) || 'A full integrated assessment that draws on everything taught in the modules before it. This is the program\'s only Prove assessment.')}
-        </p>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
-          ${((program.capstone && program.capstone.capabilities) || []).map((capability) => `
-            <div class="flex items-center gap-4 bg-white/[0.06] border border-white/10 rounded-xl px-5 py-4">
-              <span class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg bg-[#f97316]/20 text-[#f97316]" aria-hidden="true">
-                <i class="ri-checkbox-blank-circle-line"></i>
-              </span>
-              <span class="text-white/80 font-medium text-sm">${esc(capability)}</span>
-            </div>`).join('')}
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-          <div class="bg-white/[0.06] border border-white/10 rounded-xl px-6 py-5">
-            <p class="text-white/60 text-xs font-semibold uppercase tracking-widest mb-2">Rubric scoring</p>
-            <p class="text-white text-sm leading-relaxed">
-              ${esc((program.capstone && program.capstone.rubricSummary) || `Pass requires at least ${capstoneLab.instructionalMinutes ? '70%' : '70 points'} against the program's capstone rubric.`)}
-            </p>
-          </div>
-          <div class="bg-white/[0.06] border border-white/10 rounded-xl px-6 py-5">
-            <p class="text-white/60 text-xs font-semibold uppercase tracking-widest mb-2">Prior instruction trace</p>
-            <p class="text-white text-sm leading-relaxed">
-              ${esc((program.capstone && program.capstone.priorTrace) || `Draws on competencies from every module before Module ${String(capstoneModule.number).padStart(2, '0')}.`)}
-            </p>
-          </div>
-        </div>
-
-        <div class="mt-10">
-          ${
-            capstoneReady
-              ? `<a href="#/program/${esc(slug)}/module/${capstoneModule.number}"
-                    class="inline-flex items-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-8 py-3.5
-                           rounded-xl transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer">
-                   <i class="ri-flag-line"></i> Begin Capstone
-                 </a>`
-              : `<span class="inline-flex items-center gap-2 border border-white/20 text-white/50 font-semibold px-8 py-3.5 rounded-xl">
-                   <i class="ri-lock-line"></i> Complete ${capstonePrerequisites.length} prerequisite modules to unlock
-                 </span>`
-          }
-        </div>
-      </div>
-    </section>
-
-    `}
 
     <!-- separately accounted career readiness -->
     <section id="sec-career-readiness" class="py-16 px-8 scroll-mt-32">
@@ -6997,7 +6926,7 @@ async function render(options = {}) {
   // A route may have changed while session restoration was in flight.
   if (!isCurrentRouteRender(renderGeneration)) return;
 
-  // In-page anchors (#sec-capstone) share the hash with the router.
+  // In-page anchors (#sec-curriculum etc.) share the hash with the router.
   // Only hashes beginning '#/' are routes; everything else is the browser
   // scrolling within the current view and must not trigger a re-render.
   if (hash && !hash.startsWith('#/') && hasRenderedRouteContent(app)) {
