@@ -20,8 +20,19 @@ or merge work. Details: `docs/operations/STAGING_AUTOMATION.md`.
 
 ## Database
 
-- Staging project: `xbblgtrfwgeiyttdlbue`. Production (`eokvngifirjgfozzbieu`)
-  is never targeted by agents.
+- Staging project: `xbblgtrfwgeiyttdlbue`. Production
+  (`eokvngifirjgfozzbieu`) is protected by default. A person may explicitly
+  authorize a narrowly scoped production data task in the current session;
+  that authorization applies only to the stated task.
+- For production student cleanup, confirm the target track and that the
+  accounts are synthetic. Build and review an explicit list of student IDs
+  before deletion. The purge script's dry run checks only the IDs supplied
+  and reports counts for the tables it knows about; separately check other
+  dependent or delete-restricted records. Exclude admins and instructors,
+  preserve shared course content, and report the preflight and outcome.
+- Production admin-script runs require an explicit production `SUPABASE_URL`
+  and the script's `--production` guard. Production schema changes, migration
+  pushes/resets, and function deploys are not covered by a data-task exception.
 - Never run `supabase db push`, `supabase db reset` or
   `supabase functions deploy` without `--project-ref xbblgtrfwgeiyttdlbue`.
 - Run `supabase db push` with `--dry-run` first.
@@ -31,8 +42,9 @@ or merge work. Details: `docs/operations/STAGING_AUTOMATION.md`.
 
 ## Admin scripts
 
-- Admin scripts in `bin/` need `SUPABASE_URL` set to staging explicitly.
-- Never add `--production`.
+- Admin scripts in `bin/` need `SUPABASE_URL` set explicitly to the intended
+  project. Use staging for normal work. Production requires the scoped,
+  task-specific authorization above and the script's `--production` guard.
 
 ## Merging
 
