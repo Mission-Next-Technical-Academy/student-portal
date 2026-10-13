@@ -1139,6 +1139,10 @@ function adminCaseTicketSubmissionPanel(row) {
     ['Scope', handoff.scope],
     ['Requested next action', handoff.nextAction],
   ].filter(([, value]) => typeof value === 'string' && value.trim());
+  const incidentResolutions = record.incidentResolutions && typeof record.incidentResolutions === 'object' ? record.incidentResolutions : null;
+  const childResolutions = incidentResolutions?.children && typeof incidentResolutions.children === 'object'
+    ? Object.entries(incidentResolutions.children).filter(([, value]) => value && typeof value === 'object' && (value.resolved || value.note || value.disposition || value.evidence))
+    : [];
 
   return `<section class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-3" aria-label="Student submitted case ticket">
     <div class="flex flex-wrap items-baseline justify-between gap-2 mb-2"><p class="text-sm font-semibold text-[#1e3a5f]">Student-submitted case ticket</p><span class="text-xs text-gray-500">Use the note below to grade communication.</span></div>
@@ -1147,6 +1151,7 @@ function adminCaseTicketSubmissionPanel(row) {
     </dl>
     <div class="mt-3 rounded-lg border border-[#bfdbfe] bg-white p-3"><p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Analyst work notes · student response</p><p class="whitespace-pre-wrap text-sm text-gray-800">${esc(record.notes || 'Not provided')}</p></div>
     ${handoffFields.length ? `<div class="mt-3 grid sm:grid-cols-2 gap-2">${handoffFields.map(([label, value]) => `<div class="rounded-lg border border-[#bfdbfe] bg-white p-3"><p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">${esc(label)}</p><p class="whitespace-pre-wrap text-sm text-gray-800">${esc(value)}</p></div>`).join('')}</div>` : ''}
+    ${incidentResolutions ? `<div class="mt-3 rounded-lg border border-[#bfdbfe] bg-white p-3"><p class="text-sm font-semibold text-[#1e3a5f]">Child incident resolutions · parent ${incidentResolutions.parentClosed ? 'closed' : 'open'}</p>${childResolutions.length ? `<div class="mt-2 space-y-2">${childResolutions.map(([id, item]) => `<article class="rounded border border-gray-200 p-3"><p class="font-semibold text-sm">${esc(id)} · ${esc(item.resolved ? 'Resolved' : 'Open')} · ${esc(display('disposition', item.disposition))}</p><p class="mt-1 text-xs text-gray-600"><strong>Evidence:</strong> ${esc(item.evidence || 'Not provided')}</p><p class="mt-1 whitespace-pre-wrap text-sm text-gray-800"><strong>Student resolution note:</strong> ${esc(item.note || 'Not provided')}</p></article>`).join('')}</div>` : '<p class="mt-2 text-sm text-gray-500">No child incident resolutions recorded.</p>'}</div>` : ''}
   </section>`;
 }
 
@@ -5506,18 +5511,6 @@ function viewProgram(user, slug) {
   // exportStudentRecord() at click time (Sprint F, docs/specs/architecture.md).
   window.__mntCurrentUser = user;
   window.__mntCurrentProgram = program;
-  // The lab catalogue is per-track. Tracks whose labs are not authored yet get
-  // no Capstone section at all, rather than an empty grid.
-  const trackLabs = programLabs(program);
-  const capstoneEntry = Object.entries(program.modules).find(([, module]) => module.isCapstone);
-  const capstoneModuleKey = capstoneEntry && capstoneEntry[0];
-  const capstoneModule = capstoneEntry && capstoneEntry[1];
-  const capstoneLab = capstoneModuleKey && trackLabs.find((lab) => lab.module === capstoneModuleKey && lab.isCapstone);
-  const hasCapstone = Boolean(capstoneModule && capstoneLab);
-  const capstonePrerequisites = Object.keys(program.modules)
-    .filter((key) => !program.modules[key].isCapstone);
-  const capstoneReady = hasCapstone && hasModuleAccess(user, slug, capstoneModuleKey)
-    && capstonePrerequisites.every((key) => moduleCompletion(program, key, user).complete);
   const displayTitle = (program.compliance && program.compliance.programName) || program.title;
   // Progress already states the module count, and the compliance summary owns
   // approved/lab hours. Keep the at-a-glance card to the distinct essentials.
@@ -5641,7 +5634,6 @@ function viewProgram(user, slug) {
       <div class="max-w-7xl mx-auto px-8 flex gap-1 overflow-x-auto" style="scrollbar-width: none">
         ${[
           ['Curriculum', 'curriculum'],
-          ...(hasCapstone ? [['Capstone', 'capstone']] : []),
           [program.careerReadiness ? 'M360 Companion' : 'Career Readiness', 'career-readiness'],
         ].map(([label, anchor]) => `
           <a href="#sec-${anchor}" data-section-jump="sec-${anchor}"
@@ -5678,64 +5670,6 @@ function viewProgram(user, slug) {
           </div>`).join('')}
       </div>
     </section>
-
-    <!-- capstone -->
-    ${!hasCapstone ? '' : `
-    <section id="sec-capstone" class="relative py-16 px-8 overflow-hidden scroll-mt-32"
-             style="background: linear-gradient(135deg, #0a1628 0%, #1e3a5f 45%, #0f2440 100%)">
-      <div class="mnt-stars"></div>
-      <div class="relative z-10 max-w-7xl mx-auto">
-        <div class="inline-flex items-center gap-2 bg-white/10 text-white/80 text-xs font-semibold px-4 py-1.5 rounded-full uppercase tracking-widest mb-6 border border-white/15">
-          <span class="w-1.5 h-1.5 rounded-full bg-[#f97316]"></span>Module ${String(capstoneModule.number).padStart(2, '0')} · ${formatInstructionalMinutes(capstoneLab.instructionalMinutes || capstoneLab.minutes)} · Final Assessment
-        </div>
-        <h2 class="text-3xl font-bold text-white mb-3">${esc(capstoneModule.title)}</h2>
-        <div class="w-12 h-1 bg-[#f97316] rounded-full mb-6"></div>
-        <p class="text-white/55 text-base max-w-2xl mb-10">
-          ${esc((program.capstone && program.capstone.intro) || 'A full integrated assessment that draws on everything taught in the modules before it. This is the program\'s only Prove assessment.')}
-        </p>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
-          ${((program.capstone && program.capstone.capabilities) || []).map((capability) => `
-            <div class="flex items-center gap-4 bg-white/[0.06] border border-white/10 rounded-xl px-5 py-4">
-              <span class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg bg-[#f97316]/20 text-[#f97316]" aria-hidden="true">
-                <i class="ri-checkbox-blank-circle-line"></i>
-              </span>
-              <span class="text-white/80 font-medium text-sm">${esc(capability)}</span>
-            </div>`).join('')}
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-          <div class="bg-white/[0.06] border border-white/10 rounded-xl px-6 py-5">
-            <p class="text-white/60 text-xs font-semibold uppercase tracking-widest mb-2">Rubric scoring</p>
-            <p class="text-white text-sm leading-relaxed">
-              ${esc((program.capstone && program.capstone.rubricSummary) || `Pass requires at least ${capstoneLab.instructionalMinutes ? '70%' : '70 points'} against the program's capstone rubric.`)}
-            </p>
-          </div>
-          <div class="bg-white/[0.06] border border-white/10 rounded-xl px-6 py-5">
-            <p class="text-white/60 text-xs font-semibold uppercase tracking-widest mb-2">Prior instruction trace</p>
-            <p class="text-white text-sm leading-relaxed">
-              ${esc((program.capstone && program.capstone.priorTrace) || `Draws on competencies from every module before Module ${String(capstoneModule.number).padStart(2, '0')}.`)}
-            </p>
-          </div>
-        </div>
-
-        <div class="mt-10">
-          ${
-            capstoneReady
-              ? `<a href="#/program/${esc(slug)}/module/${capstoneModule.number}"
-                    class="inline-flex items-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-8 py-3.5
-                           rounded-xl transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer">
-                   <i class="ri-flag-line"></i> Begin Capstone
-                 </a>`
-              : `<span class="inline-flex items-center gap-2 border border-white/20 text-white/50 font-semibold px-8 py-3.5 rounded-xl">
-                   <i class="ri-lock-line"></i> Complete ${capstonePrerequisites.length} prerequisite modules to unlock
-                 </span>`
-          }
-        </div>
-      </div>
-    </section>
-
-    `}
 
     <!-- separately accounted career readiness -->
     <section id="sec-career-readiness" class="py-16 px-8 scroll-mt-32">
@@ -6568,15 +6502,16 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                    <table class="w-full border-collapse">
                      <thead>
                        <tr class="border-b border-gray-200 bg-gray-50">
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="studentId">Student ID<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="track">Track<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="program">Program<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="enrollment">Enrollment<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="progress">Progress<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="modules">Coursework<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="capstone">Capstone<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="lastActive">Last Active<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]"></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="studentId">Student ID<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="track">Track<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="program">Program<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="enrollment">Enrollment Status<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="progress">Progress<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="modules">Coursework<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="capstone">Capstone<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="lastActive">Last Active<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f] whitespace-nowrap">Enrollment</th>
+                         <th class="text-left px-3 py-3 text-sm font-semibold text-[#1e3a5f]"></th>
                        </tr>
                      </thead>
                      <tbody id="admin-table-body">
@@ -6585,16 +6520,16 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                          return `
                          <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors admin-table-row ${row.enrolled === false ? 'opacity-65' : ''}"
                              data-track="${esc(row.track_code)}" data-progress="${programmeProgress.percent}" data-started="${(programmeProgress.completed > 0 || (row.modules_in_progress || 0) > 0) ? '1' : '0'}" data-enrolled="${row.enrolled !== false ? '1' : '0'}">
-                           <td class="px-6 py-4 text-sm text-gray-900 font-mono">
+                           <td class="px-3 py-4 text-sm text-gray-900 font-mono">
                              <button type="button" data-view-credentials="${esc(row.student_id)}" data-credential-track="${esc(row.track_code)}"${instructorDashboard ? '' : ' data-can-rotate="1"'} aria-expanded="false" class="inline-flex items-center gap-1 hover:text-[#f97316] cursor-pointer group" title="View login credentials">
                                <i class="ri-arrow-right-s-line text-gray-400 group-hover:text-[#f97316] transition-transform" data-cred-chevron="${esc(row.student_id)}"></i>
                                ${esc(row.student_id)}
                              </button>
                              ${cheatingFlagsByStudentId.has(row.student_id) ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 cursor-help" title="${esc(cheatingFlagsByStudentId.get(row.student_id).join(' · '))}">Review</span>` : ''}
                            </td>
-                           <td class="px-6 py-4 text-sm text-gray-600">${esc(row.track_code)}</td>
-                           <td class="px-6 py-4 text-sm text-gray-600">${esc(row.program_slug || '—')}</td>
-                           <td class="px-6 py-4 text-sm">
+                           <td class="px-3 py-4 text-sm text-gray-600">${esc(row.track_code)}</td>
+                           <td class="px-3 py-4 text-sm text-gray-600">${esc(row.program_slug || '—')}</td>
+                           <td class="px-3 py-4 text-sm">
                              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${row.enrolled !== false ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}">
                                <span class="w-1.5 h-1.5 rounded-full ${row.enrolled !== false ? 'bg-green-500' : 'bg-gray-400'}"></span>
                                ${row.adminStateLabel}
@@ -6607,7 +6542,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                                      : '')
                              }
                            </td>
-                           <td class="px-6 py-4 text-sm">
+                           <td class="px-3 py-4 text-sm">
                              <div class="flex items-center gap-2">
                                <div class="h-1.5 w-24 bg-gray-100 rounded-full overflow-hidden">
                                  <div class="h-full rounded-full" style="width: ${programmeProgress.percent}%; background-color: ${programRequirementsComplete(row) ? '#22c55e' : programmeProgress.percent > 0 ? '#f97316' : '#d1d5db'};"></div>
@@ -6615,17 +6550,16 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                                <span class="text-gray-600 text-xs min-w-fit">${programmeProgress.percent}%</span>
                              </div>
                            </td>
-                           <td class="px-6 py-4 text-sm text-gray-600">${programmeProgress.completed} / ${programmeProgress.required}</td>
-                           <td class="px-6 py-4 text-sm text-gray-600">${row.capstone_overall_score !== null && row.capstone_overall_score !== undefined ? row.capstone_overall_score.toFixed(2) : '—'}</td>
-                           <td class="px-6 py-4 text-sm text-gray-600">${row.last_active !== null ? new Date(row.last_active).toLocaleDateString() : '—'}</td>
-                           <td class="px-6 py-4 text-sm">
-                             <label class="inline-flex items-center gap-2 cursor-pointer">
+                           <td class="px-3 py-4 text-sm text-gray-600">${programmeProgress.completed} / ${programmeProgress.required}</td>
+                           <td class="px-3 py-4 text-sm text-gray-600">${row.capstone_overall_score !== null && row.capstone_overall_score !== undefined ? row.capstone_overall_score.toFixed(2) : '—'}</td>
+                           <td class="px-3 py-4 text-sm text-gray-600">${row.last_active !== null ? new Date(row.last_active).toLocaleDateString() : '—'}</td>
+                           <td class="px-3 py-4 text-sm">
+                             <label class="inline-flex items-center gap-2 whitespace-nowrap cursor-pointer">
                                <input type="checkbox" class="sr-only peer" data-admin-enrollment="${esc(row.student_id)}" ${row.enrolled !== false ? 'checked' : ''} aria-label="Enrollment for ${esc(row.student_id)}" />
-                               <span class="relative w-10 h-5 rounded-full bg-gray-300 peer-checked:bg-[#22c55e] transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:bg-white after:rounded-full after:shadow after:transition-transform peer-checked:after:translate-x-5"></span>
-                               <span class="text-xs font-semibold text-gray-600">${row.adminStateLabel}</span>
+                               <span class="relative w-10 h-5 shrink-0 rounded-full bg-gray-300 peer-checked:bg-[#22c55e] transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:bg-white after:rounded-full after:shadow after:transition-transform peer-checked:after:translate-x-5"></span>
                              </label>
                            </td>
-                           <td class="px-6 py-4 text-sm whitespace-nowrap">
+                           <td class="px-3 py-4 text-sm whitespace-nowrap">
                              <button type="button" data-admin-snapshot="${esc(row.student_id)}" class="text-xs font-semibold text-[#1e3a5f] hover:underline" title="Download a recoverable progress snapshot for this student">Save Progress File</button>
                            </td>
                          </tr>
@@ -6997,7 +6931,7 @@ async function render(options = {}) {
   // A route may have changed while session restoration was in flight.
   if (!isCurrentRouteRender(renderGeneration)) return;
 
-  // In-page anchors (#sec-capstone) share the hash with the router.
+  // In-page anchors (#sec-curriculum etc.) share the hash with the router.
   // Only hashes beginning '#/' are routes; everything else is the browser
   // scrolling within the current view and must not trigger a re-render.
   if (hash && !hash.startsWith('#/') && hasRenderedRouteContent(app)) {
