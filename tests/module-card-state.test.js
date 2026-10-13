@@ -320,8 +320,13 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
     ctx.localStorage.clear();
     ctx.localStorage.setItem(run('moduleEngagementKey')(user), JSON.stringify({ openedModules: ['it-support:its-01'], completedLabs: [] }));
     ctx.supabaseCalls.length = 0;
-    ctx.supabaseResponder = (call) => (call.op === 'select' && call.table === 'module_progress'
-      ? { data: rowState ? { state: rowState } : null, error: null } : { data: null, error: null });
+    ctx.supabaseResponder = (call) => {
+      if (call.table !== 'module_progress') return { data: null, error: null };
+      if (call.op === 'select') return { data: rowState ? { state: rowState } : null, error: null };
+      // The conditional update matches only while the row still says not_started.
+      if (call.op === 'update') return { data: call.filters.state === rowState ? [{ state: 'in_progress' }] : [], error: null };
+      return { data: null, error: null };
+    };
     run('markModuleContentOpened')(user, 'it-support', 'its-01');
     for (let i = 0; i < 5; i += 1) await flush();
     ctx.localStorage.clear();
@@ -338,9 +343,39 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(result.calls.map((c) => c.op), ['select'], 'a complete row is never regressed');
   result = await opened({}, 'in_progress');
   assert.deepEqual(result.calls.map((c) => c.op), ['select'], 'an in_progress row keeps its started_at');
-  // A row in some other state (e.g. created by a lab draft) is still promoted.
+  // A not_started row (e.g. from an admin override) is promoted with an update
+  // that only matches while it still says not_started.
   result = await opened({}, 'not_started');
-  assert.deepEqual(result.calls.map((c) => [c.op, c.options && c.options.ignoreDuplicates]), [['select', undefined], ['upsert', false]]);
+  assert.deepEqual(result.calls.map((c) => c.op), ['select', 'update']);
+  assert.equal(result.calls[1].filters.state, 'not_started', 'the update only matches a row still not_started');
+  assert.equal(result.calls[1].payload.state, 'in_progress');
+  assert.ok(result.calls[1].payload.started_at);
+  assert.equal(result.user.remoteModuleProgress['its-01'], 'in_progress', 'session copy updated after the update');
+  // Two tabs both read the row while it says not_started. The first tab's
+  // update moves it on; the second tab's update then matches no row, so the
+  // first tab's started_at is kept.
+  {
+    let row = { state: 'not_started', started_at: null };
+    ctx.supabaseResponder = (call) => {
+      if (call.table !== 'module_progress') return { data: null, error: null };
+      if (call.op === 'select') return { data: { state: 'not_started' }, error: null }; // both tabs' reads
+      if (call.op === 'update') {
+        if (call.filters.state !== row.state) return { data: [], error: null };
+        row = { state: call.payload.state, started_at: call.payload.started_at };
+        return { data: [{ state: row.state }], error: null };
+      }
+      return { data: null, error: null };
+    };
+    // Each tab is its own page with its own session copy and in-flight set,
+    // so run the write path once per tab.
+    const firstSaved = await run('markModuleInProgressRemote')(hdUser({ remoteModuleProgress: {} }), 'its-01');
+    const firstStartedAt = row.started_at;
+    const secondSaved = await run('markModuleInProgressRemote')(hdUser({ remoteModuleProgress: {} }), 'its-01');
+    assert.equal(firstSaved, true);
+    assert.equal(secondSaved, false, 'the second tab\'s update matches no row');
+    assert.equal(row.state, 'in_progress');
+    assert.equal(row.started_at, firstStartedAt, 'the first tab\'s started_at is kept');
+  }
   result = await opened({ 'its-01': 'in_progress' }, null);
   assert.deepEqual(result.calls, [], 'no round trip when this session already has the row');
 

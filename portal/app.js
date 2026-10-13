@@ -3829,11 +3829,33 @@ function markModuleInProgressRemote(user, moduleKey) {
     .then(({ data, error }) => {
       if (error) { console.error('module_progress read failed', moduleKey, error); return false; }
       if (data && (data.state === 'complete' || data.state === 'in_progress')) { remember(data.state); return true; }
+      const fields = { state: 'in_progress', started_at: new Date().toISOString() };
       // No row yet: insert only. Two tabs or devices opening the module at
       // once both see "no row"; the second insert is ignored instead of
       // resetting the first one's started_at.
-      return upsertModuleProgress(user, moduleKey, { state: 'in_progress', started_at: new Date().toISOString() }, { insertOnly: !data })
-        .then((saved) => { if (saved) remember('in_progress'); return saved; });
+      if (!data) {
+        return upsertModuleProgress(user, moduleKey, fields, { insertOnly: true })
+          .then((saved) => { if (saved) remember('in_progress'); return saved; });
+      }
+      // A not_started row (e.g. one an admin override created): update it
+      // only while it still says not_started, so a second tab that read the
+      // same row can't overwrite the first tab's started_at.
+      return mntSupabase
+        .from('module_progress')
+        .update(fields)
+        .eq('user_id', user.userId)
+        .eq('track_code', user.trackCode)
+        .eq('module_key', moduleKey)
+        .eq('state', 'not_started')
+        .select('state')
+        .then(({ data: updated, error: updateError }) => {
+          if (updateError) { console.error('module_progress in_progress update failed', moduleKey, updateError); return false; }
+          // No row matched: another tab or device moved it on first; the next
+          // open reads whatever it wrote.
+          if (!updated || !updated.length) return false;
+          remember('in_progress');
+          return true;
+        });
     })
     .catch((err) => { console.error('module_progress in_progress write threw', moduleKey, err); return false; })
     .finally(() => moduleInProgressWrites.delete(writeKey));
