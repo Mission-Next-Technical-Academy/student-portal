@@ -115,21 +115,23 @@ const ITS02_LAB22_KEY = 'lab-its-02-vm-snapshot-server';
 const ITS02_LAB23_KEY = 'lab-its-02-device-manager';
 const ITS02_LAB24_KEY = 'lab-its-02-print-spooler';
 
-// Evidence labs: the state fields holding each lab's files, its completion
-// flag, and the Resubmit label used when faculty return it.
+// Evidence labs: the state fields holding each lab's files (work not yet
+// submitted), its name, prompt, and the Resubmit label used when faculty
+// return it.
 const ITS02_EVIDENCE_LABS = {
-  [ITS02_LAB21_KEY]: { fields: ['evDesktop', 'evVmSettings'], flag: 'lab21Complete', resubmitLabel: 'Resubmit Lab 2.1' },
-  [ITS02_LAB22_KEY]: { fields: ['evSnapshot', 'evPing1', 'evPing2'], flag: 'lab22Complete', resubmitLabel: 'Resubmit Lab 2.2' },
+  [ITS02_LAB21_KEY]: { fields: ['evDesktop', 'evVmSettings'], label: 'Lab 2.1', pendingText: 'Upload both evidence files to complete this lab.', resubmitLabel: 'Resubmit Lab 2.1' },
+  [ITS02_LAB22_KEY]: { fields: ['evSnapshot', 'evPing1', 'evPing2'], label: 'Lab 2.2', pendingText: 'Upload all three evidence files to complete this lab.', resubmitLabel: 'Resubmit Lab 2.2' },
 };
 const ITS02_EVIDENCE_FIELD_BY_INPUT = {
   'its02-ev-desktop': 'evDesktop', 'its02-ev-vmsettings': 'evVmSettings',
   'its02-ev-snapshot': 'evSnapshot', 'its02-ev-ping1': 'evPing1', 'its02-ev-ping2': 'evPing2',
 };
 const ITS02_WALKTHROUGH_LAB_KEYS = [ITS02_LAB23_KEY, ITS02_LAB24_KEY];
+const ITS02_ALL_LAB_KEYS = [ITS02_LAB21_KEY, ITS02_LAB22_KEY, ...ITS02_WALKTHROUGH_LAB_KEYS];
 
 const ITS02_DEFAULT_STATE = {
-  evDesktop: null, evVmSettings: null, lab21Complete: false,
-  evSnapshot: null, evPing1: null, evPing2: null, lab22Complete: false,
+  evDesktop: null, evVmSettings: null,
+  evSnapshot: null, evPing1: null, evPing2: null,
   consoleStarted: false, consoleCompleted: false,
 };
 
@@ -156,18 +158,9 @@ function its02Load(user) {
   return its02State;
 }
 
-// An evidence lab counts as complete only while it is not returned.
-function its02EvidenceLabComplete(labKey) {
-  return its02State[ITS02_EVIDENCE_LABS[labKey].flag] === true && !itsLabReturned(its02User, labKey);
-}
-
-function its02WalkthroughLabComplete(labKey) {
-  return its02State.consoleCompleted === true && !itsLabReturned(its02User, labKey);
-}
-
-function its02LabsCompleteCount() {
-  return [ITS02_LAB21_KEY, ITS02_LAB22_KEY].filter(its02EvidenceLabComplete).length
-    + ITS02_WALKTHROUGH_LAB_KEYS.filter(its02WalkthroughLabComplete).length;
+// Every file the evidence lab needs is added on this device.
+function its02EvidenceReady(labKey) {
+  return ITS02_EVIDENCE_LABS[labKey].fields.every((field) => Boolean(its02State[field]));
 }
 
 // The Resubmit button and return notice under a returned evidence lab.
@@ -202,19 +195,15 @@ function its02Lessons() {
 
 /* ---------- Lab 2.1 / 2.2 — physical, evidence-based ---------- */
 
-function its02LabStatus(done, doneText, pendingText) {
-  return `<div class="its02-lab-status ${done ? 'its02-status-pass' : 'its02-status-pending'}"><i class="${done ? 'ri-checkbox-circle-fill' : 'ri-time-line'}" aria-hidden="true"></i><span>${done ? doneText : pendingText}</span></div>`;
-}
-
 function its02Lab21() {
   return `<section class="its02-section its02-lab-section" id="its02-lab-2-1" aria-labelledby="its02-lab-2-1-title">
     <div class="its02-section-heading"><span>1</span><div><p class="its02-kicker">Lab 2.1 · physical · evidence-based<span class="its02-lab-tag">Your own device</span></p><h2 id="its02-lab-2-1-title">Build Your Windows Client VM</h2></div></div>
     <p class="its02-instruction">Install VirtualBox and build a working Windows 11 client VM (4GB RAM, 2 CPU cores, 64GB dynamically-allocated disk, NAT networking) through to a usable desktop.</p>
-    <div class="its02-evidence-grid" id="its02-lab21-grid">
+    ${itsLabSubmitted(its02User, ITS02_LAB21_KEY) ? '' : `<div class="its02-evidence-grid" id="its02-lab21-grid">
       ${itswEvidenceTile({ id: 'its02-ev-desktop', label: 'Finished Windows desktop', hint: 'A screenshot of the completed Windows desktop.', file: its02State.evDesktop })}
       ${itswEvidenceTile({ id: 'its02-ev-vmsettings', label: 'VM settings summary', hint: 'A screenshot of VirtualBox’s Settings pane showing RAM, CPU, disk, and network mode.', file: its02State.evVmSettings })}
-    </div>
-    ${its02EvidenceStatus(ITS02_LAB21_KEY, 'Lab 2.1 complete — both evidence files uploaded.', 'Upload both evidence files to complete this lab.')}
+    </div>`}
+    ${its02EvidenceStatus(ITS02_LAB21_KEY)}
     ${its02EvidenceRedoHtml(ITS02_LAB21_KEY)}
   </section>`;
 }
@@ -223,19 +212,25 @@ function its02Lab22() {
   return `<section class="its02-section its02-lab-section" id="its02-lab-2-2" aria-labelledby="its02-lab-2-2-title">
     <div class="its02-section-heading"><span>2</span><div><p class="its02-kicker">Lab 2.2 · physical · evidence-based<span class="its02-lab-tag">Your own device</span></p><h2 id="its02-lab-2-2-title">Snapshot, Recover &amp; Connect Client to Server</h2></div></div>
     <p class="its02-instruction">Snapshot your client VM as "Clean Install," make a breaking change, restore the snapshot, build a Windows Server VM, and confirm a successful ping in both directions.</p>
-    <div class="its02-evidence-grid its02-evidence-grid-3" id="its02-lab22-grid">
+    ${itsLabSubmitted(its02User, ITS02_LAB22_KEY) ? '' : `<div class="its02-evidence-grid its02-evidence-grid-3" id="its02-lab22-grid">
       ${itswEvidenceTile({ id: 'its02-ev-snapshot', label: 'Snapshot list', hint: 'A screenshot of the snapshot list showing "Clean Install."', file: its02State.evSnapshot })}
       ${itswEvidenceTile({ id: 'its02-ev-ping1', label: 'Ping: client → server', hint: 'A screenshot of a successful ping from the client VM to the server VM.', file: its02State.evPing1 })}
       ${itswEvidenceTile({ id: 'its02-ev-ping2', label: 'Ping: server → client', hint: 'A screenshot of a successful ping from the server VM to the client VM.', file: its02State.evPing2 })}
-    </div>
-    ${its02EvidenceStatus(ITS02_LAB22_KEY, 'Lab 2.2 complete — all three evidence files uploaded.', 'Upload all three evidence files to complete this lab.')}
+    </div>`}
+    ${its02EvidenceStatus(ITS02_LAB22_KEY)}
     ${its02EvidenceRedoHtml(ITS02_LAB22_KEY)}
   </section>`;
 }
 
-function its02EvidenceStatus(labKey, doneText, pendingText) {
-  if (itsLabReturned(its02User, labKey)) return its02LabStatus(false, '', 'Returned for revision — see your instructor’s notes below.');
-  return its02LabStatus(its02EvidenceLabComplete(labKey), doneText, pendingText);
+// Status line, plus the Submit button once every file is added (or after a
+// failed save). A submitted lab shows only its status line: its files are
+// not stored on the server yet, so no device can show them.
+function its02EvidenceStatus(labKey) {
+  const lab = ITS02_EVIDENCE_LABS[labKey];
+  const ready = its02EvidenceReady(labKey);
+  const canSubmit = ready && itsLabStatus(its02User, labKey) === 'not_submitted' && !itsLabSubmitting(its02User, labKey);
+  return `${itsLabStatusHtml(its02User, labKey, { label: lab.label, prefix: 'its02', pendingText: lab.pendingText, ready })}
+    ${canSubmit ? itsSubmitButton(labKey, lab.label) : ''}`;
 }
 
 // Re-render one evidence lab's whole section (tiles, status, Resubmit).
@@ -244,31 +239,30 @@ function its02RenderEvidenceLab(labKey) {
   if (section) section.outerHTML = labKey === ITS02_LAB21_KEY ? its02Lab21() : its02Lab22();
 }
 
-function its02SubmitEvidenceLab(labKey) {
-  const lab = ITS02_EVIDENCE_LABS[labKey];
-  return itsSubmitLabAttempt(its02User, 'its-02', labKey, { state: 'complete', score: 100, result: { evidence: lab.fields.length } });
+function its02EvidenceAttemptFields(labKey) {
+  return { state: 'complete', score: 100, result: { evidence: ITS02_EVIDENCE_LABS[labKey].fields.length } };
 }
 
-function its02CheckEvidenceLab(labKey) {
-  const lab = ITS02_EVIDENCE_LABS[labKey];
-  const was = its02State[lab.flag];
-  its02State[lab.flag] = lab.fields.every((field) => Boolean(its02State[field]));
-  // A returned lab is resubmitted only with its Resubmit button.
-  if (its02State[lab.flag] && !was && !itsLabReturned(its02User, labKey)) {
-    its02SubmitEvidenceLab(labKey);
-    if (typeof markModuleLabComplete === 'function') markModuleLabComplete(its02User, 'it-support', 'its-02', labKey);
-  }
-}
-
+// Adding a file never submits: the student presses Submit Lab 2.x.
 function its02AddEvidence(inputId, file) {
   const field = ITS02_EVIDENCE_FIELD_BY_INPUT[inputId];
   if (!field || !file || !its02State) return;
   const labKey = Object.keys(ITS02_EVIDENCE_LABS).find((key) => ITS02_EVIDENCE_LABS[key].fields.includes(field));
   its02State[field] = file;
-  its02CheckEvidenceLab(labKey);
   its02Save();
   its02RenderEvidenceLab(labKey);
-  its02RenderHeroStatus();
+}
+
+// The Submit button: the lab's first submission, once every file is added.
+function its02SubmitLab(labKey) {
+  if (!ITS02_EVIDENCE_LABS[labKey] || !its02State || !its02EvidenceReady(labKey)) return Promise.resolve(false);
+  return itsSubmitEvidenceLab(its02User, 'its-02', labKey, its02EvidenceAttemptFields(labKey), () => {
+    its02RenderEvidenceLab(labKey);
+    its02RenderHeroStatus();
+  }).then((saved) => {
+    if (saved && typeof markModuleLabComplete === 'function') markModuleLabComplete(its02User, 'it-support', 'its-02', labKey);
+    return saved;
+  });
 }
 
 // The Resubmit button: one new attempt, only for a returned lab whose
@@ -278,9 +272,8 @@ function its02ResubmitLab(labKey) {
   if (!lab || !its02State) return Promise.resolve(false);
   const redo = itsEvidenceRedo(its02User, its02State, labKey, lab.fields);
   if (!redo.returned || !redo.allPresent || !redo.changed) return Promise.resolve(false);
-  return its02SubmitEvidenceLab(labKey).then((saved) => {
+  return itsSubmitLabAttempt(its02User, 'its-02', labKey, its02EvidenceAttemptFields(labKey)).then((saved) => {
     if (!saved) return false;
-    its02State[lab.flag] = true;
     delete its02State.redoBaseline[labKey];
     its02Save();
     if (typeof markModuleLabComplete === 'function') markModuleLabComplete(its02User, 'it-support', 'its-02', labKey);
@@ -292,22 +285,25 @@ function its02ResubmitLab(labKey) {
 
 /* ---------- Labs 2.3 & 2.4 — guided walkthrough in the real simulator ---------- */
 
-function its02Lab34Status(returned) {
-  if (returned) return its02LabStatus(false, '', 'Returned for revision — run the walkthrough again to resubmit.');
-  const done = its02State.consoleCompleted;
-  return `<div class="its02-lab-status ${done ? 'its02-status-pass' : 'its02-status-pending'}"><i class="${done ? 'ri-checkbox-circle-fill' : 'ri-time-line'}" aria-hidden="true"></i><span>${done ? 'Labs 2.3 & 2.4 complete — both tickets resolved in the guided walkthrough.' : 'Complete the guided walkthrough in the simulator to finish these labs.'}</span></div>`;
+// One line per lab once either has been submitted; before that, one prompt.
+function its02Lab34Status() {
+  if (ITS02_WALKTHROUGH_LAB_KEYS.every((labKey) => itsLabStatus(its02User, labKey) === 'not_submitted')) {
+    return '<div class="its02-lab-status its02-status-pending"><i class="ri-time-line" aria-hidden="true"></i><span>Complete the guided walkthrough in the simulator to finish these labs.</span></div>';
+  }
+  return [[ITS02_LAB23_KEY, 'Lab 2.3'], [ITS02_LAB24_KEY, 'Lab 2.4']]
+    .map(([labKey, label]) => itsLabStatusHtml(its02User, labKey, { label, prefix: 'its02', pendingText: `${label} not submitted yet — finish the walkthrough to submit it.` }))
+    .join('');
 }
 
 function its02Lab34() {
-  const complete = its02State.consoleCompleted === true;
-  const returned = ITS02_WALKTHROUGH_LAB_KEYS.some((labKey) => itsLabReturned(its02User, labKey));
+  const button = itsWalkthroughButton(its02User, ITS02_WALKTHROUGH_LAB_KEYS);
   return `<section class="its02-section its02-lab-section" id="its02-lab-2-3" aria-labelledby="its02-lab-2-3-title">
     <div class="its02-section-heading"><span>3</span><div><p class="its02-kicker">Labs 2.3 &amp; 2.4 · guided walkthrough</p><h2 id="its02-lab-2-3-title">The Misbehaving Peripheral &amp; The Stuck Queue</h2></div></div>
     <p class="its02-instruction">Work two real print-driver tickets end to end in the IT Service Desk simulator — a stuck label queue (HD-2106) and a crashing Print Spooler service (HD-2112) — tracing both back to the same driver crash and resolving them under change control. A coach spotlights each step for you.</p>
     <a class="itsw-evidence-button" data-its02-console-launch href="${esc(SIM_ORIGIN)}?coach=hd-m02&amp;restart=1#/helpdesk/tickets" target="_blank" rel="opener">
-      <i class="${returned ? 'ri-restart-line' : complete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${returned ? 'Redo the walkthrough' : complete ? 'Review the walkthrough' : 'Start Labs 2.3 & 2.4 walkthrough'}
+      <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: 'Start Labs 2.3 & 2.4 walkthrough' }[button.mode]}
     </a>
-    ${its02Lab34Status(returned)}
+    ${its02Lab34Status()}
     ${itsRedoNoticeHtml(its02User, ITS02_WALKTHROUGH_LAB_KEYS.map((key) => ({ key, action: 'Run the walkthrough again to resubmit this lab.' })))}
   </section>`;
 }
@@ -315,19 +311,18 @@ function its02Lab34() {
 function viewItsModuleTwo(user, program) {
   its02Load(user);
   const module = program.modules['its-02'];
-  const labsComplete = its02LabsCompleteCount();
   const navSections = [
     { id: 'lessons', title: 'Foundation lessons', type: 'lecture', isComplete: true, scrollId: 'its02-lessons' },
-    { id: 'client-vm', title: 'Build the client VM', type: 'lab', isComplete: its02EvidenceLabComplete(ITS02_LAB21_KEY), scrollId: 'its02-lab-2-1' },
-    { id: 'recovery', title: 'Snapshot and recovery', type: 'lab', isComplete: its02EvidenceLabComplete(ITS02_LAB22_KEY), scrollId: 'its02-lab-2-2' },
-    { id: 'service-desk', title: 'Printer incident walkthrough', type: 'lab', isComplete: ITS02_WALKTHROUGH_LAB_KEYS.every(its02WalkthroughLabComplete), scrollId: 'its02-lab-2-3' },
+    { id: 'client-vm', title: 'Build the client VM', type: 'lab', ...itsLabRail(user, [ITS02_LAB21_KEY]), scrollId: 'its02-lab-2-1' },
+    { id: 'recovery', title: 'Snapshot and recovery', type: 'lab', ...itsLabRail(user, [ITS02_LAB22_KEY]), scrollId: 'its02-lab-2-2' },
+    { id: 'service-desk', title: 'Printer incident walkthrough', type: 'lab', ...itsLabRail(user, ITS02_WALKTHROUGH_LAB_KEYS), scrollId: 'its02-lab-2-3' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'its02-sources', gated: false, supplemental: true },
   ];
   return `<div class="its02-shell">
     ${moduleTopbar(user, program)}
     ${moduleProgressShell(navSections, { moduleKey: 'its02', stageKey: 'its-02' })}
     <main class="its02-main">
-      <section class="its02-hero" aria-labelledby="its02-title"><div><p class="its02-kicker">Module 02 · ${formatInstructionalMinutes(module.durationMinutes)} · Week 1</p><h1 id="its02-title">${esc(module.title)}</h1><p class="its02-lede">Build your own virtual lab environment from scratch, then put it to work on two of the most common ticket types in the industry: device/driver problems and printer issues.</p></div><dl class="its02-progress" aria-label="Saved module progress"><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Guided labs</dt><dd>4</dd></div><div><dt>Labs complete</dt><dd id="its02-status">${labsComplete}/4</dd></div></dl></section>
+      <section class="its02-hero" aria-labelledby="its02-title"><div><p class="its02-kicker">Module 02 · ${formatInstructionalMinutes(module.durationMinutes)} · Week 1</p><h1 id="its02-title">${esc(module.title)}</h1><p class="its02-lede">Build your own virtual lab environment from scratch, then put it to work on two of the most common ticket types in the industry: device/driver problems and printer issues.</p></div><dl class="its02-progress" aria-label="Saved module progress"><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Guided labs</dt><dd>4</dd></div><div><dt>Labs</dt><dd id="its02-status">${itsLabCounterText(user, ITS02_ALL_LAB_KEYS)}</dd></div></dl></section>
 
       <section class="its02-section" id="its02-lessons" aria-labelledby="its02-lessons-title"><div class="its02-section-heading"><span>L</span><div><p class="its02-kicker">Learn</p><h2 id="its02-lessons-title">Four foundation lessons</h2></div></div><p class="its02-instruction">Open each lesson for the full walkthrough, then work its Try It Yourself exercise on your own lab VM.</p>${its02Lessons()}</section>
 
@@ -342,7 +337,7 @@ function viewItsModuleTwo(user, program) {
 
 function its02RenderHeroStatus() {
   const status = document.getElementById('its02-status');
-  if (status) status.textContent = `${its02LabsCompleteCount()}/4`;
+  if (status) status.textContent = itsLabCounterText(its02User, ITS02_ALL_LAB_KEYS);
 }
 
 function wireItsModuleTwoLab() {
@@ -360,6 +355,11 @@ function wireItsModuleTwoLab() {
   });
 
   shell.addEventListener('click', (event) => {
+    const submit = event.target.closest('[data-its-submit]');
+    if (submit) {
+      its02SubmitLab(submit.dataset.itsSubmit);
+      return;
+    }
     const resubmit = event.target.closest('[data-its-resubmit]');
     if (resubmit && !resubmit.disabled) {
       its02ResubmitLab(resubmit.dataset.itsResubmit);
