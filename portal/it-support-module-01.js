@@ -72,6 +72,9 @@ const ITS01_LAB1_ID = 'its01-lms-validation-v1';
 const ITS01_LAB1_KEY = 'lab-its-01-lms-validation';
 const ITS01_LAB2_KEY = 'lab-its-01-ticket-triage';
 
+const ITS01_LAB1_FIELDS = ['evidence1', 'evidence2'];
+const ITS01_EVIDENCE_FIELD_BY_INPUT = { 'its01-evidence-1': 'evidence1', 'its01-evidence-2': 'evidence2' };
+
 const ITS01_DEFAULT_STATE = {
   evidence1: null, evidence2: null, aupScrolled: false, aupAcknowledged: false, lab1Complete: false,
   consoleStarted: false, consoleCompleted: false,
@@ -92,6 +95,8 @@ function its01Load(user) {
     LabRuntime.save(ITS01_LAB1_ID, user, its01State);
     history.replaceState(null, '', location.pathname + location.hash);
   }
+  // Record the Resubmit baseline the first time a returned Lab 1.1 is seen.
+  if (itsEvidenceRedo(user, its01State, ITS01_LAB1_KEY, ITS01_LAB1_FIELDS).returned) its01Save();
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'it-support', 'its-01');
   return its01State;
 }
@@ -117,8 +122,35 @@ function its01Lessons() {
   return `<div class="its01-lesson-grid">${ITS01_LESSONS.map(its01LessonCard).join('')}</div>`;
 }
 
+// A lab counts as complete only while it is not returned.
+function its01Lab1Complete() {
+  return its01State.lab1Complete === true && !itsLabReturned(its01User, ITS01_LAB1_KEY);
+}
+
+function its01Lab2Complete() {
+  return its01State.consoleCompleted === true && !itsLabReturned(its01User, ITS01_LAB2_KEY);
+}
+
+function its01Lab1CanResubmit() {
+  const redo = itsEvidenceRedo(its01User, its01State, ITS01_LAB1_KEY, ITS01_LAB1_FIELDS);
+  return redo.returned && redo.allPresent && redo.changed && its01State.aupAcknowledged === true;
+}
+
+// Return notice and Resubmit button; its own wrapper so it re-renders
+// without resetting the policy text's scroll position.
+function its01Lab1RedoHtml() {
+  const returned = itsLabReturned(its01User, ITS01_LAB1_KEY);
+  return `<div class="its01-redo-wrap">${returned
+    ? `${itsRedoNoticeHtml(its01User, [{ key: ITS01_LAB1_KEY, action: 'Add or replace the evidence your instructor asked for, then press Resubmit Lab 1.1.' }])}
+      ${itsResubmitButton(ITS01_LAB1_KEY, 'Resubmit Lab 1.1', its01Lab1CanResubmit())}`
+    : ''}</div>`;
+}
+
 function its01Lab1Status() {
-  const done = its01State.lab1Complete;
+  if (itsLabReturned(its01User, ITS01_LAB1_KEY)) {
+    return `<div class="its01-lab-status its01-status-pending"><i class="ri-error-warning-line" aria-hidden="true"></i><span>Returned for revision — see your instructor’s notes below.</span></div>`;
+  }
+  const done = its01Lab1Complete();
   return `<div class="its01-lab-status ${done ? 'its01-status-pass' : 'its01-status-pending'}"><i class="${done ? 'ri-checkbox-circle-fill' : 'ri-time-line'}" aria-hidden="true"></i><span>${done ? 'Lab 1.1 complete — both evidence files uploaded and the Acceptable Use Policy is acknowledged.' : 'Upload both evidence files and acknowledge the Acceptable Use Policy to complete this lab.'}</span></div>`;
 }
 
@@ -138,6 +170,7 @@ function its01Lab1() {
       ${its01AupAck()}
     </div>
     ${its01Lab1Status()}
+    ${its01Lab1RedoHtml()}
   </section>`;
 }
 
@@ -152,30 +185,35 @@ function its01AupAck() {
 }
 
 function its01Lab2Status() {
+  if (itsLabReturned(its01User, ITS01_LAB2_KEY)) {
+    return `<div class="its01-lab-status its01-status-pending"><i class="ri-error-warning-line" aria-hidden="true"></i><span>Returned for revision — run the walkthrough again to resubmit.</span></div>`;
+  }
   const done = its01State.consoleCompleted;
   return `<div class="its01-lab-status ${done ? 'its01-status-pass' : 'its01-status-pending'}"><i class="${done ? 'ri-checkbox-circle-fill' : 'ri-time-line'}" aria-hidden="true"></i><span>${done ? 'Lab 1.2 complete — HD-2101 resolved in the guided walkthrough.' : 'Complete the guided walkthrough in the simulator to finish this lab.'}</span></div>`;
 }
 
 function its01Lab2() {
   const complete = its01State.consoleCompleted === true;
+  const returned = itsLabReturned(its01User, ITS01_LAB2_KEY);
   return `<section class="its01-section its01-lab-section" id="its01-lab-1-2" aria-labelledby="its01-lab-1-2-title">
     <div class="its01-section-heading"><span>2</span><div><p class="its01-kicker">Lab 1.2 · guided walkthrough</p><h2 id="its01-lab-1-2-title">A Day in the Life of an L1 Technician</h2></div></div>
     <p class="its01-instruction">Work Jordan Bell’s account-lockout ticket (HD-2101) end to end in the IT Service Desk simulator: read the evidence, work the troubleshooting path, diagnose against the log rather than the obvious guess, document it, and resolve it. A coach spotlights each step for you.</p>
     <a class="itsw-evidence-button" data-its01-console-launch href="${esc(SIM_ORIGIN)}?coach=hd-m01&amp;restart=1#/helpdesk/tickets" target="_blank" rel="opener">
-      <i class="${complete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${complete ? 'Review the walkthrough' : 'Start Lab 1.2 walkthrough'}
+      <i class="${returned ? 'ri-restart-line' : complete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${returned ? 'Redo the walkthrough' : complete ? 'Review the walkthrough' : 'Start Lab 1.2 walkthrough'}
     </a>
     ${its01Lab2Status()}
+    ${itsRedoNoticeHtml(its01User, [{ key: ITS01_LAB2_KEY, action: 'Run the walkthrough again to resubmit this lab.' }])}
   </section>`;
 }
 
 function viewItsModuleOne(user, program) {
   its01Load(user);
   const module = program.modules['its-01'];
-  const labsComplete = (its01State.lab1Complete ? 1 : 0) + (its01State.consoleCompleted ? 1 : 0);
+  const labsComplete = (its01Lab1Complete() ? 1 : 0) + (its01Lab2Complete() ? 1 : 0);
   const navSections = [
     { id: 'lessons', title: 'Foundation lessons', type: 'lecture', isComplete: true, scrollId: 'its01-lessons' },
-    { id: 'environment', title: 'Environment validation', type: 'lab', isComplete: its01State.lab1Complete, scrollId: 'its01-lab-1-1' },
-    { id: 'service-desk', title: 'Service desk walkthrough', type: 'lab', isComplete: its01State.consoleCompleted, scrollId: 'its01-lab-1-2' },
+    { id: 'environment', title: 'Environment validation', type: 'lab', isComplete: its01Lab1Complete(), scrollId: 'its01-lab-1-1' },
+    { id: 'service-desk', title: 'Service desk walkthrough', type: 'lab', isComplete: its01Lab2Complete(), scrollId: 'its01-lab-1-2' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'its01-sources', gated: false, supplemental: true },
   ];
   return `<div class="its01-shell">
@@ -206,21 +244,52 @@ function its01RenderLab1() {
   if (statusEl) statusEl.outerHTML = its01Lab1Status();
   const ackWrap = section.querySelector('.its01-aup-ack-wrap');
   if (ackWrap) ackWrap.outerHTML = its01AupAck();
+  const redoWrap = section.querySelector('.its01-redo-wrap');
+  if (redoWrap) redoWrap.outerHTML = its01Lab1RedoHtml();
   its01RenderHeroStatus();
 }
 
 function its01RenderHeroStatus() {
   const status = document.getElementById('its01-status');
-  if (status) status.textContent = `${(its01State.lab1Complete ? 1 : 0) + (its01State.consoleCompleted ? 1 : 0)}/2`;
+  if (status) status.textContent = `${(its01Lab1Complete() ? 1 : 0) + (its01Lab2Complete() ? 1 : 0)}/2`;
 }
 
 function its01CheckLab1Complete() {
   const wasComplete = its01State.lab1Complete;
   its01State.lab1Complete = Boolean(its01State.evidence1 && its01State.evidence2 && its01State.aupAcknowledged);
-  if (its01State.lab1Complete && !wasComplete) {
-    if (typeof recordLabAttempt === 'function') recordLabAttempt(its01User, ITS01_LAB1_KEY, { state: 'complete', score: 100, result: { evidence: 2, aup: true } });
+  // A returned lab is resubmitted only with its Resubmit button.
+  if (its01State.lab1Complete && !wasComplete && !itsLabReturned(its01User, ITS01_LAB1_KEY)) {
+    its01SubmitLab1();
     if (typeof markModuleLabComplete === 'function') markModuleLabComplete(its01User, 'it-support', 'its-01', ITS01_LAB1_KEY);
   }
+}
+
+function its01SubmitLab1() {
+  return itsSubmitLabAttempt(its01User, 'its-01', ITS01_LAB1_KEY, { state: 'complete', score: 100, result: { evidence: 2, aup: true } });
+}
+
+function its01AddEvidence(inputId, file) {
+  const field = ITS01_EVIDENCE_FIELD_BY_INPUT[inputId];
+  if (!field || !file || !its01State) return;
+  its01State[field] = file;
+  its01CheckLab1Complete();
+  its01Save();
+  its01RenderLab1();
+}
+
+// The Resubmit button: one new attempt, only for a returned Lab 1.1 whose
+// evidence changed since the return.
+function its01ResubmitLab(labKey) {
+  if (labKey !== ITS01_LAB1_KEY || !its01State || !its01Lab1CanResubmit()) return Promise.resolve(false);
+  return its01SubmitLab1().then((saved) => {
+    if (!saved) return false;
+    its01State.lab1Complete = true;
+    delete its01State.redoBaseline[ITS01_LAB1_KEY];
+    its01Save();
+    if (typeof markModuleLabComplete === 'function') markModuleLabComplete(its01User, 'it-support', 'its-01', ITS01_LAB1_KEY);
+    its01RenderLab1();
+    return true;
+  });
 }
 
 // On wide screens the policy text can fit inside its box with no scrollbar,
@@ -258,12 +327,7 @@ function wireItsModuleOneLab() {
     if (evidenceInput) {
       const file = itswReadEvidenceFile(evidenceInput);
       if (!file) return;
-      const id = evidenceInput.dataset.itswEvidenceInput;
-      if (id === 'its01-evidence-1') its01State.evidence1 = file;
-      if (id === 'its01-evidence-2') its01State.evidence2 = file;
-      its01CheckLab1Complete();
-      its01Save();
-      its01RenderLab1();
+      its01AddEvidence(evidenceInput.dataset.itswEvidenceInput, file);
       return;
     }
 
@@ -286,6 +350,11 @@ function wireItsModuleOneLab() {
   }, true);
 
   shell.addEventListener('click', (event) => {
+    const resubmit = event.target.closest('[data-its-resubmit]');
+    if (resubmit && !resubmit.disabled) {
+      its01ResubmitLab(resubmit.dataset.itsResubmit);
+      return;
+    }
     if (event.target.closest('[data-its01-console-launch]')) {
       its01State.consoleStarted = true;
       its01Save();
@@ -307,9 +376,7 @@ async function its01ReceiveCoachCompletion(event) {
   its01User = user;
 
   if (typeof markModuleLabComplete === 'function') markModuleLabComplete(user, 'it-support', 'its-01', ITS01_LAB2_KEY);
-  if (typeof recordLabAttempt === 'function') {
-    recordLabAttempt(user, ITS01_LAB2_KEY, { state: 'complete', result: { source: 'mnt-coach-complete' } });
-  }
+  await itsSubmitWalkthroughLabs(user, 'its-01', [ITS01_LAB2_KEY]);
 
   const mounted = Boolean(document.querySelector('.its01-shell'));
   if (!mounted) return;
