@@ -252,6 +252,55 @@ function itsWalkthroughButton(user, labKeys) {
   return { icon: 'ri-terminal-box-line', mode: 'start' };
 }
 
+/* A walkthrough is recorded only by the simulator's popup message. Coming
+ * back by link (?coachComplete=) saves nothing, since anyone could type that
+ * link: the page says the walkthrough wasn't recorded instead (ISSUE-041 from
+ * Megan's Student Portal — Code Issues Log). Both sets are keyed
+ * `${userId}|${coachId}` and last until the next page load. */
+const itsUnrecordedWalkthroughs = new Set();
+const itsBlockedWalkthroughs = new Set();
+
+function itsNoteCoachReturn(user, coachId, labKeys) {
+  if (new URLSearchParams(location.search).get('coachComplete') !== coachId) return;
+  history.replaceState(null, '', location.pathname + location.hash);
+  if (user && labKeys.some((key) => itsLabAcceptsAttempt(user, key))) itsUnrecordedWalkthroughs.add(`${user.userId}|${coachId}`);
+}
+
+/* Opens the walkthrough in a popup, so it can report back to this page.
+ * Returns false and remembers it when the browser blocks the window. */
+function itsLaunchWalkthrough(event, link, user, coachId) {
+  event.preventDefault();
+  const id = `${user ? user.userId : ''}|${coachId}`;
+  if (!window.open(link.href, '_blank')) {
+    itsBlockedWalkthroughs.add(id);
+    return false;
+  }
+  itsBlockedWalkthroughs.delete(id);
+  itsUnrecordedWalkthroughs.delete(id);
+  return true;
+}
+
+// The Start button's text for Modules 3-11; Modules 1 and 2 name their labs.
+const ITS_WALKTHROUGH_START = 'Start guided walkthrough';
+
+/* startLabel: the exact text of this lab's Start button, so the message
+ * names the button the student actually sees. */
+function itsWalkthroughNoticeHtml(user, coachId, labKeys, startLabel) {
+  const id = `${user ? user.userId : ''}|${coachId}`;
+  const text = itsBlockedWalkthroughs.has(id)
+    ? 'Your browser blocked the walkthrough window. Allow pop-ups for this site, then try again.'
+    : itsUnrecordedWalkthroughs.has(id) && labKeys.some((key) => itsLabAcceptsAttempt(user, key))
+      ? `Your walkthrough finished but wasn’t recorded. Allow pop-ups for this site, then press ${startLabel} again from this page.`
+      : '';
+  return `<div class="itss-walkthrough-notice" data-its-walkthrough-notice="${esc(coachId)}" role="status"${text ? '' : ' hidden'}>${esc(text)}</div>`;
+}
+
+// Re-renders just the notice after a Start click, without redrawing the page.
+function itsRefreshWalkthroughNotice(user, coachId, labKeys, startLabel) {
+  const el = document.querySelector(`[data-its-walkthrough-notice="${coachId}"]`);
+  if (el) el.outerHTML = itsWalkthroughNoticeHtml(user, coachId, labKeys, startLabel);
+}
+
 /* An evidence lab's first submission, from its Submit button: one attempt,
  * only when never submitted and every file is added. onChange re-renders the
  * lab (once for "Submitting…", once for the result). */
@@ -312,10 +361,11 @@ function itsSimpleLessonCard(lesson) {
 
 function itsCoachLaunchCard({ user, coachId, labKeys }) {
   const button = itsWalkthroughButton(user, labKeys);
-  const label = { redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: 'Start guided walkthrough' }[button.mode];
+  const label = { redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: ITS_WALKTHROUGH_START }[button.mode];
   return `<a class="itsw-evidence-button" data-its-coach-launch href="${esc(SIM_ORIGIN)}?coach=${esc(coachId)}&amp;restart=1#/helpdesk/tickets" target="_blank" rel="opener">
     <i class="${button.icon}" aria-hidden="true"></i> ${label}
   </a>
+  ${itsWalkthroughNoticeHtml(user, coachId, labKeys, ITS_WALKTHROUGH_START)}
   ${labKeys.map((key) => itsLabStatusHtml(user, key, { label: labKeys.length === 1 ? 'Lab' : itsLabTitle(key), prefix: 'itss', pendingText: 'Complete the guided walkthrough in the simulator to finish this lab.' })).join('')}`;
 }
 
@@ -374,12 +424,7 @@ function itsRegisterCoachModule(config) {
   function load(user) {
     lastUser = user;
     state = LabRuntime.load(stateId, user, defaultState);
-    if (new URLSearchParams(location.search).get('coachComplete') === coachId) {
-      state.consoleStarted = true;
-      state.consoleCompleted = true;
-      LabRuntime.save(stateId, user, state);
-      history.replaceState(null, '', location.pathname + location.hash);
-    }
+    itsNoteCoachReturn(user, coachId, labKeys);
     return state;
   }
 
@@ -398,10 +443,13 @@ function itsRegisterCoachModule(config) {
     const shell = document.querySelector('.itss-shell');
     if (!shell) return;
     shell.addEventListener('click', (event) => {
-      if (event.target.closest('[data-its-coach-launch]') && lastUser) {
+      const launch = event.target.closest('[data-its-coach-launch]');
+      if (!launch || !lastUser) return;
+      if (itsLaunchWalkthrough(event, launch, lastUser, coachId)) {
         state.consoleStarted = true;
         LabRuntime.save(stateId, lastUser, state);
       }
+      itsRefreshWalkthroughNotice(lastUser, coachId, labKeys, ITS_WALKTHROUGH_START);
     });
   }
 

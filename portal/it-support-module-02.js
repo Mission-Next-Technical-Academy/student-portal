@@ -128,6 +128,7 @@ const ITS02_EVIDENCE_FIELD_BY_INPUT = {
 };
 const ITS02_WALKTHROUGH_LAB_KEYS = [ITS02_LAB23_KEY, ITS02_LAB24_KEY];
 const ITS02_ALL_LAB_KEYS = [ITS02_LAB21_KEY, ITS02_LAB22_KEY, ...ITS02_WALKTHROUGH_LAB_KEYS];
+const ITS02_WALKTHROUGH_START = 'Start Labs 2.3 & 2.4 walkthrough';
 
 const ITS02_DEFAULT_STATE = {
   evDesktop: null, evVmSettings: null,
@@ -141,15 +142,9 @@ let its02User = null;
 function its02Load(user) {
   its02User = user;
   its02State = LabRuntime.load(ITS02_LAB_ID, user, ITS02_DEFAULT_STATE);
-  // Same-tab fallback for the coach's completion signal — postMessage is the
-  // primary channel (see its02ReceiveCoachCompletion) but doesn't fire if the
-  // student closed and reopened the sim tab without window.opener intact.
-  if (new URLSearchParams(location.search).get('coachComplete') === 'hd-m02') {
-    its02State.consoleStarted = true;
-    its02State.consoleCompleted = true;
-    LabRuntime.save(ITS02_LAB_ID, user, its02State);
-    history.replaceState(null, '', location.pathname + location.hash);
-  }
+  // The simulator's popup message is the only way a walkthrough is recorded;
+  // a return by link only shows that it wasn't (see itsNoteCoachReturn).
+  itsNoteCoachReturn(user, 'hd-m02', ITS02_WALKTHROUGH_LAB_KEYS);
   // Record the Resubmit baseline the first time a returned lab is seen.
   const returnedEvidence = Object.keys(ITS02_EVIDENCE_LABS)
     .filter((labKey) => itsEvidenceRedo(user, its02State, labKey, ITS02_EVIDENCE_LABS[labKey].fields).returned);
@@ -301,8 +296,9 @@ function its02Lab34() {
     <div class="its02-section-heading"><span>3</span><div><p class="its02-kicker">Labs 2.3 &amp; 2.4 · guided walkthrough</p><h2 id="its02-lab-2-3-title">The Misbehaving Peripheral &amp; The Stuck Queue</h2></div></div>
     <p class="its02-instruction">Work two real print-driver tickets end to end in the IT Service Desk simulator — a stuck label queue (HD-2106) and a crashing Print Spooler service (HD-2112) — tracing both back to the same driver crash and resolving them under change control. A coach spotlights each step for you.</p>
     <a class="itsw-evidence-button" data-its02-console-launch href="${esc(SIM_ORIGIN)}?coach=hd-m02&amp;restart=1#/helpdesk/tickets" target="_blank" rel="opener">
-      <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: 'Start Labs 2.3 & 2.4 walkthrough' }[button.mode]}
+      <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: esc(ITS02_WALKTHROUGH_START) }[button.mode]}
     </a>
+    ${itsWalkthroughNoticeHtml(its02User, 'hd-m02', ITS02_WALKTHROUGH_LAB_KEYS, ITS02_WALKTHROUGH_START)}
     ${its02Lab34Status()}
     ${itsRedoNoticeHtml(its02User, ITS02_WALKTHROUGH_LAB_KEYS.map((key) => ({ key, action: 'Run the walkthrough again to resubmit this lab.' })))}
   </section>`;
@@ -365,9 +361,13 @@ function wireItsModuleTwoLab() {
       its02ResubmitLab(resubmit.dataset.itsResubmit);
       return;
     }
-    if (event.target.closest('[data-its02-console-launch]')) {
-      its02State.consoleStarted = true;
-      its02Save();
+    const launch = event.target.closest('[data-its02-console-launch]');
+    if (launch) {
+      if (itsLaunchWalkthrough(event, launch, its02User, 'hd-m02')) {
+        its02State.consoleStarted = true;
+        its02Save();
+      }
+      itsRefreshWalkthroughNotice(its02User, 'hd-m02', ITS02_WALKTHROUGH_LAB_KEYS, ITS02_WALKTHROUGH_START);
     }
   });
 }

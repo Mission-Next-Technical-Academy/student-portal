@@ -57,6 +57,7 @@ function fresh(user) {
   ctx.supabaseCalls.length = 0;
   ctx.supabaseResponder = () => ({ data: null, error: null });
   ctx.localStorage.clear();
+  run('itsUnrecordedWalkthroughs.clear(); itsBlockedWalkthroughs.clear()');
   signedIn = user;
 }
 
@@ -286,6 +287,86 @@ async function testWalkthroughCompletionShowsWaiting() {
   assert.doesNotMatch(html, /Lab complete/);
 }
 
+/* ---------------------------------------------- walkthrough not recorded */
+
+// A walkthrough that comes back by link (?coachComplete=) instead of the
+// popup message saves nothing: anyone could type that link. The page says so.
+// Names the lab's own Start button, as rendered (so "&" appears as "&amp;").
+const unrecorded = (start) => `Your walkthrough finished but wasn’t recorded. Allow pop-ups for this site, then press ${start} again from this page.`;
+const BLOCKED = 'Your browser blocked the walkthrough window. Allow pop-ups for this site, then try again.';
+const notice = (html, coachId) => {
+  const match = new RegExp(`<div[^>]*data-its-walkthrough-notice="${coachId}"[^>]*>([\\s\\S]*?)</div>`).exec(html);
+  assert.ok(match, `a walkthrough notice for ${coachId}`);
+  return match[1].trim();
+};
+const returnLink = (coachId) => run(`location.search = ${JSON.stringify(coachId ? `?coachComplete=${coachId}` : '')}`);
+
+async function testReturnLinkRecordsNothing() {
+  const cases = [
+    [1, 'hd-m01', 'its01-lab-1-2', 'lab-its-01-ticket-triage', 'its01-lab-1-2', 'Start Lab 1.2 walkthrough'],
+    [2, 'hd-m02', 'its02-lab-2-3', LAB23, 'its02-lab-2-3', 'Start Labs 2.3 &amp; 2.4 walkthrough'],
+    [3, 'hd-m03', null, 'lab-its-03-blank-desktop', 'itss-lab-03', 'Start guided walkthrough'],
+    [7, 'hd-m07', null, run('LABS').find((l) => l.module === 'its-07').key, 'itss-lab-07', 'Start guided walkthrough'],
+  ];
+  for (const [n, coachId, sectionId, lab, railId, start] of cases) {
+    const user = hdUser();
+    fresh(user);
+    returnLink(coachId);
+    try {
+      const html = moduleLab(n).view(user, HD);
+      await settle();
+      assert.equal(inserts().length, 0, `Module ${n}: the return link saves no attempt`);
+      const part = sectionId ? section(html, sectionId) : html;
+      assert.equal(notice(part, coachId), unrecorded(start), `Module ${n}: not-recorded message`);
+      assert.match(part, new RegExp(`</i> ${start}\\s*</a>`), `Module ${n}: the message names the Start button's own text`);
+      // Module 2 shows one combined prompt until either walkthrough lab is submitted.
+      const status = html.includes(`data-its-lab-status="${lab}"`) ? statusLine(html, lab) : part;
+      assert.doesNotMatch(status, /submitted [A-Z]|waiting for instructor review|passed/, `Module ${n}: never shows submitted`);
+      assert.equal(railRow(html, railId).ticked, false, `Module ${n}: rail not ticked`);
+    } finally {
+      returnLink(null);
+    }
+  }
+
+  // With the attempt already saved (the popup message got through), no message.
+  const user = hdUser({ 'lab-its-03-blank-desktop': waiting() });
+  fresh(user);
+  returnLink('hd-m03');
+  try {
+    const html = moduleLab(3).view(user, HD);
+    assert.equal(notice(html, 'hd-m03'), '');
+    assert.match(statusLine(html, 'lab-its-03-blank-desktop'), /waiting for instructor review/);
+  } finally {
+    returnLink(null);
+  }
+}
+
+async function testBlockedPopupShowsMessage() {
+  const user = hdUser();
+  fresh(user);
+  let html = moduleLab(3).view(user, HD);
+  assert.equal(notice(html, 'hd-m03'), '', 'no message before Start is pressed');
+
+  let prevented = false;
+  run('window.open = () => null');
+  const opened = run('itsLaunchWalkthrough')({ preventDefault() { prevented = true; } }, { href: 'http://127.0.0.1:8767/?coach=hd-m03' }, user, 'hd-m03');
+  assert.equal(opened, false);
+  assert.equal(prevented, true, 'the link does not also navigate this tab');
+  html = moduleLab(3).view(user, HD);
+  assert.equal(notice(html, 'hd-m03'), BLOCKED);
+  assert.equal(inserts().length, 0);
+
+  // Allowed on the next try: the message goes away.
+  const opens = [];
+  ctx.__opens = opens;
+  run('window.open = (...args) => { __opens.push(args); return {}; }');
+  assert.equal(run('itsLaunchWalkthrough')({ preventDefault() {} }, { href: 'http://127.0.0.1:8767/?coach=hd-m03' }, user, 'hd-m03'), true);
+  assert.equal(opens.length, 1);
+  assert.equal(opens[0][0], 'http://127.0.0.1:8767/?coach=hd-m03');
+  html = moduleLab(3).view(user, HD);
+  assert.equal(notice(html, 'hd-m03'), '');
+}
+
 (async () => {
   const tests = [
     testModuleTwoClearedStorageShowsDatabaseStatus,
@@ -297,6 +378,8 @@ async function testWalkthroughCompletionShowsWaiting() {
     testModuleOneExplicitSubmit,
     testSharedWalkthroughModules,
     testWalkthroughCompletionShowsWaiting,
+    testReturnLinkRecordsNothing,
+    testBlockedPopupShowsMessage,
   ];
   let failed = 0;
   for (const test of tests) {

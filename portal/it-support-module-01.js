@@ -74,6 +74,7 @@ const ITS01_LAB2_KEY = 'lab-its-01-ticket-triage';
 
 const ITS01_LAB1_FIELDS = ['evidence1', 'evidence2'];
 const ITS01_LAB_KEYS = [ITS01_LAB1_KEY, ITS01_LAB2_KEY];
+const ITS01_LAB2_START = 'Start Lab 1.2 walkthrough';
 const ITS01_EVIDENCE_FIELD_BY_INPUT = { 'its01-evidence-1': 'evidence1', 'its01-evidence-2': 'evidence2' };
 
 const ITS01_DEFAULT_STATE = {
@@ -87,15 +88,9 @@ let its01User = null;
 function its01Load(user) {
   its01User = user;
   its01State = LabRuntime.load(ITS01_LAB1_ID, user, ITS01_DEFAULT_STATE);
-  // Same-tab fallback for the coach's completion signal — postMessage is the
-  // primary channel (see its01ReceiveCoachCompletion) but doesn't fire if the
-  // student closed and reopened the sim tab without window.opener intact.
-  if (new URLSearchParams(location.search).get('coachComplete') === 'hd-m01') {
-    its01State.consoleStarted = true;
-    its01State.consoleCompleted = true;
-    LabRuntime.save(ITS01_LAB1_ID, user, its01State);
-    history.replaceState(null, '', location.pathname + location.hash);
-  }
+  // The simulator's popup message is the only way a walkthrough is recorded;
+  // a return by link only shows that it wasn't (see itsNoteCoachReturn).
+  itsNoteCoachReturn(user, 'hd-m01', [ITS01_LAB2_KEY]);
   // Record the Resubmit baseline the first time a returned Lab 1.1 is seen.
   if (itsEvidenceRedo(user, its01State, ITS01_LAB1_KEY, ITS01_LAB1_FIELDS).returned) its01Save();
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'it-support', 'its-01');
@@ -202,8 +197,9 @@ function its01Lab2() {
     <div class="its01-section-heading"><span>2</span><div><p class="its01-kicker">Lab 1.2 · guided walkthrough</p><h2 id="its01-lab-1-2-title">A Day in the Life of an L1 Technician</h2></div></div>
     <p class="its01-instruction">Work Jordan Bell’s account-lockout ticket (HD-2101) end to end in the IT Service Desk simulator: read the evidence, work the troubleshooting path, diagnose against the log rather than the obvious guess, document it, and resolve it. A coach spotlights each step for you.</p>
     <a class="itsw-evidence-button" data-its01-console-launch href="${esc(SIM_ORIGIN)}?coach=hd-m01&amp;restart=1#/helpdesk/tickets" target="_blank" rel="opener">
-      <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: 'Start Lab 1.2 walkthrough' }[button.mode]}
+      <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: ITS01_LAB2_START }[button.mode]}
     </a>
+    ${itsWalkthroughNoticeHtml(its01User, 'hd-m01', [ITS01_LAB2_KEY], ITS01_LAB2_START)}
     ${its01Lab2Status()}
     ${itsRedoNoticeHtml(its01User, [{ key: ITS01_LAB2_KEY, action: 'Run the walkthrough again to resubmit this lab.' }])}
   </section>`;
@@ -364,9 +360,13 @@ function wireItsModuleOneLab() {
       its01ResubmitLab(resubmit.dataset.itsResubmit);
       return;
     }
-    if (event.target.closest('[data-its01-console-launch]')) {
-      its01State.consoleStarted = true;
-      its01Save();
+    const launch = event.target.closest('[data-its01-console-launch]');
+    if (launch) {
+      if (itsLaunchWalkthrough(event, launch, its01User, 'hd-m01')) {
+        its01State.consoleStarted = true;
+        its01Save();
+      }
+      itsRefreshWalkthroughNotice(its01User, 'hd-m01', [ITS01_LAB2_KEY], ITS01_LAB2_START);
     }
   });
 }
