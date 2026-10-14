@@ -99,6 +99,102 @@ function itswTicketQueue(config) {
   </div>`;
 }
 
+/* ---------- Returned for revision (every Help Desk module) ----------
+ * Faculty "send back" marks a lab's newest attempt redo_requested. At sign-in
+ * the portal loads each lab's newest attempt into user.latestLabAttemptByKey
+ * and the instructor's notes into user.openLabRedoFeedbackByLabKey; these
+ * helpers read only those. A returned lab takes exactly one new attempt:
+ * itsSubmitLabAttempt() mirrors the database's one-pending rule
+ * (20261005210000_one_pending_prove_it_submission.sql) and ignores a repeat
+ * call while the first save is still in flight. */
+
+function itsLabAttempt(user, labKey) {
+  return ((user && user.latestLabAttemptByKey) || {})[labKey] || null;
+}
+
+function itsLabReturned(user, labKey) {
+  const attempt = itsLabAttempt(user, labKey);
+  return !!(attempt && attempt.completedAt && !attempt.supersededAt && attempt.redoRequested === true);
+}
+
+// A lab takes a new attempt only when it has none yet or its newest was
+// returned; while one waits on faculty, or once approved, the database
+// refuses the insert anyway.
+function itsLabAcceptsAttempt(user, labKey) {
+  const attempt = itsLabAttempt(user, labKey);
+  return !attempt || !attempt.completedAt || !!attempt.supersededAt || attempt.redoRequested === true;
+}
+
+function itsLabTitle(labKey) {
+  const lab = typeof LABS !== 'undefined' ? LABS.find((item) => item.key === labKey) : null;
+  return lab ? lab.title : labKey;
+}
+
+const itsLabSubmissionsInFlight = new Set();
+
+function itsSubmitLabAttempt(user, moduleKey, labKey, fields) {
+  if (!user || typeof recordLabAttempt !== 'function') return Promise.resolve(false);
+  const inFlightKey = `${user.userId}|${labKey}`;
+  if (itsLabSubmissionsInFlight.has(inFlightKey) || !itsLabAcceptsAttempt(user, labKey)) return Promise.resolve(false);
+  itsLabSubmissionsInFlight.add(inFlightKey);
+  return recordLabAttempt(user, labKey, fields)
+    .then((saved) => {
+      if (saved && fields.state === 'complete') {
+        // The new attempt is now the newest one: waiting on faculty.
+        user.latestLabAttemptByKey = { ...(user.latestLabAttemptByKey || {}), [labKey]: { completedAt: new Date().toISOString(), reviewedAt: null, redoRequested: false, supersededAt: null } };
+        if (user.openLabRedoFeedbackByLabKey) delete user.openLabRedoFeedbackByLabKey[labKey];
+        const open = user.openLabRedosByModuleKey && user.openLabRedosByModuleKey[moduleKey];
+        if (open && open.labKey === labKey) delete user.openLabRedosByModuleKey[moduleKey];
+      }
+      return saved;
+    })
+    .finally(() => itsLabSubmissionsInFlight.delete(inFlightKey));
+}
+
+// A guided walkthrough finished: submit each of its labs that can take an
+// attempt (never submitted, or returned). Waiting/approved labs send nothing.
+function itsSubmitWalkthroughLabs(user, moduleKey, labKeys) {
+  return Promise.all(labKeys.map((labKey) => itsSubmitLabAttempt(user, moduleKey, labKey, { state: 'complete', result: { source: 'mnt-coach-complete' } })));
+}
+
+/* Evidence labs: Resubmit stays disabled until the student has added or
+ * replaced at least one file since the return. The files' upload times when
+ * the student first sees the return are kept as a baseline in the lab's own
+ * state (state.redoBaseline), so this only ever compares the student's clock
+ * with itself, never with the reviewer's. Callers save state afterwards. */
+function itsEvidenceRedo(user, state, labKey, fileFields) {
+  if (!itsLabReturned(user, labKey)) return { returned: false, allPresent: false, changed: false };
+  const { reviewedAt } = itsLabAttempt(user, labKey);
+  state.redoBaseline = state.redoBaseline || {};
+  let baseline = state.redoBaseline[labKey];
+  if (!baseline || baseline.reviewedAt !== reviewedAt) {
+    baseline = { reviewedAt, files: Object.fromEntries(fileFields.map((field) => [field, state[field] ? state[field].uploadedAt : null])) };
+    state.redoBaseline[labKey] = baseline;
+  }
+  return {
+    returned: true,
+    allPresent: fileFields.every((field) => state[field]),
+    changed: fileFields.some((field) => state[field] && state[field].uploadedAt !== baseline.files[field]),
+  };
+}
+
+function itsResubmitButton(labKey, label, enabled) {
+  return `<button type="button" class="itsw-evidence-button" data-its-resubmit="${esc(labKey)}" ${enabled ? '' : 'disabled aria-disabled="true" style="opacity:.55;cursor:not-allowed"'}><i class="ri-send-plane-line" aria-hidden="true"></i> ${esc(label)}</button>
+    ${enabled ? '' : '<p class="itss-instruction">Add or replace at least one evidence file to enable Resubmit.</p>'}`;
+}
+
+/* labs: [{ key, action }] — action tells the student how to resubmit. One
+ * notice per returned lab, with the instructor's notes. */
+function itsRedoNoticeHtml(user, labs) {
+  const notes = (user && user.openLabRedoFeedbackByLabKey) || {};
+  return labs.filter((lab) => itsLabReturned(user, lab.key)).map((lab) => {
+    const items = notes[lab.key] || [];
+    return `<div class="m01-redo-feedback" role="note" data-its-redo-notice="${esc(lab.key)}"><strong><i class="ri-feedback-line" aria-hidden="true"></i> Returned for revision: ${esc(itsLabTitle(lab.key))}</strong>${items.length
+      ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>`
+      : '<p>Your instructor returned this lab without written notes.</p>'}<p>${esc(lab.action)}</p></div>`;
+  }).join('');
+}
+
 function itswInDevelopment({ title, previewText }) {
   return `<div class="itsw-in-development"><i class="ri-tools-line" aria-hidden="true"></i><div><strong>${esc(title || 'Lab content in development')}</strong><p>${esc(previewText)}</p></div></div>`;
 }
@@ -120,14 +216,21 @@ function itsSimpleLessonCard(lesson) {
   </details>`;
 }
 
-function itsCoachLaunchCard({ coachId, complete }) {
+function itsCoachLaunchCard({ coachId, complete, returned }) {
+  const icon = returned ? 'ri-restart-line' : complete ? 'ri-refresh-line' : 'ri-terminal-box-line';
+  const label = returned ? 'Redo the walkthrough' : complete ? 'Review the walkthrough' : 'Start guided walkthrough';
+  const status = returned
+    ? { tone: 'itss-status-pending', icon: 'ri-error-warning-line', text: 'Returned for revision — run the walkthrough again to resubmit.' }
+    : complete
+      ? { tone: 'itss-status-pass', icon: 'ri-checkbox-circle-fill', text: 'Lab complete — resolved in the guided walkthrough.' }
+      : { tone: 'itss-status-pending', icon: 'ri-time-line', text: 'Complete the guided walkthrough in the simulator to finish this lab.' };
   return `<a class="itsw-evidence-button" data-its-coach-launch href="${esc(SIM_ORIGIN)}?coach=${esc(coachId)}&amp;restart=1#/helpdesk/tickets" target="_blank" rel="opener">
-    <i class="${complete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${complete ? 'Review the walkthrough' : 'Start guided walkthrough'}
+    <i class="${icon}" aria-hidden="true"></i> ${label}
   </a>
-  <div class="itss-lab-status ${complete ? 'itss-status-pass' : 'itss-status-pending'}"><i class="${complete ? 'ri-checkbox-circle-fill' : 'ri-time-line'}" aria-hidden="true"></i><span>${complete ? 'Lab complete — resolved in the guided walkthrough.' : 'Complete the guided walkthrough in the simulator to finish this lab.'}</span></div>`;
+  <div class="itss-lab-status ${status.tone}"><i class="${status.icon}" aria-hidden="true"></i><span>${status.text}</span></div>`;
 }
 
-/* lab: optional { coachId, description, complete }. When present, the Prove
+/* lab: optional { coachId, description, complete, returned, notice }. When present, the Prove
  * section is a launch card into the real 'coachId' guided walkthrough
  * (state/onMessage handled by the caller — itsRegisterCoachModule below).
  * When absent, falls back to the original "lab content in development"
@@ -141,7 +244,7 @@ function itsSimpleModuleView({ user, program, moduleKey, moduleNumber, lessons, 
   const numLabel = String(moduleNumber).padStart(2, '0');
   const navSections = [
     { id: 'learn', title: 'Lessons', type: 'lecture', isComplete: true, scrollId: `itss-lessons-${numLabel}` },
-    { id: 'practice', title: 'Guided lab', type: 'lab', isComplete: lab?.complete === true, scrollId: `itss-lab-${numLabel}` },
+    { id: 'practice', title: 'Guided lab', type: 'lab', isComplete: lab?.complete === true && !lab.returned, scrollId: `itss-lab-${numLabel}` },
     ...(sources?.length ? [{ id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: `itss-sources-${numLabel}`, gated: false, supplemental: true }] : []),
   ];
   return `<div class="itss-shell">
@@ -156,7 +259,7 @@ function itsSimpleModuleView({ user, program, moduleKey, moduleNumber, lessons, 
 
       <section class="itss-section its-coach-lab" id="itss-lab-${numLabel}" aria-labelledby="itss-lab-title-${numLabel}"><div class="itss-section-heading"><span>P</span><div><p class="itss-kicker">Practice It${lab ? ' · guided walkthrough' : ''}</p><h2 id="itss-lab-title-${numLabel}">Guided lab</h2></div></div>
         ${lab
-          ? `<p class="itss-instruction">${esc(lab.description)}</p>${itsCoachLaunchCard({ coachId: lab.coachId, complete: lab.complete })}`
+          ? `<p class="itss-instruction">${esc(lab.description)}</p>${lab.notice || ''}${itsCoachLaunchCard({ coachId: lab.coachId, complete: lab.complete, returned: lab.returned })}`
           : itswInDevelopment({ title: 'Lab content in development', previewText: labPreview })}
       </section>
 
@@ -195,7 +298,11 @@ function itsRegisterCoachModule(config) {
     load(user);
     return itsSimpleModuleView({
       user, program, moduleKey, moduleNumber, lessons, lede, sources,
-      lab: { coachId, description: labDescription, complete: state.consoleCompleted === true },
+      lab: {
+        coachId, description: labDescription, complete: state.consoleCompleted === true,
+        returned: labKeys.some((key) => itsLabReturned(user, key)),
+        notice: itsRedoNoticeHtml(user, labKeys.map((key) => ({ key, action: 'Run the walkthrough again to resubmit this lab.' }))),
+      },
     });
   }
 
@@ -224,7 +331,7 @@ function itsRegisterCoachModule(config) {
     lastUser = user;
 
     if (typeof markModuleLabComplete === 'function') labKeys.forEach((key) => markModuleLabComplete(user, 'it-support', moduleKey, key));
-    if (typeof recordLabAttempt === 'function') labKeys.forEach((key) => recordLabAttempt(user, key, { state: 'complete', result: { source: 'mnt-coach-complete' } }));
+    await itsSubmitWalkthroughLabs(user, moduleKey, labKeys);
 
     const mounted = Boolean(document.querySelector('.itss-shell'));
     if (!mounted) return;

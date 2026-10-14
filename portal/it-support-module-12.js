@@ -211,6 +211,7 @@ function viewItsModuleTwelve(user, program) {
       <section class="its12-section" aria-labelledby="its12-lesson-title"><div class="its12-section-heading"><span>L</span><div><p class="its12-kicker">Learn</p><h2 id="its12-lesson-title">What to expect</h2></div></div>${its12LessonCard()}</section>
 
       <section class="its12-section its12-lab-section" aria-labelledby="its12-lab-title"><div class="its12-section-heading"><span>P</span><div><p class="its12-kicker">Prove · passing score ${ITS12_PASSING_SCORE}/100</p><h2 id="its12-lab-title">The integrated scenario</h2></div></div>
+        ${itsRedoNoticeHtml(user, [{ key: ITS12_LAB_KEY, action: 'Revise your answers using these notes, then submit your capstone again.' }])}
         <div class="its12-brief"><p>You're covering the Northstar Distribution Group help desk queue. Six tickets just came in, spanning identity, endpoint, network, peripheral, server, and a security concern. Rank them in the order you'd actually work them, then triage each one: category, first step, resolve-or-escalate, and your reasoning.</p></div>
         <div id="its12-lab-dynamic">
           ${its12TicketQueue()}
