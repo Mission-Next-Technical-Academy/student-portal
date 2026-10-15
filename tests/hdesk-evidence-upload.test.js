@@ -237,6 +237,29 @@ async function testRefusedInsertRemovesTheFiles() {
   assert.ok(run(`itswPickedFile(${JSON.stringify(user)}, 'evDesktop')`), 'the picked files stay for a retry');
 }
 
+async function testFailedCleanupIsLogged() {
+  const user = hdUser();
+  fresh(user);
+  ctx.supabaseResponder = (call) => (call.table === 'lab_attempts' && call.op === 'insert'
+    ? { data: null, error: { message: 'insert refused' } }
+    : call.table === BUCKET && call.op === 'remove' ? { data: null, error: { message: 'remove refused' } }
+    : { data: null, error: null });
+  const logged = [];
+  const realError = ctx.console.error;
+  ctx.console = { ...ctx.console, error: (...args) => logged.push(args) };
+  try {
+    moduleLab(2).view(user, HD);
+    chooseLab21();
+    assert.equal(await run('its02SubmitLab')(LAB21), false);
+  } finally {
+    ctx.console = { ...ctx.console, error: realError };
+  }
+  assert.ok(logged.some(([message, labKey, error]) => message === 'lab evidence cleanup failed' && labKey === LAB21 && error.message === 'remove refused'),
+    'a cleanup refused by Storage is logged');
+  const html = moduleLab(2).view(user, HD);
+  assert.equal(statusLine(html, LAB21), 'Lab 2.1 wasn’t submitted. Check your connection, then press Submit Lab 2.1.');
+}
+
 async function testDoubleClickSendsOneSet() {
   const user = hdUser();
   fresh(user);
@@ -289,6 +312,7 @@ async function testModuleOneUploadsBothFiles() {
     testUploadThenInsertWithTheSameId,
     testFailedUploadRecordsNothing,
     testRefusedInsertRemovesTheFiles,
+    testFailedCleanupIsLogged,
     testDoubleClickSendsOneSet,
     testResubmitUploadsANewFolder,
     testModuleOneUploadsBothFiles,

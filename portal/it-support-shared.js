@@ -244,8 +244,12 @@ async function itsUploadEvidence(user, moduleKey, labKey, evidenceFields) {
   const tried = [];
   const files = [];
   // Removes every path tried, in case a failed upload was stored anyway.
+  // Best effort: Storage reports most failures as a returned error, so log
+  // those as well as a thrown one; the submit has already failed either way.
   const discard = () => (tried.length
-    ? Promise.resolve().then(() => bucket.remove(tried.slice())).catch((err) => console.error('lab evidence cleanup failed', err))
+    ? Promise.resolve().then(() => bucket.remove(tried.slice()))
+      .then((res) => { if (res && res.error) console.error('lab evidence cleanup failed', labKey, res.error); })
+      .catch((err) => console.error('lab evidence cleanup failed', labKey, err))
     : Promise.resolve());
   for (const field of evidenceFields) {
     const file = itswPickedFile(user, field);
