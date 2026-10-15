@@ -25,28 +25,90 @@ function itswFormatTimestamp(iso) {
   }
 }
 
-/* Reads a <input type="file"> change event's selected file into the shape
- * every evidence-upload tile persists. Does not read or store the file's
- * bytes — the spec only requires an "Uploaded" status and timestamp, and
- * keeping binary data out of LabRuntime's localStorage-backed state avoids
- * quota issues. */
+/* ---------- Evidence files ----------
+ * A picked file is kept in this page's memory only (itswPickedFiles), never
+ * in browser storage: LabRuntime state holds just its name, size and time so
+ * the tile can say what was added. Submit uploads the files to the private
+ * 'lab-evidence' bucket and only then records the attempt
+ * (itsUploadEvidence + itsSubmitLabAttempt below). After a reload the tile
+ * asks for the file again. The bucket enforces the same types and size
+ * (20261015120000_lab_evidence_storage.sql); this check only explains a
+ * refusal before anything is sent. */
+const ITSW_EVIDENCE_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+const ITSW_EVIDENCE_MAX_BYTES = 10 * 1024 * 1024;
+const ITS_EVIDENCE_BUCKET = 'lab-evidence';
+
+// Every evidence field's label, shared by the tiles and the faculty panel.
+const ITSW_EVIDENCE_LABELS = {
+  evidence1: 'Sandbox desktop screenshot',
+  evidence2: 'LMS sign-in screenshot',
+  evDesktop: 'Finished Windows desktop',
+  evVmSettings: 'VM settings summary',
+  evSnapshot: 'Snapshot list',
+  evPing1: 'Ping: client → server',
+  evPing2: 'Ping: server → client',
+};
+
+const itswPickedFiles = new Map(); // `${userId}|${field}` -> File
+const itswEvidenceErrors = new Map(); // `${userId}|${field}` -> message
+
+function itswPickedFile(user, field) {
+  return (user && itswPickedFiles.get(`${user.userId}|${field}`)) || null;
+}
+
+// Why a file can't be used, or '' when it can.
+function itswEvidenceFileError(file) {
+  if (!ITSW_EVIDENCE_TYPES[file.type]) return `“${file.name}” wasn’t added: it isn’t a PNG, JPEG or WebP image. Only PNG, JPEG or WebP up to 10 MB is accepted.`;
+  if (file.size > ITSW_EVIDENCE_MAX_BYTES) return `“${file.name}” wasn’t added: it is ${itswFormatBytes(file.size)}. Only PNG, JPEG or WebP up to 10 MB is accepted.`;
+  return '';
+}
+
+/* Reads a <input type="file"> change event's selected file: the tile's
+ * metadata plus the File itself, or { error } when the file can't be used. */
 function itswReadEvidenceFile(fileInput) {
   const file = fileInput.files && fileInput.files[0];
   if (!file) return null;
-  return { name: file.name, sizeLabel: itswFormatBytes(file.size), uploadedAt: new Date().toISOString() };
+  const error = itswEvidenceFileError(file);
+  if (error) return { error };
+  return { name: file.name, sizeLabel: itswFormatBytes(file.size), uploadedAt: new Date().toISOString(), file };
 }
 
-// "Added", not "Uploaded": the file stays in this browser until evidence
-// files are stored on the server. Change this (and Module 1 Lab 1.1's hint)
-// back to "Uploaded" once they are.
-function itswEvidenceTile({ id, label, hint, file }) {
-  const status = file
+/* Takes a picked file for one field: keeps the File in memory and returns
+ * the metadata to save in the lab's state. A refused pick replaces the
+ * field's earlier file too, so the old screenshot can't be submitted in its
+ * place: it returns null, the caller saves the field as empty, and the tile
+ * shows why. previous: the field's saved metadata, if any. */
+function itswTakeEvidence(user, field, picked, previous = null) {
+  if (!user || !picked) return previous;
+  const key = `${user.userId}|${field}`;
+  if (picked.error || !picked.file) {
+    const hadFile = Boolean(previous || itswPickedFiles.has(key));
+    itswPickedFiles.delete(key);
+    itswEvidenceErrors.set(key, `${picked.error || 'That file wasn’t added.'} ${hadFile ? 'Your earlier file was removed. ' : ''}Choose a file again.`);
+    return null;
+  }
+  itswEvidenceErrors.delete(key);
+  itswPickedFiles.set(key, picked.file);
+  return { name: picked.name, sizeLabel: picked.sizeLabel, uploadedAt: picked.uploadedAt };
+}
+
+// "Added", not "Uploaded": a picked file stays in this page until Submit.
+// Files are shown as uploaded only after the attempt is saved
+// (itsUploadedEvidenceHtml).
+function itswEvidenceTile({ id, user, field, hint, file }) {
+  const label = ITSW_EVIDENCE_LABELS[field];
+  const picked = itswPickedFile(user, field);
+  const error = user ? itswEvidenceErrors.get(`${user.userId}|${field}`) : '';
+  const status = file && picked
     ? `<div class="itsw-evidence-status itsw-evidence-done"><i class="ri-checkbox-circle-fill" aria-hidden="true"></i><span class="itsw-evidence-file"><strong>Added</strong> — ${esc(file.name)} · ${esc(file.sizeLabel)}<time>${esc(itswFormatTimestamp(file.uploadedAt))}</time></span></div>`
-    : `<div class="itsw-evidence-status"><i class="ri-time-line" aria-hidden="true"></i><span>Not uploaded yet</span></div>`;
+    : file
+      ? `<div class="itsw-evidence-status"><i class="ri-refresh-line" aria-hidden="true"></i><span class="itsw-evidence-file">Choose this file again — “${esc(file.name)}” was added before the page reloaded, and files are kept only until you submit.</span></div>`
+      : `<div class="itsw-evidence-status"><i class="ri-time-line" aria-hidden="true"></i><span>Not uploaded yet</span></div>`;
   return `<div class="itsw-evidence" data-itsw-evidence="${esc(id)}">
     <div class="itsw-evidence-head"><span class="itsw-evidence-icon"><i class="ri-upload-cloud-2-line" aria-hidden="true"></i></span><div><strong>${esc(label)}</strong><p>${esc(hint)}</p></div></div>
     ${status}
-    <label class="itsw-evidence-button"><i class="ri-upload-2-line" aria-hidden="true"></i> ${file ? 'Replace file' : 'Choose file'}<input type="file" accept="image/*" data-itsw-evidence-input="${esc(id)}" /></label>
+    ${error ? `<p class="itsw-evidence-error" role="alert"><i class="ri-error-warning-line" aria-hidden="true"></i> ${esc(error)}</p>` : ''}
+    <label class="itsw-evidence-button"><i class="ri-upload-2-line" aria-hidden="true"></i> ${file && picked ? 'Replace file' : 'Choose file'}<input type="file" accept="${Object.keys(ITSW_EVIDENCE_TYPES).join(',')}" data-itsw-evidence-input="${esc(id)}" /></label>
   </div>`;
 }
 
@@ -135,12 +197,28 @@ function itsLabTitle(labKey) {
 
 const itsLabSubmissionsInFlight = new Set();
 
-function itsSubmitLabAttempt(user, moduleKey, labKey, fields) {
+/* evidenceFields: an evidence lab's state fields. Their picked files are
+ * uploaded first, inside the same in-flight guard, and the attempt is then
+ * inserted with the upload folder's id; if the insert is refused, the
+ * uploaded files are removed again. */
+function itsSubmitLabAttempt(user, moduleKey, labKey, fields, evidenceFields = null) {
   if (!user || typeof recordLabAttempt !== 'function') return Promise.resolve(false);
   const inFlightKey = `${user.userId}|${labKey}`;
   if (itsLabSubmissionsInFlight.has(inFlightKey) || !itsLabAcceptsAttempt(user, labKey)) return Promise.resolve(false);
   itsLabSubmissionsInFlight.add(inFlightKey);
-  return recordLabAttempt(user, labKey, fields)
+  const send = !evidenceFields
+    ? recordLabAttempt(user, labKey, fields)
+    : itsUploadEvidence(user, moduleKey, labKey, evidenceFields).then((upload) => {
+      if (!upload) return false;
+      return recordLabAttempt(user, labKey, { ...fields, id: upload.id, result: { ...(fields.result || {}), evidence_files: upload.files } })
+        .then((saved) => {
+          if (!saved) return upload.discard().then(() => false);
+          itsUploadedEvidence.set(inFlightKey, upload.files);
+          evidenceFields.forEach((field) => itswPickedFiles.delete(`${user.userId}|${field}`));
+          return true;
+        });
+    }).catch((err) => { console.error('lab evidence submit threw', labKey, err); return false; });
+  return send
     .then((saved) => {
       if (saved && fields.state === 'complete') {
         // The new attempt is now the newest one: waiting on faculty.
@@ -154,6 +232,55 @@ function itsSubmitLabAttempt(user, moduleKey, labKey, fields) {
     .finally(() => itsLabSubmissionsInFlight.delete(inFlightKey));
 }
 
+/* Uploads one evidence lab's picked files to
+ * <track>/<user>/<module>/<lab>/<attempt id>/<field>.<ext>. Resolves to
+ * { id, files, discard } once every file is stored, or null (after removing
+ * whatever was stored) when a file is missing, refused or fails. */
+async function itsUploadEvidence(user, moduleKey, labKey, evidenceFields) {
+  if (typeof mntSupabase === 'undefined' || !mntSupabase.storage || typeof crypto === 'undefined' || !crypto.randomUUID) return null;
+  const id = crypto.randomUUID();
+  const folder = [user.trackCode, user.userId, moduleKey, labKey, id].join('/');
+  const bucket = mntSupabase.storage.from(ITS_EVIDENCE_BUCKET);
+  const tried = [];
+  const files = [];
+  // Removes every path tried, in case a failed upload was stored anyway.
+  // Best effort: Storage reports most failures as a returned error, so log
+  // those as well as a thrown one; the submit has already failed either way.
+  const discard = () => (tried.length
+    ? Promise.resolve().then(() => bucket.remove(tried.slice()))
+      .then((res) => { if (res && res.error) console.error('lab evidence cleanup failed', labKey, res.error); })
+      .catch((err) => console.error('lab evidence cleanup failed', labKey, err))
+    : Promise.resolve());
+  for (const field of evidenceFields) {
+    const file = itswPickedFile(user, field);
+    if (!file || itswEvidenceFileError(file)) { await discard(); return null; }
+    const path = `${folder}/${field}.${ITSW_EVIDENCE_TYPES[file.type]}`;
+    tried.push(path);
+    let error = null;
+    try {
+      ({ error } = await bucket.upload(path, file, { contentType: file.type, upsert: false }));
+    } catch (err) {
+      error = err;
+    }
+    if (error) {
+      console.error('lab evidence upload failed', labKey, field, error);
+      await discard();
+      return null;
+    }
+    files.push({ field, label: ITSW_EVIDENCE_LABELS[field] || field, path, name: file.name, size: file.size, type: file.type });
+  }
+  return { id, files, discard };
+}
+
+// Files saved with an attempt on this page load, shown under the lab's status.
+const itsUploadedEvidence = new Map(); // `${userId}|${labKey}` -> evidence_files
+
+function itsUploadedEvidenceHtml(user, labKey) {
+  const files = user ? itsUploadedEvidence.get(`${user.userId}|${labKey}`) : null;
+  if (!files || !itsLabSubmitted(user, labKey)) return '';
+  return `<ul class="itsw-uploaded" data-its-uploaded="${esc(labKey)}">${files.map((file) => `<li><i class="ri-checkbox-circle-fill" aria-hidden="true"></i> <strong>Uploaded</strong> — ${esc(file.label)}: ${esc(file.name)} · ${esc(itswFormatBytes(file.size))}</li>`).join('')}</ul>`;
+}
+
 // A guided walkthrough finished: submit each of its labs that can take an
 // attempt (never submitted, or returned). Waiting/approved labs send nothing.
 function itsSubmitWalkthroughLabs(user, moduleKey, labKeys) {
@@ -161,7 +288,8 @@ function itsSubmitWalkthroughLabs(user, moduleKey, labKeys) {
 }
 
 /* Evidence labs: Resubmit stays disabled until the student has added or
- * replaced at least one file since the return. The files' upload times when
+ * replaced at least one file since the return, and every file is picked on
+ * this page (a resubmission uploads its own full set). The files' upload times when
  * the student first sees the return are kept as a baseline in the lab's own
  * state (state.redoBaseline), so this only ever compares the student's clock
  * with itself, never with the reviewer's. Callers save state afterwards. */
@@ -176,7 +304,7 @@ function itsEvidenceRedo(user, state, labKey, fileFields) {
   }
   return {
     returned: true,
-    allPresent: fileFields.every((field) => state[field]),
+    allPresent: fileFields.every((field) => state[field] && itswPickedFile(user, field)),
     changed: fileFields.some((field) => state[field] && state[field].uploadedAt !== baseline.files[field]),
   };
 }
@@ -301,14 +429,14 @@ function itsRefreshWalkthroughNotice(user, coachId, labKeys, startLabel) {
   if (el) el.outerHTML = itsWalkthroughNoticeHtml(user, coachId, labKeys, startLabel);
 }
 
-/* An evidence lab's first submission, from its Submit button: one attempt,
- * only when never submitted and every file is added. onChange re-renders the
- * lab (once for "Submitting…", once for the result). */
-function itsSubmitEvidenceLab(user, moduleKey, labKey, fields, onChange) {
+/* An evidence lab's first submission, from its Submit button: its files,
+ * then one attempt, only when never submitted and every file is added.
+ * onChange re-renders the lab (once for "Submitting…", once for the result). */
+function itsSubmitEvidenceLab(user, moduleKey, labKey, fields, evidenceFields, onChange) {
   if (!user || itsLabSubmitting(user, labKey) || itsLabStatus(user, labKey) !== 'not_submitted') return Promise.resolve(false);
   const failureKey = `${user.userId}|${labKey}`;
   itsLabSubmitFailures.delete(failureKey);
-  const pending = itsSubmitLabAttempt(user, moduleKey, labKey, fields);
+  const pending = itsSubmitLabAttempt(user, moduleKey, labKey, fields, evidenceFields);
   onChange();
   return pending.then((saved) => {
     if (!saved) itsLabSubmitFailures.add(failureKey);
@@ -336,6 +464,68 @@ function itsRedoNoticeHtml(user, labs) {
       ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>`
       : '<p>Your instructor returned this lab without written notes.</p>'}<p>${esc(lab.action)}</p></div>`;
   }).join('');
+}
+
+/* ---------- Faculty Lab Attempts: evidence files ----------
+ * Called from the shared review card (portal/app.js) for every attempt; it
+ * renders only for rows whose result lists evidence_files. A file gets an
+ * Open button only when its path lies directly in this attempt's own folder,
+ * so a row can never point the reviewer at another student's file. Open asks
+ * Storage for a five-minute link under the reviewer's own session. */
+function itsEvidenceAttemptFolder(row) {
+  const lab = typeof LABS !== 'undefined' ? LABS.find((item) => item.key === row.lab_key) : null;
+  if (!lab || !row.track_code || !row.user_id || !row.id) return null;
+  return `${[row.track_code, row.user_id, lab.module, row.lab_key, row.id].join('/')}/`;
+}
+
+function itsEvidenceReviewPanel(row) {
+  const files = row && row.result && Array.isArray(row.result.evidence_files) ? row.result.evidence_files : null;
+  if (!files) return '';
+  const folder = itsEvidenceAttemptFolder(row);
+  const own = (path) => !!folder && typeof path === 'string' && path.startsWith(folder) && path.length > folder.length && !path.slice(folder.length).includes('/');
+  return `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-3" data-its-evidence-panel="${esc(row.id)}">
+    <p class="text-sm font-semibold text-[#1e3a5f] mb-2">Student evidence files (${files.length})</p>
+    <ul class="space-y-2 text-sm">${files.map((file) => {
+      const item = file && typeof file === 'object' ? file : {};
+      const title = `${esc(String(item.label || ITSW_EVIDENCE_LABELS[item.field] || item.field || 'Evidence file'))}${item.name ? ` · <span class="text-gray-600">${esc(String(item.name))}</span>` : ''}${Number(item.size) ? ` <span class="text-xs text-gray-500">(${esc(itswFormatBytes(item.size))})</span>` : ''}`;
+      return `<li class="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-200 bg-white px-3 py-2"><span class="min-w-0 break-all">${title}</span>${own(item.path)
+        ? `<span class="flex items-center gap-2"><button type="button" data-its-evidence-open="${esc(item.path)}" class="text-xs font-semibold text-white bg-[#1e3a5f] hover:bg-[#16324a] rounded-lg px-3 py-1.5">Open</button><span data-its-evidence-open-status class="text-xs text-gray-600"></span></span>`
+        : '<span class="text-xs font-semibold text-gray-500">File unavailable</span>'}</li>`;
+    }).join('')}</ul>
+  </div>`;
+}
+
+// The tab opens before the link is requested, so pop-up blockers allow it.
+async function itsOpenEvidenceFile(button) {
+  const status = button.parentElement && button.parentElement.querySelector('[data-its-evidence-open-status]');
+  const tab = window.open('', '_blank');
+  if (tab) tab.opener = null;
+  let url = null;
+  try {
+    const { data, error } = await mntSupabase.storage.from(ITS_EVIDENCE_BUCKET).createSignedUrl(button.dataset.itsEvidenceOpen, 300);
+    if (error) console.error('lab evidence link failed', error);
+    url = !error && data && data.signedUrl;
+  } catch (err) {
+    console.error('lab evidence link threw', err);
+  }
+  if (!url) {
+    if (tab) tab.close();
+    if (status) status.textContent = 'File unavailable';
+    return;
+  }
+  if (tab) {
+    tab.location.href = url;
+    if (status) status.textContent = '';
+  } else if (status) {
+    status.innerHTML = `<a href="${esc(url)}" target="_blank" rel="noopener" class="underline">Pop-up blocked: open the file here</a>`;
+  }
+}
+
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('click', (event) => {
+    const button = event.target && event.target.closest && event.target.closest('[data-its-evidence-open]');
+    if (button) itsOpenEvidenceFile(button);
+  });
 }
 
 function itswInDevelopment({ title, previewText }) {

@@ -35,7 +35,8 @@ const waiting = () => ({ completedAt: SUBMITTED, reviewedAt: null, redoRequested
 const approved = () => ({ ...waiting(), reviewedAt: REVIEWED });
 const returned = () => ({ ...waiting(), reviewedAt: REVIEWED, redoRequested: true });
 const note = (comment) => [{ item_label: 'Evidence', comment }];
-const file = (name, uploadedAt) => ({ name, sizeLabel: '1.0 KB', uploadedAt });
+// A picked file as itswReadEvidenceFile returns it: tile metadata plus the File.
+const file = (name, uploadedAt) => ({ name, sizeLabel: '1.0 KB', uploadedAt, file: { name, size: 1024, type: 'image/png' } });
 
 function hdUser({ attempts = {}, feedback = {} } = {}) {
   return {
@@ -95,6 +96,12 @@ async function testReturnedEvidenceLabResubmitsOnce() {
   await settle();
   assert.equal(inserts().length, 0, 'uploading a file does not resubmit by itself');
 
+  // Files are kept only on the page that picked them, so a resubmission
+  // needs every file chosen again on this page, not just the replaced one.
+  html = moduleLab(2).view(user, HD);
+  assert.match(resubmitButton(html, LAB21), /disabled/, 'disabled until every file is chosen on this page');
+  run('its02AddEvidence')('its02-ev-vmsettings', file('settings.png', '2026-10-03T09:00:00Z'));
+
   html = moduleLab(2).view(user, HD);
   assert.doesNotMatch(resubmitButton(html, LAB21), /disabled/, 'Resubmit is enabled after a replaced file');
 
@@ -121,6 +128,9 @@ async function testReturnedEvidenceLabWithNewFileAfterReturn() {
   let html = moduleLab(2).view(user, HD);
   assert.match(resubmitButton(html, LAB21), /disabled/, 'disabled while a required file is missing');
   run('its02AddEvidence')('its02-ev-vmsettings', file('settings-v2.png', '2026-10-03T09:00:00Z'));
+  // The desktop screenshot from before the return must be chosen again on
+  // this page too: a resubmission uploads its own full set of files.
+  run('its02AddEvidence')('its02-ev-desktop', file('desktop.png', '2026-10-03T09:00:00Z'));
   await settle();
   assert.equal(inserts().length, 0, 'completing the evidence set does not auto-submit a returned lab');
   html = moduleLab(2).view(user, HD);
@@ -232,6 +242,9 @@ async function testModuleOne() {
   run('its01AddEvidence')('its01-evidence-1', file('sandbox.png', '2026-10-03T09:00:00Z'));
   await settle();
   assert.equal(inserts().length, 0, 'Lab 1.1: upload alone does not resubmit');
+  html = moduleLab(1).view(user, HD);
+  assert.match(resubmitButton(html, LAB1), /disabled/, 'Lab 1.1: disabled until both files are chosen on this page');
+  run('its01AddEvidence')('its01-evidence-2', file('lms.png', '2026-10-03T09:00:00Z'));
   html = moduleLab(1).view(user, HD);
   assert.doesNotMatch(resubmitButton(html, LAB1), /disabled/);
   await Promise.all([run('its01ResubmitLab')(LAB1), run('its01ResubmitLab')(LAB1)]);

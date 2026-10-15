@@ -1,3 +1,84 @@
+**2026-10-15 (Megan; PR #63 "L-007: Store Help Desk evidence files and let
+instructors open them"; Help Desk files plus shared `portal/app.js`, a new
+`supabase/` migration, `tests/portal-vm.js`, `bin/ci-check.sh` and the
+`portal/index.html` version lines — please review those):** Help Desk
+evidence labs (1.1, 2.1, 2.2) now store each student's screenshots in a new
+private Storage bucket, and instructors and admins can open them from the Lab
+Attempts tab, including after the student has signed out. The student picks
+files and presses Submit; the browser uploads each file, then saves the lab
+attempt with the same id it used for the upload folder. A failed upload saves
+no attempt; a refused attempt (for example, one already waiting for review)
+removes the uploaded files. Picked files stay in page memory only, so after a
+reload the student chooses them again. The file picker now offers only PNG,
+JPEG and WebP, and files must be 10 MB or smaller (checked in the browser,
+enforced by the bucket). Lab 1.1's second tile now asks for a screenshot of
+the student's own dashboard. `score: 100` on evidence attempts is unchanged.
+- Files: `portal/it-support-shared.js`, `-shared.css`, `-module-01.js`,
+  `-module-02.js` (Megan's).
+- New migration (`supabase/`, yours by CODEOWNERS default):
+  `supabase/migrations/20261015120000_lab_evidence_storage.sql`. Creates the
+  private `lab-evidence` bucket (10 MB per file; PNG/JPEG/WebP only), four
+  functions (`lab_evidence_attempt_id`, `can_read_lab_evidence`,
+  `can_write_lab_evidence`, `can_delete_lab_evidence`) and three
+  `storage.objects` policies (`lab_evidence_read`, `_insert`, `_delete`; no
+  update policy). Path:
+  `<track_code>/<user_id>/<module_key>/<lab_key>/<attempt_id>/<field>.<ext>`.
+  Read: the student whose user folder it is, or an admin or the course's
+  assigned instructor (`is_admin()` / `can_manage_course_messages()`) only
+  when a `lab_attempts` row with that id exists and its `user_id`,
+  `track_code` and `lab_key` match the path. Insert: own folder only, with
+  `has_module_write_access()` and `has_valid_site_session()`, into a lab that
+  `course_module_labs` lists for that module, and refused once an attempt
+  with that id exists (files can't be added or swapped after submitting).
+  Delete: owner only, while no attempt with that id exists (cleanup after a
+  failed submit). It doesn't alter `storage.objects` itself; rollback note is
+  in the file. Megan applies it to staging first, then to production after
+  the staging browser tests pass and before merging.
+- Shared `portal/app.js`: (1) `recordLabAttempt()` takes an optional `id`;
+  when given, the insert uses it. Every existing call is unchanged. (2)
+  `adminAttemptReviewCard()` and the decided-attempt row in
+  `adminLabAttemptsPanel()` include
+  `typeof itsEvidenceReviewPanel === 'function' ? itsEvidenceReviewPanel(row) : ''`.
+  The panel draws only when `row.result.evidence_files` is a list, offers
+  Open only for paths inside that attempt's own folder, and opens files
+  through a 5-minute signed link under the reviewer's own session.
+- Tests (`tests/`, yours by default): new `tests/hdesk-evidence-upload.test.js`
+  and `tests/lab-attempt-evidence-panel.test.js`; updated
+  `tests/hdesk-module-page-states.test.js` and
+  `tests/hdesk-returned-lab-resubmit.test.js` (their fake file now includes a
+  File-like object, and a few checks expect files to be chosen again after a
+  reload); `tests/portal-vm.js` gains a `mntSupabase.storage.from()` stub
+  (`upload` / `remove` / `createSignedUrl`, recorded in `supabaseCalls` as
+  `storage:<bucket>`) and `crypto`; nothing existing in the stub changed.
+- `bin/ci-check.sh`: one added section, `echo '== Lab evidence files =='`
+  plus `node tests/hdesk-evidence-upload.test.js` and
+  `node tests/lab-attempt-evidence-panel.test.js`.
+- `portal/index.html`: version bumps for `it-support-shared.css/js`,
+  `it-support-module-01/02.js` and `app.js`.
+- Decision recorded: the evidence list lives in
+  `lab_attempts.result.evidence_files`, one entry per file:
+  `{ field, label, path, name, size, type }`. It's not in
+  portfolio_artifacts; the files belong to the attempt they were submitted
+  with. Each resubmission gets its own folder; earlier attempts' files are
+  kept.
+- SOC / other programs: no behavior change. The panel draws only for rows
+  with `evidence_files`, which SOC rows don't have (a test checks a SOC review
+  card has no panel). `recordLabAttempt()` callers that pass no `id` behave
+  exactly as before. The migration touches only the storage schema and adds
+  new functions; no existing table, policy or function changes.
+- Your workflow: `bin/ci-check.sh` runs two more fast Node tests. Help Desk
+  attempts in Lab Attempts now show a "Student evidence files" box with Open
+  buttons; older Help Desk attempts show only the count, as before. Tests
+  that need Storage can use the new stub in `tests/portal-vm.js`. Known
+  limitation: files uploaded without a saved attempt aren't limited or
+  cleaned up yet, and staff can't open them. This includes files left after
+  a failed cleanup or a page closed mid-submit. Megan is tracking this for
+  after launch.
+- Fixes of yours in this PR: none.
+- Please review: the migration's functions and policies, the two `app.js`
+  changes, the `tests/portal-vm.js` stub, the `bin/ci-check.sh` lines, and
+  the `portal/index.html` version lines.
+
 **2026-10-14 (Megan; PR #62 "Help Desk: module pages show lab status from the
 database (L-013)"; Help Desk files plus one
 `bin/ci-check.sh` line and the `portal/index.html` version lines — please
