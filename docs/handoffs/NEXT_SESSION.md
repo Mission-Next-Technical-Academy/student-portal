@@ -1,5 +1,5 @@
-**2026-10-14 (Megan; PR #__ "Help Desk: module pages show lab status from the
-database, explicit Submit for evidence labs (L-013)"; Help Desk files plus one
+**2026-10-14 (Megan; PR #62 "Help Desk: module pages show lab status from the
+database (L-013)"; Help Desk files plus one
 `bin/ci-check.sh` line and the `portal/index.html` version lines — please
 review those):** Help Desk module pages
 (Modules 1–11) now take every lab status, the "N of M submitted · P passed"
