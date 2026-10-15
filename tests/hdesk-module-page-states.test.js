@@ -35,7 +35,8 @@ const DAY = new Date(SUBMITTED).toLocaleDateString(undefined, { month: 'short', 
 const waiting = () => ({ completedAt: SUBMITTED, reviewedAt: null, redoRequested: false, supersededAt: null });
 const approved = () => ({ ...waiting(), reviewedAt: REVIEWED });
 const returned = () => ({ ...waiting(), reviewedAt: REVIEWED, redoRequested: true });
-const file = (name, uploadedAt) => ({ name, sizeLabel: '1.0 KB', uploadedAt });
+// A picked file as itswReadEvidenceFile returns it: tile metadata plus the File.
+const file = (name, uploadedAt) => ({ name, sizeLabel: '1.0 KB', uploadedAt, file: { name, size: 1024, type: 'image/png' } });
 
 function hdUser(attempts = {}) {
   return {
@@ -131,7 +132,11 @@ async function testModuleTwoLocalFlagsAloneAreNotSubmitted() {
   });
   const html = moduleLab(2).view(user, HD);
   assert.doesNotMatch(html, /Lab 2\.1 complete|Lab 2\.2 complete|Labs 2\.3 &(amp;)? 2\.4 complete/);
-  assert.equal(statusLine(html, LAB21), 'Ready to submit Lab 2.1');
+  // Picked files live only in the page that picked them: after a reload each
+  // tile asks for its file again, and nothing is ready to submit.
+  assert.equal(statusLine(html, LAB21), 'Upload both evidence files to complete this lab.');
+  assert.equal(submitButton(html, LAB21), null, 'no Submit button until the files are chosen again');
+  assert.match(section(html, 'its02-lab-2-1'), /Choose this file again — “d\.png”/);
   assert.equal(counter(html, 'its02-status'), '0 of 4 submitted · 0 passed');
   assert.match(section(html, 'its02-lab-2-3'), /Start Labs 2\.3 &(amp;)? 2\.4 walkthrough/);
   for (const id of ['its02-lab-2-1', 'its02-lab-2-2', 'its02-lab-2-3']) assert.equal(railRow(html, id).ticked, false, `${id} not ticked`);
@@ -236,7 +241,7 @@ async function testModuleOneExplicitSubmit() {
   assert.equal(inserts().length, 0, 'no auto-submit');
   assert.equal(statusLine(html, LAB11), 'Ready to submit Lab 1.1');
   assert.ok(submitButton(html, LAB11));
-  assert.match(section(html, 'its01-lab-1-1'), /screenshot of this tile showing an “Added” status/, 'Lab 1.1 hint matches the tile');
+  assert.match(section(html, 'its01-lab-1-1'), /screenshot of your LMS dashboard after you sign in/, 'Lab 1.1 asks for evidence of the student’s own sign-in');
 
   await run('its01SubmitLab')(LAB11);
   assert.equal(inserts(LAB11).length, 1);

@@ -118,10 +118,10 @@ function its01Lessons() {
   return `<div class="its01-lesson-grid">${ITS01_LESSONS.map(its01LessonCard).join('')}</div>`;
 }
 
-// Lab 1.1's work on this device is ready to send: both files added and the
+// Lab 1.1's work on this page is ready to send: both files picked and the
 // policy acknowledged.
 function its01Lab1Ready() {
-  return Boolean(its01State.evidence1 && its01State.evidence2 && its01State.aupAcknowledged);
+  return ITS01_LAB1_FIELDS.every((field) => its01State[field] && itswPickedFile(its01User, field)) && its01State.aupAcknowledged === true;
 }
 
 function its01Lab1CanResubmit() {
@@ -145,18 +145,19 @@ function its01Lab1Status() {
   const ready = its01Lab1Ready();
   const canSubmit = ready && itsLabStatus(its01User, ITS01_LAB1_KEY) === 'not_submitted' && !itsLabSubmitting(its01User, ITS01_LAB1_KEY);
   return `<div class="its01-lab1-status-wrap">${itsLabStatusHtml(its01User, ITS01_LAB1_KEY, { label: 'Lab 1.1', prefix: 'its01', pendingText: 'Upload both evidence files and acknowledge the Acceptable Use Policy to complete this lab.', ready })}
-    ${canSubmit ? itsSubmitButton(ITS01_LAB1_KEY, 'Lab 1.1') : ''}</div>`;
+    ${canSubmit ? itsSubmitButton(ITS01_LAB1_KEY, 'Lab 1.1') : ''}
+    ${itsUploadedEvidenceHtml(its01User, ITS01_LAB1_KEY)}</div>`;
 }
 
 function its01Lab1Grid() {
   return `<div class="its01-evidence-grid">
-      ${itswEvidenceTile({ id: 'its01-evidence-1', label: 'Sandbox desktop screenshot', hint: 'A screenshot of the sandbox desktop after a successful login.', file: its01State.evidence1 })}
-      ${itswEvidenceTile({ id: 'its01-evidence-2', label: 'Evidence-upload confirmation', hint: 'A screenshot of this tile showing an “Added” status and timestamp.', file: its01State.evidence2 })}
+      ${itswEvidenceTile({ id: 'its01-evidence-1', user: its01User, field: 'evidence1', hint: 'A screenshot of the sandbox desktop after a successful login.', file: its01State.evidence1 })}
+      ${itswEvidenceTile({ id: 'its01-evidence-2', user: its01User, field: 'evidence2', hint: 'A screenshot of your LMS dashboard after you sign in, showing your own name or student ID.', file: its01State.evidence2 })}
     </div>`;
 }
 
-// A submitted Lab 1.1 shows no upload boxes: its files are not stored on the
-// server yet, so no device can show them.
+// A submitted Lab 1.1 shows no upload boxes: its files are stored with the
+// attempt for the instructor, and this page doesn't load them back.
 function its01Lab1() {
   return `<section class="its01-section its01-lab-section" id="its01-lab-1-1" aria-labelledby="its01-lab-1-1-title">
     <div class="its01-section-heading"><span>1</span><div><p class="its01-kicker">Lab 1.1 · evidence-based · real systems</p><h2 id="its01-lab-1-1-title">LMS &amp; Environment Validation</h2></div></div>
@@ -258,22 +259,25 @@ function its01RenderHeroStatus() {
 const ITS01_LAB1_ATTEMPT = { state: 'complete', score: 100, result: { evidence: 2, aup: true } };
 
 function its01SubmitLab1() {
-  return itsSubmitLabAttempt(its01User, 'its-01', ITS01_LAB1_KEY, ITS01_LAB1_ATTEMPT);
+  return itsSubmitLabAttempt(its01User, 'its-01', ITS01_LAB1_KEY, ITS01_LAB1_ATTEMPT, ITS01_LAB1_FIELDS);
 }
 
 // Adding a file never submits: the student presses Submit Lab 1.1.
-function its01AddEvidence(inputId, file) {
+function its01AddEvidence(inputId, picked) {
   const field = ITS01_EVIDENCE_FIELD_BY_INPUT[inputId];
-  if (!field || !file || !its01State) return;
-  its01State[field] = file;
-  its01Save();
+  if (!field || !picked || !its01State) return;
+  const meta = itswTakeEvidence(its01User, field, picked);
+  if (meta) {
+    its01State[field] = meta;
+    its01Save();
+  }
   its01RenderLab1();
 }
 
 // The Submit button: Lab 1.1's first submission, once it is ready.
 function its01SubmitLab(labKey) {
   if (labKey !== ITS01_LAB1_KEY || !its01State || !its01Lab1Ready()) return Promise.resolve(false);
-  return itsSubmitEvidenceLab(its01User, 'its-01', ITS01_LAB1_KEY, ITS01_LAB1_ATTEMPT, its01RenderLab1).then((saved) => {
+  return itsSubmitEvidenceLab(its01User, 'its-01', ITS01_LAB1_KEY, ITS01_LAB1_ATTEMPT, ITS01_LAB1_FIELDS, its01RenderLab1).then((saved) => {
     if (saved && typeof markModuleLabComplete === 'function') markModuleLabComplete(its01User, 'it-support', 'its-01', ITS01_LAB1_KEY);
     return saved;
   });

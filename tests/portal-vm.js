@@ -4,7 +4,8 @@
 //
 // The Supabase stub records every call in ctx.supabaseCalls and answers each
 // query with ctx.supabaseResponder(call) (default: no rows, no error), so a
-// test can script what the "database" returns.
+// test can script what the "database" returns. Storage calls are recorded the
+// same way, with table 'storage:<bucket>'.
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
@@ -59,8 +60,25 @@ function loadPortal() {
         return builder;
       },
       async rpc() { return { data: null, error: null }; },
+      // Storage calls are recorded in supabaseCalls too ({ table: 'storage:<bucket>',
+      // op: 'upload' | 'remove' | 'createSignedUrl' }) and answered by supabaseResponder.
+      storage: {
+        from(bucket) {
+          const record = (op, payload, options) => {
+            const call = { table: 'storage:' + bucket, op, filters: {}, payload, options: options || {} };
+            supabaseCalls.push(call);
+            return Promise.resolve(supabaseResponder(call));
+          };
+          return {
+            upload(objectPath, file, options) { return record('upload', { path: objectPath, file }, options); },
+            remove(paths) { return record('remove', paths); },
+            createSignedUrl(objectPath, expiresIn) { return record('createSignedUrl', { path: objectPath, expiresIn }); },
+          };
+        },
+      },
     };
   `, ctx);
+  ctx.crypto = require('node:crypto').webcrypto;
   ctx.MNT_SUPABASE_URL = 'https://stub.supabase.co';
   ctx.MNT_SUPABASE_ANON_KEY = 'stub-anon-key';
   ctx.fetch = async () => ({ ok: true, async json() { return {}; } });

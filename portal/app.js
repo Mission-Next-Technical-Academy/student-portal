@@ -976,6 +976,7 @@ function adminAttemptReviewCard(item, olderAttempt) {
     ${adminCapstoneReviewPanel(row)}
     ${adminResponseDesignReviewPanel(row)}
     ${adminModuleTwoAccessReviewPanel(row)}
+    ${typeof itsEvidenceReviewPanel === 'function' ? itsEvidenceReviewPanel(row) : ''}
     ${competencyPanel}
     ${readableResult}
     ${studentWorkPanel}
@@ -1061,6 +1062,7 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
       <p class="mt-2 text-xs text-gray-500">${esc(item.labTitles.join(' · '))}</p>
       <p class="mt-1 text-xs text-gray-500">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}${row.reviewed_at ? ` · Reviewed ${new Date(row.reviewed_at).toLocaleString()}` : ''}</p>
       ${ticket ? `<div class="mt-3">${ticket}</div>` : ''}
+      ${typeof itsEvidenceReviewPanel === 'function' ? itsEvidenceReviewPanel(row) : ''}
     </details>`;
   };
   const attemptHtml = (item, isLatest) => (pending.has(item.lead.id) ? adminAttemptReviewCard(item, !isLatest) : recordRow(item, isLatest));
@@ -3974,12 +3976,15 @@ function markModuleLabComplete(user, programSlug, moduleKey, labKey, completed =
  * call. Same fire-and-forget/guard/error-logging convention as
  * upsertModuleProgress above: no session or no track_code silently skips the
  * write so local LabRuntime/engagement behavior is never affected. */
-function recordLabAttempt(user, labKey, { state, score = null, result = {}, submittedAt = null } = {}) {
+function recordLabAttempt(user, labKey, { id = null, state, score = null, result = {}, submittedAt = null } = {}) {
   if (!user || !user.userId || !user.trackCode) return Promise.resolve(false);
   const now = submittedAt || new Date().toISOString();
   return mntSupabase
     .from('lab_attempts')
     .insert({
+      // Optional: a caller that stored files under an attempt folder first
+      // (Help Desk evidence, it-support-shared.js) supplies that folder's id.
+      ...(id ? { id } : {}),
       user_id: user.userId,
       lab_key: labKey,
       track_code: user.trackCode,

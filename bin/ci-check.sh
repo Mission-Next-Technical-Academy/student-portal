@@ -18,6 +18,10 @@ echo '== Help Desk returned-lab resubmit =='
 node tests/hdesk-returned-lab-resubmit.test.js
 node tests/hdesk-module-page-states.test.js
 
+echo '== Lab evidence files =='
+node tests/hdesk-evidence-upload.test.js
+node tests/lab-attempt-evidence-panel.test.js
+
 echo '== Simulator route render and navigation =='
 node bin/render_all.js
 

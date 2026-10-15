@@ -153,9 +153,9 @@ function its02Load(user) {
   return its02State;
 }
 
-// Every file the evidence lab needs is added on this device.
+// Every file the evidence lab needs is picked on this page.
 function its02EvidenceReady(labKey) {
-  return ITS02_EVIDENCE_LABS[labKey].fields.every((field) => Boolean(its02State[field]));
+  return ITS02_EVIDENCE_LABS[labKey].fields.every((field) => Boolean(its02State[field] && itswPickedFile(its02User, field)));
 }
 
 // The Resubmit button and return notice under a returned evidence lab.
@@ -195,8 +195,8 @@ function its02Lab21() {
     <div class="its02-section-heading"><span>1</span><div><p class="its02-kicker">Lab 2.1 · physical · evidence-based<span class="its02-lab-tag">Your own device</span></p><h2 id="its02-lab-2-1-title">Build Your Windows Client VM</h2></div></div>
     <p class="its02-instruction">Install VirtualBox and build a working Windows 11 client VM (4GB RAM, 2 CPU cores, 64GB dynamically-allocated disk, NAT networking) through to a usable desktop.</p>
     ${itsLabSubmitted(its02User, ITS02_LAB21_KEY) ? '' : `<div class="its02-evidence-grid" id="its02-lab21-grid">
-      ${itswEvidenceTile({ id: 'its02-ev-desktop', label: 'Finished Windows desktop', hint: 'A screenshot of the completed Windows desktop.', file: its02State.evDesktop })}
-      ${itswEvidenceTile({ id: 'its02-ev-vmsettings', label: 'VM settings summary', hint: 'A screenshot of VirtualBox’s Settings pane showing RAM, CPU, disk, and network mode.', file: its02State.evVmSettings })}
+      ${itswEvidenceTile({ id: 'its02-ev-desktop', user: its02User, field: 'evDesktop', hint: 'A screenshot of the completed Windows desktop.', file: its02State.evDesktop })}
+      ${itswEvidenceTile({ id: 'its02-ev-vmsettings', user: its02User, field: 'evVmSettings', hint: 'A screenshot of VirtualBox’s Settings pane showing RAM, CPU, disk, and network mode.', file: its02State.evVmSettings })}
     </div>`}
     ${its02EvidenceStatus(ITS02_LAB21_KEY)}
     ${its02EvidenceRedoHtml(ITS02_LAB21_KEY)}
@@ -208,9 +208,9 @@ function its02Lab22() {
     <div class="its02-section-heading"><span>2</span><div><p class="its02-kicker">Lab 2.2 · physical · evidence-based<span class="its02-lab-tag">Your own device</span></p><h2 id="its02-lab-2-2-title">Snapshot, Recover &amp; Connect Client to Server</h2></div></div>
     <p class="its02-instruction">Snapshot your client VM as "Clean Install," make a breaking change, restore the snapshot, build a Windows Server VM, and confirm a successful ping in both directions.</p>
     ${itsLabSubmitted(its02User, ITS02_LAB22_KEY) ? '' : `<div class="its02-evidence-grid its02-evidence-grid-3" id="its02-lab22-grid">
-      ${itswEvidenceTile({ id: 'its02-ev-snapshot', label: 'Snapshot list', hint: 'A screenshot of the snapshot list showing "Clean Install."', file: its02State.evSnapshot })}
-      ${itswEvidenceTile({ id: 'its02-ev-ping1', label: 'Ping: client → server', hint: 'A screenshot of a successful ping from the client VM to the server VM.', file: its02State.evPing1 })}
-      ${itswEvidenceTile({ id: 'its02-ev-ping2', label: 'Ping: server → client', hint: 'A screenshot of a successful ping from the server VM to the client VM.', file: its02State.evPing2 })}
+      ${itswEvidenceTile({ id: 'its02-ev-snapshot', user: its02User, field: 'evSnapshot', hint: 'A screenshot of the snapshot list showing "Clean Install."', file: its02State.evSnapshot })}
+      ${itswEvidenceTile({ id: 'its02-ev-ping1', user: its02User, field: 'evPing1', hint: 'A screenshot of a successful ping from the client VM to the server VM.', file: its02State.evPing1 })}
+      ${itswEvidenceTile({ id: 'its02-ev-ping2', user: its02User, field: 'evPing2', hint: 'A screenshot of a successful ping from the server VM to the client VM.', file: its02State.evPing2 })}
     </div>`}
     ${its02EvidenceStatus(ITS02_LAB22_KEY)}
     ${its02EvidenceRedoHtml(ITS02_LAB22_KEY)}
@@ -218,14 +218,16 @@ function its02Lab22() {
 }
 
 // Status line, plus the Submit button once every file is added (or after a
-// failed save). A submitted lab shows only its status line: its files are
-// not stored on the server yet, so no device can show them.
+// failed save). A submitted lab shows only its status line (and, on the page
+// load that submitted it, the uploaded files): its files are stored with the
+// attempt for the instructor, and this page doesn't load them back.
 function its02EvidenceStatus(labKey) {
   const lab = ITS02_EVIDENCE_LABS[labKey];
   const ready = its02EvidenceReady(labKey);
   const canSubmit = ready && itsLabStatus(its02User, labKey) === 'not_submitted' && !itsLabSubmitting(its02User, labKey);
   return `${itsLabStatusHtml(its02User, labKey, { label: lab.label, prefix: 'its02', pendingText: lab.pendingText, ready })}
-    ${canSubmit ? itsSubmitButton(labKey, lab.label) : ''}`;
+    ${canSubmit ? itsSubmitButton(labKey, lab.label) : ''}
+    ${itsUploadedEvidenceHtml(its02User, labKey)}`;
 }
 
 // Re-render one evidence lab's whole section (tiles, status, Resubmit).
@@ -239,19 +241,22 @@ function its02EvidenceAttemptFields(labKey) {
 }
 
 // Adding a file never submits: the student presses Submit Lab 2.x.
-function its02AddEvidence(inputId, file) {
+function its02AddEvidence(inputId, picked) {
   const field = ITS02_EVIDENCE_FIELD_BY_INPUT[inputId];
-  if (!field || !file || !its02State) return;
+  if (!field || !picked || !its02State) return;
   const labKey = Object.keys(ITS02_EVIDENCE_LABS).find((key) => ITS02_EVIDENCE_LABS[key].fields.includes(field));
-  its02State[field] = file;
-  its02Save();
+  const meta = itswTakeEvidence(its02User, field, picked);
+  if (meta) {
+    its02State[field] = meta;
+    its02Save();
+  }
   its02RenderEvidenceLab(labKey);
 }
 
 // The Submit button: the lab's first submission, once every file is added.
 function its02SubmitLab(labKey) {
   if (!ITS02_EVIDENCE_LABS[labKey] || !its02State || !its02EvidenceReady(labKey)) return Promise.resolve(false);
-  return itsSubmitEvidenceLab(its02User, 'its-02', labKey, its02EvidenceAttemptFields(labKey), () => {
+  return itsSubmitEvidenceLab(its02User, 'its-02', labKey, its02EvidenceAttemptFields(labKey), ITS02_EVIDENCE_LABS[labKey].fields, () => {
     its02RenderEvidenceLab(labKey);
     its02RenderHeroStatus();
   }).then((saved) => {
@@ -267,7 +272,7 @@ function its02ResubmitLab(labKey) {
   if (!lab || !its02State) return Promise.resolve(false);
   const redo = itsEvidenceRedo(its02User, its02State, labKey, lab.fields);
   if (!redo.returned || !redo.allPresent || !redo.changed) return Promise.resolve(false);
-  return itsSubmitLabAttempt(its02User, 'its-02', labKey, its02EvidenceAttemptFields(labKey)).then((saved) => {
+  return itsSubmitLabAttempt(its02User, 'its-02', labKey, its02EvidenceAttemptFields(labKey), lab.fields).then((saved) => {
     if (!saved) return false;
     delete its02State.redoBaseline[labKey];
     its02Save();
