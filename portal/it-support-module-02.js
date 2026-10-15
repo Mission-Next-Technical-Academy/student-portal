@@ -245,11 +245,9 @@ function its02AddEvidence(inputId, picked) {
   const field = ITS02_EVIDENCE_FIELD_BY_INPUT[inputId];
   if (!field || !picked || !its02State) return;
   const labKey = Object.keys(ITS02_EVIDENCE_LABS).find((key) => ITS02_EVIDENCE_LABS[key].fields.includes(field));
-  const meta = itswTakeEvidence(its02User, field, picked);
-  if (meta) {
-    its02State[field] = meta;
-    its02Save();
-  }
+  // A refused pick empties the field (see itswTakeEvidence).
+  its02State[field] = itswTakeEvidence(its02User, field, picked, its02State[field]);
+  its02Save();
   its02RenderEvidenceLab(labKey);
 }
 

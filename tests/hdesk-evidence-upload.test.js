@@ -2,6 +2,8 @@
 // bucket before the attempt is recorded:
 //
 //   - Only PNG, JPEG or WebP up to 10 MB is accepted, with a clear message.
+//   - A refused pick removes that field's earlier file, so the old screenshot
+//     can't be submitted in its place, and never counts as a replacement.
 //   - A picked file stays in page memory only; browser storage keeps its name.
 //   - Submit uploads every file under
 //     <track>/<user>/<module>/<lab>/<attempt id>/<field>.<ext>, then inserts the
@@ -79,24 +81,78 @@ async function testRefusesWrongTypeAndSize() {
 
   choose('its02AddEvidence', 'its02-ev-desktop', pick('desktop.gif', 'image/gif'));
   let html = moduleLab(2).view(user, HD);
-  assert.match(section(html, 'its02-lab-2-1'), /“desktop\.gif” isn’t a PNG, JPEG or WebP image/);
+  assert.match(section(html, 'its02-lab-2-1'), /“desktop\.gif” wasn’t added: it isn’t a PNG, JPEG or WebP image\. Only PNG, JPEG or WebP up to 10 MB is accepted\. Choose a file again\./);
+  assert.doesNotMatch(section(html, 'its02-lab-2-1'), /earlier file/, 'no earlier file to mention');
   assert.match(section(html, 'its02-lab-2-1'), /Not uploaded yet/, 'a refused file is not added');
   assert.ok(!LabRuntime.load('its02-lab-state-v1', user, {}).evDesktop, 'nothing saved for a refused file');
 
   choose('its02AddEvidence', 'its02-ev-desktop', pick('desktop.svg', 'image/svg+xml'));
   html = moduleLab(2).view(user, HD);
-  assert.match(section(html, 'its02-lab-2-1'), /“desktop\.svg” isn’t a PNG, JPEG or WebP image/, 'SVG is refused');
+  assert.match(section(html, 'its02-lab-2-1'), /“desktop\.svg” wasn’t added: it isn’t a PNG, JPEG or WebP image/, 'SVG is refused');
 
   choose('its02AddEvidence', 'its02-ev-desktop', pick('huge.png', 'image/png', 10 * 1024 * 1024 + 1));
   html = moduleLab(2).view(user, HD);
-  assert.match(section(html, 'its02-lab-2-1'), /“huge\.png” is 10\.0 MB\. Each file must be 10 MB or smaller\./);
+  assert.match(section(html, 'its02-lab-2-1'), /“huge\.png” wasn’t added: it is 10\.0 MB\. Only PNG, JPEG or WebP up to 10 MB is accepted\./);
 
   choose('its02AddEvidence', 'its02-ev-desktop', pick('ok.webp', 'image/webp', 10 * 1024 * 1024));
   html = moduleLab(2).view(user, HD);
-  assert.doesNotMatch(section(html, 'its02-lab-2-1'), /isn’t a PNG|must be 10 MB/, 'the message clears once a good file is chosen');
+  assert.doesNotMatch(section(html, 'its02-lab-2-1'), /wasn’t added/, 'the message clears once a good file is chosen');
   assert.match(section(html, 'its02-lab-2-1'), /<strong>Added<\/strong> — ok\.webp/);
   assert.match(html, /accept="image\/png,image\/jpeg,image\/webp"/, 'the picker offers only the allowed types');
   assert.equal(calls(BUCKET).length, 0, 'choosing files uploads nothing');
+}
+
+async function testRefusedReplacementRemovesTheEarlierFile() {
+  const user = hdUser();
+  fresh(user);
+  moduleLab(2).view(user, HD);
+  chooseLab21();
+  let html = moduleLab(2).view(user, HD);
+  assert.match(html, /data-its-submit="lab-its-02-vm-build"/, 'ready with both files');
+
+  choose('its02AddEvidence', 'its02-ev-desktop', pick('photo.heic', 'image/heic'));
+  html = moduleLab(2).view(user, HD);
+  assert.match(section(html, 'its02-lab-2-1'), /“photo\.heic” wasn’t added: it isn’t a PNG, JPEG or WebP image\. Only PNG, JPEG or WebP up to 10 MB is accepted\. Your earlier file was removed\. Choose a file again\./);
+  assert.doesNotMatch(section(html, 'its02-lab-2-1'), /Added<\/strong> — desktop\.png/, 'the earlier file is no longer shown');
+  assert.doesNotMatch(html, /data-its-submit="lab-its-02-vm-build"/, 'not ready after a refused replacement');
+  assert.equal(statusLine(html, LAB21), 'Upload both evidence files to complete this lab.');
+  assert.ok(!LabRuntime.load('its02-lab-state-v1', user, {}).evDesktop, 'the earlier name is gone from browser storage');
+  assert.equal(await run('its02SubmitLab')(LAB21), false, 'Submit does nothing');
+  assert.equal(calls(BUCKET).length + inserts().length, 0, 'nothing uploaded or recorded');
+
+  // A valid pick makes the lab ready again.
+  choose('its02AddEvidence', 'its02-ev-desktop', pick('desktop-v2.png'));
+  html = moduleLab(2).view(user, HD);
+  assert.doesNotMatch(section(html, 'its02-lab-2-1'), /wasn’t added/);
+  assert.match(html, /data-its-submit="lab-its-02-vm-build"/, 'ready again after a valid pick');
+  assert.equal(await run('its02SubmitLab')(LAB21), true);
+  assert.deepEqual(plain(calls(BUCKET, 'upload').map((c) => c.payload.file.name)), ['desktop-v2.png', 'settings.jpg'], 'the new file is the one uploaded');
+}
+
+async function testRefusedPickKeepsResubmitOff() {
+  const reviewed = { completedAt: '2026-10-01T10:00:00Z', reviewedAt: '2026-10-02T10:00:00Z', redoRequested: true, supersededAt: null };
+  const user = hdUser({ [LAB21]: reviewed });
+  fresh(user);
+  seed('its02-lab-state-v1', user, { evDesktop: { name: 'old.png', sizeLabel: '1.0 KB', uploadedAt: '2026-10-01T09:00:00Z' }, evVmSettings: { name: 'old2.png', sizeLabel: '1.0 KB', uploadedAt: '2026-10-01T09:00:00Z' } });
+  moduleLab(2).view(user, HD);
+  const resubmit = (html) => (/<button[^>]*data-its-resubmit="lab-its-02-vm-build"[^>]*>/.exec(html) || [''])[0];
+
+  // A refused pick alone is not "a file was replaced".
+  choose('its02AddEvidence', 'its02-ev-desktop', pick('photo.heic', 'image/heic'));
+  let html = moduleLab(2).view(user, HD);
+  assert.match(resubmit(html), /disabled/, 'Resubmit stays off after a refused pick');
+  assert.match(section(html, 'its02-lab-2-1'), /Your earlier file was removed\./);
+
+  // Another file validly replaced: still off while the refused field is empty.
+  choose('its02AddEvidence', 'its02-ev-vmsettings', pick('settings-v2.png'));
+  html = moduleLab(2).view(user, HD);
+  assert.match(resubmit(html), /disabled/, 'still off while a field is empty after a refused pick');
+  assert.equal(await run('its02ResubmitLab')(LAB21), false);
+  assert.equal(calls(BUCKET).length + inserts().length, 0);
+
+  choose('its02AddEvidence', 'its02-ev-desktop', pick('desktop-v2.png'));
+  html = moduleLab(2).view(user, HD);
+  assert.doesNotMatch(resubmit(html), /disabled/, 'on once every field has a valid file');
 }
 
 async function testBrowserStorageKeepsOnlyTheName() {
@@ -227,6 +283,8 @@ async function testModuleOneUploadsBothFiles() {
 (async () => {
   const tests = [
     testRefusesWrongTypeAndSize,
+    testRefusedReplacementRemovesTheEarlierFile,
+    testRefusedPickKeepsResubmitOff,
     testBrowserStorageKeepsOnlyTheName,
     testUploadThenInsertWithTheSameId,
     testFailedUploadRecordsNothing,

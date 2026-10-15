@@ -266,11 +266,9 @@ function its01SubmitLab1() {
 function its01AddEvidence(inputId, picked) {
   const field = ITS01_EVIDENCE_FIELD_BY_INPUT[inputId];
   if (!field || !picked || !its01State) return;
-  const meta = itswTakeEvidence(its01User, field, picked);
-  if (meta) {
-    its01State[field] = meta;
-    its01Save();
-  }
+  // A refused pick empties the field (see itswTakeEvidence).
+  its01State[field] = itswTakeEvidence(its01User, field, picked, its01State[field]);
+  its01Save();
   its01RenderLab1();
 }
 

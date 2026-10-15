@@ -58,8 +58,8 @@ function itswPickedFile(user, field) {
 
 // Why a file can't be used, or '' when it can.
 function itswEvidenceFileError(file) {
-  if (!ITSW_EVIDENCE_TYPES[file.type]) return `“${file.name}” isn’t a PNG, JPEG or WebP image. Save your screenshot in one of those formats and choose it again.`;
-  if (file.size > ITSW_EVIDENCE_MAX_BYTES) return `“${file.name}” is ${itswFormatBytes(file.size)}. Each file must be 10 MB or smaller.`;
+  if (!ITSW_EVIDENCE_TYPES[file.type]) return `“${file.name}” wasn’t added: it isn’t a PNG, JPEG or WebP image. Only PNG, JPEG or WebP up to 10 MB is accepted.`;
+  if (file.size > ITSW_EVIDENCE_MAX_BYTES) return `“${file.name}” wasn’t added: it is ${itswFormatBytes(file.size)}. Only PNG, JPEG or WebP up to 10 MB is accepted.`;
   return '';
 }
 
@@ -74,13 +74,17 @@ function itswReadEvidenceFile(fileInput) {
 }
 
 /* Takes a picked file for one field: keeps the File in memory and returns
- * the metadata to save in the lab's state, or null when the file was refused
- * (its message then shows on the tile). */
-function itswTakeEvidence(user, field, picked) {
-  if (!user || !picked) return null;
+ * the metadata to save in the lab's state. A refused pick replaces the
+ * field's earlier file too, so the old screenshot can't be submitted in its
+ * place: it returns null, the caller saves the field as empty, and the tile
+ * shows why. previous: the field's saved metadata, if any. */
+function itswTakeEvidence(user, field, picked, previous = null) {
+  if (!user || !picked) return previous;
   const key = `${user.userId}|${field}`;
   if (picked.error || !picked.file) {
-    itswEvidenceErrors.set(key, picked.error || 'Choose the file again.');
+    const hadFile = Boolean(previous || itswPickedFiles.has(key));
+    itswPickedFiles.delete(key);
+    itswEvidenceErrors.set(key, `${picked.error || 'That file wasn’t added.'} ${hadFile ? 'Your earlier file was removed. ' : ''}Choose a file again.`);
     return null;
   }
   itswEvidenceErrors.delete(key);
