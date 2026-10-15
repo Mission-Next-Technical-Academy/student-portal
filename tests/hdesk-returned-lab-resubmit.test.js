@@ -142,15 +142,18 @@ async function testWaitingOrApprovedEvidenceLabCannotResubmit() {
   }
 }
 
-async function testFirstSubmissionUnchanged() {
-  // Never submitted: uploading both files submits once, exactly as before.
+async function testFirstSubmissionUsesSubmitButton() {
+  // Never submitted: adding both files sends nothing; Submit Lab 2.1 sends
+  // one attempt, the same explicit pattern as Resubmit.
   const user = hdUser();
   fresh(user);
   moduleLab(2).view(user, HD);
   run('its02AddEvidence')('its02-ev-desktop', file('desktop.png', SUBMITTED));
   run('its02AddEvidence')('its02-ev-vmsettings', file('settings.png', SUBMITTED));
   await settle();
-  assert.equal(inserts(LAB21).length, 1, 'first submission still happens on the last upload');
+  assert.equal(inserts().length, 0, 'adding files never submits');
+  await run('its02SubmitLab')(LAB21);
+  assert.equal(inserts(LAB21).length, 1, 'Submit Lab 2.1 sends one attempt');
   assert.equal(resubmitButton(moduleLab(2).view(user, HD), LAB21), null, 'no Resubmit button for a first submission');
 }
 
@@ -255,7 +258,7 @@ async function testModuleTwelveNotice() {
     testReturnedEvidenceLabResubmitsOnce,
     testReturnedEvidenceLabWithNewFileAfterReturn,
     testWaitingOrApprovedEvidenceLabCannotResubmit,
-    testFirstSubmissionUnchanged,
+    testFirstSubmissionUsesSubmitButton,
     testWalkthroughResubmitsOnlyReturnedLab,
     testSharedWalkthroughModule,
     testNoNoticeWhenNothingReturned,

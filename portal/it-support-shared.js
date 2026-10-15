@@ -36,9 +36,12 @@ function itswReadEvidenceFile(fileInput) {
   return { name: file.name, sizeLabel: itswFormatBytes(file.size), uploadedAt: new Date().toISOString() };
 }
 
+// "Added", not "Uploaded": the file stays in this browser until evidence
+// files are stored on the server. Change this (and Module 1 Lab 1.1's hint)
+// back to "Uploaded" once they are.
 function itswEvidenceTile({ id, label, hint, file }) {
   const status = file
-    ? `<div class="itsw-evidence-status itsw-evidence-done"><i class="ri-checkbox-circle-fill" aria-hidden="true"></i><span class="itsw-evidence-file"><strong>Uploaded</strong> — ${esc(file.name)} · ${esc(file.sizeLabel)}<time>${esc(itswFormatTimestamp(file.uploadedAt))}</time></span></div>`
+    ? `<div class="itsw-evidence-status itsw-evidence-done"><i class="ri-checkbox-circle-fill" aria-hidden="true"></i><span class="itsw-evidence-file"><strong>Added</strong> — ${esc(file.name)} · ${esc(file.sizeLabel)}<time>${esc(itswFormatTimestamp(file.uploadedAt))}</time></span></div>`
     : `<div class="itsw-evidence-status"><i class="ri-time-line" aria-hidden="true"></i><span>Not uploaded yet</span></div>`;
   return `<div class="itsw-evidence" data-itsw-evidence="${esc(id)}">
     <div class="itsw-evidence-head"><span class="itsw-evidence-icon"><i class="ri-upload-cloud-2-line" aria-hidden="true"></i></span><div><strong>${esc(label)}</strong><p>${esc(hint)}</p></div></div>
@@ -178,6 +181,146 @@ function itsEvidenceRedo(user, state, labKey, fileFields) {
   };
 }
 
+/* ---------- Lab status on every Help Desk module page ----------
+ * A lab's status, the hero counter and the rail come only from the database:
+ * the newest attempt loaded at sign-in, read with requiredLabStatus() (the
+ * module cards' rule): 'not_submitted', 'waiting', 'passed' or 'returned'.
+ * Browser storage holds only work not yet sent (files added, the policy
+ * checkbox), so clearing site data never changes what a lab shows. */
+
+function itsLabStatus(user, labKey) {
+  return requiredLabStatus(itsLabAttempt(user, labKey));
+}
+
+function itsLabSubmitted(user, labKey) {
+  const status = itsLabStatus(user, labKey);
+  return status === 'waiting' || status === 'passed';
+}
+
+function itsSubmittedDay(user, labKey) {
+  const attempt = itsLabAttempt(user, labKey);
+  return attempt ? new Date(attempt.completedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+}
+
+// A save that failed, kept in memory only so the page can offer a retry.
+const itsLabSubmitFailures = new Set();
+
+function itsLabSubmitting(user, labKey) {
+  return !!user && itsLabSubmissionsInFlight.has(`${user.userId}|${labKey}`);
+}
+
+/* The status line for one lab. label: "Lab 2.1", or "Lab" on a one-lab page.
+ * prefix: the module's status classes (its01, its02, itss). ready: every
+ * file the lab needs is added. pendingText: the prompt before anything is
+ * submitted. */
+function itsLabStatusHtml(user, labKey, { label, prefix, pendingText, ready = false }) {
+  const status = itsLabStatus(user, labKey);
+  const line = status === 'passed' ? { pass: true, icon: 'ri-checkbox-circle-fill', text: `${label} passed` }
+    : status === 'waiting' ? { icon: 'ri-send-plane-line', text: `${label} submitted ${itsSubmittedDay(user, labKey)}, waiting for instructor review` }
+    : status === 'returned' ? { icon: 'ri-error-warning-line', text: `${label} returned for revision — see your instructor’s notes below.` }
+    : itsLabSubmitting(user, labKey) ? { icon: 'ri-loader-4-line', text: `Submitting ${label}…` }
+    : user && itsLabSubmitFailures.has(`${user.userId}|${labKey}`) ? { icon: 'ri-error-warning-line', text: `${label} wasn’t submitted. Check your connection, then press Submit ${label}.` }
+    : ready ? { icon: 'ri-upload-2-line', text: `Ready to submit ${label}` }
+    : { icon: 'ri-time-line', text: pendingText };
+  return `<div class="${prefix}-lab-status ${prefix}-status-${line.pass ? 'pass' : 'pending'}" data-its-lab-status="${esc(labKey)}" data-status="${status}"><i class="${line.icon}" aria-hidden="true"></i><span>${esc(line.text)}</span></div>`;
+}
+
+// Hero counter: "3 of 4 submitted · 1 passed", plus "· 1 returned".
+function itsLabCounterText(user, labKeys) {
+  const statuses = labKeys.map((key) => itsLabStatus(user, key));
+  const count = (...wanted) => statuses.filter((status) => wanted.includes(status)).length;
+  const returnedCount = count('returned');
+  return `${count('waiting', 'passed')} of ${labKeys.length} submitted · ${count('passed')} passed${returnedCount ? ` · ${returnedCount} returned` : ''}`;
+}
+
+// Rail fields for a row covering labKeys: ticked only when every lab passed;
+// "Returned" or "In review" (moduleUnifiedNav's reviewState) otherwise.
+function itsLabRail(user, labKeys) {
+  const statuses = labKeys.map((key) => itsLabStatus(user, key));
+  const isComplete = statuses.every((status) => status === 'passed');
+  const reviewState = statuses.includes('returned') ? 'returned'
+    : !isComplete && statuses.every((status) => status === 'waiting' || status === 'passed') ? 'review'
+    : undefined;
+  return { isComplete, reviewState };
+}
+
+// Walkthrough launch button: redo if any lab was returned, review once every
+// lab is in (finishing again then sends nothing), otherwise start.
+function itsWalkthroughButton(user, labKeys) {
+  if (labKeys.some((key) => itsLabReturned(user, key))) return { icon: 'ri-restart-line', mode: 'redo' };
+  if (labKeys.every((key) => itsLabSubmitted(user, key))) return { icon: 'ri-refresh-line', mode: 'review' };
+  return { icon: 'ri-terminal-box-line', mode: 'start' };
+}
+
+/* A walkthrough is recorded only by the simulator's popup message. Coming
+ * back by link (?coachComplete=) saves nothing, since anyone could type that
+ * link: the page says the walkthrough wasn't recorded instead (ISSUE-041 from
+ * Megan's Student Portal — Code Issues Log). Both sets are keyed
+ * `${userId}|${coachId}` and last until the next page load. */
+const itsUnrecordedWalkthroughs = new Set();
+const itsBlockedWalkthroughs = new Set();
+
+function itsNoteCoachReturn(user, coachId, labKeys) {
+  if (new URLSearchParams(location.search).get('coachComplete') !== coachId) return;
+  history.replaceState(null, '', location.pathname + location.hash);
+  if (user && labKeys.some((key) => itsLabAcceptsAttempt(user, key))) itsUnrecordedWalkthroughs.add(`${user.userId}|${coachId}`);
+}
+
+/* Opens the walkthrough in a popup, so it can report back to this page.
+ * Returns false and remembers it when the browser blocks the window. */
+function itsLaunchWalkthrough(event, link, user, coachId) {
+  event.preventDefault();
+  const id = `${user ? user.userId : ''}|${coachId}`;
+  if (!window.open(link.href, '_blank')) {
+    itsBlockedWalkthroughs.add(id);
+    return false;
+  }
+  itsBlockedWalkthroughs.delete(id);
+  itsUnrecordedWalkthroughs.delete(id);
+  return true;
+}
+
+// The Start button's text for Modules 3-11; Modules 1 and 2 name their labs.
+const ITS_WALKTHROUGH_START = 'Start guided walkthrough';
+
+/* startLabel: the exact text of this lab's Start button, so the message
+ * names the button the student actually sees. */
+function itsWalkthroughNoticeHtml(user, coachId, labKeys, startLabel) {
+  const id = `${user ? user.userId : ''}|${coachId}`;
+  const text = itsBlockedWalkthroughs.has(id)
+    ? 'Your browser blocked the walkthrough window. Allow pop-ups for this site, then try again.'
+    : itsUnrecordedWalkthroughs.has(id) && labKeys.some((key) => itsLabAcceptsAttempt(user, key))
+      ? `Your walkthrough finished but wasn’t recorded. Allow pop-ups for this site, then press ${startLabel} again from this page.`
+      : '';
+  return `<div class="itss-walkthrough-notice" data-its-walkthrough-notice="${esc(coachId)}" role="status"${text ? '' : ' hidden'}>${esc(text)}</div>`;
+}
+
+// Re-renders just the notice after a Start click, without redrawing the page.
+function itsRefreshWalkthroughNotice(user, coachId, labKeys, startLabel) {
+  const el = document.querySelector(`[data-its-walkthrough-notice="${coachId}"]`);
+  if (el) el.outerHTML = itsWalkthroughNoticeHtml(user, coachId, labKeys, startLabel);
+}
+
+/* An evidence lab's first submission, from its Submit button: one attempt,
+ * only when never submitted and every file is added. onChange re-renders the
+ * lab (once for "Submitting…", once for the result). */
+function itsSubmitEvidenceLab(user, moduleKey, labKey, fields, onChange) {
+  if (!user || itsLabSubmitting(user, labKey) || itsLabStatus(user, labKey) !== 'not_submitted') return Promise.resolve(false);
+  const failureKey = `${user.userId}|${labKey}`;
+  itsLabSubmitFailures.delete(failureKey);
+  const pending = itsSubmitLabAttempt(user, moduleKey, labKey, fields);
+  onChange();
+  return pending.then((saved) => {
+    if (!saved) itsLabSubmitFailures.add(failureKey);
+    onChange();
+    return saved;
+  });
+}
+
+function itsSubmitButton(labKey, label) {
+  return `<button type="button" class="itsw-evidence-button" data-its-submit="${esc(labKey)}"><i class="ri-send-plane-line" aria-hidden="true"></i> Submit ${esc(label)}</button>`;
+}
+
 function itsResubmitButton(labKey, label, enabled) {
   return `<button type="button" class="itsw-evidence-button" data-its-resubmit="${esc(labKey)}" ${enabled ? '' : 'disabled aria-disabled="true" style="opacity:.55;cursor:not-allowed"'}><i class="ri-send-plane-line" aria-hidden="true"></i> ${esc(label)}</button>
     ${enabled ? '' : '<p class="itss-instruction">Add or replace at least one evidence file to enable Resubmit.</p>'}`;
@@ -216,21 +359,17 @@ function itsSimpleLessonCard(lesson) {
   </details>`;
 }
 
-function itsCoachLaunchCard({ coachId, complete, returned }) {
-  const icon = returned ? 'ri-restart-line' : complete ? 'ri-refresh-line' : 'ri-terminal-box-line';
-  const label = returned ? 'Redo the walkthrough' : complete ? 'Review the walkthrough' : 'Start guided walkthrough';
-  const status = returned
-    ? { tone: 'itss-status-pending', icon: 'ri-error-warning-line', text: 'Returned for revision — run the walkthrough again to resubmit.' }
-    : complete
-      ? { tone: 'itss-status-pass', icon: 'ri-checkbox-circle-fill', text: 'Lab complete — resolved in the guided walkthrough.' }
-      : { tone: 'itss-status-pending', icon: 'ri-time-line', text: 'Complete the guided walkthrough in the simulator to finish this lab.' };
+function itsCoachLaunchCard({ user, coachId, labKeys }) {
+  const button = itsWalkthroughButton(user, labKeys);
+  const label = { redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: ITS_WALKTHROUGH_START }[button.mode];
   return `<a class="itsw-evidence-button" data-its-coach-launch href="${esc(SIM_ORIGIN)}?coach=${esc(coachId)}&amp;restart=1#/helpdesk/tickets" target="_blank" rel="opener">
-    <i class="${icon}" aria-hidden="true"></i> ${label}
+    <i class="${button.icon}" aria-hidden="true"></i> ${label}
   </a>
-  <div class="itss-lab-status ${status.tone}"><i class="${status.icon}" aria-hidden="true"></i><span>${status.text}</span></div>`;
+  ${itsWalkthroughNoticeHtml(user, coachId, labKeys, ITS_WALKTHROUGH_START)}
+  ${labKeys.map((key) => itsLabStatusHtml(user, key, { label: labKeys.length === 1 ? 'Lab' : itsLabTitle(key), prefix: 'itss', pendingText: 'Complete the guided walkthrough in the simulator to finish this lab.' })).join('')}`;
 }
 
-/* lab: optional { coachId, description, complete, returned, notice }. When present, the Prove
+/* lab: optional { coachId, labKeys, description, notice }. When present, the Prove
  * section is a launch card into the real 'coachId' guided walkthrough
  * (state/onMessage handled by the caller — itsRegisterCoachModule below).
  * When absent, falls back to the original "lab content in development"
@@ -244,7 +383,7 @@ function itsSimpleModuleView({ user, program, moduleKey, moduleNumber, lessons, 
   const numLabel = String(moduleNumber).padStart(2, '0');
   const navSections = [
     { id: 'learn', title: 'Lessons', type: 'lecture', isComplete: true, scrollId: `itss-lessons-${numLabel}` },
-    { id: 'practice', title: 'Guided lab', type: 'lab', isComplete: lab?.complete === true && !lab.returned, scrollId: `itss-lab-${numLabel}` },
+    { id: 'practice', title: 'Guided lab', type: 'lab', ...(lab ? itsLabRail(user, lab.labKeys) : { isComplete: false }), scrollId: `itss-lab-${numLabel}` },
     ...(sources?.length ? [{ id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: `itss-sources-${numLabel}`, gated: false, supplemental: true }] : []),
   ];
   return `<div class="itss-shell">
@@ -259,7 +398,7 @@ function itsSimpleModuleView({ user, program, moduleKey, moduleNumber, lessons, 
 
       <section class="itss-section its-coach-lab" id="itss-lab-${numLabel}" aria-labelledby="itss-lab-title-${numLabel}"><div class="itss-section-heading"><span>P</span><div><p class="itss-kicker">Practice It${lab ? ' · guided walkthrough' : ''}</p><h2 id="itss-lab-title-${numLabel}">Guided lab</h2></div></div>
         ${lab
-          ? `<p class="itss-instruction">${esc(lab.description)}</p>${lab.notice || ''}${itsCoachLaunchCard({ coachId: lab.coachId, complete: lab.complete, returned: lab.returned })}`
+          ? `<p class="itss-instruction">${esc(lab.description)}</p>${lab.notice || ''}${itsCoachLaunchCard({ user, coachId: lab.coachId, labKeys: lab.labKeys })}`
           : itswInDevelopment({ title: 'Lab content in development', previewText: labPreview })}
       </section>
 
@@ -285,12 +424,7 @@ function itsRegisterCoachModule(config) {
   function load(user) {
     lastUser = user;
     state = LabRuntime.load(stateId, user, defaultState);
-    if (new URLSearchParams(location.search).get('coachComplete') === coachId) {
-      state.consoleStarted = true;
-      state.consoleCompleted = true;
-      LabRuntime.save(stateId, user, state);
-      history.replaceState(null, '', location.pathname + location.hash);
-    }
+    itsNoteCoachReturn(user, coachId, labKeys);
     return state;
   }
 
@@ -299,8 +433,7 @@ function itsRegisterCoachModule(config) {
     return itsSimpleModuleView({
       user, program, moduleKey, moduleNumber, lessons, lede, sources,
       lab: {
-        coachId, description: labDescription, complete: state.consoleCompleted === true,
-        returned: labKeys.some((key) => itsLabReturned(user, key)),
+        coachId, labKeys, description: labDescription,
         notice: itsRedoNoticeHtml(user, labKeys.map((key) => ({ key, action: 'Run the walkthrough again to resubmit this lab.' }))),
       },
     });
@@ -310,10 +443,13 @@ function itsRegisterCoachModule(config) {
     const shell = document.querySelector('.itss-shell');
     if (!shell) return;
     shell.addEventListener('click', (event) => {
-      if (event.target.closest('[data-its-coach-launch]') && lastUser) {
+      const launch = event.target.closest('[data-its-coach-launch]');
+      if (!launch || !lastUser) return;
+      if (itsLaunchWalkthrough(event, launch, lastUser, coachId)) {
         state.consoleStarted = true;
         LabRuntime.save(stateId, lastUser, state);
       }
+      itsRefreshWalkthroughNotice(lastUser, coachId, labKeys, ITS_WALKTHROUGH_START);
     });
   }
 

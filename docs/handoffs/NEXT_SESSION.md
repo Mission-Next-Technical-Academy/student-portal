@@ -1,3 +1,58 @@
+**2026-10-14 (Megan; PR #62 "Help Desk: module pages show lab status from the
+database (L-013)"; Help Desk files plus one
+`bin/ci-check.sh` line and the `portal/index.html` version lines — please
+review those):** Help Desk module pages
+(Modules 1–11) now take every lab status, the "N of M submitted · P passed"
+counter and the rail ticks from the database (your `requiredLabStatus()` on
+`user.latestLabAttemptByKey`), never from browser storage. This fixes ISSUE-028
+from Megan's Student Portal — Code Issues Log. Evidence labs (1.1, 2.1, 2.2) no
+longer submit automatically when the last file is added: the student presses
+"Submit Lab X.Y". Status tiles say "Added" instead of "Uploaded" until evidence
+files are stored on the server. A walkthrough that comes back by the
+`?coachComplete=` link (instead of the simulator's popup message) now saves
+nothing and tells the student it wasn't recorded. Start now shows a message if
+the browser blocks the popup (ISSUE-041 from Megan's Student Portal — Code
+Issues Log).
+- Files: `portal/it-support-shared.js`, `-shared.css`, `-module-01.js`,
+  `-module-02.js` (Megan's); new `tests/hdesk-module-page-states.test.js` and
+  updated `tests/hdesk-returned-lab-resubmit.test.js` (both under `tests/`,
+  which CODEOWNERS gives you by default); `bin/ci-check.sh`: one added line,
+  `node tests/hdesk-module-page-states.test.js`; portal/index.html: stylesheet
+  and script version bump (shared file). No changes to `app.js`,
+  `data.js`, `ui/`, `supabase/` or any SOC file.
+- SOC / other programs: no behavior change. Only Help Desk pages call the
+  changed code, and the SOC card snapshot test still passes.
+- Your workflow: `bin/ci-check.sh` runs one more fast Node test (11 checks).
+  Help Desk students who previously saw "complete" from browser storage alone,
+  with no saved attempt, now correctly show "not submitted". They have to
+  submit, which may add Help Desk attempts to the instructor Lab Attempts tab.
+- Fixes of yours in this PR: none.
+- Please review: the `bin/ci-check.sh` line and the two test files, and the
+  portal/index.html version lines.
+
+**2026-10-14 (Megan; PR #61 "Help Desk: returned labs can be resubmitted once,
+with instructor notes (L-003, L-013)", merged Oct 14; Help Desk files plus one
+`bin/ci-check.sh` line):** Returned Help Desk labs can now be resubmitted once
+(ISSUE-029 from Megan's Student Portal — Code Issues Log). A returned lab shows
+"Returned for revision" with the instructor's notes (Modules 1–12). Evidence
+labs (1.1, 2.1, 2.2) get a "Resubmit Lab X.Y" button that works only after a
+file is added or replaced. A walkthrough redo resubmits only the labs that were
+returned, not approved or waiting ones. Repeat clicks save one attempt.
+- Files: `portal/it-support-shared.js`, `-module-01.js`, `-module-02.js`,
+  `-module-12.js` (Megan's); new `tests/hdesk-returned-lab-resubmit.test.js`
+  (yours by default under CODEOWNERS); `bin/ci-check.sh`: one added section,
+  `echo '== Help Desk returned-lab resubmit =='` plus
+  `node tests/hdesk-returned-lab-resubmit.test.js`. No changes to `app.js`,
+  `data.js`, `ui/`, `supabase/` or SOC files.
+- SOC / other programs: no behavior change.
+- Your workflow: resubmissions arrive as new attempts in the instructor Lab
+  Attempts tab, read through your existing grading queue. The notes shown to
+  students come from your existing `lab_attempt_feedback` rows (read only, no
+  new writes). `bin/ci-check.sh` runs one more fast Node test.
+- Fixes of yours in this PR: none.
+- Please review: the `bin/ci-check.sh` lines and the test file, if not already
+  done at merge.
+
 **2026-10-12 (Megan; shared portal/app.js and portal/data.js — action needed
 from Alex):** Module card states are rebuilt behind an opt-in program flag
 `truthfulModuleStates` (portal/data.js), on for Help Desk only. For opted-in

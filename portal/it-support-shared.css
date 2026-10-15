@@ -127,6 +127,8 @@
 .itss-lab-status.itss-status-pass { color: var(--its-navy); background: var(--its-accent-wash); border: 1px solid var(--its-accent-border); }
 .itss-lab-status.itss-status-pending { color: #64748b; background: #fff; border: 1px dashed #cbd5e1; }
 .itss-lab-status i { flex: 0 0 auto; font-size: 18px; }
+.itss-walkthrough-notice { margin-top: 16px; padding: 13px 15px; color: #92400e; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 11px; font: 12.5px/1.5 Inter, sans-serif; }
+.itss-walkthrough-notice[hidden] { display: none; }
 
 .itss-shell :focus-visible { outline: 3px solid var(--its-accent-border); outline-offset: 2px; }
 
