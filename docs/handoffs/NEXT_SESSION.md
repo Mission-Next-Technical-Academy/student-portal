@@ -1,6 +1,7 @@
 **2026-10-14 (Megan; PR #__ "Help Desk: module pages show lab status from the
 database, explicit Submit for evidence labs (L-013)"; Help Desk files plus one
-`bin/ci-check.sh` line — please review that line):** Help Desk module pages
+`bin/ci-check.sh` line and the `portal/index.html` version lines — please
+review those):** Help Desk module pages
 (Modules 1–11) now take every lab status, the "N of M submitted · P passed"
 counter and the rail ticks from the database (your `requiredLabStatus()` on
 `user.latestLabAttemptByKey`), never from browser storage. This fixes ISSUE-028
@@ -16,7 +17,8 @@ Issues Log).
   `-module-02.js` (Megan's); new `tests/hdesk-module-page-states.test.js` and
   updated `tests/hdesk-returned-lab-resubmit.test.js` (both under `tests/`,
   which CODEOWNERS gives you by default); `bin/ci-check.sh`: one added line,
-  `node tests/hdesk-module-page-states.test.js`. No changes to `app.js`,
+  `node tests/hdesk-module-page-states.test.js`; portal/index.html: stylesheet
+  and script version bump (shared file). No changes to `app.js`,
   `data.js`, `ui/`, `supabase/` or any SOC file.
 - SOC / other programs: no behavior change. Only Help Desk pages call the
   changed code, and the SOC card snapshot test still passes.
@@ -25,7 +27,8 @@ Issues Log).
   with no saved attempt, now correctly show "not submitted". They have to
   submit, which may add Help Desk attempts to the instructor Lab Attempts tab.
 - Fixes of yours in this PR: none.
-- Please review: the `bin/ci-check.sh` line and the two test files.
+- Please review: the `bin/ci-check.sh` line and the two test files, and the
+  portal/index.html version lines.
 
 **2026-10-14 (Megan; PR #61 "Help Desk: returned labs can be resubmitted once,
 with instructor notes (L-003, L-013)", merged Oct 14; Help Desk files plus one
