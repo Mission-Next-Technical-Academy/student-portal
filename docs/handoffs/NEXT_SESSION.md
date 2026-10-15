@@ -1,4 +1,4 @@
-**2026-10-15 (Megan; PR #__ "L-007: Store Help Desk evidence files and let
+**2026-10-15 (Megan; PR #63 "L-007: Store Help Desk evidence files and let
 instructors open them"; Help Desk files plus shared `portal/app.js`, a new
 `supabase/` migration, `tests/portal-vm.js`, `bin/ci-check.sh` and the
 `portal/index.html` version lines — please review those):** Help Desk
