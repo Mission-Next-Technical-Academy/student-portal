@@ -1,4 +1,4 @@
-**2026-10-16 (Megan; shared docs and one workflow message: `CLAUDE.md`, `AGENTS.md`,
+**2026-10-16 (Megan; PR #64 "Correct Supabase staging instructions and tidy agent rules"; shared docs and one workflow message: `CLAUDE.md`, `AGENTS.md`,
 `docs/operations/AI_AGENT_RULES.md`, `docs/operations/STAGING_AUTOMATION.md`,
 `.github/workflows/supabase-change-reminder.yml` — please review those):**
 Corrected the Supabase staging instructions. `supabase db push`, `db reset`
