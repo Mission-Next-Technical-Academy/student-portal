@@ -104,29 +104,39 @@ section. If `staging` is ever in the wrong place, stop and ask Randy or Alex.
 ## Testing a feature on the hosted staging site
 
 1. **Apply its migrations to staging first** (skip if the branch has none).
-   From the feature branch, with the staging ref written out every time:
+   From the feature branch, first check the Supabase CLI is linked to staging:
 
    ```
-   supabase db push --project-ref xbblgtrfwgeiyttdlbue --dry-run
+   cat supabase/.temp/project-ref
    ```
 
-   Check the list, then apply:
+   It must print `xbblgtrfwgeiyttdlbue`. If it prints anything else, link to
+   staging (`supabase link --project-ref xbblgtrfwgeiyttdlbue`) and check
+   again. `supabase db push` has no `--project-ref` option: it always acts on
+   the linked project.
+
+   Preview, check the list, then apply:
 
    ```
-   supabase db push --project-ref xbblgtrfwgeiyttdlbue
+   supabase db push --linked --dry-run
    ```
 
-   Never use `eokvngifirjgfozzbieu` (production) or a command without
-   `--project-ref`.
+   ```
+   supabase db push --linked
+   ```
+
+   Never run these while the CLI is linked to `eokvngifirjgfozzbieu`
+   (production).
 
    **Warning:** once a migration is applied to staging, keep its exact
    filename until it merges to `master`. If the feature is abandoned, undo
    that migration's changes on staging, then mark it reverted:
 
    ```
-   supabase migration repair --status reverted <version> --project-ref xbblgtrfwgeiyttdlbue
+   supabase migration repair --status reverted <version> --linked
    ```
 
+   Run it only while the CLI is linked to staging (check as above).
    `<version>` is the number at the start of the migration's filename.
    Otherwise staging's migration history lists a version that `master` does
    not have, and **Staging sync**'s `migrate-staging` step fails ("Remote

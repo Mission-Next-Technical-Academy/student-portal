@@ -8,4 +8,4 @@ the **staging** Supabase project. Confirm `bin/dev.sh status` shows
 `target=STAGING` before signing in, never use `--production` unless a person
 explicitly asks in this session, and never serve `portal/` any other way.
 
-Before database, staging, deploy or merge work, read docs/operations/AI_AGENT_RULES.md.
+Before database, staging, deploy or merge work, read `docs/operations/AI_AGENT_RULES.md`.
