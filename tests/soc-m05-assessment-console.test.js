@@ -86,10 +86,12 @@ let checkboxes = [];
 const listeners = { click: [], submit: [] };
 const clickHandler = (event) => listeners.click.forEach((handler) => handler(event));
 const submitHandler = (event) => listeners.submit.forEach((handler) => handler(event));
+const previewStatus = { textContent: '' };
 const root = {
   innerHTML: '',
   dataset: {},
   addEventListener(type, handler) { (listeners[type] ||= []).push(handler); },
+  querySelector(selector) { return selector === '[data-m05-preserve-status]' ? previewStatus : null; },
   querySelectorAll(selector) { return checkboxes.filter((input) => selector.includes('evidence-event') ? input.kind === 'event' && input.checked : input.kind === 'hash' && input.checked); },
 };
 context.document.getElementById = () => root;
@@ -118,6 +120,7 @@ assert.strictEqual(records.get(legacyKey).notes, 'keep legacy', 'interaction wri
 clickHandler({ target: { closest(selector) { return selector === '[data-m05-device-select]' ? { dataset: { m05DeviceSelect: 'ws-assess-27' } } : null; } } });
 checkboxes = [];
 assert.doesNotThrow(() => clickHandler({ target: { closest(selector) { return selector === '[data-m05-preserve-evidence]' ? { dataset: {} } : null; } } }), 'empty evidence selection is handled without an exception');
+assert.match(previewStatus.textContent, /Select at least one valid event and one valid file hash/, 'empty evidence selection tells the learner what is missing');
 assert.strictEqual(records.get('m05-endpoint-assessment-v1:soc-05:integration-learner').actionHistory.length, 2);
 checkboxes = [
   { kind: 'event', value: 'M05-EVT-003', checked: true },
