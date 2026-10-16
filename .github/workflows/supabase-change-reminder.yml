@@ -101,7 +101,7 @@ jobs:
               while IFS= read -r name; do
                 if [ -n "$name" ]; then echo "  - \`$name\`"; fi
               done <<< "$migrations"
-              echo "  Preview first with \`supabase db push --project-ref $STAGING_REF --dry-run\`, then run it without \`--dry-run\`."
+              echo "  Check \`cat supabase/.temp/project-ref\` prints \`$STAGING_REF\`, preview with \`supabase db push --linked --dry-run\`, then run it without \`--dry-run\`. (\`db push\` has no \`--project-ref\` option; it uses the linked project.)"
             else
               echo "- [ ] No new or changed migrations. If this changes the database some other way, test that on staging."
             fi

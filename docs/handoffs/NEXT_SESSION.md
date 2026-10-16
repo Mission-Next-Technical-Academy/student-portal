@@ -1,3 +1,19 @@
+**2026-10-16 (Megan; PR #64 "Correct Supabase staging instructions and tidy agent rules"; shared docs and one workflow message: `CLAUDE.md`, `AGENTS.md`,
+`docs/operations/AI_AGENT_RULES.md`, `docs/operations/STAGING_AUTOMATION.md`,
+`.github/workflows/supabase-change-reminder.yml` — please review those):**
+Corrected the Supabase staging instructions. `supabase db push`, `db reset`
+and `migration repair` have no `--project-ref` option (only commands such as
+`functions deploy` do), so the documented commands failed with an unknown-flag
+error, and dropping the flag would act on whichever project the CLI happens to
+be linked to. The docs now say to confirm `cat supabase/.temp/project-ref`
+prints the staging ref, then use `supabase db push --linked --dry-run` and
+`--linked`; the Supabase change reminder comment on PRs says the same. The
+`functions deploy`/`delete --project-ref` lines are unchanged (they were
+correct). Also: the local-testing paragraph at the top of `CLAUDE.md` is now a
+bullet list with the same rules, and `AI_AGENT_RULES.md` is in backticks in
+`CLAUDE.md` and `AGENTS.md`. No code or behaviour changes beyond the reminder's
+wording.
+
 **2026-10-15 (Megan; PR #63 "L-007: Store Help Desk evidence files and let
 instructors open them"; Help Desk files plus shared `portal/app.js`, a new
 `supabase/` migration, `tests/portal-vm.js`, `bin/ci-check.sh` and the

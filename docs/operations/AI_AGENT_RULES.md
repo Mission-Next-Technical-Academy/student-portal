@@ -33,8 +33,11 @@ or merge work. Details: `docs/operations/STAGING_AUTOMATION.md`.
 - Production admin-script runs require an explicit production `SUPABASE_URL`
   and the script's `--production` guard. Production schema changes, migration
   pushes/resets, and function deploys are not covered by a data-task exception.
-- Never run `supabase db push`, `supabase db reset` or
-  `supabase functions deploy` without `--project-ref xbblgtrfwgeiyttdlbue`.
+- Never run `supabase db push` or `supabase db reset --linked` until
+  `cat supabase/.temp/project-ref` prints `xbblgtrfwgeiyttdlbue` (staging).
+  These commands have no `--project-ref` option: they act on whichever project
+  the CLI is linked to. If it prints anything else, stop and ask the person.
+- Never run `supabase functions deploy` without `--project-ref xbblgtrfwgeiyttdlbue`.
 - Run `supabase db push` with `--dry-run` first.
 - Ask the person before running any of them.
 - Never rename a migration after it has been applied to staging.
