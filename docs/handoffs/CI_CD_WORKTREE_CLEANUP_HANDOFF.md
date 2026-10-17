@@ -34,11 +34,19 @@ Help Desk closeout worktree, and `/home/alex/student-portal-local-staging`.
   worktree branch was deleted; the commit remains in repository history.
 - Removed the clean Help Desk closeout worktree and local/remote feature branch
   after PR #69 merged. Its changes are preserved in `b13c992` on `master`.
+- Fast-forwarded local `main` and `master` pointers to `origin/master` at
+  `b13c992`; both had been stale ancestors. Removed the local
+  `feat/m12-checklist-submit-followup` branch after confirming its tip is
+  preserved in `origin/codex/soc-capstone-backfill`.
 - Preserved six clean Claude worktrees because each contains commits not
   present on `origin/master`. Some have similarly named published feature
   branches, but their worktree tips are not ancestors of those branches, so
   removing them could discard unique commit history. Review and close out each
   feature with its owner before retirement.
+- Preserved local `integ-check-20261009` and
+  `feat/itsm-practice-prove-reverse-engineering`: they contain commits not on
+  `master`, and the latter has no remote tracking branch. Confirm ownership and
+  recovery before deletion or integration.
 - Preserved `/home/alex/student-portal-local-staging`: it is detached at
   `047570c` and has uncommitted changes in `portal/app.js`, `portal/theme.css`,
   and `portal/theme.js`. No matching local staging server process was found
