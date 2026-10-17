@@ -127,7 +127,8 @@ the feedback that was actually sent shown in place of the editable notes.
 - **Recommend PASS** = score ≥ pass threshold and no critical failure was
   flagged by that module's scorer. A red ✗ section does not override a passing
   score; it remains visible and pre-fills a correction for the instructor to
-  send with approval. Amber ◐ also does not block a pass and is worded "To
+  send with approval; the banner then reads **Recommend PASS — with
+  corrections (N sections to fix)**. Amber ◐ also does not block a pass and is worded "To
   strengthen next time: …".
 - **Recommend RETURN** = score below threshold or a scorer-flagged critical
   failure (such as an unsafe action or the module's safety cap). The
@@ -592,9 +593,22 @@ Student side: independent hunt console; submit `moduleSixFinalizeAssessment()`. 
 | Conclusion, disposition and evidence links | `assessment_work.conclusions[]` | Conclusion & limits |
 | — (scorer) | `breakdown`, `review_payload`, `critical_errors` | System rubric and safety check |
 
-Payload change (additive): submit now saves the completed hunt state as
-`assessment_work`. Unsupported certainty is a scorer critical miss and score
-cap, so it forces RETURN at the 70% threshold.
+Payload change (additive): `portal/soc-analyst-module-06.js` ~1825/1857 (submit)
+and `moduleSixAssessmentWork()` (just above `moduleSixExactSelection`) save
+`result.assessment_work` (hypotheses, query runs, saved queries and runs, pivots,
+bookmarks, collections, ATT&CK mappings with technique names, handoffs,
+conclusions). Scoring is unchanged (same `score()` call, state now held in
+`huntState`). Older attempts show "Not recorded in this attempt" plus the events
+the scorer credited.
+
+Caveats: (1) The submitted score is the hunt scorer only; the ticket key lives in
+the uncalled `moduleSixBackdoorCaseScore()` (lines 698-711), so ticket fields
+are checked against it but are not in the score. Disposition "Confirmed
+malicious" (key) sits awkwardly beside the fixture's "suspicious, not proven"
+wording. (2) Detail lines (lead/comparison search, pivots, mappings) mirror the
+scorer but not its action-history cross-check; they read ◐ not ✗ when the
+scorer gave half credit. (3) Unsupported certainty caps the score at 69 and so
+forces RETURN through the score.
 
 ### M07 — `lab-email-triage`, `lab-network-investigation`, `lab-network-email-independent`
 
@@ -604,15 +618,25 @@ One submit writes the same `result` to all three attempt rows; the sheet renders
 |---|---|---|
 | Case, status, severity, user/device, disposition, escalation/route | `case_record`, `case_display` | Ticket sections (some scenario-mismatched fields advisory) |
 | Analyst work notes | `case_record.notes` | Analyst work notes (evidence and mechanics) |
-| Analyst review notes | `assessment_work.reviewNotes[]` | Review notes |
+| Analyst review notes (per message / link / record) | `assessment_work.messageReviews[].note`, `.artifactReviews[].note`, `.networkReviews[].note` | Records reviewed & analyst notes (advisory) |
 | Email, artifact, and network reviews | `assessment_work.messageReviews[]`, `.artifactReviews[]`, `.networkReviews[]` | Delivery scope; Confirmed chain; Noise rejection |
 | Pivots, evidence selection, scope and recipient search | `assessment_work.pivots[]`, `.evidenceChanges[]`, `.scope`, `.recipientSearch` | Confirmed chain; Incident record; Unknowns & limits |
 | Incident links | `assessment_work.incidentLinks[]` | Incident record |
 | — (scorer) | `breakdown`, `review_payload`, `critical_errors` | System rubric and safety check |
 
-Payload change (additive): submit now saves `assessment_work` with review notes,
-pivots, evidence actions, scope, and incident record. Unsupported certainty is
-a scorer critical miss and score cap.
+Payload change (additive): `portal/soc-analyst-module-07.js` ~1374/1414 (submit)
+and `moduleSevenAssessmentWork()` (above `moduleSevenFinalizeProveIt`) save
+`result.assessment_work` built from the audited action history (all reviews with
+notes, pivots, evidence adds/removes with reasons) plus scope, recipient search
+and incident records. Scoring unchanged.
+
+Caveats: (1) `MODULE_SEVEN_ANSWER_KEY` and the module comments describe a GRE
+tunnel / web-shell / FTP scenario, not the QR-invoice fixture, and the ticket
+is not scored (`moduleSevenProveItPerformance()` is never called). Severity,
+disposition and route are therefore advisory; affected user/device (acct-63 /
+ws-517) match the fixture and stay required. Owner to confirm or fix the key.
+(2) The three rows hold identical results; the sheet shows one and notes the
+sibling count. (3) Unsupported certainty caps at 69, forcing RETURN via score.
 
 ### M08 — `lab-vuln-prioritization`, `lab-vuln-queue`
 
@@ -630,9 +654,18 @@ One submit writes the same `result` to both rows; the sheet renders from `item.l
 | Priority, remediation decision and state transitions | `assessment_work.remediationDecisions[]`, `.remediationTransitions[]` | Remediation |
 | — (scorer) | `breakdown`, `review_payload`, `critical_errors` | System rubric |
 
-Payload change (additive): submit now saves `assessment_work` with finding
-reviews, incident link, risk acceptance, escalation, remediation and
-transitions. No separate critical-failure cap is defined by this scorer.
+Payload change (additive): `portal/soc-analyst-module-08.js` ~1437/1478 (submit)
+and `moduleEightAssessmentWork()` (above `moduleEightFinalizeProveIt`) save
+`result.assessment_work` (finding reviews with notes, incident links, risk
+acceptances, escalations, remediation decisions and transitions). Scoring
+unchanged. No critical-failure cap in this scorer.
+
+Caveats: (1) The ticket is not scored (`moduleEightProveItPerformance()` is never
+called); its key (`MODULE_EIGHT_ANSWER_KEY`, web-dmz-14 / p.diallo / critical)
+agrees with `expectedPriority`, so ticket fields stay required. (2) The rubric
+returns status `partial` for some criteria, which the scorer treats as 0 points;
+the sheet follows the saved points. (3) F-001/F-002/F-003 roles are derived from
+each finding's applicability status, mirroring the rubric's hard-coded ids.
 
 ### M09 — `lab-active-incident` (INC-4937, Operation Cedar Lock)
 
@@ -651,10 +684,22 @@ Student side: independent active ransomware response; the sheet reads the action
 | Residual risk and escalation text | `assessment_work.workflow.escalationReason`, `.actions[]` | Residual risk & escalation |
 | — (scorer) | `breakdown`, `review_payload`, `critical_errors` | System rubric |
 
-Payload change (additive): submit now saves `assessment_work` with triage,
-evidence, actions, approval state, workflow events and escalation text. Unsafe
-attempts reduce the safe-conduct competency; this scorer defines no whole-score
-critical cap.
+Payload change (additive): `portal/soc-analyst-module-09.js` ~1668/1708 (submit)
+and `moduleNineAssessmentWork()` (above `moduleNineFinalizeProveIt`) save
+`result.assessment_work` (workflow triage and escalation text, evidence reviewed,
+each response/recovery action with approver and reason, workflow events).
+Workflow designs and blocked attempts were already in
+`review_payload.responseReview` (the old `adminResponseDesignReviewPanel`
+content) and now render in the Response workflow design and Safe response
+conduct sections. Scoring unchanged. Unsafe attempts cost 3 points each in the
+safe-conduct competency only; no whole-score cap.
+
+Caveats: (1) The ticket is not scored (`moduleNineProveItPerformance()` is never
+called); its key agrees with `expectedResponseTruth`, so ticket fields stay
+required. (2) Attempts scored before rubric v3 have no design / safe-conduct
+criteria or `responseReview`; those sections read "Not recorded".
+(3) Action and node labels are copied from `soc-console-tools.js` (:1125, :1186),
+which are not globals.
 
 ### M10 — `lab-attack-mapping` (CASE-105510 / INC-5510)
 
