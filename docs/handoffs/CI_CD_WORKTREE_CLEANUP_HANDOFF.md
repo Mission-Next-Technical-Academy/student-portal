@@ -38,12 +38,15 @@ Help Desk closeout worktree, and `/home/alex/student-portal-local-staging`.
   `b13c992`; both had been stale ancestors. Removed the local
   `feat/m12-checklist-submit-followup` branch after confirming its tip is
   preserved in `origin/codex/soc-capstone-backfill`.
-- Preserved six clean Claude worktrees because each contains commits not
-  present on `origin/master`. Some have similarly named published feature
-  branches, but their worktree tips are not ancestors of those branches, so
-  removing them could discard unique commit history. Review and close out each
-  feature with its owner before retirement.
-- Preserved local `integ-check-20261009` and
+- Removed the six remaining clean Claude worktree directories after verifying
+  no uncommitted changes or processes referenced them. Kept all six local
+  `worktree-agent-*` branches and commits, which are not on `origin/master`:
+  `c9eb29a` telemetry CI, `ea41adf` Sprint 2 log, `28c8e2e` M12 risks,
+  `8259d05` Sprint 3 log, `0d22bec` stale tests, and `81e579f` Sprint 4a log.
+  Their similarly named feature branches are separate tips; review and
+  integrate or delete these preserved branches with their owner.
+- The primary checkout is now clean on local `master` at the current
+  `origin/master` commit. Preserved local `integ-check-20261009` and
   `feat/itsm-practice-prove-reverse-engineering`: they contain commits not on
   `master`, and the latter has no remote tracking branch. Confirm ownership and
   recovery before deletion or integration.
@@ -55,7 +58,8 @@ Help Desk closeout worktree, and `/home/alex/student-portal-local-staging`.
 
 ## Next steps
 
-1. Ask owners to resolve the six preserved Claude worktrees and the dirty
-   local-staging checkout; remove only after commits are integrated or saved.
+1. Ask owners to resolve the six preserved Claude branches, the two other
+   unmerged local branches, and the dirty local-staging checkout. Commit or
+   integrate useful work before deleting branch refs or resetting the checkout.
 2. Revisit the workflow inventory when the M360 gates/waves are formally
    retired; their current checks remain in use and were not removed here.
