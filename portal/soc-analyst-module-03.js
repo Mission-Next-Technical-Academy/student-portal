@@ -592,7 +592,7 @@ const M03_NORMALIZATION_FIELDS = [
 const M03_NORMALIZATION_EVENTS = [
   ['AuthLog','A-1003','09:02','acct-428','failed sign-in','198.51.100.18','—'],
   ['AuthLog','A-1006','09:04','acct-428','successful sign-in','198.51.100.18','S-8841'],
-  ['AuthLog','A-1003','08:41','j.lee','failed sign-in','203.0.113.9','—'],
+  ['AuthLog','A-1014','08:41','j.lee','failed sign-in','203.0.113.9','—'],
   ['AuthLog','A-1004','08:43','j.lee','successful sign-in','203.0.113.9','S-8830'],
   ['AuthLog','A-1005','10:20','svc-backup','successful sign-in','10.0.4.8','JOB-44'],
   ['DirectoryAudit','D-2001','09:08','acct-428','directory role grant','198.51.100.18','S-8841'],
@@ -613,9 +613,10 @@ function moduleThreeNormalizationLab() {
   const lab = moduleThreeState.normalizationLab;
   const select = (field, options) => `<select data-m03-normalize="${field}" aria-label="Map ${field}"><option value="">Choose a source field</option>${options.map((option) => `<option value="${option}" ${lab.mappings[field] === option ? 'selected' : ''}>${option}</option>`).join('')}</select>`;
   const fields = M03_NORMALIZATION_FIELDS.map(([key, example, choices]) => `<tr><th scope="row"><code>${key}</code></th><td>${example}</td><td>${select(key, choices)}</td></tr>`).join('');
-  const normalizedPreview = M03_NORMALIZATION_EVENTS.filter((row) => ['A-1003','A-1006','D-2001','P-3001','S-4001'].includes(row[1])).map((row) => `<tr><td>${row[2]}Z</td><td>${row[0]}</td><td>${row[1]}</td><td>${row[3]}</td><td>${row[4]}</td><td>${row[6]}</td></tr>`).join('');
+  const normalizedPreview = M03_NORMALIZATION_EVENTS.filter((row) => ['A-1003','A-1014','A-1006','D-2001','P-3001','S-4001'].includes(row[1])).map((row) => `<tr><td>${row[2]}Z</td><td>${row[0]}</td><td>${row[1]}</td><td>${row[3]}</td><td>${row[4]}</td><td>${row[6]}</td></tr>`).join('');
   const rawSamples = [
     ['AuthLog', 'id=A-1003 · 05:02 UTC−04:00 · account=acct-428 · signInResult=failed · sourceIp=198.51.100.18'],
+    ['AuthLog', 'id=A-1014 · 08:41Z · account=j.lee · signInResult=failed · sourceIp=203.0.113.9'],
     ['DirectoryAudit', 'id=D-2001 · 09:08Z · targetAccount=acct-428 · operation=role grant · status=success · correlationId=S-8841'],
     ['AppAudit', 'id=P-3001 · 09:12Z · actor=acct-428 · appAction=export · result=success · sessionToken=S-8841'],
     ['SystemLog', 'id=S-4001 · 09:10Z · service=svc-backup · systemMessage=restart · outcome=success · change=CHG-221 · approved'],

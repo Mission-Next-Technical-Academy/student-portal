@@ -28,7 +28,7 @@ const resolved = (wrong = false) => {
 
 assert.equal(run("M03E_GUIDE_STEPS.find((s) => s.id === 'resolve-children').tab"), 'itsm');
 reset({ practice: { guideVersion: 4, guideStep: run("M03E_GUIDE_STEPS.findIndex((s) => s.id === 'submit') - 1"), determination: {} } });
-assert.equal(run("m03eState('practice').guideVersion"), 5);
+assert.equal(run("m03eState('practice').guideVersion"), 6);
 assert.equal(run("M03E_GUIDE_STEPS[m03eState('practice').guideStep].id"), 'submit', 'saved submit-step position migrates past the inserted guided task');
 reset();
 const practicePanel = run("m03eResolutionPanel('practice')");

@@ -116,7 +116,7 @@ const M03E_PRACTICE = (function () {
       D('D-2002', '09:29:02', { Account: 'acct-428', SourceIp: '10.20.1.5', EventType: 'RoleRemoved', Result: 'Success', SessionId: 'S-8841', InitiatedBy: 'soc-automation', TargetGroup: 'Billing-Exporters', Detail: 'Removed from Billing-Exporters (automated containment after alert)' }),
       D('D-2003', '08:30:40', { Account: 'h.diaz', SourceIp: '10.20.4.44', EventType: 'GroupAdded', Result: 'Success', SessionId: '—', InitiatedBy: 'it-admin', TargetGroup: 'HR-Read', Detail: 'Added to HR-Read (CHG-199)' }),
       P('P-3001', '09:12:00', { Account: 'acct-428', SourceIp: '198.51.100.18', EventType: 'BulkExport', Result: 'Success', SessionId: 'S-8841', Records: 184, Detail: 'Application export of 184 customer records' }),
-      P('P-3002', '08:58:42', { Account: 'acct-428', SourceIp: '198.51.100.18', EventType: 'Search', Result: 'Success', SessionId: 'S-8841', Records: 184, Detail: 'Customer search: all active accounts' }),
+      P('P-3002', '09:06:42', { Account: 'acct-428', SourceIp: '198.51.100.18', EventType: 'Search', Result: 'Success', SessionId: 'S-8841', Records: 184, Detail: 'Customer search: all active accounts' }),
       P('P-3003', '08:50:05', { Account: 'c.ortega', SourceIp: '10.20.4.23', EventType: 'ViewInvoice', Result: 'Success', SessionId: 'S-8812', Records: 3, Detail: 'Viewed 3 invoices' }),
       P('P-3004', '09:45:10', { Account: 'svc-billing', SourceIp: '10.20.4.8', EventType: 'ScheduledReport', Result: 'Success', SessionId: 'JOB-22', Records: 2100, Detail: 'Nightly revenue report (CHG-210)' }),
       D('D-2004', '07:30:05', { Account: 'k.watts', SourceIp: '10.20.4.12', EventType: 'PasswordChanged', Result: 'Success', SessionId: '—', InitiatedBy: 'k.watts', TargetGroup: '', Detail: 'Self-service password change' }),
@@ -451,7 +451,7 @@ const M03E_GUIDE_STEPS = [
   { id: 'handoff', tab: 'itsm', target: '.m01-ticket-notes', title: 'Write the analyst handoff', body: 'State the correlated sequence, explain why the 09:10 svc-backup restart is excluded, and name one unresolved question or next check.', task: 'Write the handoff in the ITSM ticket work notes. Include acct-428, S-8841, CHG-221, and a scope limit or next step.', lookFor: 'A bounded, reproducible handoff rather than a verdict without evidence.',
     check: () => /acct-428/.test(m03eState('practice').determination.notes || '') && /S-8841/.test(m03eState('practice').determination.notes || '') && /CHG-221/.test(m03eState('practice').determination.notes || '') && /svc-backup/.test(m03eState('practice').determination.notes || '') && /(approved|separate|exclud)/i.test(m03eState('practice').determination.notes || '') && (m03eState('practice').determination.notes || '').trim().length >= 50 },
   { id: 'decide', tab: 'itsm', target: '.m01-ticket-grid', title: 'Scope and decide', body: 'Use the linked records and the approved lookalike to bound the incident before routing the response.', task: 'Set the ticket severity, disposition, escalation, and department to match the evidence.', lookFor: 'A response scoped to acct-428 and session S-8841, with the approved restart excluded.', check: (st) => Boolean(st.determination?.severity && st.determination?.verdict && st.determination?.escalation) },
-  { id: 'resolve-children', tab: 'itsm', target: '.m03e-incident-resolution', title: 'Resolve child incidents', body: 'A case can contain more than one incident. Each incident needs its own supported disposition and evidence note; close the case only after all child incidents are resolved.', task: 'Resolve the child incident records independently using the event evidence. Close the parent case after both records are resolved.', lookFor: 'Both child records have individual evidence-backed resolutions and the parent is closed last.', check: (st) => M03E_PRACTICE_CHILD_IDS.every((id) => st.incidentResolutions?.children?.[id]?.resolved) && st.incidentResolutions?.parentClosed === true },
+  { id: 'resolve-children', tab: 'itsm', target: '.m03e-incident-resolution', title: 'Resolve child incidents', body: 'A case can contain more than one incident. Each incident needs its own supported disposition and evidence note. Keep the parent open while Identity Response acts, or close it after every child is resolved.', task: 'Resolve the child incident records independently using the event evidence. Leave the parent case open while Identity Response acts, or close it after both records are resolved.', lookFor: 'Both child records have individual evidence-backed resolutions. The parent may stay open, or be closed after both children are resolved.', check: (st) => M03E_PRACTICE_CHILD_IDS.every((id) => st.incidentResolutions?.children?.[id]?.resolved) },
   { id: 'submit', tab: 'itsm', target: '.m01-ticket-actions', title: 'Submit the ticket', body: 'The guide is a reference, not a gate. Finish the ITSM fields, write work notes, and submit the ticket when ready.', task: 'Open the ITSM Ticket tab and submit your case.', lookFor: 'Submitting the ticket completes this Guided Lab. You can move through or skip guide steps at any time.', check: (st) => st.determination?.submitted === true },
 ];
 
@@ -690,6 +690,7 @@ const m03eStateAdapter = SocConsoleCore.createStateAdapter({
         if (Number(st.guideStep) >= priorSubmit) st.guideStep = Number(st.guideStep) + 1;
         st.guideVersion = 5;
       }
+      if (Number(st.guideVersion) === 5) st.guideVersion = 6;
     }
     if (scope === 'practice' && !st.determination.submitted && Number(st.guideStep) >= M03E_GUIDE_STEPS.length) st.guideStep = M03E_GUIDE_STEPS.length - 1;
   },
@@ -1276,7 +1277,7 @@ function moduleThreeAssessmentLabPanel() {
 /* ------------------------------------------------------------ actions */
 
 function m03eSave(scope) {
-  if (scope === 'practice') m03eState('practice').guideVersion = 5;
+  if (scope === 'practice') m03eState('practice').guideVersion = 6;
   if (M03E_MOUNTS[scope]) M03E_MOUNTS[scope].save(); else moduleThreeSave();
 }
 function m03eDomId(scope, id) { const prefix = M03E_MOUNTS[scope]?.idPrefix; return prefix ? `${prefix}-${id}` : id; }
