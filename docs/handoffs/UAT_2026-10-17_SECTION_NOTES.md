@@ -66,7 +66,7 @@ Accounts (synthetic, owner-provided, signed in by the owner):
 
 ## Shipping continuation (2026-10-17)
 
-The M03–M12 parity work merged via [PR #72](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/72) to `master` at `e83598fc7a647c2778f7d4e9c32e1775ce098606`. CI, regression checks, staging sync, and the staging website deployment passed; remote `master` and `staging` point to the same commit. The owner confirms the learner/instructor parity was checked in Chrome and the functional issues found during that run were fixed; the browser comparison is considered complete. The repository uses `master` for releases; `main` is a superseded snapshot branch. See `UAT_2026-10-17_MODULES_04-12_PARITY_PROGRESS.md`.
+The M03–M12 parity work merged via [PR #72](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/72) to `master` at `e83598fc7a647c2778f7d4e9c32e1775ce098606`. CI, regression checks, staging sync, and the staging website deployment passed. The handoff update merged via [PR #73](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/73), and its staging sync/deployment passed; remote `master` and `staging` now point to `ec38c94a7e180f3329734467f8f617b05e6260f3`. The owner confirms the learner/instructor parity was checked in Chrome and the functional issues found during that run were fixed; the browser comparison is considered complete. The repository uses `master` for releases; `main` is a superseded snapshot branch. See `UAT_2026-10-17_MODULES_04-12_PARITY_PROGRESS.md`.
 
 ## Plan
 
