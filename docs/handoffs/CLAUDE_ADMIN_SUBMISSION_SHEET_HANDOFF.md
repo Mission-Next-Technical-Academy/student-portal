@@ -5,6 +5,7 @@ point for instructor Submission Sheet work. Detailed specs:
 
 - SOC spec + parity tables: `docs/workstreams/ADMIN_SUBMISSION_SHEET.md`
 - Help Desk spec + parity tables: `docs/workstreams/HDESK_SUBMISSION_SHEET_HANDOFF.md`
+- CI/CD and shared worktree cleanup audit: `docs/handoffs/CI_CD_WORKTREE_CLEANUP_HANDOFF.md`
 
 ## What it is
 
@@ -37,6 +38,7 @@ corrections and never flip the verdict. Scores themselves were never changed.
 | Framework, M01–M12 sheets, spelling (S1–S6) | ✅ merged | PR #65 (`74fce5a`), #66 (docs) |
 | "PASS — with corrections" banner, M06–M09 notes | ✅ merged | PR #67 (`3cdefcc`) |
 | Help Desk sheets, all 16 lab keys (H0–H4) | ✅ owner-approved; squash commit on `master` | PR #68, commit `81d23c8` |
+| Help Desk completion capture + rubric metadata | ⏳ PR checks / promotion | PR #69 (`codex/hdesk-submission-closeout`) |
 | Staging and production source deploys | ✅ successful | staging sync + staging site deploy; GitHub Pages deploy at `81d23c8` |
 | Student/instructor click-through UAT | ⏳ not done | needs owner-provided synthetic staging accounts |
 
@@ -56,7 +58,8 @@ successfully on 2026-10-17. Verification:
   sheet scripts.
 
 This verifies the deployed code and assets, not a signed-in student/instructor
-workflow. No account click-through has been performed.
+workflow. No account click-through has been performed. PR #69 remains pending
+promotion, so its code is not yet in the staging or production deploys.
 
 ## Open owner decisions (nothing below is started)
 
@@ -70,15 +73,7 @@ workflow. No account click-through has been performed.
    disposition and route advisory until the key is fixed.
 3. **M06 key vs. fixture.** The key says "Confirmed malicious"; the
    scenario text says "suspicious, not proven".
-4. **Help Desk follow-up from the code review.** The closeout branch defers
-   the guided-lab completion message until the explicit Finish action and
-   stamps new Help Desk attempts with Help Desk rubric/engine versions. Its
-   tests render representative saved work and reject duplicate concurrent
-   completion messages. These follow-up changes still need PR review and
-   promotion. Remaining product issues are listed in the HDESK handoff; tests
-   confirm that the `?coachComplete=` return-link fallback alone neither
-   inserts an attempt nor completes a lab.
-5. **Help Desk open content and workflow decisions.** Relaunching an
+4. **Help Desk open content and workflow decisions.** Relaunching an
    unsubmitted coach with `restart=1` resets unsaved simulator state; the
    diagnosis options often place the correct answer last; HD-2110's guided
    outcome conflicts with its capstone key; HD-2106 priority differs between
@@ -95,8 +90,8 @@ failing on the clean checkpoint before this work (`c0e195a`). The current
 
 ## Next steps
 
-1. Review and promote the Help Desk closeout follow-up branch. The prior
-   version is already on `master`, staging, and GitHub Pages at `81d23c8`.
+1. Finish review and promotion of PR #69; then update deployment SHAs and
+   workflow evidence in this handoff and the CI/CD worktree audit.
 2. Run signed-in staging click-through, with owner-provided synthetic accounts:
    - `bin/dev.sh` then `bin/dev.sh status`, which must show `target=STAGING`;
    - submit one SOC Prove It and one Help Desk lab as the student;
