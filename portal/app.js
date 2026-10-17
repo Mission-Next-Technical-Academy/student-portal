@@ -4035,7 +4035,12 @@ function markModuleLabComplete(user, programSlug, moduleKey, labKey, completed =
  * call. Same fire-and-forget/guard/error-logging convention as
  * upsertModuleProgress above: no session or no track_code silently skips the
  * write so local LabRuntime/engagement behavior is never affected. */
-function recordLabAttempt(user, labKey, { id = null, state, score = null, result = {}, submittedAt = null } = {}) {
+function recordLabAttempt(user, labKey, {
+  id = null, state, score = null, result = {}, submittedAt = null,
+  rubricVersion = 'soc-analyst-rubric-v1',
+  scoringEngineVersion = 'portal-client-scorer-v1',
+  passThreshold = 70,
+} = {}) {
   if (!user || !user.userId || !user.trackCode) return Promise.resolve(false);
   const now = submittedAt || new Date().toISOString();
   return mntSupabase
@@ -4050,9 +4055,9 @@ function recordLabAttempt(user, labKey, { id = null, state, score = null, result
       state,
       score,
       result,
-      rubric_version: 'soc-analyst-rubric-v1',
-      scoring_engine_version: 'portal-client-scorer-v1',
-      pass_threshold: 70,
+      rubric_version: rubricVersion,
+      scoring_engine_version: scoringEngineVersion,
+      pass_threshold: passThreshold,
       started_at: now,
       completed_at: state === 'complete' ? now : null,
     })

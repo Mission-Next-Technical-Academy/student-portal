@@ -37,6 +37,8 @@ function itswFormatTimestamp(iso) {
 const ITSW_EVIDENCE_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
 const ITSW_EVIDENCE_MAX_BYTES = 10 * 1024 * 1024;
 const ITS_EVIDENCE_BUCKET = 'lab-evidence';
+const ITS_ATTEMPT_RUBRIC_VERSION = 'it-support-practice-v1';
+const ITS_ATTEMPT_ENGINE_VERSION = 'it-support-practice-capture-v1';
 
 // Every evidence field's label, shared by the tiles and the faculty panel.
 const ITSW_EVIDENCE_LABELS = {
@@ -206,11 +208,12 @@ function itsSubmitLabAttempt(user, moduleKey, labKey, fields, evidenceFields = n
   const inFlightKey = `${user.userId}|${labKey}`;
   if (itsLabSubmissionsInFlight.has(inFlightKey) || !itsLabAcceptsAttempt(user, labKey)) return Promise.resolve(false);
   itsLabSubmissionsInFlight.add(inFlightKey);
+  const attemptMetadata = { rubricVersion: ITS_ATTEMPT_RUBRIC_VERSION, scoringEngineVersion: ITS_ATTEMPT_ENGINE_VERSION };
   const send = !evidenceFields
-    ? recordLabAttempt(user, labKey, fields)
+    ? recordLabAttempt(user, labKey, { ...fields, ...attemptMetadata })
     : itsUploadEvidence(user, moduleKey, labKey, evidenceFields).then((upload) => {
       if (!upload) return false;
-      return recordLabAttempt(user, labKey, { ...fields, id: upload.id, result: { ...(fields.result || {}), evidence_files: upload.files } })
+      return recordLabAttempt(user, labKey, { ...fields, ...attemptMetadata, id: upload.id, result: { ...(fields.result || {}), evidence_files: upload.files } })
         .then((saved) => {
           if (!saved) return upload.discard().then(() => false);
           itsUploadedEvidence.set(inFlightKey, upload.files);

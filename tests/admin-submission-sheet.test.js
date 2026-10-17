@@ -39,8 +39,9 @@ const PORTAL = path.join(ROOT, 'portal');
 
 const ctx = { console: { log() {}, info() {}, warn() {}, error: console.error } };
 vm.createContext(ctx);
+ctx.registerModuleLab = () => {};
 const sheetFiles = fs.readdirSync(path.join(PORTAL, 'admin-sheets')).filter((file) => /^soc-m\d\d\.js$/.test(file)).sort();
-for (const file of ['data.js', 'case-record.js', 'admin-submission-sheet.js', ...sheetFiles.map((file) => `admin-sheets/${file}`), 'admin-sheets/hdesk.js']) {
+for (const file of ['data.js', 'case-record.js', 'admin-submission-sheet.js', 'it-support-module-12.js', ...sheetFiles.map((file) => `admin-sheets/${file}`), 'admin-sheets/hdesk.js']) {
   vm.runInContext(fs.readFileSync(path.join(PORTAL, file), 'utf8'), ctx, { filename: file });
 }
 const run = (code) => vm.runInContext(code, ctx);

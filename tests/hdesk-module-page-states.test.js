@@ -286,10 +286,26 @@ async function testWalkthroughCompletionShowsWaiting() {
   const user = hdUser();
   fresh(user);
   moduleLab(3).view(user, HD);
-  await moduleLab(3).onMessage({ data: { type: 'mnt-coach-complete', id: 'hd-m03' }, origin: SIM });
+  const work = { version: 1, tickets: [{ id: 'HD-2109', diagnosis: 'Temporary profile', checkedSteps: ['Check event logs'] }] };
+  await moduleLab(3).onMessage({ data: { type: 'mnt-coach-complete', id: 'hd-m03', work }, origin: SIM });
+  await settle();
   const html = moduleLab(3).view(user, HD);
   assert.match(statusLine(html, 'lab-its-03-blank-desktop'), /^Lab submitted .+, waiting for instructor review$/);
   assert.doesNotMatch(html, /Lab complete/);
+  const attempt = inserts('lab-its-03-blank-desktop')[0].payload;
+  assert.equal(attempt.rubric_version, 'it-support-practice-v1');
+  assert.equal(attempt.scoring_engine_version, 'it-support-practice-capture-v1');
+  assert.equal(attempt.result.work.tickets[0].diagnosis, 'Temporary profile');
+}
+
+async function testDuplicateCoachCompletionMessageCreatesOneAttempt() {
+  const user = hdUser();
+  fresh(user);
+  moduleLab(3).view(user, HD);
+  const message = { data: { type: 'mnt-coach-complete', id: 'hd-m03', work: { version: 1, tickets: [{ id: 'HD-2109' }] } }, origin: SIM };
+  await Promise.all([moduleLab(3).onMessage(message), moduleLab(3).onMessage(message)]);
+  await settle();
+  assert.equal(inserts('lab-its-03-blank-desktop').length, 1, 'rapid duplicate completion messages are guarded');
 }
 
 /* ---------------------------------------------- walkthrough not recorded */
@@ -383,6 +399,7 @@ async function testBlockedPopupShowsMessage() {
     testModuleOneExplicitSubmit,
     testSharedWalkthroughModules,
     testWalkthroughCompletionShowsWaiting,
+    testDuplicateCoachCompletionMessageCreatesOneAttempt,
     testReturnLinkRecordsNothing,
     testBlockedPopupShowsMessage,
   ];

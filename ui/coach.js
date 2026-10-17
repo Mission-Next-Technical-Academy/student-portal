@@ -459,19 +459,21 @@
     }
   }
 
-  // Completion is earned by reaching the last step, not by pressing the return
-  // button. A student who reads the final step and switches back to the module
-  // tab by hand — or closes this one — has still done the walkthrough, and the
-  // module must not stay locked behind a button they never saw the point of.
+  // Coaches without a work collector can report completion when the learner
+  // reaches the last step. A collector coach waits for its explicit Finish
+  // action so the completion record includes the final state of the work.
   let reportedToken = '';
   function reportCompletion() {
     const coach = activeCoach();
     if (!coach || !coach.completionToken || reportedToken === coach.completionToken) return;
+    // Help Desk guided labs provide a collectWork() snapshot. Reaching the
+    // final instruction can happen before its required action (for example,
+    // adding the final note) is complete, so let the explicit Finish action
+    // below send the only completion message and capture the final state.
+    if (typeof coach.collectWork === 'function') return;
     if (!window.opener || window.opener.closed) return;
     reportedToken = coach.completionToken;
-    const work = typeof coach.collectWork === 'function' ? coach.collectWork() : undefined;
-    window.opener.postMessage({ type: 'mnt-coach-complete', id: coach.completionToken, ...(work ? { work } : {}) },
-      new URL(portalUrl('')).origin);
+    window.opener.postMessage({ type: 'mnt-coach-complete', id: coach.completionToken }, new URL(portalUrl('')).origin);
   }
 
   // The simulator opens as a popup (window.open from the module page), so

@@ -1,10 +1,12 @@
 # IT Help Desk (HDESK) — instructor Submission Sheet handoff
 
-> **Status update, 2026-10-17:** The owner authorized standardizing the Help
-> Desk submission view with SOC Analyst, including simulator work capture and
-> capstone response persistence. Preserve existing scoring and immediate
-> student feedback. H0–H3 are implemented on `feat/hdesk-submission-sheets`;
-> only H4 verification remains. The older decision prompts below are historical.
+> **Status update, 2026-10-17:** H0–H4 landed in owner-approved squash commit
+> `81d23c8` on `master`; the PR was closed by the owner without GitHub merge
+> metadata. Staging sync/site deploy and GitHub Pages deploy succeeded for
+> that SHA. Signed-in student/instructor UAT still needs synthetic accounts.
+> A separate closeout branch fixes early coach submission and Help Desk
+> rubric metadata; its checks and promotion status are tracked in the top-level
+> submission-sheet handoff. Preserve scoring and immediate student feedback.
 
 ## Next AI — start here (written 2026-10-17; H0–H3 implemented)
 
@@ -64,18 +66,19 @@ and `adminAttemptReviewCard()` in `portal/app.js` as SOC. The failure is in
   Confirm with the owner which HDESK labs really need instructor review and
   which are autograded practice (SOC rule: only Prove It waits in Grading).
 
-## Owner decisions needed before building (ask, don't assume)
+## H0 owner questions and current disposition
 
-1. Which HDESK labs are Prove It (instructor-reviewed) vs. autograded?
-2. For the simulator labs (M03–M11): is changing the simulator's completion
-   message in `portal/imported-labs/mission-next-labs/` OK? That app has its
-   own docs (`AGENT_HANDOFF.md`, `WORKFLOW.md`, `LAB_AUTHORING_GUIDE.md`)
-   and may have another owner.
-3. M12: copy the writing into `lab_attempts.result` (simplest, no schema
-   change), or have the review card read `portfolio_artifacts`? Recommend
-   copying into `result`, which matches SOC and needs no RLS work.
+1. **Still open — classification.** Which HDESK labs require instructor
+   review vs. guided Practice It recording? See Q1 below. The answer affects
+   both the Grading queue and the student's completion state.
+2. **Resolved — simulator completion hook.** Owner-approved H3 changed the
+   actual simulator in `ui/` through an optional `collectWork()` hook; it did
+   not change `portal/imported-labs/mission-next-labs/`. The closeout branch
+   also waits for the explicit Finish action before posting that work.
+3. **Resolved — M12 persistence.** Copy the written answers into
+   `lab_attempts.result`; H1 implemented this without schema or RLS changes.
 
-### H0 answers and recommendations (2026-10-17; owner still has to confirm)
+### H0 evidence and recommendation (2026-10-17)
 
 **Q1. Prove It (instructor-reviewed) vs. autograded.**
 Evidence: `docs/LAB_ASSESSMENT_STANDARD.md` defines Prove It as independent,
@@ -106,7 +109,7 @@ and a non-SOC fallback of PRACTICE IT (or a per-program set) in
 after that lands). This is the only classification change needed for the
 queue; the sheets themselves can exist for every lab regardless.
 
-**Q2. May the simulator's completion message change?**
+**Q2. Simulator completion hook — implemented.**
 Evidence: the file to change is `ui/coach.js` (`reportCompletion` :467,
 `finish` :491) plus `ui/helpdesk-coaches.js`, **not**
 `portal/imported-labs/mission-next-labs/`. Ownership: `mission-next-labs` has
@@ -118,8 +121,8 @@ M01-M12 portal modules and the capstone wiring, which were authored by
 touched `portal/it-support-*.js` once (`8c9a007`). `ui/coach.js` is shared
 with SOC (`m01-orientation` etc.), so the change must be additive.
 
-Recommended answer: **yes**, as an additive, optional field, and tell
-kkr1pt3k/Megan. Design: `coach.js` calls an optional
+The owner authorized an additive, optional field. H3 implemented it:
+`coach.js` calls an optional
 `coach.collectWork()` hook (defined only by the `hd-m*` coaches) and adds
 `work` to the **`finish()`** post only (that is when the final resolve has
 happened; the arrival post in `reportCompletion` cannot hold it). The portal
@@ -130,7 +133,7 @@ portal cannot read the simulator's `localStorage` (different origin), so
 `postMessage` is the only channel. Also make the portal dedupe the two posts.
 No SOC coach defines the hook, so SOC behavior is unchanged.
 
-**Q3. M12: copy into `lab_attempts.result` or read `portfolio_artifacts`?**
+**Q3. M12 writing — implemented in `lab_attempts.result`.**
 Evidence: `lab_attempts` is already read by the review card and has an
 assigned-instructor read policy (`20260920120000:126`);
 `portfolio_artifacts` has only an `is_admin()` read policy and the admin
@@ -157,17 +160,23 @@ small (about 6 tickets x 2 short fields + 2 paragraphs).
   Guided ticket work is captured through the shared coach message.
 - [x] **H3 — Simulator labs M03–M11 (`ui/coach.js` +
   `ui/helpdesk-coaches.js`).** Send a bounded student-work snapshot with the
-  completion message. The portal validates and whitelists it before storing
-  it in `result`. The sheet shows ticket fields, path selections, diagnosis
-  feedback, work notes, history and resolution. Path checkbox state persists.
+  explicit Finish message. The portal validates and whitelists it before
+  storing it in `result`. The closeout follow-up defers this message until
+  Finish so reaching the last instruction cannot submit stale work. The sheet
+  shows ticket fields, path selections, diagnosis feedback, work notes,
+  history and resolution. Path checkbox state persists.
 - [x] **H4 — Verification (2026-10-17).** `bash bin/ci-check.sh` passed.
-  `node tests/admin-submission-sheet.test.js` passed (114 checks, including
-  pass/return synthetic attempts for all 16 Help Desk lab keys); spelling
-  tests passed (18 tests). `bin/dev.sh status` showed `target=STAGING` before
+  `node tests/admin-submission-sheet.test.js` passed (114 checks; all 16 Help
+  Desk lab keys have pass/return render cases with empty result objects, so
+  these cases verify registration and verdict rendering, not realistic saved
+  work); spelling tests passed (18 tests). The closeout follow-up adds a saved
+  work and duplicate-message check. `bin/dev.sh status` showed `target=STAGING` before
   browser review. A headless Chrome session loaded the local portal served by
   `bin/dev.sh`, rendered every Help Desk sheet with synthetic data, and found
   16/16 sheets, no page errors, and no horizontal overflow. No student or
-  instructor account was used. H4 verification is complete. PR #68 is open:
+  instructor account was used. H4 verification is complete. PR #68 was
+  owner-approved and closed after squash commit `81d23c8` landed directly on
+  `master`:
   https://github.com/Mission-Next-Technical-Academy/student-portal/pull/68
 
 ## Rules carried over from the SOC spec
@@ -187,18 +196,27 @@ small (about 6 tickets x 2 short fields + 2 paragraphs).
 
 ## Current state
 
-H0–H4 are implemented and verified on `feat/hdesk-submission-sheets`. The SOC
-renderer is shared by explicit lab-key registration, with Help Desk
-definitions in `portal/admin-sheets/hdesk.js`. Older submissions remain
-readable and identify work that was not recorded in that attempt. Verification
-details are recorded in H4 above. PR #68 was approved by the owner for merge on
-2026-10-17. Still open after this work:
-- the H0 Help Desk bugs (early completion, probable duplicate rows,
-  `restart=1` wiping work, guessable diagnoses, M08/M12 HD-2110 conflict,
-  HD-2106 priority, SOC rubric stamp);
-- the Practice It vs Prove It labelling for the guided labs, which are still
-  treated as PROVE IT by `adminGradingLabMeta`;
-- a staging click-through.
+H0–H4 are implemented in `81d23c8`, deployed to staging and GitHub Pages, and
+covered by the local checks listed above. The SOC renderer is shared by
+explicit lab-key registration, with Help Desk definitions in
+`portal/admin-sheets/hdesk.js`. Older submissions remain readable and identify
+work that was not recorded in that attempt. A separate closeout branch now
+defers Help Desk submission until Finish and records Help Desk rubric metadata;
+it also adds saved-work and concurrent-duplicate regression checks. Still open:
+- `restart=1` resets simulator work when a learner relaunches before submitting;
+- most diagnosis choices place the correct answer last, making guessing easier;
+- HD-2110's guided outcome conflicts with its M12 capstone escalation key;
+- HD-2106 priority differs between its simulator and M12 capstone;
+- guided-lab Practice It vs Prove It classification needs resolution against
+  the current queue and completion workflow;
+- signed-in staging student/instructor click-through needs owner-provided
+  synthetic accounts.
+
+Verified during the closeout audit: submitting the same coach-completion
+message twice concurrently creates one attempt; the `?coachComplete=` return
+link alone inserts no attempt and does not complete a lab. Existing deployed
+attempts keep their historical SOC rubric stamp; only new Help Desk attempts
+after the closeout code is promoted receive Help Desk metadata.
 See `docs/handoffs/CLAUDE_ADMIN_SUBMISSION_SHEET_HANDOFF.md`.
 
 ## Parity tables
@@ -206,6 +224,9 @@ See `docs/handoffs/CLAUDE_ADMIN_SUBMISSION_SHEET_HANDOFF.md`.
 _(filled in H0, 2026-10-17; recon only, no code changed)_
 
 ### H0 corrections to this doc's premises (read first)
+
+This section records the H0 forensic snapshot, before H1–H3. Use the current
+status above for later fixes and verified deployment state.
 
 1. **The HDESK simulator is `ui/`, not `portal/imported-labs/mission-next-labs/`.**
    `SIM_ORIGIN` (`portal/app.js:30`) is `http://127.0.0.1:8767/` locally and
@@ -237,8 +258,10 @@ _(filled in H0, 2026-10-17; recon only, no code changed)_
 
 Also verified:
 
-- `recordLabAttempt` stamps every row `rubric_version 'soc-analyst-rubric-v1'`,
-  `pass_threshold 70` even for HDESK (`app.js:3968`).
+- At H0, `recordLabAttempt` stamped every row
+  `rubric_version 'soc-analyst-rubric-v1'`, `pass_threshold 70` even for HDESK.
+  The closeout follow-up makes rubric and scoring-engine versions explicit;
+  existing rows retain their historical metadata.
 - A module is verified complete when each mapped lab has `state='complete'`
   and (`score is null` or `score >= pass_threshold`)
   (`20260916100000_verified_assessment_progress.sql`). So a coach-lab row with
