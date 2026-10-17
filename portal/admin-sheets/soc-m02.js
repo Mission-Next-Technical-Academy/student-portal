@@ -110,6 +110,8 @@
   AdminSubmissionSheet.register(['lab-identity-investigation'], {
     title: 'Module 02 · PROVE IT — Suspicious Authentication Investigation',
     caseId: () => 'CASE-025502 · INC-025811',
+    // Scenario names (jsmith, cgreen, wkstn…) for the spelling allowlist.
+    fixture: () => ({ USERS, DEVICES, DEPARTMENTS, DISPOSITIONS, FINDINGS, EVIDENCE }),
     rubric: {
       labels: {
         affected_entity: 'Affected user and device',

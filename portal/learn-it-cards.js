@@ -33,7 +33,10 @@
     return `<section class="learn-it${done ? ' is-done' : ''}" style="--learn-it-columns:${Math.max(1, Math.min(total, 6))}" data-learn-step="${step}"${id ? ` id="${esc(id)}"` : ''} aria-labelledby="${esc(headingId)}"><div class="learn-it-heading"><div><p class="learn-it-label">${status}</p><h3 id="${esc(headingId)}">${esc(done ? doneHeading : step === 0 ? readyHeading : heading)}</h3><p>${esc(copy)}</p></div><div class="learn-it-actions">${action}</div></div><nav class="learn-it-cards" aria-label="Learn It ideas">${cards}</nav><div class="learn-it-canvas" aria-live="polite">${body || `<p class="learn-it-placeholder">${esc(readyText)}</p>`}</div><div class="learn-it-scan" aria-hidden="true"><span style="width:${width}"></span></div></section>`;
   }
 
-  const wiredRoots = new WeakSet();
+  // Keyed by root AND prefix: every registered module's wire() runs after each
+  // render, and Module 02's shell also carries Module 01's .m01-shell class, so
+  // a root-only guard let Module 01 claim it and Module 02's deck went dead.
+  const wiredRoots = new WeakMap();
   function revealInCarousel(card) {
     const track = card?.closest('.learn-it-cards');
     if (!track) return;
@@ -44,8 +47,10 @@
     else if (cardBox.right > trackBox.right) track.scrollBy({ left: cardBox.right - trackBox.right + 8, behavior });
   }
   function wire(root, { prefix = 'learn', onStep = () => {}, onView = () => {}, onDecode = () => {} } = {}) {
-    if (wiredRoots.has(root)) return;
-    wiredRoots.add(root);
+    const prefixes = wiredRoots.get(root) || new Set();
+    if (prefixes.has(prefix)) return;
+    prefixes.add(prefix);
+    wiredRoots.set(root, prefixes);
     root.addEventListener('click', (event) => {
       const next = event.target.closest(`[${attr(prefix, 'next')}]`);
       const restart = event.target.closest(`[${attr(prefix, 'restart')}]`);
