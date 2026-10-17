@@ -7,23 +7,33 @@ Updated 2026-10-17 during the Admin Submission Sheet closeout.
 - The repository pipeline is documented in `ROADMAP.md` and implemented by
   `.github/workflows/ci.yml`, `pages.yml`, `staging-sync.yml`, and
   `bin/ci-check.sh`.
-- On `master` at `81d23c894f140207da3555ff9e2e1e26a00c5198`, CI, M360 Gate 6,
+- On `master` at `b13c9927cfd1d1ce308c29ad3a509002ab9967ca`, CI validation,
   staging sync/site deployment, and GitHub Pages deployment all succeeded.
-- No CI/CD workflow cleanup was part of PR #68. The #69 closeout PR is checked
-  separately; after merge, repeat the CI, staging sync/site deploy, and Pages
-  verification against its final master SHA.
+  The production index serves the submission-sheet and Help Desk assets.
+- PR #69 passed static checks, Ubuntu launcher checks, and macOS launcher
+  checks (the macOS job took 3m47s). Staging migration dry-run/apply completed;
+  no feature migrations were pending.
+- Workflow runs: [master CI](https://github.com/Mission-Next-Technical-Academy/student-portal/actions/runs/39021456019),
+  [staging sync](https://github.com/Mission-Next-Technical-Academy/student-portal/actions/runs/39021456244),
+  [production Pages deploy](https://github.com/Mission-Next-Technical-Academy/student-portal/actions/runs/39021456049),
+  and [staging site deploy](https://github.com/Mission-Next-Technical-Academy/student-portal-staging/actions/runs/39021504695).
+- No obsolete CI/CD workflow was found or removed. The workflows in the
+  inventory remain wired to current M360 gates/waves, staging, deployment, or
+  change-control tasks. The pipeline was exercised end to end for `b13c992`.
 - Workflow inventory on this date: CI, local-dev check, Pages deploy, staging
   sync, Supabase change reminder, and M360 regression/gate/wave workflows.
   No obsolete workflow was disabled or removed as part of this closeout.
 
 ## Worktree audit
 
-The shared repository had seven `.claude/worktrees/agent-*` entries, this
-closeout worktree, and `/home/alex/student-portal-local-staging`.
+The shared repository had seven `.claude/worktrees/agent-*` entries, the
+Help Desk closeout worktree, and `/home/alex/student-portal-local-staging`.
 
 - Safely retired `.claude/worktrees/agent-a8e90deb4a30ff97b`: it was clean and
   its `abef8d5` commit was already an ancestor of `origin/master`. Its local
   worktree branch was deleted; the commit remains in repository history.
+- Removed the clean Help Desk closeout worktree and local/remote feature branch
+  after PR #69 merged. Its changes are preserved in `b13c992` on `master`.
 - Preserved six clean Claude worktrees because each contains commits not
   present on `origin/master`. Some have similarly named published feature
   branches, but their worktree tips are not ancestors of those branches, so
@@ -37,9 +47,7 @@ closeout worktree, and `/home/alex/student-portal-local-staging`.
 
 ## Next steps
 
-1. Finish review and deploy the current Help Desk closeout PR, then record its
-   final SHA and workflow run links here and in the submission-sheet handoff.
-2. Ask owners to resolve the six preserved Claude worktrees and the dirty
+1. Ask owners to resolve the six preserved Claude worktrees and the dirty
    local-staging checkout; remove only after commits are integrated or saved.
-3. Revisit the workflow inventory when the M360 gates/waves are formally
+2. Revisit the workflow inventory when the M360 gates/waves are formally
    retired; their current checks remain in use and were not removed here.

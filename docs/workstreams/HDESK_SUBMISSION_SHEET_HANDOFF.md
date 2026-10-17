@@ -1,15 +1,12 @@
 # IT Help Desk (HDESK) — instructor Submission Sheet handoff
 
 > **Status update, 2026-10-17:** H0–H4 landed in owner-approved squash commit
-> `81d23c8` on `master`; the PR was closed by the owner without GitHub merge
-> metadata. Staging sync/site deploy and GitHub Pages deploy succeeded for
-> that SHA. Signed-in student/instructor UAT still needs synthetic accounts.
-> A separate closeout branch fixes early coach submission and Help Desk
-> rubric metadata; its checks and promotion status are tracked in the top-level
-> submission-sheet handoff. It also updates the shared coach contract so a
-> guided lab records work only on explicit Finish. CI/CD and worktree cleanup
-> findings are in `docs/handoffs/CI_CD_WORKTREE_CLEANUP_HANDOFF.md`. Preserve
-> scoring and immediate student feedback.
+> `81d23c8`; PR #69 added Help Desk rubric metadata and explicit-Finish capture
+> in squash commit `b13c992`. CI, staging sync/site deploy, and GitHub Pages
+> deploy all succeeded for `b13c992`. Signed-in student/instructor UAT still
+> needs synthetic accounts. CI/CD and worktree findings are in
+> `docs/handoffs/CI_CD_WORKTREE_CLEANUP_HANDOFF.md`. Preserve scoring and
+> immediate student feedback.
 
 ## Next AI — start here (updated 2026-10-17; H0–H4 implemented)
 
@@ -76,8 +73,8 @@ and `adminAttemptReviewCard()` in `portal/app.js` as SOC. The failure is in
    both the Grading queue and the student's completion state.
 2. **Resolved — simulator completion hook.** Owner-approved H3 changed the
    actual simulator in `ui/` through an optional `collectWork()` hook; it did
-   not change `portal/imported-labs/mission-next-labs/`. The closeout branch
-   also waits for the explicit Finish action before posting that work.
+   not change `portal/imported-labs/mission-next-labs/`. PR #69 now waits for
+   explicit Finish before posting the collected work.
 3. **Resolved — M12 persistence.** Copy the written answers into
    `lab_attempts.result`; H1 implemented this without schema or RLS changes.
 
@@ -169,11 +166,10 @@ small (about 6 tickets x 2 short fields + 2 paragraphs).
   shows ticket fields, path selections, diagnosis feedback, work notes,
   history and resolution. Path checkbox state persists.
 - [x] **H4 — Verification (2026-10-17).** `bash bin/ci-check.sh` passed.
-  `node tests/admin-submission-sheet.test.js` passed (114 checks; all 16 Help
-  Desk lab keys have pass/return render cases with empty result objects, so
-  these cases verify registration and verdict rendering, not realistic saved
-  work); spelling tests passed (18 tests). The closeout follow-up adds a saved
-  work and duplicate-message check. `bin/dev.sh status` showed `target=STAGING` before
+  `node tests/admin-submission-sheet.test.js` passed (116 checks across 106
+  cases, including representative saved work); spelling tests passed (18
+  tests). The closeout added saved-work and duplicate-message checks.
+  `bin/dev.sh status` showed `target=STAGING` before
   browser review. A headless Chrome session loaded the local portal served by
   `bin/dev.sh`, rendered every Help Desk sheet with synthetic data, and found
   16/16 sheets, no page errors, and no horizontal overflow. No student or
@@ -199,13 +195,12 @@ small (about 6 tickets x 2 short fields + 2 paragraphs).
 
 ## Current state
 
-H0–H4 are implemented in `81d23c8`, deployed to staging and GitHub Pages, and
-covered by the local checks listed above. The SOC renderer is shared by
+H0–H4 and the PR #69 closeout are implemented in `b13c992`, deployed to staging
+and GitHub Pages, and covered by CI and the local checks listed above. The SOC renderer is shared by
 explicit lab-key registration, with Help Desk definitions in
 `portal/admin-sheets/hdesk.js`. Older submissions remain readable and identify
-work that was not recorded in that attempt. A separate closeout branch now
-defers Help Desk submission until Finish and records Help Desk rubric metadata;
-it also adds saved-work and concurrent-duplicate regression checks. Still open:
+work that was not recorded in that attempt. New Help Desk attempts carry
+Help Desk rubric metadata. Still open:
 - `restart=1` resets simulator work when a learner relaunches before submitting;
 - most diagnosis choices place the correct answer last, making guessing easier;
 - HD-2110's guided outcome conflicts with its M12 capstone escalation key;
@@ -263,8 +258,8 @@ Also verified:
 
 - At H0, `recordLabAttempt` stamped every row
   `rubric_version 'soc-analyst-rubric-v1'`, `pass_threshold 70` even for HDESK.
-  The closeout follow-up makes rubric and scoring-engine versions explicit;
-  existing rows retain their historical metadata.
+  PR #69 now writes Help Desk rubric and scoring-engine versions for new HDESK
+  rows; existing rows retain their historical metadata.
 - A module is verified complete when each mapped lab has `state='complete'`
   and (`score is null` or `score >= pass_threshold`)
   (`20260916100000_verified_assessment_progress.sql`). So a coach-lab row with
@@ -272,25 +267,28 @@ Also verified:
 - `adminGradingLabMeta` (`app.js:9225`) labels every catalogued non-SOC lab
   PROVE IT; `ADMIN_PROVE_IT_LAB_KEYS` has SOC keys only.
 
-### Findings that look like bugs (not fixed, recon only)
+### H0 findings and their current status
 
-- **Completion is reported before the last action.** `coach.js:361` calls
+- **Resolved in PR #69 — completion was reported before the last action.**
+  `coach.js:361` called
   `reportCompletion()` on *arriving* at the last step, i.e. before the final
   Resolve/Escalate click. For **M10 the last step is the work note**, so a
   student can finish M10 without writing any note (Next on the previous step is
   only "Got it"). For the other coach labs the final status is the only
   ungated action.
-- **Probable duplicate attempt rows.** `finish()` (`coach.js:491`) posts the
+- **Resolved in PR #69 — duplicate completion messages.** `finish()`
+  (`coach.js:491`) posted the
   same `mnt-coach-complete` again after `reportCompletion()` already posted
   (`reportedToken` guards only the first). The portal handler has no dedupe,
   so each lab likely gets two `lab_attempts` rows per run. Verify on staging
   before H3; the sheet must show the newest, richest row.
-- **`?coachComplete=hd-mNN` fallback marks the lab complete locally only.** If
+- **Confirmed — `?coachComplete=hd-mNN` fallback alone does not submit.** If
   the opener is gone (`coach.js:495`), the module page shows "complete" but no
   `lab_attempts` row and no `markModuleLabComplete` happen
   (`it-support-shared.js:186-193`, `it-support-module-01.js:61`, `-02.js:65`).
   The module then never verifies. Likely a source of "complete badge but not
-  complete" reports.
+  complete" reports. Tests confirm the return-link fallback alone does not
+  insert an attempt or complete a lab.
 - **Evidence-upload labs score 100 for any file.** M01.1, M02.1, M02.2 record
   `score:100` as soon as the tiles are filled; only the filename is kept, so
   no one can ever look at the screenshot.

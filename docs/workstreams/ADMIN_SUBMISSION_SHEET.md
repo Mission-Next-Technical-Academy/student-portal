@@ -2,12 +2,11 @@
 
 ## Next AI — start here (updated 2026-10-17)
 
-**Status:** SOC S1–S6 and Help Desk H0–H4 are on `master` at `81d23c8`;
-staging and GitHub Pages deployments succeeded. PR #68 was closed after an
-owner-approved squash commit landed directly on `master`; GitHub shows no PR
-merge metadata. Read `docs/handoffs/CLAUDE_ADMIN_SUBMISSION_SHEET_HANDOFF.md`
-for verified deployment state, the Help Desk closeout follow-up, open owner
-decisions, and the remaining signed-in staging UAT. Do not change module
+**Status:** SOC S1–S6, Help Desk H0–H4, and the Help Desk completion-capture
+closeout are on `master` at `b13c992`; CI, staging, and GitHub Pages deploys
+succeeded. Signed-in staging UAT still needs owner-provided synthetic accounts.
+Read `docs/handoffs/CLAUDE_ADMIN_SUBMISSION_SHEET_HANDOFF.md` for deployment
+evidence, open owner decisions, and the remaining UAT. Do not change module
 scores. The active verdict rule is recorded below.
 
 How to write a module definition (copy `portal/admin-sheets/soc-m01.js`):
