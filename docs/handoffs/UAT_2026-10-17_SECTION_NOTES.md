@@ -138,3 +138,23 @@ coursework/UI adjustment proposal here.
 | U16 | M02 Guided Lab | Completing the Guided Lab = pressing "Next explanation" 6 times; no ticket or decision is practised before the graded ticket (M01's Guided Lab has a practice ticket) | Pedagogy | Add a short practice ticket to the M02 Guided Lab (owner/content) | proposed |
 | U17 | M02 Assessment scoring | Route "HR / Data Privacy" is described as partial fit (35) but `caseScore` treats fit < 40 as a bounce → 0 of 30; "Tier 2 SOC" has bounce text but scores 17. A reasonable route drops a student to exactly 70% | Assessment validity | Owner decision: give HR/Data Privacy its partial credit (bounce only where `bounce` text exists), or keep as is | proposed |
 | U18 | Guide popover (M02, also M01 U9) | The console-guide box covers the rows it asks the student to look at (e.g. step 3 "Read the activity record") | Yes, minor | Same as U9: anchor the guide beside the target | proposed |
+
+## Modules 3–12 run (2026-10-17, evening session)
+
+Shipping: direct push to `master` and branch push were both blocked by the agent's permission classifier; owner pushes (`git push origin feat/per-section-teacher-notes:master` or a PR). Nothing below is deployed yet.
+
+| Module | Learn It | Guided Lab | Prove It | Instructor | Unlock | Notes |
+|---|---|---|---|---|---|---|
+| M02 | ✅ | ✅ | 70% | Approved (route + proofread notes, overall note) | ✅ M03 (student page needed a reload: U19) | |
+| M03 | ✅ 6/6 | ✅ CASE-MN-428 submitted, persisted across reload | 97% CASE-MN-517 | Approved; F22 note cleared by hand | ✅ M04, "3 of 12" | F18, F20, F21, F22, F23 |
+
+| # | Finding | Severity | Fix | Status |
+|---|---------|----------|-----|--------|
+| F18 | M03 Guided Lab "Normalize and ingest" dead after the first Validate: handler replaced the lab root that held the listeners, so a student who hit the intended SystemLog.service trap could never correct it or open the workspace without reloading. | **Critical** | Delegate from the stable section body; re-render only the lab root. Test `tests/m03-normalization-lab-rewire.test.js` (fails on old code). Commit `2658e46`. | ✅ fixed |
+| F19 | M03 normalized table shows `raw_event_id` A-1003 for two different events (acct-428 09:02Z and j.lee 08:41Z), undermining the "trace back to the raw record" lesson. | Low (content) | Owner/content | ⏳ |
+| F20 | M03 practice data: P-3002 (184-record search) carries session S-8841 at 08:58:42, six minutes before that session's sign-in (A-1006, 09:04). | Low (content) | Owner/content: move P-3002 after 09:04 or give it another session | ⏳ |
+| F21 | M03 console: alert→incident link was add-only; a mis-linked benign alert could never be unlinked (guide step stuck; wrong link in Prove It case_record). | High | Unlink control, locked after Prove It submit. Test `tests/m03-incident-unlink.test.js`. Commit `8ece6f0`. M07 already supports removal; **M08 and M12 are add-only by design (audited action log) — owner decision whether to add unlink there.** | ✅ fixed (M03) |
+| F22 | M03 sheet contradiction: §1 passes "case left open while Identity Response acts", §14 docks the same open parent ("then the parent closed", 2 of 3). | Medium | Subagent in progress | 🔧 |
+| F23 | Prefilled amber notes are garbled ("To strengthen next time: Finish the child incidents: closing the parent case after both children."). | Low | Subagent in progress | 🔧 |
+| U19 | Nothing updates live: student page after approval, instructor queue/badge after a submit. Owner (2026-10-17): make it auto-update globally, for everyone. | Medium | Subagent building a shared live-refresh mechanism | 🔧 |
+| U20 | Lab Attempts badge is retroactive: counts every pending row (12 now, 11 of them seeded synthetic attempts from Aug–Sep, see F17), and only changes on reload (U19). | Info | F17 owner cleanup + U19 | ⏳ |
