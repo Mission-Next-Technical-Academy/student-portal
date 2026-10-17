@@ -70,7 +70,7 @@ module.exports = ({ run, clone }) => {
         { tacticId: 'TA0011', techniqueId: 'T1105', status: 'unsupported', confidence: 15, eventIds: [E(3), E(5)], rationale: 'Nothing shows a file was downloaded.' },
       ],
       handoffs: [{ id: 'M06-HANDOFF-000001', destination: 'rule', eventIds: [E(1), E(3), E(5)], rationale: 'The task, script and connection form a pattern worth a detection.', recommendation: 'Add a detection for scheduled tasks that launch scripts from user-writable folders.', status: 'proposed', statusHistory: [] }],
-      conclusions: [{ id: 'c1', text: 'Suspicious, not proven: the script ran from a task and connected out, but persistence intent and file transfer are not established.', eventIds: [E(1), E(3), E(5)], disposition: 'true-positive' }],
+      conclusions: [{ id: 'c1', text: 'Suspicious, not proven: the script ran from a task and connected out, but persistence intent and file transfer are not established.', eventIds: [E(1), E(3), E(5)], disposition: 'supported' }],
       actionHistory: [],
     };
     const add = (type, details) => state.actionHistory.push({ type, details });
@@ -117,7 +117,7 @@ module.exports = ({ run, clone }) => {
   assert.equal(perfect.score, 100, 'the hand-built hunt earns full marks from the real scorer');
 
   // Wrong everything: bad ticket, empty hunt, and an unsupported certainty claim.
-  const overclaim = huntState({ hypotheses: [], queryHistory: [], savedQueries: [], savedQueryRuns: [], pivots: [], collections: [], mappings: [], handoffs: [], conclusions: [{ id: 'c1', text: 'C2 confirmed on ws-318, everything is compromised.', eventIds: [E(5)], disposition: 'true-positive' }], actionHistory: [{ type: 'conclusion', details: { text: 'C2 confirmed on ws-318, everything is compromised.', eventIds: [E(5)] } }] });
+  const overclaim = huntState({ hypotheses: [], queryHistory: [], savedQueries: [], savedQueryRuns: [], pivots: [], collections: [], mappings: [], handoffs: [], conclusions: [{ id: 'c1', text: 'C2 confirmed on ws-318, everything is compromised.', eventIds: [E(5)], disposition: 'supported' }], actionHistory: [{ type: 'conclusion', details: { text: 'C2 confirmed on ws-318, everything is compromised.', eventIds: [E(5)] } }] });
   const failingTicket = ticket({
     status: 'resolved', severity: 'low', affectedUser: 'acct-27', affectedDevice: 'WS-214', disposition: 'false-positive', escalation: 'not-required', escalateTo: '',
     notes: 'looks fine <script>alert(1)</script> closed it', findings: { evidencePriority: 'all-logs', scopeAssessment: 'fleet-wide', responseAction: 'wipe' },
@@ -147,7 +147,7 @@ module.exports = ({ run, clone }) => {
           notes: 'pass', 'hunt-hypothesis': 'pass', 'hunt-scope': 'pass', 'hunt-pivots': 'pass', 'hunt-evidence': 'pass', 'hunt-attack': 'pass', 'hunt-handoff': 'pass', 'hunt-conclusion': 'pass',
         },
         feedback: [],
-        html: ['Recommend PASS', 'CASE-066318', 'Endpoint/EDR Response', 'Confirmed malicious activity', 'T1053.005', 'T1105', 'Not supported by the evidence', '9 of 9 found',
+        html: ['Recommend PASS', 'CASE-066318', 'Endpoint/EDR Response', 'Confirmed malicious activity', 'T1053.005', 'T1105', 'Unsupported', '9 of 9 found',
           'Testable hypothesis', '15 of 15 points', /data-sheet-narrative-text>On ws-318 the UpdateHealth task/, /data-sheet-narrative="hunt-hypothesis:0"/, 'Suspicious chain', 'M06-EVT-003'],
         notHtml: ['true-positive', 'endpoint-response', 'ws318-only', 'task-metadata'],
       },

@@ -40,14 +40,19 @@ module.exports = ({ run, clone }) => {
     return clone(run('__m05State'));
   }
   const goodSteps = [
-    ['device_review', { deviceId: 'ws-assess-27', status: 'reviewed', note: 'Workstation of j.alvarez, the only host with the unsigned payload.' }],
-    ['event_review', { eventId: 'M05-EVT-003', status: 'relevant', note: 'syncsvc.exe started by PowerShell.' }],
+    // Opening a workstation: the console writes these records itself (soc-console-tools.js PACKS.m05).
+    ['device_review', { deviceId: 'ws-assess-27', status: 'selected_for_review', note: 'Pivoted from alert to device.' }],
+    ['device_review', { deviceId: 'ws-assess-27', status: 'selected_for_review', note: 'Learner opened device profile and telemetry.' }],
     ['analysis_note', { text: 'Process 4100 (browser) started PowerShell 4172 which started syncsvc.exe 4224. The updater AcmeUpdater is signed and prevalent, so it is benign. The payload created the Run key persistence entry SyncService. The sensor detected the execution but it was not prevented.', relatedDeviceIds: ['ws-assess-27'], relatedEventIds: ['M05-EVT-001', 'M05-EVT-002', 'M05-EVT-003', 'M05-EVT-006'] }],
     ['evidence_package_preserved', { deviceId: 'ws-assess-27', eventIds: ['M05-EVT-001', 'M05-EVT-003', 'M05-EVT-005'], hashes: [SHA] }],
     ['edr_handoff', { deviceIds: ['ws-assess-27'], eventIds: ['M05-EVT-001', 'M05-EVT-002', 'M05-EVT-003', 'M05-EVT-006'], hashes: [SHA], summary: 'Unsigned syncsvc.exe ran from PowerShell on ws-assess-27 and created a Run key.', owner: 'SOC analyst', recipient: 'Endpoint/EDR Response', recommendation: 'Isolate ws-assess-27, preserve evidence and remove the persistence.', status: 'submitted' }],
     ['endpoint_isolation_request', { deviceId: 'ws-assess-27', reason: 'Confirmed malware with persistence on this workstation.', requestedBy: 'SOC analyst', status: 'pending_approval' }],
+    ['endpoint_quarantine_request', { deviceId: 'ws-assess-27', filePath: 'C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe', sha256: SHA, reason: 'Unsigned payload that set a Run key.', requestedBy: 'SOC analyst', status: 'pending_approval' }],
   ];
   const goodState = build(goodSteps);
+  // The "Update handoff" form (Status + Updated by) on the handoff just sent.
+  const handoffId = goodState.edrHandoffs[0].id;
+  const goodStateUpdated = clone(run(`SocM05AssessmentActions.append(${JSON.stringify(goodState)}, 'edr_handoff_status', '2026-10-17T10:09:00.000Z', ${JSON.stringify({ handoffId, status: 'accepted', updatedBy: 'endpoint-lead' })}, SocM05AssessmentData)`));
   goodState.selectedDeviceIds = ['ws-assess-27'];
   goodState.evidencePackage = { deviceId: 'ws-assess-27', eventIds: ['M05-EVT-001', 'M05-EVT-003', 'M05-EVT-005'], hashes: [SHA] };
 
@@ -78,12 +83,15 @@ module.exports = ({ run, clone }) => {
     return { id, lab_key: 'lab-endpoint-investigation', track_code: 'SOCAN', student_id: '9334491415-SOCAN', score: scored.score, pass_threshold: 70, completed_at: '2026-10-17T10:12:00.000Z', attempt: { number: 1, of: 1 }, result };
   }
 
-  const perfect = attempt('m05-pass', goodState, caseRecord());
+  goodStateUpdated.selectedDeviceIds = ['ws-assess-27'];
+  goodStateUpdated.evidencePackage = goodState.evidencePackage;
+  const perfect = attempt('m05-pass', goodStateUpdated, caseRecord());
   assert.ok(perfect.score >= 90, `scorer gives the perfect attempt ${perfect.score}`);
 
   const wrongState = build([
-    ['device_review', { deviceId: 'ws-assess-14', status: 'reviewed', note: 'checked it' }],
+    ['device_review', { deviceId: 'ws-assess-14', status: 'selected_for_review', note: 'Learner opened device profile and telemetry.' }],
     ['analysis_note', { text: 'looks like the updater is malicious so quarantine acmeupdater and execute isolation <script>alert(1)</script>', relatedDeviceIds: ['ws-assess-14'] }],
+    ['endpoint_isolation_request', { deviceId: 'ws-assess-14', reason: 'updater looks bad', requestedBy: 'me', status: 'pending_approval' }],
   ]);
   wrongState.selectedDeviceIds = ['ws-assess-14'];
   const wrong = attempt('m05-fail', wrongState, caseRecord({
@@ -100,6 +108,10 @@ module.exports = ({ run, clone }) => {
   const partial = attempt('m05-partial', partialState, caseRecord({ affectedUser: 'm.reyes', affectedDevice: 'ws-assess-14', escalateTo: 'tier2-soc' }));
 
   const older = attempt('m05-older', goodState, caseRecord(), { work: false, display: false });
+  older.completed_at = '2026-10-10T10:12:00.000Z';
+  // Saved earlier on 2026-10-17: work_summary without the handoff status updates.
+  const sameDay = attempt('m05-same-day', goodStateUpdated, caseRecord());
+  delete sameDay.result.work_summary.handoffStatusUpdates;
 
   return [
     {
@@ -109,8 +121,12 @@ module.exports = ({ run, clone }) => {
         verdict: 'pass',
         sections: { 'case-status': 'pass', severity: 'pass', 'affected-user': 'pass', 'affected-device': 'pass', disposition: 'pass', escalation: 'pass', notes: 'pass', ancestry: 'pass', interpretation: 'pass', persistence: 'pass', control: 'pass', scope: 'pass', 'evidence-preservation': 'pass', handoff: 'pass', 'safe-response': 'pass', timeline: 'judgment' },
         feedback: [],
-        html: ['Recommend PASS', 'CASE-055127 · INC-055436', 'j.alvarez', 'ws-assess-27', 'Endpoint/EDR Response', '8 of 8 found', 'Isolate ws-assess-27', /data-sheet-narrative="analysis:0"/, /data-sheet-narrative="handoff:1"/, /data-sheet-narrative-text>Process 4100/, 'isolation of ws-assess-27: pending approval'],
-        notHtml: ['true-positive', 'endpoint-response', 'endpoint_isolation_request', 'pending_approval'],
+        html: ['Recommend PASS', 'CASE-055127 · INC-055436', 'j.alvarez', 'ws-assess-27', 'Endpoint/EDR Response', '8 of 8 found', 'Isolate ws-assess-27', /data-sheet-narrative="analysis:0"/, /data-sheet-narrative="handoff:1"/, /data-sheet-narrative-text>Process 4100/,
+          'Analyst note 1', 'ws-assess-27 (from the alert and from the device inventory), 2 times',
+          'Action: Request endpoint isolation', 'Action: Request file quarantine', 'Status: Pending approval', 'Requester: SOC analyst',
+          'File on this device: C:\\Users\\j.alvarez\\AppData\\Local\\Temp\\syncsvc.exe · ' + SHA,
+          'Owner: SOC analyst', 'Recipient: Endpoint/EDR Response', 'Status: Accepted', 'Accepted · Updated by endpoint-lead', 'Handoff 1 · Recommendation', 'aaaaaaaaaaaa… (syncsvc.exe)'],
+        notHtml: ['true-positive', 'endpoint-response', 'endpoint_isolation_request', 'pending_approval', 'selected_for_review', 'Pivoted from alert to device', 'Learner opened device profile', 'Note on workstation', 'Not recorded in this attempt'],
       },
     },
     {
@@ -119,11 +135,18 @@ module.exports = ({ run, clone }) => {
       expect: {
         verdict: 'return',
         sections: { severity: 'fail', disposition: 'fail', escalation: 'fail', ancestry: 'fail', interpretation: 'partial', persistence: 'fail', handoff: 'fail', notes: 'fail', control: 'fail' },
-        html: ['Recommend RETURN', 'Set Severity to High', 'Put j.alvarez in Affected user', 'Set Escalation to Required', '&lt;script&gt;', 'Record the linked browser'],
+        html: ['Recommend RETURN', 'Set Severity to High', 'Put j.alvarez in Affected user', 'Set Escalation to Required', '&lt;script&gt;', 'Record the process chain', 'Set Severity to High (you chose Low)'],
+        notHtml: ['fixture', 'Learner opened device profile', 'Note on workstation', 'selected_for_review'],
       },
       custom: ({ suggested }) => {
-        assert.ok(suggested.some((item) => item.item_label === 'Process chain' && /ancestry/.test(item.comment)));
-        assert.ok(suggested.some((item) => item.item_label === 'EDR handoff'));
+        const note = (label) => (suggested.find((item) => item.item_label === label) || {}).comment || '';
+        assert.match(note('Process chain'), /^Record the process chain in an analyst note: the browser \(process 4100\) started PowerShell \(4172\), which started syncsvc\.exe \(4224\).*\(your notes do not mention these processes\)\.$/);
+        assert.match(note('Malicious payload vs harmless updater'), /you wrote “looks like the updater is malicious/);
+        assert.match(note('Incident scope'), /^Open ws-assess-27 and name it in your response.*\(you opened only ws-assess-14\)\. Keep ws-assess-14 out of the response: only ws-assess-27 ran the payload \(you asked for isolation of ws-assess-14\)\.$/);
+        assert.match(note('Safe response boundary'), /you asked for isolation of ws-assess-14, which is outside this incident; you wrote “…quarantine acmeupdater and execute isolation/);
+        assert.match(note('EDR handoff'), /\(you sent no EDR handoff\)\.$/);
+        assert.match(note('Evidence preserved'), /\(you preserved no evidence package\)\.$/);
+        suggested.forEach((item) => assert.doesNotMatch(item.comment, /fixture|supported|criterion|scorer/i, `${item.item_label} note is plain English`));
       },
     },
     {
@@ -131,7 +154,19 @@ module.exports = ({ run, clone }) => {
       row: partial,
       expect: {
         sections: { 'affected-user': 'partial', 'affected-device': 'partial', escalation: 'partial', ancestry: 'pass', persistence: 'pass', 'evidence-preservation': 'fail' },
-        html: ['Partly there (does not block a pass', 'Preserve relevant affected-device telemetry'],
+        html: ['Partly there (does not block a pass', 'Preserve ws-assess-27’s malware events with the syncsvc.exe hash (aaaaaaaaaaaa…) in the evidence package (you preserved no evidence package).'],
+        notHtml: ['fixture'],
+      },
+      // The scorer's own miss text stays in the instructor's rubric panel, never in a note to the student.
+      custom: ({ suggested }) => suggested.forEach((item) => assert.doesNotMatch(item.comment, /Preserve relevant affected-device telemetry|fixture/)),
+    },
+    {
+      name: 'M05 attempt saved before handoff status updates were recorded says so for that row only',
+      row: sameDay,
+      expect: {
+        verdict: 'pass',
+        sections: { handoff: 'pass', 'safe-response': 'pass' },
+        html: ['Status: Accepted', /Handoff 1 · status updates<\/dt><dd><em class="ass-not-recorded">Not recorded in this attempt<\/em>/],
       },
     },
     {
@@ -140,7 +175,7 @@ module.exports = ({ run, clone }) => {
       expect: {
         verdict: 'pass',
         sections: { severity: 'pass', ancestry: 'pass', persistence: 'pass', analysis: 'judgment' },
-        html: ['Not recorded in this attempt', 'Confirmed malicious activity'],
+        html: ['Not recorded in this attempt (submitted before 2026-10-17)', 'Confirmed malicious activity'],
         notHtml: ['true-positive'],
       },
     },

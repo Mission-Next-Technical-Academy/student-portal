@@ -71,9 +71,25 @@
   const bestDepartment = () => departments().slice().sort((a, b) => b.fit - a.fit)[0] || null;
   const tierOf = (kind, id) => ((roster()[kind] || []).find((entry) => entry.id === id) || {}).tier || '';
   const principal = (kind) => ((roster()[kind] || []).find((entry) => entry.tier === 'principal') || {}).id || '';
-  const shown = (ctx, label, fallback) => { const value = ctx.display(label); return value !== null ? value : fallback; };
+  // The ticket value as the student saw it (case_display); a field they left empty reads "Left blank" (via blankAs), never "Not provided".
+  const shown = (ctx, label, fallback) => { const value = ctx.display(label); return value !== null && value !== 'Not provided' ? value : fallback; };
   const blankAs = (value) => (value === null ? null : value || 'Left blank');
   const afterDash = (text) => String(text || '').split(' — ').slice(1).join(' — ').trim();
+
+  // Console words for stored ids. Mapping status and handoff words come from the
+  // console itself (SocM06AssessmentRelatedSearch), with a copy if it is absent;
+  // the conclusion's "Hypothesis outcome" options live in soc-console-tools.js
+  // (PACKS.m06) and the hypothesis Confidence options in soc-m06-assessment-seed-ui.js.
+  const consoleLabels = (name, fallback) => (typeof SocM06AssessmentRelatedSearch !== 'undefined' && SocM06AssessmentRelatedSearch[name]) || fallback;
+  const MAPPING_STATUS = () => consoleLabels('MAPPING_STATUS', { supported: 'Supported', needs_review: 'Needs review', unsupported: 'Unsupported' });
+  const HANDOFF_STATUS = () => consoleLabels('HANDOFF_STATUS', { proposed: 'Proposed', in_review: 'In review', accepted: 'Accepted', rejected: 'Rejected' });
+  const HANDOFF_DESTINATION = () => consoleLabels('HANDOFF_DESTINATION', { alert: 'Alert', incident: 'Incident', rule: 'Detection rule' });
+  const OUTCOME = { supported: 'Supported', rejected: 'Rejected', unresolved: 'Unresolved' };
+  const CONFIDENCE = { low: 'Low', medium: 'Medium', high: 'High' };
+  const quote = (text, max = 90) => { const clean = String(text || '').replace(/\s+/g, ' ').trim(); return `“${clean.length > max ? `${clean.slice(0, max - 1).trimEnd()}…` : clean}”`; };
+  const wordFor = (labels, id) => labels[id] || String(id || '').replace(/_/g, ' ');
+  // The scorer's miss strings without its internal word "fixture" (the scenario data).
+  const plainMiss = (text) => String(text).replace(/fixture-defined /g, '').replace(/fixture-bounded /g, 'bounded ').replace(/\bfixture (events|evidence)\b/g, 'events from the case');
 
   const work = (result) => (result.assessment_work && typeof result.assessment_work === 'object' ? result.assessment_work : null);
   const arrayOf = (value) => (Array.isArray(value) ? value : []);
@@ -88,6 +104,9 @@
     return `${item.id} · ${String(item.time || '').slice(11, 19)} · ${item.device} · ${what}`;
   }
   const describeEvents = (ids) => arrayOf(ids).map(describeEvent);
+  // Handoff status changes after the proposal (the proposal itself is the first history entry).
+  const statusChanges = (handoff) => arrayOf(handoff && handoff.statusHistory).filter((entry) => entry && entry.fromStatus);
+  const stamp = (at) => { const d = at ? new Date(at) : null; return d && !Number.isNaN(d.getTime()) ? d.toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : '—'; };
 
   // ----- criterion helpers (the module scorer's own points drive the check)
   const criterion = (result, id) => (Array.isArray(result.breakdown) ? result.breakdown : []).find((item) => item && item.id === id) || null;
@@ -102,7 +121,7 @@
   const criterionGiven = (id) => (result) => {
     const item = criterion(result, id);
     if (!item) return null;
-    const misses = arrayOf(item.misses).filter(Boolean);
+    const misses = arrayOf(item.misses).filter(Boolean).map(plainMiss);
     return `${item.points} of ${item.max} points${misses.length ? `; the scorer noted: ${misses.join(' ')}` : ''}`;
   };
   const credited = (id) => (result) => {
@@ -155,7 +174,6 @@
     ].map((piece) => ({ ...piece, terms: piece.terms.filter(Boolean) }));
   }
 
-  const MAPPING_STATUS = { supported: 'Supported by the evidence', unsupported: 'Not supported by the evidence', needs_review: 'Needs review' };
   const mappingName = (mapping) => {
     const known = [...truth().supportedTechniques, ...truth().unsupportedTechniques].find((item) => item.id === mapping.techniqueId);
     return mapping.techniqueName || (known && known.name) || '';
@@ -176,8 +194,8 @@
           expected: 'In Progress or Pending',
           // Advisory: the Prove It scorer does not score status.
           test: (result) => (field(result, 'status') === null ? null : ['in-progress', 'pending'].includes(field(result, 'status'))),
-          given: (result) => statusLabel(field(result, 'status')) || 'Left blank',
-          fix: 'Keep the case In Progress. The host still needs containment, so it is not resolved.',
+          given: (result, ctx) => shown(ctx, 'Status', statusLabel(field(result, 'status'))) || 'Left blank',
+          fix: (result, ctx) => `Keep the case In Progress (you set it to ${shown(ctx, 'Status', statusLabel(field(result, 'status'))) || 'nothing'}). The host still needs containment, so it is not resolved.`,
         }],
       },
       {
@@ -188,8 +206,8 @@
           label: () => `Severity set to ${severityLabel(KEY.severity)}`,
           expected: () => severityLabel(KEY.severity),
           test: (result) => (severityOf(result) === null ? null : severityOf(result) === KEY.severity),
-          given: (result) => severityLabel(severityOf(result)) || 'Left blank',
-          fix: 'Set Severity to High. An unsigned script that a scheduled task launches from a user-writable folder and that then calls out to the internet is a serious, active risk.',
+          given: (result, ctx) => shown(ctx, 'Severity', severityLabel(severityOf(result))) || 'Left blank',
+          fix: (result, ctx) => `Set Severity to High (you chose ${shown(ctx, 'Severity', severityLabel(severityOf(result))) || 'nothing'}). An unsigned script that a scheduled task launches from a user-writable folder and that then calls out to the internet is a serious, active risk.`,
         }],
       },
       ...['users', 'devices'].map((kind) => {
@@ -211,13 +229,13 @@
               const tier = tierOf(kind, value);
               return tier === 'principal' ? true : tier === 'pivot' ? 'partial' : false;
             },
-            given: (result) => field(result, key) || 'Left blank',
+            given: (result, ctx) => (record(result) ? shown(ctx, `Affected ${noun}`, field(result, key)) : null) || 'Left blank',
             fix: kind === 'users'
               ? () => `Put ${principal('users')} in Affected user: it is the account the UpdateHealth task ran under on ${principal('devices')}.`
               : () => `Put ${principal('devices')} in Affected device: the unsigned script ran there. ${(scenario().scope.devices.find((id) => id !== principal('devices')) || '')} is only the signed comparison host.`,
             fixPartial: kind === 'users'
-              ? (result) => `${field(result, key)} belongs to the benign comparison host. Name ${principal('users')}, the account behind the suspicious run.`
-              : (result) => `${field(result, key)} is the benign comparison host. Name ${principal('devices')}, where the unsigned script ran.`,
+              ? (result, ctx) => `${shown(ctx, `Affected ${noun}`, field(result, key))} belongs to the benign comparison host. Name ${principal('users')}, the account behind the suspicious run.`
+              : (result, ctx) => `${shown(ctx, `Affected ${noun}`, field(result, key))} is the benign comparison host. Name ${principal('devices')}, where the unsigned script ran.`,
           }],
         };
       }),
@@ -229,8 +247,8 @@
           label: () => `Marked as ${String(dispositionLabel(KEY.disposition)).toLowerCase()} (true positive)`,
           expected: () => dispositionLabel(KEY.disposition),
           test: (result) => (dispositionOf(result) === null ? null : dispositionOf(result) === KEY.disposition),
-          given: (result) => dispositionLabel(dispositionOf(result)) || 'Left blank',
-          fix: 'Record the disposition as Confirmed malicious activity: an unsigned, user-writable, scheduled script is not routine administration. The comparison host (signed, approved maintenance) is the benign one.',
+          given: (result, ctx) => shown(ctx, 'Disposition', dispositionLabel(dispositionOf(result))) || 'Left blank',
+          fix: (result, ctx) => `Record the disposition as Confirmed malicious activity (you chose ${shown(ctx, 'Disposition', dispositionLabel(dispositionOf(result))) || 'nothing'}): an unsigned, user-writable, scheduled script is not routine administration. The comparison host (signed, approved maintenance) is the benign one.`,
         }],
       },
       {
@@ -249,7 +267,7 @@
             label: 'Escalation marked as Required',
             expected: 'Required',
             test: (result) => (field(result, 'escalation') === null ? null : field(result, 'escalation') === 'required'),
-            given: (result) => escalationLabel(field(result, 'escalation')) || 'Left blank',
+            given: (result, ctx) => shown(ctx, 'Escalation required', escalationLabel(field(result, 'escalation'))) || 'Left blank',
             fix: 'Set Escalation to Required. Removing a scheduled-task backdoor from an endpoint is beyond an analyst’s authority.',
           },
           {
@@ -262,7 +280,7 @@
               if (!chosen) return false;
               return chosen.fit >= 100 ? true : chosen.fit >= bounceThreshold() ? 'partial' : false;
             },
-            given: (result) => (department(field(result, 'escalateTo')) || {}).text || 'No department chosen',
+            given: (result, ctx) => shown(ctx, 'Route to department', (department(field(result, 'escalateTo')) || {}).text) || 'No department chosen',
             fix: (result) => {
               const chosen = department(field(result, 'escalateTo'));
               return chosen && chosen.bounce ? chosen.bounce : `Route the case to ${(bestDepartment() || {}).text}, which can contain the host and remove the task.`;
@@ -288,8 +306,11 @@
           label,
           expected: () => optionText(findingOptions(name), KEY.findings[name]),
           test: (result) => (finding(result, name) === null ? null : finding(result, name) === KEY.findings[name]),
-          given: (result) => optionText(findingOptions(name), finding(result, name)) || 'Left blank',
-          fix,
+          given: (result, ctx) => shown(ctx, ['Evidence to prioritize', 'Current scope', 'Recommended response action'][['evidencePriority', 'scopeAssessment', 'responseAction'].indexOf(name)], optionText(findingOptions(name), finding(result, name))) || 'Left blank',
+          fix: (result, ctx) => {
+            const chose = shown(ctx, ['Evidence to prioritize', 'Current scope', 'Recommended response action'][['evidencePriority', 'scopeAssessment', 'responseAction'].indexOf(name)], optionText(findingOptions(name), finding(result, name)));
+            return `${fix()}${chose ? ` You chose “${chose}”.` : ' You left it blank.'}`;
+          },
         })),
       },
       {
@@ -321,6 +342,20 @@
       const list = workList(result, 'queryHistory');
       return list === null ? null : list.filter((run) => run && ['device', 'account', 'all'].includes(run.entityType) && arrayOf(run.resultEventIds).length > 0);
     };
+    // " (you searched ws-318 and All hosts)": the student's own searches, for the notes.
+    const searched = (result) => {
+      const list = queryRuns(result);
+      if (list === null) return '';
+      const names = [...new Set(list.map((run) => (run.entityType === 'all' ? 'all hosts' : run.entityValue)))];
+      return names.length ? ` (you searched ${names.join(', ')})` : ' (you saved no searches with results)';
+    };
+    // " (you marked T1105 as Supported)": what the student marked with that status.
+    const marked = (result, status) => {
+      const list = workList(result, 'mappings');
+      if (list === null) return '';
+      const ids = list.filter((item) => item.status === status).map((item) => item.techniqueId);
+      return ids.length ? ` (you marked ${ids.join(', ')} as ${wordFor(MAPPING_STATUS(), status)})` : ` (you marked nothing as ${wordFor(MAPPING_STATUS(), status)})`;
+    };
     const supportedHit = (mapping, list) => list.some((item) => item.id === mapping.techniqueId && arrayOf(item.evidenceEventIds).some((id) => arrayOf(mapping.eventIds).includes(id)));
     return [
       {
@@ -330,15 +365,15 @@
           const list = workList(result, 'hypotheses');
           if (list === null) return [['Student’s work in this section', null], ['Events credited by the scorer', credited('testable-hypothesis')(result)]];
           const item = list[list.length - 1];
-          return [['Events the hypothesis is linked to', item ? describeEvents(item.relatedEventIds) : 'No hypothesis saved'], ['Confidence the student chose', item ? item.confidence || '—' : null]];
+          return [['Events the hypothesis is linked to', item ? describeEvents(item.relatedEventIds) : 'No hypothesis saved'], ['Confidence', item ? (item.confidence ? wordFor(CONFIDENCE, item.confidence) : 'Left blank') : null]];
         },
         response: (result) => {
           const list = workList(result, 'hypotheses');
           if (list === null) return [];
           const item = list[list.length - 1];
           return [
-            { label: 'Hypothesis · student response', text: item ? item.text || '' : '' },
-            ...(item && item.rationale ? [{ label: 'Why the student thinks so · student response', text: item.rationale }] : []),
+            { label: 'Working hypothesis · student response', text: item ? item.text || '' : '' },
+            ...(item && item.rationale ? [{ label: 'Rationale · student response', text: item.rationale }] : []),
           ];
         },
         checks: [{
@@ -346,7 +381,12 @@
           expected: 'A hypothesis about the UpdateHealth task on ws-318 that events could prove or disprove',
           test: criterionTest('testable-hypothesis'),
           given: criterionGiven('testable-hypothesis'),
-          fix: () => `Write a hypothesis you can test, for example that the ${lead().taskName} task on ${lead().device} runs an unsigned script, and link the events that would prove or disprove it.`,
+          fix: (result) => {
+            const list = workList(result, 'hypotheses');
+            const item = list && list[list.length - 1];
+            const detail = list === null ? '' : !item ? ' (you saved no hypothesis)' : !arrayOf(item.relatedEventIds).length ? ` (your hypothesis ${quote(item.text)} is linked to no events)` : ` (your hypothesis was ${quote(item.text)})`;
+            return `Write a hypothesis you can test, for example that the ${lead().taskName} task on ${lead().device} runs an unsigned script, and link the events that would prove or disprove it${detail}.`;
+          },
         }],
       },
       {
@@ -361,12 +401,12 @@
           {
             label: () => `Searched the lead host (${lead().device})`,
             test: (result) => { const list = queryRuns(result); return list === null ? null : list.some((run) => run.entityType === 'device' && run.entityValue === lead().device); },
-            fix: () => `Run a search scoped to ${lead().device} so the hunt starts from the lead.`,
+            fix: (result) => `Run a search scoped to ${lead().device} so the hunt starts from the lead${searched(result)}.`,
           },
           {
             label: () => `Searched a benign comparison host (${comparisonHost()}) to see what normal looks like`,
             test: (result) => { const list = queryRuns(result); return list === null ? null : list.some((run) => run.entityType === 'device' && run.entityValue === comparisonHost()); },
-            fix: () => `Also search ${comparisonHost()}. It runs the same task name as approved, signed maintenance, so it shows what is normal.`,
+            fix: (result) => `Also search ${comparisonHost()}${searched(result)}. It runs the same task name as approved, signed maintenance, so it shows what is normal.`,
           },
         ], 'scope-and-comparison', 'System score for scope and comparison', () => `Run bounded searches on ${lead().device} and on the comparison host ${comparisonHost()}, then compare them.`),
       },
@@ -414,7 +454,11 @@
           {
             label: 'Saved a collection of at least two different events as the evidence set',
             test: (result) => { const list = workList(result, 'collections'); return list === null ? null : list.some((item) => new Set(arrayOf(item.eventIds)).size >= 2); },
-            fix: 'Save the minimum chain of events (task start, script, connection) in one collection, with no duplicates.',
+            fix: (result) => {
+              const list = workList(result, 'collections') || [];
+              const detail = list.length ? ` (${list.map((item) => `“${item.name}” holds ${new Set(arrayOf(item.eventIds)).size} event${new Set(arrayOf(item.eventIds)).size === 1 ? '' : 's'}`).join(', ')})` : ' (you saved no collection)';
+              return `Save the minimum chain of events (task start, script, connection) in one collection, with no duplicates${detail}.`;
+            },
           },
         ], 'evidence-collection', 'System score for evidence collection', 'Save a collection containing at least two unique events from the data.'),
       },
@@ -425,20 +469,20 @@
           const list = workList(result, 'mappings');
           if (list === null) return [['Student’s work in this section', null], ['Events credited by the scorer', credited('attack-mapping')(result)]];
           return list.length
-            ? list.map((item) => [`${item.techniqueId} ${mappingName(item)}`.trim(), `${MAPPING_STATUS[item.status] || item.status} · confidence ${item.confidence}% · events: ${arrayOf(item.eventIds).join(', ')}`])
+            ? list.map((item) => [`${item.techniqueId} ${mappingName(item)}`.trim(), `Status: ${wordFor(MAPPING_STATUS(), item.status)} · Confidence: ${item.confidence}% · Evidence: ${arrayOf(item.eventIds).join(', ')}`])
             : [['Technique mappings', 'None recorded']];
         },
-        response: (result) => (workList(result, 'mappings') || []).filter((item) => item.rationale).map((item) => ({ label: `Why ${item.techniqueId} is ${String(MAPPING_STATUS[item.status] || item.status).toLowerCase()} · student response`, text: item.rationale })),
+        response: (result) => (workList(result, 'mappings') || []).filter((item) => item.rationale).map((item) => ({ label: `${item.techniqueId} (${wordFor(MAPPING_STATUS(), item.status)}) · Rationale · student response`, text: item.rationale })),
         checks: withScore([
           {
             label: () => `Marked at least one technique the evidence supports (${truth().supportedTechniques.map((item) => `${item.id} ${item.name}`).join('; ')}) as Supported, citing matching events`,
             test: (result) => { const list = workList(result, 'mappings'); return list === null ? null : list.some((item) => item.status === 'supported' && supportedHit(item, truth().supportedTechniques)); },
-            fix: () => `Map what the events demonstrate: ${truth().supportedTechniques.map((item) => `${item.id} ${item.name}`).join(' and ')}, citing the events that show it.`,
+            fix: (result) => `Map what the events demonstrate: ${truth().supportedTechniques.map((item) => `${item.id} ${item.name}`).join(' and ')}, citing the events that show it${marked(result, 'supported')}.`,
           },
           {
             label: () => `Marked at least one technique the evidence does NOT support (${truth().unsupportedTechniques.map((item) => `${item.id} ${item.name}`).join('; ')}) as Unsupported, citing matching events`,
             test: (result) => { const list = workList(result, 'mappings'); return list === null ? null : list.some((item) => item.status === 'unsupported' && supportedHit(item, truth().unsupportedTechniques)); },
-            fix: () => `Also record what the data does not show, such as ${truth().unsupportedTechniques[0].id} ${truth().unsupportedTechniques[0].name}: ${truth().unsupportedTechniques[0].rationale}`,
+            fix: (result) => `Also record what the data does not show${marked(result, 'unsupported')}, such as ${truth().unsupportedTechniques[0].id} ${truth().unsupportedTechniques[0].name}: ${truth().unsupportedTechniques[0].rationale}`,
           },
         ], 'attack-mapping', 'System score for ATT&CK mapping', 'Record one evidence-cited Supported and one evidence-cited Unsupported technique assessment.'),
       },
@@ -448,19 +492,37 @@
         answer: (result) => {
           const list = workList(result, 'handoffs');
           if (list === null) return [['Student’s work in this section', null], ['Events credited by the scorer', credited('evidence-handoff')(result)]];
+          const tag = (index) => (list.length > 1 ? `Handoff ${index + 1} · ` : '');
           return list.length
-            ? list.flatMap((item) => [['Handed to', item.destination === 'rule' ? 'Detection rule' : item.destination === 'incident' ? 'Incident' : 'Alert'], ['Events attached', describeEvents(item.eventIds)], ['Status', String(item.status || 'proposed').replace(/_/g, ' ')]])
+            ? list.flatMap((item, index) => [
+              [`${tag(index)}Destination`, wordFor(HANDOFF_DESTINATION(), item.destination)],
+              [`${tag(index)}Evidence`, describeEvents(item.eventIds)],
+              [`${tag(index)}Status`, wordFor(HANDOFF_STATUS(), item.status || 'proposed')],
+              // statusHistory is on attempts from 2026-10-17; older ones read "Not recorded".
+              [`${tag(index)}Status changes`, Array.isArray(item.statusHistory)
+                ? (statusChanges(item).length ? statusChanges(item).map((entry) => `${wordFor(HANDOFF_STATUS(), entry.fromStatus)} → ${wordFor(HANDOFF_STATUS(), entry.status)} · ${stamp(entry.timestamp)}`) : 'None')
+                : null],
+            ])
             : [['Handoffs', 'None proposed']];
         },
-        response: (result) => (workList(result, 'handoffs') || []).flatMap((item) => [
-          { label: 'Handoff rationale · student response', text: item.rationale || '' },
-          { label: 'Handoff recommendation · student response', text: item.recommendation || '' },
-        ]),
+        response: (result) => {
+          const list = workList(result, 'handoffs') || [];
+          const tag = (index) => (list.length > 1 ? `Handoff ${index + 1} · ` : '');
+          return list.flatMap((item, index) => [
+            { label: `${tag(index)}Rationale · student response`, text: item.rationale || '' },
+            { label: `${tag(index)}Recommendation · student response`, text: item.recommendation || '' },
+            ...statusChanges(item).filter((entry) => entry.note).map((entry) => ({ label: `${tag(index)}Analyst note with status ${wordFor(HANDOFF_STATUS(), entry.status)} · student response`, text: entry.note })),
+          ]);
+        },
         checks: [{
           label: 'Proposed a handoff with attached events, a rationale and a recommendation',
           test: criterionTest('evidence-handoff'),
           given: criterionGiven('evidence-handoff'),
-          fix: 'Propose a handoff that attaches the key events, says why, and recommends what the receiving team should do (for example a detection rule for this task pattern).',
+          fix: (result) => {
+            const list = workList(result, 'handoffs');
+            const detail = list === null ? '' : list.length ? '' : ' (you proposed no handoff)';
+            return `Propose a handoff that attaches the key events, says why, and recommends what the receiving team should do, for example a detection rule for this task pattern${detail}.`;
+          },
         }],
       },
       {
@@ -470,20 +532,25 @@
           const list = workList(result, 'conclusions');
           if (list === null) return [['Student’s work in this section', null], ['Events credited by the scorer', credited('bounded-conclusion')(result)]];
           const item = list[list.length - 1];
-          return item ? [['Events the conclusion rests on', describeEvents(item.eventIds)], ['Disposition the student chose', item.disposition ? dispositionLabel(item.disposition) : '—']] : [['Conclusion', 'None saved']];
+          return item ? [['Hypothesis outcome', item.disposition ? wordFor(OUTCOME, item.disposition) : 'Left blank'], ['Bookmarked evidence it rests on', describeEvents(item.eventIds)]] : [['Conclusion', 'None saved']];
         },
         response: (result) => {
           const list = workList(result, 'conclusions');
           if (list === null) return [];
           const item = list[list.length - 1];
-          return [{ label: 'Conclusion · student response', text: item ? item.text || '' : '' }];
+          return [{ label: 'Conclusion, limitations and next steps · student response', text: item ? item.text || '' : '' }];
         },
         checks: [
           {
             label: 'Saved a substantive conclusion (30+ characters) tied to events in the data',
             test: criterionTest('bounded-conclusion'),
             given: criterionGiven('bounded-conclusion'),
-            fix: 'State what you found, which events it rests on, and what happens next. Link the events.',
+            fix: (result) => {
+              const list = workList(result, 'conclusions');
+              const item = list && list[list.length - 1];
+              const detail = list === null ? '' : !item ? ' You saved no conclusion.' : !arrayOf(item.eventIds).length ? ' Your conclusion is linked to no events.' : '';
+              return `State what you found, which events it rests on, and what happens next. Link the events.${detail}`;
+            },
           },
           {
             label: 'Said what is not proven (for example “persistence is not established”) and did not call unproven behavior confirmed',
@@ -496,7 +563,11 @@
             label: 'No unsupported claim stated as confirmed (the scorer caps the score at 69 when there is one)',
             test: (result) => (Array.isArray(result.critical_errors) ? result.critical_errors.length === 0 : null),
             given: (result) => (Array.isArray(result.critical_errors) && result.critical_errors.length ? result.critical_errors.join(' ') : 'None flagged'),
-            fix: 'Rewrite the claim as what the events show (for example “a connection to 198.51.100.88 was allowed”), not what you suspect (“command and control confirmed”).',
+            fix: (result) => {
+              const list = workList(result, 'conclusions');
+              const item = list && list[list.length - 1];
+              return `Rewrite the claim as what the events show (for example “a connection to 198.51.100.88 was allowed”), not what you suspect${item && item.text ? `. You wrote ${quote(item.text)}` : ' (“command and control confirmed”)'}.`;
+            },
           },
         ],
       },
@@ -515,7 +586,15 @@
       const w = work(result) || {};
       return [r.notes, ...arrayOf(w.hypotheses).map((item) => item.text), ...arrayOf(w.conclusions).map((item) => item.text), ...arrayOf(w.handoffs).flatMap((item) => [item.rationale, item.recommendation])];
     },
-    rubric: { criticalLabels: {} },
+    // The scorer's criteria as saved, with its miss strings in plain words.
+    rubric: (result) => (Array.isArray(result.breakdown) ? result.breakdown : []).filter((c) => c && typeof c === 'object' && c.label).map((c) => ({
+      label: String(c.label),
+      earned: c.points ?? 0,
+      max: c.max ?? null,
+      misses: arrayOf(c.misses).filter(Boolean).map(plainMiss),
+      deductions: arrayOf(c.deductions).filter((d) => d && d.points).map((d) => `-${d.points} ${d.reason || ''}`.trim()),
+      evidence: arrayOf(c.supportingEvidence).filter(Boolean).map(String),
+    })),
     sections: [...ticketSections(), ...huntSections()],
   });
 })();

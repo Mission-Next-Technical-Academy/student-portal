@@ -581,6 +581,8 @@ function moduleFiveWorkSummary(assessment) {
     eventReviews: actions('event_review').map((review) => ({ at: review.at, eventId: text(review.eventId, 80), status: text(review.status, 40), note: text(review.note, 500) })),
     evidencePackage: a.evidencePackage && typeof a.evidencePackage === 'object' ? { deviceId: text(a.evidencePackage.deviceId, 80), eventIds: ids(a.evidencePackage.eventIds), hashes: ids(a.evidencePackage.hashes) } : null,
     edrHandoffs: list(a.edrHandoffs).map((handoff) => ({ id: text(handoff.id, 120), deviceIds: ids(handoff.deviceIds), eventIds: ids(handoff.eventIds), hashes: ids(handoff.hashes), summary: text(handoff.summary, 500), owner: text(handoff.owner, 120), recipient: text(handoff.recipient, 120), recommendation: text(handoff.recommendation, 500), status: text(handoff.status, 40) })),
+    // Each "Update handoff" the student made (Status + Updated by), in order (added 2026-10-17).
+    handoffStatusUpdates: actions('edr_handoff_status').map((update) => ({ at: update.at, handoffId: text(update.handoffId, 120), status: text(update.status, 40), updatedBy: text(update.updatedBy, 120) })),
     approvalRequests: list(a.approvalRequests).map((request) => ({ id: text(request.id, 120), type: text(request.type, 60), deviceId: text(request.deviceId, 80), status: text(request.status, 40), reason: text(request.reason, 500), requestedBy: text(request.requestedBy, 120), filePath: text(request.filePath, 300), sha256: text(request.sha256, 80) })),
   };
 }
