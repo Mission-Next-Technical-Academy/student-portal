@@ -6,46 +6,58 @@ on the owner's instruction (staging has no admin/instructor panel).
 
 ## START HERE (next session) — state at end of 2026-10-17
 
+This file is the only entry point. It links the two bug write-ups that matter:
+`docs/handoffs/BUG_2026-10-17_PROVE_IT_BELOW_PASS_SILENTLY_DROPPED.md` (F10) and
+`docs/handoffs/BUG_2026-10-17_M01_CANNOT_COMPLETE.md` (F14). Findings F1–F17 and student-UX
+items U1–U18 are in the tables below.
+
 **Where the code is**
 
 | Place | What | State |
 |---|---|---|
-| Branch `feat/per-section-teacher-notes` (worktree `/home/alex/mnt-section-notes`) | **Everything** from this UAT: per-section teacher notes, student marked lab, F2–F14 fixes, U4–U14, both migrations, 3 handoff docs | Committed locally on top of `master` `3934cfb`; **not pushed, no PR**. `bin/ci-check.sh` green at commit time. |
-| Remote branch `main` @ `fd31a6b` (worktree `/home/alex/mnt-section-notes-main`) | A Codex snapshot of an earlier state of the same work (pushed to a new `main` branch by mistake; this repo deploys from `master`) | **Superseded** by the feature branch. It is missing F14 (migration `20261017130000` + BUG doc), F12 blank-note filter, F13, U13, U14 and the `?v=` bump. Do not merge or deploy `main`. Owner decides whether to delete it (`git push origin --delete main`, then `git worktree remove ../mnt-section-notes-main`). |
-| `master` / production portal | Unchanged at `3934cfb` | Nothing from this UAT is deployed. |
+| Branch `feat/per-section-teacher-notes` (worktree `/home/alex/mnt-section-notes`) | Everything from this UAT: commits `8138cf2` (per-section teacher notes, student marked lab, F2–F14, U4–U14, both migrations, bug docs) and `58fd4a2` (F15 Module 2 Learn It fix, F16 M02 spelling allowlist, Module 2 UAT log) | Committed locally on top of `master` `3934cfb`; **not pushed, no PR**. `bin/ci-check.sh` green. |
+| Remote branch `main` @ `fd31a6b` (worktree `/home/alex/mnt-section-notes-main`) | A Codex snapshot of an earlier state, pushed to a new `main` branch by mistake (this repo deploys from `master`) | **Superseded.** Missing F12–F16 and the migration for F14. Do not merge or deploy. Owner decides whether to delete it (`git push origin --delete main`, then `git worktree remove ../mnt-section-notes-main`). |
+| `master` / production portal | Unchanged at `3934cfb` | Nothing from this UAT's frontend is deployed. **F15 (Module 2 Learn It dead for every student) stays live until this branch ships.** |
 
-**Database (owner runs all remote Supabase commands)**
+**Database (owner runs all remote Supabase commands; run them from this worktree, not the main repo)**
 
 | Migration | Local | Staging | Production |
 |---|---|---|---|
-| `20261017120000_below_pass_prove_it_review.sql` (F10) | ✅ | ✅ pushed by owner | ✅ pushed by owner |
-| `20261017130000_module_one_completion_case_console.sql` (F14) | ✅ verified (7 cases, BUG doc) | ✅ pushed by owner | ✅ pushed by owner; unlock verified live |
+| `20261017120000_below_pass_prove_it_review.sql` (F10) | ✅ | ✅ | ✅ |
+| `20261017130000_module_one_completion_case_console.sql` (F14) | ✅ | ✅ | ✅ verified live: UAT student Module 1 complete, Module 2 unlocked |
 
-Push order: staging dry-run, staging push, link production, dry-run, push, relink staging
-(the worktree's `supabase/.temp/project-ref` must end on staging `xbblgtrfwgeiyttdlbue`).
-The view is evaluated live, so the UAT student unlocks Module 2 as soon as F14 is on production.
-Until the frontend is deployed, the migration is harmless for old clients: it only changes which
-rows count as Module 1 complete.
+The main repo folder (`~/Mission_Next_Technical_Academy_SOC_Analyst_course`) is on `master`, linked to
+production, and lacks these files, so `db push` there fails with "Remote migration versions not
+found". Do **not** run the suggested `migration repair --status reverted`.
+
+**UAT state**
+
+- Module 1: full loop done (below-pass submit → return with per-section notes → marked lab →
+  resubmit 100% → approve → Module 2 unlocks).
+- Module 2: student did Learn It, Guided Lab and the Assessment ticket (70%, full `case_record` in
+  production, attempt `cb777202`). Instructor sheet reviewed and notes drafted in the browser;
+  **Approve / Return not clicked, owner's call.** Drafts are not saved anywhere until a decision.
 
 **Next steps, in order**
 
-1. Owner: push F14 (above). Then, signed in as `7634107909-SOCAN` on `http://127.0.0.1:8768`
-   (`bin/dev.sh start --production` from this worktree), confirm Module 1 shows complete and
-   Module 2 is unlocked. Record as plan step 7 ✅.
-2. Owner: say whether to push `feat/per-section-teacher-notes` and open a PR to `master`
-   (review, then merge = deploy via `.github/workflows/pages.yml`).
-3. Plan step 8: Help Desk submit → review → marked lab (needs a synthetic Help Desk student +
+1. Owner: decide the Module 2 attempt (Approve, or Return to see the student side of a return).
+2. Owner: push `feat/per-section-teacher-notes` and open a PR to `master` (merge = deploy via
+   `.github/workflows/pages.yml`). This is what ships F15 to students.
+3. Owner decisions: U17 (M02 HR / Data Privacy route scores 0), F17 (clear 20 seeded synthetic
+   rows from the instructor queue), U16 (M02 Guided Lab has no practice ticket), U7, U9/U18, U11,
+   U2/U3/U10/U12/U15 (layout).
+4. Plan step 8: Help Desk submit → review → marked lab (needs a synthetic Help Desk student +
    instructor, signed in by the owner).
-4. Follow-up in `BUG_2026-10-17_PROVE_IT_BELOW_PASS_SILENTLY_DROPPED.md` § Follow-up: M02–M12
-   and AI/ML Prove It submits still keep their local "submitted" latch when the save fails (the
-   central save + banner already protect the data; this is the per-module rollback/unstick that
-   M01 has). One shared helper, not twelve copies.
-5. Owner decisions waiting: U7 (quiz distractors), U9 (guide covers "Open the alert"),
-   U11 (Add user fills the answer), U2/U3/U10/U12 (layout).
+5. Follow-up in the F10 bug doc: M02–M12 and AI/ML Prove It submits keep their local "submitted"
+   latch if the save fails (central save + red banner already protect the data; M01 has the
+   per-module rollback/unstick). One shared helper, not twelve copies.
+6. Side note from F15: `wireModuleOneLab()` adds a Review Module click listener on every module
+   page; scope it to Module 1.
 
 **Do not**: deploy or merge `main`; relax `lab_attempts_complete_needs_passing_score`; let
 below-pass work unlock a module; type passwords into sign-in forms (the owner signs the tabs in;
-login is per tab, `sessionStorage`).
+login is per tab, `sessionStorage`). Local serving here is `bin/dev.sh start --production` by the
+owner's instruction for this UAT (staging has no instructor panel); the red badge shows the target.
 
 Accounts (synthetic, owner-provided, signed in by the owner):
 
