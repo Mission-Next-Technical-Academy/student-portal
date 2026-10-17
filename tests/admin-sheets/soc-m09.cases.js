@@ -10,7 +10,7 @@ const PORTAL = path.join(__dirname, '..', '..', 'portal');
 
 module.exports = ({ run, clone }) => {
   const defined = (name) => run(`typeof ${name} !== 'undefined'`);
-  const loadScript = (file, marker) => { if (!defined(marker)) run(fs.readFileSync(path.join(PORTAL, file), 'utf8')); };
+  const loadScript = (file, marker) => { if (defined(marker)) return; try { run(fs.readFileSync(path.join(PORTAL, file), 'utf8')); } catch (error) { if (!/already been declared/.test(error.message)) throw error; } };
   const source = fs.readFileSync(path.join(PORTAL, 'soc-analyst-module-09.js'), 'utf8');
   const loadConst = (name) => {
     if (defined(name)) return;

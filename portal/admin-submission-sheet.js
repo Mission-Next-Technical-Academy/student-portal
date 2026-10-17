@@ -586,7 +586,7 @@ const AdminSubmissionSheet = (() => {
     const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
     const names = (list) => list.map((section) => section.title).join(', ');
     const scoreLine = sheet.score === null ? 'The system did not record a score.' : `System score ${sheet.score}% against a ${sheet.threshold}% pass mark.`;
-    const heading = kind === 'pass' ? 'Recommend PASS'
+    const heading = kind === 'pass' ? (n ? `Recommend PASS — with corrections (${plural(n, 'section')} to fix)` : 'Recommend PASS')
       : kind === 'judgment' ? 'Instructor judgment needed'
         : critical.length ? 'Recommend RETURN — a critical safety issue was flagged'
           : n ? `Recommend RETURN — ${plural(n, 'section')} need${n === 1 ? 's' : ''} work` : 'Recommend RETURN — score is below the pass mark';
