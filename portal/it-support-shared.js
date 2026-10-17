@@ -508,8 +508,10 @@ function itsRedoNoticeHtml(user, labs) {
   const notes = (user && user.openLabRedoFeedbackByLabKey) || {};
   return labs.filter((lab) => itsLabReturned(user, lab.key)).map((lab) => {
     const items = notes[lab.key] || [];
+    // The marked-lab view (portal/app.js) shows each note beside its section.
+    const marked = typeof markedLabLinkHtml === 'function' ? `<p>${markedLabLinkHtml(lab.key)}</p>` : '';
     return `<div class="m01-redo-feedback" role="note" data-its-redo-notice="${esc(lab.key)}"><strong><i class="ri-feedback-line" aria-hidden="true"></i> Returned for revision: ${esc(itsLabTitle(lab.key))}</strong>${items.length
-      ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>`
+      ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>${marked}`
       : '<p>Your instructor returned this lab without written notes.</p>'}<p>${esc(lab.action)}</p></div>`;
   }).join('');
 }

@@ -278,7 +278,7 @@
           label: 'Key evidence named in the work notes',
           text: (result) => field(result, 'notes'),
           pieces: notePieces,
-          fix: (missing) => `Back your recommendation with the evidence: your note does not mention ${missing.join('; ')}.`,
+          fix: (missing) => `Back your recommendation with the evidence: your note does not mention ${missing.join(', ')}.`,
         },
       },
       {

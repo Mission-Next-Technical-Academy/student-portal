@@ -274,7 +274,7 @@
               { name: 'the recovery step (restored from a clean recovery point)', short: 'the recovery step', terms: ['restor', 'recovery point', 'rebuil', 'clean scan'] },
             ];
           },
-          fix: (missing) => `Back the report with the facts: it does not mention ${missing.join('; ')}.`,
+          fix: (missing) => `Back the report with the facts: it does not mention ${missing.join(', ')}.`,
         },
       },
       {
@@ -320,7 +320,7 @@
           pieces: () => list(truth().residualRisks).map((risk) => ({
             name: `the open item "${(recoveryEvidence(risk.evidenceId) || {}).summary || risk.keywords[0]}"`, short: risk.keywords[0], terms: risk.keywords,
           })),
-          fix: (missing) => `The closure report must say what is still open: it does not mention ${missing.join('; ')}.`,
+          fix: (missing) => `The closure report must say what is still open: it does not mention ${missing.join(', ')}.`,
         },
       },
       {

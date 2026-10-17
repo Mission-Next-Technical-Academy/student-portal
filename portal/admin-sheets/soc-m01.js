@@ -244,7 +244,7 @@
           label: 'Key evidence named in the work notes',
           text: (result, ctx) => (record(result) ? ctx.text() : null),
           pieces: () => evidencePoints(),
-          fix: (missing) => `Back your decision with the evidence: your note does not mention ${missing.join('; ')}. Say what each record showed and when.`,
+          fix: (missing) => `Back your decision with the evidence: your note does not mention ${missing.join(', ')}. Say what each record showed and when.`,
         },
       },
       {

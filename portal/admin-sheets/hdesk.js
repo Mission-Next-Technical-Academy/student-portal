@@ -150,7 +150,7 @@
       }),
       checks: expectedFields.map(([field, label]) => {
         const found = files.some((entry) => entry && entry.field === field);
-        return { label: `${label} attached`, expected: label, test: () => found, given: () => found ? 'Uploaded' : 'Not attached', fix: `Please attach the ${label.toLowerCase()} screenshot so the instructor can verify it.` };
+        return { label: `${label} attached`, expected: label, test: () => found, given: () => found ? 'Uploaded' : 'Not attached', fix: `Attach the ${label.replace(/ screenshot$/i, '')} screenshot.` };
       }),
     };
     if (key === 'lab-its-01-lms-validation') return [section, {

@@ -6,7 +6,13 @@
  * the student when it does not match. This file turns that into:
  *
  *   header → verdict banner → legend → sections (student answer, sweep of
- *   checks, red-pen notes) → system rubric → teacher notes → debug JSON.
+ *   checks, red-pen notes, a teacher note beside each section) → system
+ *   rubric → decision (overall note + Approve / Return) → debug JSON.
+ *
+ * Teacher notes are per section (owner, 2026-10-17): each one is saved as a
+ * lab_attempt_feedback row whose item_label is the section title, so the
+ * student's marked lab (renderStudent) puts the note back beside the same
+ * section. Notes whose label matches no section read as overall notes.
  *
  * Verdict (owner, 2026-10-17): PASS = system score ≥ pass mark and no
  * required section ✗. ◐ amber never blocks a pass. Every narrative section
@@ -15,7 +21,8 @@
  *
  * Presentation only: nothing here changes a score or writes to Supabase.
  * app.js keeps the Approve / Send back controls and passes them in as
- * `notesHtml`; submitGradingDecision() still reads the feedback inputs.
+ * `notesHtml`; submitGradingDecision() reads every .feedback-item on the
+ * card, the per-section notes included.
  *
  * Definition shape (see the spec for a worked example):
  *   {
@@ -113,6 +120,9 @@ const AdminSubmissionSheet = (() => {
     const pattern = new RegExp(`(?<![a-z0-9])${chunks.map(escapeRegExp).join('[\\s._:\\/-]{0,3}')}(?![a-z0-9])`);
     return pattern.test(text);
   }
+  // At most NOTE_LIST_MAX names in a red-pen note, then "and N more".
+  const NOTE_LIST_MAX = 3;
+  const shortList = (names) => (names.length > NOTE_LIST_MAX + 1 ? [...names.slice(0, NOTE_LIST_MAX), `and ${names.length - NOTE_LIST_MAX} more`] : names);
   const matchesAny = (haystack, terms) => (Array.isArray(terms) ? terms : [terms]).some((term) => matchesText(haystack, term));
 
   // ---------------------------------------------------- writing mechanics
@@ -196,7 +206,7 @@ const AdminSubmissionSheet = (() => {
     const order = Object.keys(wording);
     const issues = Array.from(found.values())
       .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id))
-      .map((issue) => ({ ...issue, example: quote(issue.example), text: `${wording[issue.id](issue.count)} (e.g. '${quote(issue.example)}')` }));
+      .map((issue) => ({ ...issue, example: quote(issue.example), short: wording[issue.id](issue.count), text: `${wording[issue.id](issue.count)} (e.g. '${quote(issue.example)}')` }));
     return { words: tokens.length, issues };
   }
 
@@ -287,10 +297,12 @@ const AdminSubmissionSheet = (() => {
     }));
     const hits = lines.filter((line) => line.outcome === 'pass').length;
     const outcome = !lines.length ? 'missing' : hits === lines.length ? 'pass' : hits ? 'partial' : 'fail';
-    // Red-pen notes use each piece's short name when given (keeps the note to ≤ 2 sentences).
-    const missing = pieces.filter((piece, index) => lines[index].outcome !== 'pass').map((piece) => piece.short || piece.name);
+    // Red-pen notes use each piece's short name when given and list at most
+    // NOTE_LIST_MAX of them, so a note stays readable; the ✓/✗ lines above
+    // still show the instructor every piece.
+    const missing = shortList(pieces.filter((piece, index) => lines[index].outcome !== 'pass').map((piece) => piece.short || piece.name));
     const fix = outcome === 'partial' || outcome === 'fail'
-      ? (group.fix ? safe(group.fix, [missing, ...args]) : null) || `Back your decision with the evidence: your answer does not mention ${missing.join('; ')}.`
+      ? (group.fix ? safe(group.fix, [missing, ...args]) : null) || `Back your decision with the evidence: your answer does not mention ${missing.join(', ')}.`
       : null;
     return [{ kind: 'group', label, outcome, given: `${hits} of ${lines.length} found`, fix: fix ? String(fix) : null, found: true }, ...lines];
   }
@@ -305,7 +317,8 @@ const AdminSubmissionSheet = (() => {
       label: 'Writing mechanics: capitals, end punctuation, repeated words, run-ons, text-speak (proofreading, advisory)',
       outcome: issues.length ? 'partial' : 'pass',
       given: issues.length ? issues.map((issue) => issue.text).join('; ') : 'No proofreading issues found',
-      fix: issues.length ? `Proofread: ${issues.map((issue) => issue.text).join('; ')}.` : null,
+      // The sweep line above keeps the examples; the note to the student is short.
+      fix: issues.length ? `Proofread: ${issues.map((issue) => issue.short).join(', ')}.` : null,
       found: false,
       advisory: true,
     };
@@ -418,15 +431,39 @@ const AdminSubmissionSheet = (() => {
   /* One prefilled feedback item per section that needs work (✗) or is only
    * partly there (◐, worded "To strengthen next time: …" so the instructor
    * can approve with feedback). Passing sections add nothing. */
+  /* The prefilled teacher note for one section: one point reads as a
+   * sentence, several as a short list, one point per line. */
+  function sectionSuggestion(section) {
+    if (section.status !== 'fail' && section.status !== 'partial') return '';
+    const notes = section.notes.map((note) => String(note).trim()).filter(Boolean);
+    const lead = section.status === 'partial' ? 'To strengthen next time:' : '';
+    if (notes.length <= 1) return [lead, notes[0] || ''].filter(Boolean).join(' ');
+    return [lead, ...notes.map((note) => `• ${note}`)].filter(Boolean).join('\n');
+  }
+
   function suggestedFeedback(row, options = {}) {
     const sheet = evaluate(row, options);
     if (!sheet) return [];
     return sheet.sections
       .filter((section) => section.status === 'fail' || section.status === 'partial')
-      .map((section) => ({
-        item_label: section.title,
-        comment: `${section.status === 'partial' ? 'To strengthen next time: ' : ''}${section.notes.join(' ')}`,
-      }));
+      .map((section) => ({ item_label: section.title, comment: sectionSuggestion(section) }));
+  }
+
+  /* Sent notes back onto their sections: an item belongs to the section
+   * whose title equals its item_label (case and spacing ignored). Anything
+   * else, including notes from before per-section notes, is an overall note.
+   * → { bySection: Map(sectionId → [{ item_label, comment }]), overall: [...] } */
+  function notesBySection(sections, feedback) {
+    const key = (text) => String(text ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+    const ids = new Map(sections.map((section) => [key(section.title), section.id]));
+    const bySection = new Map();
+    const overall = [];
+    (Array.isArray(feedback) ? feedback : []).filter((item) => item && !isBlank(item.comment)).forEach((item) => {
+      const id = ids.get(key(item.item_label));
+      if (id === undefined) overall.push(item);
+      else bySection.set(id, [...(bySection.get(id) || []), item]);
+    });
+    return { bySection, overall };
   }
 
   // ---------------------------------------------------------------- rubric
@@ -573,12 +610,38 @@ const AdminSubmissionSheet = (() => {
     }).join('')}</tbody></table>`;
   }
 
-  function sectionHtml(section, index) {
+  /* The teacher note beside one section. Editable: a red-pen textarea,
+   * prefilled from the section's red-pen notes, that submitGradingDecision()
+   * saves with the section title as its label. Sent: the note(s) the
+   * student received for this section. */
+  function editableNoteHtml(section) {
+    const id = `ass-note-${String(section.id).replace(/[^\w-]/g, '-')}`;
+    return `<div class="feedback-item ass-teacher-note" data-section-note="${esc(section.id)}">
+      <label class="ass-teacher-note-label" for="${esc(id)}">Teacher note on this section</label>
+      <input type="hidden" data-feedback-label value="${esc(section.title)}" />
+      <textarea id="${esc(id)}" data-feedback-comment rows="${section.notes.length ? 4 : 2}" class="ass-teacher-note-input" placeholder="Optional. What to fix here, and why.">${esc(sectionSuggestion(section))}</textarea>
+    </div>`;
+  }
+
+  function sentNoteHtml(items, heading = 'Teacher note') {
+    return `<div class="ass-teacher-note ass-teacher-note--sent" data-section-note-sent><p class="ass-teacher-note-label">${esc(heading)}</p><div class="ass-redpen">${items.map((item) => `<p>${esc(item.comment)}</p>`).join('')}</div></div>`;
+  }
+
+  /* notes: { editable } on an open review, { sent: [items] } on a decided
+   * one, {} when neither (the sheet then shows only the red-pen notes). */
+  function sectionHtml(section, index, notes = {}) {
+    const sent = Array.isArray(notes.sent) ? notes.sent : null;
+    const guidance = section.instructorPrompt ? `<div aria-label="Instructor guidance" class="ass-instructor-prompt"><strong>Instructor guidance</strong><p>${esc(section.instructorPrompt)}</p></div>` : '';
+    // On an open review the red-pen notes are the textarea's prefill, so
+    // they are not repeated above it.
+    const redpen = !notes.editable && !sent && section.notes.length ? `<div class="ass-redpen" aria-label="Red-pen note to the student">${section.notes.map((note) => `<p>${esc(note)}</p>`).join('')}</div>` : '';
+    const note = notes.editable ? editableNoteHtml(section) : sent && sent.length ? sentNoteHtml(sent, 'Teacher note sent') : '';
+    const side = `${guidance}${redpen}${note}`;
     return `<li class="ass-section ass-section--${esc(section.status)}" data-sheet-section="${esc(section.id)}" data-sheet-status="${esc(section.status)}">
       <div class="ass-section-head"><h4><span class="ass-section-number">${index + 1}.</span> ${esc(section.title)}${section.required ? '' : ' <span class="ass-optional">(advisory)</span>'}</h4>${chipHtml(section)}</div>
       <div class="ass-section-body">
         <div class="ass-section-main">${answerHtml(section)}${sweepHtml(section)}</div>
-        ${(section.instructorPrompt || section.notes.length) ? `<aside class="ass-section-side"><div aria-label="Instructor guidance" class="${section.instructorPrompt ? 'ass-instructor-prompt' : ''}">${section.instructorPrompt ? `<strong>Instructor guidance</strong><p>${esc(section.instructorPrompt)}</p>` : ''}</div>${section.notes.length ? `<div class="ass-redpen" aria-label="Red-pen note to the student">${section.notes.map((note) => `<p>${esc(note)}</p>`).join('')}</div>` : ''}</aside>` : ''}
+        ${side ? `<aside class="ass-section-side">${side}</aside>` : ''}
       </div>
     </li>`;
   }
@@ -594,11 +657,11 @@ const AdminSubmissionSheet = (() => {
         : critical.length ? 'Recommend RETURN — a critical safety issue was flagged'
           : n ? `Recommend RETURN — ${plural(n, 'section')} need${n === 1 ? 's' : ''} work` : 'Recommend RETURN — score is below the pass mark';
     const detail = [
-      kind === 'pass' ? `${scoreLine} ${needsWork.length ? 'Corrections are listed below and will be prefilled in teacher notes.' : 'No critical failure was flagged.'}` : '',
+      kind === 'pass' ? `${scoreLine} ${needsWork.length ? 'Corrections are prefilled in the teacher note beside each section.' : 'No critical failure was flagged.'}` : '',
       kind === 'judgment' ? `${scoreLine} No required section is marked ✗; decide from the sheet.` : '',
       kind === 'return' ? `${n ? `Needs work: ${names(needsWork)}. ` : ''}${scoreLine}` : '',
       critical.length ? `Critical failure flagged: ${critical.join('; ')}.` : '',
-      partly.length ? `Partly there (does not block a pass; notes are prefilled below): ${names(partly)}.` : '',
+      partly.length ? `Partly there (does not block a pass; notes are prefilled beside each section): ${names(partly)}.` : '',
       advisory.length ? `Advisory notes: ${names(advisory)}.` : '',
       judgment.length ? `Read and judge: ${names(judgment)}.` : '',
     ].filter(Boolean).join(' ');
@@ -632,11 +695,16 @@ const AdminSubmissionSheet = (() => {
     <p><span class="ass-mark ass-mark--pass">✓</span> green = matches the answer key · <span class="ass-mark ass-mark--partial">◐</span> amber = partly there, never blocks a pass, the note says how to strengthen it · <span class="ass-mark ass-mark--fail">✗</span> red = does not match, the red-pen note says what to fix · <span class="ass-mark ass-mark--judgment">●</span> grey = read it and use your judgment. Answer-key values are shown to you only, never to the student.</p>
   </details>`;
 
-  function sentFeedbackHtml(sentFeedback) {
+  // Decided attempt: section notes sit beside their sections; this lists the
+  // rest (overall notes, and every note from before per-section notes).
+  function sentFeedbackHtml(sentFeedback, overall) {
     if (!Array.isArray(sentFeedback)) return '';
+    const body = !sentFeedback.length ? '<p class="mt-1 text-sm text-gray-500">No written feedback was sent with this decision.</p>'
+      : overall.length ? `<ul class="mt-2 space-y-1.5 text-sm">${overall.map((item) => `<li class="ass-sent-item">${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>`
+        : '<p class="mt-1 text-sm text-gray-500">Every note was sent on a section; see the teacher note beside each one.</p>';
     return `<section class="ass-notes" data-sheet-sent-feedback aria-label="Feedback sent to the student">
       <h4 class="text-sm font-semibold text-[#1e3a5f]">Teacher notes sent to the student</h4>
-      ${sentFeedback.length ? `<ul class="mt-2 space-y-1.5 text-sm">${sentFeedback.map((item) => `<li class="ass-sent-item">${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>` : '<p class="mt-1 text-sm text-gray-500">No written feedback was sent with this decision.</p>'}
+      ${body}
     </section>`;
   }
 
@@ -649,19 +717,88 @@ const AdminSubmissionSheet = (() => {
    *   item         — the grouped grading item (item.lead === row, item.rows = siblings)
    *   readOnly     — decided attempt: show sentFeedback instead of notesHtml
    *   sentFeedback — [{ item_label, comment }] actually written to lab_attempt_feedback
-   *   notesHtml    — app.js's editable feedback items + decision buttons (trusted markup)
+   *   notesHtml    — app.js's overall note + decision buttons (trusted markup);
+   *                  when given, every section also gets an editable teacher note
    * Returns '' when no definition is registered for the row. */
   function render(row, options = {}) {
     const sheet = evaluate(row, options);
     if (!sheet) return '';
+    const editable = !options.readOnly && Boolean(options.notesHtml);
+    const sent = options.readOnly && Array.isArray(options.sentFeedback) ? notesBySection(sheet.sections, options.sentFeedback) : null;
+    const notesFor = (section) => (editable ? { editable: true } : sent ? { sent: sent.bySection.get(section.id) || [] } : {});
     return `<section class="ass-sheet ass-sheet--${sheet.verdict.kind}" data-submission-sheet="${esc(row.lab_key)}" aria-label="Submission sheet">
       ${headerHtml(sheet, options)}
       ${verdictHtml(sheet)}
       ${LEGEND}
-      <ol class="ass-sections">${sheet.sections.map(sectionHtml).join('')}</ol>
+      <ol class="ass-sections">${sheet.sections.map((section, index) => sectionHtml(section, index, notesFor(section))).join('')}</ol>
       ${rubricHtml(sheet)}
-      ${options.readOnly ? sentFeedbackHtml(options.sentFeedback) : (options.notesHtml ? `<section class="ass-notes" data-sheet-notes aria-label="Teacher notes to send back"><h4 class="text-sm font-semibold text-[#1e3a5f]">Teacher notes to send back</h4><p class="mt-0.5 mb-2 text-xs text-gray-500">Prefilled with one note per section that needs work. Edit, delete, or add notes before you decide.</p>${options.notesHtml}</section>` : '')}
+      ${options.readOnly ? sentFeedbackHtml(options.sentFeedback, sent ? sent.overall : []) : (editable ? `<section class="ass-notes" data-sheet-notes aria-label="Decision"><h4 class="text-sm font-semibold text-[#1e3a5f]">Your decision</h4><p class="mt-0.5 mb-2 text-xs text-gray-500">The teacher note beside each section goes to the student with that section. Sections that need work are prefilled; edit or clear them before you decide. Add an overall note here if you want one.</p>${options.notesHtml}</section>` : '')}
       ${debugHtml(row)}
+    </section>`;
+  }
+
+  // ------------------------------------------------------- student view
+
+  /* The student's own marked lab: their answers section by section, how each
+   * section came out, and the teacher note on that section. Never shows the
+   * answer key, the automatic checks, instructor guidance, or raw JSON:
+   * answer rows labelled as the key or the expected value are dropped. */
+  const STUDENT_STATUS = {
+    pass: 'Pass',
+    partial: 'Partly there',
+    fail: 'Needs work',
+    judgment: 'Read by your instructor',
+    missing: 'Read by your instructor',
+  };
+  const KEY_ROW = /\bkey\b|expect|scenario reference|answer key/i;
+
+  function studentSectionHtml(section, index, notes) {
+    const studentSection = {
+      ...section,
+      answer: (Array.isArray(section.answer) ? section.answer : []).filter((entry) => Array.isArray(entry) && !KEY_ROW.test(String(entry[0]))),
+      collapsed: section.collapsed,
+    };
+    const advisory = !section.required && section.status === 'fail';
+    const chip = `<span class="ass-chip ${STATUS[section.status].tone}" data-sheet-chip="${esc(section.status)}">${esc(advisory ? 'Worth another look' : STUDENT_STATUS[section.status])}</span>`;
+    const body = answerHtml(studentSection) || '<p class="ass-student-empty">Nothing was recorded for this part.</p>';
+    return `<li class="ass-section ass-section--${esc(section.status)}" data-sheet-section="${esc(section.id)}" data-sheet-status="${esc(section.status)}">
+      <div class="ass-section-head"><h4><span class="ass-section-number">${index + 1}.</span> ${esc(section.title)}</h4>${chip}</div>
+      <div class="ass-section-body">
+        <div class="ass-section-main">${body}</div>
+        ${notes.length ? `<aside class="ass-section-side">${sentNoteHtml(notes, 'Your instructor’s note')}</aside>` : ''}
+      </div>
+    </li>`;
+  }
+
+  /* renderStudent(row, { feedback })
+   *   row      — the student's own lab_attempts row (score, pass_threshold,
+   *              result, completed_at, reviewed_at, redo_requested)
+   *   feedback — [{ item_label, comment }] sent with the instructor's decision
+   * Returns '' when no definition is registered for the row. */
+  function renderStudent(row, options = {}) {
+    const sheet = evaluate(row, options);
+    if (!sheet) return '';
+    const { bySection, overall } = notesBySection(sheet.sections, options.feedback);
+    const when = (value) => (value ? new Date(value).toLocaleString() : '—');
+    const decision = !row.reviewed_at ? 'Waiting for your instructor' : row.redo_requested ? 'Returned for revision' : 'Approved';
+    const facts = [
+      ['Result', decision],
+      ['Score', sheet.score === null ? 'No score' : `${sheet.score}% (pass mark ${sheet.threshold}%)`],
+      ['Submitted', when(row.completed_at)],
+      ['Reviewed', when(row.reviewed_at)],
+    ];
+    const rubric = rubricRows(sheet.ctx.result, sheet.definition.rubric, sheet.ctx);
+    const full = (c) => c.max !== null && Number(c.earned) >= Number(c.max);
+    return `<section class="ass-sheet ass-sheet--student ass-sheet--${row.redo_requested ? 'return' : 'pass'}" data-student-sheet="${esc(row.lab_key)}" aria-label="Your marked lab">
+      <header class="ass-header">
+        <p class="ass-eyebrow">Your marked lab</p>
+        <h3 class="ass-title">${esc(sheet.title)}</h3>
+        <dl class="ass-facts">${facts.map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>
+      </header>
+      ${overall.length ? `<section class="ass-notes ass-notes--top" data-student-overall-notes><h4 class="text-sm font-semibold text-[#1e3a5f]">Notes from your instructor</h4><ul class="mt-2 space-y-1.5 text-sm">${overall.map((item) => `<li class="ass-sent-item">${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul></section>` : ''}
+      <p class="ass-student-legend">Each part of your lab is below with how it went. Where your instructor left a note on a part, it is beside that part.</p>
+      <ol class="ass-sections">${sheet.sections.map((section, index) => studentSectionHtml(section, index, bySection.get(section.id) || [])).join('')}</ol>
+      ${rubric.length ? `<section class="ass-rubric" data-student-rubric aria-label="How your score was made up"><h4 class="text-sm font-semibold text-[#1e3a5f]">How your score was made up</h4><dl class="mt-2 divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white text-sm">${rubric.map((c) => `<div class="flex justify-between gap-3 px-3 py-1.5"><dt class="text-gray-700">${esc(c.label)}</dt><dd class="font-semibold tabular-nums ${c.max === null ? 'text-[#1e3a5f]' : full(c) ? 'text-green-700' : 'text-amber-700'}">${esc(c.earned)}${c.max !== null ? ` / ${esc(c.max)}` : ''}</dd></div>`).join('')}</dl></section>` : ''}
     </section>`;
   }
 
@@ -796,5 +933,5 @@ const AdminSubmissionSheet = (() => {
     return ran;
   }
 
-  return Object.freeze({ register, has, render, evaluate, suggestedFeedback, readableHtml, rubricRows, matchesText, matchesAny, writingMechanics, minLengthCheck, narrativeFields, addTextAnalyzer, runTextAnalyzers, NOT_RECORDED, _registry: registry, _analyzers: analyzers });
+  return Object.freeze({ register, has, render, renderStudent, evaluate, suggestedFeedback, notesBySection, readableHtml, rubricRows, matchesText, matchesAny, writingMechanics, minLengthCheck, narrativeFields, addTextAnalyzer, runTextAnalyzers, NOT_RECORDED, _registry: registry, _analyzers: analyzers });
 })();

@@ -167,6 +167,7 @@ function moduleOneFinalizeProveIt() {
   moduleOneState.lab2.breakdown = performance.breakdown;
   moduleOneState.lab2.actionHistory.push({ action: 'Submitted case for faculty review', at: moduleOneState.lab2.submittedAt });
   moduleOneSave();
+  const previousAttempt = moduleOneUser?.latestLabAttemptByKey?.['lab-soc-escalation'];
   if (moduleOneUser) {
     moduleOneUser.latestLabAttemptByKey = { ...(moduleOneUser.latestLabAttemptByKey || {}), 'lab-soc-escalation': { completedAt: moduleOneState.lab2.submittedAt, reviewedAt: null, redoRequested: false } };
   }
@@ -182,10 +183,32 @@ function moduleOneFinalizeProveIt() {
         // The new append-only attempt supersedes the returned attempt in the
         // student UI. Faculty approval remains required by the server view.
         if (saved && moduleOneProveItRedoRequested()) delete moduleOneUser.openLabRedosByModuleKey['soc-01'];
+        if (!saved) {
+          moduleOneState.lab2.submitted = false;
+          moduleOneState.lab2.completed = false;
+          moduleOneState.lab2.submittedAt = '';
+          moduleOneState.lab2.actionHistory = moduleOneState.lab2.actionHistory.filter((item) => item.action !== 'Submitted case for faculty review');
+          moduleOneSave();
+          if (moduleOneUser) {
+            moduleOneUser.latestLabAttemptByKey = { ...(moduleOneUser.latestLabAttemptByKey || {}) };
+            if (previousAttempt) moduleOneUser.latestLabAttemptByKey['lab-soc-escalation'] = previousAttempt;
+            else delete moduleOneUser.latestLabAttemptByKey['lab-soc-escalation'];
+          }
+          moduleOneRenderReviewDynamic('m01-review-submission');
+          moduleOneRefreshHeroProgress();
+        }
       });
   }
   if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', 'lab-soc-escalation');
   moduleOneSyncCompletion(); moduleOneRenderReviewDynamic('m01-review-submission'); moduleOneRefreshHeroProgress();
+}
+
+function moduleOneUnstickMissingAttempt(state, user) {
+  if (!state?.lab2?.submitted || user?.latestLabAttemptByKey?.['lab-soc-escalation']) return false;
+  state.lab2.submitted = false;
+  state.lab2.completed = false;
+  state.lab2.submittedAt = '';
+  return true;
 }
 
 function moduleOneLoad(user) {
@@ -213,6 +236,9 @@ function moduleOneLoad(user) {
   if (!Number.isFinite(moduleOneState.practice.logPage)) moduleOneState.practice.logPage = 1;
   if (typeof moduleOneState.lab2.completed !== 'boolean') moduleOneState.lab2.completed = false;
   if (typeof moduleOneState.lab2.submitted !== 'boolean') moduleOneState.lab2.submitted = false;
+  // Local storage can retain an optimistic submission after its database
+  // insert failed. Sign-in data is the database truth, so let the learner retry.
+  if (moduleOneUnstickMissingAttempt(moduleOneState, user)) moduleOneSave();
   if (!Array.isArray(moduleOneState.lab2.reviewedEvidence)) moduleOneState.lab2.reviewedEvidence = [];
   if (!Array.isArray(moduleOneState.lab2.viewedLogIds)) moduleOneState.lab2.viewedLogIds = [];
   if (!Number.isFinite(moduleOneState.lab2.logPage)) moduleOneState.lab2.logPage = 1;
@@ -423,9 +449,15 @@ function moduleOneLessons(lab) {
                   </div>
                 `;
               }).join('')}
-              ${work.checked ? `
-                <p class="m01-quiz-summary">${lesson.knowledgeCheck.questions.filter((q) => (work.answers || {})[q.id] === q.correctId).length} of ${lesson.knowledgeCheck.questions.length} correct</p>
-              ` : ''}
+              ${work.checked ? (() => {
+                // Say plainly whether the lesson now counts (80% to pass).
+                const total = lesson.knowledgeCheck.questions.length;
+                const right = lesson.knowledgeCheck.questions.filter((q) => (work.answers || {})[q.id] === q.correctId).length;
+                const needed = Math.ceil(total * 0.8);
+                return right >= needed
+                  ? `<p class="m01-quiz-summary">${right} of ${total} correct · <strong>Lesson complete</strong></p>`
+                  : `<p class="m01-quiz-summary">${right} of ${total} correct · <strong>Not complete yet:</strong> you need ${needed} of ${total}. Change the answers marked in red, then check again.</p>`;
+              })() : ''}
               <button type="button" class="m01-lesson-check-btn" data-m01-lesson-check="${lesson.number}">Check answers</button>
             </div>
           ` : ''}
@@ -1180,12 +1212,13 @@ function viewModuleOne(user, program) {
             </li>`;
           }).join('')}
           ${moduleLabs.map((lab) => {
+            // The Guided Lab gates Prove It (prove-it-gate.js), so it reads the
+            // same status as the header's Guided Lab count, never "Optional".
             const isWalkthrough = lab.key === MODULE_ONE_CATALOG_LAB_KEY;
-            const isComplete = isWalkthrough
-              ? Boolean(moduleOneState.completed && moduleOneState.consoleCompleted)
-              : Boolean(moduleOneState.lab2?.completed);
-            const status = isWalkthrough ? 'Optional' : (isComplete ? 'Complete' : 'Not started');
-            const statusClass = isComplete ? 'is-complete' : 'is-not-started';
+            const isComplete = isWalkthrough ? progress.guidedLabComplete : Boolean(moduleOneState.lab2?.completed);
+            const hasStarted = isWalkthrough && progress.guidedLabStarted;
+            const status = isComplete ? 'Complete' : (hasStarted ? 'In progress' : 'Not started');
+            const statusClass = isComplete ? 'is-complete' : (hasStarted ? 'is-in-progress' : 'is-not-started');
             return `<li class="m01-checklist-item ${statusClass}">
               <span class="m01-checklist-number" style="opacity: 0;">--</span>
               <div class="m01-checklist-content">
@@ -1218,8 +1251,8 @@ function viewModuleOne(user, program) {
         </div>
         <div class="m01-section-body" id="m01-foundations-body" ${openFor('foundations') ? '' : 'hidden'}>
           ${moduleOneLearnIt()}
-          <details class="learn-it-deep-dive mf-deep-dive"><summary>Deep Dive · foundation lessons and tool translations</summary>
-          <p class="m01-instruction">Read these in order on your first visit. Each lesson gives you one idea to carry into the lab; open a lesson to see the explanation.</p>
+          <details class="learn-it-deep-dive mf-deep-dive" ${progress.lessonsComplete < progress.lessonsTotal ? 'open' : ''}><summary>Required · ${progress.lessonsTotal} foundation lessons (${progress.lessonsComplete} of ${progress.lessonsTotal} complete)</summary>
+          <p class="m01-instruction">Do these after Learn It, in order. Open each lesson, read it, and answer its check questions: Module 1 is complete only when all ${progress.lessonsTotal} are done.</p>
           <div class="m01-tool-translation">
             <strong>Tool translation</strong>
             <dl>
@@ -1246,7 +1279,7 @@ function viewModuleOne(user, program) {
         <div class="m01-lab-body" id="m01-guided-lab-body" ${openFor('lab') ? '' : 'hidden'}>
           <div class="m01-lab-brief">
             <i class="ri-user-star-line" aria-hidden="true"></i>
-            <div><strong>Guided practice</strong><p>This coached case is ungraded and retryable. Complete the independent Assessment Lab in Prove It when you are ready.</p></div>
+            <div><strong>Required: Guided Lab</strong><p>Work this coached case and submit its ticket to unlock the Assessment Lab in Prove It. It is not graded and you can retry it. A passing grade on the Assessment Lab unlocks Module 2.</p></div>
           </div>
           <div id="m01-lab-dynamic">${moduleOneLabDynamic()}</div>
         </div>
@@ -1453,12 +1486,21 @@ function wireModuleOneCaseConsole() {
 
     if (event.target.closest('[data-m01-practice-check]')) {
       const practice = moduleOneState.practice;
-      const missing = !moduleOneState.reviewedEvidence.length || !practice.affectedUser || !practice.affectedDevice
-        || !practice.priority || !practice.verdict || !practice.escalation
-        || (practice.escalation === 'required' && !practice.escalateTo) || !(practice.notes || '').trim();
-      moduleOneState.validationError = missing
-        ? 'Keep working the case: open the log, add both affected entities, set the ticket fields, and leave a work note.'
-        : '';
+      // Name exactly what is still missing, so the learner is never left
+      // hunting for the one field (e.g. the route that appears only after
+      // Escalation = Required).
+      const todo = [
+        [!moduleOneState.reviewedEvidence.length, 'open the sign-in log'],
+        [!practice.affectedUser, 'add the affected user'],
+        [!practice.affectedDevice, 'add the affected device'],
+        [!practice.priority, 'set Severity'],
+        [!practice.verdict, 'set Disposition'],
+        [!practice.escalation, 'set Escalation required'],
+        [practice.escalation === 'required' && !practice.escalateTo, 'choose the Route to Department'],
+        [!(practice.notes || '').trim(), 'write a work note'],
+      ].filter(([isMissing]) => isMissing).map(([, label]) => label);
+      const missing = todo.length > 0;
+      moduleOneState.validationError = missing ? `Almost there. Still to do: ${todo.join(', ')}.` : '';
       if (!missing) {
         moduleOneState.completed = true;
         moduleOneState.consoleCompleted = true;
@@ -1468,6 +1510,7 @@ function wireModuleOneCaseConsole() {
         moduleOneSyncCompletion();
       }
       moduleOneSave(); rerender('m01cc-feedback');
+      moduleOneRefreshHeroProgress();
       return;
     }
   });
@@ -1657,9 +1700,15 @@ function wireModuleOneLab() {
 
   const root = document.getElementById('m01-lab-dynamic');
   if (!root || !moduleOneState) return;
+  // The case console (#m01cc-app) handles its own events and re-renders, which
+  // detaches the clicked node before this outer listener sees it; then
+  // event.target.closest('#m01cc-app') is null, the legacy handlers below ran
+  // too (device overwritten with "No device linked") and rebuilt the whole
+  // console without its listeners. The event path is fixed at dispatch time.
+  const fromCaseConsole = (event) => event.composedPath().some((node) => node && node.id === 'm01cc-app');
 
   root.addEventListener('click', (event) => {
-    if (event.target.closest('#m01cc-app')) return;
+    if (fromCaseConsole(event)) return;
     if (event.target.closest('[data-m01-console-launch]')) {
       moduleOneState.consoleStarted = true;
       moduleOneSave();
@@ -1719,7 +1768,7 @@ function wireModuleOneLab() {
   });
 
   root.addEventListener('change', (event) => {
-    if (event.target.closest('#m01cc-app')) return;
+    if (fromCaseConsole(event)) return;
     const input = event.target;
     if (input.closest('#m01-practice-form') && ['status', 'severity', 'disposition', 'escalation', 'escalateTo'].includes(input.name)) {
       const key = input.name === 'severity' ? 'priority' : input.name === 'disposition' ? 'verdict' : input.name;
@@ -1737,7 +1786,7 @@ function wireModuleOneLab() {
   });
 
   root.addEventListener('input', (event) => {
-    if (event.target.closest('#m01cc-app')) return;
+    if (fromCaseConsole(event)) return;
     if (event.target.closest('#m01-practice-form') && event.target.name === 'notes') {
       moduleOneState.practice.notes = event.target.value;
       moduleOneSave(); return;
@@ -1936,7 +1985,7 @@ function wireModuleOneLab() {
       }
     });
 
-    lessonsRoot.addEventListener('click', (event) => {
+    lessonsRoot.addEventListener('click', async (event) => {
       const checkBtn = event.target.closest('[data-m01-lesson-check]');
       if (checkBtn) {
         const lessonNumber = String(checkBtn.dataset.m01LessonCheck);
@@ -1944,11 +1993,19 @@ function wireModuleOneLab() {
           moduleOneState.lessonWork[lessonNumber] = {};
         }
         moduleOneState.lessonWork[lessonNumber].checked = true;
+        moduleOneState.lessonWork[lessonNumber].open = true;
         moduleOneSave();
         moduleOneSyncCompletion();
-        render();
+        // render() is async, rebuilds the page and closes every lesson card
+        // (collapseCourseCardsByDefault): wait for it, reopen this lesson and
+        // show the learner their per-question feedback and score.
+        await render();
         const lessonEl = document.querySelector('[data-m01-lesson="' + lessonNumber + '"]');
-        if (lessonEl) requestAnimationFrame(() => lessonEl.scrollIntoView({ block: 'nearest' }));
+        if (lessonEl) {
+          lessonEl.open = true;
+          const result = lessonEl.querySelector('.m01-quiz-summary') || lessonEl;
+          requestAnimationFrame(() => result.scrollIntoView({ block: 'center' }));
+        }
       }
     });
   }

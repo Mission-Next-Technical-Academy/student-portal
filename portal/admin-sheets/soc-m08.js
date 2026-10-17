@@ -314,7 +314,7 @@
           label: 'Key evidence named in the work notes',
           text: (result) => (record(result) ? field(result, 'notes') : null),
           pieces: () => notePieces(),
-          fix: (missing) => `Back your priority with the evidence: your note does not mention ${missing.join('; ')}. Say what each record showed.`,
+          fix: (missing) => `Back your priority with the evidence: your note does not mention ${missing.join(', ')}. Say what each record showed.`,
         },
       },
     ];

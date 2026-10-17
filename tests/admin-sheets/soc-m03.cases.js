@@ -135,7 +135,7 @@ module.exports = ({ run, clone }) => {
       expect: {
         verdict: 'return',
         sections: { 'case-status': 'fail', severity: 'fail', disposition: 'fail', escalation: 'fail', 'account-scope': 'fail', indicators: 'fail', actions: 'fail', 'alert-links': 'fail', 'child-incidents': 'fail', 'evidence-pinned': 'fail', handoff: 'fail' },
-        html: ['Recommend RETURN', 'Mark m.ortiz as Compromised', 'Set Escalation to Required', 'Take this out', 'Avoided an unsafe step: deleting log evidence', 'Pin the records that prove your findings', '&lt;script&gt;'],
+        html: ['Recommend RETURN', 'Mark m.ortiz as Compromised', 'Set Escalation to Required', 'Remove action against t.nguyen', 'Avoided an unsafe step: deleting log evidence', 'Pin the records that prove your findings', '&lt;script&gt;'],
       },
       custom: ({ suggested }) => {
         assert.match(suggested.find((item) => item.item_label === 'Account scope').comment, /Mark m\.ortiz as Compromised/);

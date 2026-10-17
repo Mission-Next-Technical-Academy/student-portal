@@ -47,6 +47,7 @@ for (const file of ['data.js', 'case-record.js', 'admin-submission-sheet.js', 'i
 const run = (code) => vm.runInContext(code, ctx);
 const Sheet = run('AdminSubmissionSheet');
 const clone = (value) => JSON.parse(JSON.stringify(value));
+const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 // Values from the VM are another realm's arrays/objects; compare as plain data.
 const eq = (actual, expected, message) => assert.deepEqual(clone(actual ?? null), clone(expected ?? null), message);
 let passed = 0;
@@ -177,7 +178,7 @@ test('framework verdict rule, evidence groups and mechanics', () => {
   eq(status(sheet).write, 'partial');
   const partial = Sheet.suggestedFeedback(row({ pick: 'b', advised: true, notes: 'Isolated ws-204 quickly.' }));
   eq(partial.map((f) => f.item_label), ['Pick', 'Write-up']);
-  assert.ok(partial.every((f) => f.comment.startsWith('To strengthen next time: ')), 'partial wording');
+  assert.ok(partial.every((f) => f.comment.startsWith('To strengthen next time:')), 'partial wording');
   assert.match(partial[1].comment, /203\.0\.113\.45/);
 
   // A red required section remains feedback but does not override a passing score.
@@ -203,7 +204,8 @@ test('framework verdict rule, evidence groups and mechanics', () => {
   sheet = Sheet.evaluate(row({ pick: 'a', advised: true, notes: 'isolated ws-204 and 203.0.113.45 the the' }));
   const mechanics = sheet.sections[2].checks.find((c) => c.kind === 'mechanics');
   assert.equal(mechanics.outcome, 'partial');
-  assert.match(mechanics.fix, /^Proofread: 1 sentence starts lowercase \(e\.g\. 'isolated ws-204/);
+  assert.match(mechanics.given, /^1 sentence starts lowercase \(e\.g\. 'isolated ws-204/, 'the sheet keeps the example');
+  assert.equal(mechanics.fix, 'Proofread: 1 sentence starts lowercase, the last sentence has no end punctuation, 1 repeated word.', 'the note is short');
   assert.equal(sheet.sections[2].status, 'partial');
   assert.equal(sheet.verdict.kind, 'pass');
 
@@ -314,6 +316,54 @@ test('text analyzer hook (S6 spelling plugs in here)', async () => {
   });
 });
 
+test('teacher notes are per section: editable, sent, and on the student sheet', () => {
+  run(`AdminSubmissionSheet.register(['notes-sheet'], {
+    title: 'Notes sheet',
+    sections: [
+      { id: 'sev', title: 'Severity', instructorPrompt: 'Ask why.', answer: (r) => [['Severity', r.sev], ['What the key expects', 'High']],
+        checks: [{ label: 'Severity is High', test: (r) => r.sev === 'High', fix: 'Set Severity to High.' }, { label: 'Severity explained', test: () => false, fix: 'Say why.' }] },
+      { id: 'notes', title: 'Work notes', response: (r) => [{ label: 'Notes', text: r.notes }],
+        evidence: { text: (r) => r.notes, pieces: ['a', 'b', 'c', 'd', 'e', 'f'].map((name) => ({ name, terms: [name.repeat(5)] })), fix: (missing) => 'Mention ' + missing.join(', ') + '.' } },
+      { id: 'ok', title: 'Status', checks: [{ label: 'Open', test: () => true }] },
+    ],
+  });`);
+  const row = { id: 'n1', lab_key: 'notes-sheet', score: 50, pass_threshold: 70, completed_at: '2026-10-17T10:00:00Z', result: { sev: 'Low', notes: 'Nothing <b>here</b>.' } };
+
+  // Several points read as a list, one per line; long lists stop at three.
+  const suggested = Sheet.suggestedFeedback(row);
+  eq(suggested.map((f) => f.item_label), ['Severity', 'Work notes']);
+  assert.equal(suggested[0].comment, '• Set Severity to High.\n• Say why.');
+  assert.equal(suggested[1].comment, 'Mention a, b, c, and 3 more.');
+
+  // Open review: every section gets a note box labelled with its title,
+  // prefilled only where it needs work; red-pen notes are not repeated.
+  const open = Sheet.render(row, { notesHtml: '<p>decide</p>' });
+  ['sev', 'notes', 'ok'].forEach((id) => assert.ok(open.includes(`data-section-note="${id}"`), `${id} note box`));
+  assert.match(open, /data-feedback-label value="Severity"/);
+  assert.match(open, /<textarea[^>]*>• Set Severity to High\.\n• Say why\.<\/textarea>/);
+  assert.match(open, /data-section-note="ok"[\s\S]*?<textarea[^>]*><\/textarea>/, 'passing section starts empty');
+  assert.doesNotMatch(open, /aria-label="Red-pen note to the student"/);
+  assert.match(open, /Your decision/);
+
+  // Decided: notes go back beside their section; unmatched ones are overall.
+  const sent = [{ item_label: 'severity ', comment: 'High, because <b>exec</b>.' }, { item_label: 'Overall', comment: 'Good effort.' }, { item_label: 'Status', comment: '  ' }];
+  eq(Sheet.notesBySection(Sheet.evaluate(row).sections, sent).overall.map((f) => f.item_label), ['Overall']);
+  const decided = Sheet.render(row, { readOnly: true, sentFeedback: sent });
+  assert.match(decided, /data-sheet-section="sev"[\s\S]*Teacher note sent[\s\S]*High, because &lt;b&gt;exec&lt;\/b&gt;\.[\s\S]*data-sheet-section="notes"/);
+  assert.match(decided, /data-sheet-sent-feedback[\s\S]*<strong>Overall:<\/strong> Good effort\./);
+  assert.doesNotMatch(decided, /data-feedback-label/);
+
+  // Student: own answers, a chip per section, the note beside it; no key.
+  const student = Sheet.renderStudent({ ...row, reviewed_at: '2026-10-17T12:00:00Z', redo_requested: true }, { feedback: sent });
+  assert.match(student, /Returned for revision/);
+  assert.match(student, /data-sheet-section="sev"[\s\S]*Needs work[\s\S]*Your instructor’s note[\s\S]*High, because &lt;b&gt;exec&lt;\/b&gt;/);
+  assert.match(student, /Notes from your instructor[\s\S]*Good effort\./);
+  assert.match(student, /Nothing &lt;b&gt;here&lt;\/b&gt;\./, 'student text escaped');
+  assert.doesNotMatch(student, /What the key expects|Ask why|ass-sweep|data-sheet-debug/);
+  assert.equal(Sheet.renderStudent({ lab_key: 'no-such-lab' }), '');
+  run("AdminSubmissionSheet._registry.delete('notes-sheet')");
+});
+
 // ---------------------------------------------------------- module cases
 
 const casesDir = path.join(__dirname, 'admin-sheets');
@@ -328,7 +378,7 @@ for (const file of caseFiles) {
     caseCount += 1;
     test(`${file} · ${entry.name}`, () => {
       const options = { item: entry.item || { lead: entry.row, rows: [entry.row], ids: [entry.row.id] }, readOnly: entry.readOnly === true, sentFeedback: entry.sentFeedback };
-      if (!options.readOnly) options.notesHtml = '<div data-feedback-items><input data-feedback-label></div>';
+      if (!options.readOnly) options.notesHtml = '<div class="feedback-item" data-overall-note><input data-feedback-label></div>';
       assert.ok(Sheet.has(entry.row), 'a definition is registered');
       const html = Sheet.render(entry.row, options);
       const sheet = Sheet.evaluate(entry.row, options);
@@ -347,14 +397,21 @@ for (const file of caseFiles) {
       eq(suggested.map((f) => f.item_label), flagged.map((s) => s.title), 'one prefilled item per ✗/◐ section');
       suggested.forEach((item, index) => {
         assert.ok(item.comment.trim().length > 10, `${item.item_label} has a red-pen note`);
-        if (flagged[index].status === 'partial') assert.ok(item.comment.startsWith('To strengthen next time: '), `${item.item_label} worded as strengthen`);
+        if (flagged[index].status === 'partial') assert.ok(item.comment.startsWith('To strengthen next time:'), `${item.item_label} worded as strengthen`);
       });
       if (options.readOnly) {
         assert.doesNotMatch(html, /data-feedback-label/, 'read-only renders no inputs');
         if (Array.isArray(options.sentFeedback)) assert.match(html, /data-sheet-sent-feedback/);
       } else {
         assert.match(html, /data-sheet-notes/);
+        sheet.sections.forEach((s) => assert.ok(html.includes(`data-section-note="${s.id}"`), `${s.id} has its own teacher note`));
       }
+      // The student's marked lab never shows the answer key, checks, guidance or JSON.
+      const student = Sheet.renderStudent({ ...entry.row, reviewed_at: '2026-10-17T12:00:00Z' }, { item: options.item, feedback: suggested });
+      assert.ok(student.includes('data-student-sheet'), 'renders a student sheet');
+      assert.doesNotMatch(student, /ass-sweep|Instructor guidance|data-sheet-debug|Answer key|data-feedback-label|<script|<img/i, 'student sheet hides instructor-only parts');
+      assert.doesNotMatch(student, /<dt>[^<]*(\bkey\b|expect|scenario reference)/i, 'no answer-key rows');
+      suggested.forEach((item) => assert.ok(student.includes(esc(item.comment).split('\n')[0]), `${item.item_label} note is beside its section`));
 
       // Case expectations.
       if (expect.verdict) assert.equal(sheet.verdict.kind, expect.verdict, `${file} · ${entry.name} verdict`);

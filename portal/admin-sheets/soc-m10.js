@@ -199,7 +199,7 @@
               { name: 'the specialist handoff (Digital Forensics, memory image)', short: 'the specialist handoff', terms: ['forensic', 'memory', 'ART-09'] },
             ];
           },
-          fix: (missing) => `Back your notes with the evidence: they do not mention ${missing.join('; ')}. Say what each record showed.`,
+          fix: (missing) => `Back your notes with the evidence: they do not mention ${missing.join(', ')}. Say what each record showed.`,
         },
       },
       {

@@ -429,6 +429,9 @@ async function signOut(reason = 'user_signed_out') {
   // 'idle_timeout' instead so the Activity Monitor can tell the two apart —
   // both are the only values the self-update RLS policy accepts
   // (20260901140000_site_sessions_idle_timeout.sql).
+  // Land any debounced lab work first: once the session is gone the write
+  // would fail RLS and the learner's last edits would be lost.
+  try { await settlePendingCaseStateWrites(); } catch (err) { console.error('pending case_state flush before sign-out failed', err); }
   try {
     const outgoingUser = await currentUser();
     if (outgoingUser && outgoingUser.userId) {
@@ -880,20 +883,15 @@ function adminHasSubmissionSheet(row) {
   return typeof AdminSubmissionSheet !== 'undefined' && AdminSubmissionSheet.has(row);
 }
 
-function adminFeedbackItemHtml(label = '', comment = '') {
-  return `<div class="feedback-item grid sm:grid-cols-2 gap-2">
-        <input type="text" data-feedback-label value="${esc(label)}" placeholder="What was wrong (instructor's own words)" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20" />
-        <textarea data-feedback-comment rows="2" placeholder="Why it was wrong, and what to do to make it better" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">${esc(comment)}</textarea>
-      </div>`;
-}
-
-// Feedback items + Approve / Send back for the sheet card, same markup and
-// data attributes as the legacy card below (read by submitGradingDecision()).
-function adminGradingControlsHtml(attemptIds, feedbackItems, { approveLabel, sendBackLabel }) {
-  return `<div data-feedback-items class="space-y-2 mb-2">
-      ${feedbackItems.map((entry) => adminFeedbackItemHtml(entry.item_label, entry.comment)).join('')}
+// Overall note + Approve / Send back for the sheet card. The per-section
+// teacher notes are rendered by AdminSubmissionSheet beside each section;
+// submitGradingDecision() reads every .feedback-item on the card.
+function adminGradingControlsHtml(attemptIds, { approveLabel, sendBackLabel }) {
+  return `<div class="feedback-item mb-3" data-overall-note>
+      <input type="hidden" data-feedback-label value="Overall" />
+      <label class="block text-xs font-semibold text-gray-600 mb-1" for="admin-overall-note-${esc(attemptIds)}">Overall note (optional)</label>
+      <textarea id="admin-overall-note-${esc(attemptIds)}" data-feedback-comment rows="2" placeholder="Anything that is not about one section" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"></textarea>
     </div>
-    <button type="button" data-action="admin-grading-add-item" class="text-xs font-semibold text-[#1e3a5f] hover:underline mb-3">+ Add another item</button>
     <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
       <button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(attemptIds)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${esc(approveLabel)}</button>
       <button type="button" data-action="admin-grading-send-back" data-attempt-id="${esc(attemptIds)}" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${esc(sendBackLabel)}</button>
@@ -901,12 +899,12 @@ function adminGradingControlsHtml(attemptIds, feedbackItems, { approveLabel, sen
     </div>`;
 }
 
-// Teacher notes are prefilled with one item per section that needs work.
+// Each section carries its own teacher note, prefilled where it needs work.
 function adminSubmissionSheetReviewCard(item, olderAttempt) {
   const row = item.lead;
-  const suggested = AdminSubmissionSheet.suggestedFeedback(row, { item });
-  const notesHtml = adminGradingControlsHtml(item.ids.join(','), suggested.length ? suggested : [{ item_label: '', comment: '' }],
-    { approveLabel: 'Approve submission', sendBackLabel: 'Return for remediation' });
+  const threshold = row.pass_threshold ?? 70;
+  const belowPassSubmission = row.score !== null && row.score !== undefined && Number(row.score) < Number(threshold);
+  const notesHtml = adminGradingControlsHtml(item.ids.join(','), { approveLabel: belowPassSubmission ? 'Approve (below pass mark: module stays locked)' : 'Approve submission', sendBackLabel: 'Return for remediation' });
   return `<article class="bg-white border border-gray-200 rounded-xl p-3 sm:p-4" data-grading-row="${esc(row.id)}">
     ${olderAttempt ? '<p class="mb-2 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Older attempt — a newer submission of this lab is below</p>' : ''}
     ${AdminSubmissionSheet.render(row, { item, notesHtml })}
@@ -923,6 +921,7 @@ function adminAttemptReviewCard(item, olderAttempt) {
   const threshold = row.pass_threshold ?? 70;
   const hasScore = row.score !== null && row.score !== undefined;
   const passing = hasScore && Number(row.score) >= Number(threshold);
+  const belowPassSubmission = hasScore && Number(row.score) < Number(threshold);
   const resultJson = (() => { try { return JSON.stringify(row.result || {}, null, 2); } catch { return '{}'; } })();
   const resultBreakdown = row.result && typeof row.result.breakdown === 'object' && !Array.isArray(row.result.breakdown)
     ? Object.entries(row.result.breakdown)
@@ -1038,7 +1037,7 @@ function adminAttemptReviewCard(item, olderAttempt) {
     </div>
     <button type="button" data-action="admin-grading-add-item" class="text-xs font-semibold text-[#1e3a5f] hover:underline mb-3">+ Add another item</button>
     <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-      <button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(attemptIds)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${simulatorPerformance ? 'Approve submission' : 'Approve'}</button>
+      <button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(attemptIds)}" class="${belowPassSubmission ? 'bg-gray-50 hover:bg-gray-100 text-gray-700' : 'bg-green-50 hover:bg-green-100 text-green-700'} font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${belowPassSubmission ? 'Approve (below pass mark: module stays locked)' : simulatorPerformance ? 'Approve submission' : 'Approve'}</button>
       <button type="button" data-action="admin-grading-send-back" data-attempt-id="${esc(attemptIds)}" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${simulatorPerformance ? 'Return for remediation' : 'Send back for redo'}</button>
       <span data-grading-status class="text-xs text-gray-500"></span>
     </div>
@@ -3821,6 +3820,16 @@ async function upsertModuleProgress(user, moduleKey, fields, { insertOnly = fals
  * Read/merge/write preserves sibling labs in that module's single row. The
  * cache is origin-scoped; this authenticated row is the cross-origin source. */
 const moduleCaseStateQueues = new Map();
+
+/* Send every debounced case_state save now and wait for all of them to land.
+ * render() calls this before it re-fetches the learner's rows: otherwise the
+ * fetch can return the row as it was before the learner's last action, and
+ * Object.assign() would replace the newer in-session copy with it. */
+async function settlePendingCaseStateWrites() {
+  if (typeof LabRuntime !== 'undefined' && typeof LabRuntime.flushAllCaseStateWrites === 'function') LabRuntime.flushAllCaseStateWrites();
+  await Promise.all(Array.from(moduleCaseStateQueues.values()));
+}
+
 async function persistModuleCaseState(user, moduleKey, labId, state) {
   if (!user || !user.userId || !user.trackCode || !moduleKey || !labId) return;
   const queueKey = `${user.userId}:${user.trackCode}:${moduleKey}`;
@@ -4043,32 +4052,41 @@ function recordLabAttempt(user, labKey, {
 } = {}) {
   if (!user || !user.userId || !user.trackCode) return Promise.resolve(false);
   const now = submittedAt || new Date().toISOString();
-  return mntSupabase
-    .from('lab_attempts')
-    .insert({
-      // Optional: a caller that stored files under an attempt folder first
-      // (Help Desk evidence, it-support-shared.js) supplies that folder's id.
-      ...(id ? { id } : {}),
-      user_id: user.userId,
-      lab_key: labKey,
-      track_code: user.trackCode,
-      state,
-      score,
-      result,
-      rubric_version: rubricVersion,
-      scoring_engine_version: scoringEngineVersion,
-      pass_threshold: passThreshold,
-      started_at: now,
-      completed_at: state === 'complete' ? now : null,
-    })
+  const savedState = state === 'complete' && typeof score === 'number' && score < passThreshold ? 'submitted' : state;
+  const notifySaveFailure = (error) => window.dispatchEvent(new CustomEvent('mnt:lab-attempt-save-failed', {
+    detail: { labKey, code: error && error.code || '', message: error && error.message || '' },
+  }));
+  return Promise.resolve()
+    .then(() => mntSupabase
+      .from('lab_attempts')
+      .insert({
+        // Optional: a caller that stored files under an attempt folder first
+        // (Help Desk evidence, it-support-shared.js) supplies that folder's id.
+        ...(id ? { id } : {}),
+        user_id: user.userId,
+        lab_key: labKey,
+        track_code: user.trackCode,
+        state: savedState,
+        score,
+        result,
+        rubric_version: rubricVersion,
+        scoring_engine_version: scoringEngineVersion,
+        pass_threshold: passThreshold,
+        started_at: now,
+        completed_at: savedState === 'complete' || savedState === 'submitted' ? now : null,
+      }))
     .then(({ error }) => {
-      if (error) { console.error('lab_attempts insert failed', labKey, error); return false; }
+      if (error) {
+        console.error('lab_attempts insert failed', labKey, error);
+        notifySaveFailure(error);
+        return false;
+      }
       const lab = LABS.find((item) => item.key === labKey);
       // Opted-in module cards read lab_attempts as loaded at sign-in; record
       // this saved row in that copy so the program page is current without a
       // reload. Other programs' module pages keep their own copies.
       const labProgram = lab && PROGRAMS.find((p) => p.modules && p.modules[lab.module]);
-      if (labProgram && labProgram.truthfulModuleStates && state === 'complete') {
+      if (labProgram && labProgram.truthfulModuleStates && (savedState === 'complete' || savedState === 'submitted')) {
         user.latestLabAttemptByKey = { ...(user.latestLabAttemptByKey || {}), [labKey]: { completedAt: now, reviewedAt: null, redoRequested: false, supersededAt: null } };
       }
       // The insert's database trigger updates the verified read model. Fetch
@@ -4076,7 +4094,7 @@ function recordLabAttempt(user, labKey, {
       // storage to an academic completion fact.
       return refreshVerifiedModuleProgress(user, lab && lab.module).then(() => true);
     })
-    .catch((err) => { console.error('lab_attempts insert threw', labKey, err); return false; });
+    .catch((err) => { console.error('lab_attempts insert threw', labKey, err); notifySaveFailure(err); return false; });
 }
 
 /* An artifact is an immutable, server-stored snapshot of a submission.  This
@@ -4259,8 +4277,8 @@ const TRUTHFUL_DOT_LABELS = {
 };
 
 function truthfulLabLine(lab) {
-  if (lab.status === 'passed') return `${esc(lab.title)} passed.`;
-  if (lab.status === 'returned') return `${esc(lab.title)} returned for revision.`;
+  if (lab.status === 'passed') return `${esc(lab.title)} passed. ${markedLabLinkHtml(lab.key)}`;
+  if (lab.status === 'returned') return `${esc(lab.title)} returned for revision. ${markedLabLinkHtml(lab.key)}`;
   if (lab.status === 'waiting') return `${esc(lab.title)}: waiting on your instructor.`;
   return `${esc(lab.title)}: not submitted yet.`;
 }
@@ -4268,16 +4286,20 @@ function truthfulLabLine(lab) {
 // The per-lab panel under the card summary. Only promises the next module
 // unlocks on approval once every required lab is in.
 function truthfulLabStatusPanel(card) {
-  const showFor = ['needs_redo', 'awaiting_approval', 'in_progress'];
+  // Completed modules keep the panel so the student can reopen a marked lab.
+  const showFor = ['needs_redo', 'awaiting_approval', 'in_progress', 'complete'];
   if (!showFor.includes(card.state) || !card.required) return '';
   if (card.state === 'in_progress' && !card.labs.some((lab) => lab.status !== 'not_submitted')) return '';
+  if (card.state === 'complete' && !card.labs.some((lab) => lab.status === 'passed')) return '';
   const tone = card.state === 'needs_redo'
     ? { box: 'border-red-200 bg-red-50', text: 'text-red-700', icon: 'ri-error-warning-line' }
     : card.state === 'awaiting_approval'
       ? { box: 'border-[#bfdbfe] bg-[#eff6ff]', text: 'text-[#1d4ed8]', icon: 'ri-time-line' }
-      : { box: 'border-gray-200 bg-gray-50', text: 'text-gray-700', icon: 'ri-flask-line' };
+      : card.state === 'complete'
+        ? { box: 'border-green-200 bg-green-50', text: 'text-green-800', icon: 'ri-checkbox-circle-line' }
+        : { box: 'border-gray-200 bg-gray-50', text: 'text-gray-700', icon: 'ri-flask-line' };
   const footer = card.state === 'needs_redo'
-    ? 'Open the module to see what to change and resubmit.'
+    ? 'See your marked lab for your instructor’s notes on each section, then open the module to resubmit.'
     : card.submitted < card.required
       ? 'The next module unlocks once every required lab is submitted and approved.'
       : card.waiting
@@ -4287,7 +4309,7 @@ function truthfulLabStatusPanel(card) {
           <p class="text-xs font-semibold ${tone.text} flex items-center gap-1.5"><i class="${tone.icon}" aria-hidden="true"></i>${card.submitted} of ${card.required} required lab${card.required === 1 ? '' : 's'} submitted</p>
           <ul class="mt-1.5 space-y-1 text-xs ${tone.text}">
             ${card.labs.map((lab) => `<li data-lab-status="${lab.status}">${truthfulLabLine(lab)}${lab.feedback.length
-              ? `<ul class="mt-1 ml-3 space-y-0.5 list-disc list-inside opacity-90">${lab.feedback.map((f) => `<li>${f.item_label ? `<strong>${esc(f.item_label)}:</strong> ` : ''}${esc(f.comment)}</li>`).join('')}</ul>`
+              ? ` <span class="opacity-90">(${lab.feedback.length} note${lab.feedback.length === 1 ? '' : 's'} from your instructor)</span>`
               : ''}</li>`).join('')}
           </ul>
           <p class="mt-1.5 text-xs ${tone.text} opacity-90">${footer}</p>
@@ -4313,6 +4335,14 @@ function isBuilt(program) {
 
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+window.addEventListener('mnt:lab-attempt-save-failed', () => {
+  if (document.getElementById('mnt-lab-attempt-save-failed')) return;
+  document.body.insertAdjacentHTML('afterbegin', `<div id="mnt-lab-attempt-save-failed" role="alert" style="z-index:1000" class="fixed top-0 inset-x-0 bg-red-50 border-b border-red-200 text-red-900 px-4 py-3 shadow-sm"><div class="max-w-7xl mx-auto flex items-start justify-between gap-4"><p class="text-sm font-medium">${esc('Your submission did not reach your instructor. Nothing was lost on this page: check your connection and submit again. If it keeps happening, use Message Instructor.')}</p><button type="button" data-dismiss-lab-save-failed aria-label="Dismiss submission error" class="shrink-0 rounded px-2 py-1 text-red-800 hover:bg-red-100">Dismiss</button></div></div>`);
+});
+document.addEventListener('click', (event) => {
+  if (event.target.closest('[data-dismiss-lab-save-failed]')) document.getElementById('mnt-lab-attempt-save-failed')?.remove();
+});
 
 function chip(text, compact) {
   const size = compact ? 'text-xs px-2.5 py-1 rounded-lg' : 'text-sm px-4 py-2 rounded-xl';
@@ -5587,7 +5617,7 @@ function moduleCard(program, key, user) {
         <p class="text-gray-500 text-sm leading-relaxed mb-3">${esc(m.summary)}</p>
         ${truthful ? truthfulLabStatusPanel(truthful) : ''}${!truthful && openRedo ? `<div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
           <p class="text-xs font-semibold text-red-700 flex items-center gap-1.5"><i class="ri-error-warning-line" aria-hidden="true"></i>Redo requested: ${esc(openRedo.labTitle)}</p>
-          ${openRedo.feedback.length ? `<ul class="mt-1.5 space-y-1 text-xs text-red-700/90 list-disc list-inside">${openRedo.feedback.map((f) => `<li>${f.item_label ? `<strong>${esc(f.item_label)}:</strong> ` : ''}${esc(f.comment)}</li>`).join('')}</ul>` : `<p class="mt-1 text-xs text-red-700/80">Your instructor sent this back — open the module to see what to redo.</p>`}
+          <p class="mt-1 text-xs text-red-700/90">${openRedo.feedback.length ? `Your instructor left ${openRedo.feedback.length} note${openRedo.feedback.length === 1 ? '' : 's'}.` : 'Your instructor sent this back.'} ${markedLabLinkHtml(openRedo.labKey)}</p>
         </div>` : ''}
         ${!truthful && state === 'awaiting_approval' ? `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#eff6ff] px-3 py-2.5">
           <p class="text-xs font-semibold text-[#1d4ed8] flex items-center gap-1.5"><i class="ri-time-line" aria-hidden="true"></i>Submitted for instructor review</p>
@@ -7217,6 +7247,7 @@ async function render(options = {}) {
   // profile and enrollment data remains intact.
   const isLearnerReturnRoute = hash === '#/portal' || /^#\/program\//.test(hash);
   if (isLearnerReturnRoute && !user.isAdmin && !user.isInstructor) {
+    await settlePendingCaseStateWrites();
     const refreshedDetails = await fetchUserDetails(user.userId, user.trackCode);
     if (!isCurrentRouteRender(renderGeneration)) return;
     Object.assign(user, refreshedDetails);
@@ -7826,6 +7857,80 @@ document.addEventListener('click', (event) => {
 document.addEventListener('click', (event) => {
   if (event.target.closest('a[href^="#/"]')) saveModulePosition();
 }, true);
+
+/* The student's marked lab: their latest graded attempt of one lab, section
+ * by section, with the teacher note beside each section
+ * (AdminSubmissionSheet.renderStudent). Opened from any
+ * [data-action="open-marked-lab"] link; reads only the signed-in student's
+ * own rows (lab_attempts / lab_attempt_feedback student RLS). */
+function markedLabLinkHtml(labKey, label = 'See your marked lab') {
+  return `<button type="button" class="mnt-marked-lab-link" data-action="open-marked-lab" data-lab-key="${esc(labKey)}">${esc(label)} <i class="ri-arrow-right-line" aria-hidden="true"></i></button>`;
+}
+
+async function openMarkedLab(labKey, trigger) {
+  document.getElementById('marked-lab-dialog')?.remove();
+  const backdrop = document.createElement('div');
+  backdrop.id = 'marked-lab-dialog';
+  backdrop.className = 'mnt-marked-lab-backdrop';
+  backdrop.innerHTML = `<div class="mnt-marked-lab-dialog" role="dialog" aria-modal="true" aria-label="Your marked lab">
+      <button type="button" class="mnt-marked-lab-close" data-close-marked-lab>Close</button>
+      <div data-marked-lab-body><p class="mnt-marked-lab-status">Loading your marked lab…</p></div>
+    </div>`;
+  const close = () => {
+    backdrop.remove();
+    document.removeEventListener('keydown', onKey);
+    if (trigger && typeof trigger.focus === 'function') trigger.focus();
+  };
+  const onKey = (event) => { if (event.key === 'Escape') close(); };
+  backdrop.addEventListener('click', (event) => {
+    if (event.target === backdrop || event.target.closest('[data-close-marked-lab]')) close();
+  });
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-close-marked-lab]').focus();
+  const body = backdrop.querySelector('[data-marked-lab-body]');
+  const fail = (message) => { body.innerHTML = `<p class="mnt-marked-lab-status">${esc(message)}</p>`; };
+  try {
+    const { data: { session } } = await mntSupabase.auth.getSession();
+    const userId = session && session.user && session.user.id;
+    if (!userId) return fail('Sign in again to see your marked lab.');
+    const { data: attempts, error } = await mntSupabase
+      .from('lab_attempts')
+      .select('id, lab_key, track_code, score, pass_threshold, result, completed_at, reviewed_at, redo_requested')
+      .eq('user_id', userId)
+      .eq('lab_key', labKey)
+      .not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false })
+      .limit(1);
+    if (error) throw error;
+    const row = attempts && attempts[0];
+    if (!row) return fail('No submission of this lab was found.');
+    if (!row.reviewed_at) return fail('Your instructor has not marked this lab yet. It will appear here once they have.');
+    const { data: feedback, error: feedbackError } = await mntSupabase
+      .from('lab_attempt_feedback')
+      .select('item_label, comment, created_at')
+      .eq('lab_attempt_id', row.id)
+      .order('created_at', { ascending: true });
+    if (feedbackError) throw feedbackError;
+    const sheet = typeof AdminSubmissionSheet !== 'undefined' ? AdminSubmissionSheet.renderStudent(row, { feedback: feedback || [] }) : '';
+    if (sheet) { body.innerHTML = sheet; return; }
+    // Labs without a sheet definition: the notes as a list.
+    const lab = LABS.find((entry) => entry.key === labKey);
+    body.innerHTML = `<div class="mnt-marked-lab-status"><p class="font-semibold text-[#1e3a5f]">${esc(lab ? lab.title : labKey)}: ${row.redo_requested ? 'returned for revision' : 'approved'}</p>${(feedback || []).length
+      ? `<ul class="mt-2 list-disc pl-5 space-y-1">${feedback.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment)}</li>`).join('')}</ul>`
+      : '<p class="mt-1 text-gray-600">Your instructor did not leave written notes.</p>'}</div>`;
+  } catch (err) {
+    console.error('openMarkedLab failed', err);
+    fail('Your marked lab could not be loaded. Try again in a moment.');
+  }
+}
+
+document.addEventListener('click', (event) => {
+  const link = event.target.closest('[data-action="open-marked-lab"]');
+  if (!link) return;
+  event.preventDefault();
+  openMarkedLab(link.dataset.labKey, link);
+});
 
 function openInstructorMessagePane(trigger) {
   document.getElementById('instructor-message-pane')?.remove();
@@ -8672,7 +8777,9 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       const adminUserId = session && session.user && session.user.id;
       if (!adminUserId) throw new Error('No active admin session. Sign in again and retry.');
 
-      const feedbackItems = Array.from(article.querySelectorAll('[data-feedback-items] .feedback-item'))
+      // Legacy cards keep their items in [data-feedback-items]; Submission
+      // Sheets put one beside each section plus the overall note.
+      const feedbackItems = Array.from(article.querySelectorAll('.feedback-item'))
         .map((row) => ({
           item_label: row.querySelector('[data-feedback-label]').value.trim(),
           comment: row.querySelector('[data-feedback-comment]').value.trim(),
@@ -8680,7 +8787,7 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
         .filter((item) => item.item_label || item.comment);
 
       if (redo && feedbackItems.length === 0) {
-        throw new Error('Add at least one feedback item before sending back — the student needs to know what to redo and why.');
+        throw new Error('Write at least one teacher note before sending back — the student needs to know what to redo and why.');
       }
 
       if (feedbackItems.length > 0) {

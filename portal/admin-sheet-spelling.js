@@ -8,8 +8,8 @@
  *   - Adds an advisory "Spelling" line (count + up to 5 words, each with its
  *     first suggestion) and underlines the flagged words in the student's text.
  *     Amber at worst: never a fail, never changes the verdict.
- *   - On editable (pending) cards only, when >= 3 distinct words are flagged
- *     across the card, appends ONE teacher-note item to [data-feedback-items].
+ *   - On editable (pending) sheets only, when >= 3 distinct words are flagged
+ *     in a section, adds one spelling line to that section's teacher note.
  *
  * Skipped on purpose: tokens with digits, dots, dashes, colons, underscores,
  * @ or slashes (IPs, hosts, hashes, KQL, e-mails, paths); ALL-CAPS acronyms
@@ -23,9 +23,8 @@
   const MAX_WORDS_PER_FIELD = 4000; // cap the checking work per field
   const MAX_SUGGEST_PER_FIELD = 8;  // suggest() is the slow call
   const LINE_WORDS = 5;             // words shown in the sweep line
-  const NOTE_WORDS = 8;             // words listed in the teacher note
-  const NOTE_MIN_FLAGGED = 3;       // flagged words per card before a note is added
-  const NOTE_LABEL = 'Spelling';
+  const NOTE_WORDS = 5;             // words listed in the teacher note
+  const NOTE_MIN_FLAGGED = 3;       // flagged words per section before the note mentions them
 
   // SOC / security vocabulary the general dictionary does not know. Lower-case.
   const SOC_TERMS = `
@@ -189,50 +188,24 @@
   }
 
   function noteComment(flagged) {
-    return `To strengthen next time: proofread before submitting — check: ${formatFlagged(flagged, NOTE_WORDS)}${flagged.length > NOTE_WORDS ? ', …' : ''}.`.replace(/; /g, ', ');
+    const words = flagged.slice(0, NOTE_WORDS).map((entry) => (entry.suggestion ? `${entry.word} (${entry.suggestion})` : entry.word)).join(', ');
+    return `Check your spelling: ${words}${flagged.length > NOTE_WORDS ? ', …' : ''}.`;
   }
 
-  // ---- teacher-note item (DOM APIs only; markup mirrors app.js adminFeedbackItemHtml) ----
+  // ---- teacher note on the section ---------------------------------------
 
-  const INPUT_CLASS = 'border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20';
-
-  function buildFeedbackItem(doc, label, comment) {
-    const item = doc.createElement('div');
-    item.className = 'feedback-item grid sm:grid-cols-2 gap-2';
-    item.setAttribute('data-spelling-note', 'true');
-    const input = doc.createElement('input');
-    input.setAttribute('type', 'text');
-    input.setAttribute('data-feedback-label', '');
-    input.setAttribute('placeholder', "What was wrong (instructor's own words)");
-    input.className = INPUT_CLASS;
-    input.value = label;
-    input.setAttribute('value', label);
-    const area = doc.createElement('textarea');
-    area.setAttribute('data-feedback-comment', '');
-    area.setAttribute('rows', '2');
-    area.setAttribute('placeholder', 'Why it was wrong, and what to do to make it better');
-    area.className = INPUT_CLASS;
-    area.value = comment;
-    area.textContent = comment;
-    item.append(input, area);
-    return item;
-  }
-
-  /* Per-card state: distinct flagged words across the card's fields and the
-   * single note item. Editable cards only (they own [data-feedback-items]). */
-  const cards = new WeakMap();
-
-  function cardOf(node) {
-    return node.closest('[data-grading-row]') || node.closest('article') || null;
-  }
+  /* Per-section state: distinct flagged words across the section's fields,
+   * the note text before spelling was added, and the last text written.
+   * Editable sheets only (each section owns a [data-section-note] textarea). */
+  const sections = new WeakMap();
 
   function updateTeacherNote(node, flagged) {
-    const card = cardOf(node);
-    if (!card) return null;
-    const list = card.querySelector('[data-feedback-items]');
-    if (!list) return null; // read-only sheet: never add a note
-    let state = cards.get(card);
-    if (!state) { state = { words: new Map(), item: null, last: '' }; cards.set(card, state); }
+    const section = node.closest('[data-sheet-section]');
+    const holder = section && section.querySelector('[data-section-note]');
+    const area = holder && holder.querySelector('[data-feedback-comment]');
+    if (!area) return null; // read-only or student sheet: never add a note
+    let state = sections.get(section);
+    if (!state) { state = { words: new Map(), base: area.value, last: area.value }; sections.set(section, state); }
     for (const entry of flagged) {
       const key = entry.word.toLowerCase();
       const known = state.words.get(key);
@@ -240,17 +213,14 @@
     }
     const all = Array.from(state.words.values());
     if (all.length < NOTE_MIN_FLAGGED) return null;
-    const comment = noteComment(all);
-    if (!state.item) {
-      state.item = buildFeedbackItem(node.ownerDocument, NOTE_LABEL, comment);
-      list.appendChild(state.item);
-      state.last = comment;
-    } else {
-      // Later fields extend the list, unless the instructor already edited it.
-      const area = state.item.querySelector('[data-feedback-comment]');
-      if (area && area.value === state.last) { area.value = comment; area.textContent = comment; state.last = comment; }
-    }
-    return state.item;
+    // Later fields extend the note, unless the instructor already edited it.
+    if (area.value !== state.last) return area;
+    const base = String(state.base || '').trim();
+    const comment = `${base}${base ? '\n' : ''}${noteComment(all)}`;
+    area.value = comment;
+    area.textContent = comment;
+    state.last = comment;
+    return area;
   }
 
   // ---- lazy dictionary ---------------------------------------------------
@@ -344,6 +314,6 @@
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { tokenize, skipReason, isAcronym, buildAllowlist, harvestWords, analyzeText, summaryLine, noteComment, buildFeedbackItem, updateTeacherNote, analyzeField, getSpeller, SOC_TERMS };
+    module.exports = { tokenize, skipReason, isAcronym, buildAllowlist, harvestWords, analyzeText, summaryLine, noteComment, updateTeacherNote, analyzeField, getSpeller, SOC_TERMS };
   }
 })();
