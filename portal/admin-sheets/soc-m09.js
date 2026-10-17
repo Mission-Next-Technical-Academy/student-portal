@@ -21,8 +21,11 @@
  * Saved payload: result.breakdown (scorer criterion list), result.review_payload
  * (scorer result + responseReview: workflowDesigns and unsafeAttempts — the panel
  * app.js showed as adminResponseDesignReviewPanel), result.case_record, result.case_display,
- * and from 2026-10-17 result.assessment_work (triage, evidence reviewed, each
- * response/recovery action with its approval, workflow events, escalation text).
+ * and from 2026-10-17 result.assessment_work (triage, incident status, approval
+ * gate, evidence reviewed, each response/recovery action with its approval,
+ * workflow events (status, approval, task) and escalation text; each task's
+ * author and completion note/evidence, also recoverable from the taskCreated /
+ * taskCompletionEvidence workflow events).
  */
 (() => {
   'use strict';
@@ -54,6 +57,8 @@
   const BOUNCE_BELOW = 40;
   // Ticket note length: moduleNineProveItSpec() sets notesMin = 140.
   const NOTES_MIN = 140;
+  // assessment_work (the console workflow detail below) was first saved on this date.
+  const SINCE = '2026-10-17';
 
   const record = (result) => (result.case_record && typeof result.case_record === 'object' ? result.case_record : null);
   const field = (result, name) => { const r = record(result); return r ? (typeof r[name] === 'string' ? r[name] : '') : null; };
@@ -178,6 +183,43 @@
     return list_.map(designFacts).reduce((top, facts) => (!top || rubric.designPotential(facts) > rubric.designPotential(top) ? facts : top), null);
   };
   const connectionText = (line) => String(line).split('>').map((node) => label(NODE_LABEL, node)).join(' → ');
+  const time = (stamp) => String(stamp || '').slice(11, 19);
+
+  // Tasks as saved, with the author and completion note/evidence filled in from the
+  // workflow events when the task copy predates those fields.
+  const tasks = (result) => {
+    const w = workflow(result);
+    if (!w) return null;
+    const evs = events(result) || [];
+    const created = (id) => (evs.find((entry) => entry.field === 'taskCreated' && entry.value && entry.value.id === id) || {}).value || null;
+    const completion = (id) => { const found = evs.filter((entry) => entry.field === 'taskCompletionEvidence' && entry.value && entry.value.taskId === id).pop(); return found ? { note: found.value.note, evidenceIds: list(found.value.evidenceIds) } : null; };
+    const fromTasks = list(w.tasks).map((task) => ({
+      ...task,
+      authorId: task.authorId || (created(task.id) || {}).authorId || null,
+      completionEvidence: task.completionEvidence || completion(task.id),
+    }));
+    const extra = evs.filter((entry) => entry.field === 'taskCreated' && entry.value && !fromTasks.some((task) => task.id === entry.value.id)).map((entry) => ({ ...entry.value, completionEvidence: completion(entry.value.id) }));
+    return [...fromTasks, ...extra];
+  };
+  // The approval gate as a log: each request (action, target, Justification) and each
+  // decision (Approver ID, Decision reason), replayed from the workflow events in order.
+  const approvalLog = (result) => {
+    const evs = events(result);
+    if (evs === null) return null;
+    const entries = [];
+    let current = null;
+    evs.slice().sort((a, b) => Number(a.sequence) - Number(b.sequence)).forEach((entry) => {
+      if (entry.field === 'approvalStatus') {
+        const prior = current || {};
+        current = { status: entry.value, at: entry.timestamp, actionType: prior.actionType, targetId: prior.targetId, actorId: entry.value === 'pending' ? null : prior.actorId, reason: '' };
+        entries.push(current);
+      } else if (current && ['approvalReason', 'approvalActorId', 'approvalTargetId', 'approvalActionType'].includes(entry.field)) {
+        current[{ approvalReason: 'reason', approvalActorId: 'actorId', approvalTargetId: 'targetId', approvalActionType: 'actionType' }[entry.field]] = entry.value;
+      }
+    });
+    return entries;
+  };
+  const approvalWhat = (entry) => `${label(ACTION_LABEL, entry.actionType)} → ${entry.targetId || '—'}`;
 
   // ----- key-evidence pieces for the ticket work note
   function notePieces() {
@@ -363,7 +405,13 @@
         answer: (result) => {
           const w = workflow(result);
           if (!w) return [['Student’s work in this section', null], ['Credited by the scorer', credited('triage-and-ownership')(result)]];
-          return [['Priority set on the incident', cap(w.severity) || '—'], ['Assigned to', (department(w.assigneeId) || {}).text || w.assigneeId || 'Nobody']];
+          const changes = (events(result) || []).filter((entry) => entry.field === 'status');
+          return [
+            ['Priority set on the incident', cap(w.severity) || '—'],
+            ['Assigned to', (department(w.assigneeId) || {}).text || w.assigneeId || 'Nobody'],
+            ['Incident status', w.status || '—'],
+            ...(changes.length ? [['Status changes', changes.map((entry) => `${time(entry.timestamp)} · ${entry.value}`)]] : []),
+          ];
         },
         checks: withScores([
           {
@@ -457,8 +505,16 @@
         answer: (result) => {
           const evs = events(result);
           if (evs === null) return [['Student’s work in this section', null], ['Credited by the scorer', credited('evidence-before-eradication')(result)]];
-          const done = evs.filter((entry) => entry.field === 'taskStatus' && entry.value && entry.value.status === 'completed');
-          return [['Tasks marked complete', done.length ? done.map((entry) => `${String(entry.timestamp).slice(11, 19)} · ${((workflow(result).tasks || []).find((task) => task.id === entry.value.taskId) || {}).title || entry.value.taskId}`) : 'None']];
+          const savedTasks = tasks(result) || [];
+          const done = savedTasks.filter((task) => task.status === 'completed');
+          const added = savedTasks.filter((task) => task.authorId && task.authorId !== 'system');
+          return [
+            ['Tasks marked complete', done.length ? done.map((task) => {
+              const completion = task.completionEvidence || {};
+              return `${task.title || task.id} · Author: ${task.authorId || 'Not recorded'} · Completion note: ${completion.note || 'Not recorded'} · Evidence: ${list(completion.evidenceIds).length ? list(completion.evidenceIds).map(describeEvidence).join('; ') : 'None selected'}`;
+            }) : 'None'],
+            ['Tasks added · Author', added.length ? added.map((task) => `${task.title} · Author: ${task.authorId} · Status: ${task.status || 'pending'}`) : 'None'],
+          ];
         },
         checks: withScores([
           {
@@ -488,11 +544,33 @@
           const acts = actions(result);
           if (acts === null) return [['Student’s work in this section', null], ['Credited by the scorer', credited('approval-and-containment', 'identity-and-persistence', 'outcome-verification')(result)]];
           const response = acts.filter((entry) => !['select_recovery_point', 'restore_backup', 'scan_recovery', 'validate_recovery', 'monitor_recovery'].includes(entry.type));
-          return response.length
-            ? response.map((entry) => [`${String(entry.timestamp).slice(11, 19)} · ${label(ACTION_LABEL, entry.type)} → ${entry.entityId}`, `${cap(label(OUTCOME, entry.outcome))}${entry.approverId ? ` · approved by ${entry.approverId}` : ' · no approval recorded'}`])
-            : [['Response actions', 'None run']];
+          const w = workflow(result) || {};
+          const log = approvalLog(result) || [];
+          return [
+            ['Approval gate (latest)', `${w.approvalStatus || 'not_requested'}${w.approvalActionType ? ` · ${label(ACTION_LABEL, w.approvalActionType)} → ${w.approvalTargetId}` : ''}`],
+            ...(log.length ? [['Approval requests and decisions', log.map((entry) => (entry.status === 'pending'
+              ? `${time(entry.at)} · requested approval: ${approvalWhat(entry)}`
+              : `${time(entry.at)} · ${entry.status}${entry.actorId ? ` by ${entry.actorId}` : ''}: ${approvalWhat(entry)}`))]] : []),
+            ...(response.length
+              ? response.map((entry) => [`${time(entry.timestamp)} · ${label(ACTION_LABEL, entry.type)} → ${entry.entityId}`, `${cap(label(OUTCOME, entry.outcome))}${entry.approverId ? ` · approved by ${entry.approverId}` : ' · no approval recorded'}`])
+              : [['Response actions', 'None run']]),
+          ];
         },
-        response: (result) => (actions(result) || []).filter((entry) => entry.approvalReason && !['restore_backup', 'scan_recovery', 'validate_recovery'].includes(entry.type)).map((entry) => ({ label: `Approval reason for “${label(ACTION_LABEL, entry.type)} → ${entry.entityId}” · student response`, text: entry.approvalReason })),
+        // The student's approval wording: each request's Justification and each decision's
+        // Decision reason (from the workflow events), else the reason saved on each action,
+        // else the latest reason on the approval gate.
+        response: (result) => {
+          const log = approvalLog(result) || [];
+          const written = log.filter((entry) => String(entry.reason || '').trim()).map((entry) => (entry.status === 'pending'
+            ? { label: `Approval request justification (${approvalWhat(entry)}) · student response`, text: entry.reason }
+            : { label: `Approval decision reason (${entry.status}${entry.actorId ? ` by ${entry.actorId}` : ''}, ${approvalWhat(entry)}) · student response`, text: entry.reason }));
+          if (written.length) return written;
+          const perAction = (actions(result) || []).filter((entry) => entry.approvalReason && !['restore_backup', 'scan_recovery', 'validate_recovery'].includes(entry.type)).map((entry) => ({ label: `Approval reason for “${label(ACTION_LABEL, entry.type)} → ${entry.entityId}” · student response`, text: entry.approvalReason }));
+          const w = workflow(result);
+          const latest = w && String(w.approvalReason || '').trim() && !perAction.some((entry) => entry.text === w.approvalReason)
+            ? [{ label: `Latest approval reason (approval gate ${w.approvalStatus}) · student response`, text: w.approvalReason }] : [];
+          return [...perAction, ...latest];
+        },
         checks: withScores([
           {
             label: 'Ran at least one containment action on an entity in this incident, with an approval recorded for that exact action and target',

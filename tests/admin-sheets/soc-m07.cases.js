@@ -62,6 +62,12 @@ module.exports = ({ run, clone }) => {
     add('incident_link', incident);
     const state = { actionHistory: history, scope: { recipientIds: ['acct-63'], deviceIds: ['ws-517'] }, recipientSearch: { query: '', delivery: 'delivered', interaction: 'clicked', limit: 100 }, incidentLinks: [incident] };
     if (mutate) mutate(state, add);
+    // The saved state's evidence tray (SocM07AssessmentState.normalize): adds net of removals.
+    if (!state.evidenceChanges) {
+      const kept = new Map();
+      state.actionHistory.filter((a) => a.type === 'evidence_change').forEach((a) => { if (a.details.operation === 'add') kept.set(a.details.eventId, a.details); else kept.delete(a.details.eventId); });
+      state.evidenceChanges = [...kept.values()];
+    }
     return state;
   };
   const score = (state) => clone(run(`SocM07AssessmentScorer.score(${JSON.stringify(state)}, SocM07AssessmentData)`));
@@ -71,7 +77,7 @@ module.exports = ({ run, clone }) => {
   const GOOD_NOTES = 'billing@northwind-billing.example sent a QR invoice that failed DMARC. It was delivered to acct-63 and blocked for acct-82. acct-63 opened it and clicked; ws-517 then looked up invoice-qr.example (203.0.113.88) and opened a TLS session. '
     + 'The ws-204 payroll lookup is a benign lookalike and was ruled out. Endpoint execution and stolen credentials are not established. Escalating to Tier 2 SOC to investigate the endpoint and reset the account.';
   const ticket = (overrides = {}) => ({
-    status: 'in-progress', severity: 'critical', affectedUser: 'acct-63', affectedDevice: 'ws-517', disposition: 'true-positive',
+    status: 'in-progress', severity: 'high', affectedUser: 'acct-63', affectedDevice: 'ws-517', disposition: 'true-positive',
     escalation: 'required', escalateTo: 'tier2-soc-net', notes: GOOD_NOTES, findings: {},
     submitted: true, submittedAt: '2026-10-17T10:12:00.000Z', caseId: 'CASE-070731', actionHistory: [],
     ...overrides,
@@ -115,15 +121,31 @@ module.exports = ({ run, clone }) => {
   });
   const failing = rows('m07-fail', failingTicket, failingState, 5);
 
-  // Partial credit: pivot account, blocked-recipient record not preserved, Tier 2 / App Sec route (acceptable fit).
+  // Partial credit: pivot account, blocked-recipient record not preserved, Identity Response route (acceptable fit), Critical severity (over-rated).
   const partialState = huntState();
   partialState.actionHistory = partialState.actionHistory.filter((a) => !(a.type === 'evidence_change' && a.details.eventId === 'M07-DELIVERY-002'));
-  const partial = rows('m07-partial', ticket({ affectedUser: 'acct-82', escalateTo: 'app-sec' }), partialState);
+  partialState.evidenceChanges = partialState.evidenceChanges.filter((e) => e.eventId !== 'M07-DELIVERY-002');
+  const partial = rows('m07-partial', ticket({ affectedUser: 'acct-82', escalateTo: 'identity-response', severity: 'critical' }), partialState);
+
+  // Two incident records, and the gateway-block record added then removed before submit.
+  const twoIncidentState = huntState((state, add) => {
+    add('evidence_change', { operation: 'remove', eventId: 'M07-DELIVERY-002' });
+    const second = {
+      operation: 'create', incidentId: 'M07-INCIDENT-0002', title: 'Payroll lookalike check', summary: 'ws-204 payroll lookup reviewed and kept separate.',
+      assessment: 'supported', recipientIds: ['acct-17'], deviceIds: ['ws-204'], eventIds: ['M07-DNS-002'],
+    };
+    add('incident_link', second);
+    state.incidentLinks.push(second);
+    state.evidenceChanges = ['M07-DELIVERY-001', 'M07-QR-014', 'M07-DNS-001', 'M07-TLS-001'].map((eventId) => ({ operation: 'add', eventId, reason: 'Part of the confirmed chain.' }));
+  });
+  const twoIncidents = rows('m07-two', ticket(), twoIncidentState);
+  assert.deepEqual(twoIncidents.lead.result.assessment_work.evidenceSet.map((item) => item.eventId), ['M07-DELIVERY-001', 'M07-QR-014', 'M07-DNS-001', 'M07-TLS-001'], 'submit saves the final evidence tray');
 
   // Older attempt: no assessment_work, no case_display.
   const older = rows('m07-older', ticket(), huntState());
   delete older.lead.result.assessment_work;
   delete older.lead.result.case_display;
+  older.all.forEach((r) => { r.completed_at = '2026-10-01T10:12:00.000Z'; });
 
   return [
     {
@@ -138,8 +160,9 @@ module.exports = ({ run, clone }) => {
         },
         feedback: [],
         html: ['Recommend PASS', 'CASE-070731 · INC-071042', '3 lab records with identical answers', 'Tier 2 SOC — Network Intrusion', 'Confirmed malicious activity', '9 of 9 found',
-          'Message-to-network chain', 'opened it and clicked the link', 'Unknown / not yet verified', 'QR invoice phishing: acct-63', /data-sheet-narrative-text>billing@northwind-billing/, /data-sheet-narrative="incident:0"/],
-        notHtml: ['true-positive', 'tier2-soc-net', 'in-progress', 'blocked_at_gateway'],
+          'Message-to-network chain', 'opened it and clicked the link', 'Unknown / needs investigation', 'QR invoice phishing: acct-63', 'Evidence in the tray at submit',
+          'Severity set to High', /data-sheet-narrative-text>billing@northwind-billing/, /data-sheet-narrative="incident:0"/],
+        notHtml: ['true-positive', 'tier2-soc-net', 'in-progress', 'blocked_at_gateway', 'not yet verified', 'Supported by the evidence', 'Evidence change history', 'exfiltration', 'tunnel'],
       },
     },
     {
@@ -152,11 +175,21 @@ module.exports = ({ run, clone }) => {
           'case-status': 'fail', severity: 'fail', 'affected-user': 'fail', 'affected-device': 'fail', disposition: 'fail', escalation: 'fail', notes: 'fail',
           'delivery-scope': 'fail', chain: 'fail', noise: 'fail', incident: 'fail', unknowns: 'fail',
         },
-        html: ['Recommend RETURN', 'Put acct-63 in Affected user', 'Set Escalation to Required', '&lt;script&gt;', 'Proofread:', 'Payload execution confirmed', 'the scorer caps the score at 69', 'Attach M07-QR-014'],
+        html: ['Recommend RETURN', 'Put acct-63 in Affected user', 'Set it to Required: checking ws-517', '&lt;script&gt;', 'Proofread:', 'Payload execution confirmed', 'the scorer caps the score at 69', 'Attach M07-QR-014',
+          'Supported by linked evidence'],
+        notHtml: ['exfiltration', 'tunnel', 'Set Severity to Critical'],
       },
       custom: ({ suggested }) => {
-        assert.match(suggested.find((entry) => entry.item_label === 'Affected device').comment, /Put ws-517 in Affected device/);
-        assert.match(suggested.find((entry) => entry.item_label === 'What is still unknown').comment, /payload executed/);
+        const note = (label) => (suggested.find((entry) => entry.item_label === label) || {}).comment || '';
+        assert.match(note('Affected device'), /Put ws-517 in Affected device/);
+        assert.match(note('What is still unknown'), /payload executed/);
+        assert.match(note('Severity'), /^You set Severity to Low\. Set it to High: acct-63 opened the invoice/);
+        assert.match(note('Disposition'), /^You recorded “False positive”\. Record it as Confirmed malicious activity: the invoice email failed DMARC/);
+        assert.match(note('Case & status'), /^You marked the case Resolved\. Keep it In Progress/);
+        assert.match(note('Benign lookalike ruled out'), /Your incident M07-INCIDENT-0001 includes M07-DNS-002 and M07-TLS-002 \(ws-204’s normal payroll lookup, a benign lookalike\), and acct-17, who did not open or click the message\. Take them out/);
+        assert.match(note('Affected user'), /^You named acct-17, which has no part in the phishing chain\. Put acct-63/);
+        assert.match(note('Escalation'), /^You set Escalation to Not required\. Set it to Required/);
+        assert.match(note('What is still unknown'), /You set M07-INCIDENT-0001 to “Supported by linked evidence”/);
       },
     },
     {
@@ -165,9 +198,30 @@ module.exports = ({ run, clone }) => {
       item: item(partial),
       expect: {
         verdict: 'pass',
-        sections: { 'affected-user': 'partial', route: 'partial', 'delivery-scope': 'partial', chain: 'pass', notes: 'pass' },
-        feedback: ['Affected user', 'Route to department', 'Who received the message'],
-        html: ['Recommend PASS', 'Partly there (does not block a pass', 'Add the gateway-block record for acct-82'],
+        sections: { severity: 'partial', 'affected-user': 'partial', route: 'partial', 'delivery-scope': 'partial', chain: 'pass', notes: 'pass' },
+        feedback: ['Severity', 'Affected user', 'Route to department', 'Who received the message'],
+        html: ['Recommend PASS', 'Partly there (does not block a pass', 'Add the record for acct-82 (M07-DELIVERY-002)'],
+      },
+      custom: ({ suggested }) => {
+        const note = (label) => (suggested.find((entry) => entry.item_label === label) || {}).comment || '';
+        assert.match(note('Severity'), /Critical over-rates this\. acct-63 clicked and ws-517 connected to the phishing site, but nothing yet shows the file ran/);
+        assert.match(note('Route to department'), /^To strengthen next time: You routed the case to Identity Response\. Identity Response can reset acct-63 as a precaution.*Route it to Tier 2 SOC — Network Intrusion next time\./);
+      },
+    },
+    {
+      name: 'M07 shows every incident record and the final evidence tray, not removed evidence',
+      row: twoIncidents.lead,
+      item: item(twoIncidents),
+      expect: {
+        verdict: 'pass',
+        sections: { 'delivery-scope': 'partial', incident: 'pass', chain: 'pass', noise: 'pass', unknowns: 'pass' },
+        html: ['M07-INCIDENT-0002 · Payroll lookalike check', 'Analyst summary (M07-INCIDENT-0002)', 'the automatic score reads the first (M07-INCIDENT-0001)',
+          'Assessment status on M07-INCIDENT-0002', 'Supported by linked evidence', 'Evidence change history (in order)', 'Removed M07-DELIVERY-002', 'Delivery records added, then removed',
+          'Added to evidence, then removed before submitting', 'M07-INCIDENT-0001 holds only the real chain; M07-INCIDENT-0002 (not scored) holds M07-DNS-002, acct-17'],
+      },
+      custom: ({ suggested }) => {
+        const note = (suggested.find((entry) => entry.item_label === 'Who received the message') || {}).comment || '';
+        assert.match(note, /You added M07-DELIVERY-002 to your evidence and then removed it before submitting\. Keep it in the evidence tray/);
       },
     },
     {
@@ -177,7 +231,7 @@ module.exports = ({ run, clone }) => {
       expect: {
         verdict: 'pass',
         sections: { severity: 'pass', notes: 'pass', chain: 'pass', 'delivery-scope': 'pass', noise: 'pass', incident: 'pass', unknowns: 'pass' },
-        html: ['Not recorded in this attempt', 'Events credited by the scorer', 'Tier 2 SOC — Network Intrusion'],
+        html: ['Not recorded in this attempt (submitted before 2026-10-17)', 'Events credited by the scorer', 'Tier 2 SOC — Network Intrusion'],
         notHtml: ['tier2-soc-net', 'true-positive'],
       },
     },

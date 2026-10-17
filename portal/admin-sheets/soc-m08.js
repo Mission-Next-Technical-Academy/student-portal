@@ -51,6 +51,8 @@
   const expected = () => (scenario() && scenario().expectedPriority) || {};
   // Department fit below 40 is "returned" (ticket key, soc-analyst-module-08.js:505-507).
   const BOUNCE_BELOW = 40;
+  // assessment_work (finding reviews and the follow-up records) was first saved on this date.
+  const SINCE = '2026-10-17';
 
   const record = (result) => (result.case_record && typeof result.case_record === 'object' ? result.case_record : null);
   const field = (result, name) => { const r = record(result); return r ? (typeof r[name] === 'string' ? r[name] : '') : null; };
@@ -90,7 +92,20 @@
   };
   const describeEvidence = (id) => { const item = evidenceRecord(id); return item ? `${id} · ${KIND_LABEL[item.kind] || item.kind} · ${item.detail}` : String(id); };
   const describeAll = (ids) => list(ids).map(describeEvidence);
-  const REVIEW_STATUS = { reviewed: 'Reviewed — current and applicable', 'needs-validation': 'Needs validation (stale or unverified)', 'not-applicable': 'Not applicable' };
+  // Labels from the Review finding form's Status select (soc-m08-assessment-ui.js).
+  const REVIEW_STATUS = { reviewed: 'Reviewed', 'needs-validation': 'Needs validation', 'not-applicable': 'Not applicable' };
+  const MEANING = { reviewed: 'current and applicable', 'needs-validation': 'stale or unverified', 'not-applicable': 'does not apply' };
+  // What the student set, in the words of the form ("You marked it “Reviewed”." / "You did not review it.").
+  const youMarked = (result, item) => { const found = reviewFor(result, item); return found ? `You marked it “${REVIEW_STATUS[found.status] || found.status}”.` : 'You did not review it.'; };
+  // Red-pen note for one finding review: wrong status → say what the student chose and why the
+  // other fits; right status but missing citation → name the record to cite.
+  const reviewFix = (pick, status, why, cite) => (result) => {
+    const item = pick();
+    const found = reviewFor(result, item);
+    const head = `${item.cve} on ${item.assetId}`;
+    if (found && found.status === status) return `${head}: you marked it “${REVIEW_STATUS[status]}”, which is right, but your review does not cite ${cite}. Add it to the cited evidence.`;
+    return `${head}: ${youMarked(result, item)} Mark it “${REVIEW_STATUS[status]}”: ${typeof why === 'function' ? why(item) : why} Cite ${cite}.`;
+  };
   const WORK_STATUS = { open: 'Open', 'in-progress': 'In progress', 'accepted-risk': 'Accepted risk', resolved: 'Resolved' };
   const cap = (text) => String(text || '').replace(/^\w/, (letter) => letter.toUpperCase());
   const routeLabel = (id) => ((list(scenario() && scenario().escalationRoutes).find((item) => item.id === id)) || {}).label || id;
@@ -332,27 +347,28 @@
     return [
       {
         id: 'finding-review',
+        recordedSince: SINCE,
         title: 'Finding review: current, stale, not applicable',
         answer: reviewAnswer,
         response: (result) => (reviews(result) || []).filter((item) => item.notes).map((item) => ({ label: `Review note on ${findingLabel(finding(item.findingId))} · student response`, text: item.notes })),
         checks: withScores([
           {
-            label: () => `Marked ${findingLabel(current())} as: ${REVIEW_STATUS[expectedStatusFor.confirmed]}, citing the installed-version check`,
+            label: () => `Marked ${findingLabel(current())} “${REVIEW_STATUS[expectedStatusFor.confirmed]}” (${MEANING[expectedStatusFor.confirmed]}), citing the installed-version check`,
             test: reviewTest(current, expectedStatusFor.confirmed, (kinds) => kinds.includes('version-applicability')),
             given: (result) => { const found = reviewFor(result, current()); return found ? REVIEW_STATUS[found.status] : 'Not reviewed'; },
-            fix: () => `Mark ${current().cve} on ${current().assetId} as reviewed and applicable, and cite the package inventory that confirms the affected version.`,
+            fix: reviewFix(current, 'reviewed', 'the package inventory confirms the affected version is installed.', 'the installed-version check'),
           },
           {
-            label: () => `Marked ${findingLabel(stale())} as: ${REVIEW_STATUS[expectedStatusFor.unverified]}, citing the old scan and the missing applicability check`,
+            label: () => `Marked ${findingLabel(stale())} “${REVIEW_STATUS[expectedStatusFor.unverified]}” (${MEANING[expectedStatusFor.unverified]}), citing the old scan and the missing applicability check`,
             test: reviewTest(stale, expectedStatusFor.unverified, (kinds, item) => kinds.includes('applicability-check') && kinds.includes('scanner-observation')),
             given: (result) => { const found = reviewFor(result, stale()); return found ? REVIEW_STATUS[found.status] : 'Not reviewed'; },
-            fix: () => `Mark ${stale().cve} on ${stale().assetId} as needing validation: the scan is from before this review window and nobody has confirmed the version since. Cite the old scan and the pending check.`,
+            fix: reviewFix(stale, 'needs-validation', 'the scan is from before this review window and nobody has confirmed the version since.', 'the old scan and the pending applicability check'),
           },
           {
-            label: () => `Marked ${findingLabel(irrelevant())} as: ${REVIEW_STATUS[expectedStatusFor['not-applicable']]}, citing the applicability check`,
+            label: () => `Marked ${findingLabel(irrelevant())} “${REVIEW_STATUS[expectedStatusFor['not-applicable']]}” (${MEANING[expectedStatusFor['not-applicable']]}), citing the applicability check`,
             test: reviewTest(irrelevant, expectedStatusFor['not-applicable'], (kinds) => kinds.includes('applicability-check')),
             given: (result) => { const found = reviewFor(result, irrelevant()); return found ? REVIEW_STATUS[found.status] : 'Not reviewed'; },
-            fix: () => `Mark ${irrelevant().cve} (${irrelevant().product}) as not applicable and cite the check showing it does not apply to ${irrelevant().assetId}.`,
+            fix: reviewFix(irrelevant, 'not-applicable', (item) => `the applicability check shows ${item.product} does not apply to ${item.assetId}.`, 'that check'),
           },
           {
             label: 'Did not mark the stale or not-applicable findings as confirmed',
@@ -370,6 +386,7 @@
       },
       {
         id: 'asset-context',
+        recordedSince: SINCE,
         title: 'Asset context & controls',
         answer: (result) => {
           const decision = decisionFor(result);
@@ -389,6 +406,7 @@
       },
       {
         id: 'incident-link',
+        recordedSince: SINCE,
         title: 'Incident link',
         answer: (result) => {
           const links = workList(result, 'incidentLinks');
@@ -404,6 +422,7 @@
       },
       {
         id: 'risk-acceptance',
+        recordedSince: SINCE,
         title: 'Risk acceptance',
         answer: (result) => {
           const items = workList(result, 'riskAcceptances');
@@ -424,6 +443,7 @@
       },
       {
         id: 'escalation-route',
+        recordedSince: SINCE,
         title: 'Escalation to an owner',
         answer: (result) => {
           const items = workList(result, 'escalations');
@@ -444,6 +464,7 @@
       },
       {
         id: 'remediation',
+        recordedSince: SINCE,
         title: 'Priority & remediation decision',
         answer: (result) => {
           const decision = decisionFor(result);

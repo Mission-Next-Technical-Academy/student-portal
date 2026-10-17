@@ -66,7 +66,11 @@ module.exports = ({ run, clone }) => {
         [INC]: {
           severity: 'critical', assigneeId: 'ir-lead-owners', status: 'investigating', escalationStatus: 'escalated',
           escalationReason: 'A startup entry on ws-173 may persist; the incident lead should confirm it is removed.', approvalStatus: 'approved', approvalReason: 'Lead approved containment.',
-          tasks: [{ id: 'M09-TASK-001', title: 'Preserve and review available evidence', status: 'completed' }, { id: 'M09-TASK-002', title: 'Validate containment outcome', status: 'pending' }],
+          tasks: [
+            { id: 'M09-TASK-001', title: 'Preserve and review available evidence', status: 'completed', authorId: 'system', completionEvidence: { note: 'Collected the endpoint and sign-in records before containment.', evidenceIds: ['M09-E01', 'M09-E06'] } },
+            { id: 'M09-TASK-002', title: 'Validate containment outcome', status: 'pending' },
+            { id: 'M09-TASK-004', title: 'Confirm backup validation with the service owner', status: 'pending', authorId: 'an-ruiz' },
+          ],
         },
       },
       workflowHistory: [
@@ -156,7 +160,7 @@ module.exports = ({ run, clone }) => {
           triage: 'pass', 'evidence-scope': 'pass', 'workflow-design': 'pass', 'evidence-first': 'pass', containment: 'pass', 'safe-conduct': 'pass', recovery: 'pass', 'residual-escalation': 'pass',
         },
         feedback: [],
-        html: ['Recommend PASS', 'INC-4937', 'Incident Lead + Endpoint/Identity Owners', 'Confirmed malicious activity', 'Active ransomware impact with identity overlap', '10 of 10 found',
+        html: ['Recommend PASS', 'INC-4937', 'Incident Lead + Endpoint/Identity Owners', 'Confirmed malicious activity', 'Active ransomware impact with identity overlap', '10 of 10 found', 'Completion note: Collected the endpoint and sign-in records before containment.', 'M09-E01 ·', 'Tasks added · Author', 'Confirm backup validation with the service owner · Author: an-ruiz',
           'Preserve evidence → Get approval', 'Evidence, approval, contain, check', 'Disable account → acct-173', 'Persistence still present', 'No blocked or unapproved response attempts',
           /data-sheet-narrative-text>Incident state: active ransomware/, /data-sheet-narrative="residual-escalation:0"/],
         notHtml: ['true-positive', 'ir-lead-owners', 'ransomware-impact', 'bounded-three', 'persistence_present', 'revoke-session', 'disable_identity'],

@@ -1635,7 +1635,8 @@ function wireModuleNineLab() {
 // Snapshot of the incident response the student worked in the Prove It console,
 // saved with the attempt for the instructor sheet: triage fields, evidence
 // reviewed, every response/recovery action with its approval, workflow events
-// (task completion, escalation) and escalation text. Read-only copy of the saved
+// (task completion, escalation) and escalation text; from 2026-10-17 each task's
+// author and completion note/evidence too. Read-only copy of the saved
 // state; nothing here feeds the score. (Workflow designs and blocked attempts
 // are already saved in review_payload.responseReview.)
 function moduleNineAssessmentWork(state) {
@@ -1648,7 +1649,12 @@ function moduleNineAssessmentWork(state) {
       severity: workflow.severity, assigneeId: workflow.assigneeId, status: workflow.status,
       escalationStatus: workflow.escalationStatus, escalationReason: workflow.escalationReason,
       approvalStatus: workflow.approvalStatus, approvalReason: workflow.approvalReason,
-      tasks: list(workflow.tasks).map((task) => ({ id: task.id, title: task.title, status: task.status })),
+      // authorId: 'system' for the default tasks, the Author the student typed for a task they added;
+      // completionEvidence: the Completion note and Evidence ticked when the task was completed.
+      tasks: list(workflow.tasks).map((task) => ({
+        id: task.id, title: task.title, status: task.status, authorId: task.authorId, description: task.description,
+        completionEvidence: task.completionEvidence,
+      })),
     }),
     reviewedEvidenceIds: copy(list(state.reviewedEvidenceIds)),
     actions: list(state.actionHistory).filter((action) => action && action.details && action.details.incidentId === incidentId).map((action) => copy({
