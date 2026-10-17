@@ -1,6 +1,12 @@
 # IT Help Desk (HDESK) — instructor Submission Sheet handoff
 
-## Next AI — start here (written 2026-10-17; H0 recon done 2026-10-17, H1 next)
+> **Status update, 2026-10-17:** The owner authorized standardizing the Help
+> Desk submission view with SOC Analyst, including simulator work capture and
+> capstone response persistence. Preserve existing scoring and immediate
+> student feedback. H0–H3 are implemented on `feat/hdesk-submission-sheets`;
+> only H4 verification remains. The older decision prompts below are historical.
+
+## Next AI — start here (written 2026-10-17; H0–H3 implemented)
 
 **Goal (owner, Alex, 2026-10-17):** give the IT Help Desk track the same
 instructor experience the SOC Analyst track is getting, a printed-sheet
@@ -142,26 +148,27 @@ small (about 6 tickets x 2 short fields + 2 paragraphs).
   student-side input (ticket fields, checklists, written answers, simulator
   actions), its answer key / scorer, and what is saved today. Fill the
   parity tables below. No code. Ask the owner the 3 questions above.
-- [ ] **H1 — M12 capstone sheet.** Add `ticketResponses`, `kbArticle`,
-  `afterAction`, `feedback` to the `recordLabAttempt` result (additive,
-  never change scoring). Write `portal/admin-sheets/hdesk-m12.js`: sections
-  in student order, key-evidence checks from the M12 scorer's own data,
-  narrative flagged for writing mechanics + spelling, red-pen fixes. Older
-  attempts show "Not recorded in this attempt".
-- [ ] **H2 — M01–M02 portal-native labs.** Same: save the student's work
-  into `result`, write `hdesk-m01.js` / `hdesk-m02.js`.
-- [ ] **H3 — Simulator labs M03–M11 (after owner OK on Q2; the simulator is `ui/coach.js` + `ui/helpdesk-coaches.js`, see H0 answers).** Extend the
-  simulator's completion `postMessage` with a work record (actions taken,
-  answers, ticket notes). Validate it in `itsRegisterCoachModule.onMessage`
-  (origin check already exists, so also check shape and size, and treat it
-  as untrusted student data) and save it into `result`. Then one
-  `hdesk-mNN.js` per module, which can run as parallel agents, one per
-  module file.
-- [ ] **H4 — Verification.** `bin/ci-check.sh`, node tests (pass + fail
-  synthetic rows per module, under the SOC test-case convention), headless
-  render of each sheet against `bin/dev.sh` (**staging only**, check
-  `bin/dev.sh status` shows `target=STAGING`), then update this doc and
-  open the PR.
+- [x] **H1 — M12 capstone sheet.** Save ticket answers, KB article,
+  after-action reflection, feedback, and the existing score breakdown into
+  `lab_attempts.result`. The shared definition checks ticket fields against
+  the same rules as the current capstone scorer and shows full writing.
+- [x] **H2 — M01–M02 portal-native labs.** Show AUP status, uploaded evidence
+  metadata, and screenshot links through the existing signed-file panel.
+  Guided ticket work is captured through the shared coach message.
+- [x] **H3 — Simulator labs M03–M11 (`ui/coach.js` +
+  `ui/helpdesk-coaches.js`).** Send a bounded student-work snapshot with the
+  completion message. The portal validates and whitelists it before storing
+  it in `result`. The sheet shows ticket fields, path selections, diagnosis
+  feedback, work notes, history and resolution. Path checkbox state persists.
+- [x] **H4 — Verification (2026-10-17).** `bash bin/ci-check.sh` passed.
+  `node tests/admin-submission-sheet.test.js` passed (114 checks, including
+  pass/return synthetic attempts for all 16 Help Desk lab keys); spelling
+  tests passed (18 tests). `bin/dev.sh status` showed `target=STAGING` before
+  browser review. A headless Chrome session loaded the local portal served by
+  `bin/dev.sh`, rendered every Help Desk sheet with synthetic data, and found
+  16/16 sheets, no page errors, and no horizontal overflow. No student or
+  instructor account was used. H4 verification is complete; feature-branch
+  PR review remains the release handoff.
 
 ## Rules carried over from the SOC spec
 
@@ -178,13 +185,12 @@ small (about 6 tickets x 2 short fields + 2 paragraphs).
 
 ## Current state
 
-H0 (recon + parity tables) is complete and documented below. No code was
-changed. Next is H1 (M12 capstone sheet), which is unblocked except for the
-SOC framework (`portal/admin-submission-sheet.js`) landing; Q3 recommendation
-(copy into `result`) needs the owner's yes. H3 is blocked on Q2 and has a
-corrected file list: the simulator is `ui/`, not `mission-next-labs`. Read
-"H0 corrections" and "Findings that look like bugs" under Parity tables
-before starting H1-H3.
+H0–H4 are implemented and verified on `feat/hdesk-submission-sheets`. The SOC
+renderer is shared by explicit lab-key registration, with Help Desk
+definitions in `portal/admin-sheets/hdesk.js`. Older submissions remain
+readable and identify work that was not recorded in that attempt. Verification
+details are recorded in H4 above; branch review and PR are the remaining
+release steps.
 
 ## Parity tables
 

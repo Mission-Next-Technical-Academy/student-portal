@@ -873,10 +873,9 @@ function adminTrackAdministrationStrip(rows, activeTrackCode = null, gradingCoun
  * docs/workstreams/lab-grading-notification-system/). `olderAttempt` marks an
  * earlier submission the learner has since replaced; a decision applies to
  * every row of the item. */
-// SOC Analyst Prove It attempts with a registered Submission Sheet
-// (portal/admin-submission-sheet.js, docs/workstreams/ADMIN_SUBMISSION_SHEET.md)
-// render as one marked-up sheet in place of the legacy panels; every other row
-// (other tracks, Learn It / Practice It, modules not yet defined) renders as before.
+// Attempts with an explicitly registered Submission Sheet definition
+// (portal/admin-submission-sheet.js plus portal/admin-sheets/) render in the
+// shared marked-up student-work layout. Other attempts keep the legacy view.
 function adminHasSubmissionSheet(row) {
   return typeof AdminSubmissionSheet !== 'undefined' && AdminSubmissionSheet.has(row);
 }
@@ -911,6 +910,7 @@ function adminSubmissionSheetReviewCard(item, olderAttempt) {
   return `<article class="bg-white border border-gray-200 rounded-xl p-3 sm:p-4" data-grading-row="${esc(row.id)}">
     ${olderAttempt ? '<p class="mb-2 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Older attempt — a newer submission of this lab is below</p>' : ''}
     ${AdminSubmissionSheet.render(row, { item, notesHtml })}
+    ${typeof itsEvidenceReviewPanel === 'function' ? itsEvidenceReviewPanel(row) : ''}
   </article>`;
 }
 

@@ -1,6 +1,6 @@
-/* Admin Submission Sheet — the instructor's view of one SOC Analyst Prove It
- * attempt, laid out like a printed assignment marked up in red pen
- * (docs/workstreams/ADMIN_SUBMISSION_SHEET.md). Each module registers a
+/* Admin Submission Sheet — a shared instructor view of one submitted lab,
+ * laid out like a printed assignment marked up in red pen
+ * (SOC and Help Desk workstream specs). Each module registers a
  * definition (portal/admin-sheets/soc-mNN.js) that says, section by section,
  * what the student answered, what the answer key expects, and what to tell
  * the student when it does not match. This file turns that into:
@@ -27,6 +27,7 @@
  *     rubric: { labels, max, criticalLabels } | (result, ctx) => rows,
  *     sections: [{
  *       id, title,
+ *       instructorPrompt: 'Instructor-only guidance beside the section',
  *       required: true,                              // false = advisory, never blocks PASS
  *       answer: (result, ctx) => [[label, value]],   // value: string | string[] | null (null = not recorded)
  *       response: (result, ctx) => [{ label, text }],// long student writing, shown in full
@@ -73,11 +74,10 @@ const AdminSubmissionSheet = (() => {
     return definition;
   }
 
-  // SOC Analyst only — other tracks keep the legacy review card even if a
-  // lab key were ever reused.
+  // A definition is opt-in by lab key. Keep track checks at the definition
+  // boundary so the shared renderer can serve SOC and Help Desk consistently.
   function definitionFor(row) {
     if (!row || typeof row !== 'object') return null;
-    if (row.track_code && row.track_code !== 'SOCAN') return null;
     return registry.get(row.lab_key) || null;
   }
 
@@ -389,7 +389,10 @@ const AdminSubmissionSheet = (() => {
     const definition = definitionFor(row);
     if (!definition) return null;
     const ctx = context(row, definition, options);
-    const sections = (definition.sections || []).map((section) => evaluateSection(section, ctx));
+    const sectionDefinitions = typeof definition.sections === 'function'
+      ? safe(definition.sections, [ctx.result, ctx], []) || []
+      : definition.sections || [];
+    const sections = sectionDefinitions.map((section) => evaluateSection(section, ctx));
     const threshold = Number(row.pass_threshold ?? 70);
     const hasScore = row.score !== null && row.score !== undefined && row.score !== '';
     const score = hasScore ? Number(row.score) : null;
@@ -575,7 +578,7 @@ const AdminSubmissionSheet = (() => {
       <div class="ass-section-head"><h4><span class="ass-section-number">${index + 1}.</span> ${esc(section.title)}${section.required ? '' : ' <span class="ass-optional">(advisory)</span>'}</h4>${chipHtml(section)}</div>
       <div class="ass-section-body">
         <div class="ass-section-main">${answerHtml(section)}${sweepHtml(section)}</div>
-        ${section.notes.length ? `<aside class="ass-redpen" aria-label="Red-pen note to the student">${section.notes.map((note) => `<p>${esc(note)}</p>`).join('')}</aside>` : ''}
+        ${(section.instructorPrompt || section.notes.length) ? `<aside class="ass-section-side"><div aria-label="Instructor guidance" class="${section.instructorPrompt ? 'ass-instructor-prompt' : ''}">${section.instructorPrompt ? `<strong>Instructor guidance</strong><p>${esc(section.instructorPrompt)}</p>` : ''}</div>${section.notes.length ? `<div class="ass-redpen" aria-label="Red-pen note to the student">${section.notes.map((note) => `<p>${esc(note)}</p>`).join('')}</div>` : ''}</aside>` : ''}
       </div>
     </li>`;
   }

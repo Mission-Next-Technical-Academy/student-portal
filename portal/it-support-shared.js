@@ -283,8 +283,53 @@ function itsUploadedEvidenceHtml(user, labKey) {
 
 // A guided walkthrough finished: submit each of its labs that can take an
 // attempt (never submitted, or returned). Waiting/approved labs send nothing.
-function itsSubmitWalkthroughLabs(user, moduleKey, labKeys) {
-  return Promise.all(labKeys.map((labKey) => itsSubmitLabAttempt(user, moduleKey, labKey, { state: 'complete', result: { source: 'mnt-coach-complete' } })));
+function itsSubmitWalkthroughLabs(user, moduleKey, labKeys, work = null) {
+  return Promise.all(labKeys.map((labKey) => itsSubmitLabAttempt(user, moduleKey, labKey, {
+    state: 'complete', result: { source: 'mnt-coach-complete', ...(work ? { work } : {}) },
+  })));
+}
+
+// postMessage data is student-controlled. Store only the small, known work
+// fields needed by the instructor sheet; never persist simulator fixture keys.
+function itsCleanCoachWork(input) {
+  if (!input || typeof input !== 'object' || input.version !== 1 || !Array.isArray(input.tickets)) return null;
+  const text = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
+  const tickets = input.tickets.slice(0, 8).filter((ticket) => ticket && typeof ticket === 'object' && /^[A-Z]{2,4}-\d{4}$/.test(ticket.id || '')).map((ticket) => ({
+    id: text(ticket.id, 16),
+    requester: text(ticket.requester, 120), category: text(ticket.category, 80), subcategory: text(ticket.subcategory, 120),
+    description: text(ticket.description, 500), businessImpact: text(ticket.businessImpact, 240), sla: text(ticket.sla, 80),
+    symptoms: Array.isArray(ticket.symptoms) ? ticket.symptoms.slice(0, 8).map((value) => text(value, 180)).filter(Boolean) : [],
+    systemState: Array.isArray(ticket.systemState) ? ticket.systemState.slice(0, 8).map((value) => text(value, 180)).filter(Boolean) : [],
+    logs: Array.isArray(ticket.logs) ? ticket.logs.slice(0, 8).map((value) => text(value, 280)).filter(Boolean) : [],
+    expectedDiagnosis: text(ticket.expectedDiagnosis, 300), expectedResolution: text(ticket.expectedResolution, 1000),
+    expectedPath: Array.isArray(ticket.expectedPath) ? ticket.expectedPath.slice(0, 8).map((value) => text(value, 200)).filter(Boolean) : [],
+    expectedStatus: ['Resolved', 'Escalated'].includes(ticket.expectedStatus) ? ticket.expectedStatus : '',
+    priority: text(ticket.priority, 8),
+    assignedTechnician: text(ticket.assignedTechnician, 100),
+    status: text(ticket.status, 40),
+    diagnosis: text(ticket.diagnosis, 240),
+    diagnosisCorrect: typeof ticket.diagnosisCorrect === 'boolean' ? ticket.diagnosisCorrect : null,
+    linkedProblem: text(ticket.linkedProblem, 40),
+    checkedSteps: Array.isArray(ticket.checkedSteps) ? ticket.checkedSteps.slice(0, 20).map((value) => text(value, 300)).filter(Boolean) : [],
+    notes: Array.isArray(ticket.notes) ? ticket.notes.slice(-8).map((note) => ({
+      author: text(note && note.author, 80), time: text(note && note.time, 40), text: text(note && note.text, 1500),
+    })).filter((note) => note.text) : [],
+    statusHistory: Array.isArray(ticket.statusHistory) ? ticket.statusHistory.slice(-20).map((entry) => ({
+      time: text(entry && entry.time, 40), action: text(entry && entry.action, 180),
+    })).filter((entry) => entry.action) : [],
+    resolution: text(ticket.resolution, 1200),
+    closureCode: text(ticket.closureCode, 120),
+  }));
+  if (!tickets.length) return null;
+  const work = { version: 1, selectedTicketId: text(input.selectedTicketId, 16), tickets };
+  // Keep attempts comfortably below PostgREST's practical JSON payload limits.
+  while (JSON.stringify(work).length > 48 * 1024) {
+    const ticket = work.tickets.find((entry) => entry.statusHistory.length || entry.notes.length);
+    if (!ticket) break;
+    if (ticket.statusHistory.length) ticket.statusHistory.shift();
+    else ticket.notes.shift();
+  }
+  return work;
 }
 
 /* Evidence labs: Resubmit stays disabled until the student has added or
@@ -649,6 +694,8 @@ function itsRegisterCoachModule(config) {
     const user = await currentUser();
     if (!user) return;
 
+    const work = itsCleanCoachWork(event.data.work);
+
     const saved = LabRuntime.load(stateId, user, defaultState);
     saved.consoleStarted = true;
     saved.consoleCompleted = true;
@@ -657,7 +704,7 @@ function itsRegisterCoachModule(config) {
     lastUser = user;
 
     if (typeof markModuleLabComplete === 'function') labKeys.forEach((key) => markModuleLabComplete(user, 'it-support', moduleKey, key));
-    await itsSubmitWalkthroughLabs(user, moduleKey, labKeys);
+    await itsSubmitWalkthroughLabs(user, moduleKey, labKeys, work);
 
     const mounted = Boolean(document.querySelector('.itss-shell'));
     if (!mounted) return;

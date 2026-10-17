@@ -56,7 +56,7 @@
 .ass-optional { font-size: 0.72rem; font-weight: 500; color: var(--ass-muted); }
 .ass-section-body { display: grid; gap: 0.75rem; }
 @media (min-width: 900px) {
-  .ass-section-body:has(.ass-redpen) { grid-template-columns: minmax(0, 1fr) 16rem; }
+  .ass-section-body:has(.ass-section-side) { grid-template-columns: minmax(0, 1fr) 16rem; }
 }
 
 .ass-chip { display: inline-flex; align-items: center; border-radius: 999px; padding: 0.1rem 0.6rem; font-size: 0.72rem; font-weight: 700; border: 1px solid; white-space: nowrap; }
@@ -95,6 +95,9 @@ tr[data-sheet-check="fail"] td:last-child strong { color: var(--ass-fail); }
 /* Red ink in the margin: the note the student will get. */
 .ass-redpen { color: var(--ass-redpen); font-family: "Segoe Print", "Bradley Hand", "Comic Neue", cursive; font-size: 0.92rem; line-height: 1.45; border-left: 2px solid rgba(185, 28, 28, 0.35); padding: 0.1rem 0 0.1rem 0.75rem; transform: rotate(-0.4deg); }
 .ass-redpen p + p { margin-top: 0.4rem; }
+.ass-instructor-prompt { color: #1e3a5f; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 0.5rem; padding: 0.65rem 0.75rem; font-size: 0.78rem; line-height: 1.45; align-self: start; }
+.ass-instructor-prompt p { margin-top: 0.25rem; color: #334155; }
+.ass-section-side { display: flex; flex-direction: column; gap: 0.6rem; align-self: start; }
 
 .ass-rubric { margin-top: 1rem; border-top: 1px solid var(--ass-rule); padding-top: 0.75rem; }
 .ass-notes { margin-top: 1rem; border-top: 1px solid var(--ass-rule); padding-top: 0.75rem; }
@@ -117,6 +120,8 @@ html[data-mn-theme="night"] .ass-sheet {
 html[data-mn-theme="night"] .ass-sheet .ass-answer,
 html[data-mn-theme="night"] .ass-sheet .ass-response,
 html[data-mn-theme="night"] .ass-sheet .ass-sent-item { background: #10263b; }
+html[data-mn-theme="night"] .ass-sheet .ass-instructor-prompt { color: #dbeafe; background: rgba(30, 58, 95, 0.55); border-color: #365d7d; }
+html[data-mn-theme="night"] .ass-sheet .ass-instructor-prompt p { color: #cbd5e1; }
 html[data-mn-theme="night"] .ass-sheet .ass-verdict { color: var(--ass-ink); }
 html[data-mn-theme="night"] .ass-sheet .ass-title,
 html[data-mn-theme="night"] .ass-sheet .ass-section-head h4 { color: #e5edf5; }
