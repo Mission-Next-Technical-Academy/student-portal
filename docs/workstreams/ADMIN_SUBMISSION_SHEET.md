@@ -1,11 +1,12 @@
 # Admin Submission Sheet — SOC Analyst Prove It grading
 
-## Next AI — start here (2026-10-17, S1–S4 + S6 implemented)
+## Next AI — start here (updated 2026-10-17, end of day)
 
-The implementation for M01–M12 and spelling is present on
-`feat/admin-submission-sheet` (uncommitted). The remaining work is browser
-render review, final documentation, and a release handoff. Do not change the
-module scores. The active verdict rule is recorded below.
+**Status:** S1–S6 merged to `master` (PRs #65, #66, #67); the Help Desk
+extension is PR #68. Read `docs/handoffs/CLAUDE_ADMIN_SUBMISSION_SHEET_HANDOFF.md`
+first: it holds overall status, open owner decisions and next steps. Remaining
+work is a staging click-through with owner-provided synthetic accounts. Do not
+change module scores. The active verdict rule is recorded below.
 
 How to write a module definition (copy `portal/admin-sheets/soc-m01.js`):
 

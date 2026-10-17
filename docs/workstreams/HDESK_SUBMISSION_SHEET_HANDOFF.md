@@ -174,8 +174,10 @@ small (about 6 tickets x 2 short fields + 2 paragraphs).
 
 - Plain language. No ids/JSON above the debug fold. Expected values shown
   to the instructor only.
-- Verdict: Recommend PASS = score ≥ threshold and no required section ✗.
-  Amber ◐ never blocks a pass but prefills "To strengthen next time: …".
+- Verdict (current rule, PR #67): the score plus scorer-flagged critical
+  failures decide PASS or RETURN. A red section on a passing score reads
+  "Recommend PASS — with corrections (N sections to fix)" and prefills a
+  correction. Amber ◐ prefills "To strengthen next time: …".
 - Narrative = key-evidence match, plus advisory writing mechanics and
   spelling, which never fail a section.
 - Answer keys are read from the module's own data/scorer, never re-typed.
@@ -189,8 +191,15 @@ H0–H4 are implemented and verified on `feat/hdesk-submission-sheets`. The SOC
 renderer is shared by explicit lab-key registration, with Help Desk
 definitions in `portal/admin-sheets/hdesk.js`. Older submissions remain
 readable and identify work that was not recorded in that attempt. Verification
-details are recorded in H4 above. PR #68 is open for review; merge remains an
-owner-approved release step.
+details are recorded in H4 above. PR #68 was approved by the owner for merge on
+2026-10-17. Still open after this work:
+- the H0 Help Desk bugs (early completion, probable duplicate rows,
+  `restart=1` wiping work, guessable diagnoses, M08/M12 HD-2110 conflict,
+  HD-2106 priority, SOC rubric stamp);
+- the Practice It vs Prove It labelling for the guided labs, which are still
+  treated as PROVE IT by `adminGradingLabMeta`;
+- a staging click-through.
+See `docs/handoffs/CLAUDE_ADMIN_SUBMISSION_SHEET_HANDOFF.md`.
 
 ## Parity tables
 
