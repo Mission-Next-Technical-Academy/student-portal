@@ -1,15 +1,15 @@
 # Claude handoff — SOC Admin Submission Sheet
 
-Updated 2026-10-17. Continue from the shared working tree; do not restart
-the implementation.
+Updated 2026-10-17 after PR #65 merged. Continue from the shared working
+tree; do not restart the implementation.
 
 ## Current state
 
-- Branch: `feat/admin-submission-sheet`, based on current `origin/master`
-  (`7e000d0`, PR #64) after rebasing to clear PR #65 conflicts.
+- Merged to `master` in PR [#65](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/65)
+  at `74fce5a`.
 - S1 framework + M01, module sheets and parity tables for M02–M12, and S6
-  spelling are implemented. The S3 agent ended with an
-  API rate limit, but its module files and test cases are present and passed.
+  spelling are implemented. The S3 agent ended with an API rate limit, but
+  its module files and test cases were present, reviewed, and passed.
 - The verdict now follows the owner's later instruction: score at/above the
   pass mark recommends PASS unless the scorer flags a critical failure. Red
   sections remain visible and prefill teacher feedback; they do not override
@@ -36,23 +36,19 @@ the implementation.
   synthetic renders), with no horizontal overflow. Screenshots were written
   under `/tmp/admin-sheet-browser/`; the M12 return sheet was visually
   inspected.
-- `git diff --check` passed before the latest documentation edits; rerun it.
+- The full `tests/*.test.js` sweep has four failures, all reproduced at clean
+  checkpoint `c0e195a`: `guided-lab-console-guide`,
+  `soc-m04-assessment-rubric`, `soc-m04-assessment-scorer`, and
+  `soc-m05-assessment-console`.
 
 ## Remaining work
 
-1. Rerun the targeted checks after the last edits and inspect `git diff` for
-   accidental changes or unresolved mismatches.
-2. Complete any needed browser review. Do not sign in to staging unless
-   `bin/dev.sh status` says `target=STAGING` and the owner has supplied a
-   synthetic account. Do not use production.
-3. Finish the portal VM path fix and current handoff edits, push the rebased
-   branch with lease, then confirm PR #65 is no longer conflicting and its
-   checks pass. The owner authorized auto-approval
-   of this PR in the session transcript; follow repository merge rules and CI
-   gates before squash-merging.
-4. Do not change any module scoring as part of this work. The earlier
-   question about making currently unscored ticket fields affect scores is
-   still unanswered and remains out of scope.
+1. A staging click-through of an instructor submission still needs an
+   owner-provided synthetic account. Before opening the app, confirm
+   `bin/dev.sh status` reports `target=STAGING`. Do not use production.
+2. Do not change module scoring as part of this work. The question about
+   making currently unscored ticket fields affect scores remains unanswered
+   and out of scope until the owner decides.
 
 ## Important rules
 
