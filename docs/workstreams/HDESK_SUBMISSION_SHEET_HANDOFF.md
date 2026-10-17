@@ -167,8 +167,8 @@ small (about 6 tickets x 2 short fields + 2 paragraphs).
   browser review. A headless Chrome session loaded the local portal served by
   `bin/dev.sh`, rendered every Help Desk sheet with synthetic data, and found
   16/16 sheets, no page errors, and no horizontal overflow. No student or
-  instructor account was used. H4 verification is complete; feature-branch
-  PR review remains the release handoff.
+  instructor account was used. H4 verification is complete. PR #68 is open:
+  https://github.com/Mission-Next-Technical-Academy/student-portal/pull/68
 
 ## Rules carried over from the SOC spec
 
@@ -189,8 +189,8 @@ H0–H4 are implemented and verified on `feat/hdesk-submission-sheets`. The SOC
 renderer is shared by explicit lab-key registration, with Help Desk
 definitions in `portal/admin-sheets/hdesk.js`. Older submissions remain
 readable and identify work that was not recorded in that attempt. Verification
-details are recorded in H4 above; branch review and PR are the remaining
-release steps.
+details are recorded in H4 above. PR #68 is open for review; merge remains an
+owner-approved release step.
 
 ## Parity tables
 
