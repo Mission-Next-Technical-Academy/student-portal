@@ -40,7 +40,7 @@ const PORTAL = path.join(ROOT, 'portal');
 const ctx = { console: { log() {}, info() {}, warn() {}, error: console.error } };
 vm.createContext(ctx);
 const sheetFiles = fs.readdirSync(path.join(PORTAL, 'admin-sheets')).filter((file) => /^soc-m\d\d\.js$/.test(file)).sort();
-for (const file of ['data.js', 'case-record.js', 'admin-submission-sheet.js', ...sheetFiles.map((file) => `admin-sheets/${file}`)]) {
+for (const file of ['data.js', 'case-record.js', 'admin-submission-sheet.js', ...sheetFiles.map((file) => `admin-sheets/${file}`), 'admin-sheets/hdesk.js']) {
   vm.runInContext(fs.readFileSync(path.join(PORTAL, file), 'utf8'), ctx, { filename: file });
 }
 const run = (code) => vm.runInContext(code, ctx);
@@ -73,9 +73,11 @@ test('index.html loads the sheet after the module files and before app.js', () =
   assert.equal(sheetFiles.length, 12, 'one definition file per module');
 });
 
-test('has() is SOC Analyst Prove It only', () => {
+test('has() is opt-in by registered lab key across tracks', () => {
   assert.equal(Sheet.has({ lab_key: 'lab-soc-escalation', track_code: 'SOCAN' }), true);
-  assert.equal(Sheet.has({ lab_key: 'lab-soc-escalation', track_code: 'HDESK' }), false, 'other tracks keep the legacy card');
+  assert.equal(Sheet.has({ lab_key: 'lab-soc-escalation', track_code: 'HDESK' }), true, 'registration follows the lab key');
+  assert.equal(Sheet.has({ lab_key: 'lab-its-12-capstone', track_code: 'HDESK' }), true, 'Help Desk definitions are registered');
+  assert.equal(Sheet.has({ lab_key: 'lab-its-12-capstone', track_code: 'SOCAN' }), true, 'sheet renderer is track agnostic');
   assert.equal(Sheet.has({ lab_key: 'lab-soc-environment', track_code: 'SOCAN' }), false, 'Practice It is not a sheet');
   assert.equal(Sheet.has({ lab_key: 'no-such-lab' }), false);
   assert.equal(Sheet.has(null), false);

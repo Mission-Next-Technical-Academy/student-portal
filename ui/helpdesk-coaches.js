@@ -29,6 +29,68 @@
     return base + completion + (hash || '');
   }
 
+  // Practice It sends a compact snapshot of the tickets this coach uses when
+  // the student reaches its final step. The parent portal validates it again
+  // before writing it to lab_attempts.result. Answer keys and fixture logs are
+  // deliberately excluded; this is only the student's recorded work.
+  const HD_COACH_TICKET_IDS = {
+    'hd-m01': ['HD-2101'],
+    'hd-m02': ['HD-2106', 'HD-2112'],
+    'hd-m03': ['HD-2109'],
+    'hd-m04': ['HD-2104', 'HD-2105', 'HD-2113'],
+    'hd-m05': ['HD-2108', 'HD-2117'],
+    'hd-m06': ['SR-2107', 'HD-2118'],
+    'hd-m07': ['HD-2119', 'HD-2120', 'HD-2121', 'HD-2122', 'HD-2123'],
+    'hd-m08': ['HD-2110', 'HD-2111'],
+    'hd-m09': ['SEC-2114', 'SEC-2115'],
+    'hd-m10': null,
+    'hd-m11': ['HD-2113', 'HD-2124'],
+  };
+  function hdCollectCoachWork(coach) {
+    if (typeof hdState === 'undefined' || !Array.isArray(hdState.tickets)) return null;
+    const ids = HD_COACH_TICKET_IDS[coach && coach.id];
+    const tickets = hdState.tickets.filter((ticket) => ids
+      ? ids.includes(ticket.id)
+      : coach && coach.id === 'hd-m10' && ticket.priority === 'P1');
+    return {
+      version: 1,
+      selectedTicketId: hdState.selectedTicketId || '',
+      tickets: tickets.map((ticket) => ({
+        id: ticket.id,
+        requester: ticket.requester || '',
+        category: ticket.category || '',
+        subcategory: ticket.subcategory || '',
+        description: ticket.description || '',
+        businessImpact: ticket.businessImpact || '',
+        sla: ticket.sla || '',
+        symptoms: Array.isArray(ticket.symptoms) ? ticket.symptoms.slice(0, 8) : [],
+        systemState: Array.isArray(ticket.systemState) ? ticket.systemState.slice(0, 8) : [],
+        logs: Array.isArray(ticket.logs) ? ticket.logs.slice(0, 8) : [],
+        expectedDiagnosis: ticket.hiddenRootCause || '',
+        expectedResolution: ticket.expectedResolution || '',
+        expectedPath: Array.isArray(ticket.correctPath) ? ticket.correctPath.slice(0, 8) : [],
+        expectedStatus: ticket.category === 'Security Incident' || (ticket.escalationCriteria || []).some((item) => item.startsWith('Always')) ? 'Escalated' : 'Resolved',
+        priority: ticket.priority || '',
+        assignedTechnician: ticket.assignedTechnician || '',
+        status: ticket.status || '',
+        diagnosis: ticket.diagnosis || '',
+        diagnosisCorrect: ticket.diagnosis ? ticket.diagnosisCorrect === true : null,
+        linkedProblem: ticket.linkedProblem || '',
+        checkedSteps: Array.isArray(ticket.checkedSteps) ? ticket.checkedSteps.slice(0, 20) : [],
+        notes: Array.isArray(ticket.notes) ? ticket.notes.slice(-20).map((note) => ({
+          author: String(note.author || '').slice(0, 80),
+          time: String(note.time || '').slice(0, 40),
+          text: String(note.text || '').slice(0, 4000),
+        })) : [],
+        statusHistory: Array.isArray(ticket.troubleshootingHistory) ? ticket.troubleshootingHistory.slice(-40).map((entry) => ({
+          time: String(entry.time || '').slice(0, 40),
+          action: String(entry.action || '').slice(0, 300),
+        })) : [],
+        resolution: ticket.resolution || '',
+        closureCode: ticket.closureCode || '',
+      })),
+    };
+  }
   /* ---------------------------------------------------------- hd-m01 ---- */
 
   const HD1_TICKETS = ['HD-2101', 'SR-2102', 'SR-2103', 'SR-2116'];
@@ -594,4 +656,8 @@
       noteBody: 'Write the note the way you’d want it read if you picked this ticket up cold: name the stale Credential Manager entry as the cause, what you removed, and that send/receive was confirmed working — not just "Outlook fixed."',
       resolveBody: 'Close this out the way you opened it: plainly, without jargon, and without promising more than you can back up — confirm send/receive works, tell her it’s resolved, and skip the corporate hedging. That’s what actually de-escalates a second call like this one.',
     }));
+
+  MODULE_COACHES.filter((coach) => /^hd-m\d+$/.test(coach.id)).forEach((coach) => {
+    coach.collectWork = () => hdCollectCoachWork(coach);
+  });
 })();

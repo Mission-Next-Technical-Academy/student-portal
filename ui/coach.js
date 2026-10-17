@@ -469,7 +469,8 @@
     if (!coach || !coach.completionToken || reportedToken === coach.completionToken) return;
     if (!window.opener || window.opener.closed) return;
     reportedToken = coach.completionToken;
-    window.opener.postMessage({ type: 'mnt-coach-complete', id: coach.completionToken },
+    const work = typeof coach.collectWork === 'function' ? coach.collectWork() : undefined;
+    window.opener.postMessage({ type: 'mnt-coach-complete', id: coach.completionToken, ...(work ? { work } : {}) },
       new URL(portalUrl('')).origin);
   }
 
@@ -496,7 +497,8 @@
     const completionToken = coach && coach.completionToken;
     stop();
     if (completionToken && window.opener && !window.opener.closed) {
-      window.opener.postMessage({ type: 'mnt-coach-complete', id: completionToken }, new URL(href).origin);
+      const work = coach && typeof coach.collectWork === 'function' ? coach.collectWork() : undefined;
+      window.opener.postMessage({ type: 'mnt-coach-complete', id: completionToken, ...(work ? { work } : {}) }, new URL(href).origin);
     }
     returnToOpenerOrNavigate(href);
   }

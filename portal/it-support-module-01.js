@@ -387,7 +387,7 @@ async function its01ReceiveCoachCompletion(event) {
   its01User = user;
 
   if (typeof markModuleLabComplete === 'function') markModuleLabComplete(user, 'it-support', 'its-01', ITS01_LAB2_KEY);
-  await itsSubmitWalkthroughLabs(user, 'its-01', [ITS01_LAB2_KEY]);
+  await itsSubmitWalkthroughLabs(user, 'its-01', [ITS01_LAB2_KEY], itsCleanCoachWork(event.data.work));
 
   const mounted = Boolean(document.querySelector('.its01-shell'));
   if (!mounted) return;

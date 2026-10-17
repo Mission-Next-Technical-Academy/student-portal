@@ -1,58 +1,112 @@
-# Claude handoff — SOC Admin Submission Sheet
+# Start here — Admin Submission Sheets (SOC Analyst + IT Help Desk)
 
-Updated 2026-10-17 after PR #65 merged. Continue from the shared working
-tree; do not restart the implementation.
+Updated 2026-10-17 (end of day). This is the single entry point for a new
+session on the instructor Submission Sheet work. It summarises a Claude Code
+session (sprints S1–S6 via subagents), a Codex session (Help Desk H1–H4),
+and the merges so far. Detailed specs:
 
-## Current state
+- SOC spec + parity tables: `docs/workstreams/ADMIN_SUBMISSION_SHEET.md`
+- Help Desk spec + parity tables: `docs/workstreams/HDESK_SUBMISSION_SHEET_HANDOFF.md`
 
-- Merged to `master` in PR [#65](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/65)
-  at `74fce5a`.
-- S1 framework + M01, module sheets and parity tables for M02–M12, and S6
-  spelling are implemented. The S3 agent ended with an API rate limit, but
-  its module files and test cases were present, reviewed, and passed.
-- The verdict now follows the owner's later instruction: score at/above the
-  pass mark recommends PASS unless the scorer flags a critical failure. Red
-  sections remain visible and prefill teacher feedback; they do not override
-  a passing score. Scores themselves are unchanged.
-- The parity tables and sprint status in
-  `docs/workstreams/ADMIN_SUBMISSION_SHEET.md` have been updated. Read that
-  spec for module details and constraints.
-- A separate Help Desk H0 recon is in
-  `docs/workstreams/HDESK_SUBMISSION_SHEET_HANDOFF.md`; it is not part of this
-  SOC change.
+## What it is
 
-## Verification already completed
+The admin Lab Attempts tab renders a Prove It attempt as one sheet laid out
+like a printed assignment marked up in red pen. The sheet shows:
 
-- `node tests/admin-submission-sheet.test.js` — 82 checks, 72 cases across
-  12 modules.
-- `node tests/admin-sheet-spelling.test.js` — 18 tests passed.
-- `node bin/portal-check.js` — exit 0.
-- `bash bin/ci-check.sh` — exit 0.
-- Full `tests/*.test.js` sweep has four failures, all reproduced unchanged at
-  clean checkpoint `c0e195a`: `guided-lab-console-guide`,
-  `soc-m04-assessment-rubric`, `soc-m04-assessment-scorer`, and
-  `soc-m05-assessment-console`.
-- Headless Chromium rendered pass and return sheets for every module (24
-  synthetic renders), with no horizontal overflow. Screenshots were written
-  under `/tmp/admin-sheet-browser/`; the M12 return sheet was visually
-  inspected.
-- The full `tests/*.test.js` sweep has four failures, all reproduced at clean
-  checkpoint `c0e195a`: `guided-lab-console-guide`,
-  `soc-m04-assessment-rubric`, `soc-m04-assessment-scorer`, and
-  `soc-m05-assessment-console`.
+- header and score vs. pass mark;
+- a verdict banner: **Recommend PASS**, **Recommend PASS — with
+  corrections (N sections to fix)**, or **Recommend RETURN**;
+- the student's answers, section by section, in the order the student filled
+  them in;
+- ✓/◐/✗ checks against the module's own answer key;
+- key-evidence checks on written answers, plus advisory writing-mechanics
+  and spelling checks;
+- red-pen notes;
+- teacher notes prefilled per ✗/◐ section;
+- raw JSON folded last.
 
-## Remaining work
+Decided attempts show the same sheet read-only, with the feedback that was
+actually sent.
 
-1. A staging click-through of an instructor submission still needs an
-   owner-provided synthetic account. Before opening the app, confirm
-   `bin/dev.sh status` reports `target=STAGING`. Do not use production.
-2. Do not change module scoring as part of this work. The question about
-   making currently unscored ticket fields affect scores remains unanswered
-   and out of scope until the owner decides.
+Verdict rule: the score and scorer-flagged critical failures (unsafe action,
+safety cap) decide PASS or RETURN. Red sections on a passing score become
+corrections and never flip the verdict. Scores themselves were never changed.
 
-## Important rules
+## Status
 
-Read `AGENTS.md`, `CLAUDE.md`, `ROADMAP.md`,
-`docs/LAB_ASSESSMENT_STANDARD.md`, and `docs/operations/AI_AGENT_RULES.md`
-before continuing. Never push to `master` directly. No database, staging
-deployment, or production action is authorized by this handoff.
+| Piece | State | Where |
+| --- | --- | --- |
+| Framework, M01–M12 sheets, spelling (S1–S6) | ✅ merged | PR #65 (`74fce5a`), #66 (docs) |
+| "PASS — with corrections" banner, M06–M09 notes | ✅ merged | PR #67 (`3cdefcc`) |
+| Help Desk sheets, all 16 lab keys (H0–H4) | ✅ merged (owner-approved 2026-10-17) | PR #68 |
+| Staging click-through with a real synthetic instructor account | ❌ not done | needs owner-provided staging accounts |
+
+PR #68 was re-verified on 2026-10-17 merged locally with current `master`:
+
+- `tests/admin-submission-sheet.test.js`: 114 checks passed (104 cases, 13 files);
+- spelling: 18 tests passed;
+- `bin/ci-check.sh`: exit 0.
+
+Merging to `master` deploys to GitHub Pages (live).
+
+## Open owner decisions (nothing below is started)
+
+1. **Unscored ticket fields (SOC M03–M09).** Several modules' scorers ignore
+   some or all ticket fields: severity, user/device, route, and in M04/M05
+   the work notes. The sheet still flags those fields red, but a junk ticket
+   cannot lower the score. Should they count? Counting them changes scoring.
+2. **M07 answer key mismatch.** `MODULE_SEVEN_ANSWER_KEY` and the module's
+   comments describe a GRE-tunnel / web-shell / FTP scenario. The fixture
+   students work is a QR-invoice phish. The sheet marks severity,
+   disposition and route advisory until the key is fixed.
+3. **M06 key vs. fixture.** The key says "Confirmed malicious"; the
+   scenario text says "suspicious, not proven".
+4. **Help Desk issues found in H0.** Except the path checkboxes, which H3
+   now saves, none of these were confirmed fixed. Details are in the HDESK
+   handoff, section "H0 corrections":
+   - coach completion fires before the final resolve click;
+   - `finish()` probably posts twice, giving duplicate `lab_attempts` rows
+     (verify on staging);
+   - every launch link uses `restart=1`, which wipes earlier work;
+   - the correct diagnosis is the last option for most tickets, and retries
+     are unlimited;
+   - M08 resolves HD-2110 while the M12 key requires escalating it;
+   - HD-2106 priority is P3 in the simulator but P4 in M12;
+   - the `?coachComplete=` fallback marks a lab complete with no
+     `lab_attempts` row;
+   - Help Desk rows are stamped with the SOC rubric version.
+5. **Help Desk guided labs** (M01.2, M02.3/2.4, M03–M11) are guided
+   walk-throughs. Under `docs/LAB_ASSESSMENT_STANDARD.md` they read as
+   Practice It; only the M12 capstone is a true Prove It. Decide whether to
+   relabel them or promote M11.
+
+## Known test noise (pre-existing, not from this work)
+
+`guided-lab-console-guide`, `soc-m04-assessment-rubric`,
+`soc-m04-assessment-scorer` and `soc-m05-assessment-console` fail the same way
+on a clean checkpoint from before this work (`c0e195a`).
+
+## Next steps for a new session
+
+1. Confirm #68 is merged (`gh pr view 68`) and `master` is green:
+   - `bash bin/ci-check.sh`
+   - `node tests/admin-submission-sheet.test.js`
+   - `node tests/admin-sheet-spelling.test.js`
+2. Staging click-through, with owner-provided synthetic accounts:
+   - `bin/dev.sh` then `bin/dev.sh status`, which must show `target=STAGING`;
+   - submit one SOC Prove It and one Help Desk lab as the student;
+   - review, approve or return them as the instructor;
+   - confirm the student sees the sent notes.
+3. Work on any owner decision above only after the owner answers it.
+
+## Rules
+
+- Read `CLAUDE.md`, `ROADMAP.md`, `docs/operations/AI_AGENT_RULES.md` and
+  `docs/LAB_ASSESSMENT_STANDARD.md` first.
+- Feature branch plus a PR to `master`. Never push to `master`. Merge only
+  with owner approval.
+- Other sessions (Claude and Codex) share this working tree and
+  `.git/index`. Run `git status` before staging and never stage another
+  session's WIP. Use a `git worktree` for parallel work.
+- No database, Supabase function, staging-branch or production action is
+  authorised by this handoff.

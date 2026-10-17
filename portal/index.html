@@ -38,7 +38,7 @@
     <link rel="stylesheet" href="orientation.css?v=20260920-2" />
     <link rel="stylesheet" href="lab-maximize.css?v=20261005-toggle-clearance" />
     <link rel="stylesheet" href="prove-it-gate.css?v=20261005-prove-gate" />
-    <link rel="stylesheet" href="admin-submission-sheet.css?v=20261017-submission-sheet" />
+    <link rel="stylesheet" href="admin-submission-sheet.css?v=20261017-hdesk-sheet" />
     <script src="vendor/tailwind.js?v=20260817"></script>
     <!-- jsPDF 2.5.1 + jsPDF-AutoTable 3.8.2, vendored locally (no CDN at
          runtime) for the admin dashboard's "Generate Report" PDF export. -->
@@ -306,9 +306,9 @@
     <!-- IT Help Desk ('it-support') curriculum is being authored module by
          module; it-support-shared.js holds the evidence-upload and
          ticket-queue widgets Modules 1, 2, and 12 all reuse. -->
-    <script src="it-support-shared.js?v=20261015-evidence"></script>
-    <script src="it-support-module-01.js?v=20261015-evidence"></script>
-    <script src="it-support-module-02.js?v=20261015-evidence"></script>
+    <script src="it-support-shared.js?v=20261017-hdesk-sheet"></script>
+    <script src="it-support-module-01.js?v=20261017-hdesk-sheet"></script>
+    <script src="it-support-module-02.js?v=20261017-hdesk-sheet"></script>
     <script src="it-support-module-03.js?v=20260904"></script>
     <script src="it-support-module-04.js?v=20260904"></script>
     <script src="it-support-module-05.js?v=20260904"></script>
@@ -318,7 +318,7 @@
     <script src="it-support-module-09.js?v=20260904"></script>
     <script src="it-support-module-10.js?v=20260904"></script>
     <script src="it-support-module-11.js?v=20260904"></script>
-    <script src="it-support-module-12.js?v=20260907"></script>
+    <script src="it-support-module-12.js?v=20261017-hdesk-sheet"></script>
     <!-- Electrical's curriculum isn't authored yet (docs/specs/CURRICULUM_ALIGNMENT_ARCHITECTURE.md
          §0); this registers a placeholder module 1 only, so its registry slot
          exists under the correct program slug ahead of real content. -->
@@ -341,10 +341,9 @@
     <script src="orientation.js?v=20260920-3"></script>
     <script src="lab-maximize.js?v=20260927-lab-maximize-2"></script>
     <script src="prove-it-gate.js?v=20261005-prove-gate"></script>
-    <!-- Instructor Submission Sheet for SOC Prove It attempts
-         (docs/workstreams/ADMIN_SUBMISSION_SHEET.md): after every module
-         data/scorer file it reads answer keys from, before app.js uses it. -->
-    <script src="admin-submission-sheet.js?v=20261017-submission-sheet"></script>
+    <!-- Shared instructor Submission Sheet for SOC Analyst and Help Desk:
+         framework after track data/scorers, definitions before app.js. -->
+    <script src="admin-submission-sheet.js?v=20261017-hdesk-sheet"></script>
     <script src="admin-sheet-spelling.js?v=20261017-submission-sheet"></script>
     <script src="admin-sheets/soc-m01.js?v=20261017-submission-sheet"></script>
     <script src="admin-sheets/soc-m02.js?v=20261017-submission-sheet"></script>
@@ -358,7 +357,8 @@
     <script src="admin-sheets/soc-m10.js?v=20261017-submission-sheet"></script>
     <script src="admin-sheets/soc-m11.js?v=20261017-submission-sheet"></script>
     <script src="admin-sheets/soc-m12.js?v=20261017-submission-sheet"></script>
-    <script src="app.js?v=20261015-evidence"></script>
+    <script src="admin-sheets/hdesk.js?v=20261017-hdesk-sheet"></script>
+    <script src="app.js?v=20261017-hdesk-sheet"></script>
     <script src="m360-entry.js?v=20260921-login-loader-fix"></script>
   </body>
 </html>
