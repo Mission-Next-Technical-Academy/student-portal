@@ -323,6 +323,17 @@
         ],
       },
       {
+        id: 'shift-checklist',
+        title: 'Practice It · Shift Checklist (not scored)',
+        required: false,
+        collapsed: true,
+        answer: (result) => {
+          const checklist = result.shiftChecklist;
+          if (!checklist || !Array.isArray(checklist.items)) return [['Saved checklist', 'Not recorded in this attempt']];
+          return checklist.items.map((item) => [item.label, `${item.checked ? 'Checked' : 'Not checked'} · ${item.where} · ${item.detail}`]);
+        },
+      },
+      {
         id: 'case-routing',
         title: 'Ticket routing (not scored)',
         required: false,
@@ -589,7 +600,7 @@
               { name: 'the benign look-alike excluded (ws-118)', short: 'why ws-118 is excluded', terms: ['ws-118'] },
             ];
           },
-          fix: (missing) => `Back the technical report with the facts: it does not mention ${missing.join('; ')}.`,
+          fix: (missing) => `Back the technical report with the facts: it does not mention ${missing.join(', ')}.`,
         },
       },
       {

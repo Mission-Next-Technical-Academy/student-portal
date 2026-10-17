@@ -91,6 +91,11 @@ const SocConsoleTools = (() => {
           const assessment = ctx.assessment();
           const query = ctx.console().lastQuery;
           const timestamp = new Date().toISOString();
+          // Read the name from the field beside this button, not only from the
+          // input-event copy, so autofill/paste or a missed input event cannot
+          // fall back to "Learner query" (F25).
+          const nameField = event.target.closest('.m04-save-query')?.querySelector('[data-m04-search-query-name]');
+          if (nameField) assessment.queryName = nameField.value;
           try {
             const test = SocM04RulesUi.test(assessment, ctx.fixture, query, timestamp);
             if (!test.succeeded) throw new Error(`Analytics rules run over the AuthLog table: ${test.error}`);
@@ -153,6 +158,8 @@ const SocConsoleTools = (() => {
         const runRuleNow = event.target.closest('[data-m04-rule-run-now], [data-m04-rule-run-scheduled]');
         if (queryTest || querySave || convertQuery || ruleSave || safeguardsSave || scheduleSave || runRuleNow) {
           const assessment = ctx.assessment();
+          // The rule form the clicked button belongs to (each console renders its own).
+          const ruleForm = () => event.target.closest('[data-m04-rule-form]') || root.querySelector('[data-m04-rule-form]');
           const timestamp = new Date().toISOString();
           assessment.queryActionError = '';
           try {
@@ -165,16 +172,16 @@ const SocConsoleTools = (() => {
             } else if (convertQuery) {
               SocM04RulesUi.convertToDraft(assessment, convertQuery.dataset.m04ConvertQuery, timestamp);
             } else if (ruleSave) {
-              const form = root.querySelector('[data-m04-rule-form]');
+              const form = ruleForm();
               SocM04RulesUi.updateDraft(assessment, form.dataset.ruleId, Object.fromEntries(['name', 'description', 'severity', 'groupingField', 'threshold', 'windowMinutes'].map((key) => [key, form.elements[key].value])), timestamp);
             } else if (safeguardsSave) {
-              const form = root.querySelector('[data-m04-rule-form]');
+              const form = ruleForm();
               SocM04RulesUi.updateSafeguards(assessment, form.dataset.ruleId, {
                 exclusion: { enabled: form.elements.exclusionEnabled.checked, field: form.elements.exclusionField.value, operator: form.elements.exclusionOperator.value, value: form.elements.exclusionValue.value, reason: form.elements.exclusionReason.value },
                 suppression: { enabled: form.elements.suppressionEnabled.checked, groupField: form.elements.suppressionGroupField.value, windowMinutes: form.elements.suppressionWindowMinutes.value },
               }, timestamp, ctx.fixture.ruleFields);
             } else {
-              const form = root.querySelector('[data-m04-rule-form]');
+              const form = ruleForm();
               if (scheduleSave) {
                 const localSchedule = form.elements.scheduledAt.value;
                 SocM04RulesUi.configureSchedule(assessment, form.dataset.ruleId, {
@@ -193,7 +200,7 @@ const SocConsoleTools = (() => {
             }
           } catch (error) {
             assessment.queryActionError = error.message;
-            const form = root.querySelector('[data-m04-rule-form]');
+            const form = ruleForm();
             const errorNode = form?.querySelector('[data-m04-rule-error]');
             if (errorNode) errorNode.textContent = error.message;
             ctx.save();

@@ -1637,7 +1637,9 @@ function moduleSixAssessmentWork(state) {
     bookmarks: copy(list(state.bookmarks)),
     collections: copy(list(state.collections)),
     mappings: copy(list(state.mappings).map((item) => ({ tacticId: item.tacticId, techniqueId: item.techniqueId, techniqueName: techniques[item.techniqueId]?.name || '', status: item.status, confidence: item.confidence, eventIds: item.eventIds, rationale: item.rationale }))),
-    handoffs: copy(list(state.handoffs).map((item) => ({ id: item.id, destination: item.destination, eventIds: item.eventIds, rationale: item.rationale, recommendation: item.recommendation, status: item.status }))),
+    // statusHistory (added 2026-10-17): each "Update status" with the student's Analyst note.
+    handoffs: copy(list(state.handoffs).map((item) => ({ id: item.id, destination: item.destination, eventIds: item.eventIds, rationale: item.rationale, recommendation: item.recommendation, status: item.status,
+      statusHistory: list(item.statusHistory).map((entry) => ({ fromStatus: entry.fromStatus, status: entry.status, timestamp: entry.timestamp, note: entry.note || '' })) }))),
     conclusions: copy(list(state.conclusions).map((item) => ({ text: item.text, eventIds: item.eventIds, disposition: item.disposition }))),
   };
 }

@@ -123,7 +123,7 @@ const hdUser = (data = {}) => makeUser('it-support', 'HDESK', { requiredLabsByMo
 const pill = (html) => (/<i class="ri-[^"]+"><\/i>([^<]+)\n/.exec(html) || [])[1];
 const dot = (html) => /mnt-module-completion-dot[^>]*aria-label="([^"]*)"/.exec(html)[1];
 const panel = (html) => (/<div [^>]*data-module-lab-status>[\s\S]*?<\/div>/.exec(html) || [''])[0];
-const lines = (html) => [...panel(html).matchAll(/<li data-lab-status="([a-z_]+)">([^<]*)/g)].map((m) => [m[1], m[2].replace(/&amp;/g, '&')]);
+const lines = (html) => [...panel(html).matchAll(/<li data-lab-status="([a-z_]+)">([^<]*)/g)].map((m) => [m[1], m[2].replace(/&amp;/g, '&').trim()]);
 function card(user, key = 'its-01', prog = HD, engagement = null) {
   setEngagement(user, engagement);
   const html = run('moduleCard')(prog, key, user);
@@ -202,7 +202,8 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
   assert.deepEqual(c.lines.map((l) => l[0]), ['waiting', 'not_submitted']);
 }
 
-// Returned for Revision beats Submitted for Faculty Review; notes follow the line.
+// Returned for Revision beats Submitted for Faculty Review; the line links to
+// the marked lab (notes beside each section) and counts the notes.
 {
   const c = card(hdUser({
     latestLabAttemptByKey: { [LAB_1]: finished(), [LAB_2]: finished({ reviewedAt: '2026-10-02T10:00:00Z', redoRequested: true }) },
@@ -210,7 +211,9 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
   }));
   assert.deepEqual([c.state, c.label], ['needs_redo', 'Returned for Revision']);
   assert.deepEqual(c.lines, [['waiting', `${TITLE_1}: waiting on your instructor.`], ['returned', `${TITLE_2} returned for revision.`]]);
-  assert.match(c.panel, /<strong>Evidence:<\/strong> Attach the Event Viewer entry\./);
+  assert.match(c.panel, new RegExp(`data-action="open-marked-lab" data-lab-key="${LAB_2}">See your marked lab`));
+  assert.match(c.panel, /\(1 note from your instructor\)/);
+  assert.doesNotMatch(c.panel, /Attach the Event Viewer entry/, 'the card does not repeat the notes');
   assert.match(c.panel, /1 of 2 required labs submitted/);
   assert.doesNotMatch(c.html, /Redo requested/);
 }
@@ -218,7 +221,10 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
 // Passed: verified record complete, every lab approved.
 {
   const c = card(hdUser({ remoteVerifiedModuleProgress: { 'its-01': true }, latestLabAttemptByKey: { [LAB_1]: approved(), [LAB_2]: approved() } }));
-  assert.deepEqual([c.state, c.label, c.dot, c.panel], ['complete', 'Passed', PASSED_DOT, '']);
+  assert.deepEqual([c.state, c.label, c.dot], ['complete', 'Passed', PASSED_DOT]);
+  // A passed module keeps a link to each marked lab.
+  assert.deepEqual(c.lines.map((l) => l[0]), ['passed', 'passed']);
+  assert.match(c.panel, new RegExp(`data-lab-key="${LAB_1}">See your marked lab`));
   assert.match(c.html, /data-module-primary-action>Review Module</);
   // Module 2 unlocks once Module 1 has passed.
   assert.equal(card(hdUser({ remoteVerifiedModuleProgress: { 'its-01': true } }), 'its-02').state, 'not_started');

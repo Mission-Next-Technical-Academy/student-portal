@@ -12,18 +12,18 @@
  *     (the submitted score and result.breakdown come from these);
  *   - ticket options, entity tiers, department fit: MODULE_SEVEN_* in
  *     portal/soc-analyst-module-07.js. The ticket key is MODULE_SEVEN_ANSWER_KEY
- *     (line 49: severity critical, disposition true-positive, route tier2-soc-net)
- *     and is only used by moduleSevenProveItPerformance(), which the submit does
- *     not call, so the ticket fields are NOT part of the submitted score.
- *     That key and the module's comments describe a different scenario (GRE
- *     tunnel / web shell / FTP exfiltration) than the QR-invoice fixture, so
- *     severity, disposition and route are advisory here; the entity roster
- *     (acct-63 / ws-517) does match the fixture and stays required.
+ *     (severity high, Critical/Medium partly right; disposition true-positive;
+ *     route tier2-soc-net), rebuilt 2026-10-17 from the QR-invoice fixture's
+ *     expectedTruth (click and DNS/TLS confirmed, execution and credential theft
+ *     not established). The submit does not score the ticket fields
+ *     (moduleSevenProveItPerformance() is never called); the sheet still checks
+ *     them. The route is a judgment call and stays advisory.
  *
  * Saved payload: result.breakdown (scorer criterion list), result.review_payload,
  * result.case_record (the ITSM ticket), result.case_display, result.critical_errors
  * and from 2026-10-17 result.assessment_work (review notes, pivots, evidence
- * actions, scope and incident record; see moduleSevenAssessmentWork()).
+ * change history plus the final evidence tray (evidenceSet), scope and every
+ * incident record; see moduleSevenAssessmentWork()).
  */
 (() => {
   'use strict';
@@ -55,8 +55,10 @@
   const roster = () => G.roster() || { users: [], devices: [] };
   const departments = () => G.departments() || [];
   const key = () => G.key() || {};
-  // Department fit below 40 is "returned" (same threshold as the ticket key, soc-analyst-module-07.js:466-469).
+  // Department fit below 40 is "returned" (same threshold as moduleSevenProveItPerformance()).
   const BOUNCE_BELOW = 40;
+  // assessment_work (and the M07 evidence/incident detail below) was first saved on this date.
+  const SINCE = '2026-10-17';
 
   const record = (result) => (result.case_record && typeof result.case_record === 'object' ? result.case_record : null);
   const field = (result, name) => { const r = record(result); return r ? (typeof r[name] === 'string' ? r[name] : '') : null; };
@@ -155,7 +157,25 @@
 
   // ----- mirror of the scorer's reading of the saved actions (soc-m07-assessment-rubric.js)
   const reviewedNetwork = (result) => (workList(result, 'networkReviews') === null ? null : workList(result, 'networkReviews').filter((item) => item.reviewed).map((item) => item.eventId));
-  const addedEvidence = (result) => (workList(result, 'evidenceChanges') === null ? null : workList(result, 'evidenceChanges').filter((item) => item.operation === 'add').map((item) => item.eventId));
+  // Every record the student ever added (the scorer credits an add even if it was removed later).
+  const everAdded = (result) => (workList(result, 'evidenceChanges') === null ? null : workList(result, 'evidenceChanges').filter((item) => item.operation === 'add').map((item) => item.eventId));
+  // The evidence tray at submit: the saved evidenceSet, or the change history replayed in order.
+  const finalEvidence = (result) => {
+    const w = work(result);
+    if (!w) return null;
+    if (Array.isArray(w.evidenceSet)) return w.evidenceSet.filter((item) => item && item.eventId);
+    const kept = new Map();
+    list(w.evidenceChanges).forEach((item) => { if (item.operation === 'add') kept.set(item.eventId, item); else kept.delete(item.eventId); });
+    return [...kept.values()];
+  };
+  const finalIds = (result) => (finalEvidence(result) === null ? null : finalEvidence(result).map((item) => item.eventId));
+  // true = in the final tray; 'partial' = added, then removed before submitting; false = never added.
+  const preserved = (result, id) => {
+    const kept = finalIds(result);
+    if (kept === null) return null;
+    return kept.includes(id) ? true : everAdded(result).includes(id) ? 'partial' : false;
+  };
+  const removedLater = (result) => { const kept = finalIds(result); return kept === null ? [] : [...new Set(everAdded(result))].filter((id) => !kept.includes(id)); };
   const validPivot = (pivots, from, to) => {
     const left = eventById(from);
     const right = eventById(to);
@@ -179,13 +199,16 @@
   }, []);
   const stepCovered = (result, step) => {
     const reviewed = reviewedNetwork(result);
-    const added = addedEvidence(result);
+    const added = everAdded(result);
     if (reviewed === null) return null;
     const pivots = workList(result, 'pivots');
     return reviewed.includes(step.evidence) || added.includes(step.evidence)
       || allEvents().some((candidate) => validPivot(pivots, candidate.id, step.evidence));
   };
-  const incident = (result) => { const links = workList(result, 'incidentLinks'); return links === null ? null : (links[0] || false); };
+  // Every incident record saved at submit (removed ones are already gone), and the
+  // one the automatic score reads: the first (soc-m07-assessment-rubric.js latestIncident).
+  const incidents = (result) => (workList(result, 'incidentLinks') === null ? null : workList(result, 'incidentLinks').filter((item) => item && item.operation !== 'remove'));
+  const incident = (result) => { const all = incidents(result); return all === null ? null : (all[0] || false); };
   const benignIds = () => allEvents().filter((item) => item.benignLookalike === true).map((item) => item.id);
   const primaryRecipients = () => new Set(confirmedSteps().flatMap((step) => list(step.recipientIds)));
   const deliveredRecord = () => {
@@ -193,7 +216,10 @@
     return list(scenario().deliveryEvents).find((item) => step && item.recipientId === list(step.recipientIds)[0] && item.status === 'delivered') || null;
   };
   const blockedRecord = () => list(scenario().deliveryEvents).find((item) => item.status === 'blocked_at_gateway') || null;
-  const ASSESSMENT = { supported: 'Supported by the evidence (confirmed)', unknown: 'Unknown / not yet verified' };
+  // Labels from the incident form's Assessment status select (soc-m07-assessment-email-ui.js).
+  const ASSESSMENT = { supported: 'Supported by linked evidence', unknown: 'Unknown / needs investigation' };
+  const assessmentLabel = (item) => ASSESSMENT[item.assessment] || item.assessment || '—';
+  const severityPartial = () => list(key().severityPartial);
 
   // ----- key-evidence pieces for the ticket work note
   function notePieces() {
@@ -233,20 +259,26 @@
           // Advisory: the Prove It scorer does not score status.
           test: (result) => (field(result, 'status') === null ? null : ['in-progress', 'pending'].includes(field(result, 'status'))),
           given: (result) => statusLabel(field(result, 'status')) || 'Left blank',
-          fix: 'Keep the case In Progress. The endpoint and credential questions are still open, so it is not resolved.',
+          fix: (result) => `You marked the case ${statusLabel(field(result, 'status')) || 'with no status'}. Keep it In Progress: nobody has yet checked whether anything ran on ${principal('devices')} or whether ${principal('users')} entered a password, so it is not resolved.`,
         }],
       },
       {
         id: 'severity',
         title: 'Severity',
-        required: false,
         answer: (result, ctx) => [['Severity', blankAs(record(result) ? shown(ctx, 'Severity', severityLabel(severityOf(result))) : null)]],
         checks: [{
-          label: () => `Severity set to ${severityLabel(key().severity)} (module answer key; advisory)`,
+          label: () => `Severity set to ${severityLabel(key().severity)} (${severityPartial().map(severityLabel).join(' or ')} is partly right)`,
           expected: () => severityLabel(key().severity),
-          test: (result) => (severityOf(result) === null ? null : severityOf(result) === key().severity),
+          test: (result) => {
+            const value = severityOf(result);
+            if (value === null) return null;
+            return value === key().severity ? true : severityPartial().includes(value) ? 'partial' : false;
+          },
           given: (result) => severityLabel(severityOf(result)) || 'Left blank',
-          fix: () => `Set Severity to ${severityLabel(key().severity)}, as the module’s answer key records, or explain in your notes why a different level fits the evidence.`,
+          fix: (result) => `${severityOf(result) ? `You set Severity to ${severityLabel(severityOf(result))}.` : 'You left Severity blank.'} Set it to ${severityLabel(key().severity)}: ${principal('users')} opened the invoice and clicked the link, and ${principal('devices')} then connected to the phishing site. That is a confirmed exposure, not a low-risk event.`,
+          fixPartial: (result) => (severityOf(result) === 'critical'
+            ? `Critical over-rates this. ${principal('users')} clicked and ${principal('devices')} connected to the phishing site, but nothing yet shows the file ran or a password was taken. Rate it ${severityLabel(key().severity)} until that is confirmed.`
+            : `${severityLabel(severityOf(result))} under-rates this: ${principal('users')} clicked the link and ${principal('devices')} connected to the phishing site. Rate it ${severityLabel(key().severity)}.`),
         }],
       },
       ...['users', 'devices'].map((kind) => {
@@ -270,8 +302,8 @@
             },
             given: (result) => field(result, name) || 'Left blank',
             fix: kind === 'users'
-              ? () => `Put ${principal('users')} in Affected user: that account received the invoice email, opened it and clicked the link.`
-              : () => `Put ${principal('devices')} in Affected device: the DNS lookup and encrypted session to the link domain came from that workstation.`,
+              ? (result) => `${field(result, name) ? `You named ${field(result, name)}, which has no part in the phishing chain.` : 'You left Affected user blank.'} Put ${principal('users')} in Affected user: that account received the invoice email, opened it and clicked the link.`
+              : (result) => `${field(result, name) ? `You named ${field(result, name)}, which only shows a normal payroll lookup.` : 'You left Affected device blank.'} Put ${principal('devices')} in Affected device: the DNS lookup and encrypted session to the link domain came from that workstation.`,
             fixPartial: kind === 'users'
               ? (result) => `${field(result, name)} was only blocked at the gateway and never received the message. Name ${principal('users')}, who received and clicked it.`
               : (result) => `${field(result, name)} is not where the link was opened. Name ${principal('devices')}.`,
@@ -281,14 +313,16 @@
       {
         id: 'disposition',
         title: 'Disposition',
-        required: false,
         answer: (result, ctx) => [['Disposition', blankAs(record(result) ? shown(ctx, 'Disposition', dispositionLabel(dispositionOf(result))) : null)]],
         checks: [{
-          label: () => `Marked as ${String(dispositionLabel(key().disposition)).toLowerCase()} (true positive; module answer key, advisory)`,
+          label: () => `Marked as ${String(dispositionLabel(key().disposition)).toLowerCase()} (true positive)`,
           expected: () => dispositionLabel(key().disposition),
           test: (result) => (dispositionOf(result) === null ? null : dispositionOf(result) === key().disposition),
           given: (result) => dispositionLabel(dispositionOf(result)) || 'Left blank',
-          fix: () => `Record the disposition as ${dispositionLabel(key().disposition)}: the email failed authentication, was delivered, and was opened and clicked, then the device contacted the link domain.`,
+          fix: (result) => {
+            const dns = eventById('M07-DNS-001') || {};
+            return `${dispositionOf(result) ? `You recorded “${dispositionLabel(dispositionOf(result))}”.` : 'You left Disposition blank.'} Record it as ${dispositionLabel(key().disposition)}: the invoice email failed DMARC, was delivered to ${principal('users')}, was opened and clicked, and ${principal('devices')} then connected to ${dns.domain || 'the link domain'}.`;
+          },
         }],
       },
       {
@@ -300,7 +334,7 @@
           expected: 'Required',
           test: (result) => (field(result, 'escalation') === null ? null : field(result, 'escalation') === 'required'),
           given: (result) => escalationLabel(field(result, 'escalation')) || 'Left blank',
-          fix: 'Set Escalation to Required. Checking the endpoint and the account for compromise is beyond an analyst’s authority.',
+          fix: (result) => `${field(result, 'escalation') ? `You set Escalation to ${escalationLabel(field(result, 'escalation'))}.` : 'You left Escalation blank.'} Set it to Required: checking ${principal('devices')} and ${principal('users')} for compromise is beyond an analyst’s authority.`,
         }],
       },
       {
@@ -311,7 +345,7 @@
           ? [['Route to department', field(result, 'escalation') === 'required' ? blankAs(shown(ctx, 'Route to department', (department(field(result, 'escalateTo')) || {}).text || field(result, 'escalateTo'))) : 'Not applicable']]
           : [['Route to department', null]]),
         checks: [{
-          label: () => `Routed to the team that owns the response (${(bestDepartment() || {}).text}; module answer key, advisory)`,
+          label: () => `Routed to the team that investigates the click and the workstation (${(bestDepartment() || {}).text})`,
           expected: () => (bestDepartment() || {}).text,
           when: (result) => field(result, 'escalation') === 'required',
           test: (result) => {
@@ -322,9 +356,11 @@
           given: (result) => (department(field(result, 'escalateTo')) || {}).text || 'No department chosen',
           fix: (result) => {
             const chosen = department(field(result, 'escalateTo'));
-            return chosen && chosen.bounce ? chosen.bounce : `Route the case to ${(bestDepartment() || {}).text}.`;
+            return chosen
+              ? `You routed the case to ${chosen.text}. ${chosen.note} Route it to ${(bestDepartment() || {}).text} instead.`
+              : `Choose a department: route the case to ${(bestDepartment() || {}).text}. ${(bestDepartment() || {}).note || ''}`.trim();
           },
-          fixPartial: (result) => `${(department(field(result, 'escalateTo')) || {}).note} Route to ${(bestDepartment() || {}).text} next time.`,
+          fixPartial: (result) => `You routed the case to ${(department(field(result, 'escalateTo')) || {}).text}. ${(department(field(result, 'escalateTo')) || {}).note} Route it to ${(bestDepartment() || {}).text} next time.`,
         }],
       },
       {
@@ -342,18 +378,41 @@
           label: 'Key evidence named in the work notes',
           text: (result) => (record(result) ? field(result, 'notes') : null),
           pieces: () => notePieces(),
-          fix: (missing) => `Back your conclusion with the evidence: your note does not mention ${missing.join('; ')}. Say what each record showed.`,
+          fix: (missing) => `Back your conclusion with the evidence: your note does not mention ${missing.join(', ')}. Say what each record showed.`,
         },
       },
     ];
   }
 
   function investigationSections() {
+    const preservedCheck = (record, label, why) => ({
+      label: () => `${label()} (${(record() || {}).id})`,
+      test: (result) => preserved(result, (record() || {}).id),
+      given: (result) => {
+        const value = preserved(result, (record() || {}).id);
+        return value === null ? null : value === true ? 'In the evidence tray' : value === 'partial' ? 'Added to evidence, then removed before submitting' : 'Never added to evidence';
+      },
+      fix: () => `Add the record for ${(record() || {}).recipientId} (${(record() || {}).id}) to your evidence: ${why()}`,
+      // 'partial' also comes from the scorer's half credit (withScore), so word it from what the student did.
+      fixPartial: (result) => (preserved(result, (record() || {}).id) === 'partial'
+        ? `You added ${(record() || {}).id} to your evidence and then removed it before submitting. Keep it in the evidence tray: ${why()}`
+        : `Add the record for ${(record() || {}).recipientId} (${(record() || {}).id}) to your evidence: ${why()}`),
+    });
+    const evidenceRows = (result) => {
+      const kept = finalEvidence(result);
+      const changes = workList(result, 'evidenceChanges');
+      const rows = [['Evidence in the tray at submit', kept.length ? kept.map((item) => describe(item.eventId)) : 'None']];
+      if (removedLater(result).length) {
+        rows.push(['Evidence change history (in order)', changes.map((item) => `${item.operation === 'add' ? 'Added' : 'Removed'} ${describe(item.eventId)}`)]);
+      }
+      return rows;
+    };
     return [
       {
         id: 'review-notes',
         title: 'Records reviewed & analyst notes',
         required: false,
+        recordedSince: SINCE,
         answer: (result) => {
           const messages = workList(result, 'messageReviews');
           if (messages === null) return [['Records reviewed', null]];
@@ -374,40 +433,38 @@
       {
         id: 'delivery-scope',
         title: 'Who received the message',
+        recordedSince: SINCE,
         answer: (result) => {
           const w = work(result);
           if (!w) return [['Student’s work in this section', null], ['Events credited by the scorer', credited('delivery-scope')(result)]];
           const scope = w.scope || {};
+          const delivery = (id) => ['delivered', 'blocked_at_gateway'].includes((eventById(id) || {}).status);
           return [
             ['Recipients the student scoped in', list(scope.recipientIds).length ? list(scope.recipientIds) : 'None'],
             ['Devices the student scoped in', list(scope.deviceIds).length ? list(scope.deviceIds) : 'None'],
-            ['Delivery records preserved as evidence', describeAll(addedEvidence(result).filter((id) => ['delivered', 'blocked_at_gateway'].includes((eventById(id) || {}).status)))],
+            ['Delivery records in the evidence tray', describeAll(finalIds(result).filter(delivery))],
+            ...(removedLater(result).filter(delivery).length ? [['Delivery records added, then removed', describeAll(removedLater(result).filter(delivery))]] : []),
           ];
         },
         checks: withScore([
-          {
-            label: () => `Preserved the record showing the message was delivered to ${(deliveredRecord() || {}).recipientId}`,
-            test: (result) => { const added = addedEvidence(result); return added === null ? null : added.includes((deliveredRecord() || {}).id); },
-            fix: () => `Add the delivery record for ${(deliveredRecord() || {}).recipientId} (${(deliveredRecord() || {}).id}) to your evidence: it proves the message arrived.`,
-          },
-          {
-            label: () => `Preserved the record showing the copy for ${(blockedRecord() || {}).recipientId} was blocked at the gateway`,
-            test: (result) => { const added = addedEvidence(result); return added === null ? null : added.includes((blockedRecord() || {}).id); },
-            fix: () => `Add the gateway-block record for ${(blockedRecord() || {}).recipientId} (${(blockedRecord() || {}).id}) as well, so the incident only covers who actually received the message.`,
-          },
+          preservedCheck(deliveredRecord, () => `Preserved the record showing the message was delivered to ${(deliveredRecord() || {}).recipientId}`, () => 'it proves the message arrived.'),
+          preservedCheck(blockedRecord, () => `Preserved the record showing the copy for ${(blockedRecord() || {}).recipientId} was blocked at the gateway`, () => `it shows ${(blockedRecord() || {}).recipientId} never received the message, so the incident only covers who actually did.`),
         ], 'delivery-scope', 'System score for delivered versus blocked recipients', 'Preserve both the delivered record and the gateway-blocked record as evidence.'),
       },
       {
         id: 'chain',
         title: 'Message-to-network chain',
+        recordedSince: SINCE,
         answer: (result) => {
           const w = work(result);
           if (!w) return [['Student’s work in this section', null], ['Events credited by the scorer', credited('confirmed-chain')(result)]];
           return [
             ['Pivots followed (from record → to record)', list(w.pivots).length ? list(w.pivots).map((item) => `${describe(item.fromEventId)}  →  ${describe(item.toEventId)}`) : 'None followed'],
-            ['Evidence preserved', describeAll(addedEvidence(result))],
+            ...evidenceRows(result),
           ];
         },
+        response: (result) => (finalEvidence(result) || []).filter((item) => item.reason)
+          .map((item) => ({ label: `Why ${item.eventId} was kept as evidence · student response`, text: item.reason })),
         // One line per distinct confirmed-step record (message delivery and recipient
         // open share one record). Slots are fixed so the sheet does not depend on
         // load order; unused slots are skipped with `when`.
@@ -415,12 +472,13 @@
           when: () => chainRecords()[index] !== undefined,
           label: () => `Examined the record showing: ${chainRecords()[index].labels.join(' and ')} (${chainRecords()[index].evidence})`,
           test: (result) => stepCovered(result, chainRecords()[index]),
-          fix: () => `Open and preserve ${chainRecords()[index].evidence} (${chainRecords()[index].labels.join(' and ')}), or reach it by pivoting from a related record.`,
+          fix: () => `Open and preserve ${chainRecords()[index].evidence}, the record showing ${chainRecords()[index].labels.join(' and ').replace(/^The /, 'the ')}, or reach it by pivoting from a related record.`,
         })), 'confirmed-chain', 'System score for correlating the message with DNS and TLS evidence', 'Follow the chain from the click to the DNS lookup to the encrypted session, and preserve each record.'),
       },
       {
         id: 'noise',
         title: 'Benign lookalike ruled out',
+        recordedSince: SINCE,
         answer: (result) => {
           const w = work(result);
           if (!w) return [['Student’s work in this section', null], ['Events credited by the scorer', credited('noise-rejection')(result)]];
@@ -441,32 +499,51 @@
               if (found === false) return false;
               return !list(found.eventIds).some((id) => benignIds().includes(id)) && !list(found.recipientIds).some((id) => !primaryRecipients().has(id));
             },
-            fix: 'Take the benign lookalike records and any recipient who never received the message out of the incident, so it only holds the real chain.',
+            given: (result) => {
+              const found = incident(result);
+              if (!found) return found === false ? 'No incident record saved' : null;
+              const noiseIn = (item) => [...list(item.eventIds).filter((id) => benignIds().includes(id)), ...list(item.recipientIds).filter((id) => !primaryRecipients().has(id))];
+              const noise = noiseIn(found);
+              // The score reads only the first incident; say so when another one holds the lookalike.
+              const others = incidents(result).slice(1).filter((item) => noiseIn(item).length).map((item) => `${item.incidentId} (not scored) holds ${noiseIn(item).join(', ')}`);
+              return [noise.length ? `${found.incidentId} includes ${noise.join(', ')}` : `${found.incidentId} holds only the real chain`, ...others].join('; ');
+            },
+            fix: (result) => {
+              const found = incident(result);
+              if (!found) return 'Save an incident record that holds only the real chain, and leave the benign lookalike and the recipients who never received the message out of it.';
+              const events = list(found.eventIds).filter((id) => benignIds().includes(id));
+              const people = list(found.recipientIds).filter((id) => !primaryRecipients().has(id));
+              const lookalike = (allEvents().find((item) => item.benignLookalike) || {}).deviceId;
+              const parts = [
+                ...(events.length ? [`${events.join(' and ')} (${lookalike}’s normal payroll lookup, a benign lookalike)`] : []),
+                ...(people.length ? [`${people.join(' and ')}, who did not open or click the message`] : []),
+              ];
+              return `Your incident ${found.incidentId} includes ${parts.join(', and ')}. Take ${events.length + people.length === 1 ? 'it' : 'them'} out so the incident only holds the real chain.`;
+            },
           },
         ], 'noise-rejection', 'System score for keeping benign activity out of scope', 'Rule out the benign lookalike and keep it out of the incident record.'),
       },
       {
         id: 'incident',
         title: 'Incident record & evidence',
+        recordedSince: SINCE,
         answer: (result) => {
           const w = work(result);
           if (!w) return [['Student’s work in this section', null], ['Events credited by the scorer', credited('incident-evidence')(result)]];
-          const found = incident(result);
-          if (!found) return [['Incident record', 'No incident record saved']];
+          const all = incidents(result);
+          if (!all.length) return [['Incident record', 'No incident record saved']];
           return [
-            ['Incident', `${found.incidentId} · ${found.title || 'Untitled'}`],
-            ['Student’s assessment', ASSESSMENT[found.assessment] || found.assessment || '—'],
-            ['Recipients', list(found.recipientIds)],
-            ['Devices', list(found.deviceIds)],
-            ['Records attached', describeAll(found.eventIds)],
+            ...(all.length > 1 ? [['Incident records saved', `${all.length}; the automatic score reads the first (${all[0].incidentId}), all are shown below`]] : []),
+            ...all.flatMap((found) => [
+              ['Incident', `${found.incidentId} · ${found.title || 'Untitled'}`],
+              ['Assessment status', assessmentLabel(found)],
+              ['Recipient scope', list(found.recipientIds).length ? list(found.recipientIds) : 'None'],
+              ['Device scope', list(found.deviceIds).length ? list(found.deviceIds) : 'None'],
+              ['Linked evidence', describeAll(found.eventIds)],
+            ]),
           ];
         },
-        response: (result) => {
-          const found = incident(result);
-          const reasons = (workList(result, 'evidenceChanges') || []).filter((item) => item.operation === 'add' && item.reason)
-            .map((item) => ({ label: `Why ${item.eventId} was preserved · student response`, text: item.reason }));
-          return [...(found ? [{ label: 'Incident summary · student response', text: found.summary || '' }] : []), ...reasons];
-        },
+        response: (result) => (incidents(result) || []).map((found) => ({ label: `Analyst summary (${found.incidentId}) · student response`, text: found.summary || '' })),
         checks: withScore([
           {
             label: () => `Incident record includes every confirmed step’s evidence (${chainRecords().map((item) => item.evidence).join(', ')})`,
@@ -475,38 +552,60 @@
               if (found === null) return null;
               return Boolean(found) && confirmedSteps().length > 0 && confirmedSteps().every((step) => list(found.eventIds).includes(step.evidence));
             },
-            fix: () => `Attach ${chainRecords().map((item) => item.evidence).join(', ')} to the incident so it carries the whole confirmed chain.`,
+            given: (result) => { const found = incident(result); return found ? `${found.incidentId} links ${list(found.eventIds).join(', ') || 'no records'}` : found === false ? 'No incident record saved' : null; },
+            fix: (result) => {
+              const found = incident(result);
+              const missing = chainRecords().map((item) => item.evidence).filter((id) => !found || !list(found.eventIds).includes(id));
+              return `Attach ${missing.join(', ')} to ${found ? `incident ${found.incidentId}` : 'an incident record'} so it carries the whole confirmed chain: the click, the DNS lookup and the encrypted session.`;
+            },
           },
           {
-            label: 'Evidence the student preserved ties into the incident record',
+            label: 'Evidence the student kept in the tray ties into the incident record',
             test: (result) => {
               const found = incident(result);
-              const added = addedEvidence(result);
-              if (found === null || added === null) return null;
-              return Boolean(found) && added.some((id) => list(found.eventIds).includes(id));
+              const kept = finalIds(result);
+              if (found === null || kept === null) return null;
+              if (!found) return false;
+              return kept.some((id) => list(found.eventIds).includes(id)) ? true : everAdded(result).some((id) => list(found.eventIds).includes(id)) ? 'partial' : false;
             },
-            fix: 'Preserve the records you attach to the incident, with a short reason for each.',
+            fix: 'Keep the records you link to the incident in your evidence tray too, with a short reason for each.',
+            fixPartial: (result) => {
+              const found = incident(result);
+              const removed = found ? removedLater(result).filter((id) => list(found.eventIds).includes(id)) : [];
+              return removed.length
+                ? `You linked ${removed.join(', ')} to ${found.incidentId} but removed ${removed.length === 1 ? 'it' : 'them'} from your evidence tray before submitting. Keep ${removed.length === 1 ? 'it' : 'them'} in the tray so the incident rests on preserved evidence.`
+                : 'Keep the records you link to the incident in your evidence tray too, with a short reason for each.';
+            },
           },
         ], 'incident-evidence', 'System score for the evidence-linked incident record', 'Save an incident record that attaches the confirmed chain and the evidence you preserved.'),
       },
       {
         id: 'unknowns',
         title: 'What is still unknown',
+        recordedSince: SINCE,
         answer: (result) => {
-          const found = incident(result);
-          if (found === null) return [['Student’s work in this section', null], ['Events credited by the scorer', credited('unknown-boundaries')(result)]];
-          return [['Student’s assessment on the incident', found ? (ASSESSMENT[found.assessment] || found.assessment || '—') : 'No incident record saved']];
+          const all = incidents(result);
+          if (all === null) return [['Student’s work in this section', null], ['Events credited by the scorer', credited('unknown-boundaries')(result)]];
+          if (!all.length) return [['Assessment status on the incident', 'No incident record saved']];
+          return all.map((found) => [`Assessment status on ${found.incidentId}`, assessmentLabel(found)]);
         },
         checks: [
           {
-            label: 'Marked the incident’s assessment Unknown, or said in the summary that it is not established',
+            label: () => `Marked the incident’s assessment “${ASSESSMENT.unknown}”, or said in the summary that it is not established`,
             when: (result) => work(result) !== null,
             test: (result) => {
               const found = incident(result);
               if (found === null) return null;
               return Boolean(found) && (found.assessment === 'unknown' || /\bunknown\b|\bunverified\b|\bnot established\b|\bnot confirmed\b/i.test(found.summary || ''));
             },
-            fix: () => `Mark the assessment Unknown: the records do not show ${chain().filter((step) => step.status === 'unverified').map((step) => String(step.step).replace(/_/g, ' ')).join(' or ')}.`,
+            given: (result) => { const found = incident(result); return found ? assessmentLabel(found) : found === false ? 'No incident record saved' : null; },
+            fix: (result) => {
+              const found = incident(result);
+              const open = chain().filter((step) => step.status === 'unverified').map((step) => String(step.step).replace(/_/g, ' ')).join(' or ');
+              return found
+                ? `You set ${found.incidentId} to “${assessmentLabel(found)}”. Set it to “${ASSESSMENT.unknown}”, or say in the summary that it is not established: the records do not show ${open}.`
+                : `Save an incident record with the assessment “${ASSESSMENT.unknown}”: the records do not show ${open}.`;
+            },
           },
           {
             label: 'Did not state endpoint execution or credential compromise as confirmed',
@@ -535,8 +634,7 @@
     },
     freeText: (result) => {
       const r = record(result) || {};
-      const found = incident(result);
-      return [r.notes, found ? found.summary : ''];
+      return [r.notes, ...(incidents(result) || []).map((found) => found.summary || '')];
     },
     rubric: { criticalLabels: {} },
     sections: [...ticketSections(), ...investigationSections()],

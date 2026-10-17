@@ -109,6 +109,9 @@ module.exports = ({ run, clone }) => {
     actions: ['revoke-ortiz', 'remove-rule', 'revoke-apppw', 'reset-hale', 'block-ip'],
   }), { pins: ['A-5001', 'A-5002', 'A-5012', 'P-7001', 'P-7002'], link: links(['ALT-5170']) });
 
+  // F22: the parent correctly left open for Identity Response is not marked down.
+  const openParent = attempt('m03-open-parent', detOf(), { res: { ...resolutions(), parentClosed: false } });
+
   // Older attempt: no assessment block, no case_display, no query_summary.
   const older = attempt('m03-older', detOf(), { display: false, assessment: false });
 
@@ -135,11 +138,25 @@ module.exports = ({ run, clone }) => {
       expect: {
         verdict: 'return',
         sections: { 'case-status': 'fail', severity: 'fail', disposition: 'fail', escalation: 'fail', 'account-scope': 'fail', indicators: 'fail', actions: 'fail', 'alert-links': 'fail', 'child-incidents': 'fail', 'evidence-pinned': 'fail', handoff: 'fail' },
-        html: ['Recommend RETURN', 'Mark m.ortiz as Compromised', 'Set Escalation to Required', 'Take this out', 'Avoided an unsafe step: deleting log evidence', 'Pin the records that prove your findings', '&lt;script&gt;'],
+        html: ['Recommend RETURN', 'Mark m.ortiz as Compromised', 'Set Escalation to Required', 'You recommended “Reset t.nguyen’s password and revoke the travel session”', 'Avoided an unsafe step: deleting log evidence', 'Pin the spray failures from 203.0.113.77', '&lt;script&gt;'],
       },
       custom: ({ suggested }) => {
         assert.match(suggested.find((item) => item.item_label === 'Account scope').comment, /Mark m\.ortiz as Compromised/);
         assert.ok(suggested.some((item) => item.item_label === 'Child incident resolutions'));
+        // Notes are plain instructions, not "Finish the child incidents: closing …" fragments.
+        suggested.forEach((item) => assert.doesNotMatch(item.comment, /Finish the child incidents|Pin the records that prove|Run the searches that show|: (pinned|pivoted|closing|queried|linked) /i, item.item_label));
+        // Deduction and indicator notes quote what the student picked, in the UI's words, never the scorer's labels.
+        const note = (label) => (suggested.find((item) => item.item_label === label) || {}).comment || '';
+        suggested.forEach((item) => assert.doesNotMatch(item.comment, /Unsupported:|Unsafe:|^Remove |• Remove |listed as an indicator|marked exposed\/compromised|and and|true-positive|benign-positive|\(−?-?\d+\)/, item.item_label));
+        assert.match(note('Account scope'), /You marked t\.nguyen as “Compromised \(attacker access\)”\. The travel notice/);
+        assert.match(note('Indicators to hand off'), /You listed “IP 198\.51\.100\.140” as an indicator\. 198\.51\.100\.140 is t\.nguyen’s hotel network/);
+        assert.match(note('Indicators to hand off'), /You listed “Session S-5601” as an indicator/);
+        assert.match(note('Indicators to hand off'), /Add the attacker’s IP \(“IP 203\.0\.113\.77”\) and the forwarding address \(“Forwarding address ext-archive@proton-box\.example”\) to the indicators to hand off.*\(you listed “IP 198\.51\.100\.140”, “Session S-5601”\)\./);
+        assert.match(note('Recommended response'), /You recommended “Delete the attacker’s log records to contain the incident”\. Deleting log records destroys the evidence/);
+        assert.match(note('Alert-to-incident links'), /You linked ALT-5174 \(“Failed sign-in followed by success — l\.brooks”\) to INC-MN-517\..*unlink it/);
+        assert.match(note('Alert-to-incident links'), /Link ALT-5170 \(.*\) and ALT-5171 \(.*\) to INC-MN-517: they are part of this attack \(you linked ALT-5174\)\./);
+        // The child-incident note names the incident that was closed wrongly, once.
+        assert.equal(note('Child incident resolutions'), 'You closed INC-MN-518 (Account alert review) as true positive, but its records (A-5018 and A-5019) support benign positive.');
       },
     },
     {
@@ -149,6 +166,24 @@ module.exports = ({ run, clone }) => {
         verdict: 'pass',
         sections: { severity: 'partial', 'other-accounts': 'partial', actions: 'partial', 'alert-links': 'partial', 'evidence-pinned': 'partial', 'account-scope': 'pass', disposition: 'pass' },
         html: ['Recommend PASS', 'Partly there (does not block a pass', 'Medium under-rates this', 'over-states'],
+      },
+    },
+    {
+      name: 'M03 parent left open after both children are resolved passes and prefills no child-incident note',
+      row: openParent,
+      expect: { verdict: 'pass', sections: { 'case-status': 'pass', 'child-incidents': 'pass' }, feedback: [] },
+    },
+    {
+      name: 'M03 amber notes are short instructions that cite what the student actually did',
+      row: partial,
+      expect: { verdict: 'pass' },
+      custom: ({ suggested }) => {
+        const note = (label) => (suggested.find((item) => item.item_label === label) || {}).comment || '';
+        assert.match(note('Evidence pinned'), /^To strengthen next time: pin .*\(you pinned A-5001, A-5002, A-5012, P-7001, P-7002\)\.$/);
+        assert.match(note('Alert-to-incident links'), /^To strengthen next time: link ALT-5171 \(“Suspicious inbox forwarding rule”\) to INC-MN-517: it is part of this attack \(you linked ALT-5170\)\.$/);
+        assert.match(note('Route to department'), /^To strengthen next time: route the case to Identity Response: .*\(you routed it to “Tier 2 SOC”\)\.$/);
+        assert.match(note('Recommended response'), /^To strengthen next time: also recommend “Remove the expired legacy-IMAP exception” and “Notify the Finance data owner/);
+        suggested.forEach((item) => assert.doesNotMatch(item.comment, /: (pinned|pivoted|closing|queried|linked) /i, item.item_label));
       },
     },
     {

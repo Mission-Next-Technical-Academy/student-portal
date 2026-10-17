@@ -294,12 +294,16 @@ const SocM06AssessmentRelatedSearch = (() => {
       <label>Rationale <textarea name="rationale" maxlength="1000" required placeholder="Why does this evidence require escalation?"></textarea></label>
       <label class="m06-field-wide">Recommendation <textarea name="recommendation" maxlength="1000" required placeholder="What should the receiving team do next?"></textarea></label>
       <div class="m06-form-actions m06-field-wide"><button type="submit">Propose handoff</button><p data-m06-handoff-feedback role="status"></p></div></form>
-      <ul class="m06-record-list">${(state?.handoffs || []).map((item) => `<li><strong>${e(item.destination)}</strong> · ${e(item.id)} · ${item.eventIds.map(e).join(', ')}<p>Status: ${e(item.status)}</p><p>${e(item.rationale)}</p><p>${e(item.recommendation)}</p>
+      <ul class="m06-record-list">${(state?.handoffs || []).map((item) => `<li><strong>${e(HANDOFF_DESTINATION[item.destination] || item.destination)}</strong> · ${e(item.id)} · ${item.eventIds.map(e).join(', ')}<p>Status: ${e(HANDOFF_STATUS[item.status] || item.status)}</p><p>${e(item.rationale)}</p><p>${e(item.recommendation)}</p>
         ${['proposed', 'in_review'].includes(item.status) ? `<form data-m06-handoff-status-form="${e(item.id)}"><label>Update status <select name="status" required><option value="in_review">In review</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option></select></label><label>Analyst note <textarea name="note" maxlength="500"></textarea></label><button type="submit">Save status</button></form><p data-m06-handoff-status-feedback="${e(item.id)}" role="status"></p>` : ''}
-        <details><summary>Status history (${item.statusHistory.length})</summary><ol>${item.statusHistory.map((entry) => `<li>${e(entry.status)} · ${e(entry.timestamp)} · evidence: ${entry.eventIds.map(e).join(', ')}${entry.note ? `<p>${e(entry.note)}</p>` : ''}</li>`).join('') || '<li>No status changes recorded.</li>'}</ol></details></li>`).join('') || '<li>No handoff proposals.</li>'}</ul></section>`;
+        <details><summary>Status history (${item.statusHistory.length})</summary><ol>${item.statusHistory.map((entry) => `<li>${e(HANDOFF_STATUS[entry.status] || entry.status)} · ${e(entry.timestamp)} · evidence: ${entry.eventIds.map(e).join(', ')}${entry.note ? `<p>${e(entry.note)}</p>` : ''}</li>`).join('') || '<li>No status changes recorded.</li>'}</ol></details></li>`).join('') || '<li>No handoff proposals.</li>'}</ul></section>`;
   }
 
   const MAPPING_STATUS = Object.freeze({ supported: 'Supported', needs_review: 'Needs review', unsupported: 'Unsupported' });
+  // Handoff words the student sees (form options and the saved list); the
+  // instructor Submission Sheet (admin-sheets/soc-m06.js) uses the same ones.
+  const HANDOFF_DESTINATION = Object.freeze({ alert: 'Alert', incident: 'Incident', rule: 'Detection rule' });
+  const HANDOFF_STATUS = Object.freeze({ proposed: 'Proposed', in_review: 'In review', accepted: 'Accepted', rejected: 'Rejected' });
 
   // One matrix cell. Selecting it only fills the form's hidden tactic and
   // technique fields (soc-console-tools.js wires the click); the column the
@@ -441,5 +445,6 @@ const SocM06AssessmentRelatedSearch = (() => {
   }
 
   return Object.freeze({ MAX_RANGE_MS, SEARCH_LIMIT, QUERY_FIELDS, TACTICS, TECHNIQUES, validateScope, search, parseQuery, saveQuery, runSavedQuery, pivot,
-    toggleBookmark, selectCollection, saveCollection, validateMapping, saveMapping, removeMapping, proposeHandoff, updateHandoffStatus, renderHandoffPanel, renderMappingPanel, render, renderSearch, renderSavedQueryPanel, renderEvidencePanel, escapeHtml });
+    toggleBookmark, selectCollection, saveCollection, validateMapping, saveMapping, removeMapping, proposeHandoff, updateHandoffStatus, renderHandoffPanel, renderMappingPanel, render, renderSearch, renderSavedQueryPanel, renderEvidencePanel, escapeHtml,
+    MAPPING_STATUS, HANDOFF_DESTINATION, HANDOFF_STATUS });
 })();

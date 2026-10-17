@@ -14,11 +14,12 @@ const MODULE_SEVEN_COMPLETION_LAB_IDS = ['assessment-1', 'assessment-2', 'additi
 // tracked against the last (this module's own independent-assessment key).
 const MODULE_SEVEN_PRIMARY_CATALOG_KEY = MODULE_SEVEN_CATALOG_LAB_KEYS[MODULE_SEVEN_CATALOG_LAB_KEYS.length - 1];
 
-// Prove It case — authored from the imported GRE-tunnel (10.1.0.33 covert
-// channel), HTTP web-shell (/uploads/shell.php), and required FTP
-// anonymous-exfil (10.4.5.200) lab scenarios in
-// portal/imported-labs/mission-next-labs/src/data.js: one incident chain —
-// web-shell foothold -> persistent GRE tunnel -> anonymous-FTP exfiltration.
+// Prove It case — the QR-invoice phishing chain in soc-m07-assessment-data.js:
+// a spoofed invoice (DMARC fail) delivered to acct-63 and blocked for acct-82;
+// acct-63 opened it and clicked, then ws-517 resolved invoice-qr.example
+// (203.0.113.88) and opened a TLS session to it. Endpoint execution and
+// credential compromise are NOT established (expectedTruth.unconfirmed).
+// (The imported GRE-tunnel / web-shell / FTP labs are separate catalog labs.)
 const MODULE_SEVEN_CASE_ID = 'CASE-070731';
 const MODULE_SEVEN_INCIDENT_ID = 'INC-071042';
 // The ticket's entities are the M07 assessment case's own recipients and devices.
@@ -43,14 +44,22 @@ function moduleSevenMigrateLegacyHosts(value) {
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, moduleSevenMigrateLegacyHosts(item)]));
   return value;
 }
+// Route fit for the QR-invoice case (never shown to the student; the ticket
+// only shows each option's text). The open questions are whether anything ran
+// on ws-517 after the click and whether acct-63 entered credentials, so the
+// follow-up investigation belongs to Tier 2 SOC; Identity Response can act on
+// the account as a precaution but cannot settle the endpoint question.
 const MODULE_SEVEN_DEPARTMENT_OPTIONS = [
-  { id: 'tier2-soc-net', text: 'Tier 2 SOC — Network Intrusion', fit: 100, note: 'Owns active tunnel/C2 and exfiltration response.' },
-  { id: 'app-sec', text: 'Application Security', fit: 60, note: 'Owns the vulnerable web app, but not the active exfiltration response.' },
-  { id: 'identity-response', text: 'Identity Response', fit: 20, note: 'No compromised identity/session evidence in this case.', bounce: 'Returned — this case has no identity-compromise evidence; route to Tier 2 SOC Network Intrusion.' },
-  { id: 'helpdesk', text: 'Help Desk', fit: 10, note: 'Not equipped for active intrusion response.', bounce: 'Returned — escalate active intrusions to Tier 2 SOC, not Help Desk.' },
+  { id: 'tier2-soc-net', text: 'Tier 2 SOC — Network Intrusion', fit: 100, note: 'Tier 2 SOC owns the follow-up: checking ws-517 for anything that ran after the click and acct-63 for credentials entered at the link domain.' },
+  { id: 'app-sec', text: 'Application Security', fit: 20, note: 'No company application is involved: the link points to an outside site.', bounce: 'Returned — no company application is involved in this phishing case. Route it to Tier 2 SOC — Network Intrusion, who can check ws-517 and acct-63.' },
+  { id: 'identity-response', text: 'Identity Response', fit: 60, note: 'Identity Response can reset acct-63 as a precaution, but stolen credentials are not established yet and nobody would check ws-517 for what ran after the click.' },
+  { id: 'helpdesk', text: 'Help Desk', fit: 10, note: 'Help Desk is not equipped to investigate a clicked phishing link and a possible compromise.', bounce: 'Returned — a clicked phishing link followed by a connection to the phishing site needs Tier 2 SOC — Network Intrusion, not Help Desk.' },
 ];
-// Answer key — kept in module data, never shown live in Prove It.
-const MODULE_SEVEN_ANSWER_KEY = { severity: 'critical', disposition: 'true-positive', escalateTo: 'tier2-soc-net' };
+// Answer key — kept in module data, never shown live in Prove It. High, not
+// Critical: the click and the connection to the phishing site are confirmed,
+// but no execution or credential theft is. Critical (over-rated) and Medium
+// (under-rated) are partly right; Low is wrong.
+const MODULE_SEVEN_ANSWER_KEY = { severity: 'high', severityPartial: ['critical', 'medium'], disposition: 'true-positive', escalateTo: 'tier2-soc-net' };
 
 const MODULE_SEVEN_QUIZ_BANKS = [
   {
@@ -486,12 +495,12 @@ function moduleSevenProveItPerformance() {
     department, bounced,
     feedback: [
       entityPoints >= 20
-        ? 'Affected entity/scope: correct — the compromised web-app service account and host.'
+        ? 'Affected entity/scope: correct — acct-63 received and clicked the invoice, and ws-517 contacted the link domain.'
         : entityPoints > 0
-          ? 'Affected entity/scope: partial credit — a related host/account is supported by the evidence, but SRV-WEB07 / svc-webapp01 is the confirmed source.'
-          : 'Affected entity/scope: review the tunnel, web-shell, and FTP evidence for the confirmed source host and account.',
-      severityOk ? 'Severity: correct.' : 'Severity: review — an active, persistent exfiltration chain is Critical.',
-      dispositionOk ? 'Disposition: correct.' : 'Disposition: review — the tunnel, web shell, and anonymous FTP downloads together confirm malicious activity.',
+          ? 'Affected entity/scope: partial credit — acct-82 was a recipient, but its copy was blocked at the gateway; acct-63 on ws-517 received and clicked it.'
+          : 'Affected entity/scope: review the delivery trace and the DNS/TLS records for the recipient and workstation that clicked.',
+      severityOk ? 'Severity: correct.' : 'Severity: review — a confirmed click and connection to the phishing site, with execution and credential theft not yet established, is High.',
+      dispositionOk ? 'Disposition: correct.' : 'Disposition: review — the spoofed invoice was delivered, clicked, and followed by a connection to the phishing site.',
       !escalationRequiredOk
         ? 'Routing: not applicable — escalation was set to not required.'
         : !department
@@ -1362,6 +1371,8 @@ function moduleSevenAssessmentWork(state) {
     networkReviews: actions('network_review'),
     pivots: actions('pivot'),
     evidenceChanges: actions('evidence_change'),
+    // The evidence tray at submit (adds net of removals), with each kept record's reason.
+    evidenceSet: copy(list(state.evidenceChanges)),
     scope: copy(state.scope),
     recipientSearch: copy(state.recipientSearch),
     incidentLinks: copy(list(state.incidentLinks)),

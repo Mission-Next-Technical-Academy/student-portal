@@ -91,7 +91,8 @@ module.exports = ({ run, clone }) => {
         sections: { priority: 'pass', dispositions: 'pass', 'assign-escalate': 'pass', metrics: 'pass', 'noisy-rule': 'pass', handoff: 'pass', 'technical-report': 'pass', 'executive-summary': 'pass', 'escalation-notice': 'judgment', 'closure-report': 'pass', 'follow-ups': 'pass', closure: 'pass', 'action-log': 'judgment' },
         feedback: [],
         html: ['Recommend PASS', 'OPS-5511 · INC-4937', 'Q-13 · Office macro spawned shell on ws-231', 'matches the supported call', 'True positive', 'Needs investigation', 'Analyst Chen', 'Incident lead + endpoint/identity owners', /data-sheet-narrative="technical-report:0"/, '2 of 2 found'],
-        notHtml: ['true_positive', 'needs_investigation', 'ir-lead-owners', 'fs02-service-owner', 'priorityOrder'],
+        html: ['fs02-service-owner'],
+        notHtml: ['true_positive', 'needs_investigation', 'ir-lead-owners', 'priorityOrder'],
       },
     },
     {
@@ -100,7 +101,7 @@ module.exports = ({ run, clone }) => {
       expect: {
         verdict: 'return',
         sections: { priority: 'fail', dispositions: 'fail', 'assign-escalate': 'fail', metrics: 'fail', 'noisy-rule': 'fail', handoff: 'fail', 'technical-report': 'fail', 'executive-summary': 'fail', 'closure-report': 'fail', 'follow-ups': 'fail', closure: 'fail' },
-        html: ['Recommend RETURN', 'Rank the queue by severity', 'supported call: True positive', 'Keep the incident open', 'Flag R-04', 'Avoid saying one thing', '&lt;script&gt;'],
+        html: ['Recommend RETURN', 'Rank the queue by severity', 'supported call: True positive', 'Set Decision to Retain open (you chose Close)', 'Flag R-04', 'Your interpretation says &quot;caused&quot;', 'slow analysts caused the backlog', '&lt;script&gt;'],
         notHtml: ['<script>alert'],
       },
     },
@@ -110,7 +111,7 @@ module.exports = ({ run, clone }) => {
       expect: {
         verdict: 'return',
         sections: { priority: 'partial', dispositions: 'partial' },
-        html: ['Partly there', 'is correctly first, but the next items are out of order'],
+        html: ['Partly there', 'Q-03 is correctly first, but your next items are Q-04, Q-02'],
       },
     },
     {

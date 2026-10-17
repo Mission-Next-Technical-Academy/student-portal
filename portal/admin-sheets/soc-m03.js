@@ -107,22 +107,61 @@
     return c && ctx.scorerResult ? !ctx.scorerResult.criticalMisses.includes(c.label) : null;
   };
   const lower = (text) => String(text).charAt(0).toLowerCase() + String(text).slice(1);
+  // Scorer labels are past tense ("Pinned the forwarding rule"); a note to the student is an instruction ("pin the forwarding rule").
+  const IMPERATIVE = { queried: 'query', pivoted: 'pivot', pinned: 'pin', linked: 'link', searched: 'search', ran: 'run' };
+  const imperative = (text) => String(text).replace(/^(\w+)\b/, (word) => IMPERATIVE[word.toLowerCase()] || word);
   const stripLevel = (text) => String(text).replace(/^(Unsupported|Unsafe):\s*/, '');
 
   /* A scorer-driven group: one ✓/✗ line per rubric item (all = pass, some = ◐,
    * none = ✗). The framework's evidence group matches terms in a text, so the
-   * text handed to it is the list of item tokens the scorer credited. */
-  function hitGroup({ label, compId, items, needsAssessment, fix }) {
+   * text handed to it is the list of item tokens the scorer credited.
+   * `short(item)` names a missed item in the note to the student. */
+  function hitGroup({ label, compId, items, needsAssessment, fix, short }) {
+    const defaultShort = (item) => imperative(lower(item.label)).replace(/^handoff (names|explains|states) /, '').replace(/ written \(40\+ characters\)$/, '');
     return {
       label,
       text: (result, ctx) => {
         if (!ctx.scorerResult || (needsAssessment && !hasAssessment(result))) return null;
         return items().map((item, index) => (hit(ctx, compId, item) ? `p${index}` : '')).join(' ');
       },
-      pieces: () => items().map((item, index) => ({ name: lower(item.label), short: lower(item.label), label: item.label, terms: [`p${index}`] })),
-      fix: fix || ((missing) => `Add what is missing: ${missing.join('; ')}.`),
+      // short: the scorer label without its "handoff names" / "written (40+…)" frame.
+      pieces: () => items().map((item, index) => ({ name: lower(item.label), short: (short || defaultShort)(item, index), label: item.label, terms: [`p${index}`] })),
+      fix: fix || ((missing) => `Add what is missing: ${missing.join(', ')}.`),
     };
   }
+  // 'a', 'a and b', 'a, b and c'
+  // ('… and 3 more' from the framework's shortList already carries its 'and'.)
+  const andList = (names) => (names.length <= 1 ? names.join('')
+    : /^and \d+ more$/.test(names[names.length - 1]) ? names.join(', ')
+      : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
+  const quoted = (text) => `“${text}”`;
+  const indicatorsOf = (result) => (arrayOf(result, 'indicators') || []);
+
+  /* What to tell the student when the scorer deducted for an item, in plain
+   * English that quotes what they actually picked (owner, 2026-10-17). Keyed
+   * by the rubric item's label (M03E_RUBRIC); anything unmatched falls back to
+   * a generic sentence built from the label. */
+  const AVOID_NOTES = [
+    [/t\.nguyen marked/, (result) => `You marked t.nguyen as ${quoted(textOf(list('statuses'), statusOf(result, 't.nguyen')))}. The travel notice (Singapore, expected IP 198.51.100.140) explains that sign-in, so t.nguyen is Not affected.`],
+    [/benign or internal IP/, (result) => {
+      const why = { '198.51.100.140': 'is t.nguyen’s hotel network, covered by the travel notice', '10.20.4.22': 'is m.ortiz’s own office workstation on the corporate LAN' };
+      const listed = indicatorsOf(result).filter((id) => why[id]);
+      return `You listed ${andList(listed.map((id) => quoted(textOf(list('indicators'), id))))} as ${listed.length === 1 ? 'an indicator' : 'indicators'}. ${listed.map((id) => `${id} ${why[id]}`).join('; ')}. Take ${listed.length === 1 ? 'it' : 'them'} off the list so responders don’t block or hunt on a harmless address.`;
+    }],
+    [/S-5601/, () => `You listed ${quoted(textOf(list('indicators'), 'S-5601'))} as an indicator. S-5601 is m.ortiz’s normal office session from 10.20.4.22 with MFA; the attacker’s session is S-5520. Take S-5601 off the list.`],
+    [/action against t\.nguyen/, () => `You recommended ${quoted(textOf(list('actions'), 'reset-nguyen'))}. The travel notice explains t.nguyen’s sign-in, so there is nothing to reset. Drop that step.`],
+    [/disabling every targeted account/, () => `You recommended ${quoted(textOf(list('actions'), 'disable-all'))}. Most of those accounts were only targeted and never signed in, so this locks people out without containing anything. Act on m.ortiz and d.hale only.`],
+    [/deleting log evidence/, () => `You recommended ${quoted(textOf(list('actions'), 'purge-logs'))}. Deleting log records destroys the evidence responders and auditors need, and it contains nothing. Never remove logs.`],
+    [/wiping a laptop/, () => `You recommended ${quoted(textOf(list('actions'), 'wipe-laptop'))}. Nothing in the records touches m.ortiz’s laptop: the attacker used a legacy mail sign-in from 203.0.113.77. Drop that step.`],
+    [/l\.brooks alert linked/, () => {
+      const alert = ((prove() && prove().alerts) || []).find((a) => a.id === 'ALT-5174');
+      return `You linked ALT-5174${alert ? ` (${quoted(alert.title)})` : ''} to ${linkRule().incidentId}. That alert is l.brooks mistyping a password from the usual office address, then signing in normally. It is not part of the spray, so unlink it.`;
+    }],
+  ];
+  const avoidNote = (item, result) => {
+    const match = AVOID_NOTES.find(([pattern]) => pattern.test(item.label));
+    return match ? match[1](result) : `Take out ${lower(stripLevel(item.label))}: the records don’t support it${item.unsafe ? ', and it could cause harm' : ''}.`;
+  };
   // A scorer deduction: ✓ when the student avoided it; small deductions are
   // "partly there", unsafe or large ones are ✗.
   const avoidCheck = (compId, item) => ({
@@ -134,7 +173,7 @@
       return !h ? true : item.unsafe || item.pts <= -5 ? false : 'partial';
     },
     given: 'Done',
-    fix: `Take this out: ${lower(stripLevel(item.label))}. The records do not support it${item.unsafe ? ' and it could cause harm' : ''}.`,
+    fix: (result) => avoidNote(item, result),
   });
 
   const tierTest = (options, key) => (result) => {
@@ -147,6 +186,13 @@
   const pivotText = (options) => (options.find((o) => o.tier === 'pivot') || {}).text || '';
 
   const NOT_ASSESSED = 'Left blank';
+  // Child-incident dispositions as the resolution select shows them ('true positive').
+  const spaced = (id) => String(id || 'no disposition').replace(/-/g, ' ');
+  const wrongChildren = (result) => {
+    const rows = (record(result) && record(result).incidentResolutions && record(result).incidentResolutions.children) || {};
+    return children().filter((incident) => rows[incident.id] && rows[incident.id].resolved && rows[incident.id].disposition && rows[incident.id].disposition !== incident.disposition)
+      .map((incident) => ({ incident, row: rows[incident.id] }));
+  };
   const scopeItems = () => itemsOf('scope');
   const isIndicator = (item) => /indicator/i.test(item.label);
 
@@ -280,7 +326,7 @@
           },
           given: (result) => textOf(list('departments'), field(result, 'escalateTo')) || 'No department chosen',
           fix: (result) => (byId(list('departments'), field(result, 'escalateTo')) || {}).bounce || 'Route the case to Identity Response, who reset passwords and revoke sessions.',
-          fixPartial: (result) => `${(byId(list('departments'), field(result, 'escalateTo')) || {}).note} Route to Identity Response next time.`,
+          fixPartial: (result) => `route the case to Identity Response: resetting m.ortiz’s password and sessions is their work (you routed it to ${quoted(textOf(list('departments'), field(result, 'escalateTo')))}).`,
         }],
       },
       {
@@ -340,7 +386,14 @@
           label: 'Indicators the responders need',
           compId: 'scope',
           items: () => itemsOf('scope', (item) => isIndicator(item) && item.pts > 0),
-          fix: (missing) => `Add the indicators the responders need to block and search: ${missing.join('; ')}.`,
+          // 'Attacker IP listed as an indicator' → 'the attacker's IP (IP 203.0.113.77)'
+          short: (item) => (/attacker ip/i.test(item.label) ? `the attacker’s IP (${quoted(textOf(list('indicators'), '203.0.113.77'))})`
+            : /forwarding address/i.test(item.label) ? `the forwarding address (${quoted(textOf(list('indicators'), 'ext-archive@proton-box.example'))})`
+              : lower(item.label)),
+          fix: (missing, result) => {
+            const listed = indicatorsOf(result).map((id) => quoted(textOf(list('indicators'), id)));
+            return `add ${andList(missing)} to the indicators to hand off, so responders can block and search for ${missing.length === 1 ? 'it' : 'them'} (you listed ${listed.length ? listed.join(', ') : 'none'}).`;
+          },
         }),
       },
       {
@@ -352,7 +405,9 @@
           label: 'Response steps the records support',
           compId: 'response',
           items: () => itemsOf('response', (item) => item.pts > 0 && !/^Escalation/.test(item.label)),
-          fix: (missing) => `Add the missing response steps: ${missing.join('; ')}.`,
+          // Response items are labelled with the action text the student saw.
+          short: (item) => quoted(item.label),
+          fix: (missing) => `also recommend ${andList(missing)}: the records support ${missing.length === 1 ? 'that step' : missing.length === 2 ? 'both steps' : 'each of these steps'}.`,
         }),
       },
       {
@@ -375,13 +430,13 @@
             label: 'All four handoff parts written out (40+ characters each)',
             compId: 'documentation',
             items: () => itemsOf('documentation', (item) => /written \(40/.test(item.label)),
-            fix: (missing) => `Fill in each handoff part with a real explanation: ${missing.join('; ')}.`,
+            fix: (missing) => `Write out each handoff part (40+ characters): ${missing.join(', ')}.`,
           }),
           hitGroup({
             label: 'Key evidence named in the handoff and notes',
             compId: 'documentation',
             items: () => itemsOf('documentation', (item) => !/written \(40/.test(item.label)),
-            fix: (missing) => `Back your handoff with the evidence: it does not yet cover ${missing.join('; ')}.`,
+            fix: (missing) => `Your handoff doesn’t mention ${missing.join(', ')}.`,
           }),
         ],
       },
@@ -399,7 +454,16 @@
           label: () => `Linked the alerts that support ${linkRule().incidentId}`,
           compId: 'incident-association',
           items: () => itemsOf('incident-association', (item) => item.pts > 0),
-          fix: (missing) => `Link the supporting alerts to ${linkRule().incidentId}: ${missing.join('; ')}.`,
+          // The credited items follow M03E_INCIDENT_LINK_EXPECTATIONS.prove.supported in order.
+          short: (item, index) => {
+            const id = linkRule().supported[index];
+            const alert = ((prove() && prove().alerts) || []).find((a) => a.id === id);
+            return id ? `${id}${alert ? ` (${quoted(alert.title)})` : ''}` : lower(item.label);
+          },
+          fix: (missing, result) => {
+            const links = arrayOf(result, 'alertIncidentLinks') || [];
+            return `link ${andList(missing)} to ${linkRule().incidentId}: ${missing.length === 1 ? 'it is' : 'they are'} part of this attack (you linked ${links.length ? links.map((link) => link.alertId).join(', ') : 'none'}).`;
+          },
         }),
       },
       {
@@ -412,7 +476,7 @@
           return [
             ...children().map((incident) => {
               const row = rows[incident.id] || {};
-              return [`${incident.id} · ${incident.label}`, row.resolved ? `Resolved as ${String(row.disposition || 'no disposition').replace('-', ' ')}; evidence cited: ${row.evidence || 'none'}` : 'Not resolved'];
+              return [`${incident.id} · ${incident.label}`, row.resolved ? `Resolved as ${spaced(row.disposition)}; evidence cited: ${row.evidence || 'none'}` : 'Not resolved'];
             }),
             ['Parent case', r.incidentResolutions.parentClosed ? 'Closed' : 'Left open'],
           ];
@@ -431,25 +495,44 @@
             const comp = ctx.scorerResult.competencies.find((c) => c.id === 'incident-resolution');
             return comp ? comp.deductions.length === 0 : null;
           },
-          given: (result, ctx) => {
-            const comp = ctx.scorerResult && ctx.scorerResult.competencies.find((c) => c.id === 'incident-resolution');
-            return comp && comp.deductions.length ? comp.deductions.join('; ') : 'None';
+          // Names each incident closed with the wrong disposition, in the
+          // words the student picked (the select shows "true positive" etc.).
+          given: (result) => {
+            const wrong = wrongChildren(result);
+            return wrong.length ? wrong.map(({ incident, row }) => `${incident.id} (${incident.label}) closed as ${spaced(row.disposition)}`).join('; ') : 'None';
           },
-          fix: 'Re-check the child incident you closed with the wrong disposition against its own alert records. A typo then a normal sign-in is benign; the spray success plus forwarding rule is malicious.',
+          fix: (result) => {
+            const wrong = wrongChildren(result);
+            return wrong.length
+              ? wrong.map(({ incident, row }) => `You closed ${incident.id} (${incident.label}) as ${spaced(row.disposition)}, but its records (${andList(incident.evidence)}) support ${spaced(incident.disposition)}.`).join(' ')
+              : 'Re-check each closed child incident against its own alert records.';
+          },
         }],
         evidence: {
-          label: 'Each child incident resolved correctly, then the parent closed',
+          label: 'Each child incident resolved correctly; parent left open or closed only after both',
           text: (result, ctx) => {
             const comp = ctx.scorerResult && ctx.scorerResult.competencies.find((c) => c.id === 'incident-resolution');
             if (!comp || !record(result) || !record(result).incidentResolutions) return null;
             return [...children().map((incident, index) => (comp.evidence.some((line) => line.startsWith(`${incident.id} resolved with supported`)) ? `c${index}` : '')),
-              comp.evidence.some((line) => line.startsWith('Parent case closed')) ? 'cparent' : ''].join(' ');
+              comp.evidence.some((line) => line.startsWith('Parent case')) ? 'cparent' : ''].join(' ');
           },
           pieces: () => [
-            ...children().map((incident, index) => ({ name: `${incident.id} resolved as ${incident.disposition.replace('-', ' ')}`, short: `${incident.id} as ${incident.disposition.replace('-', ' ')} with its evidence (${incident.evidence.join(', ')}) cited in the note`, label: `${incident.id} (${incident.label}) resolved as ${incident.disposition.replace('-', ' ')}, citing its records (${incident.evidence.join(', ')}) in the note`, terms: [`c${index}`] })),
-            { name: 'the parent case closed after both children', short: 'closing the parent case after both children', label: 'Parent case closed after both child incidents were resolved', terms: ['cparent'] },
+            ...children().map((incident, index) => ({ name: `${incident.id} resolved as ${spaced(incident.disposition)}`, short: `resolve ${incident.id} as ${spaced(incident.disposition)} and cite its evidence (${incident.evidence.join(', ')}) in the note`, label: `${incident.id} (${incident.label}) resolved as ${spaced(incident.disposition)}, citing its records (${incident.evidence.join(', ')}) in the note`, terms: [`c${index}`] })),
+            { name: 'the parent kept open until both children were resolved', short: 'resolve both child incidents before closing the parent', label: 'Parent case not closed before both child incidents were resolved (left open for Identity Response is correct)', terms: ['cparent'] },
           ],
-          fix: (missing) => `Finish the child incidents: ${missing.join('; ')}.`,
+          fix: (missing, result) => {
+            const rows = (record(result) && record(result).incidentResolutions && record(result).incidentResolutions.children) || {};
+            const notes = children().map((incident) => {
+              const row = rows[incident.id] || {};
+              const want = spaced(incident.disposition);
+              if (!row.resolved) return `resolve ${incident.id} as ${want}, citing ${incident.evidence.join(', ')} (you left it unresolved)`;
+              // A wrong disposition is already named by the check above.
+              if (row.disposition !== incident.disposition) return '';
+              const cited = String(row.evidence || '').split(/[\s,;]+/).some((id) => incident.evidence.includes(id) && String(row.note || '').includes(id));
+              return cited ? '' : `cite ${incident.evidence.join(' or ')} in your ${incident.id} note`;
+            }).filter(Boolean);
+            return notes.length ? `${notes.join('; ')}.` : false;
+          },
         },
       },
       {
@@ -465,7 +548,11 @@
           compId: 'evidence',
           needsAssessment: true,
           items: () => itemsOf('evidence', (item) => item.pts > 0),
-          fix: (missing) => `Pin the records that prove your findings: ${missing.join('; ')}.`,
+          fix: (missing, result) => {
+            const pins = result.assessment && Array.isArray(result.assessment.pinned_evidence) ? result.assessment.pinned_evidence : [];
+            const ids = pins.map((pin) => { const m = /record ([A-Z]-\d+)/.exec(String(pin)); return m ? m[1] : String(pin); });
+            return `${missing.join(', ')} (you pinned ${ids.length ? ids.join(', ') : 'nothing'}).`;
+          },
         }),
       },
       {
@@ -489,7 +576,13 @@
           compId: 'investigation',
           needsAssessment: true,
           items: () => itemsOf('investigation', (item) => item.pts > 0),
-          fix: (missing) => `Run the searches that show the attack: ${missing.join('; ')}.`,
+          fix: (missing, result) => {
+            const a = result.assessment && typeof result.assessment === 'object' ? result.assessment : {};
+            const summary = a.query_summary && typeof a.query_summary === 'object' ? a.query_summary : null;
+            const total = summary ? summary.total : (Array.isArray(a.query_log) ? a.query_log.length : 0);
+            const sources = summary ? summary.sources_queried : [...new Set((Array.isArray(a.query_log) ? a.query_log : []).flatMap((q) => q.sources || []))];
+            return `${missing.join(', ')} (you ran ${total} search${total === 1 ? '' : 'es'}${sources.length ? ` on ${sources.join(', ')}` : ''}).`;
+          },
         }),
       },
       {

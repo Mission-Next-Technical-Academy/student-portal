@@ -34,11 +34,13 @@ class El {
   querySelectorAll(sel) { const out = []; this.walk((n) => { if (n !== this && n.matches(sel)) out.push(n); }); return out; }
 }
 const doc = { createElement: (t) => new El(t, doc) };
-function card({ editable }) {
-  const art = new El('article', doc); art.setAttribute('data-grading-row', 'r1');
-  const list = new El('div', doc); if (editable) list.setAttribute('data-feedback-items', '');
-  art.append(list);
-  return { art, list };
+// One sheet section; editable ones own a teacher-note textarea, optionally prefilled.
+function card({ editable, prefill = '' }) {
+  const art = new El('li', doc); art.setAttribute('data-sheet-section', 's1');
+  const note = new El('div', doc); const area = new El('textarea', doc);
+  if (editable) { note.setAttribute('data-section-note', 's1'); area.setAttribute('data-feedback-comment', ''); area.value = prefill; note.append(area); }
+  art.append(note);
+  return { art, area };
 }
 function field(art, text) {
   const node = new El('div', doc);
@@ -130,7 +132,7 @@ function field(art, text) {
     assert.equal(f.lines[0].label, 'Spelling');
     assert.equal(f.lines[0].outcome, 'partial');
     assert.deepEqual(f.underlined, ['recieved']);
-    assert.equal(c.list.children.length, 0); // 1 word < 3: no note
+    assert.equal(c.area.value, ''); // 1 word < 3: no note
   });
 
   await test('clean text gets a pass line; empty text gets nothing', async () => {
@@ -141,48 +143,38 @@ function field(art, text) {
     assert.equal(e.lines.length, 0);
   });
 
-  await test('editable card with >= 3 flagged words gets exactly one Spelling note', async () => {
+  await test('a section with >= 3 flagged words gets one short spelling line in its note', async () => {
     const c = card({ editable: true });
     await run(c, 'I recieved the alert, it was definately real.');
-    assert.equal(c.list.children.length, 0);
+    assert.equal(c.area.value, '');
     await run(c, 'Then we seperate the host.');
-    assert.equal(c.list.children.length, 1);
-    await run(c, 'Another recieved alert, definately.'); // same words: still one note
-    assert.equal(c.list.children.length, 1);
-    const item = c.list.children[0];
-    assert.equal(item.className, 'feedback-item grid sm:grid-cols-2 gap-2');
-    const [label, comment] = item.children;
-    assert.equal(label.tag, 'input');
-    assert.ok('data-feedback-label' in label.attrs);
-    assert.equal(label.value, 'Spelling');
-    assert.ok('data-feedback-comment' in comment.attrs);
-    assert.equal(comment.value, 'To strengthen next time: proofread before submitting — check: recieved → received, definately → definitely, seperate → separate.');
+    assert.equal(c.area.value, 'Check your spelling: recieved (received), definately (definitely), seperate (separate).');
+    await run(c, 'Another recieved alert, definately.'); // same words: unchanged
+    assert.equal(c.area.value, 'Check your spelling: recieved (received), definately (definitely), seperate (separate).');
+  });
+
+  await test('the spelling line goes under the prefilled note, on its own line', async () => {
+    const c = card({ editable: true, prefill: 'Name LAP-442.' });
+    await run(c, 'recieved definately seperate');
+    assert.equal(c.area.value, 'Name LAP-442.\nCheck your spelling: recieved (received), definately (definitely), seperate (separate).');
   });
 
   await test('a later field extends the note; an edited note is left alone', async () => {
     const c = card({ editable: true });
     await run(c, 'recieved definately seperate');
-    const area = c.list.children[0].children[1];
     await run(c, 'untill and wich');
-    assert.match(area.value, /untill → until/);
-    area.value = 'Teacher wrote this';
+    assert.match(c.area.value, /untill \(until\)/);
+    c.area.value = 'Teacher wrote this';
     await run(c, 'occured');
-    assert.equal(area.value, 'Teacher wrote this');
-    assert.equal(c.list.children.length, 1);
+    assert.equal(c.area.value, 'Teacher wrote this');
   });
 
-  await test('read-only sheet (no [data-feedback-items]) never gets a note', async () => {
+  await test('read-only or student sheet (no note box) never gets a note', async () => {
     const c = card({ editable: false });
     const f = await run(c, 'recieved definately seperate untill');
     assert.equal(f.lines[0].outcome, 'partial');
-    assert.equal(c.list.children.length, 0);
-    assert.equal(c.art.querySelectorAll('[data-feedback-items]').length, 0);
-  });
-
-  await test('student text is never put into markup (textContent/value only)', async () => {
-    const item = spelling.buildFeedbackItem(doc, 'Spelling', '<img src=x onerror=1>');
-    assert.equal(item.children[1].value, '<img src=x onerror=1>');
-    assert.equal(item.tag, 'div');
+    assert.equal(c.art.querySelectorAll('[data-section-note]').length, 0);
+    assert.equal(c.area.value, '');
   });
 
   await test('registers with AdminSubmissionSheet when present', () => {

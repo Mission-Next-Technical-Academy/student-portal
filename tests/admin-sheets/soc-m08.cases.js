@@ -123,6 +123,7 @@ module.exports = ({ run, clone }) => {
   const older = rows('m08-older', ticket(), huntState());
   delete older.lead.result.assessment_work;
   delete older.lead.result.case_display;
+  older.all.forEach((r) => { r.completed_at = '2026-10-01T10:12:00.000Z'; });
 
   return [
     {
@@ -137,7 +138,7 @@ module.exports = ({ run, clone }) => {
         },
         feedback: [],
         html: ['Recommend PASS', 'CASE-080842', '2 lab records with identical answers', 'Patch &amp; Remediation Operations', 'Validated — exploitable, confirmed internet-reachable finding', '9 of 9 found',
-          'CVE-2021-41773 Apache HTTP Server on web-dmz-14', 'Needs validation (stale or unverified)', 'Business importance', 'Security lead review', /data-sheet-narrative-text>web-dmz-14 \(owner p\.diallo\)/],
+          'CVE-2021-41773 Apache HTTP Server on web-dmz-14', 'Needs validation', 'Business importance', 'Security lead review', /data-sheet-narrative-text>web-dmz-14 \(owner p\.diallo\)/],
         notHtml: ['validated-exploitable', 'patch-ops', 'security-lead-review', 'needs-validation', 'in-progress'],
       },
     },
@@ -156,7 +157,8 @@ module.exports = ({ run, clone }) => {
       },
       custom: ({ suggested }) => {
         assert.match(suggested.find((entry) => entry.item_label === 'Affected device').comment, /Put web-dmz-14 in Affected device/);
-        assert.match(suggested.find((entry) => entry.item_label === 'Finding review: current, stale, not applicable').comment, /Mark CVE-2022-3786 on app-dmz-22 as needing validation/);
+        assert.match(suggested.find((entry) => entry.item_label === 'Finding review: current, stale, not applicable').comment, /CVE-2022-3786 on app-dmz-22: You marked it “Reviewed”\. Mark it “Needs validation”: the scan is from before this review window/);
+        assert.doesNotMatch(suggested.map((entry) => entry.comment).join(' '), /current and applicable|stale or unverified/, 'notes use the Status labels the student saw');
       },
     },
     {
@@ -177,7 +179,7 @@ module.exports = ({ run, clone }) => {
       expect: {
         verdict: 'pass',
         sections: { severity: 'pass', notes: 'pass', 'finding-review': 'pass', 'asset-context': 'pass', remediation: 'pass' },
-        html: ['Not recorded in this attempt', 'Events credited by the scorer', 'Patch &amp; Remediation Operations', 'Validated — exploitable, confirmed internet-reachable finding'],
+        html: ['Not recorded in this attempt (submitted before 2026-10-17)', 'Events credited by the scorer', 'Patch &amp; Remediation Operations', 'Validated — exploitable, confirmed internet-reachable finding'],
         notHtml: ['patch-ops', 'validated-exploitable'],
       },
     },

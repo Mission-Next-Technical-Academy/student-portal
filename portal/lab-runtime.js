@@ -157,7 +157,7 @@ const LabRuntime = (() => {
     return saveCaseState(labId, moduleKey, user, fresh, { debounceMs: 1 });
   }
 
-  return { anonymousStudentId, load, save, reset, storageKey, loadCaseState, saveCaseState, resetCaseState, isFreshState: stateMatchesFreshDefault };
+  return { anonymousStudentId, load, save, reset, storageKey, loadCaseState, saveCaseState, resetCaseState, flushAllCaseStateWrites, isFreshState: stateMatchesFreshDefault };
 })();
 
 /* Shared mechanics for the knowledge checks used by SOC modules. Question

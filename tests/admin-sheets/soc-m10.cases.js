@@ -8,7 +8,7 @@ const assert = require('assert/strict');
 
 const PORTAL = path.join(__dirname, '..', '..', 'portal');
 
-module.exports = ({ run, clone }) => {
+module.exports = ({ run, clone, AdminSubmissionSheet }) => {
   // The shared test context only loads data.js + case-record.js; load this
   // module's fixture/state/scorer once (guarded so parallel sprints that load
   // the same shared scorer do not redeclare it).
@@ -18,6 +18,28 @@ module.exports = ({ run, clone }) => {
   load('SocM10AssessmentState', 'soc-m10-assessment-state.js');
   load('SocM10AssessmentRubric', 'soc-m10-assessment-rubric.js');
   load('SocM10AssessmentScorer', 'soc-m10-assessment-scorer.js');
+
+  // index.html loads soc-analyst-module-10.js before the sheets, so the sheet reads the ticket's
+  // option labels from MODULE_TEN_CASE. That file needs the DOM, so load just the case literal.
+  if (run('typeof MODULE_TEN_CASE') === 'undefined') {
+    const caseLiteral = /const MODULE_TEN_CASE = \{[\s\S]*?\n\};/.exec(fs.readFileSync(path.join(PORTAL, 'soc-analyst-module-10.js'), 'utf8'));
+    assert.ok(caseLiteral, 'MODULE_TEN_CASE found in soc-analyst-module-10.js');
+    run(caseLiteral[0]);
+  }
+  // The labels the student sees in the M10 console (portal/soc-console-tools.js).
+  const tools = fs.readFileSync(path.join(PORTAL, 'soc-console-tools.js'), 'utf8');
+  const optionsOf = (attr, name) => {
+    const form = new RegExp(`<form ${attr}>[\\s\\S]*?<select name="${name}">([\\s\\S]*?)</select>`).exec(tools);
+    assert.ok(form, `${attr} ${name} select found in soc-console-tools.js`);
+    return Object.fromEntries([...form[1].matchAll(/<option value="([^"]+)">([^<]+)<\/option>/g)].map((m) => [m[1], m[2]]));
+  };
+  const UI = {
+    kinds: optionsOf('data-m10-statement', 'kind'),
+    topics: optionsOf('data-m10-unknown', 'topic'),
+    routes: optionsOf('data-m10-escalate', 'route'),
+    methods: JSON.parse(/const M10_METHOD_LABELS = (\{[^}]*\})/.exec(tools)[1].replace(/(\w+):/g, '"$1":').replace(/'/g, '"')),
+  };
+  assert.equal(UI.kinds.fact, 'Observed fact', 'UI statement type label');
 
   const fx = run('SocM10AssessmentData');
   const S = run('SocM10AssessmentState');
@@ -81,7 +103,8 @@ module.exports = ({ run, clone }) => {
     return { id, lab_key: 'lab-attack-mapping', track_code: 'SOCAN', student_id: '9334491415-SOCAN', score: scored.score, pass_threshold: 70, completed_at: '2026-10-17T11:30:00.000Z', attempt: { number: 1, of: 1 }, result };
   };
 
-  const perfectState = reconstruct(lockerState());
+  const NOTE_TEXT = 'First export of the process log was truncated; re-acquired at 10:41 and the new copy verified.';
+  const perfectState = S.note(reconstruct(lockerState()), fx, { artifactId: 'ART-03', text: NOTE_TEXT }, at('11:12'));
   const perfect = row('m10-pass', perfectState, GOOD_MAPPINGS, TICKET);
 
   // Wrong attempt: noise collected, nothing verified/held, theft claimed, wrong ticket.
@@ -112,6 +135,33 @@ module.exports = ({ run, clone }) => {
   delete bareRow.result.attack_mappings;
   bareRow.result.breakdown = bareRow.result.breakdown.map(({ id, ...rest }) => rest);
 
+  // Every console label at once: all statement types, all four unknown topics, a non-default method.
+  let labelState = lockerState();
+  labelState = reconstruct(labelState);
+  labelState = S.unknown(labelState, fx, { topic: 'attribution', text: 'Who sent the remittance email is not established.' }, at('11:11'));
+  labelState = S.unknown(labelState, fx, { topic: 'other', text: 'Whether other finance users received a variant is not established.' }, at('11:12'));
+  const labelRow = row('m10-labels', labelState, GOOD_MAPPINGS, TICKET);
+  labelRow.result.evidence_record.locker['ART-04'].method = 'triage_collection';
+
+  // Ticket names the second email recipient and his desktop (the related, not the compromised, entities).
+  const pivotTicket = { ...TICKET, affectedUser: 'jdoe', affectedDevice: 'wks-desk-07', escalateTo: 'digital-forensics' };
+  const pivotRow = row('m10-pivot', perfectState, GOOD_MAPPINGS, pivotTicket);
+  // Attempts saved before case-record.js used the option label put the bare host id in case_display.
+  pivotRow.result.case_display = pivotRow.result.case_display.map(([key, value]) => [key, key === 'Affected device' ? 'wks-desk-07' : value]);
+
+  // F24: an older attempt that saved the evidence record and scores but no ticket at all.
+  const noTicketRow = row('m10-no-ticket', perfectState, GOOD_MAPPINGS, TICKET, { display: false });
+  noTicketRow.completed_at = '2026-10-10T09:00:00.000Z';
+  delete noTicketRow.result.case_record;
+  const warnings = (target) => {
+    const consoleRef = run('console');
+    const original = consoleRef.warn;
+    const seen = [];
+    consoleRef.warn = (...args) => seen.push(args.map(String).join(' '));
+    try { AdminSubmissionSheet.render(target, {}); AdminSubmissionSheet.suggestedFeedback(target, {}); } finally { consoleRef.warn = original; }
+    return seen;
+  };
+
   const emptyRow = { id: 'm10-empty', lab_key: 'lab-attack-mapping', track_code: 'SOCAN', student_id: '9334491415-SOCAN', score: null, pass_threshold: 70, completed_at: '2026-10-17T11:30:00.000Z', attempt: { number: 1, of: 1 }, result: {} };
 
   return [
@@ -120,10 +170,15 @@ module.exports = ({ run, clone }) => {
       row: perfect,
       expect: {
         verdict: 'pass',
-        sections: { ticket: 'pass', notes: 'pass', 'evidence-locker': 'pass', acquisition: 'pass', integrity: 'pass', custody: 'pass', preservation: 'pass', timeline: 'pass', statements: 'pass', 'root-cause': 'pass', attack: 'pass', unknowns: 'pass', 'timeline-actions': 'judgment' },
+        sections: { ticket: 'pass', notes: 'pass', 'evidence-locker': 'pass', 'artifact-notes': 'judgment', acquisition: 'pass', integrity: 'pass', custody: 'pass', preservation: 'pass', timeline: 'pass', statements: 'pass', 'root-cause': 'pass', attack: 'pass', unknowns: 'pass', 'timeline-actions': 'judgment' },
         feedback: [],
-        html: ['Recommend PASS', 'CASE-105510 · INC-5510', 'ART-09 · Memory image of isolated wkstn-19', 'Digital Forensics evidence custodian', 'T1566.001', '10 of 10 points', /data-sheet-narrative="statements:0"/, /data-sheet-narrative="root-cause:0"/],
-        notHtml: ['tier2-soc', 'in-progress', 'root_cause', 'digital-forensics'],
+        html: ['Recommend PASS', 'CASE-105510 · INC-5510', 'ART-09 · Memory image of isolated wkstn-19', 'Digital Forensics evidence custodian', 'T1566.001', '10 of 10 points', /data-sheet-narrative="statements:0"/, /data-sheet-narrative="root-cause:0"/,
+          // Per-artifact analyst notes from the Evidence Locker are shown in full.
+          'Analyst notes (kept separate from the originals)', /data-sheet-narrative="artifact-notes:0"/, 'ART-03 · WINWORD.EXE spawned powershell.exe -enc', NOTE_TEXT,
+          // Statement types and topics read as the console labels them.
+          `${UI.kinds.fact} · cites ART-01`, `${UI.kinds.analysis} · cites ART-03`, `Unknowns · ${UI.topics.exfiltration}`, `Unknowns · ${UI.topics.memory}`, `Specialist escalation · ${UI.routes['digital-forensics']}`,
+          `Acquisition method ${UI.methods.disk_image}`, `Acquisition method ${UI.methods.gateway_export}`, 'ART-03: verified'],
+        notHtml: ['tier2-soc', 'in-progress', 'root_cause', 'digital-forensics', 'Fact (observed)', 'Analysis (interpretation)', 'Unknown · Whether data left the network', 'Unknown · What the memory image shows', 'not checked'],
       },
     },
     {
@@ -132,11 +187,24 @@ module.exports = ({ run, clone }) => {
       expect: {
         verdict: 'return',
         sections: { ticket: 'fail', notes: 'partial', 'evidence-locker': 'fail', custody: 'fail', preservation: 'fail', timeline: 'fail', statements: 'fail', 'root-cause': 'fail', attack: 'fail', unknowns: 'fail' },
-        html: ['Recommend RETURN', 'Collect the attachment email', 'Missing: ART-01', 'Routine items collected: ART-10', 'Do not map data theft', 'Do not say data was stolen', '&lt;script&gt;', 'A statement presents exfiltration'],
+        html: ['Recommend RETURN', 'Missing: ART-01', 'Routine items collected: ART-10', '&lt;script&gt;', 'A statement presents exfiltration'],
         notHtml: ['<script>alert'],
         custom: ({ suggested }) => {
           const labels = suggested.map((item) => item.item_label);
           assert.ok(labels.includes('Evidence collected') && labels.includes('ATT&CK mapping'), 'one prefilled note per failed section');
+          const note = (title) => (suggested.find((item) => item.item_label === title) || {}).comment || '';
+          // Prefilled notes quote what the student actually did, with the labels the student saw.
+          assert.match(note('Incident ticket'), /Set Status to In Progress \(you chose Resolved\)/);
+          assert.match(note('Incident ticket'), /Put j\.sanders in Affected user \(you entered svc-backup\)/);
+          assert.match(note('Incident ticket'), /Confirmed malicious activity \(you chose False positive\)/);
+          assert.match(note('Incident ticket'), /Set Escalation required to Required \(you chose Not required\)/);
+          assert.match(note('Evidence collected'), /^Your locker holds ART-10\. Collect what the reconstruction still needs: ART-01 · .*Leave out ART-10 · Windows Update installed KB-2026-09: it is routine/);
+          assert.match(note('Facts versus analysis'), /Your statement "Data exfiltration was confirmed to an external server\." says theft or encryption is confirmed/);
+          assert.match(note('Facts versus analysis'), new RegExp(`topic ${UI.topics.exfiltration} instead`));
+          assert.match(note('ATT&CK mapping'), /^You mapped T1567\. Remove T1567/);
+          assert.match(note('Unknowns and specialist escalation'), new RegExp(`^Add ${UI.topics.exfiltration} .* and ${UI.topics.memory} .* under Unknowns; record a specialist escalation to ${UI.routes['digital-forensics']}`));
+          assert.match(note('Root cause'), /^Record a Root cause statement/);
+          suggested.forEach((item) => assert.doesNotMatch(item.comment, /criterion|observed'|finding|\bpartial\b|Revisit this/i, `${item.item_label} note has no scorer jargon`));
         },
       },
     },
@@ -148,7 +216,12 @@ module.exports = ({ run, clone }) => {
         sections: { 'evidence-locker': 'partial', attack: 'partial', timeline: 'partial', preservation: 'partial', 'root-cause': 'pass' },
         html: ['Recommend PASS', 'Partly there (does not block a pass', 'Missing: ART-05, ART-07'],
         custom: ({ suggested }) => {
-          assert.match(suggested.find((item) => item.item_label === 'Evidence collected').comment, /^To strengthen next time: /);
+          const note = (title) => (suggested.find((item) => item.item_label === title) || {}).comment || '';
+          assert.match(note('Evidence collected'), /^To strengthen next time: Your locker holds ART-01, ART-02, ART-03, ART-04, ART-09\. Collect what the reconstruction still needs: ART-05 · HKCU Run key "svchelp" created; ART-07/);
+          assert.match(note('Source and acquisition details'), /ART-05, ART-07 have no acquisition record because they are not in your locker/);
+          assert.match(note('Legal hold and evidence package'), /\(yours covers ART-01, ART-02, ART-04\)/);
+          assert.match(note('Timeline'), /Your timeline reads ART-01, ART-02, ART-03, ART-04\. Add ART-05/);
+          assert.match(note('ATT&CK mapping'), /You mapped T1566\.001\. Map at least two evidenced techniques/);
         },
       },
     },
@@ -172,6 +245,42 @@ module.exports = ({ run, clone }) => {
       },
     },
     {
+      name: 'M10 every console label (statement types, unknown topics, methods) reads as the student saw it',
+      row: labelRow,
+      expect: {
+        verdict: 'pass',
+        html: [...Object.entries(UI.kinds).map(([kind, text]) => (kind === 'root_cause' ? 'Root cause · cites ART-01, ART-02, ART-03' : `${text} · cites`)),
+          ...Object.values(UI.topics).map((text) => `Unknowns · ${text}`),
+          `Acquisition method ${UI.methods.triage_collection}`, `Acquisition method ${UI.methods.log_export}`],
+      },
+    },
+    {
+      name: 'M10 ticket naming the related user and device is partly there, shows the device label the student saw, and quotes it',
+      row: pivotRow,
+      expect: {
+        verdict: 'pass',
+        sections: { ticket: 'partial' },
+        html: ['wks-desk-07 (jdoe desktop)', 'Digital Forensics Team'],
+        notHtml: ['<dd>wks-desk-07</dd>'],
+        custom: ({ suggested }) => {
+          const note = suggested.find((item) => item.item_label === 'Incident ticket').comment;
+          assert.match(note, /^To strengthen next time:/);
+          assert.match(note, /The user you named, jdoe, received the same email but never opened it \(ART-06\)/);
+          assert.match(note, /The device you named, wks-desk-07 \(jdoe desktop\), belongs to the second recipient/);
+          assert.match(note, /You routed the case to Digital Forensics Team\. Forensics can image and preserve wkstn-19.* Route it to Tier 2 SOC — Incident Response next time\./);
+        },
+      },
+    },
+    {
+      name: 'M10 older attempt with no ticket saved renders Not recorded without definition errors (F24)',
+      row: noTicketRow,
+      expect: {
+        sections: { ticket: 'missing', notes: 'missing', 'evidence-locker': 'pass', custody: 'pass' },
+        html: ['Not recorded in this attempt'],
+        custom: () => assert.deepEqual(warnings(noTicketRow), [], 'no definition errors logged'),
+      },
+    },
+    {
       name: 'M10 attempt with no case record does not crash',
       row: emptyRow,
       expect: {
@@ -179,6 +288,7 @@ module.exports = ({ run, clone }) => {
         sections: { 'evidence-locker': 'missing', notes: 'missing', attack: 'missing' },
         feedback: [],
         html: ['Not recorded in this attempt', 'Instructor judgment needed'],
+        custom: () => assert.deepEqual(warnings(emptyRow), [], 'no definition errors logged'),
       },
     },
     {

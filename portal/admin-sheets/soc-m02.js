@@ -110,6 +110,8 @@
   AdminSubmissionSheet.register(['lab-identity-investigation'], {
     title: 'Module 02 · PROVE IT — Suspicious Authentication Investigation',
     caseId: () => 'CASE-025502 · INC-025811',
+    // Scenario names (jsmith, cgreen, wkstn…) for the spelling allowlist.
+    fixture: () => ({ USERS, DEVICES, DEPARTMENTS, DISPOSITIONS, FINDINGS, EVIDENCE }),
     rubric: {
       labels: {
         affected_entity: 'Affected user and device',
@@ -268,7 +270,7 @@
           label: 'Key evidence named in the work notes',
           text: (result, ctx) => (record(result) ? ctx.text() : null),
           pieces: EVIDENCE,
-          fix: (missing) => `Back your finding with the evidence: your note does not mention ${missing.join('; ')}. Say what each record showed.`,
+          fix: (missing) => `Back your finding with the evidence: your note does not mention ${missing.join(', ')}. Say what each record showed.`,
         },
       },
       {

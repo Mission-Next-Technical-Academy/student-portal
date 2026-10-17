@@ -373,9 +373,10 @@ function m03eResolutionScore(raw) {
     else if (row.resolved && row.disposition && row.disposition !== incident.disposition) { earned -= 2; deductions.push(`${incident.id} resolved with unsupported ${row.disposition} disposition (−2)`); }
   });
   const allResolved = M03E_CHILD_INCIDENTS.every((i) => state.children[i.id].resolved);
-  if (allResolved && state.parentClosed) { earned += 1; evidence.push('Parent case closed after every child was resolved'); }
+  // The parent stays open while Identity Response cleans up; closing it is allowed once both children are resolved, never required.
+  if (allResolved) { earned += 1; evidence.push(state.parentClosed ? 'Parent case closed after every child was resolved' : 'Parent case left open until the children were resolved'); }
   earned = Math.max(0, Math.min(5, earned));
-  return { earned, max: 5, evidence, deductions, misses: earned < 5 ? ['Resolve both child incidents with evidence and close the parent after both are resolved'] : [] };
+  return { earned, max: 5, evidence, deductions, misses: earned < 5 ? ['Resolve both child incidents with evidence; do not close the parent before both are resolved'] : [] };
 }
 
 function m03eNormalizeDispositions(raw) {
@@ -913,6 +914,7 @@ function m03eIncidentAssociationPanel(scope, alert) {
   const linked = st.incidentLinks.find((item) => item.alertId === alert.id);
   const supported = expectation.supported.includes(alert.id);
   const unrelated = expectation.unrelated.includes(alert.id);
+  const locked = scope === 'prove' && st.determination.submitted ? ' disabled' : '';
   const feedback = scope !== 'practice' || !linked ? '' : supported && linked.incidentId === expectation.incidentId
     ? '<p class="m03e-disp-feedback is-correct" role="status">Supported association recorded on the incident.</p>'
     : unrelated ? '<p class="m03e-disp-feedback" role="status">This alert has a benign explanation; leave it unlinked from this incident.</p>'
@@ -920,7 +922,9 @@ function m03eIncidentAssociationPanel(scope, alert) {
   return `<section class="m03e-disp m03e-incident-link" aria-label="Incident association">
     <h4>Incident association</h4><p>Incident record: <strong>${esc(expectation.incidentId)}</strong></p>
     ${linked ? `<p class="m03e-muted">Current link: ${esc(linked.incidentId)}</p>` : '<p class="m03e-muted">Not linked.</p>'}
-    <button type="button" data-m03e-link-incident="${esc(alert.id)}" data-incident-id="${esc(expectation.incidentId)}">Link this alert to incident</button>
+    ${linked
+    ? `<button type="button" data-m03e-unlink-incident="${esc(alert.id)}"${locked}>Unlink this alert from incident</button>`
+    : `<button type="button" data-m03e-link-incident="${esc(alert.id)}" data-incident-id="${esc(expectation.incidentId)}"${locked}>Link this alert to incident</button>`}
     ${feedback}
   </section>`;
 }
@@ -1117,11 +1121,15 @@ function moduleThreeConsoleHtml(scope) {
     const prefix = mount.idPrefix;
     // In-page links (e.g. the hunt workflow step pills) must follow their
     // targets; links to ids outside this console are left alone.
-    const ownIds = new Set(Array.from(html.matchAll(/\bid="([^"]+)"/g), (match) => match[1]));
-    html = html.replace(/\bhref="#([^"]+)"/g, (all, id) => (ownIds.has(id) ? `href="#${prefix}-${id}"` : all))
-      .replace(/\bid="([^"]+)"/g, (_all, id) => `id="${prefix}-${id}"`)
-      .replace(/\bfor="([^"]+)"/g, (_all, id) => `for="${prefix}-${id}"`)
-      .replace(/\baria-labelledby="([^"]+)"/g, (_all, ids) => `aria-labelledby="${ids.split(/\s+/).map((id) => `${prefix}-${id}`).join(' ')}"`);
+    // Only the real id/for/href/aria-labelledby attributes are rewritten. A
+    // bare \b also matched data-*-id ("data-rule-id", "data-alert-id",
+    // "data-incident-id", …), so record ids read back by the tool packs came
+    // back prefixed and every lookup failed (F25).
+    const ownIds = new Set(Array.from(html.matchAll(/\sid="([^"]+)"/g), (match) => match[1]));
+    html = html.replace(/(\s)href="#([^"]+)"/g, (all, space, id) => (ownIds.has(id) ? `${space}href="#${prefix}-${id}"` : all))
+      .replace(/(\s)id="([^"]+)"/g, (_all, space, id) => `${space}id="${prefix}-${id}"`)
+      .replace(/(\s)for="([^"]+)"/g, (_all, space, id) => `${space}for="${prefix}-${id}"`)
+      .replace(/(\s)aria-labelledby="([^"]+)"/g, (_all, space, ids) => `${space}aria-labelledby="${ids.split(/\s+/).map((id) => `${prefix}-${id}`).join(' ')}"`);
   }
   return html;
 }
@@ -1369,7 +1377,17 @@ function m03eHandleClick(scope, ev) {
     m03eSave(scope); m03eRender(scope, { keepEditor: true });
     return;
   }
+  if (d.m03eUnlinkIncident) {
+    if (scope === 'prove' && st.determination.submitted) return;
+    const prior = st.incidentLinks.find((link) => link.alertId === d.m03eUnlinkIncident);
+    if (!prior) return;
+    st.incidentLinks = st.incidentLinks.filter((link) => link.alertId !== d.m03eUnlinkIncident);
+    st.determination.actionHistory.push({ action: `Unlinked alert ${d.m03eUnlinkIncident} from incident ${prior.incidentId}`, at: new Date().toISOString() });
+    m03eSave(scope); m03eRender(scope, { keepEditor: true });
+    return;
+  }
   if (d.m03eLinkIncident) {
+    if (scope === 'prove' && st.determination.submitted) return;
     st.incidentLinks = st.incidentLinks.filter((link) => link.alertId !== d.m03eLinkIncident);
     st.incidentLinks.push({ alertId: d.m03eLinkIncident, incidentId: d.incidentId, at: new Date().toISOString() });
     st.determination.actionHistory.push({ action: `Linked alert ${d.m03eLinkIncident} to incident ${d.incidentId}`, at: new Date().toISOString() });
