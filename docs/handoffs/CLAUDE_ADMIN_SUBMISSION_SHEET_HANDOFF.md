@@ -1,12 +1,11 @@
 # Start here — Admin Submission Sheets (SOC Analyst + IT Help Desk)
 
-Updated 2026-10-17 (end of day). This is the single entry point for a new
-session on the instructor Submission Sheet work. It summarises a Claude Code
-session (sprints S1–S6 via subagents), a Codex session (Help Desk H1–H4),
-and the merges so far. Detailed specs:
+Updated 2026-10-17 after deployment verification. This is the single entry
+point for instructor Submission Sheet work. Detailed specs:
 
 - SOC spec + parity tables: `docs/workstreams/ADMIN_SUBMISSION_SHEET.md`
 - Help Desk spec + parity tables: `docs/workstreams/HDESK_SUBMISSION_SHEET_HANDOFF.md`
+- CI/CD and shared worktree cleanup audit: `docs/handoffs/CI_CD_WORKTREE_CLEANUP_HANDOFF.md`
 
 ## What it is
 
@@ -38,16 +37,29 @@ corrections and never flip the verdict. Scores themselves were never changed.
 | --- | --- | --- |
 | Framework, M01–M12 sheets, spelling (S1–S6) | ✅ merged | PR #65 (`74fce5a`), #66 (docs) |
 | "PASS — with corrections" banner, M06–M09 notes | ✅ merged | PR #67 (`3cdefcc`) |
-| Help Desk sheets, all 16 lab keys (H0–H4) | ✅ merged (owner-approved 2026-10-17) | PR #68 |
-| Staging click-through with a real synthetic instructor account | ❌ not done | needs owner-provided staging accounts |
+| Help Desk sheets, all 16 lab keys (H0–H4) | ✅ owner-approved; squash commit on `master` | PR #68, commit `81d23c8` |
+| Help Desk completion capture + rubric metadata | ⏳ PR checks / promotion | PR #69 (`codex/hdesk-submission-closeout`) |
+| Staging and production source deploys | ✅ successful | staging sync + staging site deploy; GitHub Pages deploy at `81d23c8` |
+| Student/instructor click-through UAT | ⏳ not done | needs owner-provided synthetic staging accounts |
 
-PR #68 was re-verified on 2026-10-17 merged locally with current `master`:
+PR #68 is **closed by the owner after landing squash commit `81d23c8` on
+`master`** (closing comment: “Landed directly on master as 81d23c8 (squash,
+owner-approved). Closing.”). GitHub reports the PR state as closed, with no
+`mergedAt` or merge commit; the squash commit is nevertheless on `master`.
+The staging and production source deployments for that SHA both completed
+successfully on 2026-10-17. Verification:
 
 - `tests/admin-submission-sheet.test.js`: 114 checks passed (104 cases, 13 files);
 - spelling: 18 tests passed;
 - `bin/ci-check.sh`: exit 0.
+- staging sync applied no feature migrations and successfully dispatched the
+  staging-site build/deploy for `81d23c8`;
+- GitHub Pages deployed `81d23c8`, and the live index loads the Help Desk
+  sheet scripts.
 
-Merging to `master` deploys to GitHub Pages (live).
+This verifies the deployed code and assets, not a signed-in student/instructor
+workflow. No account click-through has been performed. PR #69 remains pending
+promotion, so its code is not yet in the staging or production deploys.
 
 ## Open owner decisions (nothing below is started)
 
@@ -61,43 +73,32 @@ Merging to `master` deploys to GitHub Pages (live).
    disposition and route advisory until the key is fixed.
 3. **M06 key vs. fixture.** The key says "Confirmed malicious"; the
    scenario text says "suspicious, not proven".
-4. **Help Desk issues found in H0.** Except the path checkboxes, which H3
-   now saves, none of these were confirmed fixed. Details are in the HDESK
-   handoff, section "H0 corrections":
-   - coach completion fires before the final resolve click;
-   - `finish()` probably posts twice, giving duplicate `lab_attempts` rows
-     (verify on staging);
-   - every launch link uses `restart=1`, which wipes earlier work;
-   - the correct diagnosis is the last option for most tickets, and retries
-     are unlimited;
-   - M08 resolves HD-2110 while the M12 key requires escalating it;
-   - HD-2106 priority is P3 in the simulator but P4 in M12;
-   - the `?coachComplete=` fallback marks a lab complete with no
-     `lab_attempts` row;
-   - Help Desk rows are stamped with the SOC rubric version.
-5. **Help Desk guided labs** (M01.2, M02.3/2.4, M03–M11) are guided
-   walk-throughs. Under `docs/LAB_ASSESSMENT_STANDARD.md` they read as
-   Practice It; only the M12 capstone is a true Prove It. Decide whether to
-   relabel them or promote M11.
+4. **Help Desk open content and workflow decisions.** Relaunching an
+   unsubmitted coach with `restart=1` resets unsaved simulator state; the
+   diagnosis options often place the correct answer last; HD-2110's guided
+   outcome conflicts with its capstone key; HD-2106 priority differs between
+   simulator and capstone. Guided-lab Practice It vs Prove It classification
+   also remains unresolved because the completion and grading queues are
+   coupled. See the HDESK handoff for evidence.
 
 ## Known test noise (pre-existing, not from this work)
 
 `guided-lab-console-guide`, `soc-m04-assessment-rubric`,
-`soc-m04-assessment-scorer` and `soc-m05-assessment-console` fail the same way
-on a clean checkpoint from before this work (`c0e195a`).
+`soc-m04-assessment-scorer` and `soc-m05-assessment-console` were recorded as
+failing on the clean checkpoint before this work (`c0e195a`). The current
+`bin/ci-check.sh` passes; these standalone suites are outside that gate.
 
-## Next steps for a new session
+## Next steps
 
-1. Confirm #68 is merged (`gh pr view 68`) and `master` is green:
-   - `bash bin/ci-check.sh`
-   - `node tests/admin-submission-sheet.test.js`
-   - `node tests/admin-sheet-spelling.test.js`
-2. Staging click-through, with owner-provided synthetic accounts:
+1. Finish review and promotion of PR #69; then update deployment SHAs and
+   workflow evidence in this handoff and the CI/CD worktree audit.
+2. Run signed-in staging click-through, with owner-provided synthetic accounts:
    - `bin/dev.sh` then `bin/dev.sh status`, which must show `target=STAGING`;
    - submit one SOC Prove It and one Help Desk lab as the student;
    - review, approve or return them as the instructor;
    - confirm the student sees the sent notes.
-3. Work on any owner decision above only after the owner answers it.
+3. Resolve the listed owner decisions before changing scoring or lab
+   classification.
 
 ## Rules
 
@@ -108,5 +109,6 @@ on a clean checkpoint from before this work (`c0e195a`).
 - Other sessions (Claude and Codex) share this working tree and
   `.git/index`. Run `git status` before staging and never stage another
   session's WIP. Use a `git worktree` for parallel work.
-- No database, Supabase function, staging-branch or production action is
-  authorised by this handoff.
+- Do not make database, Supabase function, staging-branch, merge, or production
+  changes based only on this historical handoff; follow current owner
+  authorization and `docs/operations/AI_AGENT_RULES.md`.

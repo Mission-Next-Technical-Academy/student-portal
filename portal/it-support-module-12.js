@@ -388,7 +388,8 @@ function wireItsModuleTwelveLab() {
       its12State.resetArmed = false;
       const passed = result.score >= ITS12_PASSING_SCORE && result.criticalErrors.length === 0;
       if (typeof recordLabAttempt === 'function') {
-        recordLabAttempt(its12User, ITS12_LAB_KEY, { state: passed ? 'complete' : 'in_progress', score: result.score, result: {
+        recordLabAttempt(its12User, ITS12_LAB_KEY, { state: passed ? 'complete' : 'in_progress', score: result.score,
+          rubricVersion: 'it-support-capstone-v1', scoringEngineVersion: 'it-support-capstone-scorer-v1', result: {
           breakdown: result.breakdown, criticalErrors: result.criticalErrors, attempts: its12State.attempts,
           ticketResponses: its12State.ticketResponses, kbArticle: its12State.kbArticle, afterAction: its12State.afterAction,
           feedback: result.feedback, passedAutomatedGate: passed,
