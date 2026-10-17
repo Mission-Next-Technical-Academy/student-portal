@@ -883,9 +883,14 @@ function wireModuleThreeLessons() {
 }
 
 function wireModuleThreeNormalizationLab() {
-  const root = document.querySelector('.m03-normalization-lab');
-  if (!root) return;
+  // Delegate from the stable section body: the lab root is replaced on every
+  // validate, so listeners bound to it would die after the first render.
+  const lab0 = document.querySelector('.m03-normalization-lab');
+  const root = lab0?.closest('.mf-section-body') || lab0;
+  if (!root || root.dataset.m03NormWired) return;
+  root.dataset.m03NormWired = '1';
   root.addEventListener('change', (event) => {
+    if (!event.target.closest('.m03-normalization-lab')) return;
     const field = event.target.closest('[data-m03-normalize]');
     if (!field) return;
     const lab = moduleThreeState.normalizationLab;
@@ -895,6 +900,7 @@ function wireModuleThreeNormalizationLab() {
     moduleThreeSave();
   });
   root.addEventListener('click', (event) => {
+    if (!event.target.closest('.m03-normalization-lab')) return;
     if (event.target.closest('[data-m03-validate-ingest]')) {
       const lab = moduleThreeState.normalizationLab;
       const mappings = lab.mappings || {};
@@ -916,8 +922,8 @@ function wireModuleThreeNormalizationLab() {
         lab.validationMessage = '';
       }
       moduleThreeSave();
-      const section = document.querySelector('.mf-section-body[aria-labelledby="m03-lecture-title"]');
-      if (section) section.innerHTML = moduleThreeNormalizationLab();
+      const labRoot = event.target.closest('.m03-normalization-lab');
+      if (labRoot) labRoot.outerHTML = moduleThreeNormalizationLab();
       return;
     }
     if (event.target.closest('[data-m03-open-workspace]')) {
