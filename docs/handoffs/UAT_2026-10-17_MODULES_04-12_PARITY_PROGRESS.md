@@ -42,8 +42,8 @@ No outstanding code, sync, deploy, or browser-parity work is recorded for this c
 
 ## Shipping status (2026-10-17)
 
-- PR [#72](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/72) merged to `master` at `e83598fc7a647c2778f7d4e9c32e1775ce098606`.
+- PR [#72](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/72) merged the parity code to `master` at `e83598fc7a647c2778f7d4e9c32e1775ce098606`.
 - The Staging sync, CI validation, M360 Gate 6 regression checks, and Deploy student portal workflows passed. The staging deploy workflow in `student-portal-staging` also passed.
-- Remote `master` and `staging` both point to `e83598fc7a647c2778f7d4e9c32e1775ce098606`.
+- PR [#73](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/73) merged this handoff update; its staging sync and site deployment passed. Remote `master` and `staging` now both point to `ec38c94a7e180f3329734467f8f617b05e6260f3`.
 - Automated checks, staging deployment, and owner-confirmed Chrome instructor/student parity verification are complete.
 - The `main` branch remains an obsolete snapshot and is not the deployment branch.
