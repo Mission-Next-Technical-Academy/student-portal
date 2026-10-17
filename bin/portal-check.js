@@ -159,7 +159,8 @@ const indexHtml = fs.readFileSync(path.join(PORTAL, 'index.html'), 'utf8');
 const files = [...indexHtml.matchAll(/<script\s+src="([^"]+)"/g)]
   .map((match) => match[1].split('?')[0])
   .filter((file) => !file.startsWith('vendor/') && file !== 'supabase-config.js' && file !== 'm360-entry.js')
-  .map((file) => path.basename(file));
+  // Keep subdirectory paths (admin-sheets/soc-mNN.js) instead of basename().
+  .map((file) => path.normalize(file));
 
 for (const file of files) {
   try {

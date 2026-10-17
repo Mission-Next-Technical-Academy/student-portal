@@ -171,7 +171,13 @@ function moduleOneFinalizeProveIt() {
     moduleOneUser.latestLabAttemptByKey = { ...(moduleOneUser.latestLabAttemptByKey || {}), 'lab-soc-escalation': { completedAt: moduleOneState.lab2.submittedAt, reviewedAt: null, redoRequested: false } };
   }
   if (typeof recordLabAttempt === 'function') {
-    recordLabAttempt(moduleOneUser, 'lab-soc-escalation', { state: 'complete', score: performance.score, result: { breakdown: performance.breakdown, feedback: performance.feedback, critical_errors: performance.criticalErrors, case_record: moduleOneState.lab2 } })
+    // case_display (2026-10-17, additive): the ticket rows with the labels the
+    // student saw, so the instructor Submission Sheet never shows option ids.
+    const scenario = MODULE_ONE_ESCALATION_LAB.scenario;
+    const caseDisplay = typeof caseRecordDisplay === 'function'
+      ? caseRecordDisplay(moduleOneState.lab2, { caseId: scenario.caseId || scenario.id, incidentIds: scenario.incidentId, dispositionOptions: MODULE_ONE_ESCALATION_LAB.verdictOptions, departmentOptions: MODULE_ONE_ESCALATION_LAB.departmentOptions })
+      : undefined;
+    recordLabAttempt(moduleOneUser, 'lab-soc-escalation', { state: 'complete', score: performance.score, result: { breakdown: performance.breakdown, feedback: performance.feedback, critical_errors: performance.criticalErrors, case_record: moduleOneState.lab2, case_display: caseDisplay } })
       .then((saved) => {
         // The new append-only attempt supersedes the returned attempt in the
         // student UI. Faculty approval remains required by the server view.

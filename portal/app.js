@@ -873,8 +873,52 @@ function adminTrackAdministrationStrip(rows, activeTrackCode = null, gradingCoun
  * docs/workstreams/lab-grading-notification-system/). `olderAttempt` marks an
  * earlier submission the learner has since replaced; a decision applies to
  * every row of the item. */
+// SOC Analyst Prove It attempts with a registered Submission Sheet
+// (portal/admin-submission-sheet.js, docs/workstreams/ADMIN_SUBMISSION_SHEET.md)
+// render as one marked-up sheet in place of the legacy panels; every other row
+// (other tracks, Learn It / Practice It, modules not yet defined) renders as before.
+function adminHasSubmissionSheet(row) {
+  return typeof AdminSubmissionSheet !== 'undefined' && AdminSubmissionSheet.has(row);
+}
+
+function adminFeedbackItemHtml(label = '', comment = '') {
+  return `<div class="feedback-item grid sm:grid-cols-2 gap-2">
+        <input type="text" data-feedback-label value="${esc(label)}" placeholder="What was wrong (instructor's own words)" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20" />
+        <textarea data-feedback-comment rows="2" placeholder="Why it was wrong, and what to do to make it better" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20">${esc(comment)}</textarea>
+      </div>`;
+}
+
+// Feedback items + Approve / Send back for the sheet card, same markup and
+// data attributes as the legacy card below (read by submitGradingDecision()).
+function adminGradingControlsHtml(attemptIds, feedbackItems, { approveLabel, sendBackLabel }) {
+  return `<div data-feedback-items class="space-y-2 mb-2">
+      ${feedbackItems.map((entry) => adminFeedbackItemHtml(entry.item_label, entry.comment)).join('')}
+    </div>
+    <button type="button" data-action="admin-grading-add-item" class="text-xs font-semibold text-[#1e3a5f] hover:underline mb-3">+ Add another item</button>
+    <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
+      <button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(attemptIds)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${esc(approveLabel)}</button>
+      <button type="button" data-action="admin-grading-send-back" data-attempt-id="${esc(attemptIds)}" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${esc(sendBackLabel)}</button>
+      <span data-grading-status class="text-xs text-gray-500"></span>
+    </div>`;
+}
+
+// Teacher notes are prefilled with one item per section that needs work.
+function adminSubmissionSheetReviewCard(item, olderAttempt) {
+  const row = item.lead;
+  const suggested = AdminSubmissionSheet.suggestedFeedback(row, { item });
+  const notesHtml = adminGradingControlsHtml(item.ids.join(','), suggested.length ? suggested : [{ item_label: '', comment: '' }],
+    { approveLabel: 'Approve submission', sendBackLabel: 'Return for remediation' });
+  return `<article class="bg-white border border-gray-200 rounded-xl p-3 sm:p-4" data-grading-row="${esc(row.id)}">
+    ${olderAttempt ? '<p class="mb-2 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Older attempt — a newer submission of this lab is below</p>' : ''}
+    ${AdminSubmissionSheet.render(row, { item, notesHtml })}
+  </article>`;
+}
+
 function adminAttemptReviewCard(item, olderAttempt) {
   const row = item.lead;
+  // Inline guard (not adminHasSubmissionSheet) so this function still runs on
+  // its own in the node tests that load it in isolation.
+  if (typeof AdminSubmissionSheet !== 'undefined' && AdminSubmissionSheet.has(row)) return adminSubmissionSheetReviewCard(item, olderAttempt);
   const attemptIds = item.ids.join(',');
   const threshold = row.pass_threshold ?? 70;
   const hasScore = row.score !== null && row.score !== undefined;
@@ -1053,7 +1097,12 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
     const row = item.lead;
     const hasScore = row.score !== null && row.score !== undefined;
     const passing = hasScore && Number(row.score) >= Number(row.pass_threshold ?? 70);
-    const ticket = adminCaseTicketSubmissionPanel(row);
+    // Decided attempts show the same sheet, read-only, with the notes that
+    // were actually sent (row.sent_feedback, loaded with the graded rows).
+    const sheet = adminHasSubmissionSheet(row)
+      ? AdminSubmissionSheet.render(row, { item, readOnly: true, sentFeedback: superseded.has(row.id) || autograded.has(row.id) ? undefined : row.sent_feedback })
+      : '';
+    const ticket = sheet || adminCaseTicketSubmissionPanel(row);
     return `<details class="rounded-lg border border-gray-200 bg-white px-3 py-2.5" data-graded-row="${esc(row.id)}" ${open ? 'open' : ''}>
       <summary class="cursor-pointer list-none flex flex-wrap items-center justify-between gap-2 text-sm">
         <span class="font-medium text-[#1e3a5f]">${esc(item.name)}${row.attempt ? ` <span class="font-normal text-gray-500">· ${esc(adminAttemptLabel(row))}</span>` : ''}</span>
@@ -1176,6 +1225,13 @@ function adminCaseTicketSubmissionPanel(row) {
   </section>`;
 }
 
+// Nested determinations/actions as escaped lists instead of a JSON dump
+// (AdminSubmissionSheet.readableHtml; plain escaped text if it is absent).
+function adminReadableValueHtml(value) {
+  if (typeof AdminSubmissionSheet !== 'undefined') return AdminSubmissionSheet.readableHtml(value);
+  return `<p class="whitespace-pre-wrap">${esc(value && typeof value === 'object' ? Object.keys(value).join(', ') : String(value ?? ''))}</p>`;
+}
+
 // Module 12's scorer artifact is deliberately rendered as a readable review
 // document so faculty do not need to inspect the collapsed raw payload.
 function adminCapstoneReviewPanel(row) {
@@ -1200,7 +1256,10 @@ function adminCapstoneReviewPanel(row) {
     ${explanation.length ? `<ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">${explanation.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>` : ''}
     <details class="mt-3 rounded-lg border border-gray-200 bg-white p-3"><summary class="cursor-pointer text-sm font-semibold text-[#1e3a5f]">Evidence, determinations, and actions</summary>
       <p class="mt-2 text-sm"><strong>Selected evidence:</strong> ${esc(evidence.join(', ') || 'None')}</p>
-      <pre class="mt-2 overflow-x-auto whitespace-pre-wrap text-xs text-gray-700">${esc(JSON.stringify({ determinations, actions }, null, 2))}</pre>
+      <div class="mt-2 grid gap-3 text-xs text-gray-700 lg:grid-cols-2">
+        <div><p class="mb-1 font-semibold text-[#1e3a5f]">Determinations</p>${adminReadableValueHtml(determinations)}</div>
+        <div><p class="mb-1 font-semibold text-[#1e3a5f]">Actions (${esc(String(actions.length))})</p>${actions.length ? `<ol class="list-decimal space-y-1 pl-5">${actions.map((action) => `<li><strong>${esc(String(action?.type || 'action').replace(/[-_]/g, ' '))}</strong>${action?.details && typeof action.details === 'object' ? adminReadableValueHtml(action.details) : action?.details ? ` ${esc(String(action.details))}` : ''}</li>`).join('')}</ol>` : '<p class="text-gray-500">None recorded.</p>'}</div>
+      </div>
     </details>
   </section>`;
 }
@@ -7298,6 +7357,24 @@ async function render(options = {}) {
         const gradedStudentIdByUserId = new Map(dashboardRows.map((row) => [row.user_id, row.student_id]));
         gradedRows = (gradedResult.data || []).map((row) => ({ ...row, student_id: gradedStudentIdByUserId.get(row.user_id) || 'Unknown student' }));
 
+        // Read-only Submission Sheets show the notes actually sent with each
+        // decision. Read-only select (existing admin / assigned-instructor
+        // RLS); only rows that render a sheet, in chunks to keep URLs short.
+        const sheetRows = gradedRows.filter(adminHasSubmissionSheet);
+        if (sheetRows.length) {
+          const sentByAttempt = new Map();
+          for (let index = 0; index < sheetRows.length; index += 100) {
+            const { data: feedbackRows, error: feedbackError } = await mntSupabase
+              .from('lab_attempt_feedback')
+              .select('lab_attempt_id, item_label, comment, created_at')
+              .in('lab_attempt_id', sheetRows.slice(index, index + 100).map((row) => row.id))
+              .order('created_at', { ascending: true });
+            if (feedbackError) { console.error('graded lab attempt feedback fetch failed', feedbackError); break; }
+            (feedbackRows || []).forEach((entry) => sentByAttempt.set(entry.lab_attempt_id, [...(sentByAttempt.get(entry.lab_attempt_id) || []), entry]));
+          }
+          sheetRows.forEach((row) => { row.sent_feedback = sentByAttempt.get(row.id) || []; });
+        }
+
         // Unreviewed attempts a newer submission replaced (superseded_at,
         // 20261005210000_one_pending_prove_it_submission.sql). The grading
         // queues skip them, so Graded lists them as history instead.
@@ -8574,6 +8651,10 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       container.appendChild(item);
     });
   });
+
+  // Post-render text analyzers on Submission Sheet narrative fields (S6
+  // spelling registers one). No-op until an analyzer is registered.
+  if (typeof AdminSubmissionSheet !== 'undefined') AdminSubmissionSheet.runTextAnalyzers(document);
 
   async function submitGradingDecision(attemptIdList, article, { redo }) {
     const attemptIds = String(attemptIdList).split(',').filter(Boolean);
