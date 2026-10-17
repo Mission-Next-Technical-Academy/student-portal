@@ -20,6 +20,11 @@ only the sheet fixture or by hand-editing an attempt.
 - Revised the M05 generated interpretation note so it distinguishes missing malicious evidence
   from missing benign-updater interpretation, and names benign event IDs when the learner cited
   them; it no longer claims the learner never mentioned the updater based only on missing text.
+- Closed three M03 follow-ups missed in the prior UAT pass: the normalization sample now gives
+  j.lee's 08:41 record a unique raw ID (`A-1014`) and shows it in the preview; practice event
+  P-3002 now occurs at 09:06:42 after session S-8841 starts; and the child-incident guide accepts
+  both children resolved while the parent remains open, matching the scorer. Existing guide
+  progress migrates to version 6 without moving the learner's step.
 - Updated stale assertions that expected old labels or generic wording instead of the current
   student UI values. Cache versions for every changed portal script are bumped in `portal/index.html`.
 - Three read-only parity reviews found the above M04/M05/M09 gaps. No additional concrete gaps
@@ -42,8 +47,7 @@ No outstanding code, sync, deploy, or browser-parity work is recorded for this c
 
 ## Shipping status (2026-10-17)
 
-- PR [#72](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/72) merged the parity code to `master` at `e83598fc7a647c2778f7d4e9c32e1775ce098606`.
-- The Staging sync, CI validation, M360 Gate 6 regression checks, and Deploy student portal workflows passed. The staging deploy workflow in `student-portal-staging` also passed.
-- PR [#73](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/73) merged this handoff update; its staging sync and site deployment passed. Remote `master` and `staging` now both point to `ec38c94a7e180f3329734467f8f617b05e6260f3`.
+- PR [#72](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/72) merged the M03–M12 parity code. CI, regression checks, staging sync, and staging deployment passed.
+- Handoff updates in PRs [#73](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/73) and [#74](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/74) also synced and deployed successfully. The M03 corrections follow the same PR-to-master staging workflow.
 - Automated checks, staging deployment, and owner-confirmed Chrome instructor/student parity verification are complete.
 - The `main` branch remains an obsolete snapshot and is not the deployment branch.
