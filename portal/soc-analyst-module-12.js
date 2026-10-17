@@ -521,6 +521,15 @@ function wireModuleTwelveLab() {
           case_record: moduleTwelveState,
           case_display: caseRecordDisplay(moduleTwelveState, spec),
           case_summary: caseRecordSummary(moduleTwelveState, spec),
+          // Practice is not scored, but preserve the learner's saved shift
+          // checklist alongside the assessment so faculty can see what was
+          // ticked at submission time.
+          shiftChecklist: {
+            completed: [...moduleTwelveState.checklist],
+            items: MODULE_TWELVE_SHIFT_CHECKLIST.map(([label, where, detail, modules], index) => ({
+              label, where, detail, modules, checked: moduleTwelveState.checklist.includes(index),
+            })),
+          },
           notes: moduleTwelveState.notes,
           studentResponses: moduleTwelveState.assessmentState.reports,
           selectedEvidence: moduleTwelveState.assessmentState.selectedEvidence,

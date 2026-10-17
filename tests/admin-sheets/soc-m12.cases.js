@@ -67,6 +67,14 @@ module.exports = ({ run, clone }) => {
       breakdown: scored.criteria.map((c) => ({ label: c.label, score: c.points, max: c.max, evidence: clone(c.supportingEvidence), misses: clone(c.misses) })),
       feedback: clone(scored.review.feedback), criticalErrors: scored.unsafeExecution ? ['An unsafe state-changing action executed outside approved scope.'] : [], critical_errors: scored.unsafeExecution ? ['An unsafe state-changing action executed outside approved scope.'] : [],
       case_record: record, reviewPayload: payload ? clone(scored) : undefined,
+      shiftChecklist: {
+        completed: [0, 2],
+        items: [
+          { label: 'Open your CASE', where: 'ITSM Ticket', detail: 'Read its incidents and open work.', modules: 'M01', checked: true },
+          { label: 'Triage alerts', where: 'Alerts', detail: 'Disposition each; link it to its incident.', modules: 'M01 · M03', checked: false },
+          { label: 'Judge indicators', where: 'Threat Intelligence', detail: 'Malicious, benign, or unknown, from case records.', modules: 'M04', checked: true },
+        ],
+      },
     };
     if (display) result.case_display = clone(run(`caseRecordDisplay(${JSON.stringify(record)}, ${JSON.stringify(spec())})`));
     return { id, lab_key: 'lab-capstone', track_code: 'SOCAN', student_id: '9334491415-SOCAN', score: scored.score, pass_threshold: 70, completed_at: '2026-10-17T16:00:00.000Z', attempt: { number: 1, of: 1 }, result };
@@ -117,9 +125,9 @@ module.exports = ({ run, clone }) => {
       row: perfectRow,
       expect: {
         verdict: 'pass',
-        sections: { case: 'pass', 'case-routing': 'pass', 'incident-inc-4821': 'pass', 'incident-inc-4822': 'pass', 'incident-inc-4823': 'pass', intel: 'pass', alerts: 'pass', queries: 'pass', investigation: 'pass', 'timeline-attack': 'pass', containment: 'pass', recovery: 'pass', reporting: 'pass', closure: 'pass', competencies: 'judgment' },
+        sections: { case: 'pass', 'case-routing': 'pass', 'shift-checklist': 'judgment', 'incident-inc-4821': 'pass', 'incident-inc-4822': 'pass', 'incident-inc-4823': 'pass', intel: 'pass', alerts: 'pass', queries: 'pass', investigation: 'pass', 'timeline-attack': 'pass', containment: 'pass', recovery: 'pass', reporting: 'pass', closure: 'pass', competencies: 'judgment' },
         feedback: [],
-        html: ['Recommend PASS', 'CASE-124821 · INC-4821 · INC-4822 · INC-4823', 'Operation Amber Finch', 'INC-4823 · Rare script host on WS-118', 'Benign positive', 'AL-1205 · Approved inventory script used an encoded argument (ws-118)', 'EP-301 (the script that ran on WS-204)', '203.0.113.72', 'Malicious (matches the key)', /data-sheet-narrative="reporting:0"/, '7 of 7 found'],
+        html: ['Recommend PASS', 'CASE-124821 · INC-4821 · INC-4822 · INC-4823', 'Operation Amber Finch', 'Open your CASE', 'Checked · ITSM Ticket', 'Triage alerts', 'Not checked · Alerts', 'INC-4823 · Rare script host on WS-118', 'Benign positive', 'AL-1205 · Approved inventory script used an encoded argument (ws-118)', 'EP-301 (the script that ran on WS-204)', '203.0.113.72', 'Malicious (matches the key)', /data-sheet-narrative="reporting:0"/, '7 of 7 found'],
         notHtml: ['true-positive', 'benign-positive', 'tier2-soc', 'incident-update', 'assessmentState'],
       },
     },

@@ -323,6 +323,17 @@
         ],
       },
       {
+        id: 'shift-checklist',
+        title: 'Practice It · Shift Checklist (not scored)',
+        required: false,
+        collapsed: true,
+        answer: (result) => {
+          const checklist = result.shiftChecklist;
+          if (!checklist || !Array.isArray(checklist.items)) return [['Saved checklist', 'Not recorded in this attempt']];
+          return checklist.items.map((item) => [item.label, `${item.checked ? 'Checked' : 'Not checked'} · ${item.where} · ${item.detail}`]);
+        },
+      },
+      {
         id: 'case-routing',
         title: 'Ticket routing (not scored)',
         required: false,
