@@ -1620,6 +1620,28 @@ function moduleSixRenderAssessment() {
   m03eAttachEditor('m06');
 }
 
+// Snapshot of what the student built in the Prove It hunt console, saved with
+// the attempt so the instructor sheet can show it (hypothesis text, searches,
+// pivots, evidence set, ATT&CK mappings, handoff, conclusion). Read-only copy
+// of the saved hunt state; nothing here feeds the score.
+function moduleSixAssessmentWork(state) {
+  const copy = (value) => JSON.parse(JSON.stringify(value ?? null));
+  const list = (value) => (Array.isArray(value) ? value : []);
+  const techniques = typeof SocM06AssessmentRelatedSearch !== 'undefined' ? SocM06AssessmentRelatedSearch.TECHNIQUES : {};
+  return {
+    hypotheses: copy(list(state.hypotheses).map((item) => ({ text: item.text, rationale: item.rationale, confidence: item.confidence, relatedEventIds: item.relatedEventIds }))),
+    queryHistory: copy(list(state.queryHistory).map((item) => ({ entityType: item.entityType, entityValue: item.entityValue, startTime: item.startTime, endTime: item.endTime, query: item.query, resultEventIds: item.resultEventIds }))),
+    savedQueries: copy(list(state.savedQueries)),
+    savedQueryRuns: copy(list(state.savedQueryRuns).map((item) => ({ savedQueryId: item.savedQueryId, name: item.name, query: item.query, resultEventIds: item.resultEventIds }))),
+    pivots: copy(list(state.pivots).map((item) => ({ fromEventId: item.fromEventId, toEventId: item.toEventId }))),
+    bookmarks: copy(list(state.bookmarks)),
+    collections: copy(list(state.collections)),
+    mappings: copy(list(state.mappings).map((item) => ({ tacticId: item.tacticId, techniqueId: item.techniqueId, techniqueName: techniques[item.techniqueId]?.name || '', status: item.status, confidence: item.confidence, eventIds: item.eventIds, rationale: item.rationale }))),
+    handoffs: copy(list(state.handoffs).map((item) => ({ id: item.id, destination: item.destination, eventIds: item.eventIds, rationale: item.rationale, recommendation: item.recommendation, status: item.status }))),
+    conclusions: copy(list(state.conclusions).map((item) => ({ text: item.text, eventIds: item.eventIds, disposition: item.disposition }))),
+  };
+}
+
 function moduleSixExactSelection(selected, expected, points) {
   const chosen = new Set(selected);
   const correct = expected.filter((item) => chosen.has(item)).length;
@@ -1800,7 +1822,8 @@ function wireModuleSixAssessmentLab() {
         return;
       }
       moduleSixIndependentProveItShowMissing = false;
-      const result = SocM06AssessmentScorer.score(SocM06AssessmentState.load(moduleSixUser, SocM06AssessmentData), SocM06AssessmentData);
+      const huntState = SocM06AssessmentState.load(moduleSixUser, SocM06AssessmentData);
+      const result = SocM06AssessmentScorer.score(huntState, SocM06AssessmentData);
       const submittedAt = new Date().toISOString();
       lab.caseRecord.submitted = true;
       lab.caseRecord.submittedAt = submittedAt;
@@ -1829,6 +1852,9 @@ function wireModuleSixAssessmentLab() {
             case_record: lab.caseRecord,
             case_display: caseRecordDisplay(lab.caseRecord, spec),
             case_summary: caseRecordSummary(lab.caseRecord, spec),
+            // Additive (admin Submission Sheet, 2026-10-17): the student's own hunt
+            // work, which the scorer only reports as event ids. Never read by scoring.
+            assessment_work: moduleSixAssessmentWork(huntState),
           },
         }).then((saved) => { if (saved && moduleSixIndependentRedoRequested()) delete moduleSixUser.openLabRedosByModuleKey['soc-06-independent']; });
       }

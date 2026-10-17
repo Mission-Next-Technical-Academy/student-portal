@@ -1632,10 +1632,41 @@ function wireModuleNineLab() {
   });
 }
 
+// Snapshot of the incident response the student worked in the Prove It console,
+// saved with the attempt for the instructor sheet: triage fields, evidence
+// reviewed, every response/recovery action with its approval, workflow events
+// (task completion, escalation) and escalation text. Read-only copy of the saved
+// state; nothing here feeds the score. (Workflow designs and blocked attempts
+// are already saved in review_payload.responseReview.)
+function moduleNineAssessmentWork(state) {
+  const copy = (value) => JSON.parse(JSON.stringify(value ?? null));
+  const list = (value) => (Array.isArray(value) ? value : []);
+  const incidentId = SocM09AssessmentData.scenario.incidentGraph.incidentId;
+  const workflow = (state.incidentWorkflows && state.incidentWorkflows[incidentId]) || {};
+  return {
+    workflow: copy({
+      severity: workflow.severity, assigneeId: workflow.assigneeId, status: workflow.status,
+      escalationStatus: workflow.escalationStatus, escalationReason: workflow.escalationReason,
+      approvalStatus: workflow.approvalStatus, approvalReason: workflow.approvalReason,
+      tasks: list(workflow.tasks).map((task) => ({ id: task.id, title: task.title, status: task.status })),
+    }),
+    reviewedEvidenceIds: copy(list(state.reviewedEvidenceIds)),
+    actions: list(state.actionHistory).filter((action) => action && action.details && action.details.incidentId === incidentId).map((action) => copy({
+      sequence: action.sequence, type: action.type, outcome: action.outcome, timestamp: action.timestamp,
+      entityId: action.details.entityId, evidenceIds: action.details.evidenceIds,
+      approverId: action.details.approval && action.details.approval.approverId, approvalReason: action.details.approval && action.details.approval.reason,
+      backupId: action.details.backupId, recoveryPointId: action.details.recoveryPointId, residualRiskIds: action.details.residualRiskIds,
+      summary: action.details.execution && action.details.execution.summary,
+    })),
+    workflowEvents: list(state.workflowHistory).filter((entry) => entry && entry.incidentId === incidentId).map((entry) => copy({ sequence: entry.sequence, timestamp: entry.timestamp, field: entry.field, value: entry.value })),
+  };
+}
+
 function moduleNineFinalizeProveIt() {
   if (moduleNineState.caseRecord.submitted) return;
   const missing = caseRecordMissing(moduleNineState.caseRecord, moduleNineProveItSpec());
-  const scored = SocM09AssessmentScorer.score(SocM09AssessmentState.load(moduleNineUser, SocM09AssessmentData), SocM09AssessmentData);
+  const huntState = SocM09AssessmentState.load(moduleNineUser, SocM09AssessmentData);
+  const scored = SocM09AssessmentScorer.score(huntState, SocM09AssessmentData);
   const performance = { missing, score: scored.score, breakdown: scored.criteria, feedback: scored.review.feedback, criticalErrors: scored.criticalMisses };
   if (performance.missing.length) {
     moduleNineProveItShowMissing = true;
@@ -1671,6 +1702,10 @@ function moduleNineFinalizeProveIt() {
         case_record: moduleNineState.caseRecord,
         case_display: caseRecordDisplay(moduleNineState.caseRecord, caseSpec),
         case_summary: caseRecordSummary(moduleNineState.caseRecord, caseSpec),
+        // Additive (admin Submission Sheet, 2026-10-17): the response the student ran
+        // (triage, evidence reviewed, each approved action, recovery steps, escalation).
+        // Never read by scoring.
+        assessment_work: moduleNineAssessmentWork(huntState),
       },
     });
   }

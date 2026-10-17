@@ -177,13 +177,17 @@ test('framework verdict rule, evidence groups and mechanics', () => {
   assert.ok(partial.every((f) => f.comment.startsWith('To strengthen next time: ')), 'partial wording');
   assert.match(partial[1].comment, /203\.0\.113\.45/);
 
-  // Advisory (required: false) ✗ never blocks; required ✗ returns.
+  // A red required section remains feedback but does not override a passing score.
   assert.equal(Sheet.evaluate(row({ pick: 'a', advised: false, notes: 'ws-204 and 203.0.113.45.' })).verdict.kind, 'pass');
   sheet = Sheet.evaluate(row({ pick: 'c', advised: true, notes: 'Nothing useful here.' }));
-  assert.equal(sheet.verdict.kind, 'return');
+  assert.equal(sheet.verdict.kind, 'pass');
   eq(sheet.verdict.needsWork.map((s) => s.id), ['pick', 'write'], 'no pieces found = ✗');
   const failed = Sheet.suggestedFeedback(row({ pick: 'c', advised: true, notes: 'Nothing useful here.' }));
   assert.equal(failed[0].comment, 'Pick A.', '✗ items carry the red-pen note as written');
+
+  sheet = Sheet.evaluate(row({ pick: 'c', advised: true, notes: 'Nothing useful here.', critical_errors: ['unsafe action'] }));
+  assert.equal(sheet.verdict.kind, 'return', 'scorer-flagged critical failure returns even above threshold');
+  assert.match(Sheet.render(row({ pick: 'c', advised: true, notes: 'Nothing useful here.', critical_errors: ['unsafe action'] })), /critical safety issue was flagged/);
 
   // Score below the pass mark returns even when every section passes.
   sheet = Sheet.evaluate(row({ pick: 'a', advised: true, notes: 'ws-204 and 203.0.113.45.' }, 60));
@@ -350,7 +354,7 @@ for (const file of caseFiles) {
       }
 
       // Case expectations.
-      if (expect.verdict) assert.equal(sheet.verdict.kind, expect.verdict, 'verdict');
+      if (expect.verdict) assert.equal(sheet.verdict.kind, expect.verdict, `${file} · ${entry.name} verdict`);
       if (expect.verdict) assert.match(html, new RegExp(`data-sheet-verdict="${expect.verdict}"`));
       Object.entries(expect.sections || {}).forEach(([id, status]) => {
         const section = sheet.sections.find((s) => s.id === id);
@@ -362,7 +366,8 @@ for (const file of caseFiles) {
       (expect.html || []).forEach((needle) => (needle instanceof RegExp ? assert.match(html, needle) : assert.ok(html.includes(needle), `html includes ${needle}`)));
       // notHtml is checked above the debug fold (raw ids are fine in the technical record).
       (expect.notHtml || []).forEach((needle) => (needle instanceof RegExp ? assert.doesNotMatch(above, needle) : assert.ok(!above.includes(needle), `sheet excludes ${needle}`)));
-      if (typeof expect.custom === 'function') expect.custom({ html, sheet, suggested });
+      if (typeof entry.custom === 'function') entry.custom({ html, sheet, suggested });
+      else if (typeof expect.custom === 'function') expect.custom({ html, sheet, suggested });
     });
   }
 }

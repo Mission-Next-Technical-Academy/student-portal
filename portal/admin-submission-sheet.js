@@ -367,11 +367,24 @@ const AdminSubmissionSheet = (() => {
     };
   }
 
-  /* The structured sheet: what render() draws and suggestedFeedback() reads.
-   * Verdict rule (owner, 2026-10-17): PASS = score ≥ pass mark AND no
-   * required section ✗; RETURN = score below the mark OR a required ✗.
-   * ◐ amber never blocks a pass. 'judgment' only when the attempt has no
-   * system score to compare against. */
+  function criticalFailures(result, scorerResult) {
+    const candidates = [
+      result && result.critical_errors,
+      result && result.criticalErrors,
+      result && result.criticalMisses,
+      result && result.review_payload && (result.review_payload.critical_errors || result.review_payload.criticalErrors || result.review_payload.criticalMisses),
+      result && result.reviewPayload && (result.reviewPayload.critical_errors || result.reviewPayload.criticalErrors || result.reviewPayload.criticalMisses),
+      scorerResult && scorerResult.critical_errors,
+      scorerResult && scorerResult.criticalErrors,
+      scorerResult && scorerResult.criticalMisses,
+      scorerResult && scorerResult.review && scorerResult.review.criticalMisses,
+    ];
+    return candidates.flatMap((value) => Array.isArray(value) ? value : []).filter(Boolean).map(String);
+  }
+
+  /* The system score and module-defined safety caps decide pass/return.
+   * A red section remains actionable feedback but does not override a passing
+   * competency score. Amber is advisory; critical failures always return. */
   function evaluate(row, options = {}) {
     const definition = definitionFor(row);
     if (!definition) return null;
@@ -381,11 +394,12 @@ const AdminSubmissionSheet = (() => {
     const hasScore = row.score !== null && row.score !== undefined && row.score !== '';
     const score = hasScore ? Number(row.score) : null;
     const belowMark = hasScore && score < threshold;
+    const critical = criticalFailures(ctx.result, ctx.scorerResult);
     const needsWork = sections.filter((section) => section.required && section.status === 'fail');
     const partly = sections.filter((section) => section.status === 'partial');
     const advisory = sections.filter((section) => !section.required && section.status === 'fail');
     const judgment = sections.filter((section) => section.required && (section.status === 'judgment' || section.status === 'missing'));
-    const kind = needsWork.length || belowMark ? 'return' : hasScore ? 'pass' : 'judgment';
+    const kind = critical.length || belowMark ? 'return' : hasScore ? 'pass' : 'judgment';
     return {
       definition,
       ctx,
@@ -394,7 +408,7 @@ const AdminSubmissionSheet = (() => {
       sections,
       score,
       threshold,
-      verdict: { kind, needsWork, partly, advisory, judgment, belowMark },
+      verdict: { kind, needsWork, partly, advisory, judgment, belowMark, critical },
     };
   }
 
@@ -567,18 +581,20 @@ const AdminSubmissionSheet = (() => {
   }
 
   function verdictHtml(sheet) {
-    const { kind, needsWork, partly, advisory, judgment, belowMark } = sheet.verdict;
+    const { kind, needsWork, partly, advisory, judgment, belowMark, critical } = sheet.verdict;
     const n = needsWork.length;
     const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
     const names = (list) => list.map((section) => section.title).join(', ');
     const scoreLine = sheet.score === null ? 'The system did not record a score.' : `System score ${sheet.score}% against a ${sheet.threshold}% pass mark.`;
     const heading = kind === 'pass' ? 'Recommend PASS'
       : kind === 'judgment' ? 'Instructor judgment needed'
-        : n ? `Recommend RETURN — ${plural(n, 'section')} need${n === 1 ? 's' : ''} work` : 'Recommend RETURN — score is below the pass mark';
+        : critical.length ? 'Recommend RETURN — a critical safety issue was flagged'
+          : n ? `Recommend RETURN — ${plural(n, 'section')} need${n === 1 ? 's' : ''} work` : 'Recommend RETURN — score is below the pass mark';
     const detail = [
-      kind === 'pass' ? `${scoreLine} No required section is marked ✗.` : '',
+      kind === 'pass' ? `${scoreLine} ${needsWork.length ? 'Corrections are listed below and will be prefilled in teacher notes.' : 'No critical failure was flagged.'}` : '',
       kind === 'judgment' ? `${scoreLine} No required section is marked ✗; decide from the sheet.` : '',
       kind === 'return' ? `${n ? `Needs work: ${names(needsWork)}. ` : ''}${scoreLine}` : '',
+      critical.length ? `Critical failure flagged: ${critical.join('; ')}.` : '',
       partly.length ? `Partly there (does not block a pass; notes are prefilled below): ${names(partly)}.` : '',
       advisory.length ? `Advisory notes: ${names(advisory)}.` : '',
       judgment.length ? `Read and judge: ${names(judgment)}.` : '',

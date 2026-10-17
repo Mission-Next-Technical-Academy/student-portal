@@ -1415,10 +1415,27 @@ function wireModuleEightLab() {
   });
 }
 
+// Snapshot of the records the student saved in the Prove It console, saved with
+// the attempt for the instructor sheet. Read-only copy of the saved state;
+// nothing here feeds the score.
+function moduleEightAssessmentWork(state) {
+  const copy = (value) => JSON.parse(JSON.stringify(value ?? null));
+  const list = (value) => (Array.isArray(value) ? value : []);
+  return {
+    findingReviews: copy(list(state.findingReviews)),
+    incidentLinks: copy(list(state.incidentLinks)),
+    riskAcceptances: copy(list(state.riskAcceptances)),
+    escalations: copy(list(state.escalations)),
+    remediationDecisions: copy(list(state.remediationDecisions)),
+    remediationTransitions: copy(list(state.remediationTransitions)),
+  };
+}
+
 function moduleEightFinalizeProveIt() {
   if (moduleEightState.caseRecord.submitted) return;
   const missing = caseRecordMissing(moduleEightState.caseRecord, moduleEightProveItSpec());
-  const scored = SocM08AssessmentScorer.score(SocM08AssessmentState.load(moduleEightUser, SocM08AssessmentData), SocM08AssessmentData);
+  const huntState = SocM08AssessmentState.load(moduleEightUser, SocM08AssessmentData);
+  const scored = SocM08AssessmentScorer.score(huntState, SocM08AssessmentData);
   const performance = { missing, score: scored.score, breakdown: scored.criteria, feedback: scored.review.feedback, criticalErrors: scored.criticalMisses || [] };
   if (performance.missing.length) {
     moduleEightProveItShowMissing = true;
@@ -1455,6 +1472,10 @@ function moduleEightFinalizeProveIt() {
         case_record: moduleEightState.caseRecord,
         case_display: caseRecordDisplay(moduleEightState.caseRecord, caseSpec),
         case_summary: caseRecordSummary(moduleEightState.caseRecord, caseSpec),
+        // Additive (admin Submission Sheet, 2026-10-17): the student's own finding
+        // reviews, incident link, risk acceptance, escalation and remediation
+        // decision. Never read by scoring.
+        assessment_work: moduleEightAssessmentWork(huntState),
       },
     };
     MODULE_EIGHT_CATALOG_LAB_KEYS.forEach((labKey) => recordLabAttempt(moduleEightUser, labKey, attemptFields));

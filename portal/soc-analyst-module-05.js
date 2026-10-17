@@ -563,6 +563,28 @@ const MODULE_FIVE_LESSON_LOOPS = MODULE_FIVE_LESSONS.map((lesson, index) => ({
   task: `Write 20–80 characters naming the ${lesson.title.toLowerCase()} fact you would record for WS-LAB-27 and why it matters.`,
 }));
 
+// Readable copy of the student's console work (analysis notes, reviewed
+// records, evidence package, EDR handoffs, response requests) for the
+// instructor Submission Sheet (admin-sheets/soc-m05.js). Additive only: the
+// scorer reads the full assessment state, never this summary.
+function moduleFiveWorkSummary(assessment) {
+  const a = assessment && typeof assessment === 'object' ? assessment : {};
+  const list = (value) => (Array.isArray(value) ? value : []);
+  const text = (value, max = 2000) => String(value ?? '').slice(0, max);
+  const ids = (value) => list(value).slice(0, 100).map((id) => text(id, 80));
+  const actions = (type) => list(a.actionHistory).filter((entry) => entry && entry.type === type).map((entry) => ({ at: text(entry.timestamp, 40), ...(entry.details && typeof entry.details === 'object' ? entry.details : {}) }));
+  return {
+    selectedDeviceIds: ids(a.selectedDeviceIds),
+    analysisNotes: actions('analysis_note').map((note) => ({ at: note.at, text: text(note.text), relatedDeviceIds: ids(note.relatedDeviceIds), relatedEventIds: ids(note.relatedEventIds) })),
+    analysisUpdates: actions('analysis_update').map((update) => ({ at: update.at, field: text(update.field, 120), value: text(update.value, 500), reason: text(update.reason, 500) })),
+    deviceReviews: actions('device_review').map((review) => ({ at: review.at, deviceId: text(review.deviceId, 80), status: text(review.status, 40), note: text(review.note, 500) })),
+    eventReviews: actions('event_review').map((review) => ({ at: review.at, eventId: text(review.eventId, 80), status: text(review.status, 40), note: text(review.note, 500) })),
+    evidencePackage: a.evidencePackage && typeof a.evidencePackage === 'object' ? { deviceId: text(a.evidencePackage.deviceId, 80), eventIds: ids(a.evidencePackage.eventIds), hashes: ids(a.evidencePackage.hashes) } : null,
+    edrHandoffs: list(a.edrHandoffs).map((handoff) => ({ id: text(handoff.id, 120), deviceIds: ids(handoff.deviceIds), eventIds: ids(handoff.eventIds), hashes: ids(handoff.hashes), summary: text(handoff.summary, 500), owner: text(handoff.owner, 120), recipient: text(handoff.recipient, 120), recommendation: text(handoff.recommendation, 500), status: text(handoff.status, 40) })),
+    approvalRequests: list(a.approvalRequests).map((request) => ({ id: text(request.id, 120), type: text(request.type, 60), deviceId: text(request.deviceId, 80), status: text(request.status, 40), reason: text(request.reason, 500), requestedBy: text(request.requestedBy, 120), filePath: text(request.filePath, 300), sha256: text(request.sha256, 80) })),
+  };
+}
+
 let moduleFiveState = null;
 let moduleFiveUser = null;
 let moduleFiveLearnItViewed = null;
@@ -1556,6 +1578,8 @@ function wireModuleFiveAssessmentLab() {
             case_display: caseRecordDisplay(moduleFiveState.caseRecord, spec),
             case_summary: caseRecordSummary(moduleFiveState.caseRecord, spec),
             notes: moduleFiveState.caseRecord.notes,
+            // Additive (2026-10-17): the console work the scorer read, for the admin Submission Sheet. Never read by scoring.
+            work_summary: moduleFiveWorkSummary(assessmentState),
           },
         }).then((saved) => { if (saved && moduleFiveProveItRedoRequested()) delete moduleFiveUser.openLabRedosByModuleKey['soc-05']; });
       }

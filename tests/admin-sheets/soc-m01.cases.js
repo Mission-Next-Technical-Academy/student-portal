@@ -72,7 +72,7 @@ module.exports = ({ run, clone }) => {
         verdict: 'return',
         sections: { 'case-status': 'fail', severity: 'fail', 'affected-user': 'fail', 'affected-device': 'partial', disposition: 'fail', escalation: 'fail', notes: 'fail', evidence: 'partial' },
         feedback: ['Case & status', 'Severity', 'Affected user', 'Affected device', 'Disposition', 'Escalation & route', 'Analyst work notes', 'Evidence reviewed'],
-        html: ['Recommend RETURN — 5 sections need work', 'Set Severity to High', 'Put a.chen in Affected user', 'Set Escalation to Required', '&lt;script&gt;',
+        html: ['Recommend RETURN — a critical safety issue was flagged', 'Set Severity to High', 'Put a.chen in Affected user', 'Set Escalation to Required', '&lt;script&gt;',
           'Proofread:', 'sentence starts lowercase', '0 of 9 found', 'Not opened: Endpoint process chain, Proxy telemetry', 'Escalation set to “Not required” on a confirmed takeover'],
       },
       custom: ({ suggested }) => {

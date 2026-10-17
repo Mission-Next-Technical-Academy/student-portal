@@ -1,16 +1,11 @@
 # Admin Submission Sheet — SOC Analyst Prove It grading
 
-## Next AI — start here (2026-10-17, S1 shipped — framework + M01 + wiring)
+## Next AI — start here (2026-10-17, S1–S4 + S6 implemented)
 
-**S1 is done** (uncommitted on `feat/admin-submission-sheet`; the lead
-commits). S2–S4 agents start cold from this block and run **in parallel**:
-each owns **only** `portal/admin-sheets/soc-mNN.js`,
-`tests/admin-sheets/soc-mNN.cases.js`, its own module's submit payload (if a
-parity gap needs an additive key) and its own `### MNN` heading under
-"Parity tables" below. Do not edit the framework, `app.js`, `index.html`,
-or the shared test file — if the framework needs something, write it down
-under "Current state → Open questions" instead. S6 owns
-`portal/vendor/` + `portal/admin-sheet-spelling.js` (+ one script tag).
+The implementation for M01–M12 and spelling is present on
+`feat/admin-submission-sheet` (uncommitted). The remaining work is browser
+render review, final documentation, and a release handoff. Do not change the
+module scores. The active verdict rule is recorded below.
 
 How to write a module definition (copy `portal/admin-sheets/soc-m01.js`):
 
@@ -83,9 +78,11 @@ One **Submission Sheet** per Prove It attempt, top to bottom:
 1. **Header** — student ID, module + Prove It title, case / incident ID,
    attempt N of M, submitted date/time, system score vs. pass mark.
 2. **Verdict banner** —
-   - **Recommend PASS** (green banner, green sheet border) when every
-     *required* section passes the sweep **and** score ≥ pass threshold.
-   - **Recommend RETURN — N sections need work** (red) otherwise.
+   - **Recommend PASS** (green banner) when score ≥ pass threshold and the
+     module scorer has not flagged a critical failure. Sections that need
+     work still show red-pen recommendations and prefilled feedback.
+   - **Recommend RETURN** (red) when score is below threshold or the scorer
+     flagged a critical failure.
    - Always followed by "This is a recommendation. Your decision below is
      final." Grey "Instructor judgment needed" if a section has no
      automatic check and the rest pass.
@@ -127,11 +124,14 @@ the feedback that was actually sent shown in place of the editable notes.
 
 - **Percentages stay.** The header shows the system score % vs. the pass
   mark; the System rubric keeps points per criterion.
-- **Recommend PASS** = score ≥ pass threshold **and** no required section is
-  ✗ red. ◐ amber sections do **not** block a pass — they still prefill a
-  teacher-note item (worded as "To strengthen next time: …") so the
-  instructor can approve *with* feedback.
-- **Recommend RETURN** = score below threshold, or any required section ✗.
+- **Recommend PASS** = score ≥ pass threshold and no critical failure was
+  flagged by that module's scorer. A red ✗ section does not override a passing
+  score; it remains visible and pre-fills a correction for the instructor to
+  send with approval. Amber ◐ also does not block a pass and is worded "To
+  strengthen next time: …".
+- **Recommend RETURN** = score below threshold or a scorer-flagged critical
+  failure (such as an unsafe action or the module's safety cap). The
+  instructor's decision remains final.
 
 ### Narrative sections = key-evidence match (owner, 2026-10-17)
 
@@ -295,15 +295,16 @@ any Supabase schema/RLS/function change, any change to scores.
   chips, prefilled feedback, no `{"` JSON above the debug fold, and that
   an attempt missing a key renders "Not recorded". Replace the
   `JSON.stringify` in `adminCapstoneReviewPanel` with readable lists.
-- [ ] **S2 — M02–M05 definitions + parity tables** (parallel).
-- [ ] **S3 — M06–M09 definitions + parity tables** (parallel).
-- [ ] **S4 — M10–M12 definitions + parity tables** (parallel; M12 covers
+- [x] **S2 — M02–M05 definitions + parity tables** (implemented).
+- [x] **S3 — M06–M09 definitions + parity tables** (definitions and payload
+  saves implemented; parity table entries below).
+- [x] **S4 — M10–M12 definitions + parity tables** (implemented; M12 covers
   CASE-124821 and child INC-4821/4822/4823 resolutions).
-- [ ] **S5 — Verification.** `bin/ci-check.sh`, node tests, headless
-  Chrome render of all 12 sheets (pass + fail rows) against the local
-  portal with `*.supabase.co` aborted; screenshot review for readability;
-  update this doc.
-- [ ] **S6 — Spelling on every narrative field.** Typo.js + vendored
+- [ ] **S5 — Verification.** CI, module/spelling tests, portal checks, and
+  headless Chrome rendering of 24 synthetic sheets (pass + return for all
+  12 modules) are complete. No horizontal overflow; M12 return screenshot
+  reviewed. A local authenticated portal click-through remains pending.
+- [x] **S6 — Spelling on every narrative field.** Typo.js + vendored
   en_US dictionary, lazy-loaded, SOC allowlist, red underline in the
   student's text, advisory only. Runs after S1, in parallel with S2–S4
   (owns `portal/vendor/` + `portal/admin-sheet-spelling.js` only).
@@ -386,11 +387,12 @@ Behaviour:
   not-recorded > ✓ pass; no graded checks = grey Judgment ("For reference"
   when `required: false`). Evidence pieces count only through their group;
   the mechanics line is ◐ at worst.
-- **Verdict** (owner rule): PASS = score ≥ pass mark and no required ✗;
-  RETURN = score below the mark or any required ✗; grey "Instructor
-  judgment needed" only when the attempt has no system score. The banner
-  also lists ◐ sections ("does not block a pass"), advisory ✗ sections
-  and grey sections to read.
+- **Verdict** (owner rule): PASS = score ≥ pass mark with no scorer-flagged
+  critical failure; RETURN = score below the mark or a critical failure. A
+  red ✗ section does not override a passing score, but remains visible and
+  prefills correction feedback. Grey "Instructor judgment needed" appears
+  only when there is no system score. The banner lists partial, failed,
+  advisory and judgment sections for review.
 - **Prefilled teacher notes**: one item per ✗ or ◐ section (advisory ones
   included); ◐ items start "To strengthen next time: ". Approve / Return
   buttons and `submitGradingDecision` unchanged.
@@ -425,15 +427,13 @@ Behaviour:
   that needs a framework change (see Open questions).
 
 Verification run (2026-10-17): `node tests/admin-submission-sheet.test.js`
-→ 16 checks (6 M01 cases); `node bin/portal-check.js` exit 0; `node
---check` on all portal/ui JS; `git diff --check` clean; full `tests/*.test.js`
-sweep — only `guided-lab-console-guide`, `soc-m04-assessment-rubric`,
-`soc-m04-assessment-scorer`, `soc-m05-assessment-console` fail, and they
-fail identically on a clean HEAD (pre-existing). Headless-Chrome screenshot
-of the M01 pass / return / partial / older / read-only sheets reviewed.
-Not yet done: live click-through against staging (S5).
+→ 82 checks (72 synthetic cases across all 12 modules); spelling tests → 18
+passed; `node bin/portal-check.js` exit 0; `bash bin/ci-check.sh` exit 0;
+`git diff --check` clean. Browser-level sheet renders and staging click-through
+remain open. Staging must use `bin/dev.sh`, target STAGING, and an owner-provided
+synthetic account.
 
-Module progress: M01 ✓ · M02–M12 stubs (S2–S4).
+Module progress: M01–M12 ✓ · spelling ✓ · parity tables filled.
 
 ### Open questions
 
@@ -442,9 +442,9 @@ Module progress: M01 ✓ · M02–M12 stubs (S2–S4).
   answer key uses In Progress. Owner may want it required or dropped.
 - Evidence reviewed (M01) is advisory: the submit gate already forces all
   four evidence items, so it only matters for old attempts.
-- Spelling notes from S6 cannot prefill teacher-note items yet (analyzers
-  run after the notes are built). Decide whether S6 should append a
-  feedback item to the card itself.
+- Spelling note behavior is implemented and covered by the S6 tests; the
+  analyzer adds one editable feedback item after flagging three or more
+  misspellings, and leaves edited notes alone.
 
 ## Parity tables
 
@@ -485,35 +485,247 @@ state), `.validationError`, `.completed` / `.submitted` / `.attempts`,
 `.submittedAt` (header shows `completed_at`). All remain in the technical
 record.
 
-### M02
-_(S2)_
+### M02 — `lab-identity-investigation` (CASE-025502 / INC-025811)
 
-### M03
-_(S2)_
+Student side: `practiceTicketPane()`; submit `submitProve()` in `portal/soc-analyst-module-02-environment.js`. Definition: `portal/admin-sheets/soc-m02.js` (answer key copied from the module IIFE with file:line cites; the cases file fails if the key drifts).
 
-### M04
-_(S2)_
+| Student field / control | `lab_attempts.result` key | Sheet section |
+|---|---|---|
+| Case id, linked incident | `case_display` "Case" / "Linked incidents" | 1 Case & status |
+| Status | `case_record.status` | 1 Case & status (advisory: not Resolved) |
+| Severity | `case_record.severity` / `.priority` | 2 Severity (High) |
+| Affected User (5) | `case_record.affectedUser` (id) | 3 Affected user (John ✓, Cora ◐) |
+| Affected Device (5) | `case_record.affectedDevice` | 4 Affected device (wkstn-23 ✓, wkstn-09 ◐) |
+| Disposition | `case_record.disposition` / `.verdict` | 5 Disposition |
+| Escalation, Route | `case_record.escalation`, `.escalateTo` | 6 Escalation & route (fit 100 ✓, ≥ 40 ◐, else ✗) |
+| Access control finding | `case_record.findings['access-finding']` | 7 Access control finding |
+| Analyst Work Notes | `case_record.notes` | 8 Analyst work notes (80 chars, 8 key-evidence pieces, mechanics) |
+| Action history | `case_record.actionHistory` | 9 Action timeline (folded) |
+| (scorer) | `breakdown`, `feedback`, `critical_errors` | System rubric |
 
-### M05
-_(S2)_
+Payload: no change needed. Not shown: `case_summary`, `access_review` (duplicates). Not saved: console records opened (exploration).
 
-### M06
-_(S3)_
+### M03 — `lab-siem-triage` (CASE-MN-517 / INC-MN-517)
 
-### M07
-_(S3)_
+Student side: `m03eCaseRecordView()`, `m03eFindingsHtml()`, `m03eResolutionPanel('prove')`; submit `m03eSubmitAssessment()`. The sheet re-runs `moduleThreeScoreAssessment()` on the saved attempt and reads each rubric item's hit/miss, so checks cannot disagree with the points.
 
-### M08
-_(S3)_
+| Student field / control | `lab_attempts.result` key | Sheet section |
+|---|---|---|
+| Case, Status | `case_display`, `case_record.status` | 1 Case & status (advisory) |
+| Severity | `case_record.severity` | 2 Severity (High/Critical ✓, Medium ◐) |
+| Affected User / Device | `case_record.affectedUser` / `.affectedDevice` | 3, 4 (advisory: unscored) |
+| Disposition | `case_record.verdict` / `.disposition` | 5 Disposition (critical rule) |
+| Escalation required | `case_record.escalation` | 6 Escalation required (3 pts) |
+| Route to Department | `case_record.escalateTo` | 7 Route (advisory: unscored) |
+| 7 account-scope selects | `case_record.accountStatus{}`, `.findings`; `case_display` | 8 Account scope; 9 Other accounts (advisory) |
+| Indicators checklist | `case_record.indicators[]` | 10 Indicators to hand off |
+| Recommended response checklist | `case_record.actions[]` | 11 Recommended response |
+| 4-part handoff, Work Notes | `case_record.handoff{}`, `.notes` | 12 Handoff & work notes |
+| Alert-to-incident links | `case_record.alertIncidentLinks[]` | 13 Alert-to-incident links |
+| Child incident resolutions | `case_record.incidentResolutions` | 14 Child incident resolutions |
+| Pinned evidence | `assessment.selected_evidence[]`, `.pinned_evidence[]` | 15 Evidence pinned |
+| Searches | `assessment.query_log` (last 40), `assessment.query_summary` (new) | 16 Search technique (advisory) |
+| Action history | `case_record.actionHistory` | 17 Timeline |
+| (scorer) | `breakdown`, `feedback`, `simulator_performance` | System rubric |
 
-### M09
-_(S3)_
+Payload change (additive): `portal/soc-analyst-module-03-environment.js:1580` adds `assessment.query_summary { total, sources_queried[], cross_source_pivot }` (the scorer reads the full query log; `query_log` keeps 40). Not shown: `case_summary`, `simulator_performance` (duplicates).
 
-### M10
-_(S4)_
+### M04 — `lab-detection-rule` (CASE-044424 / INC-044733)
 
-### M11
-_(S4)_
+Student side: `m04-assessment` ticket + console; submit `[data-m04-submit-case]` in `portal/soc-analyst-module-04.js`. Console-work sections read each criterion from the saved `breakdown` (full ✓, partial ◐, none ✗; red-pen = scorer's first two miss sentences).
 
-### M12
-_(S4)_
+| Student field / control | `lab_attempts.result` key | Sheet section |
+|---|---|---|
+| Case, incident, Status | `case_display`, `case_record.status` | 1 Case & status (advisory) |
+| Severity | `case_record.severity` | 2 Severity (advisory) |
+| Affected User / Device (source IP) | `case_record.affectedUser` / `.affectedDevice` | 3, 4 (advisory) |
+| Disposition | `case_record.disposition` | 5 Disposition |
+| Escalation, Route | `case_record.escalation`, `.escalateTo` | 6 (advisory) |
+| Intelligence interpretation, Rule decision | `case_record.findings.*` | 7 Findings (advisory) |
+| Indicator verdicts + reasons | `review_payload.intelligenceVerdicts[]` | 8 Indicator verdicts (contradicted ✗) |
+| Work Notes (min 100) | `case_record.notes` | 9 Analyst work notes |
+| IOC records | `work_summary.iocs[]` (new) | 10 Threat intelligence; 11 Indicator record (advisory) |
+| Rules, query, grouping, threshold, window, exclusion, suppression | `work_summary.rules[]` (new) | 12 Detection query and rule |
+| Schedule, runs | `work_summary.rules[].schedule`, `.executions[]` (new) | 13 Rule scheduled (advisory) |
+| Alerts | `work_summary.alerts[]` (new) | 14 Alerts raised |
+| Automation, approvals | `work_summary.automation` (new) | 15 Automation kept safe |
+| Action history | `case_record.actionHistory` | 16 Timeline |
+| (scorer) | `breakdown`, `review_payload.criteria`, `feedback`, `critical_errors` | System rubric (raw ids rewritten to student wording) |
+
+Payload change (additive): `portal/soc-analyst-module-04.js:1865` adds `result.work_summary: moduleFourWorkSummary(moduleFourState.assessment)` (helper above `let moduleFourState`). Not shown: `case_summary`; scorer `case-documentation` has no own section (covered by disposition/escalation/notes; listed in the rubric).
+
+### M05 — `lab-endpoint-investigation` (CASE-055127 / INC-055436)
+
+Student side: `m05-assessment` ticket + console; submit `[data-m05-submit-case]` in `portal/soc-analyst-module-05.js`. The scorer ignores the ticket, so ticket sections are advisory; console sections read `review_payload.criteria`.
+
+| Student field / control | `lab_attempts.result` key | Sheet section |
+|---|---|---|
+| Case, Status | `case_display`, `case_record.status` | 1 Case & status (advisory) |
+| Severity, User, Device, Disposition, Escalation, Route | `case_record.*` | 2–6 (advisory) |
+| Work Notes | `case_record.notes`, `result.notes` | 7 Ticket work notes (advisory; 8 key-evidence pieces) |
+| Console analysis notes, corrections, reviews | `work_summary.analysisNotes/analysisUpdates/deviceReviews/eventReviews` (new) | 8 Analysis notes from the console |
+| Ancestry, malicious vs updater, persistence, detection vs prevention | `review_payload.criteria` | 9–12 (12 advisory) |
+| Selected devices, handoff/request scope | `work_summary.selectedDeviceIds`, `.edrHandoffs`, `.approvalRequests` (new) | 13 Incident scope |
+| Evidence package | `work_summary.evidencePackage` (new) | 14 Evidence preserved (advisory) |
+| EDR handoffs | `work_summary.edrHandoffs` (new) | 15 EDR handoff (text in full) |
+| Isolation/quarantine requests | `work_summary.approvalRequests` (new) | 16 Safe response boundary |
+| Action history | `case_record.actionHistory` | 17 Timeline |
+| (scorer) | `review_payload.{score,criteria,criticalMisses}` | System rubric |
+
+Payload change (additive): `portal/soc-analyst-module-05.js:1582` adds `result.work_summary: moduleFiveWorkSummary(assessmentState)`. Not shown: `case_summary`, `review_payload.entityIdentity` (answer key).
+
+**M02–M05 caveats / open questions.** (1) Ticket fields the scorer ignores are advisory (M03 user/device/route; M04 and M05 severity/user/device/route/findings; M05 notes). M04 `case-documentation` accepts any escalation value, including "Not required"; M05 ticket notes are unscored. Owner to decide whether any should be required. (2) Low-weight criteria are advisory so a single 0 cannot return a ≥ 70 attempt: M04 IOC record and schedule, M05 detection-vs-prevention and evidence package, M03 secondary accounts and search technique. (3) M02's answer key lives in a module IIFE, so it is copied into the sheet (file:line cites + drift test). (4) M03 attempts saved before `query_summary` may differ slightly on technique if > 40 queries were run. (5) Cases files load module data/scorers into the shared test VM and tolerate "already declared" errors; other agents' files loading the same shared console files need the same guard. (6) Framework gaps worked around: no per-check advisory flag (split into advisory sections) and no native scored-item list (scorer hits fed through the evidence group).
+
+### M06 — `lab-threat-hunt-independent` (CASE-066318)
+
+Student side: independent hunt console; submit `moduleSixFinalizeAssessment()`. Ticket fields are checked against the case key; the investigation's system score comes from `SocM06AssessmentScorer` and rubric. Payload now adds `assessment_work` so the sheet can show the actual investigation.
+
+| Student field / work | `lab_attempts.result` key | Sheet section |
+|---|---|---|
+| Case, status, severity, user/device, disposition, escalation/route | `case_record`, `case_display` | 1–5 ticket sections (ticket score is advisory) |
+| Findings and analyst work notes | `case_record.findings`, `.notes` | Ticket findings; Analyst work notes (evidence and mechanics) |
+| Hypothesis and rationale | `assessment_work.hypotheses[]` | Hunt hypothesis |
+| Host/account searches, saved queries, runs, pivots | `assessment_work.queryHistory`, `.savedQueries`, `.savedQueryRuns`, `.pivots` | Hunt scope & comparison; Saved query & pivots |
+| Bookmarks and evidence collection | `assessment_work.bookmarks`, `.collections` | Evidence collection |
+| ATT&CK mappings and rationale | `assessment_work.mappings[]` | ATT&CK mapping |
+| Handoff target, evidence, rationale and recommendation | `assessment_work.handoffs[]` | Detection / incident handoff |
+| Conclusion, disposition and evidence links | `assessment_work.conclusions[]` | Conclusion & limits |
+| — (scorer) | `breakdown`, `review_payload`, `critical_errors` | System rubric and safety check |
+
+Payload change (additive): submit now saves the completed hunt state as
+`assessment_work`. Unsupported certainty is a scorer critical miss and score
+cap, so it forces RETURN at the 70% threshold.
+
+### M07 — `lab-email-triage`, `lab-network-investigation`, `lab-network-email-independent`
+
+One submit writes the same `result` to all three attempt rows; the sheet renders once from `item.lead` and uses its sibling rows. Answer keys and scoring come from `SocM07AssessmentData`, `SocM07AssessmentRubric`, and `SocM07AssessmentScorer`.
+
+| Student field / work | `lab_attempts.result` key | Sheet section |
+|---|---|---|
+| Case, status, severity, user/device, disposition, escalation/route | `case_record`, `case_display` | Ticket sections (some scenario-mismatched fields advisory) |
+| Analyst work notes | `case_record.notes` | Analyst work notes (evidence and mechanics) |
+| Analyst review notes | `assessment_work.reviewNotes[]` | Review notes |
+| Email, artifact, and network reviews | `assessment_work.messageReviews[]`, `.artifactReviews[]`, `.networkReviews[]` | Delivery scope; Confirmed chain; Noise rejection |
+| Pivots, evidence selection, scope and recipient search | `assessment_work.pivots[]`, `.evidenceChanges[]`, `.scope`, `.recipientSearch` | Confirmed chain; Incident record; Unknowns & limits |
+| Incident links | `assessment_work.incidentLinks[]` | Incident record |
+| — (scorer) | `breakdown`, `review_payload`, `critical_errors` | System rubric and safety check |
+
+Payload change (additive): submit now saves `assessment_work` with review notes,
+pivots, evidence actions, scope, and incident record. Unsupported certainty is
+a scorer critical miss and score cap.
+
+### M08 — `lab-vuln-prioritization`, `lab-vuln-queue`
+
+One submit writes the same `result` to both rows; the sheet renders from `item.lead`. Findings and scoring use `SocM08AssessmentData` and the module scorer/rubric.
+
+| Student field / work | `lab_attempts.result` key | Sheet section |
+|---|---|---|
+| Case, status, severity, user/device, disposition, escalation/route | `case_record`, `case_display` | Ticket sections |
+| Work notes | `case_record.notes` | Analyst work notes |
+| Review of the current, stale and not-applicable findings | `assessment_work.findingReviews[]` | Finding review |
+| Asset context and compensating controls | fixture evidence + `assessment_work.findingReviews[]` | Asset context |
+| Incident link and rationale | `assessment_work.incidentLinks[]` | Incident link |
+| Finding-specific risk acceptance | `assessment_work.riskAcceptances[]` | Risk acceptance |
+| Escalation route, evidence, owner and due date | `assessment_work.escalations[]` | Escalation & route |
+| Priority, remediation decision and state transitions | `assessment_work.remediationDecisions[]`, `.remediationTransitions[]` | Remediation |
+| — (scorer) | `breakdown`, `review_payload`, `critical_errors` | System rubric |
+
+Payload change (additive): submit now saves `assessment_work` with finding
+reviews, incident link, risk acceptance, escalation, remediation and
+transitions. No separate critical-failure cap is defined by this scorer.
+
+### M09 — `lab-active-incident` (INC-4937, Operation Cedar Lock)
+
+Student side: independent active ransomware response; the sheet reads the action and response record, and scores sections from the submitted rubric points. Answer keys use `SocM09AssessmentData` and `SocM09AssessmentRubric`.
+
+| Student field / work | `lab_attempts.result` key | Sheet section |
+|---|---|---|
+| Case, status, severity, user/device, disposition, escalation/route, classification/scope | `case_record`, `case_display` | Ticket and findings sections |
+| Analyst work notes | `case_record.notes` | Analyst work notes |
+| Priority and ownership | `assessment_work.workflow.severity`, `.assigneeId` | Triage |
+| Evidence reviewed and supported scope | `assessment_work.reviewedEvidenceIds[]` + fixture | Evidence & scope |
+| Designed response workflow and order | `review_payload.responseReview.workflowDesigns` | Workflow design |
+| Evidence preservation before eradication | `assessment_work.actions[]` + fixture | Evidence first |
+| Containment, identity/persistence response, approvals and outcomes | `assessment_work.actions[]`, `.workflowEvents[]` | Containment and safe conduct |
+| Recovery, monitoring and reopen conditions | `assessment_work.actions[]`, `.workflow.tasks[]` | Recovery |
+| Residual risk and escalation text | `assessment_work.workflow.escalationReason`, `.actions[]` | Residual risk & escalation |
+| — (scorer) | `breakdown`, `review_payload`, `critical_errors` | System rubric |
+
+Payload change (additive): submit now saves `assessment_work` with triage,
+evidence, actions, approval state, workflow events and escalation text. Unsafe
+attempts reduce the safe-conduct competency; this scorer defines no whole-score
+critical cap.
+
+### M10 — `lab-attack-mapping` (CASE-105510 / INC-5510)
+
+Student side: `moduleTenAssessmentLabPanel()` (console plus ITSM ticket). Submit: `moduleTenFinalizeCase()` in `portal/soc-analyst-module-10.js`. Each work section takes its status from the stored scorer points (`result.breakdown`, 10 per criterion); expected values are read from `SocM10AssessmentData`.
+
+| Student field / control | `lab_attempts.result` key | Sheet section |
+|---|---|---|
+| Case id, linked incident | `case_display` "Case" / "Linked incidents" | 1 Incident ticket (advisory) |
+| Status, Severity, Affected User, Affected Device, Disposition, Escalation, Route | `case_record.*`, `case_display` | 1 Incident ticket (advisory: the M10 scorer scores no ticket field) |
+| Analyst Work Notes | `case_record.notes` | 2 Analyst work notes (advisory; min length, 9 key-evidence pieces, mechanics) |
+| Evidence placed in the locker | **`evidence_record.locker` (new)** | 3 Evidence collected (`evidence-selection`) |
+| Source, method, acquired-by | `evidence_record.locker[*]` | 4 Source and acquisition details (`acquisition-metadata`) |
+| Hash verify / re-acquire | `evidence_record.locker[*].integrity`, `.actionHistory` | 5 Hash checks (`hash-integrity`) |
+| Custody transfers | `evidence_record.transfers` | 6 Custody transfer (`custody`) |
+| Legal hold, exported package | `evidence_record.legalHold`, `.exports` | 7 Legal hold and evidence package (`preservation`) |
+| Timeline order | `evidence_record.timeline` | 8 Timeline (`timeline`) |
+| Fact / analysis statements | `evidence_record.statements` | 9 Facts versus analysis (`fact-analysis` + no confirmed-exfiltration check) |
+| Root-cause statement | `evidence_record.statements[kind=root_cause]` | 10 Root cause (`root-cause`) |
+| ATT&CK mappings | **`attack_mappings` (new)**, fallback `case_record.tools.m06.mappings` | 11 ATT&CK mapping (`attack-linkage`) |
+| Unknowns, specialist escalation | `evidence_record.unknowns`, `.escalation` | 12 Unknowns and specialist escalation (`unknowns-escalation`) |
+| Locker action log | `evidence_record.actionHistory` | 13 Action timeline (folded) |
+| — (scorer) | `breakdown`, `feedback`, `review_payload`, `critical_errors` | System rubric |
+
+Not shown above the fold: per-artifact analyst `notes`, `case_record.labProgress`, `.tools.*` (stay in the technical record).
+
+**Payload change (additive, scoring untouched):** `portal/soc-analyst-module-10.js` ~1404-1407 and ~1445-1446 in `moduleTenFinalizeCase`. The locker/reconstruction lives in a separate LabRuntime case state and was never in `case_record`, so the result now also saves `evidence_record` (copy of that state) and `attack_mappings` (normalized list the scorer used). Older attempts lack both: work-section statuses still come from the stored breakdown, answer rows read "Not recorded in this attempt (submitted before 2026-10-17)".
+
+**Caveats:** M10 ticket and notes are not scored, so they are advisory (owner may want them required). ATT&CK fallback for old rows reads the raw workspace copy, which may differ slightly from the normalized one.
+
+### M11 — `lab-exec-report` (OPS-5511, incident INC-4937)
+
+Student side: console tabs (Operations, Reporting, Alerts). Submit: `moduleElevenFinalizeCase()`. No case ticket; the sheet replays `result.action_history` with `SocM11AssessmentState.normalize`. Statuses come from stored `result.criteria` points. No payload change needed.
+
+| Student field / control | `lab_attempts.result` key | Sheet section |
+|---|---|---|
+| Queue priority order | `action_history[priority]` | 1 Queue priority |
+| Per-alert disposition + reason | `action_history[disposition]` | 2 Alert dispositions (recorded vs supported call per alert; reasoning in full; v1 attempts "Not recorded") |
+| Assign, Escalate | `action_history[assign/escalate]` | 3 Assignments and escalation (SLA awareness, assignment/escalation) |
+| Metrics interpretation | `action_history[metric_interpretation]` | 4 Reading the metrics |
+| Flag noisy rule | `action_history[noisy_rule]` | 5 Noisy detection rule |
+| Shift handoff | `action_history[handoff]` | 6 Shift handoff |
+| Technical report | `action_history[report/technical]` | 7 Technical report (+5 key-evidence pieces) |
+| Executive summary | `action_history[report/executive]` | 8 Executive summary |
+| Escalation notice | `action_history[report/escalation]` | 9 Escalation notice (advisory, not scored) |
+| Closure report | `action_history[report/closure]` (technical if absent) | 10 Closure report and residual risk (+2 open-item pieces) |
+| Follow-up / lesson / detection actions | `action_history[improvement_action]` | 11 Follow-up actions and lessons |
+| Closure decision | `action_history[closure_decision]` | 12 Closure decision |
+| Full log | `action_history` | 13 Action log (folded) |
+| — (scorer) | `criteria`, `review`, `rubricVersion`, `criticalMisses` | System rubric |
+
+**Caveat:** a "needs investigation" call on an alert the evidence decides earns no credit and no penalty; it is counted inside the overall criterion, not as a separate ✗.
+
+### M12 — `lab-capstone` (CASE-124821; INC-4821, INC-4822, INC-4823; rubric v3)
+
+Student side: ITSM ticket plus capstone console tabs. Submit: `moduleTwelveFinalize()`. The sheet reads `case_record.assessmentState` first and falls back to `reviewPayload.reviewArtifact`. Competency sections take status from stored points; the CASE ticket, the three INC resolutions, intel verdicts and alert decisions are also checked line by line against `expectedTruth`. v1/v2 attempts render the INC sections as "Not recorded". No payload change needed.
+
+| Student field / control | `lab_attempts.result` key | Sheet section |
+|---|---|---|
+| Parent CASE, title, child incidents + status | `case_display`; `assessmentState.incidents` | 1 Parent CASE and ticket |
+| Severity, Affected user/device, priority rationale | `case_record.*`; `ticketCore` in investigation actions | 1 (scored via ticketCore) |
+| Disposition, Escalation, Route | `case_record.*`, `case_display` | 2 Ticket routing (advisory) |
+| INC-4821/4822/4823 status, disposition, note, evidence, linked alerts | `assessmentState.incidents`, `.incidentLinks`; fallback `studentDeterminations.incidents` | 3-5 one section per INC |
+| Intel verdicts TI-601..605 + rationale | `assessmentState.intelligence` | 6 Threat intelligence verdicts |
+| Alert verdicts + reasons | `assessmentState.dispositions`, `.alertReviews` | 7 Alert decisions |
+| Queries, rule, schedule | `queryRuns`, `rules`, `schedules` | 8 Queries, detection rule and schedule |
+| Domain findings | `investigations` | 9 Cross-domain investigation |
+| Pinned evidence, timeline, scope, ATT&CK | `selectedEvidence`, `investigations`, `attackMappings` | 10 Timeline, scope, evidence and ATT&CK |
+| Workflow, approvals, executions | `workflows`, `approvals`, `executions`, `reviewPayload.unsafeExecution` | 11 Tuning and containment (+ no-unsafe-action check) |
+| Recovery | `recovery` | 12 Eradication and recovery |
+| Notes, priority/scope/exec/closure text, technical, executive, lessons, handoff | `case_record.notes`, `.findings.*`, `reports`, `handoffs` | 13 Reports, handoff and lessons (+7 key-evidence pieces) |
+| Closure decision | `closure` | 14 Closure decision (advisory) |
+| Competency table, explanation, cap, actions | `reviewPayload.reviewArtifact.*`, `breakdown` | 15 Competency results (folded) + System rubric |
+
+**Caveats:** (1) `sections[]` is static, so M12 names the three child incidents once in `soc-m12.js` (cited to `soc-m12-assessment-data.js` 15-19); a function-valued `sections` in the framework would remove this. (2) One unresolved child incident or a wrong ticket severity can lose 1–3 of 12 points while still allowing a passing score; the sheet recommends PASS and prefills a correction note, as requested. (3) Scorer quirk, unchanged: a technical report mentioning a benign record such as BEN-101 loses its report credit.
