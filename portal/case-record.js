@@ -276,6 +276,9 @@ function caseRecordPane(state, spec) {
 // lab_attempts payload as `result.case_display` so the instructor Grading
 // view (app.js adminCaseTicketSubmissionPanel) can show any module's ticket,
 // including its findings and department names, without knowing its option ids.
+// Affected user / device show the roster label the student picked (2026-10-17;
+// earlier attempts stored the raw option id here). The ids stay in
+// `result.case_record` for scoring.
 function caseRecordDisplay(state, spec = {}) {
   const label = (options, id) => (options || []).find((option) => option.id === id)?.text || id || 'Not provided';
   const dispositions = (spec.dispositionOptions || CASE_RECORD_DISPOSITION_OPTIONS).map((option) => ({ id: option.id, text: CASE_RECORD_DISPOSITION_LABELS[option.id] || option.text }));
@@ -284,8 +287,8 @@ function caseRecordDisplay(state, spec = {}) {
     ...(caseRecordIncidentIds(spec).length ? [['Linked incidents', caseRecordIncidentIds(spec).join(', ')]] : []),
     ['Status', label(CASE_RECORD_STATUS_OPTIONS, state.status)],
     ['Severity', label(CASE_RECORD_SEVERITY_OPTIONS, caseRecordSeverity(state))],
-    ['Affected user', state.affectedUser || 'Not provided'],
-    ['Affected device', state.affectedDevice || 'Not provided'],
+    ['Affected user', label(spec.userOptions, state.affectedUser)],
+    ['Affected device', label(spec.deviceOptions, state.affectedDevice)],
     ['Disposition', label(dispositions, caseRecordDisposition(state))],
     ['Escalation required', label(CASE_RECORD_ESCALATION_OPTIONS, state.escalation)],
     ['Route to department', state.escalation === 'required' ? label(spec.departmentOptions || CASE_RECORD_DEFAULT_DEPARTMENTS, state.escalateTo) : 'Not applicable'],
@@ -302,8 +305,8 @@ function caseRecordSummary(state, spec = {}) {
     ...(caseRecordIncidentIds(spec).length ? [`Linked incidents: ${caseRecordIncidentIds(spec).join(', ')}`] : []),
     `Status: ${label(CASE_RECORD_STATUS_OPTIONS, state.status)}`,
     `Severity: ${label(CASE_RECORD_SEVERITY_OPTIONS, caseRecordSeverity(state))}`,
-    `Affected User: ${state.affectedUser || '—'}`,
-    `Affected Device: ${state.affectedDevice || '—'}`,
+    `Affected User: ${label(spec.userOptions, state.affectedUser)}`,
+    `Affected Device: ${label(spec.deviceOptions, state.affectedDevice)}`,
     `Disposition: ${label(spec.dispositionOptions || CASE_RECORD_DISPOSITION_OPTIONS, caseRecordDisposition(state))}`,
     `Escalation: ${label(CASE_RECORD_ESCALATION_OPTIONS, state.escalation)}${state.escalation === 'required' ? ` → ${label(spec.departmentOptions || CASE_RECORD_DEFAULT_DEPARTMENTS, state.escalateTo)}` : ''}`,
     ...(spec.findings || []).map((field) => `${field.label}: ${label(field.options, (state.findings || {})[field.name])}`),

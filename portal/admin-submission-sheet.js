@@ -32,6 +32,7 @@
  *     scorer: (result, ctx) => …,                    // optional re-score, exposed as ctx.scorerResult
  *     freeText: (result, ctx) => ['notes', …],       // strings searched by ctx.mentions()
  *     rubric: { labels, max, criticalLabels } | (result, ctx) => rows,
+ *     displayOptions: { 'Affected user': (result, ctx) => [{ id, text }] }, // optional: maps ids in older case_display rows to labels
  *     sections: [{
  *       id, title,
  *       instructorPrompt: 'Instructor-only guidance beside the section',
@@ -223,11 +224,20 @@ const AdminSubmissionSheet = (() => {
       scorerResult: null,
     };
     // `result.case_display` holds the ticket rows exactly as the student saw
-    // them (portal/case-record.js caseRecordDisplay()).
+    // them (portal/case-record.js caseRecordDisplay()). Attempts saved before
+    // 2026-10-17 stored the raw option id for Affected user / device; a
+    // definition's `displayOptions` ({ 'Affected user': (result, ctx) => [{ id, text }] })
+    // turns such an id back into the label the student picked.
     ctx.display = (label) => {
       const rows = Array.isArray(result.case_display) ? result.case_display : [];
       const match = rows.find((entry) => Array.isArray(entry) && String(entry[0]).toLowerCase() === String(label).toLowerCase());
-      return match ? String(match[1]) : null;
+      if (!match) return null;
+      const value = String(match[1]);
+      const lookup = definition.displayOptions && Object.entries(definition.displayOptions).find(([key]) => key.toLowerCase() === String(label).toLowerCase());
+      const options = lookup ? safe(lookup[1], [result, ctx], []) : null;
+      if (!Array.isArray(options) || options.some((option) => option && option.text === value)) return value;
+      const option = options.find((entry) => entry && entry.id === value);
+      return option && option.text ? String(option.text) : value;
     };
     let textCache = null;
     ctx.text = () => {
@@ -278,7 +288,7 @@ const AdminSubmissionSheet = (() => {
    * scored together — all found = pass, some = partly there, none = fail.
    *   { label, text: (result, ctx) => string | null (default ctx.text()),
    *     pieces: [{ name, short, terms: [...] }] | (result, ctx) => [...],   // short = name in the red-pen note
-   *     fix: (missingNames, result, ctx) => 'red-pen note' } */
+   *     fix: (missingNames, result, ctx) => 'red-pen note' | false (another line already says it) } */
   function evaluateEvidence(group, section, args) {
     const ctx = args[1];
     const source = group.text ? safe(group.text, args) : ctx.text();
@@ -301,8 +311,11 @@ const AdminSubmissionSheet = (() => {
     // NOTE_LIST_MAX of them, so a note stays readable; the ✓/✗ lines above
     // still show the instructor every piece.
     const missing = shortList(pieces.filter((piece, index) => lines[index].outcome !== 'pass').map((piece) => piece.short || piece.name));
+    // group.fix may return false when another line in the section already
+    // carries the note (no duplicate, no generic fallback).
+    const custom = outcome === 'partial' || outcome === 'fail' ? (group.fix ? safe(group.fix, [missing, ...args]) : null) : null;
     const fix = outcome === 'partial' || outcome === 'fail'
-      ? (group.fix ? safe(group.fix, [missing, ...args]) : null) || `Back your decision with the evidence: your answer does not mention ${missing.join(', ')}.`
+      ? (custom === false ? null : custom || `Back your decision with the evidence: your answer does not mention ${missing.join(', ')}.`)
       : null;
     return [{ kind: 'group', label, outcome, given: `${hits} of ${lines.length} found`, fix: fix ? String(fix) : null, found: true }, ...lines];
   }
