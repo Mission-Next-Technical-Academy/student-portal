@@ -39,4 +39,4 @@ only the sheet fixture or by hand-editing an attempt.
 ## Remaining
 
 1. Perform M04 student/instructor sheet comparison in the existing Chrome windows when Chrome control is available. Check actual submitted values, rendered labels, and each generated recommendation beside the original student choices.
-3. Shipping remains owner-controlled: no push, PR, merge, or deployment has been done.
+3. Branch `feat/per-section-teacher-notes` is pushed to origin and PR #72 targets `master`. It is not merged or deployed. Per repository policy, staging sync runs after merge to `master`; the `main` branch is an obsolete Codex snapshot and is not the deployment branch.

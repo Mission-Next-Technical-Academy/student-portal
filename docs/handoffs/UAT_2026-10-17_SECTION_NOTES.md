@@ -64,6 +64,10 @@ Accounts (synthetic, owner-provided, signed in by the owner):
 - Student `7634107909-SOCAN` on `http://127.0.0.1:8768` (the owner signed in with this synthetic account, not 9334491415)
 - Instructor `1989457660-SOCANINST` on `http://localhost:8768`
 
+## Shipping continuation (2026-10-17)
+
+The M03–M12 parity branch is pushed as `feat/per-section-teacher-notes`; PR #72 targets `master`. It is not merged or deployed. The repository uses `master` for releases; `main` is a superseded snapshot branch. Staging sync is automatic after merge to `master`, and the `staging` branch must never be moved by hand. Live Chrome student/instructor comparison remains pending. See `UAT_2026-10-17_MODULES_04-12_PARITY_PROGRESS.md`.
+
 ## Plan
 
 | # | Step | Status | Notes |
