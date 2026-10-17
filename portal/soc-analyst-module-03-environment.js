@@ -1121,11 +1121,15 @@ function moduleThreeConsoleHtml(scope) {
     const prefix = mount.idPrefix;
     // In-page links (e.g. the hunt workflow step pills) must follow their
     // targets; links to ids outside this console are left alone.
-    const ownIds = new Set(Array.from(html.matchAll(/\bid="([^"]+)"/g), (match) => match[1]));
-    html = html.replace(/\bhref="#([^"]+)"/g, (all, id) => (ownIds.has(id) ? `href="#${prefix}-${id}"` : all))
-      .replace(/\bid="([^"]+)"/g, (_all, id) => `id="${prefix}-${id}"`)
-      .replace(/\bfor="([^"]+)"/g, (_all, id) => `for="${prefix}-${id}"`)
-      .replace(/\baria-labelledby="([^"]+)"/g, (_all, ids) => `aria-labelledby="${ids.split(/\s+/).map((id) => `${prefix}-${id}`).join(' ')}"`);
+    // Only the real id/for/href/aria-labelledby attributes are rewritten. A
+    // bare \b also matched data-*-id ("data-rule-id", "data-alert-id",
+    // "data-incident-id", …), so record ids read back by the tool packs came
+    // back prefixed and every lookup failed (F25).
+    const ownIds = new Set(Array.from(html.matchAll(/\sid="([^"]+)"/g), (match) => match[1]));
+    html = html.replace(/(\s)href="#([^"]+)"/g, (all, space, id) => (ownIds.has(id) ? `${space}href="#${prefix}-${id}"` : all))
+      .replace(/(\s)id="([^"]+)"/g, (_all, space, id) => `${space}id="${prefix}-${id}"`)
+      .replace(/(\s)for="([^"]+)"/g, (_all, space, id) => `${space}for="${prefix}-${id}"`)
+      .replace(/(\s)aria-labelledby="([^"]+)"/g, (_all, space, ids) => `${space}aria-labelledby="${ids.split(/\s+/).map((id) => `${prefix}-${id}`).join(' ')}"`);
   }
   return html;
 }

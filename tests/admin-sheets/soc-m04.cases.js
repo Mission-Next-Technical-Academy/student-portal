@@ -41,7 +41,10 @@ module.exports = ({ run, clone }) => {
     reports: [{ id: 'M04-R-002', confidence: 72, time: '2026-09-24T09:11:00Z', sourceReliability: 'B2' }],
     iocs: [{ id: 'M04-I-001', type: 'ip', value: '198.51.100.64', status: 'active', firstSeen: '2026-09-24T08:40:00Z', lastSeen: '2026-09-24T09:05:00Z', sourceReportId: 'M04-R-002' },
       { id: 'M04-I-003', type: 'domain', value: 'legacy-drop.example', status: 'expired', firstSeen: '2026-06-01T00:00:00Z', lastSeen: '2026-06-03T00:00:00Z', sourceReportId: 'M04-R-002' }],
-    automationResults: [{ type: 'indicator_enrichment', status: 'succeeded', iocId: 'M04-I-001', matchedEventIds: ['M04-A-001', 'M04-A-002'] }],
+    automationResults: [
+      { type: 'indicator_enrichment', status: 'succeeded', targetId: 'M04-I-001', iocId: 'M04-I-001', matchedEventIds: ['M04-A-001', 'M04-A-002'] },
+      { type: 'evidence_preservation', status: 'succeeded', targetId: 'AL1', alertId: 'AL1', iocId: 'M04-I-001', matchedEventIds: ['M04-A-001', 'M04-A-006'] },
+    ],
     savedQueries: [{ id: 'Q1', query: 'AuthLog | where Result == "Failure"' }],
     rules: [{ id: 'R1', name: 'Distributed spray by source', queryId: 'Q1', query: 'AuthLog | where Result == "Failure"', groupingField: 'SourceIp', threshold: 5, windowMinutes: 20, enabled: true,
       schedule: { scheduledAt: T0, frequencyMinutes: 15 }, exclusion: { enabled: true, field: 'Account', operator: '==', value: 'acct-17' }, suppression: { enabled: false, groupField: 'Account', windowMinutes: 10 } }],
@@ -117,7 +120,7 @@ module.exports = ({ run, clone }) => {
         verdict: 'pass',
         sections: { 'case-status': 'pass', severity: 'pass', 'affected-user': 'pass', 'affected-device': 'pass', disposition: 'pass', escalation: 'pass', findings: 'pass', 'indicator-verdicts': 'pass', notes: 'pass', intelligence: 'pass', 'ioc-record': 'pass', rule: 'pass', schedule: 'pass', alerts: 'pass', automation: 'pass', timeline: 'judgment' },
         feedback: [],
-        html: ['Recommend PASS', 'CASE-044424 · INC-044733', 'Confirmed malicious activity', 'acct-44', '198.51.100.64', 'Identity Response', '4 of 4 found', 'Distributed spray by source', 'AL1', 'Reads cleanly',
+        html: ['Recommend PASS', 'CASE-044424 · INC-044733', 'Confirmed malicious activity', 'acct-44', '198.51.100.64', 'Identity Response', '4 of 4 found', 'Distributed spray by source', 'AL1', 'Automation selections', 'Enrich indicator · Indicator: 198.51.100.64', 'Preserve matching evidence · Alert: AL1 · Matched events: M04-A-001, M04-A-006', 'Reads cleanly',
           /data-sheet-narrative="indicator-verdicts:0"/, /data-sheet-narrative-text>Five accounts failed/],
         notHtml: ['true-positive', 'identity-response', 'intelAssessment', 'publish-monitored'],
       },
@@ -128,10 +131,10 @@ module.exports = ({ run, clone }) => {
       expect: {
         verdict: 'return',
         sections: { disposition: 'fail', 'indicator-verdicts': 'fail', notes: 'fail', intelligence: 'fail', rule: 'fail', alerts: 'fail', automation: 'fail', severity: 'fail', 'ioc-record': 'fail', schedule: 'fail' },
-        html: ['Recommend RETURN', 'Record the disposition as confirmed malicious activity', 'your verdict contradicts them', '&lt;script&gt;', '0 of 4 found', 'Set Severity to High'],
+        html: ['Recommend RETURN', 'Record the disposition as confirmed malicious activity', 'You called', 'this case’s records show it is', '&lt;script&gt;', '0 of 4 found', 'Set Severity to High'],
       },
       custom: ({ suggested }) => {
-        assert.ok(suggested.some((item) => item.item_label === 'Indicator verdicts' && /contradicts/.test(item.comment)));
+        assert.ok(suggested.some((item) => item.item_label === 'Indicator verdicts' && /You called .* this case’s records show it is/.test(item.comment)));
         assert.ok(suggested.some((item) => item.item_label === 'Detection query and rule'));
       },
     },

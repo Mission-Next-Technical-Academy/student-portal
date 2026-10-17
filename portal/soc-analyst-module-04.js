@@ -624,27 +624,56 @@ function moduleFourCaseScore() {
 // Compact, readable copy of the console work for the instructor Submission
 // Sheet (admin-sheets/soc-m04.js). Additive only: scoring reads the full
 // assessment state, never this summary.
-function moduleFourWorkSummary(assessment) {
+function moduleFourWorkSummary(assessment, fixture = typeof SocM04AssessmentData === 'undefined' ? null : SocM04AssessmentData) {
   const a = assessment && typeof assessment === 'object' ? assessment : {};
   const list = (value) => (Array.isArray(value) ? value : []);
   const text = (value, max = 400) => String(value ?? '').slice(0, max);
   const queries = list(a.savedQueries);
+  const seedReports = list(fixture && fixture.scenario && fixture.scenario.reports);
+  // Owner rule (2026-10-17 parity audit): every input the student sets in the
+  // Prove It console is carried here so the Submission Sheet can show it.
   return {
-    iocs: list(a.iocs).map((ioc) => ({ id: text(ioc.id, 64), type: text(ioc.type, 32), value: text(ioc.value, 200), status: text(ioc.status, 32), firstSeen: text(ioc.firstSeen, 40), lastSeen: text(ioc.lastSeen, 40), sourceReportId: text(ioc.sourceReportId, 64) })),
+    queries: queries.map((item) => ({ id: text(item.id, 64), name: text(item.name, 120), query: text(item.query, 1000), testedAt: text(item.testedAt, 40) })),
+    iocs: list(a.iocs).map((ioc) => ({ id: text(ioc.id, 64), type: text(ioc.type, 32), value: text(ioc.value, 200), status: text(ioc.status, 32), confidence: ioc.confidence ?? null, firstSeen: text(ioc.firstSeen, 40), lastSeen: text(ioc.lastSeen, 40), campaign: text(ioc.campaign, 120), sourceReportId: text(ioc.sourceReportId, 64), context: text(ioc.context, 1000) })),
+    // Threat reports the student created (learnerCreated) or edited (edited); untouched seed reports are left out.
+    reports: list(a.reports).map((report) => {
+      const seed = seedReports.find((item) => item.id === report.id);
+      const learnerCreated = !seed;
+      const edited = Boolean(seed) && ['source', 'kind', 'summary'].some((key) => String(seed[key] ?? '') !== String(report[key] ?? ''));
+      return { id: text(report.id, 64), source: text(report.source, 100), kind: text(report.kind, 100), summary: text(report.summary, 2000), time: text(report.time, 40), learnerCreated, edited };
+    }).filter((report) => report.learnerCreated || report.edited),
+    verdicts: Object.entries(a.intelVerdicts && typeof a.intelVerdicts === 'object' ? a.intelVerdicts : {}).map(([indicatorId, verdict]) => ({ indicatorId: text(indicatorId, 64), decision: text(verdict && verdict.decision, 16), rationale: text(verdict && verdict.rationale, 1000), recordedAt: text(verdict && verdict.recordedAt, 40) })),
     rules: list(a.rules).map((rule) => ({
-      id: text(rule.id, 64), name: text(rule.name, 120),
+      id: text(rule.id, 64), name: text(rule.name, 120), description: text(rule.description, 500), severity: text(rule.severity, 16),
       query: text(rule.query || (queries.find((item) => item.id === rule.queryId) || {}).query),
       groupingField: text(rule.groupingField, 64), threshold: rule.threshold, windowMinutes: rule.windowMinutes, enabled: rule.enabled === true,
-      exclusion: rule.exclusion ? { enabled: rule.exclusion.enabled === true, field: text(rule.exclusion.field, 64), operator: text(rule.exclusion.operator, 8), value: text(rule.exclusion.value, 120) } : null,
+      exclusion: rule.exclusion ? { enabled: rule.exclusion.enabled === true, field: text(rule.exclusion.field, 64), operator: text(rule.exclusion.operator, 8), value: text(rule.exclusion.value, 120), reason: text(rule.exclusion.reason, 300) } : null,
       suppression: rule.suppression ? { enabled: rule.suppression.enabled === true, groupField: text(rule.suppression.groupField, 64), windowMinutes: rule.suppression.windowMinutes } : null,
       schedule: rule.schedule ? { scheduledAt: text(rule.schedule.scheduledAt, 40), frequencyMinutes: rule.schedule.frequencyMinutes } : null,
     })),
     executions: list(a.executions).slice(-20).map((run) => ({ id: text(run.id, 64), ruleId: text(run.ruleId, 64), mode: text(run.mode, 32), status: text(run.status, 32) })),
-    alerts: list(a.alerts).slice(-30).map((alert) => ({ id: text(alert.id, 64), ruleId: text(alert.ruleId, 64), group: text(alert.group, 120), groupingField: text(alert.groupingField, 64), eventIds: list(alert.eventIds).slice(0, 40).map((id) => text(id, 64)) })),
+    alerts: list(a.alerts).slice(-30).map((alert) => ({ id: text(alert.id, 64), ruleId: text(alert.ruleId, 64), group: text(alert.group, 120), groupingField: text(alert.groupingField, 64), eventIds: list(alert.eventIds).slice(0, 40).map((id) => text(id, 64)), status: text(alert.status, 32), reviewedAt: text(alert.reviewedAt, 40), reviewNote: text(alert.reviewNote, 500) })),
     automation: {
       actions: list(a.automationActions).map((action) => ({ id: text(action.id, 64), type: text(action.type, 48) })),
       executions: list(a.automationExecutions).map((run) => ({ id: text(run.id, 64), actionId: text(run.actionId, 64), status: text(run.status, 32), readOnly: Boolean(run.details && run.details.readOnly === true), sideEffects: list(run.details && run.details.sideEffects).length })),
-      approvals: list(a.approvalRequests).map((request) => ({ id: text(request.id, 64), status: text(request.status, 32) })),
+      // The automation UI asks the learner to choose an IOC and an alert.
+      // Keep those exact choices and the evidence selected by the simulation.
+      selections: list(a.automationResults).filter((item) => item && ['indicator_enrichment', 'evidence_preservation'].includes(item.type)).map((item) => ({
+        type: text(item.type, 48), status: text(item.status, 32),
+        iocId: text(item.iocId, 64), iocValue: text((list(a.iocs).find((ioc) => ioc.id === item.iocId) || {}).value, 200),
+        alertId: text(item.alertId, 64), matchedEventIds: list(item.matchedEventIds).slice(0, 40).map((id) => text(id, 64)),
+      })),
+      tickets: list(a.automationTickets).map((ticket) => ({ id: text(ticket.id, 64), target: text(ticket.targetId, 40), alertId: text(ticket.alertId, 64), content: text(ticket.content, 1000), status: text(ticket.status, 32), updatedAt: text(ticket.updatedAt, 40) })),
+      notifications: list(a.automationResults).filter((item) => item && item.type === 'notification').map((item) => ({ executionId: text(item.executionId, 64), recipient: text(item.targetId, 80), alertId: text(item.alertId, 64), content: text(item.result && item.result.content, 1000), status: text(item.status, 32) })),
+      approvals: list(a.approvalRequests).map((request) => {
+        const audit = list(request.audit);
+        const review = audit.find((entry) => entry && entry.status !== 'pending') || null;
+        return {
+          id: text(request.id, 64), status: text(request.status, 32), type: text(request.actionType, 48), target: text(request.targetId, 100), alertId: text(request.alertId, 64),
+          actor: text(request.requestedBy, 100), reason: text((audit.find((entry) => entry && entry.status === 'pending') || {}).reason, 500), requestedAt: text(request.createdAt, 40),
+          reviewer: review ? text(review.actor, 100) : '', reviewReason: review ? text(review.reason, 500) : '', reviewedAt: review ? text(review.timestamp, 40) : '',
+        };
+      }),
     },
   };
 }
@@ -1379,19 +1408,55 @@ function moduleFourGuidedChecks() {
     ['ticket', 'Record the investigation in the ITSM case tab.', Boolean(moduleFourGuidedState.caseRecord.actionHistory?.length || moduleFourGuidedState.caseRecord.notes)],
   ];
 }
+// U21: the guide walks the module's detection-engineering workflow in order —
+// query, rule, tuning, exclusion, schedule/run, alert review, intelligence,
+// bounded automation, ticket. Same step shape as M03E_GUIDE_STEPS; `check`
+// only marks a step done in the card. Next stays enabled (advisory guide).
+const MODULE_FOUR_GUIDED_SPRAY_QUERY = 'AuthLog | where Result == "Failure" | summarize Accounts = dcount(Account), Failures = count() by SourceIp, bin(TimeGenerated, 5m) | where Accounts >= 3';
+const MODULE_FOUR_GUIDED_STEPS = [
+  { id: 'ticket', tab: 'case', target: '.m01-ticket-case', title: 'Read the detection ticket', body: 'CASE-044478 asks whether a burst of failed sign-ins needs a tuned detection. Read the ticket first so you know what your console work has to answer.', task: 'Open the ITSM Ticket tab and note the fields you must fill.', lookFor: 'Affected user and source, severity, disposition, escalation, findings, and work notes.',
+    check: (cs) => cs.tab === 'case' },
+  { id: 'query', tab: 'search', target: '.m03e-editor-host', title: 'Build a detection query', body: 'A detection starts as a query you can run and check. Count distinct accounts per source address in short time buckets so a spray stands out from one user mistyping a password.', task: 'In Log Search, run a query over AuthLog failures that counts distinct accounts by SourceIp in 5-minute bins.', hint: MODULE_FOUR_GUIDED_SPRAY_QUERY, lookFor: 'One source address that failed against three or more different accounts inside the same bin.',
+    check: (cs) => (cs.queryLog || []).some((entry) => /AuthLog/.test(entry.query || '') && /dcount\s*\(\s*Account/i.test(entry.query || '')) },
+  { id: 'test-save', tab: 'search', target: '.m04-save-query', title: 'Test it, then save it', body: 'Read the rows before you trust the logic: the reported source should qualify and the managed mail client retrying one account should not. Only a query that returns what you meant can become a rule.', task: 'Check the result rows, type a clear name in Rule query name, then choose Save as rule query.', lookFor: '192.0.2.144 above the threshold; 203.0.113.177 and svc-probe missing because each touches one account.',
+    check: (cs, a) => (a.savedQueries || []).length > 0 },
+  { id: 'rule', tab: 'rules', target: '[data-m04-console-workspace="rules"]', title: 'Turn the query into a rule', body: 'Converting a saved query creates a disabled rule draft you can tune safely. Grouping decides what one alert is about, threshold how many matches it takes, and the window how close together they must be.', task: 'Choose Convert to rule draft, set Grouping field to SourceIp and Threshold to 3 distinct accounts, keep a lookback window that covers the 10:11–10:14 burst, then Save rule fields.', lookFor: 'A rule that groups by the source address so a spray across many accounts becomes one alert.',
+    check: (cs, a) => (a.rules || []).some((rule) => rule.groupingField === 'SourceIp') },
+  { id: 'exclusion', tab: 'rules', target: '[data-m04-rule-form] [name="exclusionValue"]', title: 'Exclude known noise, with a reason', body: 'svc-probe fails sign-in every 5 minutes on purpose: it is a scheduled availability probe (SCH-052). Exclude it narrowly and write why, so the next analyst can audit the exception.', task: 'Enable the exclusion on Account == svc-probe, give the reason (scheduled probe, SCH-052), and choose Save exclusions and suppression.', lookFor: 'An exclusion that names one account and a documented reason, not a whole address range.',
+    check: (cs, a) => (a.rules || []).some((rule) => rule.exclusion && rule.exclusion.enabled && String(rule.exclusion.reason || '').trim()) },
+  { id: 'schedule-run', tab: 'rules', target: '[data-m04-rule-run-now]', title: 'Schedule and run the rule', body: 'A rule that never runs detects nothing. Enable it on a recurring schedule, then run it now to see what it raises.', task: 'Tick Enabled, set a frequency and start time, Save schedule, then choose Run now.', lookFor: 'A completed execution in Execution history and the rule listed as enabled and scheduled.',
+    check: (cs, a) => (a.executions || []).some((run) => run.status === 'completed') },
+  { id: 'alert', tab: 'alerts', target: '.m04-alert-review', title: 'Review the alert your rule raised', body: 'Your rule’s alert lands in the queue beside the case alerts. Confirm its matched events are the burst you meant to catch before you act on it.', task: 'Open the rule alert, check its matched events, and choose Record review with a short note.', lookFor: 'GL4-A-101 to GL4-A-104 from 192.0.2.144, and nothing from the mail client or the probe.',
+    check: (cs, a) => (a.alerts || []).some((alert) => alert.reviewedAt) },
+  { id: 'intel', tab: 'intelligence', target: '[data-m04-verdict-card="GL4-I-301"]', title: 'Enrich with threat intelligence', body: 'Intelligence adds context, not proof. Compare the feed’s claim with this case’s own sign-in records before you record a verdict.', task: 'Record a verdict for the reported source (GL4-I-301) and name the records behind it.', lookFor: 'Failed sign-ins against several accounts from 192.0.2.144, then a success.',
+    check: (cs, a) => Boolean((a.intelVerdicts || {})['GL4-I-301']) },
+  { id: 'benign', tab: 'intelligence', target: '[data-m04-verdict-card="GL4-C-401"]', title: 'Rule out a benign explanation', body: 'A flagged address is not automatically hostile. Check the change tickets and application records for the address the reputation sweep flagged.', task: 'Record a verdict for GL4-C-401 that cites the record explaining its failures.', lookFor: 'An approved change or application record that explains the failed sign-ins from 203.0.113.177.',
+    check: (cs, a) => Boolean((a.intelVerdicts || {})['GL4-C-401']) },
+  { id: 'unknown', tab: 'intelligence', target: '[data-m04-verdict-card="GL4-I-302"]', title: 'Know when the answer is unknown', body: 'Two feed indicators have nothing in this case to confirm or clear them. When the records are silent, record unknown and say what is missing.', task: 'Record verdicts for GL4-I-302 and GL4-I-303.', lookFor: 'Whether any record in this case mentions the indicator at all.',
+    check: (cs, a) => ['GL4-I-302', 'GL4-I-303'].every((id) => (a.intelVerdicts || {})[id]) },
+  { id: 'automation', tab: 'automation', target: '[data-m04-low-risk-automation]', title: 'Automate only what is safe', body: 'Enrichment, evidence preservation, a ticket, and a SOC notification are read-only and safe to automate. Disabling an account or blocking an address needs a human decision, so request approval instead of running it.', task: 'Enrich the reported indicator and preserve your alert’s evidence; if you think containment is needed, file an approval request with a reason.', lookFor: 'Executions marked read-only with no side effects, and any disruptive action left pending approval.',
+    check: (cs, a) => (a.automationExecutions || []).length > 0 },
+  { id: 'handoff', tab: 'case', target: '.m01-ticket-grid', title: 'Decide, hand off, and submit', body: 'Set severity, disposition, and escalation from what the evidence confirms, keeping open questions separate. In work notes, cover the query, rule tuning, exclusion, intelligence, and next action so another analyst could rerun your rule.', task: 'Fill the ticket fields, write the work notes, and choose Submit.', lookFor: 'The account that signed in after the spray, its source, the rule settings, and the svc-probe exclusion with its reason.',
+    check: (cs, a, cr) => cr.submitted === true },
+];
 function moduleFourGuidedSteps() {
-  return [
-    { title: 'Read the ITSM ticket', body: 'Open the ITSM tab and review the fields this investigation needs you to resolve.', lookFor: 'The affected user and device, severity, disposition, escalation, findings, and work notes.', lab: 'Ticket fields: scope and handoff', tab: 'case', target: '.m01-ticket-case' },
-    { title: 'Start from the lead', body: 'Treat the alert or seed observation as a lead to test, not a verdict.', lookFor: 'What the initial signal establishes and what it leaves open.', lab: 'Ticket field: Findings', tab: 'search', target: '.m03e-editor-host' },
-    { title: 'Correlate the records', body: 'Follow the related records across the console and compare the suspicious activity with its baseline.', lookFor: 'Which source identifies the activity and which records corroborate timing, scope, or context.', lab: 'Ticket fields: Affected User, Affected Device, Findings', tab: 'timeline', target: '.m03e-timeline' },
-    { title: 'Separate source from contributing evidence', body: 'A correlated record can strengthen the timeline even when it is not the originating source.', lookFor: 'Whether each record shows where activity began or only confirms that it happened.', lab: 'Ticket field: Findings', tab: 'sources', target: '[data-m03e-select="m04-guided:source:AuthLog"]' },
-    { title: 'Judge the reported source', body: 'Open Threat Intelligence and find the indicator for the reported source. Record a verdict, then name the local records that back it.', lookFor: 'Whether the sign-in records for this address match what the report claims. Use Show a hint if you get stuck.', lab: 'Threat Intelligence: Indicator verdicts', tab: 'intelligence', target: '[data-m04-verdict-card="GL4-I-301"]' },
-    { title: 'Rule out a benign explanation', body: 'A flagged address is not automatically hostile. Check the change tickets and application records for the address the reputation sweep flagged.', lookFor: 'An approved change or application record that explains the failed sign-ins.', lab: 'Threat Intelligence: Indicator verdicts', tab: 'intelligence', target: '[data-m04-verdict-card="GL4-C-401"]' },
-    { title: 'Know when the answer is unknown', body: 'Two feed indicators have nothing in this case to confirm or clear them. When the records are silent, record unknown and say what is missing.', lookFor: 'Whether any record in this case mentions the indicator. No record means no basis for malicious or benign.', lab: 'Threat Intelligence: Indicator verdicts', tab: 'intelligence', target: '[data-m04-verdict-card="GL4-I-302"]' },
-    { title: 'Save and schedule the rule', body: 'Open Analytics Rules and create a rule from the correlated sign-in query. Choose the source address as the grouping field, set a threshold and lookback window that catch the distributed pattern, then save the rule. Enable it and save a recurring schedule; check the rule list to confirm it is enabled and scheduled.', lookFor: 'A saved rule with the intended grouping, threshold, and window, plus an enabled recurring schedule.', lab: 'Analytics Rules: rule fields and schedule', tab: 'rules', target: '[data-m04-rule-form]' },
-    { title: 'Scope and decide', body: 'Choose a severity, disposition, and escalation that match the evidence and confirmed scope.', lookFor: 'The difference between confirmed impact and unresolved questions.', lab: 'Ticket fields: Severity, Disposition, Escalation, Department', tab: 'case', target: '.m01-ticket-grid' },
-    { title: 'Write the handoff and submit', body: 'Summarize the evidence, scope, uncertainty, and next action in work notes, then submit the ITSM ticket.', lookFor: 'A concise record another analyst can act on.', lab: 'Ticket field: Work Notes · Submit completes this Guided Lab', tab: 'case', target: '.m01-ticket-notes' },
-  ];
+  return MODULE_FOUR_GUIDED_STEPS;
+}
+function moduleFourGuidedStepPassed(step) {
+  if (!step || typeof step.check !== 'function' || !moduleFourGuidedState) return false;
+  try { return step.check(m03eState('m04-guided'), moduleFourGuidedState.assessment || {}, moduleFourGuidedState.caseRecord || {}) === true; } catch (_) { return false; }
+}
+// The card shows the task (and, for the query step, the pattern) the same way
+// M03's guide does: folded into the body / lab line of the shared card.
+function moduleFourGuidedItem(step) {
+  if (!step) return undefined;
+  const passed = moduleFourGuidedStepPassed(step);
+  return {
+    ...step,
+    title: passed ? `${step.title} · done` : step.title,
+    body: `${step.body} Your task: ${step.task}`,
+    lab: step.hint ? `Pattern: ${step.hint}` : '',
+  };
 }
 function moduleFourGuidedDebrief() {
   const cr = moduleFourGuidedState.caseRecord;
@@ -1403,7 +1468,7 @@ function moduleFourGuidedGuide() {
   const consoleState = m03eState('m04-guided');
   const tabLabel = item.tab === 'case' ? 'ITSM Ticket' : item.tab || '';
   const moveTab = !moduleFourGuidedState.caseRecord.submitted && item.tab && consoleState.tab !== item.tab;
-  return `${guidedLabGuide('m04g', moduleFourGuidedSteps(), { step: moduleFourGuidedState.guideStep, docked: moduleFourGuidedState.caseRecord.submitted ? moduleFourGuidedState.guideCollapsed !== false : (moduleFourGuidedState.guideCollapsed === true || moduleFourGuidedState.guideOpen === false), prefix: 'm04g', submitted: moduleFourGuidedState.caseRecord.submitted, debriefHtml: moduleFourGuidedDebrief() })}
+  return `${guidedLabGuide('m04g', moduleFourGuidedSteps(), { item: moduleFourGuidedItem(moduleFourGuidedSteps()[Math.min(moduleFourGuidedState.guideStep, moduleFourGuidedSteps().length - 1)]), step: moduleFourGuidedState.guideStep, docked: moduleFourGuidedState.caseRecord.submitted ? moduleFourGuidedState.guideCollapsed !== false : (moduleFourGuidedState.guideCollapsed === true || moduleFourGuidedState.guideOpen === false), prefix: 'm04g', submitted: moduleFourGuidedState.caseRecord.submitted, debriefHtml: moduleFourGuidedDebrief() })}
     ${moveTab || moduleFourGuidedState.caseRecord.submitted ? `<div class="m03e-guide-controls" role="status">${moveTab ? `<button type="button" class="m03e-guide-go" data-m04g-guide-tab="${esc(item.tab)}">Go to ${esc(tabLabel)}</button>` : ''}${moduleFourGuidedState.caseRecord.submitted ? '<span>Ticket submitted — practice complete</span>' : ''}</div>` : ''}`;
 }
 function moduleFourGuidedRestart() {
