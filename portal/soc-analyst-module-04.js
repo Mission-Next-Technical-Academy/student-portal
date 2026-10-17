@@ -621,6 +621,34 @@ function moduleFourCaseScore() {
   };
 }
 
+// Compact, readable copy of the console work for the instructor Submission
+// Sheet (admin-sheets/soc-m04.js). Additive only: scoring reads the full
+// assessment state, never this summary.
+function moduleFourWorkSummary(assessment) {
+  const a = assessment && typeof assessment === 'object' ? assessment : {};
+  const list = (value) => (Array.isArray(value) ? value : []);
+  const text = (value, max = 400) => String(value ?? '').slice(0, max);
+  const queries = list(a.savedQueries);
+  return {
+    iocs: list(a.iocs).map((ioc) => ({ id: text(ioc.id, 64), type: text(ioc.type, 32), value: text(ioc.value, 200), status: text(ioc.status, 32), firstSeen: text(ioc.firstSeen, 40), lastSeen: text(ioc.lastSeen, 40), sourceReportId: text(ioc.sourceReportId, 64) })),
+    rules: list(a.rules).map((rule) => ({
+      id: text(rule.id, 64), name: text(rule.name, 120),
+      query: text(rule.query || (queries.find((item) => item.id === rule.queryId) || {}).query),
+      groupingField: text(rule.groupingField, 64), threshold: rule.threshold, windowMinutes: rule.windowMinutes, enabled: rule.enabled === true,
+      exclusion: rule.exclusion ? { enabled: rule.exclusion.enabled === true, field: text(rule.exclusion.field, 64), operator: text(rule.exclusion.operator, 8), value: text(rule.exclusion.value, 120) } : null,
+      suppression: rule.suppression ? { enabled: rule.suppression.enabled === true, groupField: text(rule.suppression.groupField, 64), windowMinutes: rule.suppression.windowMinutes } : null,
+      schedule: rule.schedule ? { scheduledAt: text(rule.schedule.scheduledAt, 40), frequencyMinutes: rule.schedule.frequencyMinutes } : null,
+    })),
+    executions: list(a.executions).slice(-20).map((run) => ({ id: text(run.id, 64), ruleId: text(run.ruleId, 64), mode: text(run.mode, 32), status: text(run.status, 32) })),
+    alerts: list(a.alerts).slice(-30).map((alert) => ({ id: text(alert.id, 64), ruleId: text(alert.ruleId, 64), group: text(alert.group, 120), groupingField: text(alert.groupingField, 64), eventIds: list(alert.eventIds).slice(0, 40).map((id) => text(id, 64)) })),
+    automation: {
+      actions: list(a.automationActions).map((action) => ({ id: text(action.id, 64), type: text(action.type, 48) })),
+      executions: list(a.automationExecutions).map((run) => ({ id: text(run.id, 64), actionId: text(run.actionId, 64), status: text(run.status, 32), readOnly: Boolean(run.details && run.details.readOnly === true), sideEffects: list(run.details && run.details.sideEffects).length })),
+      approvals: list(a.approvalRequests).map((request) => ({ id: text(request.id, 64), status: text(request.status, 32) })),
+    },
+  };
+}
+
 let moduleFourState = null;
 let moduleFourLearnView = null;
 let moduleFourUser = null;
@@ -1833,6 +1861,8 @@ function wireModuleFourAssessmentLab() {
             case_record: moduleFourState.caseRecord,
             case_display: caseRecordDisplay(moduleFourState.caseRecord, spec),
             case_summary: caseRecordSummary(moduleFourState.caseRecord, spec),
+            // Additive (2026-10-17): the console work the scorer read, in readable form, for the admin Submission Sheet. Never read by scoring.
+            work_summary: moduleFourWorkSummary(moduleFourState.assessment),
             attempts: moduleFourState.attempts,
           },
         }).then((saved) => { if (saved && moduleFourProveItRedoRequested()) delete moduleFourUser.openLabRedosByModuleKey['soc-04']; });

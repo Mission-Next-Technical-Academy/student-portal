@@ -1576,6 +1576,8 @@ function m03eSubmitAssessment() {
       actions: d.actions, actions_labels: d.actions.map((a) => actionLabel[a] || a), escalation: { required: d.escalation, to: d.escalateTo },
       pinned_evidence: evidenceLines,
       query_log: st.queryLog.slice(-40),
+      // Additive (2026-10-17): the scorer reads the FULL query log, but query_log above keeps only the last 40. The admin sheet re-derives the technique score from this summary.
+      query_summary: { total: st.queryLog.length, sources_queried: [...new Set(st.queryLog.flatMap((q) => q.sources || []))], cross_source_pivot: st.queryLog.some((q) => q.pivot === true) },
     },
   };
   if (typeof recordLabAttempt === 'function') recordLabAttempt(moduleThreeUser, MODULE_THREE_CATALOG_LAB_KEY, { state: 'complete', score: performance.score, result });

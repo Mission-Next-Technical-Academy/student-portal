@@ -1401,7 +1401,10 @@ function wireModuleTenGuidedLab() {
 
 function moduleTenFinalizeCase(root) {
   if (moduleTenAssessmentState.submitted) return;
-  const scored = SocM10AssessmentScorer.score(SocM10AssessmentState.load(moduleTenUser, SocM10AssessmentData), SocM10AssessmentData, { mappings: moduleTenAttackMappings() });
+  // Evidence locker + reconstruction live in their own case state (not in moduleTenAssessmentState); keep a copy for the instructor sheet.
+  const evidenceRecord = SocM10AssessmentState.load(moduleTenUser, SocM10AssessmentData);
+  const attackMappings = moduleTenAttackMappings();
+  const scored = SocM10AssessmentScorer.score(evidenceRecord, SocM10AssessmentData, { mappings: attackMappings });
   const performance = { missing: caseRecordMissing(moduleTenAssessmentState, moduleTenCaseSpec()), score: scored.score, breakdown: scored.criteria, feedback: scored.review.feedback, criticalErrors: scored.criticalMisses };
   if (performance.missing.length) {
     moduleTenAssessmentState.showMissing = true;
@@ -1438,6 +1441,9 @@ function moduleTenFinalizeCase(root) {
         critical_errors: performance.criticalErrors,
         case_record: moduleTenAssessmentState,
         case_display: caseRecordDisplay(moduleTenAssessmentState, spec),
+        // Additive (2026-10-17, admin Submission Sheet): what the student built in the evidence locker and the ATT&CK workspace.
+        evidence_record: JSON.parse(JSON.stringify(evidenceRecord)),
+        attack_mappings: JSON.parse(JSON.stringify(attackMappings)),
         case_summary: caseRecordSummary(moduleTenAssessmentState, spec),
         notes: moduleTenAssessmentState.notes,
       },

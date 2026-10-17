@@ -1348,10 +1348,31 @@ function moduleSevenRenderAssessmentPanel(focusId) {
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
 
+// Snapshot of the investigation the student recorded in the Prove It console,
+// saved with the attempt for the instructor sheet. Built from the audited
+// action history (every review/pivot/evidence action in order) plus the
+// current scope and incident records; nothing here feeds the score.
+function moduleSevenAssessmentWork(state) {
+  const copy = (value) => JSON.parse(JSON.stringify(value ?? null));
+  const list = (value) => (Array.isArray(value) ? value : []);
+  const actions = (type) => list(state.actionHistory).filter((item) => item && item.type === type && item.details).map((item) => copy(item.details));
+  return {
+    messageReviews: actions('message_review'),
+    artifactReviews: actions('artifact_review'),
+    networkReviews: actions('network_review'),
+    pivots: actions('pivot'),
+    evidenceChanges: actions('evidence_change'),
+    scope: copy(state.scope),
+    recipientSearch: copy(state.recipientSearch),
+    incidentLinks: copy(list(state.incidentLinks)),
+  };
+}
+
 function moduleSevenFinalizeProveIt() {
   if (moduleSevenState.caseRecord.submitted) return;
   const missing = caseRecordMissing(moduleSevenState.caseRecord, moduleSevenProveItSpec());
-  const scored = SocM07AssessmentScorer.score(SocM07AssessmentState.load(moduleSevenUser, SocM07AssessmentData), SocM07AssessmentData);
+  const huntState = SocM07AssessmentState.load(moduleSevenUser, SocM07AssessmentData);
+  const scored = SocM07AssessmentScorer.score(huntState, SocM07AssessmentData);
   const performance = { missing, score: scored.score, breakdown: scored.criteria, feedback: scored.review.feedback, criticalErrors: scored.criticalMisses || [] };
   if (performance.missing.length) {
     moduleSevenProveItShowMissing = true;
@@ -1388,6 +1409,9 @@ function moduleSevenFinalizeProveIt() {
         case_record: moduleSevenState.caseRecord,
         case_display: caseRecordDisplay(moduleSevenState.caseRecord, caseSpec),
         case_summary: caseRecordSummary(moduleSevenState.caseRecord, caseSpec),
+        // Additive (admin Submission Sheet, 2026-10-17): the student's own review
+        // notes, pivots, evidence and incident record. Never read by scoring.
+        assessment_work: moduleSevenAssessmentWork(huntState),
       },
     };
     MODULE_SEVEN_CATALOG_LAB_KEYS.forEach((labKey) => recordLabAttempt(moduleSevenUser, labKey, attemptFields));

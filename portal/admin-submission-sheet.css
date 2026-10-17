@@ -1,0 +1,133 @@
+/* Admin Submission Sheet (portal/admin-submission-sheet.js) — a printed
+ * assignment marked up in red pen. Paper sheet, green/red/grey verdict
+ * border, red-ink margin notes. No external fonts. */
+.ass-sheet {
+  --ass-paper: #fffdf7;
+  --ass-rule: #e7e1d3;
+  --ass-ink: #1f2937;
+  --ass-muted: #6b7280;
+  --ass-pass: #15803d;
+  --ass-pass-bg: #f0fdf4;
+  --ass-partial: #b45309;
+  --ass-partial-bg: #fffbeb;
+  --ass-fail: #b91c1c;
+  --ass-fail-bg: #fef2f2;
+  --ass-judgment: #4b5563;
+  --ass-judgment-bg: #f3f4f6;
+  --ass-redpen: #b91c1c;
+  background: var(--ass-paper);
+  border: 2px solid var(--ass-rule);
+  border-left-width: 6px;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 6px 18px rgba(15, 23, 42, 0.05);
+  color: var(--ass-ink);
+  padding: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+.ass-sheet--pass { border-color: var(--ass-pass); }
+.ass-sheet--return { border-color: var(--ass-fail); }
+.ass-sheet--judgment { border-color: var(--ass-judgment); }
+
+.ass-header { border-bottom: 1px solid var(--ass-rule); padding-bottom: 0.75rem; margin-bottom: 0.75rem; }
+.ass-eyebrow { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #f97316; }
+.ass-title { font-size: 1.05rem; font-weight: 700; color: #1e3a5f; margin-top: 0.15rem; }
+.ass-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: 0.4rem 1rem; margin-top: 0.6rem; font-size: 0.8rem; }
+.ass-facts dt { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ass-muted); }
+.ass-facts dd { color: var(--ass-ink); overflow-wrap: anywhere; }
+
+.ass-verdict { border-radius: 0.6rem; padding: 0.75rem 1rem; margin-bottom: 0.75rem; border: 1px solid; }
+.ass-verdict--pass { background: var(--ass-pass-bg); border-color: #86efac; color: #14532d; }
+.ass-verdict--return { background: var(--ass-fail-bg); border-color: #fca5a5; color: #7f1d1d; }
+.ass-verdict--judgment { background: var(--ass-judgment-bg); border-color: #d1d5db; color: #1f2937; }
+.ass-verdict-title { font-size: 1.05rem; font-weight: 800; }
+.ass-verdict-detail { font-size: 0.85rem; margin-top: 0.2rem; }
+.ass-verdict-final { font-size: 0.75rem; margin-top: 0.35rem; font-style: italic; opacity: 0.85; }
+
+.ass-legend { font-size: 0.78rem; color: var(--ass-muted); margin-bottom: 0.75rem; }
+.ass-legend summary { cursor: pointer; font-weight: 600; color: #1e3a5f; }
+.ass-legend p { margin-top: 0.3rem; line-height: 1.6; }
+
+.ass-sections { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+.ass-section { border-top: 1px dashed var(--ass-rule); padding-top: 0.75rem; }
+.ass-section:first-child { border-top: 0; padding-top: 0; }
+.ass-section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.4rem; }
+.ass-section-head h4 { font-size: 0.95rem; font-weight: 700; color: #1e3a5f; }
+.ass-section-number { color: var(--ass-muted); font-weight: 600; }
+.ass-optional { font-size: 0.72rem; font-weight: 500; color: var(--ass-muted); }
+.ass-section-body { display: grid; gap: 0.75rem; }
+@media (min-width: 900px) {
+  .ass-section-body:has(.ass-redpen) { grid-template-columns: minmax(0, 1fr) 16rem; }
+}
+
+.ass-chip { display: inline-flex; align-items: center; border-radius: 999px; padding: 0.1rem 0.6rem; font-size: 0.72rem; font-weight: 700; border: 1px solid; white-space: nowrap; }
+.ass-chip--pass { color: var(--ass-pass); background: var(--ass-pass-bg); border-color: #86efac; }
+.ass-chip--partial { color: var(--ass-partial); background: var(--ass-partial-bg); border-color: #fcd34d; }
+.ass-chip--fail { color: var(--ass-fail); background: var(--ass-fail-bg); border-color: #fca5a5; }
+.ass-chip--judgment { color: var(--ass-judgment); background: var(--ass-judgment-bg); border-color: #d1d5db; }
+
+.ass-answer { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 0.4rem 1rem; background: #fff; border: 1px solid var(--ass-rule); border-radius: 0.5rem; padding: 0.6rem 0.75rem; font-size: 0.875rem; }
+.ass-answer dt { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ass-muted); }
+.ass-answer dd { margin-top: 0.1rem; overflow-wrap: anywhere; }
+.ass-not-recorded { color: var(--ass-muted); font-style: italic; }
+.ass-fold summary { cursor: pointer; font-size: 0.8rem; font-weight: 600; color: #1e3a5f; }
+.ass-fold .ass-answer { margin-top: 0.4rem; grid-template-columns: 1fr; }
+
+.ass-response { background: #fff; border: 1px solid var(--ass-rule); border-radius: 0.5rem; padding: 0.75rem 0.9rem; margin-top: 0.5rem; max-width: 72ch; }
+.ass-response-label { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ass-muted); margin-bottom: 0.3rem; }
+.ass-response-text { white-space: pre-wrap; font-size: 0.95rem; line-height: 1.6; overflow-wrap: anywhere; }
+
+.ass-sweep { width: 100%; margin-top: 0.5rem; border-collapse: collapse; font-size: 0.82rem; }
+.ass-sweep th { text-align: left; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ass-muted); padding: 0.25rem 0.5rem; border-bottom: 1px solid var(--ass-rule); }
+.ass-sweep td { vertical-align: top; padding: 0.35rem 0.5rem; border-bottom: 1px solid #f1ede3; }
+.ass-sweep td:first-child { width: 55%; }
+.ass-expected { display: block; font-size: 0.75rem; color: var(--ass-muted); margin-top: 0.1rem; }
+.ass-given { display: block; font-size: 0.78rem; color: var(--ass-muted); margin-top: 0.1rem; overflow-wrap: anywhere; }
+.ass-sweep-empty { margin-top: 0.4rem; font-size: 0.8rem; color: var(--ass-judgment); font-style: italic; }
+.ass-mark { font-weight: 800; }
+.ass-mark--pass { color: var(--ass-pass); }
+.ass-mark--partial { color: var(--ass-partial); }
+.ass-mark--fail { color: var(--ass-fail); }
+.ass-mark--judgment { color: var(--ass-judgment); }
+tr[data-sheet-check="pass"] td:last-child strong { color: var(--ass-pass); }
+tr[data-sheet-check="partial"] td:last-child strong { color: var(--ass-partial); }
+tr[data-sheet-check="fail"] td:last-child strong { color: var(--ass-fail); }
+
+/* Red ink in the margin: the note the student will get. */
+.ass-redpen { color: var(--ass-redpen); font-family: "Segoe Print", "Bradley Hand", "Comic Neue", cursive; font-size: 0.92rem; line-height: 1.45; border-left: 2px solid rgba(185, 28, 28, 0.35); padding: 0.1rem 0 0.1rem 0.75rem; transform: rotate(-0.4deg); }
+.ass-redpen p + p { margin-top: 0.4rem; }
+
+.ass-rubric { margin-top: 1rem; border-top: 1px solid var(--ass-rule); padding-top: 0.75rem; }
+.ass-notes { margin-top: 1rem; border-top: 1px solid var(--ass-rule); padding-top: 0.75rem; }
+.ass-sent-item { background: #fff; border: 1px solid var(--ass-rule); border-radius: 0.4rem; padding: 0.4rem 0.6rem; }
+.ass-debug { margin-top: 1rem; font-size: 0.8rem; }
+.ass-debug summary { cursor: pointer; font-weight: 600; color: var(--ass-muted); }
+.ass-debug pre { margin-top: 0.5rem; background: #f9fafb; border: 1px solid #f3f4f6; border-radius: 0.5rem; padding: 0.75rem; font-size: 0.72rem; color: #4b5563; overflow-x: auto; }
+
+html[data-mn-theme="night"] .ass-sheet {
+  --ass-paper: #13293e;
+  --ass-rule: #294963;
+  --ass-ink: #e5edf5;
+  --ass-muted: #b2c3d3;
+  --ass-pass-bg: rgba(21, 128, 61, 0.18);
+  --ass-partial-bg: rgba(180, 83, 9, 0.18);
+  --ass-fail-bg: rgba(185, 28, 28, 0.2);
+  --ass-judgment-bg: rgba(75, 85, 99, 0.3);
+  --ass-redpen: #fca5a5;
+}
+html[data-mn-theme="night"] .ass-sheet .ass-answer,
+html[data-mn-theme="night"] .ass-sheet .ass-response,
+html[data-mn-theme="night"] .ass-sheet .ass-sent-item { background: #10263b; }
+html[data-mn-theme="night"] .ass-sheet .ass-verdict { color: var(--ass-ink); }
+html[data-mn-theme="night"] .ass-sheet .ass-title,
+html[data-mn-theme="night"] .ass-sheet .ass-section-head h4 { color: #e5edf5; }
+
+/* Key-evidence pieces sit under their group line; mechanics is advisory. */
+.ass-sweep tr.ass-row--group td { font-weight: 600; background: rgba(30, 58, 95, 0.03); }
+.ass-sweep tr.ass-row--piece td:first-child { padding-left: 1.5rem; }
+.ass-sweep tr.ass-row--piece td { font-size: 0.78rem; }
+.ass-sweep tr.ass-row--mechanics td { font-style: italic; }
+
+/* Text analyzers (S6 spelling) underline words in the student's text. */
+.ass-response-text mark.ass-underline { background: transparent; color: inherit; text-decoration: underline wavy var(--ass-redpen); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.ass-sweep tr.ass-row--analyzer td { font-style: italic; }
+.ass-answer .ass-answer-wide { grid-column: 1 / -1; }
