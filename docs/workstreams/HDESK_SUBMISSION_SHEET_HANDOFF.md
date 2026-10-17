@@ -6,9 +6,12 @@
 > that SHA. Signed-in student/instructor UAT still needs synthetic accounts.
 > A separate closeout branch fixes early coach submission and Help Desk
 > rubric metadata; its checks and promotion status are tracked in the top-level
-> submission-sheet handoff. Preserve scoring and immediate student feedback.
+> submission-sheet handoff. It also updates the shared coach contract so a
+> guided lab records work only on explicit Finish. CI/CD and worktree cleanup
+> findings are in `docs/handoffs/CI_CD_WORKTREE_CLEANUP_HANDOFF.md`. Preserve
+> scoring and immediate student feedback.
 
-## Next AI — start here (written 2026-10-17; H0–H3 implemented)
+## Next AI — start here (updated 2026-10-17; H0–H4 implemented)
 
 **Goal (owner, Alex, 2026-10-17):** give the IT Help Desk track the same
 instructor experience the SOC Analyst track is getting, a printed-sheet
