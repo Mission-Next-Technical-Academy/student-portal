@@ -347,7 +347,7 @@
             const wanted = expected === 'unknown' ? 'left Unknown, because this case holds no evidence either way' : `judged ${expected}`;
             return { name: `${row.value} ${wanted}`, short: `${row.value} (${wanted})`, label: `${row.value} ${wanted}, with a reason that ${expected === 'unknown' ? 'explains the gap' : 'cites a record from this case'}`, terms: [`v${index}`] };
           }),
-          fix: (missing) => `Fix the indicator verdicts: ${missing.join('; ')}.`,
+          fix: (missing) => `Fix the indicator verdicts: ${missing.join(', ')}.`,
         },
       },
       {
@@ -365,7 +365,7 @@
           label: 'Key evidence named in the work notes',
           text: (result, ctx) => (record(result) ? ctx.text() : null),
           pieces: notePieces,
-          fix: (missing) => `Back your recommendation with the evidence: your note does not mention ${missing.join('; ')}.`,
+          fix: (missing) => `Back your recommendation with the evidence: your note does not mention ${missing.join(', ')}.`,
         },
       },
       {

@@ -216,8 +216,15 @@ function caseRecordGradedFeedback() {
     .filter((item) => { const key = `${item.item_label}\u0000${item.comment}`; if (seen.has(key)) return false; seen.add(key); return true; });
 }
 
+// Each note is labelled with its section; the marked-lab view (portal/app.js)
+// shows them beside the student's answers.
 function caseRecordGradedFeedbackHtml(notes = caseRecordGradedFeedback()) {
-  return notes.length ? `<div class="m01-graded-feedback" role="note"><strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong><ul>${notes.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul></div>` : '';
+  if (!notes.length) return '';
+  const context = typeof activeModuleRenderContext === 'function' ? activeModuleRenderContext() : null;
+  const byLab = context?.user?.reviewedLabFeedbackByLabKey || {};
+  const labKeys = Object.keys(byLab).filter((key) => (byLab[key] || []).some((item) => notes.includes(item)));
+  const links = typeof markedLabLinkHtml === 'function' && labKeys.length ? `<p>${labKeys.map((key) => markedLabLinkHtml(key)).join(' ')}</p>` : '';
+  return `<div class="m01-graded-feedback" role="note"><strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong><ul>${notes.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>${links}</div>`;
 }
 
 // spec: { panelId, missing, submitted, reviewStatus, redoRequested,
@@ -235,7 +242,7 @@ function caseRecordPanel(spec) {
   const hideMissing = spec.compactRequirements === true && !flagMissing && missing.length > 0;
   const title = practice && submitted ? (result ? 'Practice passed' : 'Practice submitted') : graded ? 'Lab graded' : submitted ? 'Submitted for faculty review' : flagMissing ? 'Not ready to submit yet' : failedPractice ? 'Practice not passed yet' : spec.redoRequested ? 'Returned for remediation' : 'Incident ticket';
   const body = graded ? 'Your instructor has reviewed this case.'
-    : submitted ? (practice ? (result ? 'Your practice score is recorded. Prove It · Assessment Lab is now open.' : 'Your ungraded practice ticket is recorded.') : spec.lockedMessage || 'The next module stays locked until your instructor approves the submission.')
+    : submitted ? (practice ? (result ? 'Your practice score is recorded. Prove It · Assessment Lab is now open.' : 'Your practice ticket is recorded. Prove It · Assessment Lab is now open.') : spec.lockedMessage || 'The next module stays locked until your instructor approves the submission.')
       : failedPractice ? 'Finish the items marked below, update the ticket, and submit again. A passing practice score opens Prove It.'
         : spec.redoRequested ? 'Review your instructor feedback, then work the case again and resubmit.'
           : practice ? `Use the console evidence to complete the incident ticket. ${spec.practiceScored ? `Submit Lab scores your practice instantly; ${PRACTICE_PASS_PERCENT}% opens Prove It.` : 'Submit Lab completes this Guided Lab and opens Prove It.'}`

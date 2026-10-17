@@ -246,7 +246,7 @@
           expected: () => severityLabel(key().severity),
           test: (result) => (severityOf(result) === null ? null : severityOf(result) === key().severity),
           given: (result) => severityLabel(severityOf(result)) || 'Left blank',
-          fix: () => `Set Severity to ${severityLabel(key().severity)}, as the module’s answer key records, or explain in your notes why a different level fits the evidence.`,
+          fix: () => `Set Severity to ${severityLabel(key().severity)}, or explain in your notes why a different level fits.`,
         }],
       },
       ...['users', 'devices'].map((kind) => {
@@ -342,7 +342,7 @@
           label: 'Key evidence named in the work notes',
           text: (result) => (record(result) ? field(result, 'notes') : null),
           pieces: () => notePieces(),
-          fix: (missing) => `Back your conclusion with the evidence: your note does not mention ${missing.join('; ')}. Say what each record showed.`,
+          fix: (missing) => `Back your conclusion with the evidence: your note does not mention ${missing.join(', ')}. Say what each record showed.`,
         },
       },
     ];

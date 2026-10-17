@@ -589,7 +589,7 @@
               { name: 'the benign look-alike excluded (ws-118)', short: 'why ws-118 is excluded', terms: ['ws-118'] },
             ];
           },
-          fix: (missing) => `Back the technical report with the facts: it does not mention ${missing.join('; ')}.`,
+          fix: (missing) => `Back the technical report with the facts: it does not mention ${missing.join(', ')}.`,
         },
       },
       {

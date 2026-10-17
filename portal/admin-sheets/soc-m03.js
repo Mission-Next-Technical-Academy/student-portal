@@ -119,8 +119,9 @@
         if (!ctx.scorerResult || (needsAssessment && !hasAssessment(result))) return null;
         return items().map((item, index) => (hit(ctx, compId, item) ? `p${index}` : '')).join(' ');
       },
-      pieces: () => items().map((item, index) => ({ name: lower(item.label), short: lower(item.label), label: item.label, terms: [`p${index}`] })),
-      fix: fix || ((missing) => `Add what is missing: ${missing.join('; ')}.`),
+      // short: the scorer label without its "handoff names" / "written (40+…)" frame.
+      pieces: () => items().map((item, index) => ({ name: lower(item.label), short: lower(item.label).replace(/^handoff (names|explains|states) /, '').replace(/ written \(40\+ characters\)$/, ''), label: item.label, terms: [`p${index}`] })),
+      fix: fix || ((missing) => `Add what is missing: ${missing.join(', ')}.`),
     };
   }
   // A scorer deduction: ✓ when the student avoided it; small deductions are
@@ -134,7 +135,7 @@
       return !h ? true : item.unsafe || item.pts <= -5 ? false : 'partial';
     },
     given: 'Done',
-    fix: `Take this out: ${lower(stripLevel(item.label))}. The records do not support it${item.unsafe ? ' and it could cause harm' : ''}.`,
+    fix: `Remove ${lower(stripLevel(item.label))}: the records don’t support it${item.unsafe ? ', and it could cause harm' : ''}.`,
   });
 
   const tierTest = (options, key) => (result) => {
@@ -340,7 +341,7 @@
           label: 'Indicators the responders need',
           compId: 'scope',
           items: () => itemsOf('scope', (item) => isIndicator(item) && item.pts > 0),
-          fix: (missing) => `Add the indicators the responders need to block and search: ${missing.join('; ')}.`,
+          fix: (missing) => `Add the indicators the responders need to block and search: ${missing.join(', ')}.`,
         }),
       },
       {
@@ -352,7 +353,7 @@
           label: 'Response steps the records support',
           compId: 'response',
           items: () => itemsOf('response', (item) => item.pts > 0 && !/^Escalation/.test(item.label)),
-          fix: (missing) => `Add the missing response steps: ${missing.join('; ')}.`,
+          fix: (missing) => `Add the missing response steps: ${missing.join(', ')}.`,
         }),
       },
       {
@@ -375,13 +376,13 @@
             label: 'All four handoff parts written out (40+ characters each)',
             compId: 'documentation',
             items: () => itemsOf('documentation', (item) => /written \(40/.test(item.label)),
-            fix: (missing) => `Fill in each handoff part with a real explanation: ${missing.join('; ')}.`,
+            fix: (missing) => `Write out each handoff part (40+ characters): ${missing.join(', ')}.`,
           }),
           hitGroup({
             label: 'Key evidence named in the handoff and notes',
             compId: 'documentation',
             items: () => itemsOf('documentation', (item) => !/written \(40/.test(item.label)),
-            fix: (missing) => `Back your handoff with the evidence: it does not yet cover ${missing.join('; ')}.`,
+            fix: (missing) => `Your handoff doesn’t mention ${missing.join(', ')}.`,
           }),
         ],
       },
@@ -399,7 +400,7 @@
           label: () => `Linked the alerts that support ${linkRule().incidentId}`,
           compId: 'incident-association',
           items: () => itemsOf('incident-association', (item) => item.pts > 0),
-          fix: (missing) => `Link the supporting alerts to ${linkRule().incidentId}: ${missing.join('; ')}.`,
+          fix: (missing) => `Link the supporting alerts to ${linkRule().incidentId}: ${missing.join(', ')}.`,
         }),
       },
       {
@@ -449,7 +450,7 @@
             ...children().map((incident, index) => ({ name: `${incident.id} resolved as ${incident.disposition.replace('-', ' ')}`, short: `${incident.id} as ${incident.disposition.replace('-', ' ')} with its evidence (${incident.evidence.join(', ')}) cited in the note`, label: `${incident.id} (${incident.label}) resolved as ${incident.disposition.replace('-', ' ')}, citing its records (${incident.evidence.join(', ')}) in the note`, terms: [`c${index}`] })),
             { name: 'the parent case closed after both children', short: 'closing the parent case after both children', label: 'Parent case closed after both child incidents were resolved', terms: ['cparent'] },
           ],
-          fix: (missing) => `Finish the child incidents: ${missing.join('; ')}.`,
+          fix: (missing) => `Finish the child incidents: ${missing.join(', ')}.`,
         },
       },
       {
@@ -465,7 +466,7 @@
           compId: 'evidence',
           needsAssessment: true,
           items: () => itemsOf('evidence', (item) => item.pts > 0),
-          fix: (missing) => `Pin the records that prove your findings: ${missing.join('; ')}.`,
+          fix: (missing) => `Pin the records that prove your findings: ${missing.join(', ')}.`,
         }),
       },
       {
@@ -489,7 +490,7 @@
           compId: 'investigation',
           needsAssessment: true,
           items: () => itemsOf('investigation', (item) => item.pts > 0),
-          fix: (missing) => `Run the searches that show the attack: ${missing.join('; ')}.`,
+          fix: (missing) => `Run the searches that show the attack: ${missing.join(', ')}.`,
         }),
       },
       {

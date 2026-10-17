@@ -19,6 +19,7 @@ function loadPortal() {
     const mkStore = () => ({ _s: {}, getItem(k) { return this._s[k] ?? null; },
       setItem(k, v) { this._s[k] = String(v); }, removeItem(k) { delete this._s[k]; }, clear() { this._s = {}; } });
     var localStorage = mkStore(), sessionStorage = mkStore();
+    class CustomEvent { constructor(type, options = {}) { this.type = type; this.detail = options.detail; } }
     var location = { hash: '#/portal', hostname: '127.0.0.1', pathname: '/', search: '' };
     var history = { replaceState() {}, pushState() {} };
     const elStub = () => new Proxy(function () {}, { get: (t, p) => {
@@ -36,7 +37,7 @@ function loadPortal() {
       return (...a) => elStub();
     }, set: () => true });
     var window = new Proxy({ location, history, document }, {
-      get: (t, p) => (p in t ? t[p] : (p === 'addEventListener' || p === 'scrollTo' ? () => {} : undefined)),
+      get: (t, p) => (p in t ? t[p] : (p === 'addEventListener' || p === 'dispatchEvent' || p === 'scrollTo' ? () => {} : undefined)),
       set: (t, p, value) => { t[p] = value; globalThis[p] = value; return true; } });
 
     var supabaseCalls = [];
