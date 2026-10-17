@@ -1,7 +1,7 @@
 # Modules 04–12 parity progress — 2026-10-17
 
 Continuation of the evening M04 run. The acceptance standard is the owner rule recorded in
-`UAT_2026-10-17_SECTION_NOTES.md`: instructor-visible attempt data and generated recommendations
+`docs/handoffs/UAT_2026-10-17_SECTION_NOTES.md`: instructor-visible attempt data and generated recommendations
 must match the values and labels the student saw and saved. Never repair a mismatch by changing
 only the sheet fixture or by hand-editing an attempt.
 
@@ -48,6 +48,7 @@ No outstanding code, sync, deploy, or browser-parity work is recorded for this c
 ## Shipping status (2026-10-17)
 
 - PR [#72](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/72) merged the M03–M12 parity code. CI, regression checks, staging sync, and staging deployment passed.
-- Handoff updates in PRs [#73](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/73) and [#74](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/74) also synced and deployed successfully. The M03 corrections follow the same PR-to-master staging workflow.
-- Automated checks, staging deployment, and owner-confirmed Chrome instructor/student parity verification are complete.
+- Handoff updates in PRs [#73](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/73) and [#74](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/74) synced and deployed successfully.
+- PR [#75](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/75) fixed missed M03 follow-ups F19, F20 and F22. CI, regression checks, staging sync/deployment, and production Pages deployment passed for `b09b5fae9bf762fc5591eb07ed28a68da5f05cb2`.
+- The owner confirmed the Chrome instructor/student comparison. The later F19/F20/F22 review found omissions, which PR #75 corrected; the final changes are covered by CI and deployed to both staging and production.
 - The `main` branch remains an obsolete snapshot and is not the deployment branch.

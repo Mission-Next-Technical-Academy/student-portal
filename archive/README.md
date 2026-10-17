@@ -61,6 +61,14 @@ Feature/fix write-ups and progress snapshots for work that finished and is
 live, each already self-marked done or all-checkboxes-complete at the time
 of archiving:
 
+- `UAT_2026-10-17_MODULES_04-12_PARITY_PROGRESS.md` — completed M03–M12
+  student/instructor assessment parity work. PR #72 shipped the parity fixes;
+  PR #75 corrected the missed M03 raw-event ID, event chronology, and incident
+  guide consistency issues. CI, staging sync/deployment, and production Pages
+  deployment passed. The broader UAT handoff remains active at
+  `docs/handoffs/UAT_2026-10-17_SECTION_NOTES.md` because it tracks separate
+  owner tasks.
+
 - `M12_INTEGRATED_CLICKTHROUGH.md` — completed local S5 acceptance report:
   304 console tabs, Module 1/12 interaction sweeps, three scored M12 browser
   submissions, and synthetic Module 1 submit/reload/review. Source screenshots
