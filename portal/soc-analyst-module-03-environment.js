@@ -373,9 +373,10 @@ function m03eResolutionScore(raw) {
     else if (row.resolved && row.disposition && row.disposition !== incident.disposition) { earned -= 2; deductions.push(`${incident.id} resolved with unsupported ${row.disposition} disposition (−2)`); }
   });
   const allResolved = M03E_CHILD_INCIDENTS.every((i) => state.children[i.id].resolved);
-  if (allResolved && state.parentClosed) { earned += 1; evidence.push('Parent case closed after every child was resolved'); }
+  // The parent stays open while Identity Response cleans up; closing it is allowed once both children are resolved, never required.
+  if (allResolved) { earned += 1; evidence.push(state.parentClosed ? 'Parent case closed after every child was resolved' : 'Parent case left open until the children were resolved'); }
   earned = Math.max(0, Math.min(5, earned));
-  return { earned, max: 5, evidence, deductions, misses: earned < 5 ? ['Resolve both child incidents with evidence and close the parent after both are resolved'] : [] };
+  return { earned, max: 5, evidence, deductions, misses: earned < 5 ? ['Resolve both child incidents with evidence; do not close the parent before both are resolved'] : [] };
 }
 
 function m03eNormalizeDispositions(raw) {

@@ -437,8 +437,10 @@ const AdminSubmissionSheet = (() => {
     if (section.status !== 'fail' && section.status !== 'partial') return '';
     const notes = section.notes.map((note) => String(note).trim()).filter(Boolean);
     const lead = section.status === 'partial' ? 'To strengthen next time:' : '';
-    if (notes.length <= 1) return [lead, notes[0] || ''].filter(Boolean).join(' ');
-    return [lead, ...notes.map((note) => `• ${note}`)].filter(Boolean).join('\n');
+    // A note after the "To strengthen next time:" lead reads on in lower case; standing alone it starts with a capital.
+    const cap = (note) => note.charAt(0).toUpperCase() + note.slice(1);
+    if (notes.length <= 1) return [lead, lead ? notes[0] || '' : cap(notes[0] || '')].filter(Boolean).join(' ');
+    return [lead, ...notes.map((note) => `• ${cap(note)}`)].filter(Boolean).join('\n');
   }
 
   function suggestedFeedback(row, options = {}) {

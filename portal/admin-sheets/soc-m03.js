@@ -107,6 +107,9 @@
     return c && ctx.scorerResult ? !ctx.scorerResult.criticalMisses.includes(c.label) : null;
   };
   const lower = (text) => String(text).charAt(0).toLowerCase() + String(text).slice(1);
+  // Scorer labels are past tense ("Pinned the forwarding rule"); a note to the student is an instruction ("pin the forwarding rule").
+  const IMPERATIVE = { queried: 'query', pivoted: 'pivot', pinned: 'pin', linked: 'link', searched: 'search', ran: 'run' };
+  const imperative = (text) => String(text).replace(/^(\w+)\b/, (word) => IMPERATIVE[word.toLowerCase()] || word);
   const stripLevel = (text) => String(text).replace(/^(Unsupported|Unsafe):\s*/, '');
 
   /* A scorer-driven group: one ✓/✗ line per rubric item (all = pass, some = ◐,
@@ -120,7 +123,7 @@
         return items().map((item, index) => (hit(ctx, compId, item) ? `p${index}` : '')).join(' ');
       },
       // short: the scorer label without its "handoff names" / "written (40+…)" frame.
-      pieces: () => items().map((item, index) => ({ name: lower(item.label), short: lower(item.label).replace(/^handoff (names|explains|states) /, '').replace(/ written \(40\+ characters\)$/, ''), label: item.label, terms: [`p${index}`] })),
+      pieces: () => items().map((item, index) => ({ name: lower(item.label), short: imperative(lower(item.label)).replace(/^handoff (names|explains|states) /, '').replace(/ written \(40\+ characters\)$/, ''), label: item.label, terms: [`p${index}`] })),
       fix: fix || ((missing) => `Add what is missing: ${missing.join(', ')}.`),
     };
   }
@@ -400,7 +403,10 @@
           label: () => `Linked the alerts that support ${linkRule().incidentId}`,
           compId: 'incident-association',
           items: () => itemsOf('incident-association', (item) => item.pts > 0),
-          fix: (missing) => `Link the supporting alerts to ${linkRule().incidentId}: ${missing.join(', ')}.`,
+          fix: (missing, result) => {
+            const links = arrayOf(result, 'alertIncidentLinks') || [];
+            return `${missing.join(', ')} (you linked ${links.length ? links.map((link) => link.alertId).join(', ') : 'none'}).`;
+          },
         }),
       },
       {
@@ -436,21 +442,38 @@
             const comp = ctx.scorerResult && ctx.scorerResult.competencies.find((c) => c.id === 'incident-resolution');
             return comp && comp.deductions.length ? comp.deductions.join('; ') : 'None';
           },
-          fix: 'Re-check the child incident you closed with the wrong disposition against its own alert records. A typo then a normal sign-in is benign; the spray success plus forwarding rule is malicious.',
+          fix: (result) => {
+            const rows = (record(result) && record(result).incidentResolutions && record(result).incidentResolutions.children) || {};
+            const wrong = children().filter((incident) => rows[incident.id] && rows[incident.id].resolved && rows[incident.id].disposition && rows[incident.id].disposition !== incident.disposition);
+            return wrong.length
+              ? `${wrong.map((incident) => `${incident.id} is ${incident.disposition.replace('-', ' ')} (${incident.evidence.join(', ')}), not ${String(rows[incident.id].disposition).replace('-', ' ')}`).join('; ')}.`
+              : 'Re-check each closed child incident against its own alert records.';
+          },
         }],
         evidence: {
-          label: 'Each child incident resolved correctly, then the parent closed',
+          label: 'Each child incident resolved correctly; parent left open or closed only after both',
           text: (result, ctx) => {
             const comp = ctx.scorerResult && ctx.scorerResult.competencies.find((c) => c.id === 'incident-resolution');
             if (!comp || !record(result) || !record(result).incidentResolutions) return null;
             return [...children().map((incident, index) => (comp.evidence.some((line) => line.startsWith(`${incident.id} resolved with supported`)) ? `c${index}` : '')),
-              comp.evidence.some((line) => line.startsWith('Parent case closed')) ? 'cparent' : ''].join(' ');
+              comp.evidence.some((line) => line.startsWith('Parent case')) ? 'cparent' : ''].join(' ');
           },
           pieces: () => [
-            ...children().map((incident, index) => ({ name: `${incident.id} resolved as ${incident.disposition.replace('-', ' ')}`, short: `${incident.id} as ${incident.disposition.replace('-', ' ')} with its evidence (${incident.evidence.join(', ')}) cited in the note`, label: `${incident.id} (${incident.label}) resolved as ${incident.disposition.replace('-', ' ')}, citing its records (${incident.evidence.join(', ')}) in the note`, terms: [`c${index}`] })),
-            { name: 'the parent case closed after both children', short: 'closing the parent case after both children', label: 'Parent case closed after both child incidents were resolved', terms: ['cparent'] },
+            ...children().map((incident, index) => ({ name: `${incident.id} resolved as ${incident.disposition.replace('-', ' ')}`, short: `resolve ${incident.id} as ${incident.disposition.replace('-', ' ')} and cite its evidence (${incident.evidence.join(', ')}) in the note`, label: `${incident.id} (${incident.label}) resolved as ${incident.disposition.replace('-', ' ')}, citing its records (${incident.evidence.join(', ')}) in the note`, terms: [`c${index}`] })),
+            { name: 'the parent kept open until both children were resolved', short: 'resolve both child incidents before closing the parent', label: 'Parent case not closed before both child incidents were resolved (left open for Identity Response is correct)', terms: ['cparent'] },
           ],
-          fix: (missing) => `Finish the child incidents: ${missing.join(', ')}.`,
+          fix: (missing, result) => {
+            const rows = (record(result) && record(result).incidentResolutions && record(result).incidentResolutions.children) || {};
+            const notes = children().map((incident) => {
+              const row = rows[incident.id] || {};
+              const want = incident.disposition.replace('-', ' ');
+              if (!row.resolved) return `resolve ${incident.id} as ${want}, citing ${incident.evidence.join(', ')} (you left it unresolved)`;
+              if (row.disposition !== incident.disposition) return `${incident.id} is ${want}, not ${String(row.disposition || 'unspecified').replace('-', ' ')}`;
+              const cited = String(row.evidence || '').split(/[\s,;]+/).some((id) => incident.evidence.includes(id) && String(row.note || '').includes(id));
+              return cited ? '' : `cite ${incident.evidence.join(' or ')} in your ${incident.id} note`;
+            }).filter(Boolean);
+            return notes.length ? `${notes.join('; ')}.` : null;
+          },
         },
       },
       {
@@ -466,7 +489,11 @@
           compId: 'evidence',
           needsAssessment: true,
           items: () => itemsOf('evidence', (item) => item.pts > 0),
-          fix: (missing) => `Pin the records that prove your findings: ${missing.join(', ')}.`,
+          fix: (missing, result) => {
+            const pins = result.assessment && Array.isArray(result.assessment.pinned_evidence) ? result.assessment.pinned_evidence : [];
+            const ids = pins.map((pin) => { const m = /record ([A-Z]-\d+)/.exec(String(pin)); return m ? m[1] : String(pin); });
+            return `${missing.join(', ')} (you pinned ${ids.length ? ids.join(', ') : 'nothing'}).`;
+          },
         }),
       },
       {
@@ -490,7 +517,13 @@
           compId: 'investigation',
           needsAssessment: true,
           items: () => itemsOf('investigation', (item) => item.pts > 0),
-          fix: (missing) => `Run the searches that show the attack: ${missing.join(', ')}.`,
+          fix: (missing, result) => {
+            const a = result.assessment && typeof result.assessment === 'object' ? result.assessment : {};
+            const summary = a.query_summary && typeof a.query_summary === 'object' ? a.query_summary : null;
+            const total = summary ? summary.total : (Array.isArray(a.query_log) ? a.query_log.length : 0);
+            const sources = summary ? summary.sources_queried : [...new Set((Array.isArray(a.query_log) ? a.query_log : []).flatMap((q) => q.sources || []))];
+            return `${missing.join(', ')} (you ran ${total} search${total === 1 ? '' : 'es'}${sources.length ? ` on ${sources.join(', ')}` : ''}).`;
+          },
         }),
       },
       {
