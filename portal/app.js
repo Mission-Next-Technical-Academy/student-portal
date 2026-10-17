@@ -434,6 +434,8 @@ async function signOut(reason = 'user_signed_out') {
   // Land any debounced lab work first: once the session is gone the write
   // would fail RLS and the learner's last edits would be lost.
   try { await settlePendingCaseStateWrites(); } catch (err) { console.error('pending case_state flush before sign-out failed', err); }
+  // No live-refresh probe may run against the session being closed.
+  if (portalLiveRefresh) portalLiveRefresh.stop();
   try {
     const outgoingUser = await currentUser();
     if (outgoingUser && outgoingUser.userId) {
@@ -7089,6 +7091,191 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
   ${footer()}`;
 }
 
+/* ----------------------------------------------------------- live refresh */
+/* Owner request (UAT 2026-10-17): every signed-in view picks up other
+ * people's changes without a manual reload — learners see approvals,
+ * returns, unlocks and instructor messages; faculty see new submissions,
+ * grading badges, progress and messages. One shared controller
+ * (portal/live-refresh.js); each route registers a cheap probe at the end
+ * of render(). Polling, not Supabase Realtime: the portal has no realtime
+ * subscriptions or publication, and the faculty queues are views, which
+ * postgres_changes cannot watch. */
+const LIVE_REFRESH_LEARNER_PENDING_MS = 30 * 1000; // a submission is awaiting review
+const LIVE_REFRESH_LEARNER_IDLE_MS = 120 * 1000;   // nothing pending: messages/overrides only
+const LIVE_REFRESH_FACULTY_MS = 60 * 1000;
+const portalLiveRefresh = typeof LiveRefresh !== 'undefined' && typeof document !== 'undefined'
+  ? LiveRefresh.create({ win: window, doc: document })
+  : null;
+
+// Only what changes because of someone else: staff decisions (inserts are
+// always unreviewed, guard_lab_attempt_write), verified completion (unlocks,
+// admin overrides) and faculty messages. The learner's own new submissions
+// only set `pending`, which speeds the poll up.
+function learnerLiveSnapshot(attemptRows = [], verifiedRows = [], facultyMessageRows = []) {
+  const decisions = {};
+  let pending = false;
+  (attemptRows || []).forEach((row) => {
+    if (row.reviewed_at) decisions[row.id] = { labKey: row.lab_key, reviewedAt: row.reviewed_at, redo: row.redo_requested === true };
+    else if (!row.superseded_at) pending = true;
+  });
+  const complete = (verifiedRows || []).filter((row) => row.complete === true).map((row) => row.module_key).sort();
+  const facultyMessages = (facultyMessageRows || []).map((row) => row.id).sort();
+  return {
+    signature: LiveRefresh.stableSignature({ decisions, complete, facultyMessages }),
+    pending,
+    decisions,
+    complete,
+    facultyMessages,
+  };
+}
+
+async function probeLearnerLiveState(user) {
+  if (!user || !user.userId || !user.trackCode) return null;
+  const [attempts, verified, messages] = await Promise.all([
+    mntSupabase.from('lab_attempts')
+      .select('id, lab_key, reviewed_at, redo_requested, superseded_at')
+      .eq('user_id', user.userId)
+      .eq('track_code', user.trackCode)
+      .not('completed_at', 'is', null),
+    mntSupabase.from('student_verified_module_progress').select('module_key, complete').eq('track_code', user.trackCode),
+    mntSupabase.from('student_messages').select('id')
+      .eq('student_id', user.userId)
+      .eq('track_code', user.trackCode)
+      .eq('sender_role', 'faculty'),
+  ]);
+  const failed = [attempts, verified, messages].find((result) => !result || result.error);
+  if (failed) {
+    if (failed && failed.error) console.error('live refresh: learner probe failed', failed.error);
+    return null;
+  }
+  return learnerLiveSnapshot(attempts.data, verified.data, messages.data);
+}
+
+function liveModuleLabel(moduleKey) {
+  const program = PROGRAMS.find((p) => p.modules && p.modules[moduleKey]);
+  const module = program && program.modules[moduleKey];
+  return module ? { program, module, label: `Module ${module.number}` } : null;
+}
+
+// Plain-language lines for the notice, from what changed between snapshots.
+function describeLearnerLiveChange(previous, next) {
+  const lines = [];
+  const before = (previous && previous.decisions) || {};
+  Object.entries((next && next.decisions) || {}).forEach(([id, decision]) => {
+    const old = before[id];
+    if (old && old.reviewedAt === decision.reviewedAt && old.redo === decision.redo) return;
+    const lab = LABS.find((item) => item.key === decision.labKey);
+    const where = lab ? liveModuleLabel(lab.module) : null;
+    const subject = where ? `${where.label}${lab.title ? `: ${lab.title}` : ''}` : 'your submission';
+    lines.push(decision.redo
+      ? `Your instructor returned ${subject} with notes to revise.`
+      : `Your instructor approved ${subject}.`);
+  });
+  const wasComplete = new Set((previous && previous.complete) || []);
+  ((next && next.complete) || []).filter((key) => !wasComplete.has(key)).forEach((key) => {
+    const where = liveModuleLabel(key);
+    if (!where) return;
+    const following = Object.values(where.program.modules).find((m) => m.number === where.module.number + 1);
+    lines.push(following ? `Module ${following.number} is now open.` : `${where.label} is complete.`);
+  });
+  const hadMessages = new Set((previous && previous.facultyMessages) || []);
+  if (((next && next.facultyMessages) || []).some((id) => !hadMessages.has(id))) lines.push('You have a new message from your instructor.');
+  return lines;
+}
+
+function facultyLiveSnapshot({ queueRows = [], redoRows = [], unreadRows = [], rosterRows = [], messageRows = [] } = {}) {
+  const queue = (queueRows || []).map((row) => row.id).sort();
+  const redos = (redoRows || []).map((row) => `${row.id}|${row.reviewed_at || ''}`).sort();
+  const unread = (unreadRows || []).map((row) => row.id).sort();
+  const progress = (rosterRows || []).map((row) => `${row.user_id}|${row.track_code}|${row.technical_completed || 0}|${row.technical_in_progress || 0}`).sort();
+  const messages = (messageRows || []).map((row) => row.id).sort();
+  return { signature: LiveRefresh.stableSignature({ queue, redos, unread, progress, messages }), pending: queue.length > 0, queue, unread, messages };
+}
+
+async function probeFacultyLiveState(user, trackCode) {
+  const scoped = user.isInstructor && !user.isAdmin;
+  const withTrack = (query) => (trackCode ? query.eq('track_code', trackCode) : query);
+  const reads = [
+    withTrack(mntSupabase.from(scoped ? 'faculty_grading_queue' : 'admin_grading_queue').select('id')),
+    withTrack(mntSupabase.from(scoped ? 'faculty_open_lab_redos' : 'admin_open_lab_redos').select('id, reviewed_at')),
+    mntSupabase.from('admin_unread_student_messages').select('id'),
+    withTrack(mntSupabase.from(scoped ? 'faculty_course_student_progress' : 'admin_student_program_progress').select('user_id, track_code, technical_completed, technical_in_progress')),
+    trackCode ? mntSupabase.from('student_messages').select('id').eq('track_code', trackCode) : Promise.resolve({ data: [], error: null }),
+  ];
+  const [queue, redos, unread, roster, messages] = await Promise.all(reads);
+  const failed = [queue, redos, unread, roster, messages].find((result) => !result || result.error);
+  if (failed) {
+    if (failed && failed.error) console.error('live refresh: faculty probe failed', failed.error);
+    return null;
+  }
+  return facultyLiveSnapshot({ queueRows: queue.data, redoRows: redos.data, unreadRows: unread.data, rosterRows: roster.data, messageRows: messages.data });
+}
+
+// Besides typing and drafts (LiveRefresh.busyState), something the person
+// opened on the page (an attempt panel, a student row, a curriculum list) is
+// 'viewing': the update waits behind an "Update now" notice instead of
+// reshuffling what they are reading.
+function portalLiveBusy() {
+  const busy = LiveRefresh.busyState(document);
+  if (busy) return busy;
+  return document.querySelector('#app [aria-expanded="true"]') ? 'viewing' : null;
+}
+
+function liveRefreshDeferredNotice(message, { applyNow, busy }) {
+  // An unsent draft is never thrown away for an update; otherwise the person
+  // may take it now.
+  LiveRefresh.showNotice(document, busy === 'draft'
+    ? { message: `${message} They will load once your unsent text is saved or sent.` }
+    : { message, actionLabel: 'Update now', onAction: applyNow });
+}
+
+/* Called at the end of every signed-in render(). Learner program/portal
+ * pages update in place on their own; module and lab pages offer the update
+ * instead, so a lab in progress is never rebuilt under the learner. */
+function startLiveRefreshForRoute(user, hash, { adminTrackCode = null } = {}) {
+  if (!portalLiveRefresh) return;
+  if (!user) { portalLiveRefresh.stop(); return; }
+  if (user.isAdmin || user.isInstructor) {
+    portalLiveRefresh.watch({
+      key: `faculty:${user.userId}:${hash}`,
+      intervalMs: LIVE_REFRESH_FACULTY_MS,
+      probe: () => probeFacultyLiveState(user, adminTrackCode),
+      isBusy: portalLiveBusy,
+      apply: () => render({ silent: true, preserveView: true }),
+      onDeferred: (change, info) => liveRefreshDeferredNotice('New submissions, messages or progress are available.', info),
+    });
+    return;
+  }
+  const onModulePage = /^#\/program\/[a-z0-9-]+\/module\//.test(hash);
+  portalLiveRefresh.watch({
+    key: `learner:${user.userId}:${hash}`,
+    intervalMs: (snapshot) => (snapshot && snapshot.pending ? LIVE_REFRESH_LEARNER_PENDING_MS : LIVE_REFRESH_LEARNER_IDLE_MS),
+    probe: () => probeLearnerLiveState(user),
+    isBusy: portalLiveBusy,
+    autoApply: !onModulePage,
+    // On a module page a completion with no staff decision or message is the
+    // learner's own work, which that page already shows.
+    isRelevant: (change) => !onModulePage || describeLearnerLiveChange(change.previous, change.next).some((line) => !/ is now open\.$| is complete\.$/.test(line)),
+    apply: async (change, { forced } = {}) => {
+      const lines = describeLearnerLiveChange(change.previous, change.next);
+      await render({ silent: true, preserveView: true });
+      if (lines.length) LiveRefresh.showNotice(document, { message: lines.join(' '), autoHideMs: forced ? 8000 : 15000, setTimer: setTimeout });
+    },
+    onDeferred: (change, info) => {
+      const lines = describeLearnerLiveChange(change.previous, change.next);
+      const message = lines.length ? lines.join(' ') : 'Your instructor updated your coursework.';
+      if (!onModulePage) { liveRefreshDeferredNotice(message, info); return; }
+      // Module and lab pages: the learner chooses when. render() flushes
+      // their saved lab work first (settlePendingCaseStateWrites).
+      LiveRefresh.showNotice(document, {
+        message: info.busy === 'draft' ? `${message} Finish what you are typing, then update the page.` : message,
+        actionLabel: 'Update page',
+        onAction: info.applyNow,
+      });
+    },
+  });
+}
+
 /* ------------------------------------------------------------------ router */
 
 // Route changes can wait on several Supabase reads (the admin workspace is
@@ -7193,6 +7380,12 @@ function completeRouteLoading(generation) {
   return true;
 }
 
+function captureLiveView(app, options = {}) {
+  return options.silent && options.preserveView && typeof LiveRefresh !== 'undefined'
+    ? LiveRefresh.captureView(app, window)
+    : null;
+}
+
 async function render(options = {}) {
   const app = document.getElementById('app');
   let hash = location.hash || '#/login';
@@ -7231,6 +7424,7 @@ async function render(options = {}) {
     app.innerHTML = viewLogin();
     app.setAttribute('aria-busy', 'false');
     wireLogin();
+    startLiveRefreshForRoute(null, hash);
     return;
   }
   // Signed in but sitting on the login route: replace the entry rather than
@@ -7287,6 +7481,8 @@ async function render(options = {}) {
   let facultyMessageRows = [];
   let facultyMessageTrackCodes = [];
   let normalizedTrackData = null;
+  // A live-refresh re-render (preserveView) keeps scroll and open disclosures.
+  let liveView = null;
   if (hash === '#/admin' || adminTrackMatch) {
     if (!user.isAdmin && !user.isInstructor) {
       history.replaceState(null, '', '#/portal');
@@ -7464,6 +7660,7 @@ async function render(options = {}) {
         cheatingFlagsByUserId = buildCheatingReviewFlags(dashboardRows, adminLazyTabData.activity.completedRows || []);
       }
       normalizedTrackData = normalizeAdminTrackData({ rows: dashboardRows, activeTrackCode, activeStudents, gradingQueueRows, openLabRedoRows, gradedRows, supersededRows, facultyMessageRows });
+      liveView = captureLiveView(app, options);
       app.innerHTML = viewAdmin(user, dashboardRows, error, activeStudents, applyAdminLazyData({
         cheatingFlagsByUserId,
         activeTab: adminActiveTab,
@@ -7482,7 +7679,9 @@ async function render(options = {}) {
     const wiredActiveStudents = normalizedTrackData ? normalizedTrackData.detailStudents : filterByTrack(activeStudents, activeTrackCode);
     wireAdmin(wiredRows, wiredActiveStudents, cheatingFlagsByUserId, gradingQueueRows, facultyMessageRows);
     app.setAttribute('aria-busy', 'false');
-    window.scrollTo(0, 0);
+    if (liveView) LiveRefresh.restoreView(app, window, liveView);
+    else window.scrollTo(0, 0);
+    startLiveRefreshForRoute(user, hash, { adminTrackCode: activeTrackCode });
     return;
   }
 
@@ -7495,6 +7694,7 @@ async function render(options = {}) {
   // has no interactive surface built yet, so it falls through to the program
   // overview the same way it always did.
   if (!completeRouteLoading(renderGeneration)) return;
+  liveView = captureLiveView(app, options);
   if (labModule) {
     const program = PROGRAMS.find((item) => item.slug === labMatch[1]);
     app.innerHTML = hasModuleAccess(user, program.slug, labModule.moduleKey)
@@ -7513,7 +7713,9 @@ async function render(options = {}) {
   }
   app.setAttribute('aria-busy', 'false');
   wireCommon();
-  window.scrollTo(0, 0);
+  if (liveView) LiveRefresh.restoreView(app, window, liveView);
+  else window.scrollTo(0, 0);
+  startLiveRefreshForRoute(user, hash);
   // Universal Academy first-login orientation (orientation.js). Admin never
   // sees it — that whole route branch already returned above. A no-op when
   // the student has already completed it or no tour is in progress.
