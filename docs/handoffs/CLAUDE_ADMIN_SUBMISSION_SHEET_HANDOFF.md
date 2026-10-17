@@ -38,8 +38,8 @@ corrections and never flip the verdict. Scores themselves were never changed.
 | Framework, M01–M12 sheets, spelling (S1–S6) | ✅ merged | PR #65 (`74fce5a`), #66 (docs) |
 | "PASS — with corrections" banner, M06–M09 notes | ✅ merged | PR #67 (`3cdefcc`) |
 | Help Desk sheets, all 16 lab keys (H0–H4) | ✅ owner-approved; squash commit on `master` | PR #68, commit `81d23c8` |
-| Help Desk completion capture + rubric metadata | ⏳ PR checks / promotion | PR #69 (`codex/hdesk-submission-closeout`) |
-| Staging and production source deploys | ✅ successful | staging sync + staging site deploy; GitHub Pages deploy at `81d23c8` |
+| Help Desk completion capture + rubric metadata | ✅ merged and deployed | PR #69, squash commit `b13c992` |
+| Staging and production source deploys | ✅ successful | staging sync + staging site deploy; GitHub Pages deploy at `b13c992` |
 | Student/instructor click-through UAT | ⏳ not done | needs owner-provided synthetic staging accounts |
 
 PR #68 is **closed by the owner after landing squash commit `81d23c8` on
@@ -57,9 +57,14 @@ successfully on 2026-10-17. Verification:
 - GitHub Pages deployed `81d23c8`, and the live index loads the Help Desk
   sheet scripts.
 
-This verifies the deployed code and assets, not a signed-in student/instructor
-workflow. No account click-through has been performed. PR #69 remains pending
-promotion, so its code is not yet in the staging or production deploys.
+PR #69 added Help Desk rubric and scorer metadata, saved guided-lab work only
+after explicit Finish, and expanded saved-work and duplicate-message coverage.
+Its checks passed on Ubuntu, macOS, and static application checks. The merge
+and deployment evidence is recorded in the [CI/CD worktree audit](CI_CD_WORKTREE_CLEANUP_HANDOFF.md).
+
+This verifies deployed code and assets, not a signed-in student/instructor
+workflow. No account click-through has been performed; it still needs
+owner-provided synthetic staging accounts.
 
 ## Open owner decisions (nothing below is started)
 
@@ -90,14 +95,12 @@ failing on the clean checkpoint before this work (`c0e195a`). The current
 
 ## Next steps
 
-1. Finish review and promotion of PR #69; then update deployment SHAs and
-   workflow evidence in this handoff and the CI/CD worktree audit.
-2. Run signed-in staging click-through, with owner-provided synthetic accounts:
+1. Run signed-in staging click-through, with owner-provided synthetic accounts:
    - `bin/dev.sh` then `bin/dev.sh status`, which must show `target=STAGING`;
    - submit one SOC Prove It and one Help Desk lab as the student;
    - review, approve or return them as the instructor;
    - confirm the student sees the sent notes.
-3. Resolve the listed owner decisions before changing scoring or lab
+2. Resolve the listed owner decisions before changing scoring or lab
    classification.
 
 ## Rules
