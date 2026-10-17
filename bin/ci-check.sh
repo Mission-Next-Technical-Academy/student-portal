@@ -20,6 +20,7 @@ node tests/hdesk-module-page-states.test.js
 
 echo "== M03 normalization lab re-wire =="
 node tests/m03-normalization-lab-rewire.test.js
+node tests/m03-incident-unlink.test.js
 
 echo '== Lab evidence files =='
 node tests/hdesk-evidence-upload.test.js
