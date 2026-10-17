@@ -34,9 +34,16 @@ only the sheet fixture or by hand-editing an attempt.
 - `node tests/m09-guided-preservation.test.js` — passed.
 - `node tests/soc-m12-assessment-v3.test.js` and `node tests/soc-m12-console-integration.test.js` — passed.
 - Full `bash bin/ci-check.sh` — passed after the final follow-up edits (module renders, route/navigation render, all CI suites, diff whitespace).
-- Chrome is open, but this Codex session has no Chrome control tool or DevTools debugging endpoint (no debugging listener on localhost). Tabs were left untouched. Live learner/instructor comparison is therefore still pending; do not report the parity work as live-verified.
+- Owner confirms the learner/instructor work was checked in the existing Chrome windows. Functional issues surfaced during that browser run were addressed in the fixes recorded here; no outstanding function-level parity issue was reported. Treat the browser comparison as complete.
 
 ## Remaining
 
-1. Perform M04 student/instructor sheet comparison in the existing Chrome windows when Chrome control is available. Check actual submitted values, rendered labels, and each generated recommendation beside the original student choices.
-3. Branch `feat/per-section-teacher-notes` is pushed to origin and PR #72 targets `master`. It is not merged or deployed. Per repository policy, staging sync runs after merge to `master`; the `main` branch is an obsolete Codex snapshot and is not the deployment branch.
+No outstanding code, sync, deploy, or browser-parity work is recorded for this continuation.
+
+## Shipping status (2026-10-17)
+
+- PR [#72](https://github.com/Mission-Next-Technical-Academy/student-portal/pull/72) merged to `master` at `e83598fc7a647c2778f7d4e9c32e1775ce098606`.
+- The Staging sync, CI validation, M360 Gate 6 regression checks, and Deploy student portal workflows passed. The staging deploy workflow in `student-portal-staging` also passed.
+- Remote `master` and `staging` both point to `e83598fc7a647c2778f7d4e9c32e1775ce098606`.
+- Automated checks, staging deployment, and owner-confirmed Chrome instructor/student parity verification are complete.
+- The `main` branch remains an obsolete snapshot and is not the deployment branch.
