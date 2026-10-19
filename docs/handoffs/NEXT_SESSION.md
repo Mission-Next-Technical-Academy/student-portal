@@ -1,3 +1,28 @@
+**2026-10-19 (Megan; PR #<added by /pr-ready> "Help Desk: full-width work notes box in the simulator ticket view"; `ui/helpdesk.js`, `ui/styles.css`, `ui/index.html` — all three fall under the `*` CODEOWNERS rule, please review those):**
+The Work notes box on a Help Desk simulator ticket was an unstyled
+3-row textarea (its `textarea` class had no CSS rule). It now uses the
+simulator's `ipt` input style, is full width, 7 rows tall, and resizes
+vertically only, with a gap above the "Add work note" button. Behaviour is
+unchanged: the box keeps `id="hd-note-input"`, `hdAddNote()` still reads it
+by id, and the button is still its next sibling, so the coach targets
+`#hd-note-input, #hd-note-input ~ button` in `ui/helpdesk-coaches.js` still
+match.
+- `ui/helpdesk.js`: the textarea's class changed from `textarea` to
+  `ipt hd-note-input` and `rows` from 3 to 7. Nothing else in the ticket
+  view changed.
+- `ui/styles.css` (shared stylesheet): one new rule after the
+  `.hd-note-list` rules, `textarea.hd-note-input { display: block;
+  font-family: inherit; line-height: 1.5; margin-bottom: 10px; min-height:
+  80px; resize: vertical; }`. It matches only this one element, so SOC and
+  other simulator screens are unaffected. `font-family: inherit` overrides
+  the monospace font that `textarea.ipt` sets, so notes are typed in the
+  same font they're shown in.
+- `ui/index.html` (shared): version bumps, `styles.css?v=20261019-work-notes`
+  (it was still `20260818`, although `styles.css` last changed on Sep 21)
+  and `helpdesk.js?v=20261019-work-notes`. Every SOC simulator page loads
+  `styles.css` again once, from the new URL.
+- No migration, no data or grading change.
+
 **2026-10-16 (Megan; PR #64 "Correct Supabase staging instructions and tidy agent rules"; shared docs and one workflow message: `CLAUDE.md`, `AGENTS.md`,
 `docs/operations/AI_AGENT_RULES.md`, `docs/operations/STAGING_AUTOMATION.md`,
 `.github/workflows/supabase-change-reminder.yml` — please review those):**
