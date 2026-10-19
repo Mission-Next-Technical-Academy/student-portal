@@ -1,4 +1,4 @@
-**2026-10-19 (Megan; PR #<added by /pr-ready> "Help Desk: full-width work notes box in the simulator ticket view"; `ui/helpdesk.js`, `ui/styles.css`, `ui/index.html` — all three fall under the `*` CODEOWNERS rule, please review those):**
+**2026-10-19 (Megan; PR #77 "Help Desk: full-width work notes box in the simulator ticket view"; `ui/helpdesk.js`, `ui/styles.css`, `ui/index.html` — all three fall under the `*` CODEOWNERS rule, please review those):**
 The Work notes box on a Help Desk simulator ticket was an unstyled
 3-row textarea (its `textarea` class had no CSS rule). It now uses the
 simulator's `ipt` input style, is full width, 7 rows tall, and resizes
