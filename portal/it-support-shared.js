@@ -401,12 +401,19 @@ function itsLabStatusHtml(user, labKey, { label, prefix, pendingText, ready = fa
   return `<div class="${prefix}-lab-status ${prefix}-status-${line.pass ? 'pass' : 'pending'}" data-its-lab-status="${esc(labKey)}" data-status="${status}"><i class="${line.icon}" aria-hidden="true"></i><span>${esc(line.text)}</span></div>`;
 }
 
-// Hero counter: "3 of 4 submitted · 1 passed", plus "· 1 returned".
+// Hero counter: "4 labs · 1 waiting for review · 1 passed · 1 returned";
+// the waiting and returned parts appear only when non-zero.
 function itsLabCounterText(user, labKeys) {
   const statuses = labKeys.map((key) => itsLabStatus(user, key));
-  const count = (...wanted) => statuses.filter((status) => wanted.includes(status)).length;
+  const count = (status) => statuses.filter((s) => s === status).length;
+  const waitingCount = count('waiting');
   const returnedCount = count('returned');
-  return `${count('waiting', 'passed')} of ${labKeys.length} submitted · ${count('passed')} passed${returnedCount ? ` · ${returnedCount} returned` : ''}`;
+  return [
+    `${labKeys.length} lab${labKeys.length === 1 ? '' : 's'}`,
+    waitingCount ? `${waitingCount} waiting for review` : '',
+    `${count('passed')} passed`,
+    returnedCount ? `${returnedCount} returned` : '',
+  ].filter(Boolean).join(' · ');
 }
 
 // Rail fields for a row covering labKeys: ticked only when every lab passed;

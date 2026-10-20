@@ -770,6 +770,19 @@ main[class*="m1"] > details[class*="section-collapsible"][open] > summary::after
     float: left;
     margin: 12px 24px 24px max(20px, calc((100vw - 1180px) / 2));
   }
+  /* Help Desk: a fixed-width, centred <main> slid under the floated rail,
+     which then covered its buttons, file pickers and checkboxes. As a
+     flow-root box with auto width it sits beside the float and takes only
+     the width left over, ending at the same right gutter as before. */
+  .itss-shell > .munified-nav ~ main,
+  .its01-shell > .munified-nav ~ main,
+  .its02-shell > .munified-nav ~ main,
+  .its12-shell > .munified-nav ~ main {
+    display: flow-root;
+    width: auto;
+    margin-left: 0;
+    margin-right: max(20px, calc((100vw - 1180px) / 2));
+  }
 }
 
 /* Desktop: sticky left rail visible, toggle hidden */

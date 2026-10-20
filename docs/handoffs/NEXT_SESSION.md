@@ -1,3 +1,46 @@
+**2026-10-19 (Megan; PR #<added by /pr-ready> "Shared: stop the module rail covering Help Desk controls and switch off night mode"; shared `portal/module-labs.css`, `portal/theme.js`, `portal/index.html` version lines — please review those):**
+Two shared changes. (1) On Help Desk module pages the floated left rail
+covered buttons, file pickers and checkboxes at 1,280–1,512 px wide: the
+rail floats at the main column's left edge, but `<main>` kept its fixed
+`min(1180px, …)` width and centred margins, so its left part sat under the
+rail. A new rule makes `<main>` sit beside the rail instead, taking only
+the width left over. (2) Night mode is switched off on every page that
+loads `theme.js`, including SOC, M360, range-tool and imported-lab pages:
+they always show day mode and no longer show the Night mode button. The
+night-mode code and `theme.css` night styles are kept.
+- `portal/module-labs.css` (shared): inside the existing `min-width: 961px`
+  block that floats the rail, one new rule for
+  `.itss-shell`, `.its01-shell`, `.its02-shell` and `.its12-shell`
+  `> .munified-nav ~ main`: `display: flow-root; width: auto; margin-left:
+  0; margin-right: max(20px, calc((100vw - 1180px) / 2))`. Help Desk only.
+  The same float rule still applies to `.aim-shell`, `.eee01-shell` and
+  `.m02-shell`…`.m12-shell`; this PR doesn't change them.
+- `portal/theme.js` (shared): new `NIGHT_MODE_ENABLED = false`. While it's
+  false, `readTheme()` returns `'day'`, and the script returns before
+  mounting the toggle or adding the `storage` listener. A saved
+  `mission-next-theme = night` value stays in localStorage untouched, so
+  setting the flag back to `true` restores it and the toggle.
+- `portal/index.html` (shared): version bumps for `module-labs.css`,
+  `theme.js`, `it-support-module-01.css`, `it-support-module-02.css` and
+  `it-support-shared.js`. The other pages that load `theme.js` (M360,
+  range tools, imported labs, the simulator) keep `?v=20261005-theme`;
+  GitHub Pages serves it with `max-age=600`, so they pick up the new script
+  within 10 minutes of deploy.
+- Simulator theme path (not changed here): `ui/index.html` loads
+  `../portal/theme.css` and `../portal/theme.js`, but the deploy puts the
+  portal at the site root and the simulator at `/sim/`, so both return 404
+  on staging and production (checked: `/portal/theme.js` 404,
+  `/theme.js` 200). Under `bin/dev.sh` the simulator is served on its own
+  port, so the path doesn't resolve there either. The simulator has never
+  loaded the theme, so this PR changes nothing there.
+- Help Desk-only (Megan's): the Module 1 and 2 heroes always stack, with
+  the description first and the stats box underneath at every width; the
+  stats box is at most 520 px wide and its text wraps. The hero
+  label (`itsLabCounterText()` in `portal/it-support-shared.js`) now reads
+  e.g. "4 labs · 1 waiting for review · 1 passed · 1 returned"; expected
+  strings updated in `tests/hdesk-module-page-states.test.js`.
+- No migration, no data or grading change.
+
 **2026-10-19 (Megan; PR #77 "Help Desk: full-width work notes box in the simulator ticket view"; `ui/helpdesk.js`, `ui/styles.css`, `ui/index.html` — all three fall under the `*` CODEOWNERS rule, please review those):**
 The Work notes box on a Help Desk simulator ticket was an unstyled
 3-row textarea (its `textarea` class had no CSS rule). It now uses the

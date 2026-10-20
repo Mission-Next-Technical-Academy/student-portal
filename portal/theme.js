@@ -3,8 +3,13 @@
   'use strict';
   var key = 'mission-next-theme';
   var root = document.documentElement;
+  // Night mode is switched off for now: every page shows day mode and no
+  // toggle. A saved 'night' choice is left in localStorage untouched, so
+  // setting this back to true restores it.
+  var NIGHT_MODE_ENABLED = false;
 
   function readTheme() {
+    if (!NIGHT_MODE_ENABLED) return 'day';
     try { return localStorage.getItem(key) === 'night' ? 'night' : 'day'; }
     catch (_) { return 'day'; }
   }
@@ -24,6 +29,7 @@
   }
 
   applyTheme(readTheme());
+  if (!NIGHT_MODE_ENABLED) return;
   function mountToggle() {
     if (document.getElementById('mn-theme-toggle')) return;
     var button = document.createElement('button');
