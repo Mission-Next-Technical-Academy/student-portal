@@ -33,8 +33,9 @@ night-mode code and `theme.css` night styles are kept.
   `/theme.js` 200). Under `bin/dev.sh` the simulator is served on its own
   port, so the path doesn't resolve there either. The simulator has never
   loaded the theme, so this PR changes nothing there.
-- Help Desk-only (Megan's): the Module 1 and 2 hero stats column is capped
-  at 360 px and wraps, and the hero stacks below 1,100 px wide; the hero
+- Help Desk-only (Megan's): the Module 1 and 2 heroes always stack, with
+  the description first and the stats box underneath at every width; the
+  stats box is at most 520 px wide and its text wraps. The hero
   label (`itsLabCounterText()` in `portal/it-support-shared.js`) now reads
   e.g. "4 labs · 1 waiting for review · 1 passed · 1 returned"; expected
   strings updated in `tests/hdesk-module-page-states.test.js`.
