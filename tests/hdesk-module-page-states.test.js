@@ -5,7 +5,8 @@
 //
 //   - Status lines: "Lab 2.1 submitted <day>, waiting for instructor review",
 //     "Lab 2.1 passed", "Lab 2.1 returned for revision ...", else the prompt.
-//   - Hero counter: "3 of 4 submitted · 1 passed" (+ "· N returned").
+//   - Hero counter: "4 labs · 3 waiting for review · 1 passed" (waiting and
+//     returned parts only when non-zero).
 //   - Rail: ticked only when passed; "In review" / "Returned" otherwise.
 //   - Evidence labs submit only with an explicit "Submit Lab X.Y" button once
 //     every file is added; adding files never shows complete or passed.
@@ -106,7 +107,7 @@ async function testModuleTwoClearedStorageShowsDatabaseStatus() {
   assert.equal(statusLine(html, LAB22), 'Lab 2.2 passed');
   assert.equal(statusLine(html, LAB23), `Lab 2.3 submitted ${DAY}, waiting for instructor review`);
   assert.equal(statusLine(html, LAB24), `Lab 2.4 submitted ${DAY}, waiting for instructor review`);
-  assert.equal(counter(html, 'its02-status'), '4 of 4 submitted · 1 passed');
+  assert.equal(counter(html, 'its02-status'), '4 labs · 3 waiting for review · 1 passed');
   assert.doesNotMatch(html, /Labs complete/, 'the counter never says complete');
 
   // A submitted evidence lab shows no empty upload boxes.
@@ -137,7 +138,7 @@ async function testModuleTwoLocalFlagsAloneAreNotSubmitted() {
   assert.equal(statusLine(html, LAB21), 'Upload both evidence files to complete this lab.');
   assert.equal(submitButton(html, LAB21), null, 'no Submit button until the files are chosen again');
   assert.match(section(html, 'its02-lab-2-1'), /Choose this file again — “d\.png”/);
-  assert.equal(counter(html, 'its02-status'), '0 of 4 submitted · 0 passed');
+  assert.equal(counter(html, 'its02-status'), '4 labs · 0 passed');
   assert.match(section(html, 'its02-lab-2-3'), /Start Labs 2\.3 &(amp;)? 2\.4 walkthrough/);
   for (const id of ['its02-lab-2-1', 'its02-lab-2-2', 'its02-lab-2-3']) assert.equal(railRow(html, id).ticked, false, `${id} not ticked`);
 }
@@ -149,7 +150,7 @@ async function testModuleTwoReturnedLab() {
   assert.equal(statusLine(html, LAB21), 'Lab 2.1 returned for revision — see your instructor’s notes below.');
   assert.match(section(html, 'its02-lab-2-1'), /data-itsw-evidence-input/, 'a returned lab shows its upload boxes again');
   assert.match(section(html, 'its02-lab-2-1'), /data-its-resubmit/, 'PR #61 Resubmit button stays');
-  assert.equal(counter(html, 'its02-status'), '1 of 4 submitted · 1 passed · 1 returned');
+  assert.equal(counter(html, 'its02-status'), '4 labs · 1 passed · 1 returned');
   assert.match(railRow(html, 'its02-lab-2-1').text, /Returned/);
 }
 
@@ -185,7 +186,7 @@ async function testEvidenceUploadNeverCompletes() {
 
   html = moduleLab(2).view(user, HD);
   assert.match(statusLine(html, LAB21), /^Lab 2\.1 submitted .+, waiting for instructor review$/);
-  assert.equal(counter(html, 'its02-status'), '1 of 4 submitted · 0 passed');
+  assert.equal(counter(html, 'its02-status'), '4 labs · 1 waiting for review · 0 passed');
   assert.equal(submitButton(html, LAB21), null, 'no Submit button once submitted');
   assert.match(railRow(html, 'its02-lab-2-1').text, /In review/);
 }
@@ -202,7 +203,7 @@ async function testEvidenceSubmitFailure() {
   const html = moduleLab(2).view(user, HD);
   assert.equal(statusLine(html, LAB21), 'Lab 2.1 wasn’t submitted. Check your connection, then press Submit Lab 2.1.');
   assert.ok(submitButton(html, LAB21), 'the Submit button stays so the student can retry');
-  assert.equal(counter(html, 'its02-status'), '0 of 4 submitted · 0 passed');
+  assert.equal(counter(html, 'its02-status'), '4 labs · 0 passed');
 }
 
 /* ------------------------------------------------------------------ Module 1 */
@@ -216,7 +217,7 @@ async function testModuleOneClearedStorage() {
   const html = moduleLab(1).view(user, HD);
   assert.equal(statusLine(html, LAB11), `Lab 1.1 submitted ${DAY}, waiting for instructor review`);
   assert.equal(statusLine(html, LAB12), 'Lab 1.2 passed');
-  assert.equal(counter(html, 'its01-status'), '2 of 2 submitted · 1 passed');
+  assert.equal(counter(html, 'its01-status'), '2 labs · 1 waiting for review · 1 passed');
   assert.doesNotMatch(section(html, 'its01-lab-1-1'), /Not uploaded yet|data-itsw-evidence-input|data-its01-aup-checkbox/);
   assert.match(section(html, 'its01-lab-1-1'), new RegExp(`Acknowledged with your Lab 1\\.1 submission on ${DAY}`));
   assert.match(section(html, 'its01-lab-1-2'), /Review the walkthrough/);
@@ -247,7 +248,7 @@ async function testModuleOneExplicitSubmit() {
   assert.equal(inserts(LAB11).length, 1);
   html = moduleLab(1).view(user, HD);
   assert.match(statusLine(html, LAB11), /^Lab 1\.1 submitted .+, waiting for instructor review$/);
-  assert.equal(counter(html, 'its01-status'), '1 of 2 submitted · 0 passed');
+  assert.equal(counter(html, 'its01-status'), '2 labs · 1 waiting for review · 0 passed');
 }
 
 /* --------------------------------------------------------------- Modules 3-11 */
