@@ -1186,10 +1186,19 @@ function m03eRedoFeedback() {
   return `<div class="m01-redo-feedback" role="note"><strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong>${items.length ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>` : '<p>Your instructor returned this case without written notes.</p>'}</div>`;
 }
 // A redo re-opens the working case without discarding the earlier values,
-// mirroring moduleOneLoad()'s reset (soc-analyst-module-01.js).
+// mirroring moduleOneLoad()'s reset (soc-analyst-module-01.js). A submit
+// whose attempt never reached the database (proveItLatchIsStale) re-opens
+// the same way and is no longer counted complete.
 function m03eApplyRedoReopen() {
   const d = m03eState('prove').determination;
-  if (m03eRedoRequested() && d.submitted === true) { d.submitted = false; m03eSave(); }
+  if (d.submitted !== true) return;
+  if (m03eRedoRequested()) { d.submitted = false; m03eSave(); return; }
+  if (typeof proveItLatchIsStale === 'function' && proveItLatchIsStale(moduleThreeUser, MODULE_THREE_CATALOG_LAB_KEY)) m03eReopenUnsavedAssessment();
+}
+function m03eReopenUnsavedAssessment() {
+  m03eState('prove').determination.submitted = false;
+  moduleThreeState.completed = false;
+  m03eSave();
 }
 
 // The indicator/action checkbox groups and the structured 4-part handoff
@@ -1599,7 +1608,14 @@ function m03eSubmitAssessment() {
       query_summary: { total: st.queryLog.length, sources_queried: [...new Set(st.queryLog.flatMap((q) => q.sources || []))], cross_source_pivot: st.queryLog.some((q) => q.pivot === true) },
     },
   };
-  if (typeof recordLabAttempt === 'function') recordLabAttempt(moduleThreeUser, MODULE_THREE_CATALOG_LAB_KEY, { state: 'complete', score: performance.score, result });
+  if (typeof recordProveItAttempt === 'function') {
+    recordProveItAttempt(moduleThreeUser, MODULE_THREE_CATALOG_LAB_KEY, { state: 'complete', submittedAt: st.submittedAt, score: performance.score, result }, () => {
+      m03eReopenUnsavedAssessment();
+      const status = document.getElementById('m03-status');
+      if (status) status.textContent = 'In progress';
+      moduleThreeRefreshLabPanels();
+    });
+  }
   if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleThreeUser, 'soc-analyst', 'soc-03', MODULE_THREE_CATALOG_LAB_KEY);
   m03eSave();
   const status = document.getElementById('m03-status');

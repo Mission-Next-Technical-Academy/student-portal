@@ -168,44 +168,33 @@ function moduleOneFinalizeProveIt() {
   moduleOneState.lab2.breakdown = performance.breakdown;
   moduleOneState.lab2.actionHistory.push({ action: 'Submitted case for faculty review', at: moduleOneState.lab2.submittedAt });
   moduleOneSave();
-  const previousAttempt = moduleOneUser?.latestLabAttemptByKey?.['lab-soc-escalation'];
-  if (moduleOneUser) {
-    moduleOneUser.latestLabAttemptByKey = { ...(moduleOneUser.latestLabAttemptByKey || {}), 'lab-soc-escalation': { completedAt: moduleOneState.lab2.submittedAt, reviewedAt: null, redoRequested: false } };
-  }
-  if (typeof recordLabAttempt === 'function') {
+  if (typeof recordProveItAttempt === 'function') {
     // case_display (2026-10-17, additive): the ticket rows with the labels the
     // student saw, so the instructor Submission Sheet never shows option ids.
     const scenario = MODULE_ONE_ESCALATION_LAB.scenario;
     const caseDisplay = typeof caseRecordDisplay === 'function'
       ? caseRecordDisplay(moduleOneState.lab2, { caseId: scenario.caseId || scenario.id, incidentIds: scenario.incidentId, dispositionOptions: MODULE_ONE_ESCALATION_LAB.verdictOptions, departmentOptions: MODULE_ONE_ESCALATION_LAB.departmentOptions })
       : undefined;
-    recordLabAttempt(moduleOneUser, 'lab-soc-escalation', { state: 'complete', score: performance.score, result: { breakdown: performance.breakdown, feedback: performance.feedback, critical_errors: performance.criticalErrors, case_record: moduleOneState.lab2, case_display: caseDisplay } })
-      .then((saved) => {
-        // The new append-only attempt supersedes the returned attempt in the
-        // student UI. Faculty approval remains required by the server view.
-        if (saved && moduleOneProveItRedoRequested()) delete moduleOneUser.openLabRedosByModuleKey['soc-01'];
-        if (!saved) {
-          moduleOneState.lab2.submitted = false;
-          moduleOneState.lab2.completed = false;
-          moduleOneState.lab2.submittedAt = '';
-          moduleOneState.lab2.actionHistory = moduleOneState.lab2.actionHistory.filter((item) => item.action !== 'Submitted case for faculty review');
-          moduleOneSave();
-          if (moduleOneUser) {
-            moduleOneUser.latestLabAttemptByKey = { ...(moduleOneUser.latestLabAttemptByKey || {}) };
-            if (previousAttempt) moduleOneUser.latestLabAttemptByKey['lab-soc-escalation'] = previousAttempt;
-            else delete moduleOneUser.latestLabAttemptByKey['lab-soc-escalation'];
-          }
-          moduleOneRenderReviewDynamic('m01-review-submission');
-          moduleOneRefreshHeroProgress();
-        }
-      });
+    recordProveItAttempt(moduleOneUser, 'lab-soc-escalation', { state: 'complete', submittedAt: moduleOneState.lab2.submittedAt, score: performance.score, result: { breakdown: performance.breakdown, feedback: performance.feedback, critical_errors: performance.criticalErrors, case_record: moduleOneState.lab2, case_display: caseDisplay } }, () => {
+      moduleOneState.lab2.submitted = false;
+      moduleOneState.lab2.completed = false;
+      moduleOneState.lab2.submittedAt = '';
+      moduleOneState.lab2.actionHistory = moduleOneState.lab2.actionHistory.filter((item) => item.action !== 'Submitted case for faculty review');
+      moduleOneSave();
+      moduleOneRenderReviewDynamic('m01-review-submission');
+      moduleOneRefreshHeroProgress();
+    }).then((saved) => {
+      // The new append-only attempt supersedes the returned attempt in the
+      // student UI. Faculty approval remains required by the server view.
+      if (saved && moduleOneProveItRedoRequested()) delete moduleOneUser.openLabRedosByModuleKey['soc-01'];
+    });
   }
   if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', 'lab-soc-escalation');
   moduleOneSyncCompletion(); moduleOneRenderReviewDynamic('m01-review-submission'); moduleOneRefreshHeroProgress();
 }
 
 function moduleOneUnstickMissingAttempt(state, user) {
-  if (!state?.lab2?.submitted || user?.latestLabAttemptByKey?.['lab-soc-escalation']) return false;
+  if (!state?.lab2?.submitted || typeof proveItLatchIsStale !== 'function' || !proveItLatchIsStale(user, 'lab-soc-escalation')) return false;
   state.lab2.submitted = false;
   state.lab2.completed = false;
   state.lab2.submittedAt = '';
@@ -1615,6 +1604,11 @@ function wireModuleOneProveItCaseConsole() {
 }
 
 function wireModuleOneLab() {
+  // Every registered module's wire() runs after each render. Module 02 also
+  // carries .m01-shell (shared styling), so key on Module 1's own heading and
+  // leave every other page alone: the Review Module toggle there belongs to
+  // that module.
+  if (!document.getElementById('m01-title')) return;
   wireModuleOneCaseConsole();
   wireModuleOneProveItCaseConsole();
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');

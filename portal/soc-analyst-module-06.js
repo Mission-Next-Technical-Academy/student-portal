@@ -792,6 +792,17 @@ function moduleSixFreshDefaults() {
   return JSON.parse(JSON.stringify(MODULE_SIX_DEFAULT_STATE));
 }
 
+// A Prove It submit whose lab_attempts row never saved (recordProveItAttempt
+// rollback, or proveItLatchIsStale on load): unlock the ticket so the student
+// can send it again.
+function moduleSixReopenUnsavedAssessment() {
+  const lab = moduleSixState.independentLab;
+  lab.caseRecord.submitted = false;
+  lab.caseRecord.submittedAt = '';
+  lab.completed = false;
+  moduleSixSave();
+}
+
 function moduleSixLoad(user) {
   if (moduleSixUser?.email !== user?.email) moduleSixQuizForceRetake = false;
   if (moduleSixUser?.email !== user?.email) moduleSixLearnItViewed = null;
@@ -857,6 +868,8 @@ function moduleSixLoad(user) {
     moduleSixState.independentLab.caseRecord.submitted = false;
     moduleSixState.independentLab.caseRecord.submittedAt = '';
     moduleSixSave();
+  } else if (moduleSixState.independentLab.caseRecord.submitted === true && (typeof proveItLatchIsStale === 'function' && proveItLatchIsStale(moduleSixUser, MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY))) {
+    moduleSixReopenUnsavedAssessment();
   }
 
   // Initialize quiz state
@@ -1838,12 +1851,10 @@ function wireModuleSixAssessmentLab() {
       // 70% bar is applied by instructor review, not by locking the student out.
       lab.completed = true;
       moduleSixSave();
-      if (moduleSixUser) {
-        moduleSixUser.latestLabAttemptByKey = { ...(moduleSixUser.latestLabAttemptByKey || {}), [MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY]: { completedAt: submittedAt, reviewedAt: null, redoRequested: false } };
-      }
-      if (typeof recordLabAttempt === 'function') {
-        recordLabAttempt(moduleSixUser, MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY, {
+      if (typeof recordProveItAttempt === 'function') {
+        recordProveItAttempt(moduleSixUser, MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY, {
           state: 'complete',
+          submittedAt,
           score: result.score,
           result: {
             rubric_version: result.rubricVersion,
@@ -1858,6 +1869,9 @@ function wireModuleSixAssessmentLab() {
             // work, which the scorer only reports as event ids. Never read by scoring.
             assessment_work: moduleSixAssessmentWork(huntState),
           },
+        }, () => {
+          moduleSixReopenUnsavedAssessment();
+          moduleSixRenderAssessment();
         }).then((saved) => { if (saved && moduleSixIndependentRedoRequested()) delete moduleSixUser.openLabRedosByModuleKey['soc-06-independent']; });
       }
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleSixUser, 'soc-analyst', 'soc-06', MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY);

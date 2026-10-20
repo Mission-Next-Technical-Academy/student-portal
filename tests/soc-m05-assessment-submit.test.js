@@ -24,6 +24,8 @@ const context = {
   registerModuleLab: () => {}, markModuleContentOpened: () => {},
   markModuleLabComplete: (...args) => progress.push(args),
   recordLabAttempt: (...args) => { catalog.push(args); return Promise.resolve(true); },
+  // Mirrors app.js recordProveItAttempt(): marks the lab under review, then saves.
+  recordProveItAttempt: (user, key, fields) => { user.latestLabAttemptByKey = { ...(user.latestLabAttemptByKey || {}), [key]: { completedAt: fields.submittedAt, reviewedAt: null, redoRequested: false } }; catalog.push([user, key, fields]); return Promise.resolve(true); },
   missionNextAllLabsComplete: () => true,
   missionNextLabLaunchGroup: () => '<div data-prereqs></div>',
   wireMissionNextLabGating: () => {},

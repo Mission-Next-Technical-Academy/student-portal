@@ -23,6 +23,9 @@ echo "== M03 normalization lab re-wire =="
 node tests/m03-normalization-lab-rewire.test.js
 node tests/m03-incident-unlink.test.js
 
+echo '== Prove It below-pass save and submitted latch =='
+node tests/below-pass-prove-it.test.js
+
 echo '== Live refresh =='
 node tests/live-refresh.test.js
 

@@ -125,6 +125,19 @@ function moduleTwelveUnlocked(user, program) {
   return moduleTwelvePrerequisites(user, program).every((item) => item.complete);
 }
 
+// Unlock the capstone so it can be sent again: after a redo, or after a
+// submit whose lab_attempts row never saved. An unsaved submit also gives back
+// its attempt number, because moduleTwelveLoad() treats any counted attempt
+// as submitted. A re-opened case is worked as the CASE with its incidents
+// (rubric v3), like any unsubmitted capstone.
+function moduleTwelveReopenCapstone({ unsaved = false } = {}) {
+  moduleTwelveState.submitted = false;
+  moduleTwelveState.completed = false;
+  if (unsaved) moduleTwelveState.attempts = Math.max(0, (Number(moduleTwelveState.attempts) || 0) - 1);
+  if (moduleTwelveState.assessmentState) moduleTwelveState.assessmentState.rubricVersion = 3;
+  moduleTwelveSave();
+}
+
 function moduleTwelveLoad(user, program) {
   if (moduleTwelveUser?.email !== user?.email) moduleTwelveLearnViewed = null;
   moduleTwelveUser = user;
@@ -172,6 +185,13 @@ function moduleTwelveLoad(user, program) {
   // The old form answers are only needed for the one-time ticket backfill.
   // Do not carry the retired answer-key-shaped object into future saves.
   delete moduleTwelveState.answers;
+  // A returned capstone, or a submit whose attempt never reached the database
+  // (proveItLatchIsStale), re-opens the case so it can be sent again.
+  const latest = user?.latestLabAttemptByKey?.[MODULE_TWELVE_CATALOG_KEY];
+  if (moduleTwelveState.submitted === true
+    && (latest?.redoRequested === true || (typeof proveItLatchIsStale === 'function' && proveItLatchIsStale(user, MODULE_TWELVE_CATALOG_KEY)))) {
+    moduleTwelveReopenCapstone({ unsaved: !latest });
+  }
   if (moduleTwelveUnlocked(user, program) && typeof markModuleContentOpened === 'function') {
     markModuleContentOpened(user, 'soc-analyst', 'soc-12');
   }
@@ -507,9 +527,10 @@ function wireModuleTwelveLab() {
     // recommendation remains in the instructor payload, never the student UI.
     moduleTwelveState.submitted = true;
     moduleTwelveState.actionHistory.push({ action: 'Submitted capstone for faculty review', at: moduleTwelveState.lastSubmittedAt });
-    if (typeof recordLabAttempt === 'function') {
-      recordLabAttempt(moduleTwelveUser, MODULE_TWELVE_CATALOG_KEY, {
+    if (typeof recordProveItAttempt === 'function') {
+      recordProveItAttempt(moduleTwelveUser, MODULE_TWELVE_CATALOG_KEY, {
         state: 'complete',
+        submittedAt: moduleTwelveState.lastSubmittedAt,
         score: result.score,
         result: {
           breakdown: result.breakdown,
@@ -536,6 +557,9 @@ function wireModuleTwelveLab() {
           actionHistory: moduleTwelveState.assessmentState.actionHistory,
           reviewPayload: result.scorePayload,
         },
+      }, () => {
+        moduleTwelveReopenCapstone({ unsaved: true });
+        moduleTwelveRender('m12-case-panel');
       });
     }
     const artifactContent = {

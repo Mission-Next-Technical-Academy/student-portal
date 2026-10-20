@@ -176,8 +176,11 @@ async function fetchUserDetails(userId, trackCode) {
   // callers fall back to the client's LABS catalogue.
   let requiredLabsByModuleKey = null;
   let studentMessages = [];
+  // True only when this student's lab_attempts read succeeded, so an empty
+  // latestLabAttemptByKey means "no attempt" rather than "not loaded".
+  let labAttemptsLoaded = false;
   if (!trackCode) {
-    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, openLabRedoFeedbackByLabKey, latestLabAttemptByKey, reviewedLabFeedbackByLabKey, requiredLabsByModuleKey, studentMessages };
+    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, openLabRedoFeedbackByLabKey, latestLabAttemptByKey, labAttemptsLoaded, reviewedLabFeedbackByLabKey, requiredLabsByModuleKey, studentMessages };
   }
 
   const [
@@ -245,6 +248,7 @@ async function fetchUserDetails(userId, trackCode) {
   if (attemptsError) {
     console.error('fetchUserDetails: lab_attempts redo fetch failed', attemptsError);
   } else {
+    labAttemptsLoaded = true;
     const latestByLabKey = new Map();
     (attemptRows || []).forEach((row) => {
       if (!latestByLabKey.has(row.lab_key)) latestByLabKey.set(row.lab_key, row);
@@ -302,7 +306,7 @@ async function fetchUserDetails(userId, trackCode) {
     });
   }
 
-  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, openLabRedoFeedbackByLabKey, latestLabAttemptByKey, reviewedLabFeedbackByLabKey, requiredLabsByModuleKey, studentMessages };
+  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, openLabRedoFeedbackByLabKey, latestLabAttemptByKey, labAttemptsLoaded, reviewedLabFeedbackByLabKey, requiredLabsByModuleKey, studentMessages };
 }
 
 async function buildUserFromSession(session) {
@@ -4049,6 +4053,12 @@ function markModuleLabComplete(user, programSlug, moduleKey, labKey, completed =
  * call. Same fire-and-forget/guard/error-logging convention as
  * upsertModuleProgress above: no session or no track_code silently skips the
  * write so local LabRuntime/engagement behavior is never affected. */
+// `${userId}:${labKey}` -> 'pending' | 'saved' for lab_attempts inserts made
+// in this tab. A route refresh can reload latestLabAttemptByKey while an
+// insert is still in flight; proveItLatchIsStale() reads this so it never
+// reopens a case whose attempt is on its way or already landed.
+const labAttemptSaves = new Map();
+
 function recordLabAttempt(user, labKey, {
   id = null, state, score = null, result = {}, submittedAt = null,
   rubricVersion = 'soc-analyst-rubric-v1',
@@ -4058,9 +4068,14 @@ function recordLabAttempt(user, labKey, {
   if (!user || !user.userId || !user.trackCode) return Promise.resolve(false);
   const now = submittedAt || new Date().toISOString();
   const savedState = state === 'complete' && typeof score === 'number' && score < passThreshold ? 'submitted' : state;
-  const notifySaveFailure = (error) => window.dispatchEvent(new CustomEvent('mnt:lab-attempt-save-failed', {
-    detail: { labKey, code: error && error.code || '', message: error && error.message || '' },
-  }));
+  const saveKey = `${user.userId}:${labKey}`;
+  if (labAttemptSaves.get(saveKey) !== 'saved') labAttemptSaves.set(saveKey, 'pending');
+  const notifySaveFailure = (error) => {
+    if (labAttemptSaves.get(saveKey) === 'pending') labAttemptSaves.delete(saveKey);
+    window.dispatchEvent(new CustomEvent('mnt:lab-attempt-save-failed', {
+      detail: { labKey, code: error && error.code || '', message: error && error.message || '' },
+    }));
+  };
   return Promise.resolve()
     .then(() => mntSupabase
       .from('lab_attempts')
@@ -4086,6 +4101,7 @@ function recordLabAttempt(user, labKey, {
         notifySaveFailure(error);
         return false;
       }
+      labAttemptSaves.set(saveKey, 'saved');
       const lab = LABS.find((item) => item.key === labKey);
       // Opted-in module cards read lab_attempts as loaded at sign-in; record
       // this saved row in that copy so the program page is current without a
@@ -4100,6 +4116,58 @@ function recordLabAttempt(user, labKey, {
       return refreshVerifiedModuleProgress(user, lab && lab.module).then(() => true);
     })
     .catch((err) => { console.error('lab_attempts insert threw', labKey, err); notifySaveFailure(err); return false; });
+}
+
+/* Prove It submitted latch (docs/handoffs/BUG_2026-10-17_PROVE_IT_BELOW_PASS_SILENTLY_DROPPED.md,
+ * follow-up). Each SOC Prove It saves its own "submitted" flag in case state
+ * before the lab_attempts insert resolves. These two helpers keep that flag
+ * honest for every module instead of one copy per module:
+ * - recordProveItAttempt() marks the lab "under review" in
+ *   latestLabAttemptByKey, saves the attempt (one row per lab key), and when a
+ *   signed-in save fails puts the previous entry back and runs the module's
+ *   own rollback so the student can submit again. The red banner from
+ *   mnt:lab-attempt-save-failed tells them why. Resolves true only when every
+ *   row saved.
+ * - proveItLatchIsStale() is for module load: true when the sign-in read of
+ *   lab_attempts succeeded, has no attempt for the lab, and this tab has no
+ *   pending or saved insert for it — a latch left behind by a save that never
+ *   landed. The module then reopens the case the same way it does for a redo. */
+function recordProveItAttempt(user, labKeys, fields, rollback) {
+  const allKeys = Array.isArray(labKeys) ? labKeys : [labKeys];
+  const previous = { ...((user && user.latestLabAttemptByKey) || {}) };
+  // A module that records one submit under several lab keys (M07, M08) can
+  // fail part-way. The server refuses a second pending attempt of a lab
+  // (20261005210000_one_pending_prove_it_submission.sql), so a resubmit sends
+  // only the keys still without one. If every key has one, send them all and
+  // let the refusal surface.
+  const awaitingReview = (key) => previous[key] && !previous[key].reviewedAt && !previous[key].redoRequested && !previous[key].supersededAt;
+  const unsent = allKeys.filter((key) => !awaitingReview(key));
+  const keys = unsent.length ? unsent : allKeys;
+  if (user) {
+    const completedAt = fields.submittedAt || new Date().toISOString();
+    user.latestLabAttemptByKey = { ...previous, ...Object.fromEntries(keys.map((key) => [key, { completedAt, reviewedAt: null, redoRequested: false, supersededAt: null }])) };
+  }
+  return Promise.all(keys.map((key) => recordLabAttempt(user, key, fields))).then((results) => {
+    if (results.every(Boolean)) return true;
+    // No session: nothing was sent, so there is no server record to match.
+    if (!user || !user.userId || !user.trackCode) return false;
+    const attempts = { ...(user.latestLabAttemptByKey || {}) };
+    keys.forEach((key, index) => {
+      if (results[index]) return;
+      if (previous[key]) attempts[key] = previous[key];
+      else delete attempts[key];
+    });
+    user.latestLabAttemptByKey = attempts;
+    if (typeof rollback === 'function') rollback();
+    return false;
+  });
+}
+
+function proveItLatchIsStale(user, labKeys) {
+  if (!user || user.labAttemptsLoaded !== true || !user.userId) return false;
+  const attempts = user.latestLabAttemptByKey || {};
+  return (Array.isArray(labKeys) ? labKeys : [labKeys])
+    .some((key) => !attempts[key] && !labAttemptSaves.has(`${user.userId}:${key}`));
 }
 
 /* An artifact is an immutable, server-stored snapshot of a submission.  This

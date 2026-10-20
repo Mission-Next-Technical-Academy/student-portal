@@ -42,6 +42,16 @@ after approval the page links to the marked lab.
   answer keys in this public file. Closing it needs server-side scoring and
   a read that withholds unreviewed scores; to be planned with Alex.
 
+**2026-10-20 (Alex; PR #79 "Prove It: never leave a submit marked sent when the save failed (SOC M01–M12)"; shared `portal/app.js` (two new helpers beside `recordLabAttempt()`, one new `labAttemptsLoaded` field from `fetchUserDetails()`), one line in `bin/ci-check.sh` — please review those):**
+SOC Prove It submits now go through `recordProveItAttempt()`: if the
+`lab_attempts` insert fails, the module's "submitted" flag is put back so the
+student can send again (the red banner already explains why). On load,
+`proveItLatchIsStale()` reopens a case whose saved state says submitted but
+whose attempt never reached the database. Only SOC files call them; Help Desk
+and AI/ML submits are unchanged. Details:
+`docs/handoffs/BUG_2026-10-17_PROVE_IT_BELOW_PASS_SILENTLY_DROPPED.md`, status
+2026-10-20.
+
 **2026-10-19 (Megan; PR #78 "Shared: stop the module rail covering Help Desk controls and switch off night mode"; shared `portal/module-labs.css`, `portal/theme.js`, `portal/index.html` version lines — please review those):**
 Two shared changes. (1) On Help Desk module pages the floated left rail
 covered buttons, file pickers and checkboxes at 1,280–1,512 px wide: the

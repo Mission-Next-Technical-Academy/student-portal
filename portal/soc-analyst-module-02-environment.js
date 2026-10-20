@@ -229,9 +229,11 @@
     return `<div class="m01-redo-feedback" role="note"><strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong>${items.length ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>` : '<p>Your instructor returned this case without written notes.</p>'}</div>`;
   }
   // A redo re-opens the working case (mirrors Module 01's moduleOneLoad()
-  // reset) without discarding the earlier submitted values.
+  // reset) without discarding the earlier submitted values. So does a
+  // submit whose attempt never reached the database (proveItLatchIsStale).
   function applyRedoReopen() {
-    if (proveItRedoRequested() && state.practice.caseRecord.submitted === true) {
+    if (state.practice.caseRecord.submitted === true
+      && (proveItRedoRequested() || (typeof proveItLatchIsStale === 'function' && proveItLatchIsStale(user, LAB_KEY)))) {
       state.practice.caseRecord.submitted = false;
       state.practice.complete = false;
       state.completed = false;
@@ -758,8 +760,14 @@
       access_review: { selectedEvent: `${CASE_ID} ITSM Incident Ticket`, decision: 'Submitted for review', evidenceReferenced: [], analystNote: cr.notes },
     };
 
-    if (typeof recordLabAttempt === 'function') {
-      recordLabAttempt(user, LAB_KEY, { state: 'complete', score: performance.score, result }).then((saved) => {
+    if (typeof recordProveItAttempt === 'function') {
+      recordProveItAttempt(user, LAB_KEY, { state: 'complete', score: performance.score, result }, () => {
+        state.practice.caseRecord.submitted = false;
+        state.practice.complete = false;
+        state.completed = false;
+        save();
+        renderScope('practice');
+      }).then((saved) => {
         if (saved && proveItRedoRequested()) delete user.openLabRedosByModuleKey['soc-02'];
       });
     }
