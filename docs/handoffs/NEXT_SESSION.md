@@ -1,3 +1,47 @@
+**2026-10-20 (Megan; PR #<added by /pr-ready> "Help Desk: failed capstones reach instructor review; no score shown before review"; Help Desk files plus shared `portal/index.html` version lines, `bin/ci-check.sh` one test line, and `portal/it-support-shared.js` — please review those):**
+The Help Desk capstone (Module 12) now sends every submitted attempt to the
+instructor's Lab Attempts queue. Before, a failed attempt was saved as
+`in_progress`, so it never reached a grader. It now goes through
+`itsSubmitLabAttempt()` with `state: 'complete'`, so `recordLabAttempt()`
+saves a below-70 score as `submitted` (the same as SOC's below-pass Prove
+Its). The student no longer sees a score, pass/fail heading, domain
+breakdown or explanation text after submitting, only "Submitted to your
+instructor for review" (owner rule, Oct 20: students see Prove It results
+only after an instructor finalizes them). The automated score is still saved
+on the attempt for the instructor's sheet. While an attempt waits, Submit
+and Reset are disabled, matching the database's one-pending-attempt rule;
+after a return the existing notice shows and one resubmission is allowed;
+after approval the page links to the marked lab.
+- `portal/it-support-module-12.js` (Megan's): submit logic moved into
+  `its12Submit()`; page state now comes from `user.latestLabAttemptByKey`
+  (server) instead of browser storage; the `capstone_reviews` read on the
+  student page is removed. The attempt's `result` now also carries
+  `critical_errors` (snake_case, alongside the existing `criticalErrors`),
+  so `student_verified_module_progress` never counts an attempt with a
+  critical error, even one scoring 70 or more. A pass still writes the
+  portfolio artifact, `capstone_submissions` and the local lab marker, now
+  only after the attempt saves.
+- `portal/it-support-shared.js` (Help Desk shared): `itsSubmitLabAttempt()`
+  now lets a caller's own `rubricVersion` / `scoringEngineVersion` override
+  the Help Desk defaults (it used to be the other way round). No existing
+  caller passes either, so Modules 1–11 save exactly as before; the
+  capstone keeps `it-support-capstone-v1`.
+- `portal/index.html` (shared): version bumps for `it-support-shared.js`
+  and `it-support-module-12.js` only.
+- `bin/ci-check.sh` (shared): runs the new
+  `tests/hdesk-capstone-review.test.js` (9 cases) after the existing Help
+  Desk tests.
+- Instructors: a failing capstone should be returned for revision, not
+  approved. An approved failing attempt never counts toward completion, and
+  the one-pending rule then refuses a new attempt, so the student would be
+  stuck until an admin intervenes.
+- Known gap, not fixed here (adversarial review, Oct 20): a student can
+  still read the saved score before review. `lab_attempts_own_read`,
+  `capstone_own_read` and `portfolio_own_read` return their own rows with
+  `score` and `result`, and the capstone is scored in the browser with its
+  answer keys in this public file. Closing it needs server-side scoring and
+  a read that withholds unreviewed scores; to be planned with Alex.
+
 **2026-10-19 (Megan; PR #<added by /pr-ready> "Shared: stop the module rail covering Help Desk controls and switch off night mode"; shared `portal/module-labs.css`, `portal/theme.js`, `portal/index.html` version lines — please review those):**
 Two shared changes. (1) On Help Desk module pages the floated left rail
 covered buttons, file pickers and checkboxes at 1,280–1,512 px wide: the
