@@ -3878,6 +3878,7 @@ async function persistModuleCaseState(user, moduleKey, labId, state) {
     const live = user.remoteCaseState && user.remoteCaseState[moduleKey];
     const liveLabs = live && typeof live === 'object' && !live.labId ? live : {};
     user.remoteCaseState = { ...(user.remoteCaseState || {}), [moduleKey]: { ...caseState, ...liveLabs } };
+    return true;
   }).catch((err) => { console.error('module case_state persistence threw', moduleKey, labId, err); });
   moduleCaseStateQueues.set(queueKey, write);
   return write;

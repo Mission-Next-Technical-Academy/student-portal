@@ -29,6 +29,9 @@ node tests/below-pass-prove-it.test.js
 echo '== Live refresh =='
 node tests/live-refresh.test.js
 
+echo '== Case-state unload recovery =='
+node tests/case-state-unload-recovery.test.js
+
 echo '== Lab evidence files =='
 node tests/hdesk-evidence-upload.test.js
 node tests/lab-attempt-evidence-panel.test.js
