@@ -1010,10 +1010,10 @@ header .m02e-learn-tip:not(.is-collapsed) .m02e-tip-body{display:block}
 header .m02e-learn-tip .m02e-label{display:inline;font-size:11px}
 header .m02e-learn-tip .m02e-tip-toggle{min-height:30px}
 @media(prefers-reduced-motion:reduce){.m02e-guide-open{animation:none}.m02e-learn-tip,.m02e-tip-body,.m02e-tip-toggle i{transition:none}}
-/* Narrow windows: the Module 1 guide sits in normal flow above the console
-   (full width) instead of floating over the alert button. Minimized, it is
-   just its head strip, so it cannot cover the banner either. */
-@media(max-width:640px){#m01-guided-learn-tip.m02e-learn-tip{position:static;width:auto;max-width:none;max-height:none!important;overflow:visible;margin:0 0 12px;box-shadow:none;transform:none;opacity:1;visibility:visible}#m01-guided-learn-tip.m02e-learn-tip::after{display:none}}
+/* Narrow windows: every module's console guide sits in normal flow above the
+   console (full width) instead of floating over buttons. Header-docked tips
+   (minimized into the lab banner) keep their own header rules. */
+@media(max-width:640px){.m02e-learn-tip:not(header .m02e-learn-tip){position:static;width:auto;max-width:none;max-height:none!important;overflow:visible;margin:0 0 12px;box-shadow:none;transform:none;opacity:1;visibility:visible}.m02e-learn-tip:not(header .m02e-learn-tip)::after{display:none}}
 
 /* Locked rail rows: visible lock icon, keyboard focus ring, and the shared
    explanation shown when one is activated (see showModuleNavLock()). */
