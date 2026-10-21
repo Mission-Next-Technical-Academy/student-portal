@@ -1,4 +1,4 @@
-**2026-10-20 (Megan; PR #<added by /pr-ready> "Help Desk: failed capstones reach instructor review; no score shown before review"; Help Desk files plus shared `portal/index.html` version lines, `bin/ci-check.sh` one test line, and `portal/it-support-shared.js` — please review those):**
+**2026-10-20 (Megan; PR #80 "Help Desk: failed capstones reach instructor review; no score shown before review"; Help Desk files plus shared `portal/index.html` version lines, `bin/ci-check.sh` one test line, and `portal/it-support-shared.js` — please review those):**
 The Help Desk capstone (Module 12) now sends every submitted attempt to the
 instructor's Lab Attempts queue. Before, a failed attempt was saved as
 `in_progress`, so it never reached a grader. It now goes through
