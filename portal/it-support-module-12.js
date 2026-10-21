@@ -54,6 +54,7 @@ const ITS12_TICKETS = [
   { id: 'SEC-2114', from: 'Luis Ortega · Sales', message: 'I clicked a link in an email that looked like it was from IT asking me to verify my password. I think I typed it in before I realized something was off.',
     category: 'security', decision: 'escalate', priority: 'P1', correctRank: 1,
     firstStepPattern: /(do ?n[o'’]?t|not to|never) (reset|click|enter|type)|isolat|disconnect|unplug|off (the )?(network|wi-?fi)|stop using|\bcontain(ment)?\b/i,
+    rejectStepPattern: /\b(do ?n[o'’]?t|never|no need to|shouldn[o'’]?t) (isolat|disconnect|unplug|contain)/i,
     reasoningPattern: /phishing|credential|compromis|security|escalat/i,
     explain: 'A credential-phishing incident is always the highest priority — contain first (don\'t let the user "fix" it themselves), then escalate to the security-incident process immediately.' },
   { id: 'HD-2110', from: 'Sofia Martin · Operations', message: 'My computer says it can\'t connect to the domain anymore. It was fine until I restored a VM snapshot from before I left for lunch.',
@@ -115,10 +116,13 @@ function its12BandExceeds(ticket, responses) {
   return band.length > 1 && band.every((t) => Number((responses[t.id] || {}).priority) === t.correctRank);
 }
 
-// A first step earns technical credit only as a real action, not a bare decision.
+// A first step earns technical credit only as a real action, not a bare
+// decision. A ticket's optional rejectStepPattern refuses a step that
+// matches anyway, e.g. the action negated ("do not isolate").
 function its12FirstStepOk(ticket, firstStep) {
   const step = String(firstStep || '').trim();
-  return step.length >= ITS12_MIN_ANSWER_LENGTH && ticket.firstStepPattern.test(step);
+  return step.length >= ITS12_MIN_ANSWER_LENGTH && ticket.firstStepPattern.test(step)
+    && !(ticket.rejectStepPattern && ticket.rejectStepPattern.test(step));
 }
 
 // The first rank given to more than one ticket, with how many times. → { rank, count } | null

@@ -18,7 +18,10 @@ change.
 - `portal/it-support-module-12.js` (Megan's): new helpers
   `its12BandPositions()`, `its12RankInBand()`, `its12BandExceeds()`,
   `its12FirstStepOk()` and `its12RepeatedRank()`, used by both the scorer
-  and the instructor sheet so the two agree. Ticket `tag` removed.
+  and the instructor sheet so the two agree. Ticket `tag` removed. A ticket
+  can set an optional `rejectStepPattern` that refuses a first step even if
+  it matches; SEC-2114 uses it to refuse a negated containment action
+  ("do not isolate", "never disconnect").
 - `portal/admin-sheets/hdesk.js` (Megan's): the capstone priority check
   expects the band (e.g. "P3 band, rank 4–5"), adds "Exceeds: SLA order
   inside the P3 band" or "Only ticket in the P1 band" to the given text, and
@@ -40,9 +43,9 @@ change.
   chips together with the domain scores can hint at which ticket's decision
   was wrong. Worth handling in the replacement capstone or with server-side
   scoring.
-- Attempts saved before this change keep their old `feedback` text, and the
-  sheet re-checks rank and first step with the new rules, so for those the
-  sheet's checks can differ from the saved score.
+- Older capstone attempts are synthetic test data only, and the sheet
+  re-checks them with the new rules (their saved score and feedback stay as
+  they were).
 
 **2026-10-20 (Megan; PR #80 "Help Desk: failed capstones reach instructor review; no score shown before review"; Help Desk files plus shared `portal/index.html` version lines, `bin/ci-check.sh` one test line, and `portal/it-support-shared.js` — please review those):**
 The Help Desk capstone (Module 12) now sends every submitted attempt to the

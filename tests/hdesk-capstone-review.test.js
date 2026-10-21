@@ -301,6 +301,12 @@ function testFirstStepNeedsRealAction() {
   assert.equal(ok(ticket('SEC-2114'), 'Disconnect the device from Wi-Fi'), true);
   assert.equal(ok(ticket('SEC-2114'), 'Ask whether the email contains a link'), false, '"contains" is not containment');
   assert.equal(ok(ticket('SEC-2114'), 'Start containment on the device'), true);
+  assert.equal(ok(ticket('SEC-2114'), 'Do not isolate the laptop'), false, 'negated containment');
+  assert.equal(ok(ticket('SEC-2114'), 'Never disconnect the device'), false, 'negated containment');
+  assert.equal(ok(ticket('SEC-2114'), 'Isolate the laptop now'), true);
+  assert.equal(ok(ticket('SEC-2114'), "Don't wait, isolate the laptop now"), true, 'a negation before another word is not rejected');
+  assert.equal(ok(ticket('SEC-2114'), 'Tell the user: do not reset the password'), true, '"do not reset" stays a correct answer');
+  assert.equal(ok(ticket('SEC-2114'), "Tell the user don't click anything"), true, '"don\'t click" stays a correct answer');
   const decisionOnly = withRanks({});
   decisionOnly['HD-2110'].firstStep = 'escalate';
   decisionOnly['SEC-2114'].firstStep = 'report it';
