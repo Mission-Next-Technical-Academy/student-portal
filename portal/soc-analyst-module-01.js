@@ -1637,6 +1637,7 @@ function wireModuleOneProveItCaseConsole() {
     if (field.tagName === 'TEXTAREA' && field.name === 'notes') {
       moduleOneState.lab2.notes = field.value;
       moduleOneSave();
+      caseRecordRefreshPanel(moduleOneProveItSubmissionPanel());
     }
   });
 }

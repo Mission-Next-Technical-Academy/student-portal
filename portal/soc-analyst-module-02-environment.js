@@ -913,7 +913,7 @@
       const form = ev.target.closest('#m02e-practice-form');
       if (form && ev.target.tagName === 'TEXTAREA' && ev.target.name) {
         caseRecordApply(state.practice.caseRecord, ev.target.name, ev.target.value);
-        save(); return;
+        save(); caseRecordRefreshPanel(practiceTicketPane()); return;
       }
     };
     root.onsubmit = (ev) => {

@@ -1400,6 +1400,7 @@ function wireModuleEightLab() {
     if (event.target.tagName === 'TEXTAREA' && event.target.name === 'notes' && event.target.closest('#m08-assessment-form') && !moduleEightState.caseRecord.submitted) {
       moduleEightState.caseRecord.notes = event.target.value;
       moduleEightSave();
+      caseRecordRefreshPanel(moduleEightCaseTicket());
     }
   });
 

@@ -1814,6 +1814,7 @@ function wireModuleSixAssessmentLab() {
     if (event.target.name === 'notes' && event.target.closest('#m06-independent-form')) {
       caseRecordApply(moduleSixState.independentLab.caseRecord, 'notes', event.target.value);
       moduleSixSave();
+      caseRecordRefreshPanel(moduleSixCaseTicket());
     }
   });
 

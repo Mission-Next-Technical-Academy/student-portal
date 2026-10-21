@@ -1711,6 +1711,7 @@ function wireModuleThreeConsole() {
       }
       if (ev.target.closest(scope === 'prove' ? '#m03e-prove-form' : '#m03e-practice-form') && ev.target.tagName === 'TEXTAREA') {
         m03eHandleFormInput(ev, scope);
+        caseRecordRefreshPanel(scope === 'prove' ? m03eCaseRecordView() : m03ePracticeTicketView());
         const step = M03E_GUIDE_STEPS[m03eState('practice').guideStep];
         if (scope === 'practice' && step?.id === 'handoff') {
           const status = section.querySelector('.m03e-guide-status');

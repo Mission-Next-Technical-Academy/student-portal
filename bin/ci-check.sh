@@ -29,6 +29,9 @@ node tests/below-pass-prove-it.test.js
 echo '== M01 UAT fixes =='
 node tests/m01-uat-fixes.test.js
 
+echo '== Ticket missing-list live refresh =='
+node tests/case-record-live-panel.test.js
+
 echo '== Live refresh =='
 node tests/live-refresh.test.js
 

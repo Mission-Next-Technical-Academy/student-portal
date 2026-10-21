@@ -1863,6 +1863,7 @@ function wireModuleFourAssessmentLab() {
     if (event.target.name === 'notes' && event.target.closest('#m04-assessment')) {
       caseRecordApply(moduleFourState.caseRecord, 'notes', event.target.value);
       moduleFourSave();
+      caseRecordRefreshPanel(moduleFourArtifact());
     }
   });
 

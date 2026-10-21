@@ -489,7 +489,7 @@ function wireModuleTwelveLab() {
   shell.addEventListener('input', (event) => {
     const field = event.target;
     if (moduleTwelveState.submitted || !field.closest('#m12-case-form')) return;
-    if (caseRecordApply(moduleTwelveState, field.name, field.value)) moduleTwelveSave();
+    if (caseRecordApply(moduleTwelveState, field.name, field.value)) { moduleTwelveSave(); if (field.tagName === 'TEXTAREA') caseRecordRefreshPanel(moduleTwelveTicketView()); }
   });
   shell.addEventListener('change', (event) => {
     const field = event.target;

@@ -272,6 +272,20 @@ function caseRecordPane(state, spec) {
   </section>`;
 }
 
+// Typing saves without re-rendering (so the textarea keeps focus), which left
+// the "Not ready to submit yet" list stale until Update Ticket. Pass freshly
+// rendered pane/panel html: each submission panel in it replaces the live one
+// with the same id, only when its markup changed. The form is never touched.
+function caseRecordRefreshPanel(html) {
+  if (typeof document === 'undefined' || !html) return;
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  tpl.content.querySelectorAll('.m01-score-empty[id]').forEach((next) => {
+    const live = document.getElementById(next.id);
+    if (live && live.outerHTML !== next.outerHTML) live.replaceWith(next);
+  });
+}
+
 // Label/value rows exactly as the student saw them — stored in the
 // lab_attempts payload as `result.case_display` so the instructor Grading
 // view (app.js adminCaseTicketSubmissionPanel) can show any module's ticket,

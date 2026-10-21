@@ -1477,6 +1477,7 @@ function wireModuleSevenAssessmentLab() {
     if (field.tagName === 'TEXTAREA' && field.name === 'notes' && field.closest('#m07-assessment-form') && !moduleSevenState.caseRecord.submitted) {
       moduleSevenState.caseRecord.notes = field.value;
       moduleSevenSave();
+      caseRecordRefreshPanel(moduleSevenCaseTicket());
     }
   });
 }

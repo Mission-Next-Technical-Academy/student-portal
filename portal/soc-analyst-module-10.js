@@ -1509,6 +1509,7 @@ function wireModuleTenAssessmentLab() {
     if (event.target.tagName === 'TEXTAREA' && event.target.name === 'notes' && event.target.closest('#m10-assessment-form')) {
       caseRecordApply(moduleTenAssessmentState, 'notes', event.target.value);
       moduleTenSaveAssessment();
+      caseRecordRefreshPanel(moduleTenCaseTicket());
     }
   });
 }

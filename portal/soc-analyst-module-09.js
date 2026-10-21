@@ -1616,6 +1616,7 @@ function wireModuleNineLab() {
     if (field.tagName === 'TEXTAREA' && field.name === 'notes' && field.closest('#m09-form') && !moduleNineState.caseRecord.submitted) {
       moduleNineState.caseRecord.notes = field.value;
       moduleNineSave();
+      caseRecordRefreshPanel(moduleNineArtifact());
     }
   });
 
