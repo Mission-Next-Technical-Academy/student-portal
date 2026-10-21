@@ -815,7 +815,8 @@ function normalizeAdminTrackData({ rows, activeTrackCode, activeStudents, gradin
     // Owner rule (2026-10-05): LEARN IT and PRACTICE IT are autograded with
     // instant feedback; only PROVE IT waits on an instructor.
     trackGradingQueueRows: grading.pending.filter(adminNeedsInstructorReview),
-    trackAutogradedRows: grading.pending.filter((row) => !adminNeedsInstructorReview(row)),
+    trackAutogradedRows: grading.pending.filter((row) => adminAutogradedKind(row)),
+    trackLegacyRows: grading.pending.filter((row) => !adminAutogradedKind(row) && !adminNeedsInstructorReview(row)),
     trackSupersededRows: [...grading.superseded, ...trackStoredSuperseded.map(withAttempt)],
     trackGradedRows: trackGraded.map(withAttempt),
     trackOpenLabRedoRows: activeTrackCode ? filterByTrack(openLabRedoRows, activeTrackCode) : [],
@@ -1079,11 +1080,12 @@ function adminOpenRedoRequestsHtml(redoRows) {
  * attempts awaiting review. */
 let adminOpenAttemptPanel = null; // reopened after a decision re-renders the tab
 
-function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRows = [], autogradedRows = [], openRedoRows = [] } = {}) {
+function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRows = [], autogradedRows = [], legacyRows = [], openRedoRows = [] } = {}) {
   const pending = new Set(pendingRows.map((row) => row.id));
   const superseded = new Set(supersededRows.map((row) => row.id));
   const autograded = new Set(autogradedRows.map((row) => row.id));
-  const groups = adminGroupGradingRows([...pendingRows, ...gradedRows, ...supersededRows, ...autogradedRows]);
+  const legacy = new Set(legacyRows.map((row) => row.id));
+  const groups = adminGroupGradingRows([...pendingRows, ...gradedRows, ...supersededRows, ...autogradedRows, ...legacyRows]);
   const pendingCount = adminGroupGradingRows(pendingRows).reduce((n, student) => n + student.items.length, 0);
   const header = `<div class="mb-6">
       <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Lab Attempts</h2>
@@ -1104,6 +1106,7 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
     const hasScore = row.score !== null && row.score !== undefined;
     const passing = hasScore && Number(row.score) >= Number(row.pass_threshold ?? 70);
     if (pending.has(row.id)) return { label: 'Under review', tone: 'bg-amber-50 text-amber-800 border-amber-300', dot: 'bg-amber-400' };
+    if (legacy.has(row.id)) return { label: 'Legacy', tone: 'bg-gray-50 text-gray-600 border-gray-200', dot: 'bg-gray-300' };
     if (superseded.has(row.id)) return { label: 'Not reviewed', tone: 'bg-gray-50 text-gray-600 border-gray-200', dot: 'bg-gray-300' };
     // A faculty send-back is "Returned" (the student is redoing it), not a fail.
     if (!autograded.has(row.id) && row.redo_requested) return { label: 'Returned', tone: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' };
@@ -1111,7 +1114,9 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
       ? { label: 'Failed', tone: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' }
       : { label: 'Passed', tone: 'bg-green-50 text-green-800 border-green-200', dot: 'bg-green-500' };
   };
-  const outcomePill = (row) => (autograded.has(row.id)
+  const outcomePill = (row) => (legacy.has(row.id)
+    ? pill('Legacy · not gradable here', 'bg-gray-100 text-gray-600')
+    : autograded.has(row.id)
     ? pill('Autograded', 'bg-blue-50 text-[#1e3a5f]')
     : superseded.has(row.id)
     ? pill('Superseded · not reviewed', 'bg-gray-100 text-gray-600')
@@ -1123,7 +1128,7 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
     // Decided attempts show the same sheet, read-only, with the notes that
     // were actually sent (row.sent_feedback, loaded with the graded rows).
     const sheet = adminHasSubmissionSheet(row)
-      ? AdminSubmissionSheet.render(row, { item, readOnly: true, sentFeedback: superseded.has(row.id) || autograded.has(row.id) ? undefined : row.sent_feedback })
+      ? AdminSubmissionSheet.render(row, { item, readOnly: true, sentFeedback: superseded.has(row.id) || autograded.has(row.id) || legacy.has(row.id) ? undefined : row.sent_feedback })
       : '';
     const ticket = sheet || adminCaseTicketSubmissionPanel(row);
     return `<details class="rounded-lg border border-gray-200 bg-white px-3 py-2.5" data-graded-row="${esc(row.id)}" ${open ? 'open' : ''}>
@@ -6524,8 +6529,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   } = extra || {};
   const instructorDashboard = !!(user.isInstructor && !user.isAdmin);
   const facultyMessageTrackCodes = new Set(assignedFacultyMessageTrackCodes);
-  const gradingCountsByTrack = new Map();
-  gradingQueueRows.forEach((row) => gradingCountsByTrack.set(row.track_code, (gradingCountsByTrack.get(row.track_code) || 0) + 1));
+  const gradingCountsByTrack = adminGradableCountsByTrack(gradingQueueRows);
   const unreadMessageCountsByTrack = new Map();
   unreadMessageRows.forEach((row) => unreadMessageCountsByTrack.set(row.track_code, (unreadMessageCountsByTrack.get(row.track_code) || 0) + 1));
   const activeCohorts = cohorts.filter((c) => !c.archived_at);
@@ -6558,6 +6562,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   const trackGradedRows = normalizedTrackData.trackGradedRows || [];
   const trackSupersededRows = normalizedTrackData.trackSupersededRows || [];
   const trackAutogradedRows = normalizedTrackData.trackAutogradedRows || [];
+  const trackLegacyRows = normalizedTrackData.trackLegacyRows || [];
   const trackGradingItemCount = adminGroupGradingRows(trackGradingQueueRows).reduce((n, student) => n + student.items.length, 0);
   const trackFacultyMessageRows = normalizedTrackData.trackFacultyMessageRows || (activeTrackCode ? filterByTrack(facultyMessageRows, activeTrackCode) : []);
   const tabIsActive = (key) => key === activeTab;
@@ -7159,7 +7164,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
         </div>
 
         ${activeTrackCode ? `<div id="admin-tab-panel-grading" ${tabIsActive('grading') ? '' : 'hidden'}>
-          ${adminLabAttemptsPanel({ pendingRows: trackGradingQueueRows, gradedRows: trackGradedRows, supersededRows: trackSupersededRows, autogradedRows: trackAutogradedRows, openRedoRows: trackOpenLabRedoRows })}
+          ${adminLabAttemptsPanel({ pendingRows: trackGradingQueueRows, gradedRows: trackGradedRows, supersededRows: trackSupersededRows, autogradedRows: trackAutogradedRows, legacyRows: trackLegacyRows, openRedoRows: trackOpenLabRedoRows })}
         </div>` : ''}
         ${activeTrackCode ? `<div id="admin-tab-panel-messages" ${tabIsActive('messages') ? '' : 'hidden'}>
           ${adminMessageInboxPanel(trackFacultyMessageRows)}
@@ -9099,11 +9104,15 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
         if (feedbackError) throw feedbackError;
       }
 
-      const { error: reviewError } = await mntSupabase
+      const { data: reviewed, error: reviewError } = await mntSupabase
         .from('lab_attempts')
         .update({ reviewed_at: new Date().toISOString(), reviewed_by: adminUserId, redo_requested: !!redo })
-        .in('id', attemptIds);
+        .in('id', attemptIds)
+        .select('id');
       if (reviewError) throw reviewError;
+      // RLS filters unauthorised rows out silently; a short result means the
+      // attempt is still in the queue, so say so rather than "Approved".
+      if (!reviewed || reviewed.length < attemptIds.length) throw new Error('The review was not saved for every attempt (no permission or already changed). Reload and retry.');
 
       if (statusEl) statusEl.textContent = redo ? 'Sent back. Refreshing…' : 'Approved. Refreshing…';
       // The refresh re-opens the same attempt (adminOpenAttemptPanel), now
@@ -9907,8 +9916,29 @@ function adminNumberAttempts(rows) {
   return numbers;
 }
 
+function adminAutogradedKind(row) {
+  return ['LEARN IT', 'PRACTICE IT'].includes(adminGradingLabMeta(row).kind);
+}
+
+// Only a current Prove It the instructor can open and decide from the Lab
+// Attempts tab is queue work (and badge-counted). Retired or unmapped lab keys
+// stay unreviewed forever, so they would pin the badge; they are listed apart
+// as "legacy" and never counted.
 function adminNeedsInstructorReview(row) {
-  return !['LEARN IT', 'PRACTICE IT'].includes(adminGradingLabMeta(row).kind);
+  const meta = adminGradingLabMeta(row);
+  // Other tracks keep the original rule (every non Learn/Practice row is work).
+  if (TRACK_CODE_TO_PROGRAM_SLUG[row.track_code] !== 'soc-analyst') return !adminAutogradedKind(row);
+  return meta.kind === 'PROVE IT' && meta.moduleKey !== 'other'
+    && LABS.some((lab) => lab.key === row.lab_key);
+}
+
+// Pending Prove It items per track that an instructor can actually clear.
+function adminGradableCountsByTrack(rows) {
+  const counts = new Map();
+  const byTrack = new Map();
+  (rows || []).filter(adminNeedsInstructorReview).forEach((row) => byTrack.set(row.track_code, [...(byTrack.get(row.track_code) || []), row]));
+  byTrack.forEach((trackRows, code) => counts.set(code, adminGroupGradingRows(trackRows).reduce((n, student) => n + student.items.length, 0)));
+  return counts;
 }
 
 function adminAttemptLabel(row) {
