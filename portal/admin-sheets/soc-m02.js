@@ -108,7 +108,7 @@
   ];
 
   AdminSubmissionSheet.register(['lab-identity-investigation'], {
-    title: 'Module 02 · PROVE IT — Suspicious Authentication Investigation',
+    title: 'Module 02 · PROVE IT — Investigate HR file authorization',
     caseId: () => 'CASE-025502 · INC-025811',
     // Scenario names (jsmith, cgreen, wkstn…) for the spelling allowlist.
     fixture: () => ({ USERS, DEVICES, DEPARTMENTS, DISPOSITIONS, FINDINGS, EVIDENCE }),
