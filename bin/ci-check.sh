@@ -26,6 +26,9 @@ node tests/m03-incident-unlink.test.js
 echo '== Prove It below-pass save and submitted latch =='
 node tests/below-pass-prove-it.test.js
 
+echo '== M01 UAT fixes =='
+node tests/m01-uat-fixes.test.js
+
 echo '== Live refresh =='
 node tests/live-refresh.test.js
 

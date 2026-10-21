@@ -246,7 +246,7 @@ function caseRecordPanel(spec) {
       : failedPractice ? 'Finish the items marked below, update the ticket, and submit again. A passing practice score opens Prove It.'
         : spec.redoRequested ? 'Review your instructor feedback, then work the case again and resubmit.'
           : practice ? `Use the console evidence to complete the incident ticket. ${spec.practiceScored ? `Submit Lab scores your practice instantly; ${PRACTICE_PASS_PERCENT}% opens Prove It.` : 'Submit Lab completes this Guided Lab and opens Prove It.'}`
-            : 'Use the console evidence to complete the incident ticket. Submit only after the ticket fields, notes, and handoff are ready for faculty review.';
+            : 'Use the console evidence to complete the incident ticket. Submit only after the ticket fields and analyst work notes are ready for faculty review.';
   return `<div class="m01-score-empty${flagMissing || failedPractice ? ' is-missing' : ''}" id="${esc(spec.panelId)}" role="status" aria-live="polite" tabindex="-1">
     <strong>${title}</strong>
     <p>${body}</p>
