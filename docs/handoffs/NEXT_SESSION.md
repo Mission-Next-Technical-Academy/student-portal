@@ -731,3 +731,6 @@ including completed September sessions and prior open-item context, is at
 
 
 **Latest continuation: M01 recovery check (2026-10-21):** after the recent full student-localStorage clear, Module 01 reopened as 100% complete with Assessment Lab Approved. The page restored 40/40 checked Learn It radio groups with Correct feedback, plus saved/read-only ticket fields and notes (134 controls total). Attempt ordinal/score and full per-input exercise remain gaps. This does not unblock the student: M05 is still pending at 10% / 70% and no authenticated faculty session is available. See the latest M01 section in `STUDENT_LIFECYCLE_RUN_2026-10-21.md`; do not proceed to M06 until an authorized faculty return and passing redo/approval are verified.
+
+
+**Local UAT harness note (2026-10-21):** `bin/serve.py` on port 8768 stalled twice on a Chrome full-page navigation (single-threaded server accepted one open request and queued others). The Playwright navigation timeout did not mean the browser tab ended. The same server command was restarted only after confirming the port did not answer; HTTP 200 and the existing signed-in page returned. See the latest run-log section. This is a local harness limitation, not a confirmed portal loader defect.
