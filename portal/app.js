@@ -4519,7 +4519,7 @@ function header(user, options = {}) {
   return `
   <header>
     <nav class="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100">
-      <div class="max-w-7xl mx-auto px-8 h-16 flex items-center justify-between">
+      <div class="max-w-7xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
         <!-- The asset is the full wordmark, so it stands alone. Pairing it with
              a "Mission Next / Technical Academy" text block would say the name twice. -->
         <div class="flex items-center min-w-0">
@@ -4534,12 +4534,12 @@ function header(user, options = {}) {
                  ${
                    (user.isAdmin || user.isInstructor)
                      ? ''
-                     : `<a href="#/portal" class="relative text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300 cursor-pointer px-4 py-2 rounded-lg hover:bg-[#1e3a5f]/8 group">
+                     : `<a href="#/portal" class="relative text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300 cursor-pointer px-3 sm:px-4 py-2 rounded-lg hover:bg-[#1e3a5f]/8 whitespace-nowrap group">
                           My Programs
                           <span class="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-[#f97316] rounded-full transition-all duration-300 group-hover:w-3/4"></span>
                         </a>
-                        <button type="button" data-message-instructor class="relative inline-flex items-center gap-1.5 text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300 cursor-pointer px-4 py-2 rounded-lg hover:bg-[#1e3a5f]/8 whitespace-nowrap group">
-                          <i class="ri-message-3-line" aria-hidden="true"></i> Message Instructor
+                        <button type="button" data-message-instructor aria-label="Message Instructor" title="Message Instructor" class="relative inline-flex items-center gap-1.5 text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300 cursor-pointer px-3 sm:px-4 py-2 rounded-lg hover:bg-[#1e3a5f]/8 whitespace-nowrap group">
+                          <i class="ri-message-3-line" aria-hidden="true"></i><span class="hidden sm:inline">Message Instructor</span>
                           <span class="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-[#f97316] rounded-full transition-all duration-300 group-hover:w-3/4"></span>
                         </button>`
                  }
