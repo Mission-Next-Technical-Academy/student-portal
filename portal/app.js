@@ -5065,6 +5065,14 @@ function applyAcademyProveItReviewState(sections, state = {}) {
   return sections.map(applyRow);
 }
 
+function academyProveItReviewSummaryHtml(html, user, program, moduleKey) {
+  const review = academyProveItReviewState(user, program, moduleKey);
+  if (!review.state) return html;
+  const label = review.label || (review.complete ? 'Approved' : 'In review');
+  return html.replace(/(<dt\b[^>]*>\s*Assessment Lab\s*<\/dt>\s*<dd\b[^>]*>)[\s\S]*?(<\/dd>)/i,
+    (_match, opening, closing) => `${opening.replace(/<dd\b/i, `<dd data-prove-review-state="${esc(review.state)}"`)}${esc(label)}${closing}`);
+}
+
 function moduleAssessmentState(moduleKey, user) {
   const labId = `academy-assessment-${moduleKey}`;
   return LabRuntime.load(labId, user, { rationale: '', submittedAt: '', attempts: 0 });

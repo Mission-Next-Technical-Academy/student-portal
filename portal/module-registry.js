@@ -48,7 +48,10 @@ function registerModuleLab(def) {
     ...def,
     view(user, program) {
       activeModuleRender = { user, program, def: registeredDef };
-      const authoredHtml = authoredView(user, program);
+      let authoredHtml = authoredView(user, program);
+      if (typeof academyProveItReviewSummaryHtml === 'function') {
+        authoredHtml = academyProveItReviewSummaryHtml(authoredHtml, user, program, registeredDef.moduleKey);
+      }
       if (typeof moduleAssessmentModule !== 'function') return authoredHtml;
       // Respect a module's prerequisite gate.  A locked capstone does not
       // expose any learning stage, including its assessment, until its own

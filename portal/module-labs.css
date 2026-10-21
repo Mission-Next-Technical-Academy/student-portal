@@ -740,6 +740,10 @@ main[class*="m1"] > details[class*="section-collapsible"][open] > summary::after
 .munified-row.mnav-chip-review:hover { background: #fde68a; }
 .munified-row.mnav-chip-returned { color: #991b1b; background: #fee2e2; }
 .munified-row.mnav-chip-returned:hover { background: #fecaca; }
+.mf-stats dd[data-prove-review-state="review"],
+.mf-stats dd[data-prove-review-state="approved-below-pass"] { color: #fbbf24 !important; }
+.mf-stats dd[data-prove-review-state="returned"] { color: #f87171 !important; }
+.mf-stats dd[data-prove-review-state="approved"] { color: #4ade80 !important; }
 .munified-row.mnav-chip-current { color: #f97316; background: #fff8f4; }
 .munified-row.mnav-chip-current:hover { background: #fffaf5; }
 .munified-row.mnav-chip-locked { color: #94a3b8; background: transparent; cursor: not-allowed; opacity: .7; }
