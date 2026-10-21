@@ -917,7 +917,7 @@ function adminGradingControlsHtml(attemptIds, { approveLabel, sendBackLabel, bel
       <textarea id="admin-overall-note-${esc(attemptIds)}" data-feedback-comment rows="2" placeholder="Anything that is not about one section" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"></textarea>
     </div>
     <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-      <button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(attemptIds)}" class="${belowPass ? 'bg-gray-50 hover:bg-gray-100 text-gray-700' : 'bg-green-50 hover:bg-green-100 text-green-700'} font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${esc(approveLabel)}</button>
+      ${belowPass ? '<span class="text-xs text-amber-800" data-below-pass-note>Below the pass mark: return it for remediation so the learner can resubmit.</span>' : `<button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(attemptIds)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${esc(approveLabel)}</button>`}
       <button type="button" data-action="admin-grading-send-back" data-attempt-id="${esc(attemptIds)}" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${esc(sendBackLabel)}</button>
       <span data-grading-status class="text-xs text-gray-500"></span>
     </div>`;
@@ -928,7 +928,7 @@ function adminSubmissionSheetReviewCard(item, olderAttempt) {
   const row = item.lead;
   const threshold = row.pass_threshold ?? 70;
   const belowPassSubmission = row.score !== null && row.score !== undefined && Number(row.score) < Number(threshold);
-  const notesHtml = adminGradingControlsHtml(item.ids.join(','), { approveLabel: belowPassSubmission ? 'Approve (below pass mark: module stays locked)' : 'Approve submission', sendBackLabel: 'Return for remediation', belowPass: belowPassSubmission });
+  const notesHtml = adminGradingControlsHtml(item.ids.join(','), { approveLabel: 'Approve submission', sendBackLabel: 'Return for remediation', belowPass: belowPassSubmission });
   return `<article class="bg-white border border-gray-200 rounded-xl p-3 sm:p-4" data-grading-row="${esc(row.id)}">
     ${olderAttempt ? '<p class="mb-2 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Older attempt — a newer submission of this lab is below</p>' : ''}
     ${AdminSubmissionSheet.render(row, { item, notesHtml })}
@@ -1061,7 +1061,7 @@ function adminAttemptReviewCard(item, olderAttempt) {
     </div>
     <button type="button" data-action="admin-grading-add-item" class="text-xs font-semibold text-[#1e3a5f] hover:underline mb-3">+ Add another item</button>
     <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-      <button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(attemptIds)}" class="${belowPassSubmission ? 'bg-gray-50 hover:bg-gray-100 text-gray-700' : 'bg-green-50 hover:bg-green-100 text-green-700'} font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${belowPassSubmission ? 'Approve (below pass mark: module stays locked)' : simulatorPerformance ? 'Approve submission' : 'Approve'}</button>
+      ${belowPassSubmission ? '<span class="text-xs text-amber-800" data-below-pass-note>Below the pass mark: return it for remediation so the learner can resubmit.</span>' : `<button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(attemptIds)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${simulatorPerformance ? 'Approve submission' : 'Approve'}</button>`}
       <button type="button" data-action="admin-grading-send-back" data-attempt-id="${esc(attemptIds)}" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${simulatorPerformance ? 'Return for remediation' : 'Send back for redo'}</button>
       <span data-grading-status class="text-xs text-gray-500"></span>
     </div>
@@ -1110,6 +1110,7 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
     if (superseded.has(row.id)) return { label: 'Not reviewed', tone: 'bg-gray-50 text-gray-600 border-gray-200', dot: 'bg-gray-300' };
     // A faculty send-back is "Returned" (the student is redoing it), not a fail.
     if (!autograded.has(row.id) && row.redo_requested) return { label: 'Returned', tone: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' };
+    if (!autograded.has(row.id) && hasScore && !passing) return { label: 'Approved below pass', tone: 'bg-amber-50 text-amber-800 border-amber-300', dot: 'bg-amber-400' };
     return autograded.has(row.id) && hasScore && !passing
       ? { label: 'Failed', tone: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' }
       : { label: 'Passed', tone: 'bg-green-50 text-green-800 border-green-200', dot: 'bg-green-500' };
@@ -1120,11 +1121,14 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
     ? pill('Autograded', 'bg-blue-50 text-[#1e3a5f]')
     : superseded.has(row.id)
     ? pill('Superseded · not reviewed', 'bg-gray-100 text-gray-600')
-    : row.redo_requested ? pill('Sent back for redo', 'bg-red-50 text-red-700') : pill('Approved', 'bg-green-50 text-green-700'));
+    : row.redo_requested ? pill('Sent back for redo', 'bg-red-50 text-red-700')
+    : (row.score !== null && row.score !== undefined && Number(row.score) < Number(row.pass_threshold ?? 70)) ? pill('Approved below pass', 'bg-amber-50 text-amber-800')
+    : pill('Approved', 'bg-green-50 text-green-700'));
   const recordRow = (item, open) => {
     const row = item.lead;
     const hasScore = row.score !== null && row.score !== undefined;
     const passing = hasScore && Number(row.score) >= Number(row.pass_threshold ?? 70);
+    const approvedBelowPass = hasScore && !passing && !!row.reviewed_at && !row.redo_requested && !autograded.has(row.id) && !superseded.has(row.id);
     // Decided attempts show the same sheet, read-only, with the notes that
     // were actually sent (row.sent_feedback, loaded with the graded rows).
     const sheet = adminHasSubmissionSheet(row)
@@ -1140,6 +1144,12 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
       <p class="mt-1 text-xs text-gray-500">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}${row.reviewed_at ? ` · Reviewed ${new Date(row.reviewed_at).toLocaleString()}` : ''}</p>
       ${ticket ? `<div class="mt-3">${ticket}</div>` : ''}
       ${typeof itsEvidenceReviewPanel === 'function' ? itsEvidenceReviewPanel(row) : ''}
+      ${approvedBelowPass ? `<article class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3" data-approved-below-pass-return>
+        <p class="text-xs text-amber-900 mb-2">Approved below the pass mark: the module is still locked. Return it so the learner can resubmit.</p>
+        <label class="block text-xs font-semibold text-gray-600 mb-1" for="admin-return-note-${esc(row.id)}">Teacher note (required)</label>
+        <div class="feedback-item"><input type="hidden" data-feedback-label value="Overall" /><textarea id="admin-return-note-${esc(row.id)}" data-feedback-comment rows="2" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></textarea></div>
+        <div class="mt-2 flex flex-wrap items-center gap-2"><button type="button" data-action="admin-grading-send-back" data-attempt-id="${esc(row.id)}" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Return for remediation</button><span data-grading-status class="text-xs text-gray-500"></span></div>
+      </article>` : ''}
     </details>`;
   };
   const attemptHtml = (item, isLatest) => (pending.has(item.lead.id) ? adminAttemptReviewCard(item, !isLatest) : recordRow(item, isLatest));

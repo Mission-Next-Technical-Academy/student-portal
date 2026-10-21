@@ -47,6 +47,9 @@ node tests/faculty-roster.test.js
 echo '== Grading badge counts only gradable Prove It =='
 node tests/grading-badge.test.js
 
+echo '== Approved below pass =='
+node tests/approved-below-pass.test.js
+
 echo '== Admin Submission Sheet =='
 node tests/admin-submission-sheet.test.js
 
