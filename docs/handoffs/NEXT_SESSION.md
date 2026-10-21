@@ -42,7 +42,7 @@ after approval the page links to the marked lab.
   answer keys in this public file. Closing it needs server-side scoring and
   a read that withholds unreviewed scores; to be planned with Alex.
 
-**2026-10-19 (Megan; PR #<added by /pr-ready> "Shared: stop the module rail covering Help Desk controls and switch off night mode"; shared `portal/module-labs.css`, `portal/theme.js`, `portal/index.html` version lines — please review those):**
+**2026-10-19 (Megan; PR #78 "Shared: stop the module rail covering Help Desk controls and switch off night mode"; shared `portal/module-labs.css`, `portal/theme.js`, `portal/index.html` version lines — please review those):**
 Two shared changes. (1) On Help Desk module pages the floated left rail
 covered buttons, file pickers and checkboxes at 1,280–1,512 px wide: the
 rail floats at the main column's left edge, but `<main>` kept its fixed
