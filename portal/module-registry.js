@@ -86,6 +86,7 @@ function moduleLabFor(programSlug, moduleNumber) {
     moduleNumber: Number(moduleNumber),
     moduleKey: module.key,
     view(user, currentProgram) {
+      activeModuleRender = { user, program: currentProgram, def: { moduleKey: module.key } };
       const shell = `<div class="min-h-screen bg-slate-50">
         ${moduleTopbar(user, currentProgram)}
         ${moduleProgressShell([{ id: 'coursework', title: 'Foundations', type: 'lecture', isComplete: false, scrollId: `fallback-${module.key}-coursework`, gated: false }], { moduleKey: module.key })}

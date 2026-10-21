@@ -610,6 +610,10 @@ main[class*="m1"] > details[class*="section-collapsible"][open] > summary::after
 
 .mnav-chip-complete { color: #fff; background: #10b981; border-color: #10b981; }
 .mnav-chip-complete:hover { background: #059669; }
+.mnav-chip-review { color: #854d0e; background: #fef3c7; border-color: #f59e0b; }
+.mnav-chip-review:hover { background: #fde68a; }
+.mnav-chip-returned { color: #991b1b; background: #fee2e2; border-color: #ef4444; }
+.mnav-chip-returned:hover { background: #fecaca; }
 
 .mnav-chip-current { color: #1e3a5f; background: #fff; border-color: #f97316; box-shadow: 0 0 0 1px rgba(249, 115, 22, .2); }
 .mnav-chip-current:hover { background: #fff8f4; }
@@ -679,6 +683,10 @@ main[class*="m1"] > details[class*="section-collapsible"][open] > summary::after
 
 .mquick-nav-link.mnav-chip-complete { color: #10b981; background: #f0fdf4; }
 .mquick-nav-link.mnav-chip-complete:hover { background: #e6fcf5; }
+.mquick-nav-link.mnav-chip-review { color: #854d0e; background: #fef3c7; border-left: 3px solid #f59e0b; padding-left: 11px; }
+.mquick-nav-link.mnav-chip-review:hover { background: #fde68a; }
+.mquick-nav-link.mnav-chip-returned { color: #991b1b; background: #fee2e2; border-left: 3px solid #ef4444; padding-left: 11px; }
+.mquick-nav-link.mnav-chip-returned:hover { background: #fecaca; }
 
 .mquick-nav-link.mnav-chip-current { color: #f97316; background: #fff8f4; border-left: 3px solid #f97316; padding-left: 11px; }
 .mquick-nav-link.mnav-chip-current:hover { background: #fffaf5; }
@@ -728,6 +736,10 @@ main[class*="m1"] > details[class*="section-collapsible"][open] > summary::after
 
 .munified-row.mnav-chip-complete { color: #10b981; background: #f0fdf4; }
 .munified-row.mnav-chip-complete:hover { background: #e6fcf5; }
+.munified-row.mnav-chip-review { color: #854d0e; background: #fef3c7; }
+.munified-row.mnav-chip-review:hover { background: #fde68a; }
+.munified-row.mnav-chip-returned { color: #991b1b; background: #fee2e2; }
+.munified-row.mnav-chip-returned:hover { background: #fecaca; }
 .munified-row.mnav-chip-current { color: #f97316; background: #fff8f4; }
 .munified-row.mnav-chip-current:hover { background: #fffaf5; }
 .munified-row.mnav-chip-locked { color: #94a3b8; background: transparent; cursor: not-allowed; opacity: .7; }

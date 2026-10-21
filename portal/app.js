@@ -5015,6 +5015,56 @@ function normalizeModuleStages(sections, state = {}) {
   return normalized;
 }
 
+// The Academy rail is the shared Prove It status surface. Keep its state
+// anchored to the same durable attempt rows used by the student and faculty
+// review views, rather than to a module's optimistic/local completion flag.
+const ACADEMY_PROVE_IT_KEYS_BY_MODULE = {
+  'soc-01': ['lab-soc-escalation'],
+  'soc-02': ['lab-identity-investigation'],
+  'soc-03': ['lab-siem-triage'],
+  'soc-04': ['lab-detection-rule'],
+  'soc-05': ['lab-endpoint-investigation'],
+  'soc-06': ['lab-threat-hunt-independent'],
+  'soc-07': ['lab-email-triage', 'lab-network-investigation', 'lab-network-email-independent'],
+  'soc-08': ['lab-vuln-prioritization', 'lab-vuln-queue'],
+  'soc-09': ['lab-active-incident'],
+  'soc-10': ['lab-attack-mapping'],
+  'soc-11': ['lab-exec-report'],
+  'soc-12': ['lab-capstone'],
+};
+
+function academyProveItReviewState(user, program, moduleKey) {
+  const registeredKeys = user?.requiredLabsByModuleKey?.[moduleKey];
+  const labKeys = ACADEMY_PROVE_IT_KEYS_BY_MODULE[moduleKey]
+    || (registeredKeys?.length ? registeredKeys : null)
+    || (typeof programLabs === 'function' ? programLabs(program).filter((lab) => lab.module === moduleKey && lab.optional !== true && lab.phase !== 'practice').map((lab) => lab.key) : []);
+  const attempts = (labKeys || []).map((key) => (user?.latestLabAttemptByKey || {})[key]).filter((attempt) => attempt?.completedAt && !attempt.supersededAt);
+  if (!attempts.length) {
+    const verified = user?.remoteVerifiedModuleProgress?.[moduleKey] === true;
+    return { state: verified ? 'approved' : '', complete: verified, label: '' };
+  }
+  if (attempts.some((attempt) => !attempt.reviewedAt && !attempt.redoRequested)) return { state: 'review', complete: false, label: 'In review' };
+  if (attempts.some((attempt) => attempt.redoRequested)) return { state: 'returned', complete: false, label: 'Returned' };
+  if (attempts.some((attempt) => attempt.belowPass)) return { state: 'approved-below-pass', complete: false, label: 'Approved below pass' };
+  return { state: 'approved', complete: true, label: 'Approved' };
+}
+
+function applyAcademyProveItReviewState(sections, state = {}) {
+  const context = typeof activeModuleRenderContext === 'function' ? activeModuleRenderContext() : null;
+  const moduleKey = context?.def?.moduleKey || state.stageKey || state.moduleKey;
+  if (!moduleKey || !context?.user) return sections;
+  const review = academyProveItReviewState(context.user, context.program, moduleKey);
+  const applyRow = (section) => {
+    const isProveItRow = section.phase === 'prove'
+      || section.title === 'Assessment Lab'
+      || section.title === 'Module Review';
+    const row = Array.isArray(section.items) ? { ...section, items: section.items.map(applyRow) } : section;
+    if (!isProveItRow || section.supplemental) return row;
+    return { ...row, isComplete: review.complete, reviewState: review.state, reviewLabel: review.label };
+  };
+  return sections.map(applyRow);
+}
+
 function moduleAssessmentState(moduleKey, user) {
   const labId = `academy-assessment-${moduleKey}`;
   return LabRuntime.load(labId, user, { rationale: '', submittedAt: '', attempts: 0 });
@@ -5136,6 +5186,9 @@ function moduleNavStatuses(rows, titleOf = (row) => row.title) {
   const blocker = rows[blockerIndex];
   return rows.map((row, index) => {
     if (!gated(row)) return { statusClass: 'munified-row-ungated', locked: false };
+    if (row.reviewState === 'review') return { statusClass: 'mnav-chip-review', locked: false };
+    if (row.reviewState === 'returned') return { statusClass: 'mnav-chip-returned', locked: false };
+    if (row.reviewState === 'approved-below-pass') return { statusClass: 'mnav-chip-review', locked: false };
     if (row.isComplete) return { statusClass: 'mnav-chip-complete', locked: false };
     if (blockerIndex >= 0 && blockerIndex < index) {
       return { statusClass: 'mnav-chip-locked', locked: true, reason: titleOf(blocker), target: blocker.scrollId };
@@ -5182,7 +5235,7 @@ function moduleNavLockAttrs(nav) {
  * the same way the mobile drawer toggle already works statelessly.
  */
 function moduleUnifiedNav(sections, state = {}) {
-  sections = normalizeModuleStages(sections, state);
+  sections = applyAcademyProveItReviewState(normalizeModuleStages(sections, state), state);
   if (!sections.length) return '';
 
   const moduleKey = state.moduleKey || 'm01';
@@ -5244,7 +5297,7 @@ function moduleUnifiedNav(sections, state = {}) {
       <i class="${esc(typeIcon[section.type] || 'ri-file-line')}" aria-hidden="true"></i>
       <span class="munified-row-label">${esc(navTitle)}</span>
       ${hasChildren ? `<span class="munified-row-sub">${childComplete}/${items.length}</span>` : ''}
-      ${!hasChildren && !section.isComplete && section.reviewState ? `<span class="munified-row-sub">${section.reviewState === 'returned' ? 'Returned' : 'In review'}</span>` : ''}
+      ${!hasChildren && section.reviewLabel ? `<span class="munified-row-sub">${esc(section.reviewLabel)}</span>` : ''}
       ${nav.locked ? '<i class="ri-lock-line mnav-lock-icon" aria-hidden="true"></i>' : ''}
       ${isGated && section.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
     </a>`;

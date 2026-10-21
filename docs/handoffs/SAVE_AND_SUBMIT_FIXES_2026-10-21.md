@@ -102,6 +102,10 @@ These stay on the UAT bug list (`STUDENT_LIFECYCLE_RUN_2026-10-21.md` §6). They
 
 **Why this is strict:** SOC save and submit behaviour is spread across these files. A change in one, even a "harmless" refactor or CSS/script-order change, can silently bring back lost edits or false submits. The UAT is the only end-to-end proof, and it is only valid against code it has tested.
 
+## 3A. Global Prove It review display follow-up (2026-10-21)
+
+The lifecycle UAT found a separate shared navigation defect after PR #79 was present: a persisted attempt awaiting faculty review could still be shown as green/complete because `moduleUnifiedNav()` trusted module-authored `isComplete` flags. The shared fix derives the Prove It and Module Review rows from the latest durable `lab_attempts` review fields: pending is yellow and does not count toward progress, returned is red and available for a redo, passing instructor approval is green, and a legacy approved-below-pass attempt stays amber/incomplete. It preserves the PR #79 writer and rollback behavior. The implementation is in `portal/app.js`, `portal/module-registry.js`, and `portal/module-labs.css`, with cache-busters in `portal/index.html`; SOC coursework and the shared save/submit functions were not edited. M05 and the full SOC M01–M12 and other-track lifecycle still need browser verification; see `docs/handoffs/STUDENT_LIFECYCLE_RUN_2026-10-21.md`.
+
 ---
 
 ## 4. Help Desk: recommended fixes (for Megan; Alex will not edit Help Desk coursework)
