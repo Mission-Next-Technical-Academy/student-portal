@@ -126,22 +126,42 @@ const LabRuntime = (() => {
     return `${storageKey(labId, user)}.${moduleKey}`;
   }
 
+  // Server writes started by flushCaseStateWrite() and not yet settled, so
+  // sign-out can wait for them (and their unsynced-marker cleanup).
+  const inFlightCaseStateWrites = new Set();
+
   function flushCaseStateWrite(key) {
     const pending = pendingCaseStateWrites.get(key);
     if (!pending) return;
     if (pending.timer) clearTimeout(pending.timer);
     pendingCaseStateWrites.delete(key);
     const { savedAt } = pending.state;
-    Promise.resolve(persistModuleCaseState(pending.user, pending.moduleKey, pending.labId, pending.state))
+    const write = Promise.resolve(persistModuleCaseState(pending.user, pending.moduleKey, pending.labId, pending.state))
       .then((saved) => {
         const marker = unsyncedKey(pending.labId, pending.user);
         if (saved === true && localStorage.getItem(marker) === savedAt) localStorage.removeItem(marker);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .then(() => { inFlightCaseStateWrites.delete(write); });
+    inFlightCaseStateWrites.add(write);
   }
 
+  // Resolves once every started write has settled and its marker is updated.
   function flushAllCaseStateWrites() {
     Array.from(pendingCaseStateWrites.keys()).forEach(flushCaseStateWrite);
+    return Promise.all(Array.from(inFlightCaseStateWrites)).then(() => {});
+  }
+
+  // Sign-out: drop this student's cached lab answers so the next person on a
+  // shared PC cannot read them. A lab whose unsynced marker is still set holds
+  // work the server never received, so it and its marker are kept.
+  function clearStudentLocalState(user) {
+    const suffix = `.${anonymousStudentId(user)}`;
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i += 1) keys.push(localStorage.key(i));
+    keys.filter((k) => k && k.startsWith(`${PREFIX}.`) && k.endsWith(suffix)
+      && localStorage.getItem(`${k}.unsynced`) === null)
+      .forEach((k) => localStorage.removeItem(k));
   }
 
   function registerCaseStateFlushListeners() {
@@ -182,7 +202,7 @@ const LabRuntime = (() => {
     return saveCaseState(labId, moduleKey, user, fresh, { debounceMs: 1 });
   }
 
-  return { anonymousStudentId, load, save, reset, storageKey, loadCaseState, saveCaseState, resetCaseState, flushAllCaseStateWrites, isFreshState: stateMatchesFreshDefault };
+  return { anonymousStudentId, load, save, reset, storageKey, loadCaseState, saveCaseState, resetCaseState, flushAllCaseStateWrites, clearStudentLocalState, isFreshState: stateMatchesFreshDefault };
 })();
 
 /* Shared mechanics for the knowledge checks used by SOC modules. Question

@@ -437,7 +437,22 @@ async function signOut(reason = 'user_signed_out') {
   // (20260901140000_site_sessions_idle_timeout.sql).
   // Land any debounced lab work first: once the session is gone the write
   // would fail RLS and the learner's last edits would be lost.
-  try { await settlePendingCaseStateWrites(); } catch (err) { console.error('pending case_state flush before sign-out failed', err); }
+  const signingOutUser = await currentUser().catch(() => null);
+  // Bounded wait: a stalled network must not hang sign-out. Anything that has
+  // not landed keeps its unsynced marker and is therefore kept below.
+  try {
+    let giveUp;
+    await Promise.race([settlePendingCaseStateWrites(), new Promise((resolve) => { giveUp = setTimeout(resolve, 3000); })])
+      .finally(() => clearTimeout(giveUp));
+  } catch (err) { console.error('pending case_state flush before sign-out failed', err); }
+  // Shared PC: remove this student's cached lab answers and engagement (keeps
+  // any lab whose unsynced marker is still set).
+  if (signingOutUser) {
+    try {
+      LabRuntime.clearStudentLocalState(signingOutUser);
+      localStorage.removeItem(moduleEngagementKey(signingOutUser));
+    } catch (err) { console.error('local student state clear failed', err); }
+  }
   // No live-refresh probe may run against the session being closed.
   if (portalLiveRefresh) portalLiveRefresh.stop();
   try {
@@ -3835,8 +3850,9 @@ const moduleCaseStateQueues = new Map();
  * fetch can return the row as it was before the learner's last action, and
  * Object.assign() would replace the newer in-session copy with it. */
 async function settlePendingCaseStateWrites() {
-  if (typeof LabRuntime !== 'undefined' && typeof LabRuntime.flushAllCaseStateWrites === 'function') LabRuntime.flushAllCaseStateWrites();
-  await Promise.all(Array.from(moduleCaseStateQueues.values()));
+  const flushed = (typeof LabRuntime !== 'undefined' && typeof LabRuntime.flushAllCaseStateWrites === 'function')
+    ? LabRuntime.flushAllCaseStateWrites() : null;
+  await Promise.all([flushed, ...Array.from(moduleCaseStateQueues.values())]);
 }
 
 async function persistModuleCaseState(user, moduleKey, labId, state) {
