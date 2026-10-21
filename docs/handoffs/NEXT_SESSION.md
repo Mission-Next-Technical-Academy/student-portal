@@ -1,3 +1,27 @@
+**2026-10-21 (Alex; PR #79 "SOC: keep every edit and never fake a submit"; READ FIRST — Megan and all devs):**
+Full notes, the WHY, and Help Desk recommendations:
+`docs/handoffs/SAVE_AND_SUBMIT_FIXES_2026-10-21.md`.
+- **Do not edit SOC Analyst coursework** (`portal/soc-analyst-module-*.js`,
+  `portal/soc-m*-assessment-*.js`, `portal/soc-console-*.js` and the other
+  SOC files listed in section 3 of that doc). It is under an end-to-end
+  student-lifecycle UAT (`docs/handoffs/STUDENT_LIFECYCLE_RUN_2026-10-21.md`),
+  and any change there invalidates the test evidence. Ask Alex instead.
+- **Shared save/submit logic is review-with-Alex only:** `portal/lab-runtime.js`,
+  and in `portal/app.js` `recordLabAttempt`, `recordProveItAttempt`,
+  `proveItLatchIsStale`, `persistModuleCaseState`, sign-out flush. In
+  `portal/index.html` bump only your own files' `?v=`.
+- What #79 fixes, all SOC modules M01–M12: (1) a reload or tab close within
+  about a second of a change no longer loses it (B9). An unsynced marker
+  keeps the newer browser copy and resends it instead of letting the older
+  server row overwrite it. (2) A failed Prove It save no longer leaves
+  "Submitted for faculty review" with nothing in the instructor queue. It
+  rolls back with a red banner, and already-stuck students are reopened on
+  load. (3) Returned M10/M12 work reopens for a redo.
+- Help Desk has the same class of problems. The worst is H1: simulator ticket
+  work (`defender-lab.helpdesk.state.v1`) is shared by every student on the
+  same browser and never saved to the database. Recommended fixes are in
+  section 4 of the doc. Alex will not edit Help Desk coursework.
+
 **2026-10-20 (Megan; PR #80 "Help Desk: failed capstones reach instructor review; no score shown before review"; Help Desk files plus shared `portal/index.html` version lines, `bin/ci-check.sh` one test line, and `portal/it-support-shared.js` — please review those):**
 The Help Desk capstone (Module 12) now sends every submitted attempt to the
 instructor's Lab Attempts queue. Before, a failed attempt was saved as
@@ -41,16 +65,6 @@ after approval the page links to the marked lab.
   `score` and `result`, and the capstone is scored in the browser with its
   answer keys in this public file. Closing it needs server-side scoring and
   a read that withholds unreviewed scores; to be planned with Alex.
-
-**2026-10-20 (Alex; PR #79 "Prove It: never leave a submit marked sent when the save failed (SOC M01–M12)"; shared `portal/app.js` (two new helpers beside `recordLabAttempt()`, one new `labAttemptsLoaded` field from `fetchUserDetails()`), one line in `bin/ci-check.sh` — please review those):**
-SOC Prove It submits now go through `recordProveItAttempt()`: if the
-`lab_attempts` insert fails, the module's "submitted" flag is put back so the
-student can send again (the red banner already explains why). On load,
-`proveItLatchIsStale()` reopens a case whose saved state says submitted but
-whose attempt never reached the database. Only SOC files call them; Help Desk
-and AI/ML submits are unchanged. Details:
-`docs/handoffs/BUG_2026-10-17_PROVE_IT_BELOW_PASS_SILENTLY_DROPPED.md`, status
-2026-10-20.
 
 **2026-10-19 (Megan; PR #78 "Shared: stop the module rail covering Help Desk controls and switch off night mode"; shared `portal/module-labs.css`, `portal/theme.js`, `portal/index.html` version lines — please review those):**
 Two shared changes. (1) On Help Desk module pages the floated left rail
