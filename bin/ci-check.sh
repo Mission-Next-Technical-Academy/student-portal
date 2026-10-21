@@ -17,6 +17,7 @@ node tests/module-card-state.test.js
 echo '== Help Desk returned-lab resubmit =='
 node tests/hdesk-returned-lab-resubmit.test.js
 node tests/hdesk-module-page-states.test.js
+node tests/hdesk-capstone-review.test.js
 
 echo "== M03 normalization lab re-wire =="
 node tests/m03-normalization-lab-rewire.test.js

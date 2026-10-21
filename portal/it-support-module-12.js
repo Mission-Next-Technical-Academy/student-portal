@@ -85,12 +85,12 @@ const ITS12_PASSING_SCORE = 70;
 
 const ITS12_DEFAULT_STATE = {
   activeTicket: ITS12_TICKETS[0].id, ticketResponses: {}, kbArticle: '', afterAction: '',
-  attempts: 0, score: 0, breakdown: null, feedback: [], criticalErrors: [], validationError: '', resetArmed: false, completed: false,
+  attempts: 0, validationError: '', resetArmed: false,
 };
 
 let its12State = null;
 let its12User = null;
-let its12ReviewStatus = null;
+let its12Submitting = false;
 
 function its12Load(user) {
   its12User = user;
@@ -98,24 +98,35 @@ function its12Load(user) {
   if (!its12State.ticketResponses || typeof its12State.ticketResponses !== 'object') its12State.ticketResponses = {};
   if (!ITS12_TICKETS.some((t) => t.id === its12State.activeTicket)) its12State.activeTicket = ITS12_TICKETS[0].id;
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'it-support', 'its-12');
-  if (its12State.completed) its12FetchReviewStatus();
   return its12State;
 }
 
-/* Faculty review is a distinct record from the automated score (see
- * app.js's capstone_reviews design) — this is a fire-and-forget read so a
- * passed capstone can show "provisional" until a reviewer actually acts. */
-function its12FetchReviewStatus() {
-  if (typeof mntSupabase === 'undefined' || !its12User || !its12User.userId || !its12User.trackCode) return;
-  mntSupabase.from('capstone_reviews').select('review_status, official_outcome, reviewed_at')
-    .eq('user_id', its12User.userId).eq('track_code', its12User.trackCode)
-    .order('created_at', { ascending: false }).limit(1).maybeSingle()
-    .then(({ data, error }) => {
-      if (error) { console.error('capstone_reviews fetch failed', error); return; }
-      its12ReviewStatus = data;
-      its12RenderQueue();
-    })
-    .catch((err) => console.error('capstone_reviews fetch threw', err));
+/* Where this student's capstone stands, from the server's newest attempt
+ * (user.latestLabAttemptByKey, loaded at sign-in and updated after a save),
+ * never from browser storage. Students see no score or pass/fail until an
+ * instructor finalizes the attempt (owner rule, 2026-10-20); the automated score goes to the
+ * instructor only, as a starting point. */
+function its12ReviewStage() {
+  if (its12Submitting) return 'submitting';
+  const attempt = typeof itsLabAttempt === 'function' ? itsLabAttempt(its12User, ITS12_LAB_KEY) : null;
+  if (!attempt || !attempt.completedAt || attempt.supersededAt) return 'not_submitted';
+  if (attempt.redoRequested) return 'returned';
+  return attempt.reviewedAt ? 'finalized' : 'waiting';
+}
+
+// The database takes a new attempt only when there is none yet or the newest
+// was returned (20261005210000_one_pending_prove_it_submission.sql).
+function its12CanSubmit() {
+  const stage = its12ReviewStage();
+  return stage === 'not_submitted' || stage === 'returned';
+}
+
+function its12StatusLabel() {
+  const labels = { submitting: 'Submitting…', waiting: 'Submitted for review', returned: 'Returned for revision', finalized: 'Finalized by your instructor' };
+  const stage = its12ReviewStage();
+  if (labels[stage]) return labels[stage];
+  const started = Object.keys(its12State.ticketResponses || {}).length || (its12State.kbArticle || '').trim() || (its12State.afterAction || '').trim();
+  return started ? 'In progress' : 'Not started';
 }
 
 function its12Save() {
@@ -147,33 +158,26 @@ function its12ScorePanel() {
   if (its12State.validationError) {
     return `<div class="its12-validation" id="its12-feedback" role="alert" tabindex="-1"><i class="ri-information-line" aria-hidden="true"></i><div><strong>Complete the capstone</strong><p>${esc(its12State.validationError)}</p></div></div>`;
   }
-  if (!its12State.attempts || !its12State.breakdown) {
-    return `<div class="its12-score-empty" id="its12-feedback" role="status">Your answers save automatically. Submit once every ticket has a priority rank, category, first step, decision, and reasoning, and both the KB article and after-action review are written.</div>`;
+  const stage = its12ReviewStage();
+  if (stage === 'submitting') {
+    return `<div class="its12-score-empty" id="its12-feedback" role="status" tabindex="-1">Submitting your capstone…</div>`;
   }
-  const criticalErrors = its12State.criticalErrors || [];
-  const passed = its12State.score >= ITS12_PASSING_SCORE && criticalErrors.length === 0;
-  const b = its12State.breakdown;
-  const reviewState = !passed ? null : (its12ReviewStatus && its12ReviewStatus.review_status) || 'not_requested';
-  const reviewLabel = !passed ? null
-    : reviewState === 'approved'
-      ? `Faculty-approved${its12ReviewStatus.official_outcome ? ` (${its12ReviewStatus.official_outcome.replace('_', ' ')})` : ''} on ${new Date(its12ReviewStatus.reviewed_at).toLocaleDateString()}`
-      : reviewState === 'changes_requested'
-        ? 'Faculty review: changes requested — see your instructor'
-        : 'Provisional — automated score pending faculty review';
-  return `<section class="its12-score ${passed ? 'its12-score-pass' : 'its12-score-remediate'}" id="its12-feedback" tabindex="-1" aria-live="polite">
-    <div class="its12-score-heading"><div><p class="its12-kicker">Attempt ${its12State.attempts} · best ${its12State.bestScore}/100</p><h3>${its12State.score}/100 — ${passed ? 'Capstone passed' : 'Review the feedback and retry'}</h3>${reviewLabel ? `<p class="its12-review-badge its12-review-badge--${reviewState}">${esc(reviewLabel)}</p>` : ''}</div><span>${its12State.score}</span></div>
-    <div class="its12-score-grid">
-      <div><strong>${b.triage}/15</strong><span>Triage & prioritization</span></div>
-      <div><strong>${b.technical}/20</strong><span>Technical accuracy</span></div>
-      <div><strong>${b.communication}/15</strong><span>Communication</span></div>
-      <div><strong>${b.escalation}/15</strong><span>Escalation judgment</span></div>
-      <div><strong>${b.security}/10</strong><span>Security judgment</span></div>
-      <div><strong>${b.kb}/15</strong><span>KB article quality</span></div>
-      <div><strong>${b.afterAction}/10</strong><span>After-action review</span></div>
-    </div>
-    ${criticalErrors.length ? `<div class="its12-critical"><strong>Critical-error gate</strong><ul>${criticalErrors.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div>` : ''}
-    <ul class="its12-feedback-list">${its12State.feedback.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>
-  </section>`;
+  if (stage === 'waiting') {
+    return `<div class="its12-score-empty" id="its12-feedback" role="status" tabindex="-1"><strong>Submitted to your instructor for review.</strong> Your result and your instructor's notes will appear here once they have finalized it. You can't submit again while this attempt is waiting.</div>`;
+  }
+  if (stage === 'returned') {
+    return `<div class="its12-score-empty" id="its12-feedback" role="status" tabindex="-1"><strong>Your instructor returned this attempt.</strong> Read their notes above, revise your answers, then submit your capstone again.</div>`;
+  }
+  if (stage === 'finalized') {
+    const link = typeof markedLabLinkHtml === 'function' ? ` ${markedLabLinkHtml(ITS12_LAB_KEY, 'See your result and notes')}` : '';
+    return `<div class="its12-score-empty" id="its12-feedback" role="status" tabindex="-1"><strong>Your instructor has finalized your capstone.</strong>${link}</div>`;
+  }
+  return `<div class="its12-score-empty" id="its12-feedback" role="status">Your answers save automatically. Submit once every ticket has a priority rank, category, first step, decision, and reasoning, and both the KB article and after-action review are written. Your instructor reviews every capstone; your result appears here once they finalize it.</div>`;
+}
+
+function its12ActionButtons() {
+  const off = its12CanSubmit() ? '' : ' disabled aria-disabled="true" aria-describedby="its12-feedback"';
+  return `<button class="its12-submit" type="button" data-its12-submit${off}><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Submit my capstone</button><button class="its12-reset" type="button" data-its12-reset${off}><i class="ri-restart-line" aria-hidden="true"></i> Reset this lab</button>`;
 }
 
 function its12ExtrasAndActions() {
@@ -187,8 +191,8 @@ function its12ExtrasAndActions() {
     <p class="its12-extra-hint">Step back and review your own performance — what went well, what you'd do differently, and what you learned about your own troubleshooting instincts.</p>
     <textarea id="its12-after-action" data-its12-after-action rows="3" placeholder="What went well… What I'd do differently… What I learned…">${esc(its12State.afterAction)}</textarea>
   </div>
-  <div class="its12-worksheet-actions"><button class="its12-submit" type="button" data-its12-submit><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Submit my capstone</button><button class="its12-reset" type="button" data-its12-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset this lab</button></div>
-  ${its12State.resetArmed ? `<div class="its12-reset-confirm" id="its12-reset-confirm" role="alert"><p><strong>Reset the capstone?</strong> All ticket answers, the KB article, the after-action review, and your score will be cleared.</p><div><button type="button" data-its12-reset-confirm>Yes, reset the capstone</button><button type="button" data-its12-reset-cancel>Cancel</button></div></div>` : ''}
+  <div class="its12-worksheet-actions">${its12ActionButtons()}</div>
+  ${its12State.resetArmed && its12CanSubmit() ? `<div class="its12-reset-confirm" id="its12-reset-confirm" role="alert"><p><strong>Reset the capstone?</strong> All ticket answers, the KB article and the after-action review on this page will be cleared.</p><div><button type="button" data-its12-reset-confirm>Yes, reset the capstone</button><button type="button" data-its12-reset-cancel>Cancel</button></div></div>` : ''}
   ${its12ScorePanel()}`;
 }
 
@@ -197,7 +201,7 @@ function viewItsModuleTwelve(user, program) {
   const module = program.modules['its-12'];
   const navSections = [
     { id: 'expectations', title: 'Capstone preparation', type: 'lecture', isComplete: true, scrollId: 'its12-lesson-title' },
-    { id: 'scenario', title: 'Integrated scenario', type: 'lab', phase: 'prove', isComplete: its12State.completed, scrollId: 'its12-lab-title' },
+    { id: 'scenario', title: 'Integrated scenario', type: 'lab', phase: 'prove', isComplete: its12ReviewStage() === 'finalized', scrollId: 'its12-lab-title' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'its12-sources', gated: false, supplemental: true },
   ];
   return `<div class="its12-shell">
@@ -205,7 +209,7 @@ function viewItsModuleTwelve(user, program) {
     ${moduleProgressShell(navSections, { moduleKey: 'its12', stageKey: 'its-12' })}
     <main class="its12-main">
       <section class="its12-hero" aria-labelledby="its12-title"><p class="its12-kicker">Module 12 · Capstone · ${formatInstructionalMinutes(module.durationMinutes)}</p><h1 id="its12-title">${esc(module.title)}</h1><p class="its12-lede">Nothing new — this is where you prove you can do the job. A realistic queue, real resolve-or-escalate calls, a knowledge-base article, and an honest look back at your own work.</p>
-        <dl class="its12-progress" aria-label="Saved capstone progress"><div><dt>Tickets</dt><dd>${ITS12_TICKETS.length}</dd></div><div><dt>Status</dt><dd id="its12-status">${its12State.completed ? 'Complete' : its12State.attempts ? 'In progress' : 'Not started'}</dd></div></dl>
+        <dl class="its12-progress" aria-label="Saved capstone progress"><div><dt>Tickets</dt><dd>${ITS12_TICKETS.length}</dd></div><div><dt>Status</dt><dd id="its12-status">${esc(its12StatusLabel())}</dd></div></dl>
       </section>
 
       <section class="its12-section" aria-labelledby="its12-lesson-title"><div class="its12-section-heading"><span>L</span><div><p class="its12-kicker">Learn</p><h2 id="its12-lesson-title">What to expect</h2></div></div>${its12LessonCard()}</section>
@@ -233,7 +237,7 @@ function its12RenderQueue(focusId) {
     .forEach((el) => el.remove());
   if (root) root.insertAdjacentHTML('beforeend', its12ExtrasAndActions());
   const status = document.getElementById('its12-status');
-  if (status) status.textContent = its12State.completed ? 'Complete' : its12State.attempts ? 'In progress' : 'Not started';
+  if (status) status.textContent = its12StatusLabel();
   if (focusId) requestAnimationFrame(() => document.getElementById(focusId)?.focus());
 }
 
@@ -291,6 +295,90 @@ function its12Score() {
   };
 }
 
+/* Submit: one attempt to the instructor's queue. Returns the save promise
+ * (tests await it); returns nothing when the attempt is refused or invalid. */
+function its12Submit() {
+  // An attempt is already waiting on the instructor (or approved), or a
+  // save is in flight: the database would refuse another one.
+  if (!its12CanSubmit()) {
+    its12RenderQueue('its12-feedback');
+    return;
+  }
+  const missing = ITS12_TICKETS.some((ticket) => {
+    const r = its12State.ticketResponses[ticket.id] || {};
+    return !r.priority || !r.category || !r.decision || !(r.firstStep || '').trim() || !(r.reasoning || '').trim();
+  });
+  if (missing || !its12State.kbArticle.trim() || !its12State.afterAction.trim()) {
+    its12State.validationError = missing
+      ? 'Every ticket needs a priority rank, category, first step, decision, and reasoning before you submit.'
+      : 'Write both the KB article and the after-action review before you submit.';
+    its12Save();
+    its12RenderQueue('its12-feedback');
+    return;
+  }
+  // Scored for the instructor's review sheet only; the student sees no
+  // score until the instructor finalizes the attempt.
+  const result = its12Score();
+  const passed = result.score >= ITS12_PASSING_SCORE && result.criticalErrors.length === 0;
+  const attemptNumber = (its12State.attempts || 0) + 1;
+  its12State.validationError = '';
+  its12State.resetArmed = false;
+  its12Submitting = true;
+  its12RenderQueue('its12-feedback');
+  // state 'complete': recordLabAttempt() stores a below-pass score as
+  // 'submitted', and critical_errors keeps an attempt with a critical
+  // error out of verified progress even if it scores 70 or more, so every
+  // attempt, pass or fail, reaches the instructor's queue.
+  const fields = {
+    state: 'complete', score: result.score,
+    rubricVersion: 'it-support-capstone-v1', scoringEngineVersion: 'it-support-capstone-scorer-v1',
+    result: {
+      breakdown: result.breakdown, criticalErrors: result.criticalErrors, critical_errors: result.criticalErrors,
+      attempts: attemptNumber, ticketResponses: its12State.ticketResponses, kbArticle: its12State.kbArticle,
+      afterAction: its12State.afterAction, feedback: result.feedback, passedAutomatedGate: passed,
+    },
+  };
+  return itsSubmitLabAttempt(its12User, 'its-12', ITS12_LAB_KEY, fields).then((saved) => {
+    its12Submitting = false;
+    // Nothing reached the instructor: keep the answers; the portal shows
+    // its shared save-failure message.
+    if (saved) {
+      its12State.attempts = attemptNumber;
+      const artifactContent = {
+        responses: its12State.ticketResponses,
+        kbArticle: its12State.kbArticle,
+        afterAction: its12State.afterAction,
+        score: result.score,
+        breakdown: result.breakdown,
+        feedback: result.feedback,
+        criticalErrors: result.criticalErrors,
+        attemptNumber,
+        passedAutomatedGate: passed,
+      };
+      if (typeof persistPortfolioArtifact === 'function') {
+        persistPortfolioArtifact(its12User, {
+          moduleKey: 'its-12', labKey: ITS12_LAB_KEY,
+          kind: 'capstone_report', title: `IT Help Desk Capstone — attempt ${attemptNumber}`,
+          content: artifactContent, rubricVersion: 'it-support-capstone-v1',
+        });
+      }
+      if (passed) {
+        if (typeof markModuleLabComplete === 'function') markModuleLabComplete(its12User, 'it-support', 'its-12', ITS12_LAB_KEY);
+        if (typeof recordCapstoneSubmission === 'function') {
+          recordCapstoneSubmission(its12User, {
+            score: result.score,
+            answers: artifactContent,
+            criticalErrorCount: result.criticalErrors.length,
+            rubricVersion: 'it-support-capstone-v1',
+          });
+        }
+      }
+    }
+    its12Save();
+    its12RenderQueue('its12-feedback');
+  });
+}
+
 function wireItsModuleTwelveLab() {
   const shell = document.querySelector('.its12-shell');
   if (!shell || !its12State) return;
@@ -346,6 +434,7 @@ function wireItsModuleTwelveLab() {
     }
 
     if (event.target.closest('[data-its12-reset]')) {
+      if (!its12CanSubmit()) return;
       its12State.resetArmed = true;
       its12Save();
       its12RenderQueue('its12-reset-confirm');
@@ -358,77 +447,14 @@ function wireItsModuleTwelveLab() {
       return;
     }
     if (event.target.closest('[data-its12-reset-confirm]')) {
+      if (!its12CanSubmit()) return;
       its12State = LabRuntime.reset(ITS12_LAB_ID, its12User, ITS12_DEFAULT_STATE);
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(its12User, 'it-support', 'its-12', ITS12_LAB_KEY, false);
       its12RenderQueue('its12-lab-title');
       return;
     }
 
-    if (event.target.closest('[data-its12-submit]')) {
-      const missing = ITS12_TICKETS.some((ticket) => {
-        const r = its12State.ticketResponses[ticket.id] || {};
-        return !r.priority || !r.category || !r.decision || !(r.firstStep || '').trim() || !(r.reasoning || '').trim();
-      });
-      if (missing || !its12State.kbArticle.trim() || !its12State.afterAction.trim()) {
-        its12State.validationError = missing
-          ? 'Every ticket needs a priority rank, category, first step, decision, and reasoning before you submit.'
-          : 'Write both the KB article and the after-action review before you submit.';
-        its12Save();
-        its12RenderQueue('its12-feedback');
-        return;
-      }
-      const result = its12Score();
-      its12State.attempts += 1;
-      its12State.score = result.score;
-      its12State.bestScore = Math.max(its12State.bestScore || 0, result.score);
-      its12State.breakdown = result.breakdown;
-      its12State.feedback = result.feedback;
-      its12State.criticalErrors = result.criticalErrors;
-      its12State.validationError = '';
-      its12State.resetArmed = false;
-      const passed = result.score >= ITS12_PASSING_SCORE && result.criticalErrors.length === 0;
-      if (typeof recordLabAttempt === 'function') {
-        recordLabAttempt(its12User, ITS12_LAB_KEY, { state: passed ? 'complete' : 'in_progress', score: result.score,
-          rubricVersion: 'it-support-capstone-v1', scoringEngineVersion: 'it-support-capstone-scorer-v1', result: {
-          breakdown: result.breakdown, criticalErrors: result.criticalErrors, attempts: its12State.attempts,
-          ticketResponses: its12State.ticketResponses, kbArticle: its12State.kbArticle, afterAction: its12State.afterAction,
-          feedback: result.feedback, passedAutomatedGate: passed,
-        } });
-      }
-      const artifactContent = {
-        responses: its12State.ticketResponses,
-        kbArticle: its12State.kbArticle,
-        afterAction: its12State.afterAction,
-        score: result.score,
-        breakdown: result.breakdown,
-        feedback: result.feedback,
-        criticalErrors: result.criticalErrors,
-        attemptNumber: its12State.attempts,
-        passedAutomatedGate: passed,
-      };
-      if (typeof persistPortfolioArtifact === 'function') {
-        persistPortfolioArtifact(its12User, {
-          moduleKey: 'its-12', labKey: ITS12_LAB_KEY,
-          kind: 'capstone_report', title: `IT Help Desk Capstone — attempt ${its12State.attempts}`,
-          content: artifactContent, rubricVersion: 'it-support-capstone-v1',
-        });
-      }
-      if (passed) {
-        its12State.completed = true;
-        if (typeof markModuleLabComplete === 'function') markModuleLabComplete(its12User, 'it-support', 'its-12', ITS12_LAB_KEY);
-        if (typeof recordCapstoneSubmission === 'function') {
-          recordCapstoneSubmission(its12User, {
-            score: result.score,
-            answers: artifactContent,
-            criticalErrorCount: result.criticalErrors.length,
-            rubricVersion: 'it-support-capstone-v1',
-          });
-        }
-        its12FetchReviewStatus();
-      }
-      its12Save();
-      its12RenderQueue('its12-feedback');
-    }
+    if (event.target.closest('[data-its12-submit]')) its12Submit();
   });
 }
 
