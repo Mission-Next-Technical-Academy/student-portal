@@ -21,7 +21,10 @@ change.
   and the instructor sheet so the two agree. Ticket `tag` removed. A ticket
   can set an optional `rejectStepPattern` that refuses a first step even if
   it matches; SEC-2114 uses it to refuse a negated containment action
-  ("do not isolate", "never disconnect").
+  ("do not isolate", "never disconnect"). Known gap: a negation separated
+  from the verb (e.g. 'Do not attempt to isolate the device') still earns
+  SEC-2114 first-step credit; instructor review catches it, and the
+  replacement capstone tickets should handle it.
 - `portal/admin-sheets/hdesk.js` (Megan's): the capstone priority check
   expects the band (e.g. "P3 band, rank 4–5"), adds "Exceeds: SLA order
   inside the P3 band" or "Only ticket in the P1 band" to the given text, and
