@@ -45,6 +45,8 @@ const mk = (email) => ({ email, userId: email, trackCode: 'SOCAN', remoteCaseSta
   rt.saveCaseState('stuck', MODULE, alice, { a: 2 }); // server never confirms
   rt.saveCaseState('done', MODULE, bob, { b: 1 });
 
+  rt.save('browser-only', alice, { c: 1 }); // load/save labs: no server copy
+
   // Sign-out sequence: flush, wait, clear.
   await rt.flushAllCaseStateWrites();
   rt.clearStudentLocalState(alice);
@@ -53,6 +55,7 @@ const mk = (email) => ({ email, userId: email, trackCode: 'SOCAN', remoteCaseSta
   assert.strictEqual(store.has(rt.storageKey('done', alice) + '.unsynced'), false, 'no stale marker');
   assert.strictEqual(store.has(rt.storageKey('stuck', alice)), true, 'unsynced lab is kept');
   assert.strictEqual(store.has(rt.storageKey('stuck', alice) + '.unsynced'), true, 'unsynced marker is kept');
+  assert.strictEqual(store.has(rt.storageKey('browser-only', alice)), true, 'browser-only lab state survives');
   assert.strictEqual(store.has(rt.storageKey('done', bob)), true, 'another student is untouched');
   assert.ok(store.has('mnt-portal.lab-state.v1.other.x'), 'unrelated keys are untouched');
   console.log('signout-clears-local-state: ok');

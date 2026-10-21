@@ -445,12 +445,12 @@ async function signOut(reason = 'user_signed_out') {
     await Promise.race([settlePendingCaseStateWrites(), new Promise((resolve) => { giveUp = setTimeout(resolve, 3000); })])
       .finally(() => clearTimeout(giveUp));
   } catch (err) { console.error('pending case_state flush before sign-out failed', err); }
-  // Shared PC: remove this student's cached lab answers and engagement (keeps
+  // Shared PC: remove this student's server-synced cached lab answers (keeps
   // any lab whose unsynced marker is still set).
   if (signingOutUser) {
     try {
       LabRuntime.clearStudentLocalState(signingOutUser);
-      localStorage.removeItem(moduleEngagementKey(signingOutUser));
+      // Engagement keys are intentionally kept until they have a server copy.
     } catch (err) { console.error('local student state clear failed', err); }
   }
   // No live-refresh probe may run against the session being closed.

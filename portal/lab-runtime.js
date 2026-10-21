@@ -159,8 +159,13 @@ const LabRuntime = (() => {
     const suffix = `.${anonymousStudentId(user)}`;
     const keys = [];
     for (let i = 0; i < localStorage.length; i += 1) keys.push(localStorage.key(i));
+    // Only state routed through saveCaseState() carries savedAt; browser-only
+    // labs (load/save) have no server copy, so they are left alone.
+    const hasSavedAt = (k) => {
+      try { const v = JSON.parse(localStorage.getItem(k)); return !!(v && typeof v === 'object' && v.savedAt); } catch (e) { return false; }
+    };
     keys.filter((k) => k && k.startsWith(`${PREFIX}.`) && k.endsWith(suffix)
-      && localStorage.getItem(`${k}.unsynced`) === null)
+      && localStorage.getItem(`${k}.unsynced`) === null && hasSavedAt(k))
       .forEach((k) => localStorage.removeItem(k));
   }
 
