@@ -23,8 +23,46 @@ echo "== M03 normalization lab re-wire =="
 node tests/m03-normalization-lab-rewire.test.js
 node tests/m03-incident-unlink.test.js
 
+echo '== Prove It below-pass save and submitted latch =='
+node tests/below-pass-prove-it.test.js
+
+echo '== M01 UAT fixes =='
+node tests/m01-uat-fixes.test.js
+
+echo '== Ticket missing-list live refresh =='
+node tests/case-record-live-panel.test.js
+
+
+echo '== M02 Prove It title =='
+node tests/m02-prove-it-title.test.js
+
+echo '== Reviewed below-pass Prove It =='
+node tests/below-pass-review-state.test.js
+
+
+echo '== M02 Prove It title =='
+node tests/m02-prove-it-title.test.js
+
 echo '== Live refresh =='
 node tests/live-refresh.test.js
+
+echo '== Case-state unload recovery =='
+node tests/case-state-unload-recovery.test.js
+
+echo '== Sign-out clears local student state =='
+node tests/signout-clears-local-state.test.js
+
+echo '== Faculty roster =='
+node tests/faculty-roster.test.js
+
+echo '== Grading badge counts only gradable Prove It =='
+node tests/grading-badge.test.js
+
+echo '== Approved below pass =='
+node tests/approved-below-pass.test.js
+
+echo '== Admin Submission Sheet =='
+node tests/admin-submission-sheet.test.js
 
 echo '== Lab evidence files =='
 node tests/hdesk-evidence-upload.test.js

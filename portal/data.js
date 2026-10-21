@@ -2152,7 +2152,7 @@ const LABS = [
     parentAllocations: [allocation('SOC-101.4', 180), allocation('SOC-101.5', 180), allocation('SOC-101.6', 120)], objective: 'Correlate fixed identity, endpoint, and proxy evidence with little guidance; request proportionate containment; and produce a defensible handoff.',
     description: 'Work a freshly assigned case in the SOC ticketing console — review the evidence, complete the ticket, and submit a defensible disposition and handoff for faculty review.',
     skills: ['Case Ticketing', 'Identity Investigation', 'Endpoint Triage', 'Incident Escalation', 'Case Notes'] }),
-  labRecord({ key: 'lab-identity-investigation', module: 'soc-02', title: 'Suspicious Authentication Investigation', difficulty: 'Foundational', minutes: 180,
+  labRecord({ key: 'lab-identity-investigation', module: 'soc-02', title: 'Investigate HR file authorization', difficulty: 'Foundational', minutes: 180,
     parentAllocations: [allocation('SOC-101.4', 60), allocation('SOC-101.5', 120)], objective: 'Correlate authentication, network, and access-change records to identify and escalate one risky identity pattern.',
     description: 'Review user sign-in events, analyze privilege changes, and identify risky identity behavior.',
     skills: ['IAM', 'Sign-in Analysis', 'Privilege Escalation'], simEntry: '#/entra/risky-users' }),

@@ -465,7 +465,7 @@ function moduleTenCaseSpec() {
 function moduleTenCaseReviewStatus() {
   if (!moduleTenAssessmentState?.submitted) return '';
   const attempt = moduleTenUser?.latestLabAttemptByKey?.[MODULE_TEN_ASSESSMENT_KEY];
-  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  return caseRecordAttemptStatus(attempt);
 }
 
 function moduleTenCaseRedoRequested() {
@@ -506,6 +506,15 @@ let moduleTenGuidedState = null;
 let moduleTenAssessmentState = null;
 let moduleTenGuidedEvidenceState = null;
 
+// Unlock the Assessment Lab ticket so it can be sent again: after a redo, or
+// after a submit whose lab_attempts row never saved. `completed` clears too,
+// or moduleTenLoad() would mark the ticket submitted again.
+function moduleTenReopenAssessment() {
+  moduleTenAssessmentState.submitted = false;
+  moduleTenAssessmentState.completed = false;
+  moduleTenSaveAssessment();
+}
+
 function moduleTenLoad(user) {
   if (moduleTenUser?.email !== user?.email) { moduleTenQuizForceRetake = false; moduleTenLearnViewed = null; }
   moduleTenUser = user;
@@ -532,6 +541,12 @@ function moduleTenLoad(user) {
   if (typeof moduleTenAssessmentState.submitted !== 'boolean') moduleTenAssessmentState.submitted = false;
   if (typeof moduleTenAssessmentState.showMissing !== 'boolean') moduleTenAssessmentState.showMissing = false;
   if (moduleTenAssessmentState.completed && !moduleTenAssessmentState.submitted) moduleTenAssessmentState.submitted = true;
+  // A returned attempt, or a submit whose attempt never reached the database
+  // (proveItLatchIsStale), re-opens the ticket so it can be sent again.
+  if (moduleTenAssessmentState.submitted === true
+    && (moduleTenCaseRedoRequested() || (typeof proveItLatchIsStale === 'function' && proveItLatchIsStale(user, MODULE_TEN_ASSESSMENT_KEY)))) {
+    moduleTenReopenAssessment();
+  }
   // Hostnames moved to lower case (entity identity contract); keep tickets saved with the old upper-case
   // device id selected in the dropdown. Only values that match a current option ignoring case are rewritten.
   moduleTenAssessmentState.affectedDevice = moduleTenCanonicalDevice(moduleTenAssessmentState.affectedDevice, MODULE_TEN_CASE.deviceOptions);
@@ -1425,13 +1440,11 @@ function moduleTenFinalizeCase(root) {
   moduleTenAssessmentState.actionHistory.push({ action: 'Submitted case for faculty review', at: moduleTenAssessmentState.lastSubmittedAt });
   if (!moduleTenAssessmentState.flags.includes('M10-ASSESSMENT-LAB-COMPLETE')) moduleTenAssessmentState.flags.push('M10-ASSESSMENT-LAB-COMPLETE');
   moduleTenSaveAssessment();
-  if (moduleTenUser) {
-    moduleTenUser.latestLabAttemptByKey = { ...(moduleTenUser.latestLabAttemptByKey || {}), [MODULE_TEN_ASSESSMENT_KEY]: { completedAt: moduleTenAssessmentState.lastSubmittedAt, reviewedAt: null, redoRequested: false } };
-  }
   const spec = moduleTenCaseSpec();
-  if (typeof recordLabAttempt === 'function') {
-    recordLabAttempt(moduleTenUser, MODULE_TEN_ASSESSMENT_KEY, {
+  if (typeof recordProveItAttempt === 'function') {
+    recordProveItAttempt(moduleTenUser, MODULE_TEN_ASSESSMENT_KEY, {
       state: 'complete',
+      submittedAt: moduleTenAssessmentState.lastSubmittedAt,
       score: performance.score,
       result: {
         rubric_version: scored.rubricVersion,
@@ -1447,6 +1460,11 @@ function moduleTenFinalizeCase(root) {
         case_summary: caseRecordSummary(moduleTenAssessmentState, spec),
         notes: moduleTenAssessmentState.notes,
       },
+    }, () => {
+      moduleTenReopenAssessment();
+      const status = document.getElementById('m10-status');
+      if (status) status.textContent = 'In progress';
+      moduleTenRenderAssessment();
     }).then((saved) => {
       if (saved && moduleTenCaseRedoRequested()) delete moduleTenUser.openLabRedosByModuleKey['soc-10'];
     });
@@ -1491,6 +1509,7 @@ function wireModuleTenAssessmentLab() {
     if (event.target.tagName === 'TEXTAREA' && event.target.name === 'notes' && event.target.closest('#m10-assessment-form')) {
       caseRecordApply(moduleTenAssessmentState, 'notes', event.target.value);
       moduleTenSaveAssessment();
+      caseRecordRefreshPanel(moduleTenCaseTicket());
     }
   });
 }

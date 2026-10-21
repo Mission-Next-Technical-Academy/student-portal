@@ -176,8 +176,11 @@ async function fetchUserDetails(userId, trackCode) {
   // callers fall back to the client's LABS catalogue.
   let requiredLabsByModuleKey = null;
   let studentMessages = [];
+  // True only when this student's lab_attempts read succeeded, so an empty
+  // latestLabAttemptByKey means "no attempt" rather than "not loaded".
+  let labAttemptsLoaded = false;
   if (!trackCode) {
-    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, openLabRedoFeedbackByLabKey, latestLabAttemptByKey, reviewedLabFeedbackByLabKey, requiredLabsByModuleKey, studentMessages };
+    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, openLabRedoFeedbackByLabKey, latestLabAttemptByKey, labAttemptsLoaded, reviewedLabFeedbackByLabKey, requiredLabsByModuleKey, studentMessages };
   }
 
   const [
@@ -205,7 +208,7 @@ async function fetchUserDetails(userId, trackCode) {
     // redo clears on its own — no separate acknowledgment step needed.
     mntSupabase
       .from('lab_attempts')
-      .select('id, lab_key, completed_at, reviewed_at, redo_requested, superseded_at')
+      .select('id, lab_key, completed_at, reviewed_at, redo_requested, superseded_at, score, pass_threshold')
       .eq('user_id', userId)
       .eq('track_code', trackCode)
       .not('completed_at', 'is', null)
@@ -245,12 +248,13 @@ async function fetchUserDetails(userId, trackCode) {
   if (attemptsError) {
     console.error('fetchUserDetails: lab_attempts redo fetch failed', attemptsError);
   } else {
+    labAttemptsLoaded = true;
     const latestByLabKey = new Map();
     (attemptRows || []).forEach((row) => {
       if (!latestByLabKey.has(row.lab_key)) latestByLabKey.set(row.lab_key, row);
     });
     latestByLabKey.forEach((row, labKey) => {
-      latestLabAttemptByKey[labKey] = { completedAt: row.completed_at, reviewedAt: row.reviewed_at || null, redoRequested: row.redo_requested === true, supersededAt: row.superseded_at || null };
+      latestLabAttemptByKey[labKey] = { completedAt: row.completed_at, reviewedAt: row.reviewed_at || null, redoRequested: row.redo_requested === true, supersededAt: row.superseded_at || null, belowPass: typeof row.score === 'number' && row.score < (row.pass_threshold ?? 70) };
     });
     const openAttempts = Array.from(latestByLabKey.values()).filter((row) => row.redo_requested);
     // Notes left while approving were saved but never shown to the learner.
@@ -302,7 +306,7 @@ async function fetchUserDetails(userId, trackCode) {
     });
   }
 
-  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, openLabRedoFeedbackByLabKey, latestLabAttemptByKey, reviewedLabFeedbackByLabKey, requiredLabsByModuleKey, studentMessages };
+  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, openLabRedoFeedbackByLabKey, latestLabAttemptByKey, labAttemptsLoaded, reviewedLabFeedbackByLabKey, requiredLabsByModuleKey, studentMessages };
 }
 
 async function buildUserFromSession(session) {
@@ -433,7 +437,22 @@ async function signOut(reason = 'user_signed_out') {
   // (20260901140000_site_sessions_idle_timeout.sql).
   // Land any debounced lab work first: once the session is gone the write
   // would fail RLS and the learner's last edits would be lost.
-  try { await settlePendingCaseStateWrites(); } catch (err) { console.error('pending case_state flush before sign-out failed', err); }
+  const signingOutUser = await currentUser().catch(() => null);
+  // Bounded wait: a stalled network must not hang sign-out. Anything that has
+  // not landed keeps its unsynced marker and is therefore kept below.
+  try {
+    let giveUp;
+    await Promise.race([settlePendingCaseStateWrites(), new Promise((resolve) => { giveUp = setTimeout(resolve, 3000); })])
+      .finally(() => clearTimeout(giveUp));
+  } catch (err) { console.error('pending case_state flush before sign-out failed', err); }
+  // Shared PC: remove this student's server-synced cached lab answers (keeps
+  // any lab whose unsynced marker is still set).
+  if (signingOutUser) {
+    try {
+      LabRuntime.clearStudentLocalState(signingOutUser);
+      // Engagement keys are intentionally kept until they have a server copy.
+    } catch (err) { console.error('local student state clear failed', err); }
+  }
   // No live-refresh probe may run against the session being closed.
   if (portalLiveRefresh) portalLiveRefresh.stop();
   try {
@@ -796,7 +815,8 @@ function normalizeAdminTrackData({ rows, activeTrackCode, activeStudents, gradin
     // Owner rule (2026-10-05): LEARN IT and PRACTICE IT are autograded with
     // instant feedback; only PROVE IT waits on an instructor.
     trackGradingQueueRows: grading.pending.filter(adminNeedsInstructorReview),
-    trackAutogradedRows: grading.pending.filter((row) => !adminNeedsInstructorReview(row)),
+    trackAutogradedRows: grading.pending.filter((row) => adminAutogradedKind(row)),
+    trackLegacyRows: grading.pending.filter((row) => !adminAutogradedKind(row) && !adminNeedsInstructorReview(row)),
     trackSupersededRows: [...grading.superseded, ...trackStoredSuperseded.map(withAttempt)],
     trackGradedRows: trackGraded.map(withAttempt),
     trackOpenLabRedoRows: activeTrackCode ? filterByTrack(openLabRedoRows, activeTrackCode) : [],
@@ -897,7 +917,7 @@ function adminGradingControlsHtml(attemptIds, { approveLabel, sendBackLabel, bel
       <textarea id="admin-overall-note-${esc(attemptIds)}" data-feedback-comment rows="2" placeholder="Anything that is not about one section" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"></textarea>
     </div>
     <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-      <button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(attemptIds)}" class="${belowPass ? 'bg-gray-50 hover:bg-gray-100 text-gray-700' : 'bg-green-50 hover:bg-green-100 text-green-700'} font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${esc(approveLabel)}</button>
+      ${belowPass ? '<span class="text-xs text-amber-800" data-below-pass-note>Below the pass mark: return it for remediation so the learner can resubmit.</span>' : `<button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(attemptIds)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${esc(approveLabel)}</button>`}
       <button type="button" data-action="admin-grading-send-back" data-attempt-id="${esc(attemptIds)}" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${esc(sendBackLabel)}</button>
       <span data-grading-status class="text-xs text-gray-500"></span>
     </div>`;
@@ -908,7 +928,7 @@ function adminSubmissionSheetReviewCard(item, olderAttempt) {
   const row = item.lead;
   const threshold = row.pass_threshold ?? 70;
   const belowPassSubmission = row.score !== null && row.score !== undefined && Number(row.score) < Number(threshold);
-  const notesHtml = adminGradingControlsHtml(item.ids.join(','), { approveLabel: belowPassSubmission ? 'Approve (below pass mark: module stays locked)' : 'Approve submission', sendBackLabel: 'Return for remediation', belowPass: belowPassSubmission });
+  const notesHtml = adminGradingControlsHtml(item.ids.join(','), { approveLabel: 'Approve submission', sendBackLabel: 'Return for remediation', belowPass: belowPassSubmission });
   return `<article class="bg-white border border-gray-200 rounded-xl p-3 sm:p-4" data-grading-row="${esc(row.id)}">
     ${olderAttempt ? '<p class="mb-2 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Older attempt — a newer submission of this lab is below</p>' : ''}
     ${AdminSubmissionSheet.render(row, { item, notesHtml })}
@@ -1041,7 +1061,7 @@ function adminAttemptReviewCard(item, olderAttempt) {
     </div>
     <button type="button" data-action="admin-grading-add-item" class="text-xs font-semibold text-[#1e3a5f] hover:underline mb-3">+ Add another item</button>
     <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-      <button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(attemptIds)}" class="${belowPassSubmission ? 'bg-gray-50 hover:bg-gray-100 text-gray-700' : 'bg-green-50 hover:bg-green-100 text-green-700'} font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${belowPassSubmission ? 'Approve (below pass mark: module stays locked)' : simulatorPerformance ? 'Approve submission' : 'Approve'}</button>
+      ${belowPassSubmission ? '<span class="text-xs text-amber-800" data-below-pass-note>Below the pass mark: return it for remediation so the learner can resubmit.</span>' : `<button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(attemptIds)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${simulatorPerformance ? 'Approve submission' : 'Approve'}</button>`}
       <button type="button" data-action="admin-grading-send-back" data-attempt-id="${esc(attemptIds)}" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${simulatorPerformance ? 'Return for remediation' : 'Send back for redo'}</button>
       <span data-grading-status class="text-xs text-gray-500"></span>
     </div>
@@ -1060,11 +1080,12 @@ function adminOpenRedoRequestsHtml(redoRows) {
  * attempts awaiting review. */
 let adminOpenAttemptPanel = null; // reopened after a decision re-renders the tab
 
-function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRows = [], autogradedRows = [], openRedoRows = [] } = {}) {
+function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRows = [], autogradedRows = [], legacyRows = [], openRedoRows = [] } = {}) {
   const pending = new Set(pendingRows.map((row) => row.id));
   const superseded = new Set(supersededRows.map((row) => row.id));
   const autograded = new Set(autogradedRows.map((row) => row.id));
-  const groups = adminGroupGradingRows([...pendingRows, ...gradedRows, ...supersededRows, ...autogradedRows]);
+  const legacy = new Set(legacyRows.map((row) => row.id));
+  const groups = adminGroupGradingRows([...pendingRows, ...gradedRows, ...supersededRows, ...autogradedRows, ...legacyRows]);
   const pendingCount = adminGroupGradingRows(pendingRows).reduce((n, student) => n + student.items.length, 0);
   const header = `<div class="mb-6">
       <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Lab Attempts</h2>
@@ -1085,26 +1106,33 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
     const hasScore = row.score !== null && row.score !== undefined;
     const passing = hasScore && Number(row.score) >= Number(row.pass_threshold ?? 70);
     if (pending.has(row.id)) return { label: 'Under review', tone: 'bg-amber-50 text-amber-800 border-amber-300', dot: 'bg-amber-400' };
+    if (legacy.has(row.id)) return { label: 'Legacy', tone: 'bg-gray-50 text-gray-600 border-gray-200', dot: 'bg-gray-300' };
     if (superseded.has(row.id)) return { label: 'Not reviewed', tone: 'bg-gray-50 text-gray-600 border-gray-200', dot: 'bg-gray-300' };
     // A faculty send-back is "Returned" (the student is redoing it), not a fail.
     if (!autograded.has(row.id) && row.redo_requested) return { label: 'Returned', tone: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' };
+    if (!autograded.has(row.id) && hasScore && !passing) return { label: 'Approved below pass', tone: 'bg-amber-50 text-amber-800 border-amber-300', dot: 'bg-amber-400' };
     return autograded.has(row.id) && hasScore && !passing
       ? { label: 'Failed', tone: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' }
       : { label: 'Passed', tone: 'bg-green-50 text-green-800 border-green-200', dot: 'bg-green-500' };
   };
-  const outcomePill = (row) => (autograded.has(row.id)
+  const outcomePill = (row) => (legacy.has(row.id)
+    ? pill('Legacy · not gradable here', 'bg-gray-100 text-gray-600')
+    : autograded.has(row.id)
     ? pill('Autograded', 'bg-blue-50 text-[#1e3a5f]')
     : superseded.has(row.id)
     ? pill('Superseded · not reviewed', 'bg-gray-100 text-gray-600')
-    : row.redo_requested ? pill('Sent back for redo', 'bg-red-50 text-red-700') : pill('Approved', 'bg-green-50 text-green-700'));
+    : row.redo_requested ? pill('Sent back for redo', 'bg-red-50 text-red-700')
+    : (row.score !== null && row.score !== undefined && Number(row.score) < Number(row.pass_threshold ?? 70)) ? pill('Approved below pass', 'bg-amber-50 text-amber-800')
+    : pill('Approved', 'bg-green-50 text-green-700'));
   const recordRow = (item, open) => {
     const row = item.lead;
     const hasScore = row.score !== null && row.score !== undefined;
     const passing = hasScore && Number(row.score) >= Number(row.pass_threshold ?? 70);
+    const approvedBelowPass = hasScore && !passing && !!row.reviewed_at && !row.redo_requested && !autograded.has(row.id) && !superseded.has(row.id);
     // Decided attempts show the same sheet, read-only, with the notes that
     // were actually sent (row.sent_feedback, loaded with the graded rows).
     const sheet = adminHasSubmissionSheet(row)
-      ? AdminSubmissionSheet.render(row, { item, readOnly: true, sentFeedback: superseded.has(row.id) || autograded.has(row.id) ? undefined : row.sent_feedback })
+      ? AdminSubmissionSheet.render(row, { item, readOnly: true, sentFeedback: superseded.has(row.id) || autograded.has(row.id) || legacy.has(row.id) ? undefined : row.sent_feedback })
       : '';
     const ticket = sheet || adminCaseTicketSubmissionPanel(row);
     return `<details class="rounded-lg border border-gray-200 bg-white px-3 py-2.5" data-graded-row="${esc(row.id)}" ${open ? 'open' : ''}>
@@ -1116,6 +1144,12 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
       <p class="mt-1 text-xs text-gray-500">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}${row.reviewed_at ? ` · Reviewed ${new Date(row.reviewed_at).toLocaleString()}` : ''}</p>
       ${ticket ? `<div class="mt-3">${ticket}</div>` : ''}
       ${typeof itsEvidenceReviewPanel === 'function' ? itsEvidenceReviewPanel(row) : ''}
+      ${approvedBelowPass ? `<article class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3" data-approved-below-pass-return>
+        <p class="text-xs text-amber-900 mb-2">Approved below the pass mark: the module is still locked. Return it so the learner can resubmit.</p>
+        <label class="block text-xs font-semibold text-gray-600 mb-1" for="admin-return-note-${esc(row.id)}">Teacher note (required)</label>
+        <div class="feedback-item"><input type="hidden" data-feedback-label value="Overall" /><textarea id="admin-return-note-${esc(row.id)}" data-feedback-comment rows="2" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></textarea></div>
+        <div class="mt-2 flex flex-wrap items-center gap-2"><button type="button" data-action="admin-grading-send-back" data-attempt-id="${esc(row.id)}" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Return for remediation</button><span data-grading-status class="text-xs text-gray-500"></span></div>
+      </article>` : ''}
     </details>`;
   };
   const attemptHtml = (item, isLatest) => (pending.has(item.lead.id) ? adminAttemptReviewCard(item, !isLatest) : recordRow(item, isLatest));
@@ -1351,7 +1385,7 @@ function adminProgramRosterChip(label, value, tone) {
 
 function adminProgramRoster(rows) {
   return `<section aria-labelledby="program-roster-title" class="order-4 mb-6"><div class="flex items-end justify-between gap-4 mb-4"><div><h2 id="program-roster-title" class="text-2xl font-bold text-[#1e3a5f]">Student program progress</h2><p class="text-sm text-gray-500 mt-1">One work-item bar combines technical modules and accepted M360 weeks; it is not an attendance or credential claim.</p></div></div><div class="space-y-3">${rows.map((row) => {
-    const completed = Number(row.work_items_completed || 0); const required = Number(row.work_items_required || 18); const percent = Math.max(0, Math.min(100, Number(row.work_items_percent ?? (completed * 100 / required))));
+    const { completed, required, percent } = programWorkItemProgress(row);
     const technicalCompleted = Number(row.technical_completed || 0);
     const technicalRequired = Number(row.technical_required || 12);
     const technicalChip = adminProgramRosterChip('Technical', `${technicalCompleted} / ${technicalRequired}`, technicalCompleted >= technicalRequired ? 'good' : 'neutral');
@@ -3831,8 +3865,9 @@ const moduleCaseStateQueues = new Map();
  * fetch can return the row as it was before the learner's last action, and
  * Object.assign() would replace the newer in-session copy with it. */
 async function settlePendingCaseStateWrites() {
-  if (typeof LabRuntime !== 'undefined' && typeof LabRuntime.flushAllCaseStateWrites === 'function') LabRuntime.flushAllCaseStateWrites();
-  await Promise.all(Array.from(moduleCaseStateQueues.values()));
+  const flushed = (typeof LabRuntime !== 'undefined' && typeof LabRuntime.flushAllCaseStateWrites === 'function')
+    ? LabRuntime.flushAllCaseStateWrites() : null;
+  await Promise.all([flushed, ...Array.from(moduleCaseStateQueues.values())]);
 }
 
 async function persistModuleCaseState(user, moduleKey, labId, state) {
@@ -3874,6 +3909,7 @@ async function persistModuleCaseState(user, moduleKey, labId, state) {
     const live = user.remoteCaseState && user.remoteCaseState[moduleKey];
     const liveLabs = live && typeof live === 'object' && !live.labId ? live : {};
     user.remoteCaseState = { ...(user.remoteCaseState || {}), [moduleKey]: { ...caseState, ...liveLabs } };
+    return true;
   }).catch((err) => { console.error('module case_state persistence threw', moduleKey, labId, err); });
   moduleCaseStateQueues.set(queueKey, write);
   return write;
@@ -4049,6 +4085,12 @@ function markModuleLabComplete(user, programSlug, moduleKey, labKey, completed =
  * call. Same fire-and-forget/guard/error-logging convention as
  * upsertModuleProgress above: no session or no track_code silently skips the
  * write so local LabRuntime/engagement behavior is never affected. */
+// `${userId}:${labKey}` -> 'pending' | 'saved' for lab_attempts inserts made
+// in this tab. A route refresh can reload latestLabAttemptByKey while an
+// insert is still in flight; proveItLatchIsStale() reads this so it never
+// reopens a case whose attempt is on its way or already landed.
+const labAttemptSaves = new Map();
+
 function recordLabAttempt(user, labKey, {
   id = null, state, score = null, result = {}, submittedAt = null,
   rubricVersion = 'soc-analyst-rubric-v1',
@@ -4058,9 +4100,14 @@ function recordLabAttempt(user, labKey, {
   if (!user || !user.userId || !user.trackCode) return Promise.resolve(false);
   const now = submittedAt || new Date().toISOString();
   const savedState = state === 'complete' && typeof score === 'number' && score < passThreshold ? 'submitted' : state;
-  const notifySaveFailure = (error) => window.dispatchEvent(new CustomEvent('mnt:lab-attempt-save-failed', {
-    detail: { labKey, code: error && error.code || '', message: error && error.message || '' },
-  }));
+  const saveKey = `${user.userId}:${labKey}`;
+  if (labAttemptSaves.get(saveKey) !== 'saved') labAttemptSaves.set(saveKey, 'pending');
+  const notifySaveFailure = (error) => {
+    if (labAttemptSaves.get(saveKey) === 'pending') labAttemptSaves.delete(saveKey);
+    window.dispatchEvent(new CustomEvent('mnt:lab-attempt-save-failed', {
+      detail: { labKey, code: error && error.code || '', message: error && error.message || '' },
+    }));
+  };
   return Promise.resolve()
     .then(() => mntSupabase
       .from('lab_attempts')
@@ -4086,6 +4133,7 @@ function recordLabAttempt(user, labKey, {
         notifySaveFailure(error);
         return false;
       }
+      labAttemptSaves.set(saveKey, 'saved');
       const lab = LABS.find((item) => item.key === labKey);
       // Opted-in module cards read lab_attempts as loaded at sign-in; record
       // this saved row in that copy so the program page is current without a
@@ -4100,6 +4148,58 @@ function recordLabAttempt(user, labKey, {
       return refreshVerifiedModuleProgress(user, lab && lab.module).then(() => true);
     })
     .catch((err) => { console.error('lab_attempts insert threw', labKey, err); notifySaveFailure(err); return false; });
+}
+
+/* Prove It submitted latch (docs/handoffs/BUG_2026-10-17_PROVE_IT_BELOW_PASS_SILENTLY_DROPPED.md,
+ * follow-up). Each SOC Prove It saves its own "submitted" flag in case state
+ * before the lab_attempts insert resolves. These two helpers keep that flag
+ * honest for every module instead of one copy per module:
+ * - recordProveItAttempt() marks the lab "under review" in
+ *   latestLabAttemptByKey, saves the attempt (one row per lab key), and when a
+ *   signed-in save fails puts the previous entry back and runs the module's
+ *   own rollback so the student can submit again. The red banner from
+ *   mnt:lab-attempt-save-failed tells them why. Resolves true only when every
+ *   row saved.
+ * - proveItLatchIsStale() is for module load: true when the sign-in read of
+ *   lab_attempts succeeded, has no attempt for the lab, and this tab has no
+ *   pending or saved insert for it — a latch left behind by a save that never
+ *   landed. The module then reopens the case the same way it does for a redo. */
+function recordProveItAttempt(user, labKeys, fields, rollback) {
+  const allKeys = Array.isArray(labKeys) ? labKeys : [labKeys];
+  const previous = { ...((user && user.latestLabAttemptByKey) || {}) };
+  // A module that records one submit under several lab keys (M07, M08) can
+  // fail part-way. The server refuses a second pending attempt of a lab
+  // (20261005210000_one_pending_prove_it_submission.sql), so a resubmit sends
+  // only the keys still without one. If every key has one, send them all and
+  // let the refusal surface.
+  const awaitingReview = (key) => previous[key] && !previous[key].reviewedAt && !previous[key].redoRequested && !previous[key].supersededAt;
+  const unsent = allKeys.filter((key) => !awaitingReview(key));
+  const keys = unsent.length ? unsent : allKeys;
+  if (user) {
+    const completedAt = fields.submittedAt || new Date().toISOString();
+    user.latestLabAttemptByKey = { ...previous, ...Object.fromEntries(keys.map((key) => [key, { completedAt, reviewedAt: null, redoRequested: false, supersededAt: null }])) };
+  }
+  return Promise.all(keys.map((key) => recordLabAttempt(user, key, fields))).then((results) => {
+    if (results.every(Boolean)) return true;
+    // No session: nothing was sent, so there is no server record to match.
+    if (!user || !user.userId || !user.trackCode) return false;
+    const attempts = { ...(user.latestLabAttemptByKey || {}) };
+    keys.forEach((key, index) => {
+      if (results[index]) return;
+      if (previous[key]) attempts[key] = previous[key];
+      else delete attempts[key];
+    });
+    user.latestLabAttemptByKey = attempts;
+    if (typeof rollback === 'function') rollback();
+    return false;
+  });
+}
+
+function proveItLatchIsStale(user, labKeys) {
+  if (!user || user.labAttemptsLoaded !== true || !user.userId) return false;
+  const attempts = user.latestLabAttemptByKey || {};
+  return (Array.isArray(labKeys) ? labKeys : [labKeys])
+    .some((key) => !attempts[key] && !labAttemptSaves.has(`${user.userId}:${key}`));
 }
 
 /* An artifact is an immutable, server-stored snapshot of a submission.  This
@@ -4434,7 +4534,7 @@ function header(user, options = {}) {
   return `
   <header>
     <nav class="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100">
-      <div class="max-w-7xl mx-auto px-8 h-16 flex items-center justify-between">
+      <div class="max-w-7xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
         <!-- The asset is the full wordmark, so it stands alone. Pairing it with
              a "Mission Next / Technical Academy" text block would say the name twice. -->
         <div class="flex items-center min-w-0">
@@ -4449,12 +4549,12 @@ function header(user, options = {}) {
                  ${
                    (user.isAdmin || user.isInstructor)
                      ? ''
-                     : `<a href="#/portal" class="relative text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300 cursor-pointer px-4 py-2 rounded-lg hover:bg-[#1e3a5f]/8 group">
+                     : `<a href="#/portal" class="relative text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300 cursor-pointer px-3 sm:px-4 py-2 rounded-lg hover:bg-[#1e3a5f]/8 whitespace-nowrap group">
                           My Programs
                           <span class="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-[#f97316] rounded-full transition-all duration-300 group-hover:w-3/4"></span>
                         </a>
-                        <button type="button" data-message-instructor class="relative inline-flex items-center gap-1.5 text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300 cursor-pointer px-4 py-2 rounded-lg hover:bg-[#1e3a5f]/8 whitespace-nowrap group">
-                          <i class="ri-message-3-line" aria-hidden="true"></i> Message Instructor
+                        <button type="button" data-message-instructor aria-label="Message Instructor" title="Message Instructor" class="relative inline-flex items-center gap-1.5 text-gray-600 hover:text-[#1e3a5f] text-sm font-medium transition-all duration-300 cursor-pointer px-3 sm:px-4 py-2 rounded-lg hover:bg-[#1e3a5f]/8 whitespace-nowrap group">
+                          <i class="ri-message-3-line" aria-hidden="true"></i><span class="hidden sm:inline">Message Instructor</span>
                           <span class="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-[#f97316] rounded-full transition-all duration-300 group-hover:w-3/4"></span>
                         </button>`
                  }
@@ -4915,6 +5015,64 @@ function normalizeModuleStages(sections, state = {}) {
   return normalized;
 }
 
+// The Academy rail is the shared Prove It status surface. Keep its state
+// anchored to the same durable attempt rows used by the student and faculty
+// review views, rather than to a module's optimistic/local completion flag.
+const ACADEMY_PROVE_IT_KEYS_BY_MODULE = {
+  'soc-01': ['lab-soc-escalation'],
+  'soc-02': ['lab-identity-investigation'],
+  'soc-03': ['lab-siem-triage'],
+  'soc-04': ['lab-detection-rule'],
+  'soc-05': ['lab-endpoint-investigation'],
+  'soc-06': ['lab-threat-hunt-independent'],
+  'soc-07': ['lab-email-triage', 'lab-network-investigation', 'lab-network-email-independent'],
+  'soc-08': ['lab-vuln-prioritization', 'lab-vuln-queue'],
+  'soc-09': ['lab-active-incident'],
+  'soc-10': ['lab-attack-mapping'],
+  'soc-11': ['lab-exec-report'],
+  'soc-12': ['lab-capstone'],
+};
+
+function academyProveItReviewState(user, program, moduleKey) {
+  const registeredKeys = user?.requiredLabsByModuleKey?.[moduleKey];
+  const labKeys = ACADEMY_PROVE_IT_KEYS_BY_MODULE[moduleKey]
+    || (registeredKeys?.length ? registeredKeys : null)
+    || (typeof programLabs === 'function' ? programLabs(program).filter((lab) => lab.module === moduleKey && lab.optional !== true && lab.phase !== 'practice').map((lab) => lab.key) : []);
+  const attempts = (labKeys || []).map((key) => (user?.latestLabAttemptByKey || {})[key]).filter((attempt) => attempt?.completedAt && !attempt.supersededAt);
+  if (!attempts.length) {
+    const verified = user?.remoteVerifiedModuleProgress?.[moduleKey] === true;
+    return { state: verified ? 'approved' : '', complete: verified, label: '' };
+  }
+  if (attempts.some((attempt) => !attempt.reviewedAt && !attempt.redoRequested)) return { state: 'review', complete: false, label: 'In review' };
+  if (attempts.some((attempt) => attempt.redoRequested)) return { state: 'returned', complete: false, label: 'Returned' };
+  if (attempts.some((attempt) => attempt.belowPass)) return { state: 'approved-below-pass', complete: false, label: 'Approved below pass' };
+  return { state: 'approved', complete: true, label: 'Approved' };
+}
+
+function applyAcademyProveItReviewState(sections, state = {}) {
+  const context = typeof activeModuleRenderContext === 'function' ? activeModuleRenderContext() : null;
+  const moduleKey = context?.def?.moduleKey || state.stageKey || state.moduleKey;
+  if (!moduleKey || !context?.user) return sections;
+  const review = academyProveItReviewState(context.user, context.program, moduleKey);
+  const applyRow = (section) => {
+    const isProveItRow = section.phase === 'prove'
+      || section.title === 'Assessment Lab'
+      || section.title === 'Module Review';
+    const row = Array.isArray(section.items) ? { ...section, items: section.items.map(applyRow) } : section;
+    if (!isProveItRow || section.supplemental) return row;
+    return { ...row, isComplete: review.complete, reviewState: review.state, reviewLabel: review.label };
+  };
+  return sections.map(applyRow);
+}
+
+function academyProveItReviewSummaryHtml(html, user, program, moduleKey) {
+  const review = academyProveItReviewState(user, program, moduleKey);
+  if (!review.state) return html;
+  const label = review.label || (review.complete ? 'Approved' : 'In review');
+  return html.replace(/(<dt\b[^>]*>\s*Assessment Lab\s*<\/dt>\s*<dd\b[^>]*>)[\s\S]*?(<\/dd>)/i,
+    (_match, opening, closing) => `${opening.replace(/<dd\b/i, `<dd data-prove-review-state="${esc(review.state)}"`)}${esc(label)}${closing}`);
+}
+
 function moduleAssessmentState(moduleKey, user) {
   const labId = `academy-assessment-${moduleKey}`;
   return LabRuntime.load(labId, user, { rationale: '', submittedAt: '', attempts: 0 });
@@ -5036,6 +5194,9 @@ function moduleNavStatuses(rows, titleOf = (row) => row.title) {
   const blocker = rows[blockerIndex];
   return rows.map((row, index) => {
     if (!gated(row)) return { statusClass: 'munified-row-ungated', locked: false };
+    if (row.reviewState === 'review') return { statusClass: 'mnav-chip-review', locked: false };
+    if (row.reviewState === 'returned') return { statusClass: 'mnav-chip-returned', locked: false };
+    if (row.reviewState === 'approved-below-pass') return { statusClass: 'mnav-chip-review', locked: false };
     if (row.isComplete) return { statusClass: 'mnav-chip-complete', locked: false };
     if (blockerIndex >= 0 && blockerIndex < index) {
       return { statusClass: 'mnav-chip-locked', locked: true, reason: titleOf(blocker), target: blocker.scrollId };
@@ -5082,7 +5243,7 @@ function moduleNavLockAttrs(nav) {
  * the same way the mobile drawer toggle already works statelessly.
  */
 function moduleUnifiedNav(sections, state = {}) {
-  sections = normalizeModuleStages(sections, state);
+  sections = applyAcademyProveItReviewState(normalizeModuleStages(sections, state), state);
   if (!sections.length) return '';
 
   const moduleKey = state.moduleKey || 'm01';
@@ -5144,7 +5305,7 @@ function moduleUnifiedNav(sections, state = {}) {
       <i class="${esc(typeIcon[section.type] || 'ri-file-line')}" aria-hidden="true"></i>
       <span class="munified-row-label">${esc(navTitle)}</span>
       ${hasChildren ? `<span class="munified-row-sub">${childComplete}/${items.length}</span>` : ''}
-      ${!hasChildren && !section.isComplete && section.reviewState ? `<span class="munified-row-sub">${section.reviewState === 'returned' ? 'Returned' : 'In review'}</span>` : ''}
+      ${!hasChildren && section.reviewLabel ? `<span class="munified-row-sub">${esc(section.reviewLabel)}</span>` : ''}
       ${nav.locked ? '<i class="ri-lock-line mnav-lock-icon" aria-hidden="true"></i>' : ''}
       ${isGated && section.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
     </a>`;
@@ -6439,8 +6600,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   } = extra || {};
   const instructorDashboard = !!(user.isInstructor && !user.isAdmin);
   const facultyMessageTrackCodes = new Set(assignedFacultyMessageTrackCodes);
-  const gradingCountsByTrack = new Map();
-  gradingQueueRows.forEach((row) => gradingCountsByTrack.set(row.track_code, (gradingCountsByTrack.get(row.track_code) || 0) + 1));
+  const gradingCountsByTrack = adminGradableCountsByTrack(gradingQueueRows);
   const unreadMessageCountsByTrack = new Map();
   unreadMessageRows.forEach((row) => unreadMessageCountsByTrack.set(row.track_code, (unreadMessageCountsByTrack.get(row.track_code) || 0) + 1));
   const activeCohorts = cohorts.filter((c) => !c.archived_at);
@@ -6473,6 +6633,7 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   const trackGradedRows = normalizedTrackData.trackGradedRows || [];
   const trackSupersededRows = normalizedTrackData.trackSupersededRows || [];
   const trackAutogradedRows = normalizedTrackData.trackAutogradedRows || [];
+  const trackLegacyRows = normalizedTrackData.trackLegacyRows || [];
   const trackGradingItemCount = adminGroupGradingRows(trackGradingQueueRows).reduce((n, student) => n + student.items.length, 0);
   const trackFacultyMessageRows = normalizedTrackData.trackFacultyMessageRows || (activeTrackCode ? filterByTrack(facultyMessageRows, activeTrackCode) : []);
   const tabIsActive = (key) => key === activeTab;
@@ -7074,7 +7235,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
         </div>
 
         ${activeTrackCode ? `<div id="admin-tab-panel-grading" ${tabIsActive('grading') ? '' : 'hidden'}>
-          ${adminLabAttemptsPanel({ pendingRows: trackGradingQueueRows, gradedRows: trackGradedRows, supersededRows: trackSupersededRows, autogradedRows: trackAutogradedRows, openRedoRows: trackOpenLabRedoRows })}
+          ${adminLabAttemptsPanel({ pendingRows: trackGradingQueueRows, gradedRows: trackGradedRows, supersededRows: trackSupersededRows, autogradedRows: trackAutogradedRows, legacyRows: trackLegacyRows, openRedoRows: trackOpenLabRedoRows })}
         </div>` : ''}
         ${activeTrackCode ? `<div id="admin-tab-panel-messages" ${tabIsActive('messages') ? '' : 'hidden'}>
           ${adminMessageInboxPanel(trackFacultyMessageRows)}
@@ -9014,16 +9175,21 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
         if (feedbackError) throw feedbackError;
       }
 
-      const { error: reviewError } = await mntSupabase
+      const { data: reviewed, error: reviewError } = await mntSupabase
         .from('lab_attempts')
         .update({ reviewed_at: new Date().toISOString(), reviewed_by: adminUserId, redo_requested: !!redo })
-        .in('id', attemptIds);
+        .in('id', attemptIds)
+        .select('id');
       if (reviewError) throw reviewError;
+      // RLS filters unauthorised rows out silently; a short result means the
+      // attempt is still in the queue, so say so rather than "Approved".
+      if (!reviewed || reviewed.length < attemptIds.length) throw new Error('The review was not saved for every attempt (no permission or already changed). Reload and retry.');
 
       if (statusEl) statusEl.textContent = redo ? 'Sent back. Refreshing…' : 'Approved. Refreshing…';
       // The refresh re-opens the same attempt (adminOpenAttemptPanel), now
       // showing its recorded outcome instead of the review card.
-      await render({ reuseAdminRoster: true });
+      // Approve / send-back can change module completion, so re-read the roster.
+      await render({ reuseAdminRoster: false });
       return; // render() rebuilt the DOM and re-wired everything; this node set is stale now.
     } catch (err) {
       buttons.forEach((b) => { b.disabled = false; });
@@ -9577,7 +9743,7 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       mntSupabase.from('capstone_reviews').select('id, artifact_id, review_status, official_outcome, reviewed_by, reviewed_at, reviewer_notes, supervision_method').eq('user_id', row.user_id).eq('track_code', row.track_code).order('created_at', { ascending: false }),
     ]);
     if (panel.dataset.studentId !== studentId) return;
-    panel.innerHTML = renderStudentDetail(row, moduleRes.data || [], labRes.data || [], capstoneRes.data || [], scorecardRes.data || null, artifactRes.data || [], reviewRes.data || [], cheatingFlagsByUserId.get(row.user_id) || []);
+    panel.innerHTML = renderStudentDetail(row, moduleRes.data || [], labRes.data || [], capstoneRes.data || [], scorecardRes.data || null, artifactRes.data || [], reviewRes.data || [], cheatingFlagsByUserId.get(row.user_id) || [], !!user.isAdmin);
   }
 
   const archivedSearch = document.getElementById('archived-student-search');
@@ -9821,8 +9987,29 @@ function adminNumberAttempts(rows) {
   return numbers;
 }
 
+function adminAutogradedKind(row) {
+  return ['LEARN IT', 'PRACTICE IT'].includes(adminGradingLabMeta(row).kind);
+}
+
+// Only a current Prove It the instructor can open and decide from the Lab
+// Attempts tab is queue work (and badge-counted). Retired or unmapped lab keys
+// stay unreviewed forever, so they would pin the badge; they are listed apart
+// as "legacy" and never counted.
 function adminNeedsInstructorReview(row) {
-  return !['LEARN IT', 'PRACTICE IT'].includes(adminGradingLabMeta(row).kind);
+  const meta = adminGradingLabMeta(row);
+  // Other tracks keep the original rule (every non Learn/Practice row is work).
+  if (TRACK_CODE_TO_PROGRAM_SLUG[row.track_code] !== 'soc-analyst') return !adminAutogradedKind(row);
+  return meta.kind === 'PROVE IT' && meta.moduleKey !== 'other'
+    && LABS.some((lab) => lab.key === row.lab_key);
+}
+
+// Pending Prove It items per track that an instructor can actually clear.
+function adminGradableCountsByTrack(rows) {
+  const counts = new Map();
+  const byTrack = new Map();
+  (rows || []).filter(adminNeedsInstructorReview).forEach((row) => byTrack.set(row.track_code, [...(byTrack.get(row.track_code) || []), row]));
+  byTrack.forEach((trackRows, code) => counts.set(code, adminGroupGradingRows(trackRows).reduce((n, student) => n + student.items.length, 0)));
+  return counts;
 }
 
 function adminAttemptLabel(row) {
@@ -9862,7 +10049,7 @@ function adminDate(value) {
   return value ? new Date(value).toLocaleDateString() : '—';
 }
 
-function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRow, artifactRows = [], reviewRows = [], reviewFlagReasons = []) {
+function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRow, artifactRows = [], reviewRows = [], reviewFlagReasons = [], canOverrideModules = false) {
   const m360Detail = row.m360_required
     ? `<section class="mt-8"><h3 class="text-base font-semibold text-[#1e3a5f] mb-3">M360 Career Readiness</h3><div class="grid grid-cols-2 md:grid-cols-3 gap-3"><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Accepted weeks</p><p class="text-lg font-semibold text-[#1e3a5f]">${Number(row.m360_accepted_weeks || 0)} / ${Number(row.m360_required_weeks || 6)}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Final grade</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_final_grade == null ? '—' : esc(Number(row.m360_final_grade).toFixed(1))}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Start Here</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_start_here_complete ? 'Complete' : 'Not started'}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Networking confidence</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.networking_comfort == null ? '— / 5' : `${Number(row.networking_comfort)} / 5`}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Interview readiness</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.interview_readiness == null ? '— / 5' : `${Number(row.interview_readiness)} / 5`}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Course status</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_course_complete ? 'Complete' : 'In progress'}</p></div></div><p class="text-xs text-gray-500 mt-3">M360 is a separate career-readiness course record. It appears on the student transcript but is not technical-module credit.</p></section>`
     : '';
@@ -9891,9 +10078,9 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
                <tr class="border-b border-gray-100">
                  <td class="px-4 py-2 text-gray-900">${esc(adminModuleLabel(row.track_code, m.module_key))}</td>
                  <td class="px-4 py-2"><span style="color:${adminStateColor(m.state)}">${adminStateLabel(m.state)}</span>${m.admin_override ? ' <span class="text-xs font-semibold text-amber-700">(admin override)</span>' : ''}</td>
-                 <td class="px-4 py-2 text-gray-600">${m.percent}%</td>
+                 <td class="px-4 py-2 text-gray-600">${m.percent === null || m.percent === undefined || m.percent === '' ? '—' : `${esc(m.percent)}%`}</td>
                  <td class="px-4 py-2">
-                   <button type="button"
+                   ${!canOverrideModules ? '<span class="text-xs text-gray-400" title="Only a global administrator can override module completion">—</span>' : `<button type="button"
                      data-admin-module-override
                      data-user-id="${esc(row.user_id)}"
                      data-track-code="${esc(row.track_code)}"
@@ -9902,7 +10089,7 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
                      data-override-value="${m.admin_override ? 'false' : 'true'}"
                      class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border cursor-pointer ${m.admin_override ? 'bg-white border-gray-300 text-gray-600 hover:border-gray-400' : 'bg-[#1e3a5f] border-[#1e3a5f] text-white hover:bg-[#16304f]'}">
                      ${m.admin_override ? 'Remove override' : 'Mark complete (override)'}
-                   </button>
+                   </button>`}
                  </td>
                </tr>`).join('')}
            </tbody>

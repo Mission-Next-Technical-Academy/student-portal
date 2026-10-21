@@ -7,9 +7,10 @@ const MODULE_ONE_FLAG = 'M01-FIRST-ALERT-TRIAGED';
 const MODULE_ONE_CATALOG_LAB_KEY = 'lab-soc-environment';
 const MODULE_ONE_ROUTE = '#/program/soc-analyst/module/1';
 // Sign-in log pagination (moduleOneLogTable()) and the department-routing
-// fit score below which a submitted-to team kicks the ticket back to the
-// student unsubmitted rather than accepting it with a note (see
-// MODULE_ONE_ESCALATION_LAB.departmentOptions in portal/data.js).
+// fit score below which routing is flagged `bounced` in the stored breakdown
+// and the department's remediation note goes to the instructor. Prove It never
+// blocks or kicks back a submit over routing (see moduleOneProveItPerformance()
+// and MODULE_ONE_ESCALATION_LAB.departmentOptions in portal/data.js).
 const MODULE_ONE_LOG_PAGE_SIZE = 10;
 const MODULE_ONE_DEPARTMENT_BOUNCE_THRESHOLD = 40;
 
@@ -115,6 +116,10 @@ let moduleOneQuizForceRetake = false;
 // Set when Submit Lab is pressed with items still missing, so the list is
 // called out rather than the button silently refusing.
 let moduleOneProveItShowMissing = false;
+// True after a Prove It submit whose lab_attempts save failed, until the next try.
+let moduleOneProveItSaveFailed = false;
+// `email:evidence_key` already sent to module_completion_evidence this session.
+const moduleOneEvidenceSent = new Set();
 let moduleOneReviewMode = false;
 let moduleOneLastSyncedDetail = null;
 
@@ -131,7 +136,7 @@ function moduleOneProveItRedoRequested() {
 function moduleOneProveItReviewStatus() {
   if (!moduleOneState?.lab2?.submitted) return '';
   const attempt = moduleOneUser?.latestLabAttemptByKey?.['lab-soc-escalation'];
-  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  return caseRecordAttemptStatus(attempt);
 }
 
 // Instructor per-item notes from a returned attempt, shown wherever the
@@ -160,52 +165,56 @@ function moduleOneFinalizeProveIt() {
     return;
   }
   moduleOneProveItShowMissing = false;
+  moduleOneProveItSaveFailed = false;
   moduleOneState.lab2.submitted = true;
   moduleOneState.lab2.submittedAt = new Date().toISOString();
   moduleOneState.lab2.completed = true;
-  moduleOneState.lab2.attempts = (moduleOneState.lab2.attempts || 0) + 1;
   moduleOneState.lab2.score = performance.score;
   moduleOneState.lab2.breakdown = performance.breakdown;
   moduleOneState.lab2.actionHistory.push({ action: 'Submitted case for faculty review', at: moduleOneState.lab2.submittedAt });
   moduleOneSave();
-  const previousAttempt = moduleOneUser?.latestLabAttemptByKey?.['lab-soc-escalation'];
-  if (moduleOneUser) {
-    moduleOneUser.latestLabAttemptByKey = { ...(moduleOneUser.latestLabAttemptByKey || {}), 'lab-soc-escalation': { completedAt: moduleOneState.lab2.submittedAt, reviewedAt: null, redoRequested: false } };
-  }
-  if (typeof recordLabAttempt === 'function') {
+  if (typeof recordProveItAttempt === 'function') {
     // case_display (2026-10-17, additive): the ticket rows with the labels the
     // student saw, so the instructor Submission Sheet never shows option ids.
     const scenario = MODULE_ONE_ESCALATION_LAB.scenario;
     const caseDisplay = typeof caseRecordDisplay === 'function'
       ? caseRecordDisplay(moduleOneState.lab2, { caseId: scenario.caseId || scenario.id, incidentIds: scenario.incidentId, dispositionOptions: MODULE_ONE_ESCALATION_LAB.verdictOptions, departmentOptions: MODULE_ONE_ESCALATION_LAB.departmentOptions })
       : undefined;
-    recordLabAttempt(moduleOneUser, 'lab-soc-escalation', { state: 'complete', score: performance.score, result: { breakdown: performance.breakdown, feedback: performance.feedback, critical_errors: performance.criticalErrors, case_record: moduleOneState.lab2, case_display: caseDisplay } })
-      .then((saved) => {
-        // The new append-only attempt supersedes the returned attempt in the
-        // student UI. Faculty approval remains required by the server view.
-        if (saved && moduleOneProveItRedoRequested()) delete moduleOneUser.openLabRedosByModuleKey['soc-01'];
-        if (!saved) {
-          moduleOneState.lab2.submitted = false;
-          moduleOneState.lab2.completed = false;
-          moduleOneState.lab2.submittedAt = '';
-          moduleOneState.lab2.actionHistory = moduleOneState.lab2.actionHistory.filter((item) => item.action !== 'Submitted case for faculty review');
-          moduleOneSave();
-          if (moduleOneUser) {
-            moduleOneUser.latestLabAttemptByKey = { ...(moduleOneUser.latestLabAttemptByKey || {}) };
-            if (previousAttempt) moduleOneUser.latestLabAttemptByKey['lab-soc-escalation'] = previousAttempt;
-            else delete moduleOneUser.latestLabAttemptByKey['lab-soc-escalation'];
-          }
-          moduleOneRenderReviewDynamic('m01-review-submission');
-          moduleOneRefreshHeroProgress();
-        }
-      });
+    recordProveItAttempt(moduleOneUser, 'lab-soc-escalation', { state: 'complete', submittedAt: moduleOneState.lab2.submittedAt, score: performance.score, result: { breakdown: performance.breakdown, feedback: performance.feedback, critical_errors: performance.criticalErrors, case_record: moduleOneState.lab2, case_display: caseDisplay } }, () => {
+      moduleOneState.lab2.submitted = false;
+      moduleOneState.lab2.completed = false;
+      moduleOneState.lab2.submittedAt = '';
+      moduleOneState.lab2.actionHistory = moduleOneState.lab2.actionHistory.filter((item) => item.action !== 'Submitted case for faculty review');
+      moduleOneProveItSaveFailed = true;
+      moduleOneSave();
+      moduleOneRenderReviewDynamic('m01-review-submission');
+      moduleOneRefreshHeroProgress();
+    }).then((saved) => {
+      // The new append-only attempt supersedes the returned attempt in the
+      // student UI. Faculty approval remains required by the server view.
+      if (saved && moduleOneProveItRedoRequested()) delete moduleOneUser.openLabRedosByModuleKey['soc-01'];
+      // Count the attempt and mark the lab complete only once the save landed.
+      // recordProveItAttempt() resolves false after rolling back; no session
+      // means nothing was sent, so there is nothing to roll back or wait for.
+      if (saved) moduleOneCountProveItSubmit();
+    });
+    if (moduleOneUser?.userId && moduleOneUser?.trackCode) {
+      moduleOneRenderReviewDynamic('m01-review-submission'); moduleOneRefreshHeroProgress();
+      return;
+    }
   }
+  moduleOneCountProveItSubmit();
+}
+
+function moduleOneCountProveItSubmit() {
+  moduleOneState.lab2.attempts = (moduleOneState.lab2.attempts || 0) + 1;
+  moduleOneSave();
   if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleOneUser, 'soc-analyst', 'soc-01', 'lab-soc-escalation');
   moduleOneSyncCompletion(); moduleOneRenderReviewDynamic('m01-review-submission'); moduleOneRefreshHeroProgress();
 }
 
 function moduleOneUnstickMissingAttempt(state, user) {
-  if (!state?.lab2?.submitted || user?.latestLabAttemptByKey?.['lab-soc-escalation']) return false;
+  if (!state?.lab2?.submitted || typeof proveItLatchIsStale !== 'function' || !proveItLatchIsStale(user, 'lab-soc-escalation')) return false;
   state.lab2.submitted = false;
   state.lab2.completed = false;
   state.lab2.submittedAt = '';
@@ -320,6 +329,7 @@ function moduleOneSyncDetailBeacon() {
     lessonsComplete: lessonsComplete || remoteDetail.lessonsComplete === true,
   };
   const serializedDetail = JSON.stringify(detail);
+  moduleOneSyncCompletionEvidence();
   if (serializedDetail === moduleOneLastSyncedDetail) return;
   upsertModuleProgress(moduleOneUser, 'soc-01', { detail });
   moduleOneLastSyncedDetail = serializedDetail;
@@ -327,15 +337,25 @@ function moduleOneSyncDetailBeacon() {
   // (before a full page reload re-fetches remoteModuleDetail) still ratchets
   // against the value we just wrote, not the stale one from page load.
   moduleOneUser.remoteModuleDetail = { ...(moduleOneUser.remoteModuleDetail || {}), 'soc-01': detail };
-  // The backend needs each requirement, not a single aggregate boolean. This
-  // is idempotent and records only requirements the learner actually met.
+}
+
+// The backend needs each requirement, not a single aggregate boolean. Runs on
+// every save (not only when `detail` changes) so each lesson's row is written
+// when that lesson is completed. Idempotent: a key is sent once per session
+// unless the write failed.
+function moduleOneSyncCompletionEvidence() {
+  if (typeof recordModuleCompletionEvidence !== 'function') return;
   const evidenceKeys = (MODULE_ONE_ALERT_ORIENTATION.lessons || [])
     .filter((lesson) => moduleOneLessonComplete(lesson))
     .map((lesson) => `lesson-${lesson.number}`);
   if (moduleOneState.quiz?.passed === true) evidenceKeys.push('knowledge-check');
-  if (typeof recordModuleCompletionEvidence === 'function' && evidenceKeys.length) {
-    recordModuleCompletionEvidence(moduleOneUser, 'soc-01', evidenceKeys);
-  }
+  const user = moduleOneUser;
+  const pending = evidenceKeys.filter((key) => !moduleOneEvidenceSent.has(`${user.email}:${key}`) && user.remoteModuleEvidence?.['soc-01']?.[key] !== true);
+  if (!pending.length) return;
+  pending.forEach((key) => moduleOneEvidenceSent.add(`${user.email}:${key}`));
+  Promise.resolve(recordModuleCompletionEvidence(user, 'soc-01', pending)).then(() => {
+    pending.forEach((key) => { if (user.remoteModuleEvidence?.['soc-01']?.[key] !== true) moduleOneEvidenceSent.delete(`${user.email}:${key}`); });
+  });
 }
 
 function moduleOneSave() {
@@ -532,7 +552,7 @@ function moduleOneProgress() {
   const guidedLabStarted = guidedLabComplete || Boolean(moduleOneState?.consoleStarted);
   const assessmentLabComplete = verified || Boolean(moduleOneState?.lab2?.completed);
   const assessmentLabStarted = assessmentLabComplete || Boolean(
-    moduleOneState?.lab2 && (moduleOneState.lab2.reviewedEvidence?.length || moduleOneState.lab2.intake
+    moduleOneState?.lab2 && (moduleOneState.lab2.reviewedEvidence?.some((id) => id !== 'owner') || moduleOneState.lab2.intake
       || moduleOneState.lab2.priority || moduleOneState.lab2.containment || moduleOneState.lab2.verdict),
   );
   // verified first, matching guidedLabComplete/assessmentLabComplete above —
@@ -653,6 +673,13 @@ function moduleOneProveItPerformance() {
     criticalErrors,
   };
 }
+// Shown in the submission panel beside Submit Lab (the page-top banner from
+// app.js sits above the fold once the student has scrolled to the ticket).
+function moduleOneProveItSaveFailedHtml() {
+  if (!moduleOneProveItSaveFailed || moduleOneState?.lab2?.submitted) return '';
+  return '<p class="m01-help" role="alert"><strong>Your submission did not reach your instructor.</strong> Nothing was lost: check your connection and press Submit Lab again. If it keeps happening, use Message Instructor.</p>';
+}
+
 function moduleOneProveItSubmissionPanel() {
   return caseRecordPanel({
     panelId: 'm01-review-submission',
@@ -660,7 +687,7 @@ function moduleOneProveItSubmissionPanel() {
     submitted: moduleOneState.lab2.submitted,
     reviewStatus: moduleOneProveItReviewStatus(),
     redoRequested: moduleOneProveItRedoRequested(),
-    redoHtml: moduleOneProveItRedoFeedback(),
+    redoHtml: moduleOneProveItSaveFailedHtml() + moduleOneProveItRedoFeedback(),
     showMissing: moduleOneProveItShowMissing,
   });
 }
@@ -1610,11 +1637,17 @@ function wireModuleOneProveItCaseConsole() {
     if (field.tagName === 'TEXTAREA' && field.name === 'notes') {
       moduleOneState.lab2.notes = field.value;
       moduleOneSave();
+      caseRecordRefreshPanel(moduleOneProveItSubmissionPanel());
     }
   });
 }
 
 function wireModuleOneLab() {
+  // Every registered module's wire() runs after each render. Module 02 also
+  // carries .m01-shell (shared styling), so key on Module 1's own heading and
+  // leave every other page alone: the Review Module toggle there belongs to
+  // that module.
+  if (!document.getElementById('m01-title')) return;
   wireModuleOneCaseConsole();
   wireModuleOneProveItCaseConsole();
   const reviewToggle = document.querySelector('[data-mnav-review-toggle]');

@@ -514,7 +514,7 @@ function moduleElevenCasePerformance() {
 function moduleElevenCaseReviewStatus() {
   if (!moduleElevenReportState?.submitted) return '';
   const attempt = moduleElevenUser?.latestLabAttemptByKey?.[MODULE_ELEVEN_REPORT_CATALOG_KEY];
-  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  return caseRecordAttemptStatus(attempt);
 }
 
 function moduleElevenCaseRedoRequested() {
@@ -557,6 +557,15 @@ function moduleElevenReportFreshDefaults() {
   };
 }
 
+// A Prove It submit whose lab_attempts row never saved (recordProveItAttempt
+// rollback, or proveItLatchIsStale on load): unlock it so the student can
+// send it again.
+function moduleElevenReopenUnsavedReport() {
+  moduleElevenReportState.submitted = false;
+  moduleElevenReportState.completed = false;
+  moduleElevenSaveReport();
+}
+
 function moduleElevenLoad(user) {
   if (moduleElevenUser?.email !== user?.email) { moduleElevenQuizForceRetake = false; moduleElevenLearnViewed = null; }
   moduleElevenUser = user;
@@ -589,6 +598,10 @@ function moduleElevenLoad(user) {
   if (typeof moduleElevenReportState.submitted !== 'boolean') moduleElevenReportState.submitted = false;
   if (typeof moduleElevenReportState.showMissing !== 'boolean') moduleElevenReportState.showMissing = false;
   if (moduleElevenReportState.completed && !moduleElevenReportState.submitted) moduleElevenReportState.submitted = true;
+  // A submit whose attempt never reached the database: re-open it to resend.
+  if (moduleElevenReportState.submitted === true && typeof proveItLatchIsStale === 'function' && proveItLatchIsStale(user, MODULE_ELEVEN_REPORT_CATALOG_KEY)) {
+    moduleElevenReopenUnsavedReport();
+  }
 
   // Initialize quiz state
   if (!moduleElevenQuizState) {
@@ -954,11 +967,13 @@ function moduleElevenAssessmentLabPanel() {
   // this panel has no case ticket to carry the redo state like other modules.
   const redo = moduleElevenCaseRedoRequested();
   const submitted = moduleElevenReportState.submitted === true && !redo;
-  const graded = moduleElevenCaseReviewStatus() === 'graded';
+  const reviewStatus = moduleElevenCaseReviewStatus();
+  const graded = reviewStatus === 'graded';
+  const notPassed = reviewStatus === 'not-passed';
   return `<section class="m11-external-lab" id="m11-assessment-lab-panel">
     <p class="m11-panel-instruction">Complete the shift assessment in the Operations and Reporting tabs, then submit for faculty review. Imported practice is listed separately under Optional Labs.</p>
     ${redo ? `<p role="status"><strong>Returned for remediation.</strong> Review your instructor's feedback, update the Operations and Reporting tabs, then resubmit.</p>${moduleElevenCaseRedoFeedback()}` : ''}
-    ${submitted ? `<p role="status">${graded ? 'Lab graded' : 'Submitted for faculty review'}</p>${graded ? caseRecordGradedFeedbackHtml() : ''}` : `<p><button type="button" data-m11-submit-score>${redo ? 'Resubmit shift assessment' : 'Submit shift assessment'}</button></p>`}
+    ${submitted ? `<p role="status">${graded ? 'Lab graded' : notPassed ? `<strong>Reviewed — not passed yet.</strong> ${CASE_RECORD_NOT_PASSED_BODY}` : 'Submitted for faculty review'}</p>${graded || notPassed ? caseRecordGradedFeedbackHtml() : ''}` : `<p><button type="button" data-m11-submit-score>${redo ? 'Resubmit shift assessment' : 'Submit shift assessment'}</button></p>`}
   </section>`;
 }
 
@@ -1377,20 +1392,20 @@ function moduleElevenFinalizeCase(root) {
   moduleElevenReportState.actionHistory.push({ action: 'Submitted case for faculty review', at: moduleElevenReportState.lastSubmittedAt });
   if (!moduleElevenReportState.flags.includes(MODULE_ELEVEN_REPORT_FLAG)) moduleElevenReportState.flags.push(MODULE_ELEVEN_REPORT_FLAG);
   moduleElevenSaveReport();
-  if (moduleElevenUser) {
-    moduleElevenUser.latestLabAttemptByKey = { ...(moduleElevenUser.latestLabAttemptByKey || {}), [MODULE_ELEVEN_REPORT_CATALOG_KEY]: { completedAt: moduleElevenReportState.lastSubmittedAt, reviewedAt: null, redoRequested: false } };
-  }
   // Clear the returned state now so the panel shows the resubmission at once;
   // put it back only if the attempt fails to save.
   const openRedo = moduleElevenCaseRedoRequested() ? moduleElevenUser.openLabRedosByModuleKey['soc-11'] : null;
   if (openRedo) delete moduleElevenUser.openLabRedosByModuleKey['soc-11'];
-  if (typeof recordLabAttempt === 'function') {
-    recordLabAttempt(moduleElevenUser, MODULE_ELEVEN_REPORT_CATALOG_KEY, {
+  if (typeof recordProveItAttempt === 'function') {
+    recordProveItAttempt(moduleElevenUser, MODULE_ELEVEN_REPORT_CATALOG_KEY, {
       state: 'complete',
+      submittedAt: moduleElevenReportState.lastSubmittedAt,
       score: scored.score,
       result: { ...scored, action_history: moduleElevenOpsState.actionHistory },
-    }).then((saved) => {
-      if (!saved && openRedo) { moduleElevenUser.openLabRedosByModuleKey['soc-11'] = openRedo; root.innerHTML = moduleElevenAssessmentLabPanel(); }
+    }, () => {
+      if (openRedo) moduleElevenUser.openLabRedosByModuleKey['soc-11'] = openRedo;
+      moduleElevenReopenUnsavedReport();
+      root.innerHTML = moduleElevenAssessmentLabPanel();
     });
   }
   if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleElevenUser, 'soc-analyst', 'soc-11', MODULE_ELEVEN_REPORT_CATALOG_KEY);

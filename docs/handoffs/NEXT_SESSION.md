@@ -1,3 +1,37 @@
+**Owner environment note (2026-10-21):** through 2026-11-02, treat all supplied credentials as staging credentials, regardless of the portal banner. Alex clarified that the currently open pre-launch UAT environment is synthetic even if its banner says “prod.” Continue in the existing logged-in student/faculty sessions; do not substitute credentials or infer the environment from the banner. Do not launch `bin/dev.sh` for this clickthrough.
+
+**SOC student-lifecycle UAT persistence rule (2026-10-21; applies to every module and every continuation of this UAT):** before marking any module/surface complete, inventory and verify **every editable student input** across Learn It, Practice It, Prove It, and supplemental labs. Explicitly include every quiz choice and answer, text/editor field, query and query name, saved/scheduled query and schedule setting, rule/configuration, pin/unpin and evidence selection, verdict/rationale, note, ticket field, dropdown, checkbox/toggle, automation body/payload, workflow/guide state, Prove It response, and attempt/review state. Save via the UI, reopen the same surface and verify each control, then perform at least one full student-tab `localStorage` clear while preserving the existing signed-in session, refresh, and recheck **every inventoried value and saved artifact** for that module. Repeat the clear-and-refresh check for any surface changed by a later edit, submission, return, or review. Record control counts and field-by-field results, including blanks, inaccessible controls, or other gaps, in `docs/handoffs/STUDENT_LIFECYCLE_RUN_2026-10-21.md`; a generic “state persisted” note is insufficient. No database commands or data fixes during this UAT. The module is not persistence-complete until this inventory and verification are complete.
+
+**Global Prove It status/color rule (SOC M01–M12; all Prove It labs and every continuation of this UAT):** every genuine, persisted submission awaiting faculty review must show a consistent **yellow** pending/review state across student and instructor views until faculty resolves it. Do not show a pending Prove It lab as green/complete or unlock the next module before approval. On approval, show the approved state in **green** and unlock only according to the passing/approval rules. On a failed/returned result, show **red** and make the required reattempt state clear; after a new valid attempt is submitted, return to **yellow** pending review. Check all modules and all relevant student/instructor surfaces after submit, reload, localStorage-clear recovery, approval, and return. A below-pass attempt must not be approved; record the attempt number, score, threshold, and decision separately. A persisted attempt proves submission only, not approval or module completion.
+
+**PR #79 submit-latch invariant:** yellow “submitted/awaiting review” is allowed only after the attempt is durably saved and available in the instructor queue. If save fails, the UI must show the failure, reopen the work for retry, and never leave a false submitted/yellow latch. Exercise this alongside the global color lifecycle for every Prove It lab, including quick reload and tab-close recovery checks where applicable.
+
+**Global status implementation checkpoint (2026-10-21):** the shared Academy navigation now derives Prove It and Module Review state from the latest durable instructor-review attempt. Pending is yellow and excluded from progress, returned is red and remains available for remediation, passing approval is green, and approved-below-pass is amber/incomplete. SOC M01–M12 assessment keys are explicit; other tracks use registered required-lab keys. Shared changes are in `portal/app.js`, `portal/module-registry.js`, `portal/module-labs.css`, and their `portal/index.html` cache-busters; PR #79's save/submit logic and SOC coursework did not change. Source syntax and diff whitespace checks passed. Browser verification on the M05 pending attempt confirmed yellow Assessment Lab/Module Review navigation rows and an “In review” yellow Assessment Lab summary; a subsequent Playwright snapshot timed out because the page stayed at Loading. The M05 below-pass attempt remains untouched pending faculty return. No Supabase migration or database command was needed. Full details: `docs/handoffs/STUDENT_LIFECYCLE_RUN_2026-10-21.md` and `docs/handoffs/SAVE_AND_SUBMIT_FIXES_2026-10-21.md`.
+
+**2026-10-21 (Alex; PR #79 "SOC: keep every edit and never fake a submit"; READ FIRST — Megan and all devs):**
+Full notes, the WHY, and Help Desk recommendations:
+`docs/handoffs/SAVE_AND_SUBMIT_FIXES_2026-10-21.md`.
+- **Do not edit SOC Analyst coursework** (`portal/soc-analyst-module-*.js`,
+  `portal/soc-m*-assessment-*.js`, `portal/soc-console-*.js` and the other
+  SOC files listed in section 3 of that doc). It is under an end-to-end
+  student-lifecycle UAT (`docs/handoffs/STUDENT_LIFECYCLE_RUN_2026-10-21.md`),
+  and any change there invalidates the test evidence. Ask Alex instead.
+- **Shared save/submit logic is review-with-Alex only:** `portal/lab-runtime.js`,
+  and in `portal/app.js` `recordLabAttempt`, `recordProveItAttempt`,
+  `proveItLatchIsStale`, `persistModuleCaseState`, sign-out flush. In
+  `portal/index.html` bump only your own files' `?v=`.
+- What #79 fixes, all SOC modules M01–M12: (1) a reload or tab close within
+  about a second of a change no longer loses it (B9). An unsynced marker
+  keeps the newer browser copy and resends it instead of letting the older
+  server row overwrite it. (2) A failed Prove It save no longer leaves
+  "Submitted for faculty review" with nothing in the instructor queue. It
+  rolls back with a red banner, and already-stuck students are reopened on
+  load. (3) Returned M10/M12 work reopens for a redo.
+- Help Desk has the same class of problems. The worst is H1: simulator ticket
+  work (`defender-lab.helpdesk.state.v1`) is shared by every student on the
+  same browser and never saved to the database. Recommended fixes are in
+  section 4 of the doc. Alex will not edit Help Desk coursework.
+
 **2026-10-20 (Megan; PR #80 "Help Desk: failed capstones reach instructor review; no score shown before review"; Help Desk files plus shared `portal/index.html` version lines, `bin/ci-check.sh` one test line, and `portal/it-support-shared.js` — please review those):**
 The Help Desk capstone (Module 12) now sends every submitted attempt to the
 instructor's Lab Attempts queue. Before, a failed attempt was saved as
@@ -688,3 +722,18 @@ planning or coding that arc.
 The grading/notification system is complete. The full chronological handoff,
 including completed September sessions and prior open-item context, is at
 `archive/session-logs/NEXT_SESSION_THROUGH_2026-09-16.md`.
+
+
+**UAT stopping checkpoint (2026-10-21):** the M05 below-pass attempt is still pending faculty return, so do not continue into M06 until the existing authenticated faculty interface is reachable and the attempt is returned. Playwright currently has one signed-in student tab at M03; the former faculty origin at 127.0.0.1:8769 redirects to login with no saved auth session. No faculty decision was made. Continue from the exact attempt ID, score, and evidence in `STUDENT_LIFECYCLE_RUN_2026-10-21.md`. The global status fix now includes the Assessment Lab hero summary as well as navigation; browser lifecycle verification for other modules/states remains open.
+
+
+**Latest UAT resume evidence (2026-10-21):** after restarting the already-authorized local pre-launch portal server on 8768, the student session loaded again. M02–M04 show approved green status; M05 remains yellow/in review, with the summary fixed. A full student localStorage clear preserved M02's saved approved work and M05's Learn It completion, Guided Lab completion, and pending review state. See the latest section in `STUDENT_LIFECYCLE_RUN_2026-10-21.md` for control counts, values, and limits. The loader disappeared after startup completed; that initial snapshot was not a confirmed bug. The exact old faculty origin on 8769 now serves the portal but redirects to login with no existing session storage. No credentials were entered; M05 cannot progress until Alex restores the authenticated faculty session.
+
+
+**Latest continuation: M01 recovery check (2026-10-21):** after the recent full student-localStorage clear, Module 01 reopened as 100% complete with Assessment Lab Approved. The page restored 40/40 checked Learn It radio groups with Correct feedback, plus saved/read-only ticket fields and notes (134 controls total). Attempt ordinal/score and full per-input exercise remain gaps. This does not unblock the student: M05 is still pending at 10% / 70% and no authenticated faculty session is available. See the latest M01 section in `STUDENT_LIFECYCLE_RUN_2026-10-21.md`; do not proceed to M06 until an authorized faculty return and passing redo/approval are verified.
+
+
+**Local UAT harness note (2026-10-21):** `bin/serve.py` on port 8768 stalled twice on a Chrome full-page navigation (single-threaded server accepted one open request and queued others). The Playwright navigation timeout did not mean the browser tab ended. The same server command was restarted only after confirming the port did not answer; HTTP 200 and the existing signed-in page returned. See the latest run-log section. This is a local harness limitation, not a confirmed portal loader defect.
+
+
+**Pause checkpoint file (2026-10-21):** see [`SOC_UAT_PROGRESS_CHECKPOINT_2026-10-21.md`](SOC_UAT_PROGRESS_CHECKPOINT_2026-10-21.md) for the current per-module status, M03 DOM inventory baseline, known gaps, environment state, and exact next actions. The UAT remains open; do not pass the M05 10% attempt.

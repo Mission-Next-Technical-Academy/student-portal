@@ -450,7 +450,7 @@ function moduleEightProveItRedoRequested() {
 function moduleEightProveItReviewStatus() {
   if (!moduleEightState?.caseRecord?.submitted) return '';
   const attempt = moduleEightUser?.latestLabAttemptByKey?.[MODULE_EIGHT_PRIORITY_CATALOG_KEY];
-  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  return caseRecordAttemptStatus(attempt);
 }
 
 function moduleEightProveItRedoFeedback() {
@@ -549,6 +549,16 @@ let moduleEightGuidedFilters = {};
 let moduleEightQuizForceRetake = false;
 let moduleEightReviewMode = false;
 
+// A Prove It submit whose lab_attempts row never saved (recordProveItAttempt
+// rollback, or proveItLatchIsStale on load): unlock the ticket so the student
+// can send it again.
+function moduleEightReopenUnsavedAssessment() {
+  moduleEightState.caseRecord.submitted = false;
+  moduleEightState.caseRecord.submittedAt = '';
+  moduleEightState.completed = false;
+  moduleEightSave();
+}
+
 function moduleEightLoad(user) {
   if (moduleEightUser?.email !== user?.email) moduleEightQuizForceRetake = false;
   if (moduleEightUser?.email !== user?.email) moduleEightLearnItViewed = null;
@@ -588,6 +598,8 @@ function moduleEightLoad(user) {
     moduleEightState.caseRecord.submitted = false;
     moduleEightState.caseRecord.submittedAt = '';
     moduleEightSave();
+  } else if (moduleEightState.caseRecord.submitted === true && (typeof proveItLatchIsStale === 'function' && proveItLatchIsStale(moduleEightUser, MODULE_EIGHT_CATALOG_LAB_KEYS))) {
+    moduleEightReopenUnsavedAssessment();
   }
 
   // Initialize quiz state
@@ -1388,6 +1400,7 @@ function wireModuleEightLab() {
     if (event.target.tagName === 'TEXTAREA' && event.target.name === 'notes' && event.target.closest('#m08-assessment-form') && !moduleEightState.caseRecord.submitted) {
       moduleEightState.caseRecord.notes = event.target.value;
       moduleEightSave();
+      caseRecordRefreshPanel(moduleEightCaseTicket());
     }
   });
 
@@ -1457,7 +1470,7 @@ function moduleEightFinalizeProveIt() {
   moduleEightState.notes = moduleEightState.caseRecord.notes;
   if (!moduleEightState.flags.includes(MODULE_EIGHT_FLAG)) moduleEightState.flags.push(MODULE_EIGHT_FLAG);
   moduleEightSave();
-  if (typeof recordLabAttempt === 'function') {
+  if (typeof recordProveItAttempt === 'function') {
     const caseSpec = moduleEightProveItSpec();
     const attemptFields = {
       state: 'complete',
@@ -1478,7 +1491,12 @@ function moduleEightFinalizeProveIt() {
         assessment_work: moduleEightAssessmentWork(huntState),
       },
     };
-    MODULE_EIGHT_CATALOG_LAB_KEYS.forEach((labKey) => recordLabAttempt(moduleEightUser, labKey, attemptFields));
+    recordProveItAttempt(moduleEightUser, MODULE_EIGHT_CATALOG_LAB_KEYS, attemptFields, () => {
+      moduleEightReopenUnsavedAssessment();
+      const status = document.getElementById('m08-status');
+      if (status) status.textContent = 'In progress';
+      moduleEightRender();
+    });
   }
   if (typeof markModuleLabComplete === 'function') {
     MODULE_EIGHT_CATALOG_LAB_KEYS.forEach((labKey) => markModuleLabComplete(moduleEightUser, 'soc-analyst', 'soc-08', labKey));

@@ -113,3 +113,24 @@ SOC Prove It modules (M02–M12) and the AI/ML Prove It modules. Their submit
 handlers also optimistically persist a submitted latch and should clear it when
 `recordLabAttempt()` resolves `false`, with load-time reconciliation against
 the corresponding `latestLabAttemptByKey` lab key.
+
+**Status 2026-10-20 (branch `fix/prove-it-submit-latch`): done for SOC M01–M12.**
+Two shared helpers in `portal/app.js` replace the per-module copies:
+
+- `recordProveItAttempt(user, labKeys, fields, rollback)` marks the lab
+  "under review" in `latestLabAttemptByKey`, saves the attempt, and on a failed
+  signed-in save puts the previous entry back and runs the module's rollback
+  (each module's `…ReopenUnsaved…()` clears its submitted flag). A
+  multi-key submit (M07, M08) that fails part-way resends only the keys still
+  without a pending attempt, because the server refuses a second one.
+- `proveItLatchIsStale(user, labKeys)` runs in each module's load next to the
+  redo reopen. It is true only when the sign-in read of `lab_attempts`
+  succeeded (`user.labAttemptsLoaded`, new in `fetchUserDetails()`), has no
+  attempt for the lab, and this tab has no pending or saved insert for it, so
+  a failed read or a route refresh mid-insert never reopens a case.
+
+M10 and M12 also had no redo reopen at all (a returned Assessment Lab or
+capstone stayed "submitted"); they now reopen like the other modules. M06's
+first ticket records no attempt, so only its Independent Assessment ticket is
+covered. **Still open:** the AI/ML Prove It submits (another track's files).
+Tests: `tests/below-pass-prove-it.test.js` (now in `bin/ci-check.sh`).

@@ -7,6 +7,7 @@ const ctx = {
   caseRecordMissing: () => [], moduleThreeState: { console: {} }, moduleThreeSave: () => {},
   guidedLabDebrief: () => '', guidedLabGuide: () => '', MODULE_THREE_FLAG: 'F', MODULE_THREE_CATALOG_LAB_KEY: 'lab-siem-triage',
   recordLabAttempt: (...args) => attempts.push(args), moduleThreeUser: {},
+  recordProveItAttempt: (user, key, fields) => { attempts.push([user, key, fields]); return Promise.resolve(true); },
   document: { getElementById: () => ({ textContent: '' }), querySelector: () => null },
 };
 vm.createContext(ctx);

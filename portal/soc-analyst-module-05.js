@@ -446,7 +446,7 @@ function moduleFiveProveItRedoRequested() {
 function moduleFiveProveItReviewStatus() {
   if (!moduleFiveState?.caseRecord?.submitted) return '';
   const attempt = moduleFiveUser?.latestLabAttemptByKey?.[MODULE_FIVE_CATALOG_LAB_KEY];
-  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  return caseRecordAttemptStatus(attempt);
 }
 
 function moduleFiveProveItRedoFeedback() {
@@ -597,6 +597,18 @@ let moduleFiveProveItShowMissing = false;
 // account already records as passed (see moduleFiveQuizVerifiedElsewhere()).
 let moduleFiveQuizForceRetake = false;
 
+// A Prove It submit whose lab_attempts row never saved (recordProveItAttempt
+// rollback, or proveItLatchIsStale on load): unlock the ticket so the student
+// can send it again. `attempts` drops too, or the pre-migration rule in
+// moduleFiveLoad() would mark the case submitted again on the next load.
+function moduleFiveReopenUnsavedAssessment() {
+  moduleFiveState.caseRecord.submitted = false;
+  moduleFiveState.caseRecord.submittedAt = '';
+  moduleFiveState.completed = false;
+  moduleFiveState.attempts = Math.max(0, (Number(moduleFiveState.attempts) || 0) - 1);
+  moduleFiveSave();
+}
+
 function moduleFiveLoad(user) {
   if (moduleFiveUser?.email !== user?.email) moduleFiveQuizForceRetake = false;
   if (moduleFiveUser?.email !== user?.email) moduleFiveLearnItViewed = null;
@@ -664,6 +676,9 @@ function moduleFiveLoad(user) {
     moduleFiveState.caseRecord.submitted = false;
     moduleFiveState.caseRecord.submittedAt = '';
     moduleFiveSave();
+  } else if (moduleFiveState.caseRecord.submitted === true && (typeof proveItLatchIsStale === 'function' && proveItLatchIsStale(moduleFiveUser, MODULE_FIVE_CATALOG_LAB_KEY))) {
+    // The submit's attempt never reached the database: reopen it to resend.
+    moduleFiveReopenUnsavedAssessment();
   } else if (caseIdentityMigrated) {
     moduleFiveSave();
   }
@@ -1501,6 +1516,7 @@ function wireModuleFiveAssessmentLab() {
     if (event.target.name === 'notes' && event.target.closest('#m05-assessment')) {
       caseRecordApply(moduleFiveState.caseRecord, 'notes', event.target.value);
       moduleFiveSave();
+      caseRecordRefreshPanel(moduleFiveCaseTicket());
     }
   });
 
@@ -1567,12 +1583,10 @@ function wireModuleFiveAssessmentLab() {
       moduleFiveState.completed = true;
       if (!moduleFiveState.flags.includes(MODULE_FIVE_FLAG)) moduleFiveState.flags.push(MODULE_FIVE_FLAG);
       moduleFiveSave();
-      if (moduleFiveUser) {
-        moduleFiveUser.latestLabAttemptByKey = { ...(moduleFiveUser.latestLabAttemptByKey || {}), [MODULE_FIVE_CATALOG_LAB_KEY]: { completedAt: submittedAt, reviewedAt: null, redoRequested: false } };
-      }
-      if (typeof recordLabAttempt === 'function') {
-        recordLabAttempt(moduleFiveUser, MODULE_FIVE_CATALOG_LAB_KEY, {
+      if (typeof recordProveItAttempt === 'function') {
+        recordProveItAttempt(moduleFiveUser, MODULE_FIVE_CATALOG_LAB_KEY, {
           state: 'complete',
+          submittedAt,
           score: scored.score,
           result: {
             case_record: JSON.parse(JSON.stringify(moduleFiveState.caseRecord)),
@@ -1583,6 +1597,11 @@ function wireModuleFiveAssessmentLab() {
             // Additive (2026-10-17): the console work the scorer read, for the admin Submission Sheet. Never read by scoring.
             work_summary: moduleFiveWorkSummary(assessmentState),
           },
+        }, () => {
+          moduleFiveReopenUnsavedAssessment();
+          const status = document.getElementById('m05-status');
+          if (status) status.textContent = 'In progress';
+          moduleFiveRenderAssessment();
         }).then((saved) => { if (saved && moduleFiveProveItRedoRequested()) delete moduleFiveUser.openLabRedosByModuleKey['soc-05']; });
       }
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleFiveUser, 'soc-analyst', 'soc-05', MODULE_FIVE_CATALOG_LAB_KEY);

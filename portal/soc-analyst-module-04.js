@@ -537,7 +537,7 @@ function moduleFourProveItRedoRequested() {
 function moduleFourProveItReviewStatus() {
   if (!moduleFourState?.caseRecord?.submitted) return '';
   const attempt = moduleFourUser?.latestLabAttemptByKey?.[MODULE_FOUR_CATALOG_LAB_KEY];
-  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  return caseRecordAttemptStatus(attempt);
 }
 
 function moduleFourProveItRedoFeedback() {
@@ -688,6 +688,18 @@ let moduleFourProveItShowMissing = false;
 // account already records as passed (see moduleFourQuizVerifiedElsewhere()).
 let moduleFourQuizForceRetake = false;
 
+// A Prove It submit whose lab_attempts row never saved (recordProveItAttempt
+// rollback, or proveItLatchIsStale on load): unlock the ticket so the student
+// can send it again. `attempts` drops too, or the pre-migration rule in
+// moduleFourLoad() would mark the case submitted again on the next load.
+function moduleFourReopenUnsavedAssessment() {
+  moduleFourState.caseRecord.submitted = false;
+  moduleFourState.caseRecord.submittedAt = '';
+  moduleFourState.completed = false;
+  moduleFourState.attempts = Math.max(0, (Number(moduleFourState.attempts) || 0) - 1);
+  moduleFourSave();
+}
+
 function moduleFourLoad(user) {
   if (moduleFourUser?.email !== user?.email) { moduleFourQuizForceRetake = false; moduleFourLearnView = null; }
   moduleFourUser = user;
@@ -737,6 +749,9 @@ function moduleFourLoad(user) {
     moduleFourState.caseRecord.submitted = false;
     moduleFourState.caseRecord.submittedAt = '';
     moduleFourSave();
+  } else if (moduleFourState.caseRecord.submitted === true && (typeof proveItLatchIsStale === 'function' && proveItLatchIsStale(moduleFourUser, MODULE_FOUR_CATALOG_LAB_KEY))) {
+    // The submit's attempt never reached the database: reopen it to resend.
+    moduleFourReopenUnsavedAssessment();
   }
 
   // Initialize quiz state
@@ -1848,6 +1863,7 @@ function wireModuleFourAssessmentLab() {
     if (event.target.name === 'notes' && event.target.closest('#m04-assessment')) {
       caseRecordApply(moduleFourState.caseRecord, 'notes', event.target.value);
       moduleFourSave();
+      caseRecordRefreshPanel(moduleFourArtifact());
     }
   });
 
@@ -1910,12 +1926,10 @@ function wireModuleFourAssessmentLab() {
       moduleFourState.completed = true;
       if (moduleFourState.completed && !moduleFourState.flags.includes(MODULE_FOUR_FLAG)) moduleFourState.flags.push(MODULE_FOUR_FLAG);
       moduleFourSave();
-      if (moduleFourUser) {
-        moduleFourUser.latestLabAttemptByKey = { ...(moduleFourUser.latestLabAttemptByKey || {}), [MODULE_FOUR_CATALOG_LAB_KEY]: { completedAt: submittedAt, reviewedAt: null, redoRequested: false } };
-      }
-      if (typeof recordLabAttempt === 'function') {
-        recordLabAttempt(moduleFourUser, MODULE_FOUR_CATALOG_LAB_KEY, {
+      if (typeof recordProveItAttempt === 'function') {
+        recordProveItAttempt(moduleFourUser, MODULE_FOUR_CATALOG_LAB_KEY, {
           state: 'complete',
+          submittedAt,
           score: result.score,
           result: {
             rubric_version: result.rubricVersion,
@@ -1930,6 +1944,11 @@ function wireModuleFourAssessmentLab() {
             work_summary: moduleFourWorkSummary(moduleFourState.assessment),
             attempts: moduleFourState.attempts,
           },
+        }, () => {
+          moduleFourReopenUnsavedAssessment();
+          const status = document.getElementById('m04-status');
+          if (status) status.textContent = 'In progress';
+          moduleFourRenderAssessment('m04-case-panel');
         }).then((saved) => { if (saved && moduleFourProveItRedoRequested()) delete moduleFourUser.openLabRedosByModuleKey['soc-04']; });
       }
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleFourUser, 'soc-analyst', 'soc-04', MODULE_FOUR_CATALOG_LAB_KEY);
