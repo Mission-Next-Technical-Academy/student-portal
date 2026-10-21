@@ -1370,7 +1370,7 @@ function adminProgramRosterChip(label, value, tone) {
 
 function adminProgramRoster(rows) {
   return `<section aria-labelledby="program-roster-title" class="order-4 mb-6"><div class="flex items-end justify-between gap-4 mb-4"><div><h2 id="program-roster-title" class="text-2xl font-bold text-[#1e3a5f]">Student program progress</h2><p class="text-sm text-gray-500 mt-1">One work-item bar combines technical modules and accepted M360 weeks; it is not an attendance or credential claim.</p></div></div><div class="space-y-3">${rows.map((row) => {
-    const completed = Number(row.work_items_completed || 0); const required = Number(row.work_items_required || 18); const percent = Math.max(0, Math.min(100, Number(row.work_items_percent ?? (completed * 100 / required))));
+    const { completed, required, percent } = programWorkItemProgress(row);
     const technicalCompleted = Number(row.technical_completed || 0);
     const technicalRequired = Number(row.technical_required || 12);
     const technicalChip = adminProgramRosterChip('Technical', `${technicalCompleted} / ${technicalRequired}`, technicalCompleted >= technicalRequired ? 'good' : 'neutral');
@@ -9108,7 +9108,8 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       if (statusEl) statusEl.textContent = redo ? 'Sent back. Refreshing…' : 'Approved. Refreshing…';
       // The refresh re-opens the same attempt (adminOpenAttemptPanel), now
       // showing its recorded outcome instead of the review card.
-      await render({ reuseAdminRoster: true });
+      // Approve / send-back can change module completion, so re-read the roster.
+      await render({ reuseAdminRoster: false });
       return; // render() rebuilt the DOM and re-wired everything; this node set is stale now.
     } catch (err) {
       buttons.forEach((b) => { b.disabled = false; });
@@ -9662,7 +9663,7 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       mntSupabase.from('capstone_reviews').select('id, artifact_id, review_status, official_outcome, reviewed_by, reviewed_at, reviewer_notes, supervision_method').eq('user_id', row.user_id).eq('track_code', row.track_code).order('created_at', { ascending: false }),
     ]);
     if (panel.dataset.studentId !== studentId) return;
-    panel.innerHTML = renderStudentDetail(row, moduleRes.data || [], labRes.data || [], capstoneRes.data || [], scorecardRes.data || null, artifactRes.data || [], reviewRes.data || [], cheatingFlagsByUserId.get(row.user_id) || []);
+    panel.innerHTML = renderStudentDetail(row, moduleRes.data || [], labRes.data || [], capstoneRes.data || [], scorecardRes.data || null, artifactRes.data || [], reviewRes.data || [], cheatingFlagsByUserId.get(row.user_id) || [], !!user.isAdmin);
   }
 
   const archivedSearch = document.getElementById('archived-student-search');
@@ -9947,7 +9948,7 @@ function adminDate(value) {
   return value ? new Date(value).toLocaleDateString() : '—';
 }
 
-function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRow, artifactRows = [], reviewRows = [], reviewFlagReasons = []) {
+function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRow, artifactRows = [], reviewRows = [], reviewFlagReasons = [], canOverrideModules = false) {
   const m360Detail = row.m360_required
     ? `<section class="mt-8"><h3 class="text-base font-semibold text-[#1e3a5f] mb-3">M360 Career Readiness</h3><div class="grid grid-cols-2 md:grid-cols-3 gap-3"><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Accepted weeks</p><p class="text-lg font-semibold text-[#1e3a5f]">${Number(row.m360_accepted_weeks || 0)} / ${Number(row.m360_required_weeks || 6)}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Final grade</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_final_grade == null ? '—' : esc(Number(row.m360_final_grade).toFixed(1))}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Start Here</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_start_here_complete ? 'Complete' : 'Not started'}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Networking confidence</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.networking_comfort == null ? '— / 5' : `${Number(row.networking_comfort)} / 5`}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Interview readiness</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.interview_readiness == null ? '— / 5' : `${Number(row.interview_readiness)} / 5`}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Course status</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_course_complete ? 'Complete' : 'In progress'}</p></div></div><p class="text-xs text-gray-500 mt-3">M360 is a separate career-readiness course record. It appears on the student transcript but is not technical-module credit.</p></section>`
     : '';
@@ -9976,9 +9977,9 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
                <tr class="border-b border-gray-100">
                  <td class="px-4 py-2 text-gray-900">${esc(adminModuleLabel(row.track_code, m.module_key))}</td>
                  <td class="px-4 py-2"><span style="color:${adminStateColor(m.state)}">${adminStateLabel(m.state)}</span>${m.admin_override ? ' <span class="text-xs font-semibold text-amber-700">(admin override)</span>' : ''}</td>
-                 <td class="px-4 py-2 text-gray-600">${m.percent}%</td>
+                 <td class="px-4 py-2 text-gray-600">${m.percent === null || m.percent === undefined || m.percent === '' ? '—' : `${esc(m.percent)}%`}</td>
                  <td class="px-4 py-2">
-                   <button type="button"
+                   ${!canOverrideModules ? '<span class="text-xs text-gray-400" title="Only a global administrator can override module completion">—</span>' : `<button type="button"
                      data-admin-module-override
                      data-user-id="${esc(row.user_id)}"
                      data-track-code="${esc(row.track_code)}"
@@ -9987,7 +9988,7 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
                      data-override-value="${m.admin_override ? 'false' : 'true'}"
                      class="text-xs font-semibold px-2.5 py-1.5 rounded-lg border cursor-pointer ${m.admin_override ? 'bg-white border-gray-300 text-gray-600 hover:border-gray-400' : 'bg-[#1e3a5f] border-[#1e3a5f] text-white hover:bg-[#16304f]'}">
                      ${m.admin_override ? 'Remove override' : 'Mark complete (override)'}
-                   </button>
+                   </button>`}
                  </td>
                </tr>`).join('')}
            </tbody>
