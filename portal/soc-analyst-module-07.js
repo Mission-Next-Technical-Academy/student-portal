@@ -432,7 +432,7 @@ function moduleSevenProveItRedoRequested() {
 function moduleSevenProveItReviewStatus() {
   if (!moduleSevenState?.caseRecord?.submitted) return '';
   const attempt = moduleSevenUser?.latestLabAttemptByKey?.[MODULE_SEVEN_PRIMARY_CATALOG_KEY];
-  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  return caseRecordAttemptStatus(attempt);
 }
 
 function moduleSevenProveItRedoFeedback() {

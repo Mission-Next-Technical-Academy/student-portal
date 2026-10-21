@@ -327,7 +327,7 @@ function moduleTwelveTicketView() {
     ...moduleTwelveCaseSpec(), formId: 'm12-case-form',
     saveAttr: 'data-m12-save-case', submitAttr: 'data-m12-submit-case',
     panelId: 'm12-case-panel', compactRequirements: true,
-    reviewStatus: moduleTwelveReviewStatus() === 'Lab graded' ? 'graded' : 'review',
+    reviewStatus: caseRecordAttemptStatus(moduleTwelveUser?.latestLabAttemptByKey?.[MODULE_TWELVE_CATALOG_KEY]),
     lockedMessage: 'Your incident ticket and range actions are recorded for faculty review.',
   })}`;
 }

@@ -208,7 +208,7 @@ async function fetchUserDetails(userId, trackCode) {
     // redo clears on its own — no separate acknowledgment step needed.
     mntSupabase
       .from('lab_attempts')
-      .select('id, lab_key, completed_at, reviewed_at, redo_requested, superseded_at')
+      .select('id, lab_key, completed_at, reviewed_at, redo_requested, superseded_at, score, pass_threshold')
       .eq('user_id', userId)
       .eq('track_code', trackCode)
       .not('completed_at', 'is', null)
@@ -254,7 +254,7 @@ async function fetchUserDetails(userId, trackCode) {
       if (!latestByLabKey.has(row.lab_key)) latestByLabKey.set(row.lab_key, row);
     });
     latestByLabKey.forEach((row, labKey) => {
-      latestLabAttemptByKey[labKey] = { completedAt: row.completed_at, reviewedAt: row.reviewed_at || null, redoRequested: row.redo_requested === true, supersededAt: row.superseded_at || null };
+      latestLabAttemptByKey[labKey] = { completedAt: row.completed_at, reviewedAt: row.reviewed_at || null, redoRequested: row.redo_requested === true, supersededAt: row.superseded_at || null, belowPass: typeof row.score === 'number' && row.score < (row.pass_threshold ?? 70) };
     });
     const openAttempts = Array.from(latestByLabKey.values()).filter((row) => row.redo_requested);
     // Notes left while approving were saved but never shown to the learner.

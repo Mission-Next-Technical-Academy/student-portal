@@ -32,6 +32,13 @@ node tests/m01-uat-fixes.test.js
 echo '== Ticket missing-list live refresh =='
 node tests/case-record-live-panel.test.js
 
+
+echo '== M02 Prove It title =='
+node tests/m02-prove-it-title.test.js
+
+echo '== Reviewed below-pass Prove It =='
+node tests/below-pass-review-state.test.js
+
 echo '== Live refresh =='
 node tests/live-refresh.test.js
 

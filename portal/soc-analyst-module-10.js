@@ -465,7 +465,7 @@ function moduleTenCaseSpec() {
 function moduleTenCaseReviewStatus() {
   if (!moduleTenAssessmentState?.submitted) return '';
   const attempt = moduleTenUser?.latestLabAttemptByKey?.[MODULE_TEN_ASSESSMENT_KEY];
-  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  return caseRecordAttemptStatus(attempt);
 }
 
 function moduleTenCaseRedoRequested() {

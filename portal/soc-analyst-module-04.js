@@ -537,7 +537,7 @@ function moduleFourProveItRedoRequested() {
 function moduleFourProveItReviewStatus() {
   if (!moduleFourState?.caseRecord?.submitted) return '';
   const attempt = moduleFourUser?.latestLabAttemptByKey?.[MODULE_FOUR_CATALOG_LAB_KEY];
-  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  return caseRecordAttemptStatus(attempt);
 }
 
 function moduleFourProveItRedoFeedback() {

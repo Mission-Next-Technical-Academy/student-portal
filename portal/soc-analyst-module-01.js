@@ -136,7 +136,7 @@ function moduleOneProveItRedoRequested() {
 function moduleOneProveItReviewStatus() {
   if (!moduleOneState?.lab2?.submitted) return '';
   const attempt = moduleOneUser?.latestLabAttemptByKey?.['lab-soc-escalation'];
-  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  return caseRecordAttemptStatus(attempt);
 }
 
 // Instructor per-item notes from a returned attempt, shown wherever the

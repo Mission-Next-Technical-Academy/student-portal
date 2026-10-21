@@ -837,7 +837,7 @@ function moduleNineProveItRedoRequested() {
 function moduleNineProveItReviewStatus() {
   if (!moduleNineState?.caseRecord?.submitted) return '';
   const attempt = moduleNineUser?.latestLabAttemptByKey?.[MODULE_NINE_CATALOG_LAB_KEY];
-  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  return caseRecordAttemptStatus(attempt);
 }
 
 function moduleNineProveItRedoFeedback() {

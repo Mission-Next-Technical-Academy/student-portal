@@ -1175,7 +1175,7 @@ function m03eReviewStatus() {
   const d = m03eState('prove').determination;
   if (!d.submitted) return '';
   const attempt = moduleThreeUser?.latestLabAttemptByKey?.[MODULE_THREE_CATALOG_LAB_KEY];
-  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  return caseRecordAttemptStatus(attempt);
 }
 function m03eRedoRequested() {
   return moduleThreeUser?.openLabRedosByModuleKey?.['soc-03']?.labKey === MODULE_THREE_CATALOG_LAB_KEY;

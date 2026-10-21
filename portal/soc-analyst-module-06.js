@@ -560,7 +560,7 @@ function moduleSixProveItRedoRequested() {
 function moduleSixProveItReviewStatus() {
   if (!moduleSixState?.caseRecord?.submitted) return '';
   const attempt = moduleSixUser?.latestLabAttemptByKey?.[MODULE_SIX_CATALOG_LAB_KEY];
-  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  return caseRecordAttemptStatus(attempt);
 }
 
 function moduleSixProveItRedoFeedback() {
@@ -583,7 +583,7 @@ function moduleSixIndependentRedoRequested() {
 function moduleSixIndependentReviewStatus() {
   if (!moduleSixState?.independentLab?.caseRecord?.submitted) return '';
   const attempt = moduleSixUser?.latestLabAttemptByKey?.[MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY];
-  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  return caseRecordAttemptStatus(attempt);
 }
 
 function moduleSixIndependentRedoFeedback() {

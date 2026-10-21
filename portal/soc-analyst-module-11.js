@@ -514,7 +514,7 @@ function moduleElevenCasePerformance() {
 function moduleElevenCaseReviewStatus() {
   if (!moduleElevenReportState?.submitted) return '';
   const attempt = moduleElevenUser?.latestLabAttemptByKey?.[MODULE_ELEVEN_REPORT_CATALOG_KEY];
-  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  return caseRecordAttemptStatus(attempt);
 }
 
 function moduleElevenCaseRedoRequested() {
@@ -967,11 +967,13 @@ function moduleElevenAssessmentLabPanel() {
   // this panel has no case ticket to carry the redo state like other modules.
   const redo = moduleElevenCaseRedoRequested();
   const submitted = moduleElevenReportState.submitted === true && !redo;
-  const graded = moduleElevenCaseReviewStatus() === 'graded';
+  const reviewStatus = moduleElevenCaseReviewStatus();
+  const graded = reviewStatus === 'graded';
+  const notPassed = reviewStatus === 'not-passed';
   return `<section class="m11-external-lab" id="m11-assessment-lab-panel">
     <p class="m11-panel-instruction">Complete the shift assessment in the Operations and Reporting tabs, then submit for faculty review. Imported practice is listed separately under Optional Labs.</p>
     ${redo ? `<p role="status"><strong>Returned for remediation.</strong> Review your instructor's feedback, update the Operations and Reporting tabs, then resubmit.</p>${moduleElevenCaseRedoFeedback()}` : ''}
-    ${submitted ? `<p role="status">${graded ? 'Lab graded' : 'Submitted for faculty review'}</p>${graded ? caseRecordGradedFeedbackHtml() : ''}` : `<p><button type="button" data-m11-submit-score>${redo ? 'Resubmit shift assessment' : 'Submit shift assessment'}</button></p>`}
+    ${submitted ? `<p role="status">${graded ? 'Lab graded' : notPassed ? `<strong>Reviewed — not passed yet.</strong> ${CASE_RECORD_NOT_PASSED_BODY}` : 'Submitted for faculty review'}</p>${graded || notPassed ? caseRecordGradedFeedbackHtml() : ''}` : `<p><button type="button" data-m11-submit-score>${redo ? 'Resubmit shift assessment' : 'Submit shift assessment'}</button></p>`}
   </section>`;
 }
 

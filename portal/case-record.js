@@ -175,12 +175,24 @@ function caseRecordApply(state, name, value) {
   return false;
 }
 
-// spec: { submitted, reviewStatus: 'graded'|'under-review'|..., saveAttr,
+// The status every SOC Prove It passes as spec.reviewStatus: 'review' while
+// faculty hasn't looked, 'graded' once approved, 'not-passed' when an
+// instructor approved a below-pass attempt (latestLabAttemptByKey.belowPass,
+// set in app.js; the server keeps the module locked). Never carries a score.
+function caseRecordAttemptStatus(attempt) {
+  if (!attempt?.reviewedAt || attempt.redoRequested) return 'review';
+  return attempt.belowPass === true ? 'not-passed' : 'graded';
+}
+
+const CASE_RECORD_NOT_PASSED_BODY = 'Your instructor reviewed this case and it is below the pass mark. The next module stays locked. Read the feedback below, then message your instructor to ask for another attempt.';
+
+// spec: { submitted, reviewStatus: 'graded'|'not-passed'|'under-review'|..., saveAttr,
 //         submitAttr, panelId, hasMissing }
 function caseRecordActions(spec) {
   if (spec.submitted) {
     const graded = spec.reviewStatus === 'graded';
-    return `<div class="m01-ticket-actions"><button type="button" class="m01-submit" disabled><i class="${graded ? 'ri-checkbox-circle-line' : 'ri-time-line'}" aria-hidden="true"></i> ${spec.practiceSubmitted ? 'Practice submitted' : graded ? 'Lab graded' : 'Submitted for faculty review'}</button></div>`;
+    const notPassed = spec.reviewStatus === 'not-passed';
+    return `<div class="m01-ticket-actions"><button type="button" class="m01-submit" disabled><i class="${graded ? 'ri-checkbox-circle-line' : notPassed ? 'ri-error-warning-line' : 'ri-time-line'}" aria-hidden="true"></i> ${spec.practiceSubmitted ? 'Practice submitted' : graded ? 'Lab graded' : notPassed ? 'Reviewed — not passed yet' : 'Submitted for faculty review'}</button></div>`;
   }
   return `<div class="m01-ticket-actions"><button type="button" class="m01-reset" ${spec.saveAttr}>Update Ticket</button><button type="button" class="m01-submit" ${spec.submitAttr} ${spec.hasMissing ? `aria-describedby="${esc(spec.panelId)}"` : ''}>Submit Lab</button></div>`;
 }
@@ -235,13 +247,15 @@ function caseRecordPanel(spec) {
   const missing = spec.missing || [];
   const submitted = spec.submitted === true;
   const graded = spec.reviewStatus === 'graded';
+  const notPassed = spec.reviewStatus === 'not-passed' && !spec.practiceSubmitted;
   const practice = spec.practiceSubmitted === true;
   const result = practice ? spec.practiceResult : null;
   const failedPractice = !submitted && result && !result.passed;
   const flagMissing = !submitted && spec.showMissing && missing.length;
   const hideMissing = spec.compactRequirements === true && !flagMissing && missing.length > 0;
-  const title = practice && submitted ? (result ? 'Practice passed' : 'Practice submitted') : graded ? 'Lab graded' : submitted ? 'Submitted for faculty review' : flagMissing ? 'Not ready to submit yet' : failedPractice ? 'Practice not passed yet' : spec.redoRequested ? 'Returned for remediation' : 'Incident ticket';
+  const title = practice && submitted ? (result ? 'Practice passed' : 'Practice submitted') : graded ? 'Lab graded' : notPassed ? 'Reviewed — not passed yet' : submitted ? 'Submitted for faculty review' : flagMissing ? 'Not ready to submit yet' : failedPractice ? 'Practice not passed yet' : spec.redoRequested ? 'Returned for remediation' : 'Incident ticket';
   const body = graded ? 'Your instructor has reviewed this case.'
+    : notPassed ? CASE_RECORD_NOT_PASSED_BODY
     : submitted ? (practice ? (result ? 'Your practice score is recorded. Prove It · Assessment Lab is now open.' : 'Your practice ticket is recorded. Prove It · Assessment Lab is now open.') : spec.lockedMessage || 'The next module stays locked until your instructor approves the submission.')
       : failedPractice ? 'Finish the items marked below, update the ticket, and submit again. A passing practice score opens Prove It.'
         : spec.redoRequested ? 'Review your instructor feedback, then work the case again and resubmit.'
@@ -251,7 +265,7 @@ function caseRecordPanel(spec) {
     <strong>${title}</strong>
     <p>${body}</p>
     ${result && !flagMissing ? practiceResultHtml(result) : ''}
-    ${graded ? caseRecordGradedFeedbackHtml(spec.gradedFeedback || caseRecordGradedFeedback()) : ''}
+    ${graded || notPassed ? caseRecordGradedFeedbackHtml(spec.gradedFeedback || caseRecordGradedFeedback()) : ''}
     ${!submitted ? (spec.redoHtml || '') : ''}
     ${!submitted && missing.length && !hideMissing ? `<ul class="m01-requirements-list">${missing.map((item) => `<li><i class="ri-checkbox-blank-circle-line" aria-hidden="true"></i><span>${esc(item)}</span></li>`).join('')}</ul>` : ''}
     ${!submitted && !hideMissing ? `<p class="m01-help">${missing.length ? `Complete the items above, then press Submit Lab. Analyst work notes need at least ${spec.notesMin || CASE_RECORD_NOTES_MIN} characters.` : practice ? `Your ITSM ticket is ready. ${spec.practiceScored ? 'Submit Lab scores your practice now.' : 'Submit Lab completes this Guided Lab.'}` : 'Your ITSM ticket is ready. Use Submit Lab to send it for faculty review.'}</p>` : ''}

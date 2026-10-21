@@ -29,6 +29,7 @@ const context = {
   missionNextAllLabsComplete: () => true,
   missionNextLabLaunchGroup: () => '<div data-prereqs></div>',
   wireMissionNextLabGating: () => {},
+  caseRecordAttemptStatus: (a) => (a?.reviewedAt && !a.redoRequested ? 'graded' : 'review'),
   caseRecordMissing: () => [], caseRecordDisplay: () => [], caseRecordSummary: () => '',
   caseRecordPane: (_record, opts) => `<form id="${opts.formId}"><button ${opts.submitAttr}>Submit</button></form>`,
   caseRecordBriefLabel: (spec, tag) => [spec.caseId, tag, 'ASSIGNED TO YOU'].join(' · '),

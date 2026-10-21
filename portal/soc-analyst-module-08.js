@@ -450,7 +450,7 @@ function moduleEightProveItRedoRequested() {
 function moduleEightProveItReviewStatus() {
   if (!moduleEightState?.caseRecord?.submitted) return '';
   const attempt = moduleEightUser?.latestLabAttemptByKey?.[MODULE_EIGHT_PRIORITY_CATALOG_KEY];
-  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  return caseRecordAttemptStatus(attempt);
 }
 
 function moduleEightProveItRedoFeedback() {

@@ -36,6 +36,7 @@ const context = {
   requestAnimationFrame: (fn) => fn(),
   console,
 };
+context.caseRecordAttemptStatus = (a) => (a?.reviewedAt && !a.redoRequested ? 'graded' : 'review');
 vm.createContext(context);
 for (const filename of [
   'soc-assessment-scorer.js', 'soc-assessment-evolution.js', 'soc-console-core.js', 'soc-alert-queue-ui.js',

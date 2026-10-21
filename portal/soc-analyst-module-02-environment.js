@@ -218,7 +218,7 @@
   function proveItReviewStatus() {
     if (!state.practice.caseRecord.submitted) return '';
     const attempt = user?.latestLabAttemptByKey?.[LAB_KEY];
-    return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+    return caseRecordAttemptStatus(attempt);
   }
   function proveItRedoRequested() {
     return user?.openLabRedosByModuleKey?.['soc-02']?.labKey === LAB_KEY;
@@ -714,7 +714,7 @@
       redoRequested: proveItRedoRequested(),
       redoHtml: proveItRedoFeedback(),
       showMissing: state.practice.showMissing === true,
-    })}${cr.submitted ? '<button type="button" class="m01-reset" data-m02e-restart-practice>Restart Assessment Lab</button>' : ''}`;
+    })}${cr.submitted && proveItReviewStatus() !== 'not-passed' ? '<button type="button" class="m01-reset" data-m02e-restart-practice>Restart Assessment Lab</button>' : ''}`;
   }
 
   function restartPracticeLab() {
