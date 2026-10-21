@@ -428,7 +428,12 @@ const AdminSubmissionSheet = (() => {
     const partly = sections.filter((section) => section.status === 'partial');
     const advisory = sections.filter((section) => !section.required && section.status === 'fail');
     const judgment = sections.filter((section) => section.required && (section.status === 'judgment' || section.status === 'missing'));
-    const kind = critical.length || belowMark ? 'return' : hasScore ? 'pass' : 'judgment';
+    // A legacy attempt can carry a score but an empty result: every section is
+    // "Not recorded", so there is nothing to base a PASS recommendation on.
+    const resultIsEmpty = !ctx.result || typeof ctx.result !== 'object' || !Object.keys(ctx.result).length;
+    // Help Desk attempts are legitimately saved with result {} and a score.
+    const emptyRecord = row.track_code === 'SOCAN' && resultIsEmpty && sections.length > 0;
+    const kind = critical.length || belowMark ? 'return' : hasScore && !emptyRecord ? 'pass' : 'judgment';
     return {
       definition,
       ctx,
@@ -437,7 +442,7 @@ const AdminSubmissionSheet = (() => {
       sections,
       score,
       threshold,
-      verdict: { kind, needsWork, partly, advisory, judgment, belowMark, critical },
+      verdict: { kind, needsWork, partly, advisory, judgment, belowMark, critical, emptyRecord },
     };
   }
 
@@ -662,18 +667,18 @@ const AdminSubmissionSheet = (() => {
   }
 
   function verdictHtml(sheet) {
-    const { kind, needsWork, partly, advisory, judgment, belowMark, critical } = sheet.verdict;
+    const { kind, needsWork, partly, advisory, judgment, belowMark, critical, emptyRecord } = sheet.verdict;
     const n = needsWork.length;
     const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
     const names = (list) => list.map((section) => section.title).join(', ');
     const scoreLine = sheet.score === null ? 'The system did not record a score.' : `System score ${sheet.score}% against a ${sheet.threshold}% pass mark.`;
     const heading = kind === 'pass' ? (n ? `Recommend PASS — with corrections (${plural(n, 'section')} to fix)` : 'Recommend PASS')
-      : kind === 'judgment' ? 'Instructor judgment needed'
+      : kind === 'judgment' ? (emptyRecord ? 'Instructor judgment needed — the record is empty' : 'Instructor judgment needed')
         : critical.length ? 'Recommend RETURN — a critical safety issue was flagged'
           : n ? `Recommend RETURN — ${plural(n, 'section')} need${n === 1 ? 's' : ''} work` : 'Recommend RETURN — score is below the pass mark';
     const detail = [
       kind === 'pass' ? `${scoreLine} ${needsWork.length ? 'Corrections are prefilled in the teacher note beside each section.' : 'No critical failure was flagged.'}` : '',
-      kind === 'judgment' ? `${scoreLine} No required section is marked ✗; decide from the sheet.` : '',
+      kind === 'judgment' ? `${scoreLine} ${emptyRecord ? 'This record is empty (no section was recorded), so the score cannot be checked against any answer. Review it manually before deciding.' : 'No required section is marked ✗; decide from the sheet.'}` : '',
       kind === 'return' ? `${n ? `Needs work: ${names(needsWork)}. ` : ''}${scoreLine}` : '',
       critical.length ? `Critical failure flagged: ${critical.join('; ')}.` : '',
       partly.length ? `Partly there (does not block a pass; notes are prefilled beside each section): ${names(partly)}.` : '',

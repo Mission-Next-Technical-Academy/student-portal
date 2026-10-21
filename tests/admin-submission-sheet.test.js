@@ -209,6 +209,14 @@ test('framework verdict rule, evidence groups and mechanics', () => {
   assert.equal(sheet.sections[2].status, 'partial');
   assert.equal(sheet.verdict.kind, 'pass');
 
+  // Empty legacy record (result {}) with a score: no PASS recommendation (SOC only).
+  sheet = Sheet.evaluate(row({}, 92));
+  assert.equal(sheet.verdict.kind, 'judgment');
+  assert.equal(sheet.verdict.emptyRecord, true);
+  assert.match(Sheet.render(row({}, 92)), /the record is empty[\s\S]*Review it manually/);
+  assert.doesNotMatch(Sheet.render(row({}, 92)), /Recommend PASS/);
+  assert.equal(Sheet.evaluate(row({ pick: 'a' }, 92)).verdict.emptyRecord, false, 'a partly recorded result is not empty');
+
   // Not recorded: null test / null text.
   sheet = Sheet.evaluate(row({}));
   eq(status(sheet), { pick: 'missing', advice: 'fail', write: 'missing', judge: 'judgment' });

@@ -38,6 +38,9 @@ node tests/case-state-unload-recovery.test.js
 echo '== Sign-out clears local student state =='
 node tests/signout-clears-local-state.test.js
 
+echo '== Admin Submission Sheet =='
+node tests/admin-submission-sheet.test.js
+
 echo '== Lab evidence files =='
 node tests/hdesk-evidence-upload.test.js
 node tests/lab-attempt-evidence-panel.test.js
