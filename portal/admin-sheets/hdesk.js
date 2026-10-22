@@ -166,9 +166,14 @@
     const responses = result.ticketResponses && typeof result.ticketResponses === 'object' ? result.ticketResponses : {};
     const sections = tickets.map((ticket) => {
       const response = responses[ticket.id] || {};
-      const priorityOk = Number(response.priority) === ticket.correctRank;
+      // Any order inside the priority band earns the credit; the exact SLA
+      // order inside a band of two or more shows as "exceeds", score unchanged.
+      const band = its12BandPositions(ticket);
+      const priorityOk = its12RankInBand(ticket, response.priority);
+      const bandNote = band.size === 1 ? `Only ticket in the ${ticket.priority} band`
+        : priorityOk && its12BandExceeds(ticket, responses) ? `Exceeds: SLA order inside the ${ticket.priority} band` : '';
       const categoryOk = response.category === ticket.category;
-      const stepOk = ticket.firstStepPattern.test(String(response.firstStep || '').trim());
+      const stepOk = its12FirstStepOk(ticket, response.firstStep);
       const decisionOk = response.decision === ticket.decision;
       const reasoningText = String(response.reasoning || '').trim();
       const reasoningOk = ticket.reasoningPattern.test(reasoningText) && reasoningText.length >= 15;
@@ -177,7 +182,7 @@
         answer: [['Priority rank', text(response.priority)], ['Category', text(response.category)], ['First diagnostic step', text(response.firstStep)], ['Decision', text(response.decision)]],
         response: [{ label: 'Student reasoning', text: text(response.reasoning) }],
         checks: [
-          { label: 'Priority reflects the ticket’s impact and urgency', expected: `Rank ${ticket.correctRank}`, test: () => response.priority === undefined ? null : priorityOk, given: () => text(response.priority) || 'Not answered', fix: `Set this ticket to rank ${ticket.correctRank}; the queue should reflect its impact and urgency.` },
+          { label: 'Priority reflects the ticket’s impact and urgency', expected: band.size === 1 ? `${ticket.priority} band, rank ${band.first}` : `${ticket.priority} band, rank ${band.first}–${band.last}`, test: () => response.priority === undefined ? null : priorityOk, given: () => [text(response.priority) || 'Not answered', bandNote].filter(Boolean).join(' · '), fix: 'Weigh this ticket’s business impact and urgency against the rest of the queue, then rank it again.' },
           { label: 'Category fits the reported issue', expected: ticket.category, test: () => !response.category ? null : categoryOk, given: () => text(response.category), fix: `Choose the category that best matches this issue, then explain the evidence for it.` },
           { label: 'First step addresses the issue safely', test: () => !response.firstStep ? null : stepOk, given: () => text(response.firstStep), fix: help.firstStep },
           { label: 'Resolve or escalate decision', expected: ticket.decision, test: () => !response.decision ? null : decisionOk, given: () => text(response.decision), fix: help.disposition },

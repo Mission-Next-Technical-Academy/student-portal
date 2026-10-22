@@ -40,40 +40,45 @@ const ITS12_CATEGORY_OPTIONS = [
 ];
 
 /* Six tickets from the fictional Northstar Distribution Group environment,
- * spanning every category the capstone narrative calls for. correctRank is
- * this ticket's position in a correctly-prioritized queue (1 = work first). */
+ * spanning every category the capstone narrative calls for. priority is the
+ * ticket's band (P1 = work first); the student never sees it, or the
+ * category. Any order inside a band earns the triage credit. correctRank is
+ * this ticket's position in a correctly-prioritized queue (1 = work first),
+ * and inside a band it is the SLA-time-left order: matching it shows as
+ * "exceeds" on the instructor sheet and doesn't change the score. */
 const ITS12_SOURCES = [
   { title: 'CompTIA A+ Certification', org: 'CompTIA', url: 'https://www.comptia.org/certifications/a', note: 'Supplementary public reference spanning the identity, endpoint, network, and security topics this capstone integrates.' },
 ];
 
 const ITS12_TICKETS = [
-  { id: 'SEC-2114', from: 'Luis Ortega · Sales', tag: 'P1 · Security', message: 'I clicked a link in an email that looked like it was from IT asking me to verify my password. I think I typed it in before I realized something was off.',
-    category: 'security', decision: 'escalate', correctRank: 1,
-    firstStepPattern: /do ?n[o']?t (reset|click)|isolate|report|security team|don't (click|enter)|stop using/i,
+  { id: 'SEC-2114', from: 'Luis Ortega · Sales', message: 'I clicked a link in an email that looked like it was from IT asking me to verify my password. I think I typed it in before I realized something was off.',
+    category: 'security', decision: 'escalate', priority: 'P1', correctRank: 1,
+    firstStepPattern: /(do ?n[o'’]?t|not to|never) (reset|click|enter|type)|isolat|disconnect|unplug|off (the )?(network|wi-?fi)|stop using|\bcontain(ment)?\b/i,
+    rejectStepPattern: /\b(do ?n[o'’]?t|never|no need to|shouldn[o'’]?t) (isolat|disconnect|unplug|contain)/i,
     reasoningPattern: /phishing|credential|compromis|security|escalat/i,
     explain: 'A credential-phishing incident is always the highest priority — contain first (don\'t let the user "fix" it themselves), then escalate to the security-incident process immediately.' },
-  { id: 'HD-2110', from: 'Sofia Martin · Operations', tag: 'P2 · Server', message: 'My computer says it can\'t connect to the domain anymore. It was fine until I restored a VM snapshot from before I left for lunch.',
-    category: 'server', decision: 'escalate', correctRank: 2,
-    firstStepPattern: /domain trust|rejoin|escalate|tier ?2|server team|confirm (the )?scope/i,
+  { id: 'HD-2110', from: 'Sofia Martin · Operations', message: 'My computer says it can\'t connect to the domain anymore. It was fine until I restored a VM snapshot from before I left for lunch.',
+    category: 'server', decision: 'escalate', priority: 'P2', correctRank: 2,
+    firstStepPattern: /confirm (the )?scope|anyone else|other (users|machines|computers|devices)|test-computersecurechannel|secure ?channel|nltest|(check|verify|test)\b.{0,30}trust/i,
     reasoningPattern: /domain trust|server|outside|scope|escalat|tier ?2/i,
     explain: 'A broken domain trust relationship is outside L1 authority to repair directly — confirm the scope, then escalate to the server/infrastructure team.' },
-  { id: 'HD-2104', from: 'Priya Shah · HR', tag: 'P2 · Network', message: 'My laptop shows it\'s connected to Wi-Fi but I can\'t reach anything — not even our internal site.',
-    category: 'network', decision: 'resolve', correctRank: 3,
+  { id: 'HD-2104', from: 'Priya Shah · HR', message: 'My laptop shows it\'s connected to Wi-Fi but I can\'t reach anything — not even our internal site.',
+    category: 'network', decision: 'resolve', priority: 'P2', correctRank: 3,
     firstStepPattern: /ipconfig|apipa|renew|dhcp|release/i,
     reasoningPattern: /apipa|dhcp|169\.254|network|l1|scope/i,
     explain: 'A 169.254 APIPA-style symptom is a DHCP issue squarely within L1 scope — reconnect/renew the client-side network configuration first.' },
-  { id: 'SR-2107', from: 'Grace Kim · HR', tag: 'P3 · Identity', message: 'I moved to a new team last week and I still can\'t open the folder my new team uses. My login works fine otherwise.',
-    category: 'identity', decision: 'resolve', correctRank: 4,
+  { id: 'SR-2107', from: 'Grace Kim · HR', message: 'I moved to a new team last week and I still can\'t open the folder my new team uses. My login works fine otherwise.',
+    category: 'identity', decision: 'resolve', priority: 'P3', correctRank: 4,
     firstStepPattern: /group|member ?of|active directory|add (the|her|him|them)/i,
     reasoningPattern: /group|member|access|l1|scope/i,
     explain: 'Logging in fine but denied one specific resource is the classic group-membership pattern — check Member Of, confirm with the resource owner, then fix it.' },
-  { id: 'HD-2109', from: 'Noah Williams · Sales', tag: 'P3 · Endpoint', message: 'My desktop is suddenly completely empty and all my settings reset, but I can still log in fine.',
-    category: 'endpoint', decision: 'resolve', correctRank: 5,
+  { id: 'HD-2109', from: 'Noah Williams · Sales', message: 'My desktop is suddenly completely empty and all my settings reset, but I can still log in fine.',
+    category: 'endpoint', decision: 'resolve', priority: 'P3', correctRank: 5,
     firstStepPattern: /profile|temporary profile|rebuild|new (local )?profile/i,
     reasoningPattern: /profile|account|corrupt|l1|scope/i,
     explain: 'Logging in fine but a suddenly empty desktop and reset settings is a corrupted profile, not an account problem — well within L1 scope to rebuild.' },
-  { id: 'HD-2106', from: 'Elena Ruiz · Logistics', tag: 'P4 · Peripheral', message: 'Nothing will print from my computer today, and I saw an error about the print spooler when I looked.',
-    category: 'peripheral', decision: 'resolve', correctRank: 6,
+  { id: 'HD-2106', from: 'Elena Ruiz · Logistics', message: 'Nothing will print from my computer today, and I saw an error about the print spooler when I looked.',
+    category: 'peripheral', decision: 'resolve', priority: 'P4', correctRank: 6,
     firstStepPattern: /spooler|restart|print queue|clear/i,
     reasoningPattern: /spooler|print|queue|l1|scope/i,
     explain: 'A single user\'s print spooler issue is routine peripheral triage — clear the queue and restart the Print Spooler service.' },
@@ -82,6 +87,54 @@ const ITS12_TICKETS = [
 const ITS12_LAB_ID = 'its12-capstone-v1';
 const ITS12_LAB_KEY = 'lab-its-12-capstone';
 const ITS12_PASSING_SCORE = 70;
+const ITS12_MIN_ANSWER_LENGTH = 15;
+
+/* The queue positions a ticket's band holds: P1 tickets fill the first
+ * positions, then P2, and so on. Worked out from the tickets, so it holds
+ * when they change. → { first, last, size } */
+function its12BandPositions(ticket) {
+  const bands = [...new Set(ITS12_TICKETS.map((t) => t.priority))].sort();
+  let first = 1;
+  for (const band of bands) {
+    const size = ITS12_TICKETS.filter((t) => t.priority === band).length;
+    if (band === ticket.priority) return { first, last: first + size - 1, size };
+    first += size;
+  }
+  return { first: 0, last: -1, size: 0 };
+}
+
+// Triage credit: the rank falls inside the ticket's band.
+function its12RankInBand(ticket, rank) {
+  const { first, last } = its12BandPositions(ticket);
+  const n = Number(rank);
+  return Number.isInteger(n) && n >= first && n <= last;
+}
+
+// Every ticket in a band of two or more is in its exact SLA position.
+function its12BandExceeds(ticket, responses) {
+  const band = ITS12_TICKETS.filter((t) => t.priority === ticket.priority);
+  return band.length > 1 && band.every((t) => Number((responses[t.id] || {}).priority) === t.correctRank);
+}
+
+// A first step earns technical credit only as a real action, not a bare
+// decision. A ticket's optional rejectStepPattern refuses a step that
+// matches anyway, e.g. the action negated ("do not isolate").
+function its12FirstStepOk(ticket, firstStep) {
+  const step = String(firstStep || '').trim();
+  return step.length >= ITS12_MIN_ANSWER_LENGTH && ticket.firstStepPattern.test(step)
+    && !(ticket.rejectStepPattern && ticket.rejectStepPattern.test(step));
+}
+
+// The first rank given to more than one ticket, with how many times. → { rank, count } | null
+function its12RepeatedRank(responses) {
+  const counts = new Map();
+  ITS12_TICKETS.forEach((t) => {
+    const rank = Number((responses[t.id] || {}).priority);
+    if (rank) counts.set(rank, (counts.get(rank) || 0) + 1);
+  });
+  const repeated = [...counts].filter(([, count]) => count > 1).sort((a, b) => a[0] - b[0])[0];
+  return repeated ? { rank: repeated[0], count: repeated[1] } : null;
+}
 
 const ITS12_DEFAULT_STATE = {
   activeTicket: ITS12_TICKETS[0].id, ticketResponses: {}, kbArticle: '', afterAction: '',
@@ -121,6 +174,13 @@ function its12CanSubmit() {
   return stage === 'not_submitted' || stage === 'returned';
 }
 
+// Answers can't change while an attempt is being saved or waits on the
+// instructor; a return unlocks them.
+function its12Locked() {
+  const stage = its12ReviewStage();
+  return stage === 'submitting' || stage === 'waiting';
+}
+
 function its12StatusLabel() {
   const labels = { submitting: 'Submitting…', waiting: 'Submitted for review', returned: 'Returned for revision', finalized: 'Finalized by your instructor' };
   const stage = its12ReviewStage();
@@ -151,6 +211,7 @@ function its12TicketQueue() {
   return itswTicketQueue({
     tickets: ITS12_TICKETS, activeId: its12State.activeTicket, responses: its12State.ticketResponses,
     categoryOptions: ITS12_CATEGORY_OPTIONS, showPriority: true, priorityCount: ITS12_TICKETS.length,
+    locked: its12Locked(),
   });
 }
 
@@ -181,15 +242,16 @@ function its12ActionButtons() {
 }
 
 function its12ExtrasAndActions() {
+  const lock = its12Locked() ? ' disabled' : '';
   return `<div class="its12-extra">
     <label for="its12-kb">Knowledge-base article</label>
     <p class="its12-extra-hint">Write at least one KB article based on something you worked through above — symptom, cause, and fix, so the next technician doesn't have to re-diagnose it from scratch.</p>
-    <textarea id="its12-kb" data-its12-kb rows="3" placeholder="Symptom… Cause… Fix… Verification…">${esc(its12State.kbArticle)}</textarea>
+    <textarea id="its12-kb" data-its12-kb rows="3"${lock} placeholder="Symptom… Cause… Fix… Verification…">${esc(its12State.kbArticle)}</textarea>
   </div>
   <div class="its12-extra">
     <label for="its12-after-action">After-action review</label>
     <p class="its12-extra-hint">Step back and review your own performance — what went well, what you'd do differently, and what you learned about your own troubleshooting instincts.</p>
-    <textarea id="its12-after-action" data-its12-after-action rows="3" placeholder="What went well… What I'd do differently… What I learned…">${esc(its12State.afterAction)}</textarea>
+    <textarea id="its12-after-action" data-its12-after-action rows="3"${lock} placeholder="What went well… What I'd do differently… What I learned…">${esc(its12State.afterAction)}</textarea>
   </div>
   <div class="its12-worksheet-actions">${its12ActionButtons()}</div>
   ${its12State.resetArmed && its12CanSubmit() ? `<div class="its12-reset-confirm" id="its12-reset-confirm" role="alert"><p><strong>Reset the capstone?</strong> All ticket answers, the KB article and the after-action review on this page will be cleared.</p><div><button type="button" data-its12-reset-confirm>Yes, reset the capstone</button><button type="button" data-its12-reset-cancel>Cancel</button></div></div>` : ''}
@@ -246,18 +308,13 @@ function its12Score() {
   let technicalCorrect = 0;
   let communicationOk = 0;
   let escalationCorrect = 0;
-  const feedback = [];
   ITS12_TICKETS.forEach((ticket) => {
     const r = its12State.ticketResponses[ticket.id] || {};
-    if (Number(r.priority) === ticket.correctRank) triageCorrect += 1;
-    const catOk = r.category === ticket.category;
-    const stepOk = ticket.firstStepPattern.test((r.firstStep || '').trim());
-    if (catOk && stepOk) technicalCorrect += 1;
-    const reasonOk = ticket.reasoningPattern.test((r.reasoning || '').trim()) && (r.reasoning || '').trim().length >= 15;
-    if (reasonOk) communicationOk += 1;
-    const decOk = r.decision === ticket.decision;
-    if (decOk) escalationCorrect += 1;
-    if (!(catOk && stepOk && decOk && reasonOk)) feedback.push(`${ticket.id}: ${ticket.explain}`);
+    if (its12RankInBand(ticket, r.priority)) triageCorrect += 1;
+    if (r.category === ticket.category && its12FirstStepOk(ticket, r.firstStep)) technicalCorrect += 1;
+    const reasoning = (r.reasoning || '').trim();
+    if (ticket.reasoningPattern.test(reasoning) && reasoning.length >= ITS12_MIN_ANSWER_LENGTH) communicationOk += 1;
+    if (r.decision === ticket.decision) escalationCorrect += 1;
   });
   const triage = Math.round((triageCorrect / ITS12_TICKETS.length) * 15);
   const technical = Math.round((technicalCorrect / ITS12_TICKETS.length) * 20);
@@ -272,7 +329,7 @@ function its12Score() {
   ITS12_TICKETS.filter((t) => t.category === 'security').forEach((ticket) => {
     const r = its12State.ticketResponses[ticket.id] || {};
     if (r.decision !== ticket.decision) {
-      criticalErrors.push(`${ticket.id}: a Security Incident ticket was resolved instead of escalated. This is a critical error regardless of overall score.`);
+      criticalErrors.push(`${ticket.id}: critical error. This attempt can't pass, whatever its overall score.`);
     }
   });
 
@@ -283,9 +340,13 @@ function its12Score() {
   const after = its12State.afterAction.trim();
   const afterScore = after.length >= 40 ? 10 : (after.length >= 15 ? 5 : 0);
 
-  if (triage < 15) feedback.unshift(`Triage: ${triageCorrect}/6 tickets ranked correctly. The security incident is always rank 1; work outward from there by impact and urgency.`);
-  if (!kbOk) feedback.push('KB article: write at least 80 characters covering symptom, cause, fix, and verification.');
-  if (afterScore < 10) feedback.push('After-action review: write at least 40 characters reflecting honestly on what went well and what you\'d do differently.');
+  // Domain scores only: no expected answers or explanations, because this
+  // is saved with the attempt and the student can read it.
+  const feedback = [
+    `Triage ${triage}/15`, `Technical accuracy ${technical}/20`, `Communication ${communication}/15`,
+    `Escalation judgment ${escalation}/15`, `Security handling ${security}/10`, `KB article ${kbScore}/15`,
+    `After-action review ${afterScore}/10`,
+  ];
 
   return {
     score: triage + technical + communication + escalation + security + kbScore + afterScore,
@@ -312,6 +373,13 @@ function its12Submit() {
     its12State.validationError = missing
       ? 'Every ticket needs a priority rank, category, first step, decision, and reasoning before you submit.'
       : 'Write both the KB article and the after-action review before you submit.';
+    its12Save();
+    its12RenderQueue('its12-feedback');
+    return;
+  }
+  const repeated = its12RepeatedRank(its12State.ticketResponses);
+  if (repeated) {
+    its12State.validationError = `Rank ${repeated.rank} is used ${repeated.count === 2 ? 'twice' : `${repeated.count} times`}. Each ticket needs a different rank.`;
     its12Save();
     its12RenderQueue('its12-feedback');
     return;

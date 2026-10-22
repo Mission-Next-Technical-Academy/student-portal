@@ -123,9 +123,11 @@ function itswTicketListItem(ticket, isActive, isAnswered) {
 }
 
 /* config: { tickets, activeId, responses (id -> {priority?, category, firstStep, decision, reasoning}),
- *   categoryOptions: [{value, label}], showPriority?: boolean, priorityCount?: number } */
+ *   categoryOptions: [{value, label}], showPriority?: boolean, priorityCount?: number,
+ *   locked?: boolean (answer fields disabled; tickets can still be opened) } */
 function itswTicketQueue(config) {
-  const { tickets, activeId, responses, categoryOptions, showPriority, priorityCount } = config;
+  const { tickets, activeId, responses, categoryOptions, showPriority, priorityCount, locked } = config;
+  const off = locked ? ' disabled' : '';
   const ticket = tickets.find((item) => item.id === activeId) || tickets[0];
   const response = responses[ticket.id] || {};
   return `<div class="itsw-tickets">
@@ -140,26 +142,26 @@ function itswTicketQueue(config) {
       </div>
       <form class="itsw-ticket-form" data-itsw-ticket-form="${esc(ticket.id)}">
         ${showPriority ? `<label>Priority rank (1 = work first)
-          <select name="priority" data-itsw-field="priority">
+          <select name="priority" data-itsw-field="priority"${off}>
             <option value="">Choose a rank&hellip;</option>
             ${Array.from({ length: priorityCount || tickets.length }, (_, i) => i + 1).map((n) => `<option value="${n}" ${Number(response.priority) === n ? 'selected' : ''}>${n}</option>`).join('')}
           </select>
         </label>` : ''}
         <label>Category
-          <select name="category" data-itsw-field="category">
+          <select name="category" data-itsw-field="category"${off}>
             <option value="">Choose a category&hellip;</option>
             ${categoryOptions.map((opt) => `<option value="${esc(opt.value)}" ${response.category === opt.value ? 'selected' : ''}>${esc(opt.label)}</option>`).join('')}
           </select>
         </label>
         <label>First diagnostic step
-          <textarea name="firstStep" data-itsw-field="firstStep" rows="2" placeholder="What's the first thing you'd check or ask?">${esc(response.firstStep || '')}</textarea>
+          <textarea name="firstStep" data-itsw-field="firstStep" rows="2"${off} placeholder="What's the first thing you'd check or ask?">${esc(response.firstStep || '')}</textarea>
         </label>
         <div class="itsw-ticket-decision" role="radiogroup" aria-label="Resolve or escalate">
-          <label><input type="radio" name="decision" value="resolve" data-itsw-field="decision" ${response.decision === 'resolve' ? 'checked' : ''} /> Resolve</label>
-          <label><input type="radio" name="decision" value="escalate" data-itsw-field="decision" ${response.decision === 'escalate' ? 'checked' : ''} /> Escalate</label>
+          <label><input type="radio" name="decision" value="resolve" data-itsw-field="decision"${off} ${response.decision === 'resolve' ? 'checked' : ''} /> Resolve</label>
+          <label><input type="radio" name="decision" value="escalate" data-itsw-field="decision"${off} ${response.decision === 'escalate' ? 'checked' : ''} /> Escalate</label>
         </div>
         <label>Reasoning
-          <textarea name="reasoning" data-itsw-field="reasoning" rows="2" placeholder="Why that category and that call?">${esc(response.reasoning || '')}</textarea>
+          <textarea name="reasoning" data-itsw-field="reasoning" rows="2"${off} placeholder="Why that category and that call?">${esc(response.reasoning || '')}</textarea>
         </label>
       </form>
     </div>

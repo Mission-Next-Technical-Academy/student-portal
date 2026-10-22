@@ -1,3 +1,56 @@
+**2026-10-21 (Megan; PR #<added by /pr-ready> "Help Desk: capstone ranked by priority band, no answer giveaways, answers locked while waiting for review"; Help Desk files plus shared `portal/index.html` version lines and `portal/it-support-shared.js` — please review those):**
+The Help Desk capstone (Module 12) now scores the queue ranking by priority
+band: each ticket has a hidden `priority` (P1–P4), and a rank earns the
+triage credit when it falls inside its band's positions (P1 = 1, P2 = 2–3,
+P3 = 4–5, P4 = 6), so any order inside a band scores the same. The exact
+SLA order inside a band of two or more (the existing `correctRank`) shows
+as "Exceeds" on the instructor sheet and doesn't change the score. Tickets
+no longer show a priority/category tag. The `feedback` saved with an
+attempt (and in the capstone report artifact) is now seven domain lines
+only, e.g. "Triage 10/15"; no `explain` text or hints. Critical errors name
+the ticket only. A first step earns technical credit only when it is at
+least 15 characters and matches an action pattern (decision-only words such
+as "escalate" or "report" were removed from the patterns). Submit refuses
+two tickets with the same rank. While an attempt is submitting or waiting
+for review, every answer field is disabled and Submit/Reset look disabled;
+a return unlocks them. No score weight, migration, grading or completion
+change.
+- `portal/it-support-module-12.js` (Megan's): new helpers
+  `its12BandPositions()`, `its12RankInBand()`, `its12BandExceeds()`,
+  `its12FirstStepOk()` and `its12RepeatedRank()`, used by both the scorer
+  and the instructor sheet so the two agree. Ticket `tag` removed. A ticket
+  can set an optional `rejectStepPattern` that refuses a first step even if
+  it matches; SEC-2114 uses it to refuse a negated containment action
+  ("do not isolate", "never disconnect"). Known gap: a negation separated
+  from the verb (e.g. 'Do not attempt to isolate the device') still earns
+  SEC-2114 first-step credit; instructor review catches it, and the
+  replacement capstone tickets should handle it.
+- `portal/admin-sheets/hdesk.js` (Megan's): the capstone priority check
+  expects the band (e.g. "P3 band, rank 4–5"), adds "Exceeds: SLA order
+  inside the P3 band" or "Only ticket in the P1 band" to the given text, and
+  its red-pen note no longer names a rank (it prefills the teacher note the
+  student receives).
+- `portal/it-support-shared.js` (Help Desk shared): `itswTicketQueue()`
+  takes an optional `locked` setting that disables the answer fields but
+  leaves the ticket list clickable. Off by default; output without it is
+  byte-identical to before. Only Module 12 calls this widget.
+- `portal/it-support-module-12.css` (Megan's): disabled look for the
+  capstone buttons and locked fields, matching `.m01-submit:disabled`.
+- `portal/index.html` (shared): version bumps for `it-support-shared.js`,
+  `it-support-module-12.js`, `it-support-module-12.css` and
+  `admin-sheets/hdesk.js` only.
+- `tests/hdesk-capstone-review.test.js`: 9 new cases (18 in total), already
+  run by `bin/ci-check.sh`.
+- Student marked lab (`renderStudent`, unchanged): it shows no answer key,
+  expected values or `explain` text, but the per-ticket "Pass"/"Needs work"
+  chips together with the domain scores can hint at which ticket's decision
+  was wrong. Worth handling in the replacement capstone or with server-side
+  scoring.
+- Older capstone attempts are synthetic test data only, and the sheet
+  re-checks them with the new rules (their saved score and feedback stay as
+  they were).
+- Staging: attempt manually returned on Oct 21 to re-run the capstone checks; undo in .claude/work/.
+
 **2026-10-20 (Megan; PR #80 "Help Desk: failed capstones reach instructor review; no score shown before review"; Help Desk files plus shared `portal/index.html` version lines, `bin/ci-check.sh` one test line, and `portal/it-support-shared.js` — please review those):**
 The Help Desk capstone (Module 12) now sends every submitted attempt to the
 instructor's Lab Attempts queue. Before, a failed attempt was saved as
