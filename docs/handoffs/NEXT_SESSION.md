@@ -49,6 +49,7 @@ change.
 - Older capstone attempts are synthetic test data only, and the sheet
   re-checks them with the new rules (their saved score and feedback stay as
   they were).
+- Staging: attempt manually returned on Oct 21 to re-run the capstone checks; undo in .claude/work/.
 
 **2026-10-20 (Megan; PR #80 "Help Desk: failed capstones reach instructor review; no score shown before review"; Help Desk files plus shared `portal/index.html` version lines, `bin/ci-check.sh` one test line, and `portal/it-support-shared.js` — please review those):**
 The Help Desk capstone (Module 12) now sends every submitted attempt to the
