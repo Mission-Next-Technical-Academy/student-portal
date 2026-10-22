@@ -60,12 +60,12 @@ const HD_COMPUTERS = [
 ];
 
 const HD_SERVERS = [
-  { name:'NS-DC01', role:'Domain Controller · DNS', os:'Windows Server 2022', ip:'10.20.0.10', status:'Online', cpu:'18%', memory:'46%', service:'AD DS / DNS healthy' },
-  { name:'NS-DC02', role:'Domain Controller · DNS', os:'Windows Server 2022', ip:'10.20.0.11', status:'Online', cpu:'14%', memory:'41%', service:'AD DS / DNS healthy' },
-  { name:'NS-DHCP01', role:'DHCP Server', os:'Windows Server 2022 Core', ip:'10.20.0.20', status:'Online', cpu:'8%', memory:'31%', service:'Scope 78% utilized' },
-  { name:'NS-FILE01', role:'File Server', os:'Windows Server 2022', ip:'10.20.0.30', status:'Online', cpu:'22%', memory:'63%', service:'SMB healthy · Finance ACL warning' },
-  { name:'NS-PRINT01', role:'Print Server', os:'Windows Server 2022', ip:'10.20.0.40', status:'Degraded', cpu:'12%', memory:'39%', service:'Spooler stopped · driver fault' },
-  { name:'NS-APP01', role:'Enterprise Application', os:'Windows Server 2022 Core', ip:'10.20.0.50', status:'Degraded', cpu:'27%', memory:'55%', service:'TLS certificate expired' },
+  { name:'NS-DC01', role:'Domain Controller · DNS', os:'Windows Server', ip:'10.20.0.10', status:'Online', cpu:'18%', memory:'46%', service:'AD DS / DNS healthy' },
+  { name:'NS-DC02', role:'Domain Controller · DNS', os:'Windows Server', ip:'10.20.0.11', status:'Online', cpu:'14%', memory:'41%', service:'AD DS / DNS healthy' },
+  { name:'NS-DHCP01', role:'DHCP Server', os:'Windows Server Core', ip:'10.20.0.20', status:'Online', cpu:'8%', memory:'31%', service:'Scope 78% utilized' },
+  { name:'NS-FILE01', role:'File Server', os:'Windows Server', ip:'10.20.0.30', status:'Online', cpu:'22%', memory:'63%', service:'SMB healthy · Finance ACL warning' },
+  { name:'NS-PRINT01', role:'Print Server', os:'Windows Server', ip:'10.20.0.40', status:'Degraded', cpu:'12%', memory:'39%', service:'Spooler stopped · driver fault' },
+  { name:'NS-APP01', role:'Enterprise Application', os:'Windows Server Core', ip:'10.20.0.50', status:'Degraded', cpu:'27%', memory:'55%', service:'TLS certificate expired' },
 ];
 
 const HD_DNS_RECORDS = [

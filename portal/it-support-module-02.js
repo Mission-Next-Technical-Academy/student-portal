@@ -16,7 +16,7 @@ const ITS02_SOURCES = [
 const ITS02_LESSONS = [
   {
     id: 'its-02-lesson-01', number: '2.1', icon: 'ri-cpu-line',
-    title: 'Virtualization Fundamentals & Building Your First VM', minutes: 150,
+    title: 'Virtualization Fundamentals & Building Your First VM', minutes: 240,
     learn: [
       'What virtualization is, and why IT support teams rely on it constantly',
       'The difference between the host machine and a guest VM, and what resources a VM actually uses',
@@ -41,7 +41,7 @@ const ITS02_LESSONS = [
   },
   {
     id: 'its-02-lesson-02', number: '2.2', icon: 'ri-history-line',
-    title: 'VM Snapshots, Recovery & Building a Server Environment', minutes: 150,
+    title: 'VM Snapshots, Recovery & Building a Server Environment', minutes: 240,
     learn: [
       'How to take and restore a VirtualBox snapshot',
       'Why snapshots are one of the most important habits in any hands-on IT lab',
@@ -67,7 +67,7 @@ const ITS02_LESSONS = [
   },
   {
     id: 'its-02-lesson-03', number: '2.3', icon: 'ri-hard-drive-2-line',
-    title: 'Windows Device & Storage Management', minutes: 60,
+    title: 'Windows Device & Storage Management', minutes: 90,
     learn: [
       'How to open Device Manager and read what it\'s telling you',
       'How to fix a device by updating, rolling back, or reinstalling its driver',
@@ -88,7 +88,7 @@ const ITS02_LESSONS = [
   },
   {
     id: 'its-02-lesson-04', number: '2.4', icon: 'ri-printer-line',
-    title: 'Printer & Peripheral Triage', minutes: 60,
+    title: 'Printer & Peripheral Triage', minutes: 90,
     learn: [
       'How to clear a print job that\'s stuck in the queue',
       'How to diagnose and fix a printer showing as "offline"',

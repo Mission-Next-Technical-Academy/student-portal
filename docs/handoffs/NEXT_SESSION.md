@@ -1,4 +1,40 @@
-**2026-10-21 (Megan; PR #<added by /pr-ready> "Help Desk: capstone ranked by priority band, no answer giveaways, answers locked while waiting for review"; Help Desk files plus shared `portal/index.html` version lines and `portal/it-support-shared.js` — please review those):**
+**2026-10-21 (Megan; PR #<added by /pr-ready> "Help Desk: curriculum minutes check in CI, technical theory hours, Windows Server with no year"; Help Desk files plus shared `bin/ci-check.sh` one step, and `portal/index.html` / `ui/index.html` version lines — please review those):**
+CI now runs a Help Desk curriculum check, `bin/its-curriculum-check.js`. It
+reads only the `it-support` program and its labs from `portal/data.js`, plus
+the Help Desk module pages, and fails when the technical minutes aren't
+3,600, an ITHD parent's theory + lab isn't its hours × 60, the module
+allocations don't add up to a parent, a module page's lesson time differs
+from the approved hour mapping's lesson total (lesson + its lab share), or a
+Help Desk file names "Windows Server" with a year. Every failure line starts
+with "Help Desk curriculum check:". By owner decision (Randy, Oct 21) the
+year is dropped everywhere for Help Desk, including the ITHD-101.5 title,
+now "Windows Server Administration Fundamentals". No minutes, migration,
+grading or completion change; the 3,600 total is unchanged.
+- `bin/ci-check.sh` (shared): one new step runs `node bin/its-curriculum-check.js`
+  after the Help Desk tests.
+- `portal/data.js` (Help Desk entries only): `compliance.technicalTheoryHours: 37`
+  so the program page's hours box shows 37h technical theory instead of
+  subtracting M360 from it (Help Desk's `theoryHours` is technical only). SOC
+  doesn't set the field, so its box is unchanged. Program description and
+  ITHD-101.5 title drop the year.
+- `portal/it-support-module-02.js` / `-12.js` (Megan's): lesson times now show
+  the mapping's lesson totals (Module 2: 240, 240, 90, 90; Module 12: 240), the
+  rule Modules 1 and 3–11 already follow. Neither page shows a lab duration.
+- `ui/helpdesk-data.js` / `ui/helpdesk.js` (Help Desk simulator): the six
+  servers say "Windows Server" or "Windows Server Core", and the Server Manager
+  header has no year.
+- `portal/index.html` / `ui/index.html` (shared): version bumps for the changed
+  files only.
+- Tabled: the program page's Curriculum Blocks still show each lesson's
+  theory-only minutes (e.g. Module 1 "1 Hour" vs "1 Hour 30 Minutes" on the
+  module page), because `curriculumItemRow()` in `portal/app.js` shows
+  `durationMinutes`, which is theory; showing lesson totals there needs a
+  shared `app.js` change, and the check marks that comparison as skipped.
+- Not changed: the already-applied seed `supabase/migrations/20260828140000_seed_catalogue.sql`
+  still has the old description with the year (the portal reads `data.js`,
+  not that row).
+
+**2026-10-21 (Megan; PR #81 "Help Desk: capstone ranked by priority band, no answer giveaways, answers locked while waiting for review"; Help Desk files plus shared `portal/index.html` version lines and `portal/it-support-shared.js` — please review those):**
 The Help Desk capstone (Module 12) now scores the queue ranking by priority
 band: each ticket has a hidden `priority` (P1–P4), and a rank earns the
 triage credit when it falls inside its band's positions (P1 = 1, P2 = 2–3,

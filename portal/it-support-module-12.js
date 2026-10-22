@@ -10,7 +10,7 @@
 
 const ITS12_LESSON = {
   id: 'its-12-lesson-01', number: '12.1', icon: 'ri-trophy-line',
-  title: 'Your Capstone: What to Expect', minutes: 30,
+  title: 'Your Capstone: What to Expect', minutes: 240,
   learn: [
     'Work a realistic set of L1 tickets spanning everything you\'ve learned',
     'Prioritize, troubleshoot, communicate, and document exactly as you\'ve practiced',
