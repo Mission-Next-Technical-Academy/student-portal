@@ -159,7 +159,7 @@ const PROGRAMS = [
     cardTitle: 'IT Help Desk & Career Accelerator',
     title: 'IT Help Desk & Career Accelerator',
     description:
-      'Enterprise Windows Server 2022 networks, Active Directory management, and enterprise ticket lifecycle training for real-world IT environments.',
+      'Enterprise Windows Server networks, Active Directory management, and enterprise ticket lifecycle training for real-world IT environments.',
     badge: 'Launch into IT Support in 6 weeks',
     weeks: 6,
     moduleCount: 12,
@@ -187,6 +187,9 @@ const PROGRAMS = [
       careerHours: 12,
       totalHours: 72,
       theoryHours: 37,
+      // Help Desk theoryHours is technical only (M360 is counted separately),
+      // so the program page must not subtract careerHours from it.
+      technicalTheoryHours: 37,
       labHours: 23,
       passingPercent: 70,
       attendancePercent: 80,
@@ -202,7 +205,7 @@ const PROGRAMS = [
       { code: 'ITHD-101.2', title: 'IT Ticket Lifecycle, Help Desk Workflow, Documentation, Escalation Procedures', hours: 7, theoryMinutes: 270, labMinutes: 150, reviewStatus: 'developer-mapped' },
       { code: 'ITHD-101.3', title: 'Virtualization Fundamentals & Lab Setup (Oracle VirtualBox)', hours: 8, theoryMinutes: 300, labMinutes: 180, reviewStatus: 'developer-mapped' },
       { code: 'ITHD-101.4', title: 'Windows Client OS Support & Endpoint Troubleshooting', hours: 8, theoryMinutes: 330, labMinutes: 150, reviewStatus: 'developer-mapped' },
-      { code: 'ITHD-101.5', title: 'Windows Server 2022 Administration Fundamentals', hours: 8, theoryMinutes: 315, labMinutes: 165, reviewStatus: 'developer-mapped' },
+      { code: 'ITHD-101.5', title: 'Windows Server Administration Fundamentals', hours: 8, theoryMinutes: 315, labMinutes: 165, reviewStatus: 'developer-mapped' },
       { code: 'ITHD-101.6', title: 'Active Directory Users, Groups, Permissions, Identity Management', hours: 10, theoryMinutes: 375, labMinutes: 225, reviewStatus: 'developer-mapped' },
       { code: 'ITHD-101.7', title: 'Networking Fundamentals, DNS, DHCP, Connectivity Testing, Domain Joining', hours: 8, theoryMinutes: 300, labMinutes: 180, reviewStatus: 'developer-mapped' },
       { code: 'ITHD-101.8', title: 'Remote Support Tools, Security Awareness, Troubleshooting Methodology', hours: 4, theoryMinutes: 180, labMinutes: 60, reviewStatus: 'developer-mapped' },
