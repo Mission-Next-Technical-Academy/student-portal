@@ -246,7 +246,7 @@ const PROGRAMS = [
       'Networking Fundamentals', 'Virtualization', 'Ticketing & SLAs', 'Customer Communication',
     ],
     capstone: {
-      intro: 'A realistic multi-category L1 ticket queue worked end to end — prioritize, resolve or escalate, communicate, and document, then produce a knowledge-base article and an honest after-action review. This is the only Prove assessment and integrates the competencies taught in Modules 01–11.',
+      intro: 'A realistic multi-category L1 ticket queue worked end to end — prioritize, resolve or escalate, communicate, and document, then produce a knowledge-base article and an honest after-action review. This is the program\'s final, integrated Prove It, drawing on the competencies taught in Modules 01–11.',
       capabilities: [
         'Ticket triage', 'Priority sequencing', 'Endpoint troubleshooting', 'Identity & access',
         'Network diagnostics', 'Peripheral support', 'Security judgment', 'Escalation judgment',
