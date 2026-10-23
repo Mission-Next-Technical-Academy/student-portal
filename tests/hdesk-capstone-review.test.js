@@ -296,6 +296,15 @@ function testFirstStepNeedsRealAction() {
   assert.equal(ok(ticket('HD-2110'), 'test the trust relationship'), true);
   assert.equal(ok(ticket('HD-2110'), 'Run Test-ComputerSecureChannel on the PC'), true);
   assert.equal(ok(ticket('HD-2110'), 'Confirm the scope with the user first'), true);
+  assert.equal(ok(ticket('HD-2110'), 'Confirm the domain trust scope and escalate to Tier 2.'), true, 'words between "confirm" and "scope"');
+  assert.equal(ok(ticket('HD-2110'), 'Confirm the trust relationship is broken, then escalate.'), true, '"confirm" is a trust check verb');
+  assert.equal(ok(ticket('HD-2110'), 'Confirm how many machines are affected (scope) and escalate.'), true, '"how many" near what is affected');
+  assert.equal(ok(ticket('HD-2110'), 'Ask how many times they rebooted.'), false, '"how many" alone is not a scope check');
+  assert.equal(ok(ticket('HD-2110'), 'Escalate to Tier 2.'), false, 'decision only');
+  // Known gap (no rejectStepPattern on HD-2110, by decision): negated first
+  // steps such as "Don't confirm the scope, just escalate it." and "No need to
+  // check the trust, escalate to Tier 2." still earn credit. Instructor review
+  // catches them.
   assert.equal(ok(ticket('SEC-2114'), 'Isolate the laptop from the network'), true);
   assert.equal(ok(ticket('SEC-2114'), 'Tell the user not to reset or click anything'), true);
   assert.equal(ok(ticket('SEC-2114'), 'Disconnect the device from Wi-Fi'), true);

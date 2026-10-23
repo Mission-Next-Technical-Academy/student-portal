@@ -59,7 +59,7 @@ const ITS12_TICKETS = [
     explain: 'A credential-phishing incident is always the highest priority — contain first (don\'t let the user "fix" it themselves), then escalate to the security-incident process immediately.' },
   { id: 'HD-2110', from: 'Sofia Martin · Operations', message: 'My computer says it can\'t connect to the domain anymore. It was fine until I restored a VM snapshot from before I left for lunch.',
     category: 'server', decision: 'escalate', priority: 'P2', correctRank: 2,
-    firstStepPattern: /confirm (the )?scope|anyone else|other (users|machines|computers|devices)|test-computersecurechannel|secure ?channel|nltest|(check|verify|test)\b.{0,30}trust/i,
+    firstStepPattern: /confirm\b.{0,30}\bscope|how many\b.{0,20}\b(users|machines|computers|devices|affected)|anyone else|other (users|machines|computers|devices)|test-computersecurechannel|secure ?channel|nltest|(check|verify|test|confirm)\b.{0,30}trust/i,
     reasoningPattern: /domain trust|server|outside|scope|escalat|tier ?2/i,
     explain: 'A broken domain trust relationship is outside L1 authority to repair directly — confirm the scope, then escalate to the server/infrastructure team.' },
   { id: 'HD-2104', from: 'Priya Shah · HR', message: 'My laptop shows it\'s connected to Wi-Fi but I can\'t reach anything — not even our internal site.',

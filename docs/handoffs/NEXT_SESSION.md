@@ -1,3 +1,22 @@
+**2026-10-23 (Megan; "Help Desk: capstone HD-2110 first step accepts reworded scope and trust checks"; Help Desk files plus the `portal/index.html` version line for `it-support-module-12.js` only):**
+The Help Desk capstone's HD-2110 first-step rule (`portal/it-support-module-12.js`)
+now accepts a correct first step in other word orders: words between
+"confirm" and "scope" ("Confirm the domain trust scope and escalate to Tier 2."),
+"confirm" as a trust check ("Confirm the trust relationship is broken"), and
+"how many" near users/machines/computers/devices/affected. Decision-only
+answers ("Escalate to Tier 2.") still get no technical credit. The instructor
+sheet uses the same rule (`its12FirstStepOk()`), so the two still agree.
+- **For Alex / PR #79:** `tests/admin-submission-sheet.test.js` failed on master
+  on the Help Desk case "Help Desk capstone perfect saved responses"
+  (`capstone-hd-2110`), because of the earlier tightened rule. With this change it
+  passes on master. Once PR #79 is rebased on master, that test should pass in
+  CI with no change on the PR #79 side. This change doesn't add the test to
+  `bin/ci-check.sh` (PR #79 already does).
+- Known gap, by decision: HD-2110 has no negation guard, so a negated first
+  step ("Don't confirm the scope, just escalate it.") can still earn credit;
+  instructor review catches it.
+- No migration, grading, completion or shared-code change.
+
 **2026-10-21 (Megan; PR #<added by /pr-ready> "Help Desk: curriculum minutes check in CI, technical theory hours, Windows Server with no year"; Help Desk files plus shared `bin/ci-check.sh` one step, and `portal/index.html` / `ui/index.html` version lines — please review those):**
 CI now runs a Help Desk curriculum check, `bin/its-curriculum-check.js`. It
 reads only the `it-support` program and its labs from `portal/data.js`, plus
