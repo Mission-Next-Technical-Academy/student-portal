@@ -298,7 +298,7 @@ function its02Lab34() {
   return `<section class="its02-section its02-lab-section" id="its02-lab-2-3" aria-labelledby="its02-lab-2-3-title">
     <div class="its02-section-heading"><span>3</span><div><p class="its02-kicker">Labs 2.3 &amp; 2.4 · guided walkthrough</p><h2 id="its02-lab-2-3-title">The Misbehaving Peripheral &amp; The Stuck Queue</h2></div></div>
     <p class="its02-instruction">Work two real print-driver tickets end to end in the IT Service Desk simulator — a stuck label queue (HD-2106) and a crashing Print Spooler service (HD-2112) — tracing both back to the same driver crash and resolving them under change control. A coach spotlights each step for you.</p>
-    <a class="itsw-evidence-button" data-its02-console-launch href="${esc(SIM_ORIGIN)}?coach=hd-m02&amp;restart=1#/helpdesk/tickets" target="_blank" rel="opener">
+    <a class="itsw-evidence-button" data-its02-console-launch href="${esc(itsCoachLaunchHref('hd-m02', its02User))}" target="_blank" rel="opener">
       <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: esc(ITS02_WALKTHROUGH_START) }[button.mode]}
     </a>
     ${itsWalkthroughNoticeHtml(its02User, 'hd-m02', ITS02_WALKTHROUGH_LAB_KEYS, ITS02_WALKTHROUGH_START)}
@@ -379,20 +379,26 @@ async function its02ReceiveCoachCompletion(event) {
   if (!event.data || event.data.type !== 'mnt-coach-complete' || event.data.id !== 'hd-m02') return;
   if (event.origin !== new URL(SIM_ORIGIN).origin) return;
   const user = await currentUser();
-  if (!user) return;
+  if (!user) { itsConfirmCoachReceipt(event, false); return; }
+  const wrongStudent = itsCoachStudentMismatch(event, user);
+  if (wrongStudent) { itsConfirmCoachReceipt(event, false, wrongStudent); return; }
 
-  const saved = LabRuntime.load(ITS02_LAB_ID, user, ITS02_DEFAULT_STATE);
-  saved.consoleStarted = true;
-  saved.consoleCompleted = true;
-  LabRuntime.save(ITS02_LAB_ID, user, saved);
-  its02State = saved;
+  // Submit first: Labs 2.3 and 2.4 count as complete only once the portal
+  // has their attempts (saved now, or already waiting or approved).
+  const received = await itsSubmitWalkthroughLabs(user, 'its-02', ITS02_WALKTHROUGH_LAB_KEYS, itsCleanCoachWork(event.data.work));
   its02User = user;
-
-  if (typeof markModuleLabComplete === 'function') {
-    markModuleLabComplete(user, 'it-support', 'its-02', ITS02_LAB23_KEY);
-    markModuleLabComplete(user, 'it-support', 'its-02', ITS02_LAB24_KEY);
+  if (received) {
+    const saved = LabRuntime.load(ITS02_LAB_ID, user, ITS02_DEFAULT_STATE);
+    saved.consoleStarted = true;
+    saved.consoleCompleted = true;
+    LabRuntime.save(ITS02_LAB_ID, user, saved);
+    its02State = saved;
+    if (typeof markModuleLabComplete === 'function') {
+      markModuleLabComplete(user, 'it-support', 'its-02', ITS02_LAB23_KEY);
+      markModuleLabComplete(user, 'it-support', 'its-02', ITS02_LAB24_KEY);
+    }
   }
-  await itsSubmitWalkthroughLabs(user, 'its-02', ITS02_WALKTHROUGH_LAB_KEYS, itsCleanCoachWork(event.data.work));
+  itsConfirmCoachReceipt(event, received);
 
   const mounted = Boolean(document.querySelector('.its02-shell'));
   if (!mounted) return;

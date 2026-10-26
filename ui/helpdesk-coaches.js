@@ -186,16 +186,6 @@
     ],
   });
 
-  document.addEventListener('DOMContentLoaded', () => {
-    const params = new URLSearchParams(location.search);
-    if (params.get('coach') === 'hd-m01') {
-      setTimeout(() => {
-        hd1Reset();
-        if (typeof render === 'function') render();
-      }, 30);
-    }
-  });
-
   /* ---------------------------------------------------------- hd-m02 ---- */
   /* Covers what were "Lab 2.3 The Misbehaving Peripheral" and "Lab 2.4 The
    * Stuck Queue and the Offline Printer" in the original lab-spec docx.
@@ -300,16 +290,6 @@
     resetState: hd2Reset,
     allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket'],
     steps: hd2Steps,
-  });
-
-  document.addEventListener('DOMContentLoaded', () => {
-    const params = new URLSearchParams(location.search);
-    if (params.get('coach') === 'hd-m02') {
-      setTimeout(() => {
-        hd2Reset();
-        if (typeof render === 'function') render();
-      }, 30);
-    }
   });
 
   /* ------------------------------------------------------ hd-m03..hd-m11 -
@@ -423,11 +403,6 @@
       resetState: () => hdResetTicketScope(ticketIds),
       allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket'].concat(allowExtra || []),
       steps: null, // set by caller after construction
-    });
-    document.addEventListener('DOMContentLoaded', () => {
-      if (new URLSearchParams(location.search).get('coach') === id) {
-        setTimeout(() => { hdResetTicketScope(ticketIds); if (typeof render === 'function') render(); }, 30);
-      }
     });
     return MODULE_COACHES[MODULE_COACHES.length - 1];
   }
@@ -623,11 +598,6 @@
       },
     ],
   });
-  document.addEventListener('DOMContentLoaded', () => {
-    if (new URLSearchParams(location.search).get('coach') === 'hd-m10') {
-      setTimeout(() => { hdResetTicketScope(null); if (typeof render === 'function') render(); }, 30);
-    }
-  });
 
   /* hd-m11 — Module 11: Customer Service, Documentation & Escalation. Two
    * tickets. HD-2113 (also reachable unguided from Module 4's scope) whose
@@ -657,7 +627,10 @@
       resolveBody: 'Close this out the way you opened it: plainly, without jargon, and without promising more than you can back up — confirm send/receive works, tell her it’s resolved, and skip the corporate hedging. That’s what actually de-escalates a second call like this one.',
     }));
 
+  // coach.js resets a coach's tickets (resetState) only when it starts it
+  // fresh; a reload or a relaunch of an unfinished lab resumes the saved work.
   MODULE_COACHES.filter((coach) => /^hd-m\d+$/.test(coach.id)).forEach((coach) => {
     coach.collectWork = () => hdCollectCoachWork(coach);
+    coach.resumeAcrossLaunches = true;
   });
 })();

@@ -1,3 +1,66 @@
+**2026-10-26 (Megan; PR #<added by /pr-ready> "Coach labs keep their work on reload; Help Desk walkthroughs resume and confirm their save"; shared `ui/coach.js`, `ui/styles.css`, `ui/index.html`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk files — please review the shared ones):**
+Reloading the simulator in a coach lab no longer starts it over. The portal's
+launch parameters (`restart=1`, and for Help Desk `student=`) now leave the
+address bar on the first load, so a reload resumes the coach's saved step
+(this applies to SOC Module 1's `m01` coach too: a reload keeps its sign-in
+filter and step). A launch from the portal behaves as before for SOC: `m01`
+still resets and starts at step 1, and its Finish message is unchanged
+(the portal ignores it, as before). Help Desk coaches (`hd-m01`..`hd-m11`)
+opt in to two more things through a new coach flag, `resumeAcrossLaunches`:
+- **Relaunch resumes.** They keep one in-progress record in localStorage
+  (`mnt.coach.resume`: coach id, step, student). Relaunching the same lab
+  resumes it, on the page its step lives on, only when the launch link's
+  `student=` (the portal's `LabRuntime.anonymousStudentId`, a hash, never the
+  email) matches the record. A record with no student (a tab opened from a
+  course page cached from before this change) is claimed by the next launch
+  of the same lab that names one. A different student, a launch with no
+  `student=`, a different coach started in between, a finished lab, or the
+  simulator's "Reset shift" / "Generate new shift" starts fresh (resetting
+  that coach's tickets). Reset shift also stops the running coach.
+- **Finish waits for the portal.** Finish sends the work with a nonce and
+  the launching student's id, and waits up to 8 s for the portal tab's reply
+  (`mnt-coach-received`, checked for source, origin and nonce). Only
+  `saved: true` clears the record, ends the coach and closes the tab.
+  Otherwise the work stays on the last step with a message for the case:
+  signed out, failed or timed out (sign in, press Finish again); a different
+  student signed in on the course page (`reason: 'other-student'`); no
+  student id (`reason: 'no-student'`, also caught in the simulator before
+  sending: reload the course page and relaunch); no portal tab (relaunch from
+  the course page, which resumes at Finish).
+- `ui/coach.js` (shared): `boot()`, `start()`, `saveState()`, `finish()`
+  (coaches without the flag take the old path unchanged), new
+  `finishWithReceipt()`, `stripLaunchParams()`, `resumeAt()`, and
+  `window.forgetModuleCoachProgress()`.
+- `ui/helpdesk-coaches.js` (Help Desk): removed the page-load listeners that
+  reset tickets on every load with `coach=` in the URL; `boot()` now calls
+  each coach's `resetState` on a fresh start. Sets the flag on every `hd-m*`
+  coach.
+- `ui/helpdesk.js` (Help Desk): `hdResetShift()` calls
+  `forgetModuleCoachProgress()`.
+- `ui/styles.css` (shared): one new rule, `.coach-bar-alert`, for that
+  message. `ui/index.html` / `portal/index.html` (shared): version bumps for
+  the changed files only.
+- `portal/it-support-shared.js`, `-module-01.js`, `-module-02.js` (Help Desk):
+  walkthrough links come from `itsCoachLaunchHref()`;
+  `itsSubmitWalkthroughLabs()` now resolves true when every lab that could
+  take an attempt saved one (a lab already waiting or approved counts as
+  received); the three completion handlers reply through
+  `itsConfirmCoachReceipt()`, including `saved: false` when signed out. They
+  save nothing unless the message's `student` equals
+  `LabRuntime.anonymousStudentId()` of the signed-in user
+  (`itsCoachStudentMismatch()`), so student B signed in on the course page
+  can't receive student A's simulator work. The handlers now submit first: `consoleCompleted` and `markModuleLabComplete()`
+  happen only when the portal has the attempt (saved now, or already waiting
+  or approved), so a failed save no longer marks the lab complete locally.
+- `bin/ci-check.sh` (shared): runs the new `tests/coach-reload-resume.test.js`
+  (Help Desk `hd-m03` and SOC `m01` in a vm against the real simulator
+  scripts); `tests/hdesk-module-page-states.test.js` has twelve new receipt,
+  completion-order, student-check and launch-link cases, and its and
+  `tests/hdesk-returned-lab-resubmit.test.js`'s completion messages now carry
+  the student id. PR #79 also adds lines to `bin/ci-check.sh`, so
+  whichever merges second may need a one-line conflict resolved.
+- No migration, grading or scoring change.
+
 **2026-10-23 (Megan; "Help Desk: capstone HD-2110 first step accepts reworded scope and trust checks"; Help Desk files plus the `portal/index.html` version line for `it-support-module-12.js` only):**
 The Help Desk capstone's HD-2110 first-step rule (`portal/it-support-module-12.js`)
 now accepts a correct first step in other word orders: words between

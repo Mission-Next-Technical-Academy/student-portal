@@ -20,8 +20,18 @@
   'use strict';
 
   const STATE_KEY = 'mnt.coach.state';
-  let state = null;           // { id, step }
+  // A coach with `resumeAcrossLaunches` also keeps one in-progress record in
+  // localStorage, so relaunching it from the portal (a new tab, empty
+  // sessionStorage) resumes the unfinished lab instead of starting over. One
+  // slot, because those coaches share one simulator save: starting a
+  // different coach replaces it. The record names the launching student (the
+  // portal's anonymous id, never an email) and resumes only for that student.
+  const RESUME_KEY = 'mnt.coach.resume';
+  const FINISH_CONFIRM_MS = 8000;
+  let state = null;           // { id, step, student? }
   let lastDeniedAt = 0;
+  let finishNotice = '';      // shown in the bar when Finish wasn't confirmed
+  let finishing = false;
 
   const coachById = id => (typeof MODULE_COACHES === 'undefined' ? [] : MODULE_COACHES)
     .find(c => c.id === id) || null;
@@ -36,6 +46,20 @@
       if (state) sessionStorage.setItem(STATE_KEY, JSON.stringify(state));
       else sessionStorage.removeItem(STATE_KEY);
     } catch { /* private mode — the coach still works, it just forgets on reload */ }
+    const coach = activeCoach();
+    if (state && coach && coach.resumeAcrossLaunches) {
+      try {
+        localStorage.setItem(RESUME_KEY, JSON.stringify({ id: state.id, step: state.step, student: state.student || '' }));
+      } catch { /* storage blocked — a relaunch starts fresh */ }
+    }
+  }
+
+  function loadResume() {
+    try { return JSON.parse(localStorage.getItem(RESUME_KEY) || 'null'); } catch { return null; }
+  }
+
+  function clearResume() {
+    try { localStorage.removeItem(RESUME_KEY); } catch { /* storage blocked */ }
   }
 
   function loadState() {
@@ -303,10 +327,12 @@
           waiting ? ' · your move' : ''}</p>
         <p class="coach-bar-instruction">${step.instruction || step.title}</p>
         ${step.body ? `<details class="coach-bar-why"><summary>Why this matters</summary><p>${step.body}</p></details>` : ''}
+        ${last && finishNotice ? `<p class="coach-bar-alert" role="alert">${finishNotice}</p>` : ''}
       </div>
       <div class="coach-bar-actions">
         ${last && step.finish
-          ? `<button class="coach-btn primary" type="button" data-coach="finish">${step.finish.label}</button>`
+          ? `<button class="coach-btn primary" type="button" data-coach="finish"${finishing ? ' disabled' : ''}>${
+              finishing ? 'Saving…' : step.finish.label}</button>`
           : waiting
             ? `<span class="coach-bar-waiting"><i class="coach-bar-pulse" aria-hidden="true"></i>${
                 step.waitLabel || 'Waiting for you'}</span>`
@@ -430,13 +456,13 @@
     location.replace(`${location.pathname}?${params.toString()}${location.hash}`);
   }
 
-  function start(id) {
+  function start(id, student) {
     const coach = coachById(id);
     if (!coach) return;
     const missing = missingRoutes(coach);
     if (missing.length) { renderStale(coach, missing); return; }
     coach.steps.forEach(s => { s._done = false; });
-    state = { id, step: 0 };
+    state = coach.resumeAcrossLaunches ? { id, step: 0, student: student || '' } : { id, step: 0 };
     saveState();
     try { sessionStorage.setItem('mnt.coach.lastModule', String(coach.module)); } catch { /* private mode */ }
     goToStep(0);
@@ -497,12 +523,73 @@
     const href = (step && step.finish && step.finish.href)
       || portalUrl(`#/program/soc-analyst/module/${coach ? coach.module : 1}`, coach && coach.completionToken);
     const completionToken = coach && coach.completionToken;
+    if (coach && coach.resumeAcrossLaunches && completionToken) { finishWithReceipt(coach, href); return; }
     stop();
     if (completionToken && window.opener && !window.opener.closed) {
       const work = coach && typeof coach.collectWork === 'function' ? coach.collectWork() : undefined;
       window.opener.postMessage({ type: 'mnt-coach-complete', id: completionToken, ...(work ? { work } : {}) }, new URL(href).origin);
     }
     returnToOpenerOrNavigate(href);
+  }
+
+  // A resumable coach's work exists only in this browser until the portal
+  // stores it, so its Finish asks the portal tab to confirm the save. Only a
+  // confirmed save ends the lab and drops the in-progress record; otherwise
+  // the coach stays on its last step with the work intact.
+  const FINISH_NOTICES = {
+    closed: 'Your course page is closed, so this lab couldn’t be saved. Your work is still here. Open your course page and click the walkthrough button for this lab to continue, then press Finish.',
+    'other-student': 'Your course page is signed in as a different student, so this lab wasn’t saved. Your work is still here. Sign in as yourself on your course page, then press Finish again.',
+    'no-student': 'This lab was opened from an older copy of your course page, so it can’t be saved from here. Your work is still here. Reload your course page, click the walkthrough button for this lab, then press Finish.',
+    unconfirmed: 'Your course page didn’t confirm it saved this lab. Your work is still here. Make sure you’re signed in on your course page, then press Finish again.',
+  };
+
+  function finishWithReceipt(coach, href) {
+    if (finishing) return;
+    const opener = window.opener && !window.opener.closed ? window.opener : null;
+    if (!opener) { showFinishNotice(FINISH_NOTICES.closed); return; }
+    // The portal saves only work whose launch named the signed-in student.
+    if (!state.student) { showFinishNotice(FINISH_NOTICES['no-student']); return; }
+    const origin = new URL(href).origin;
+    const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    const work = typeof coach.collectWork === 'function' ? coach.collectWork() : undefined;
+    let timer = 0;
+    const settle = (saved, reason) => {
+      clearTimeout(timer);
+      window.removeEventListener('message', onReply);
+      finishing = false;
+      if (!saved) {
+        showFinishNotice(FINISH_NOTICES[reason] || FINISH_NOTICES.unconfirmed);
+        return;
+      }
+      finishNotice = '';
+      clearResume();
+      stop();
+      returnToOpenerOrNavigate(href);
+    };
+    function onReply(event) {
+      const data = event.data;
+      if (event.source !== opener || event.origin !== origin) return;
+      if (!data || data.type !== 'mnt-coach-received' || data.id !== coach.completionToken || data.nonce !== nonce) return;
+      settle(data.saved === true, data.reason);
+    }
+    finishing = true;
+    finishNotice = '';
+    renderPanel();
+    window.addEventListener('message', onReply);
+    timer = setTimeout(() => settle(false), FINISH_CONFIRM_MS);
+    opener.postMessage({ type: 'mnt-coach-complete', id: coach.completionToken, nonce, student: state.student, ...(work ? { work } : {}) }, origin);
+  }
+
+  function showFinishNotice(text) {
+    finishNotice = text;
+    renderPanel();
+  }
+
+  // The simulator's own "Reset shift" discards the work a coach is built on,
+  // so it also ends the running coach and forgets the in-progress record.
+  function forgetProgress() {
+    clearResume();
+    if (state) stop();
   }
 
   // ---------- mount ----------
@@ -557,21 +644,53 @@
     if (state) setTimeout(applySpotlight, 30);
   }
 
+  // `restart` and `student` describe one launch from the portal. Left in the
+  // address bar, a reload would count as a new launch and wipe the lab.
+  function stripLaunchParams() {
+    const search = new URLSearchParams(location.search);
+    if (!search.has('restart') && !search.has('student')) return;
+    search.delete('restart');
+    search.delete('student');
+    const query = search.toString();
+    try { history.replaceState(history.state, '', `${location.pathname}${query ? `?${query}` : ''}${location.hash}`); } catch { /* sandboxed */ }
+  }
+
+  // A relaunch opens on the coach's home page, but the saved step may live on
+  // another page that only an earlier step routes to.
+  function resumeAt(index) {
+    const coach = activeCoach();
+    const route = coach.steps.slice(0, index + 1).map(s => s.route).filter(Boolean).pop();
+    if (route && location.hash !== route && !coach.steps[index].route) navigate(route);
+    goToStep(index);
+  }
+
   function boot() {
     mount();
     const search = new URLSearchParams(location.search);
     const requested = search.get('coach');
     const restart = search.get('restart') === '1';
+    const student = search.get('student') || '';
+    stripLaunchParams();
     const restored = loadState();
     if (requested && coachById(requested)) {
       const requestedCoach = coachById(requested);
-      if (restart && typeof requestedCoach.resetState === 'function') requestedCoach.resetState();
+      const resume = requestedCoach.resumeAcrossLaunches ? loadResume() : null;
       if (!restart && restored && restored.id === requested) {
         state = restored;
         saveState();
         goToStep(state.step);
+      } else if (resume && resume.id === requested && student && (resume.student === student || !resume.student)) {
+        // A record with no student came from a tab opened by an older course
+        // page that couldn't name one; the next launch of the same lab from a
+        // current page claims it, so that work can still be saved.
+        state = { id: requested, step: Number(resume.step) || 0, student };
+        saveState();
+        resumeAt(Math.max(0, Math.min(state.step, requestedCoach.steps.length - 1)));
       } else {
-        start(requested);
+        if ((restart || requestedCoach.resumeAcrossLaunches) && typeof requestedCoach.resetState === 'function') {
+          requestedCoach.resetState();
+        }
+        start(requested, student);
       }
     } else if (restored) {
       state = restored;
@@ -584,6 +703,7 @@
   window.coachAfterRender = coachAfterRender;
   window.startModuleCoach = start;
   window.stopModuleCoach = stop;
+  window.forgetModuleCoachProgress = forgetProgress;
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
