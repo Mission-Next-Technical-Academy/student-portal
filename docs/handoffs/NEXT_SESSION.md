@@ -1,4 +1,4 @@
-**2026-10-26 (Megan; PR #<added by /pr-ready> "Coach labs keep their work on reload; Help Desk walkthroughs resume and confirm their save"; shared `ui/coach.js`, `ui/styles.css`, `ui/index.html`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk files — please review the shared ones):**
+**2026-10-26 (Megan; PR #85 "Coach labs keep their work on reload; Help Desk walkthroughs resume and confirm their save"; shared `ui/coach.js`, `ui/styles.css`, `ui/index.html`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk files — please review the shared ones):**
 Reloading the simulator in a coach lab no longer starts it over. The portal's
 launch parameters (`restart=1`, and for Help Desk `student=`) now leave the
 address bar on the first load, so a reload resumes the coach's saved step
