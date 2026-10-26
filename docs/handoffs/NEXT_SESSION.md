@@ -1,4 +1,4 @@
-**2026-10-26 (Megan; PR #<added by /pr-ready> "Help Desk: instructor sheets grade only the tickets the coach walks the student through"; Help Desk files plus the `portal/index.html` version line for `admin-sheets/hdesk.js` only):**
+**2026-10-26 (Megan; PR #86 "Help Desk: instructor sheets grade only the tickets the coach walks the student through"; Help Desk files plus the `portal/index.html` version line for `admin-sheets/hdesk.js` only):**
 The Help Desk instructor sheets (`portal/admin-sheets/hdesk.js`) now grade only
 the tickets each coach walks the student through (`hdTicketFlowSteps` in
 `ui/helpdesk-coaches.js`): Module 4 grades HD-2104 and HD-2105, Module 7
