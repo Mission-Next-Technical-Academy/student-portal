@@ -141,7 +141,9 @@ let its02User = null;
 
 function its02Load(user) {
   its02User = user;
-  its02State = LabRuntime.load(ITS02_LAB_ID, user, ITS02_DEFAULT_STATE);
+  // Saved to the student's account (module_progress.case_state), so added-file
+  // names come back in any browser after sign-in.
+  its02State = LabRuntime.loadCaseState(ITS02_LAB_ID, 'its-02', user, ITS02_DEFAULT_STATE);
   // The simulator's popup message is the only way a walkthrough is recorded;
   // a return by link only shows that it wasn't (see itsNoteCoachReturn).
   itsNoteCoachReturn(user, 'hd-m02', ITS02_WALKTHROUGH_LAB_KEYS);
@@ -149,6 +151,13 @@ function its02Load(user) {
   const returnedEvidence = Object.keys(ITS02_EVIDENCE_LABS)
     .filter((labKey) => itsEvidenceRedo(user, its02State, labKey, ITS02_EVIDENCE_LABS[labKey].fields).returned);
   if (returnedEvidence.length) its02Save();
+  // Files added before a reload come back from this browser's copies.
+  itswRestoreDraftFiles(user, its02State, Object.keys(ITS02_EVIDENCE_LABS).map((labKey) => ({ labKey, fields: ITS02_EVIDENCE_LABS[labKey].fields })))
+    .then((changed) => {
+      if (!changed || its02User !== user) return;
+      Object.keys(ITS02_EVIDENCE_LABS).forEach(its02RenderEvidenceLab);
+      its02RenderHeroStatus();
+    });
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'it-support', 'its-02');
   return its02State;
 }
@@ -168,7 +177,7 @@ function its02EvidenceRedoHtml(labKey) {
 }
 
 function its02Save() {
-  if (its02User && its02State) LabRuntime.save(ITS02_LAB_ID, its02User, its02State);
+  if (its02User && its02State) LabRuntime.saveCaseState(ITS02_LAB_ID, 'its-02', its02User, its02State);
 }
 
 function its02LessonCard(lesson) {
@@ -246,7 +255,7 @@ function its02AddEvidence(inputId, picked) {
   if (!field || !picked || !its02State) return;
   const labKey = Object.keys(ITS02_EVIDENCE_LABS).find((key) => ITS02_EVIDENCE_LABS[key].fields.includes(field));
   // A refused pick empties the field (see itswTakeEvidence).
-  its02State[field] = itswTakeEvidence(its02User, field, picked, its02State[field]);
+  its02State[field] = itswTakeEvidence(its02User, field, picked, its02State[field], labKey);
   its02Save();
   its02RenderEvidenceLab(labKey);
 }
