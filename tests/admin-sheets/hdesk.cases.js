@@ -133,7 +133,7 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
       verdict: 'judgment',
       sections: { 'resolution-hd-2104': 'pass', 'diagnosis-hd-2105': 'pass', 'context-hd-2113': 'judgment' },
       feedback: [],
-      html: ['Other queue ticket · HD-2113 (not graded)', 'idk lol vpn broke', 'No required section is marked ✗'],
+      html: [/Other queue ticket · HD-2113 <span class="ass-optional">\(advisory\)<\/span>/, 'idk lol vpn broke', 'No required section is marked ✗'],
       notHtml: ['Read and judge', 'Work notes · HD-2113', 'Diagnosis · HD-2113'],
     },
     custom: ({ sheet, suggested }) => {
@@ -166,7 +166,7 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
       verdict: 'judgment',
       sections: { 'resolution-hd-2119': 'pass', 'work-notes-hd-2119': 'pass', 'context-hd-2120': 'judgment', 'context-hd-2123': 'judgment' },
       feedback: [],
-      html: ['Other queue ticket · HD-2121 (not graded)'],
+      html: [/Other queue ticket · HD-2121 <span class="ass-optional">\(advisory\)<\/span>/],
       notHtml: ['Read and judge'],
     },
     custom: ({ sheet, suggested }) => {
@@ -232,7 +232,7 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
         sections: { 'troubleshooting-hd-2106': 'pass', 'troubleshooting-hd-2112': 'pass', 'diagnosis-hd-2112': 'pass', 'resolution-hd-2112': 'pass' },
         feedback: [],
         html: ['Checked HD-2112 step one', 'Cause of HD-2112', 'Student resolution for HD-2112.', 'Evidence for HD-2112 confirmed the cause'],
-        notHtml: ['not graded', 'Priority work'],
+        notHtml: ['Other queue ticket', 'Priority work'],
       },
       custom: ({ sheet }) => {
         assert.equal(ticketSectionIds(sheet, 'HD-2106').length, 6);

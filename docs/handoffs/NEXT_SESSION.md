@@ -3,7 +3,7 @@ The Help Desk instructor sheets (`portal/admin-sheets/hdesk.js`) now grade only
 the tickets each coach walks the student through (`hdTicketFlowSteps` in
 `ui/helpdesk-coaches.js`): Module 4 grades HD-2104 and HD-2105, Module 7
 grades HD-2119. Any other saved queue ticket shows as one "Other queue ticket
-· <id> (not graded)" section: not required, no checks, no writing check, so
+· <id> (advisory)" section: not required, no checks, no writing check, so
 never ✗ or ◐ and never in the summary line or the prefilled notes. Module 10
 grades a priority decision only on a P1 ticket with a note; the other P1s are
 context; with no P1 note there is one required "Priority justification" ✗

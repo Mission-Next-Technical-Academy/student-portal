@@ -61,7 +61,7 @@
   // reference, with no checks and no writing check, so never ✗ or ◐.
   function contextSection(ticket) {
     return {
-      id: `context-${String(ticket.id).toLowerCase()}`, title: `Other queue ticket · ${ticket.id} (not graded)`,
+      id: `context-${String(ticket.id).toLowerCase()}`, title: `Other queue ticket · ${ticket.id}`,
       required: false, mechanics: false,
       instructorPrompt: 'Context only: the coach did not ask the student to work this ticket, so it is not graded. Any notes the student added are shown for reference.',
       answer: [['Issue', text(ticket.description)], ['Priority', text(ticket.priority)], ['Ticket state', text(ticket.status)]],
