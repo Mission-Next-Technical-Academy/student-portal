@@ -87,18 +87,23 @@ let its01User = null;
 
 function its01Load(user) {
   its01User = user;
-  its01State = LabRuntime.load(ITS01_LAB1_ID, user, ITS01_DEFAULT_STATE);
+  // Saved to the student's account (module_progress.case_state), so policy
+  // flags and added-file names come back in any browser after sign-in.
+  its01State = LabRuntime.loadCaseState(ITS01_LAB1_ID, 'its-01', user, ITS01_DEFAULT_STATE);
   // The simulator's popup message is the only way a walkthrough is recorded;
   // a return by link only shows that it wasn't (see itsNoteCoachReturn).
   itsNoteCoachReturn(user, 'hd-m01', [ITS01_LAB2_KEY]);
   // Record the Resubmit baseline the first time a returned Lab 1.1 is seen.
   if (itsEvidenceRedo(user, its01State, ITS01_LAB1_KEY, ITS01_LAB1_FIELDS).returned) its01Save();
+  // Files added before a reload come back from this browser's copies.
+  itswRestoreDraftFiles(user, its01State, [{ labKey: ITS01_LAB1_KEY, fields: ITS01_LAB1_FIELDS }])
+    .then((changed) => { if (changed && its01User === user) its01RenderLab1(); });
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'it-support', 'its-01');
   return its01State;
 }
 
 function its01Save() {
-  if (its01User && its01State) LabRuntime.save(ITS01_LAB1_ID, its01User, its01State);
+  if (its01User && its01State) LabRuntime.saveCaseState(ITS01_LAB1_ID, 'its-01', its01User, its01State);
 }
 
 function its01LessonCard(lesson) {
@@ -267,7 +272,7 @@ function its01AddEvidence(inputId, picked) {
   const field = ITS01_EVIDENCE_FIELD_BY_INPUT[inputId];
   if (!field || !picked || !its01State) return;
   // A refused pick empties the field (see itswTakeEvidence).
-  its01State[field] = itswTakeEvidence(its01User, field, picked, its01State[field]);
+  its01State[field] = itswTakeEvidence(its01User, field, picked, its01State[field], ITS01_LAB1_KEY);
   its01Save();
   its01RenderLab1();
 }

@@ -7,15 +7,18 @@
   'use strict';
   if (typeof AdminSubmissionSheet === 'undefined') return;
 
+  // Graded tickets: only the ones each coach walks the student through
+  // (hdTicketFlowSteps in ui/helpdesk-coaches.js). Other saved queue tickets
+  // show as ungraded context.
   const TICKETS_BY_LAB = {
     'lab-its-01-ticket-triage': ['HD-2101'],
     'lab-its-02-device-manager': ['HD-2106'],
     'lab-its-02-print-spooler': ['HD-2112'],
     'lab-its-03-blank-desktop': ['HD-2109'],
-    'lab-its-04-connectivity': ['HD-2104', 'HD-2105', 'HD-2113'],
+    'lab-its-04-connectivity': ['HD-2104', 'HD-2105'],
     'lab-its-05-server-ad': ['HD-2108', 'HD-2117'],
     'lab-its-06-identity-access': ['SR-2107', 'HD-2118'],
-    'lab-its-07-app-cert': ['HD-2119', 'HD-2120', 'HD-2121', 'HD-2122', 'HD-2123'],
+    'lab-its-07-app-cert': ['HD-2119'],
     'lab-its-08-unfamiliar-problems': ['HD-2110', 'HD-2111'],
     'lab-its-09-security-incidents': ['SEC-2114', 'SEC-2115'],
     'lab-its-11-handoff-documentation': ['HD-2113', 'HD-2124'],
@@ -40,9 +43,9 @@
   };
   const workTickets = (result) => result.work && Array.isArray(result.work.tickets) ? result.work.tickets : [];
   const text = (value) => value === undefined || value === null || value === '' ? null : String(value);
-  const ticketFor = (result, id) => workTickets(result).find((ticket) => ticket.id === id) || null;
+  const savedNotes = (ticket) => Array.isArray(ticket && ticket.notes) ? ticket.notes.filter((note) => note && note.text) : [];
+  const noteResponses = (notes) => notes.map((note) => ({ label: `${note.author || 'Student note'} · ${note.time || ''}`, text: note.text }));
   const help = {
-    priority: 'Use the business impact and SLA deadline to explain why this ticket belongs at that priority.',
     priorityPrompt: 'Ask which business impact and SLA clues support the priority the learner selected.',
     diagnosis: 'Revisit the log or system evidence and explain how it supports your chosen diagnosis.',
     path: 'Add the troubleshooting step you performed and connect it to the evidence you found.',
@@ -54,25 +57,56 @@
     general: 'Acknowledge what the learner recorded, then give one specific next step they can apply on the next ticket.',
   };
 
+  // A saved ticket the coach did not ask the student to work: shown for
+  // reference, with no checks and no writing check, so never ✗ or ◐.
+  function contextSection(ticket) {
+    return {
+      id: `context-${String(ticket.id).toLowerCase()}`, title: `Other queue ticket · ${ticket.id}`,
+      required: false, mechanics: false,
+      instructorPrompt: 'Context only: the coach did not ask the student to work this ticket, so it is not graded. Any notes the student added are shown for reference.',
+      answer: [['Issue', text(ticket.description)], ['Priority', text(ticket.priority)], ['Ticket state', text(ticket.status)]],
+      response: noteResponses(savedNotes(ticket)),
+    };
+  }
+
+  const PRIORITY_KEY = 'lab-its-10-priority-queue';
+  const priorityFix = 'Explain the business impact and time remaining against the SLA, then state why this ticket comes before the others.';
+
+  // Module 10 saves every P1 in the queue; the coach asks for one note on one
+  // of them. A P1 with a note is the one the student worked. A note shows;
+  // whether it justifies the priority stays the instructor's judgment.
+  function prioritySections(tickets) {
+    const worked = tickets.filter((ticket) => ticket.priority === 'P1' && savedNotes(ticket).length);
+    const graded = worked.length ? worked.map((ticket) => ({
+      id: `priority-${ticket.id.toLowerCase()}`, title: `Priority decision · ${ticket.id}`,
+      instructorPrompt: help.priorityPrompt,
+      answer: [['Ticket', text(ticket.id)], ['Issue', text(ticket.description)], ['Business impact', text(ticket.businessImpact)], ['SLA target', text(ticket.sla)], ['Priority rank', text(ticket.priority)], ['Ticket state', text(ticket.status)]],
+      response: noteResponses(savedNotes(ticket)),
+      checks: [{ label: 'Priority justification was recorded', expected: 'Impact and SLA reasoning', test: () => true, given: () => `${savedNotes(ticket).length} note(s)`, fix: priorityFix }],
+    })) : [{
+      id: 'priority-justification', title: 'Priority justification',
+      instructorPrompt: help.priorityPrompt,
+      answer: [['P1 tickets in the queue', tickets.length ? tickets.map((ticket) => ticket.id).join(', ') : null]],
+      response: [{ label: 'Student priority justification', text: null }],
+      checks: [{ label: 'A P1 ticket has a priority justification', expected: 'Impact and SLA reasoning on the P1 ticket worked', test: () => tickets.length ? false : null, given: () => tickets.length ? 'No P1 ticket has a note' : null, fix: priorityFix }],
+    }];
+    return graded.concat(tickets.filter((ticket) => !worked.includes(ticket)).map(contextSection));
+  }
+
   function coachSections(result, ctx) {
     const key = ctx.row.lab_key;
-    let ids = TICKETS_BY_LAB[key] || [];
-    if (key === 'lab-its-10-priority-queue') {
-      ids = workTickets(result).map((ticket) => ticket.id);
-      return ids.map((id) => {
-        const ticket = ticketFor(result, id);
-        const notes = ticket && Array.isArray(ticket.notes) ? ticket.notes.filter((note) => note && note.text) : [];
-        return {
-          id: `priority-${id.toLowerCase()}`, title: `Priority decision · ${id}`,
-          instructorPrompt: help.priorityPrompt,
-          answer: [['Ticket', text(ticket && ticket.id)], ['Issue', text(ticket && ticket.description)], ['Business impact', text(ticket && ticket.businessImpact)], ['SLA target', text(ticket && ticket.sla)], ['Priority rank', text(ticket && ticket.priority)], ['Ticket state', text(ticket && ticket.status)]],
-          response: notes.length ? notes.map((note) => ({ label: `${note.author || 'Student note'} · ${note.time || ''}`, text: note.text })) : [{ label: 'Student priority justification', text: null }],
-          checks: [{ label: 'Priority justification was recorded', expected: 'Impact and SLA reasoning', test: () => !ticket ? null : notes.length > 0, given: () => ticket ? `${notes.length} note(s)` : null, fix: 'Explain the business impact and time remaining against the SLA, then state why this ticket comes before the others.' }],
-        };
-      });
-    }
+    // Every saved ticket, from this attempt first, then from any other attempt
+    // in the same grading card (Labs 2.3 and 2.4 save the same walkthrough).
+    const tickets = [];
+    [result].concat(ctx.rows.map((row) => row && row.result)).forEach((saved) => workTickets(saved || {}).forEach((ticket) => {
+      if (ticket && ticket.id && !tickets.some((other) => other.id === ticket.id)) tickets.push(ticket);
+    }));
+    if (key === PRIORITY_KEY) return prioritySections(tickets);
+    // A card holding Lab 2.3 and Lab 2.4 grades both labs' tickets, in course order.
+    const cardKeys = new Set([key].concat(ctx.rows.map((row) => row && row.lab_key)));
+    const ids = Array.from(new Set(Object.keys(TICKETS_BY_LAB).filter((labKey) => cardKeys.has(labKey)).flatMap((labKey) => TICKETS_BY_LAB[labKey])));
     return ids.flatMap((id) => {
-      const ticket = ticketFor(result, id);
+      const ticket = tickets.find((entry) => entry.id === id) || null;
       const saved = Boolean(ticket);
       const diagnosisCheck = {
         label: 'Diagnosis checkpoint shown to the student',
@@ -124,14 +158,7 @@
           checks: [{ label: 'Ticket outcome matches the scenario', expected: saved ? ticket.expectedStatus : null, test: () => !saved || !ticket.expectedStatus ? null : ticket.status === ticket.expectedStatus, given: () => saved ? ticket.resolution || ticket.status : null, fix: help.disposition }],
         },
       ];
-    }).concat(workTickets(result).filter((ticket) => !ids.includes(ticket.id)).map((ticket) => ({
-      id: `priority-${String(ticket.id).toLowerCase()}`,
-      title: `Priority work · ${ticket.id}`,
-      required: false,
-      instructorPrompt: help.priority,
-      answer: [['Priority', text(ticket.priority)], ['Work note', (ticket.notes || []).map((note) => note.text).filter(Boolean)]],
-      response: (ticket.notes || []).filter((note) => note && note.text).map((note) => ({ label: `${note.author || 'Student note'} · ${note.time || ''}`, text: note.text })),
-    })));
+    }).concat(tickets.filter((ticket) => !ids.includes(ticket.id)).map(contextSection));
   }
 
   function evidenceSections(result, ctx) {
@@ -204,7 +231,7 @@
     return sections;
   }
 
-  const COACH_KEYS = Object.keys(TICKETS_BY_LAB).concat('lab-its-10-priority-queue');
+  const COACH_KEYS = Object.keys(TICKETS_BY_LAB).concat(PRIORITY_KEY);
   COACH_KEYS.forEach((key) => AdminSubmissionSheet.register(key, {
     title: TITLES[key],
     caseId: (result) => workTickets(result).map((ticket) => ticket.id).join(', ') || null,
