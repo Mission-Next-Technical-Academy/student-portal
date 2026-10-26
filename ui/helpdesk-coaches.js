@@ -103,6 +103,8 @@
       hdState.selectedTicketId = hdState.tickets[0].id;
     }
     if (typeof hdSave === 'function') hdSave();
+    // The page was drawn from the old tickets before the coach booted.
+    if (typeof render === 'function') render();
   }
 
   MODULE_COACHES.push({
@@ -208,6 +210,8 @@
     // clean slate every time instead of leaving it to chance.
     hdState.selectedTicketId = null;
     if (typeof hdSave === 'function') hdSave();
+    // The page was drawn from the old tickets before the coach booted.
+    if (typeof render === 'function') render();
   }
 
   function hd2TicketSteps(ticketId, opening) {
@@ -319,6 +323,8 @@
     // asks the student to open themselves (see hd2Reset's identical fix).
     hdState.selectedTicketId = null;
     if (typeof hdSave === 'function') hdSave();
+    // The page was drawn from the old tickets before the coach booted.
+    if (typeof render === 'function') render();
   }
 
   /* One ticket's worth of the standard six-step flow. finalStatus is

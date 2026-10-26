@@ -33,8 +33,9 @@ opt in to two more things through a new coach flag, `resumeAcrossLaunches`:
   `window.forgetModuleCoachProgress()`.
 - `ui/helpdesk-coaches.js` (Help Desk): removed the page-load listeners that
   reset tickets on every load with `coach=` in the URL; `boot()` now calls
-  each coach's `resetState` on a fresh start. Sets the flag on every `hd-m*`
-  coach.
+  each coach's `resetState` on a fresh start, and the reset functions redraw
+  the page afterwards (it was drawn from the previous tickets before the coach
+  booted). Sets the flag on every `hd-m*` coach.
 - `ui/helpdesk.js` (Help Desk): `hdResetShift()` calls
   `forgetModuleCoachProgress()`.
 - `ui/styles.css` (shared): one new rule, `.coach-bar-alert`, for that

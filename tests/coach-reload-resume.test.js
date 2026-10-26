@@ -63,6 +63,7 @@ function sim(url, { local, session, opener = null, pathChecked = false } = {}) {
   const messageListeners = new Set();
   const timers = [];
   const toasts = [];
+  const screen = { tickets: [] };
   const body = element('body');
   body.appendChild = (el) => { if (el.id) byId.set(el.id, el); };
   const document = {
@@ -92,7 +93,11 @@ function sim(url, { local, session, opener = null, pathChecked = false } = {}) {
     addEventListener: (type, fn) => { if (type === 'message') messageListeners.add(fn); },
     removeEventListener: (type, fn) => { if (type === 'message') messageListeners.delete(fn); },
     toast: (text) => toasts.push(text),
-    render: () => { if (typeof ctx.coachAfterRender === 'function') ctx.coachAfterRender(); },
+    // Records the tickets the drawn page shows, then lets the coach react.
+    render: () => {
+      screen.tickets = vm.runInContext("typeof hdState === 'undefined' ? [] : hdState.tickets.map((t) => t.id)", ctx);
+      if (typeof ctx.coachAfterRender === 'function') ctx.coachAfterRender();
+    },
     escHtml: (s) => String(s),
     // Every route has a view (coach.js stops on a missing one).
     VIEWS: new Proxy({}, { get: (views, route) => views[route] || (() => '') }),
@@ -107,12 +112,15 @@ function sim(url, { local, session, opener = null, pathChecked = false } = {}) {
   };
   vm.createContext(ctx);
   for (const [name, source] of SOURCES) vm.runInContext(source, ctx, { filename: name });
+  // ui/app.js draws the page on DOMContentLoaded before coach.js boots.
+  ctx.render();
   loaded.forEach((fn) => fn());
 
   const panel = () => byId.get('coach-panel');
   const click = (action) => panel().listeners.click({ target: { closest: () => ({ dataset: { coach: action } }) } });
   return {
     ctx, location, toasts,
+    screenTickets: () => Array.from(screen.tickets),
     run: (code) => vm.runInContext(code, ctx),
     hd: () => vm.runInContext('hdState', ctx),
     coachState: () => JSON.parse(ctx.sessionStorage.getItem('mnt.coach.state') || 'null'),
@@ -152,10 +160,13 @@ function testFirstLaunchStartsFreshAndCleansAddress() {
   const local = store();
   // A previous coach's leftover tickets and a note in the shared save.
   const before = sim(launchUrl('hd-m01'), { local });
+  assert.equal(before.screenTickets().length, 4, 'Module 1 page shows its four tickets');
+  assert.deepEqual(sim(launchUrl('hd-m02'), { local: store() }).screenTickets().sort(), ['HD-2106', 'HD-2112'], 'Module 2 page shows its two tickets');
   before.run(`hdState.tickets[0].notes.push({ author: 'x', time: 't', text: 'old note' }); hdSave();`);
 
   const tab = sim(launchUrl('hd-m03'), { local });
   assert.deepEqual(ticketIds(tab), ['HD-2109'], 'reset to this coach\'s tickets');
+  assert.deepEqual(tab.screenTickets(), ['HD-2109'], 'the page is redrawn after the reset, not left showing the old queue');
   assert.equal(tab.coachState().step, 0);
   assert.equal(tab.location.search, '?coach=hd-m03', 'restart and student leave the address bar');
   assert.equal(tab.location.hash, '#/helpdesk/tickets');
