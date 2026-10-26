@@ -1,4 +1,4 @@
-**2026-10-26 (Megan; PR #<added by /pr-ready> "Help Desk: Module 1 and 2 lab work survives cleared site data, another browser and a reload"; Help Desk files plus the `portal/index.html` version lines for the three Help Desk scripts only):**
+**2026-10-26 (Megan; PR #87 "Help Desk: Module 1 and 2 lab work survives clearing site data, another browser and a reload"; Help Desk files plus the `portal/index.html` version lines for the three Help Desk scripts only):**
 Labs 1.1, 2.1 and 2.2 now save their unsubmitted state (the Acceptable Use
 Policy scrolled/acknowledged flags, each added evidence file's name, size and
 time, the Resubmit baseline) to the student's account with
