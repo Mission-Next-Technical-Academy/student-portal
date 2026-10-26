@@ -1,3 +1,49 @@
+**2026-10-26 (Megan; PR #<added by /pr-ready> "Help Desk: Module 1 and 2 lab work survives cleared site data, another browser and a reload"; Help Desk files plus the `portal/index.html` version lines for the three Help Desk scripts only):**
+Labs 1.1, 2.1 and 2.2 now save their unsubmitted state (the Acceptable Use
+Policy scrolled/acknowledged flags, each added evidence file's name, size and
+time, the Resubmit baseline) to the student's account with
+`LabRuntime.loadCaseState` / `saveCaseState`, the same `module_progress.case_state`
+path SOC labs use, under module keys `its-01` and `its-02` (lab ids unchanged:
+`its01-lms-validation-v1`, `its02-lab-state-v1`). Work kept only in an older
+browser is copied up the first time the page opens there (`loadCaseState`'s
+existing one-time copy). Picked evidence files now also keep a copy in the
+browser's IndexedDB (database `mnt-hdesk-evidence-drafts`, one record per
+student, lab and field), so a reload or a crashed tab gets them back. A copy
+is put back only for the same student, only while the lab can take an
+attempt, and only when its time matches the saved state (a file replaced in
+another browser isn't restored). Copies are deleted after a successful
+submit, on a refused pick, and on sign-out. Without a copy (another browser,
+cleared site data) the tile says "Choose this file again — "<name>" isn't in
+this browser any more…". Nothing is uploaded before Submit. No change to
+lab status, attempts, grading or completion: those still come only from
+`lab_attempts`.
+- `portal/it-support-shared.js`, `-module-01.js`, `-module-02.js` (Help Desk) and
+  `tests/hdesk-evidence-upload.test.js` (14 new cases, already in CI).
+  `portal/index.html` (shared): version lines for those three scripts only.
+- Sign-out: Help Desk subscribes to `mntSupabase.auth.onAuthStateChange` and
+  clears the copies on `SIGNED_OUT` (Sign Out button, idle timeout,
+  `discardLocalSession()`, expired login, other tabs) and on `INITIAL_SESSION`
+  with no session. `signOut()` in `portal/app.js` is unchanged. A restore also
+  deletes any copy belonging to another student, in case a tab closed without
+  signing out.
+- No new `module_progress` rows in practice: opening a Help Desk module page
+  already writes the `in_progress` row (`markModuleContentOpened`), so module
+  cards and pages look the same before anything is submitted.
+- `consoleCompleted`: the coach Finish handlers in `-module-01.js` / `-module-02.js`
+  still write it with `LabRuntime.load` / `save` (this browser only), while the
+  page now saves the same record to the account, so the account copy wins on
+  the next load. Nothing Help Desk shows reads it; a new test fails CI if
+  any Help Desk code (or `app.js` outside SOC Module 1) starts reading it.
+- **Known follow-up:** after PR #85 merges, switch those Finish handler saves
+  to `saveCaseState` so one record has one writer (left alone here because
+  PR #85 rewrites the same handler lines).
+- Merge note for PR #85: both PRs change the same three `portal/index.html`
+  version lines (keep a new value). Code changes don't overlap: this PR
+  touches only the evidence-tile section and one line in
+  `itsSubmitLabAttempt`'s success branch of `it-support-shared.js`, and the
+  load/save/add-evidence functions of the two module files.
+- No migration, grading, scoring or completion change.
+
 **2026-10-26 (Megan; PR #86 "Help Desk: instructor sheets grade only the tickets the coach walks the student through"; Help Desk files plus the `portal/index.html` version line for `admin-sheets/hdesk.js` only):**
 The Help Desk instructor sheets (`portal/admin-sheets/hdesk.js`) now grade only
 the tickets each coach walks the student through (`hdTicketFlowSteps` in

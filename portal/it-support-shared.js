@@ -26,12 +26,15 @@ function itswFormatTimestamp(iso) {
 }
 
 /* ---------- Evidence files ----------
- * A picked file is kept in this page's memory only (itswPickedFiles), never
- * in browser storage: LabRuntime state holds just its name, size and time so
- * the tile can say what was added. Submit uploads the files to the private
+ * A picked file is kept in this page's memory (itswPickedFiles) and, until
+ * Submit, as a copy in this browser's IndexedDB (itswKeepDraftFile below), so
+ * a reload or a crashed tab gets it back. The lab's saved state
+ * (module_progress.case_state) holds just its name, size and time so the tile
+ * can say what was added. Submit uploads the files to the private
  * 'lab-evidence' bucket and only then records the attempt
- * (itsUploadEvidence + itsSubmitLabAttempt below). After a reload the tile
- * asks for the file again. The bucket enforces the same types and size
+ * (itsUploadEvidence + itsSubmitLabAttempt below). With no copy in this
+ * browser (another browser, or site data cleared) the tile asks for the file
+ * again. Nothing is uploaded before Submit. The bucket enforces the same types and size
  * (20261015120000_lab_evidence_storage.sql); this check only explains a
  * refusal before anything is sent. */
 const ITSW_EVIDENCE_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
@@ -75,22 +78,157 @@ function itswReadEvidenceFile(fileInput) {
   return { name: file.name, sizeLabel: itswFormatBytes(file.size), uploadedAt: new Date().toISOString(), file };
 }
 
-/* Takes a picked file for one field: keeps the File in memory and returns
- * the metadata to save in the lab's state. A refused pick replaces the
- * field's earlier file too, so the old screenshot can't be submitted in its
- * place: it returns null, the caller saves the field as empty, and the tile
- * shows why. previous: the field's saved metadata, if any. */
-function itswTakeEvidence(user, field, picked, previous = null) {
+/* ---------- Evidence file copies in this browser (IndexedDB) ----------
+ * One record per student, lab and field ("<userId>|<labKey>|<field>"), with
+ * the File and the time it was added (its saved metadata's uploadedAt). A
+ * copy is put back only for the same student, only while the lab can take an
+ * attempt, and only when that time still matches the lab's saved state, so a
+ * file replaced in another browser never comes back here. Copies are deleted
+ * after a successful submit, on a refused pick, and when anyone signs out
+ * (itswWatchSignOut). Without IndexedDB (some private windows) every helper
+ * resolves to null and files stay in page memory only, as before. */
+const ITSW_DRAFT_DB = 'mnt-hdesk-evidence-drafts';
+const ITSW_DRAFT_STORE = 'files';
+const itswDraftRestoring = new Set(); // `${userId}|${field}` while its copy is being looked up
+const itswDraftLookedUp = new Set(); // `${userId}|${field}` already looked up on this page load
+let itswDraftDbPromise = null;
+
+function itswDraftDb() {
+  if (typeof indexedDB === 'undefined' || !indexedDB) return Promise.resolve(null);
+  if (itswDraftDbPromise) return itswDraftDbPromise;
+  itswDraftDbPromise = new Promise((resolve) => {
+    const failed = () => { itswDraftDbPromise = null; resolve(null); };
+    try {
+      const request = indexedDB.open(ITSW_DRAFT_DB, 1);
+      request.onupgradeneeded = () => request.result.createObjectStore(ITSW_DRAFT_STORE);
+      request.onsuccess = () => {
+        const db = request.result;
+        // Clearing site data closes this connection: open a new one next time.
+        db.onversionchange = () => { db.close(); itswDraftDbPromise = null; };
+        db.onclose = () => { itswDraftDbPromise = null; };
+        resolve(db);
+      };
+      request.onerror = failed;
+      request.onblocked = failed;
+    } catch (_) {
+      failed();
+    }
+  });
+  return itswDraftDbPromise;
+}
+
+// Runs fn(store) in one transaction. Resolves to the request fn returns (its
+// result), true when fn returns none, or null on any failure; never rejects.
+function itswDraftRun(mode, fn) {
+  return itswDraftDb().then((db) => new Promise((resolve) => {
+    if (!db) { resolve(null); return; }
+    try {
+      const tx = db.transaction(ITSW_DRAFT_STORE, mode);
+      const request = fn(tx.objectStore(ITSW_DRAFT_STORE));
+      tx.oncomplete = () => resolve(request ? request.result : true);
+      tx.onerror = () => resolve(null);
+      tx.onabort = () => resolve(null);
+    } catch (_) {
+      itswDraftDbPromise = null;
+      resolve(null);
+    }
+  })).catch(() => null);
+}
+
+const itswDraftKey = (userId, labKey, field) => `${userId}|${labKey}|${field}`;
+
+function itswKeepDraftFile(user, labKey, field, file, addedAt) {
+  if (!user || !user.userId || !labKey || !file) return Promise.resolve(null);
+  return itswDraftRun('readwrite', (store) => store.put({ userId: user.userId, labKey, field, addedAt, file }, itswDraftKey(user.userId, labKey, field)));
+}
+
+function itswForgetDraftFiles(user, labKey, fields) {
+  if (!user || !user.userId || !labKey) return Promise.resolve(null);
+  return itswDraftRun('readwrite', (store) => { fields.forEach((field) => store.delete(itswDraftKey(user.userId, labKey, field))); });
+}
+
+function itswForgetAllDraftFiles() {
+  return itswDraftRun('readwrite', (store) => store.clear());
+}
+
+/* Puts this student's file copies back into page memory after a reload.
+ * labs: [{ labKey, fields }] on this page; state: their saved lab state.
+ * Deletes copies that can't come back: another student's, a lab already
+ * waiting or approved, or one whose time no longer matches the saved state.
+ * A field picked again while this runs is left alone. Resolves true when a
+ * tile was waiting on it, so the caller re-renders. */
+function itswRestoreDraftFiles(user, state, labs) {
+  if (!user || !user.userId || !state || typeof indexedDB === 'undefined' || !indexedDB) return Promise.resolve(false);
+  const open = labs.filter((lab) => itsLabAcceptsAttempt(user, lab.labKey));
+  const waiting = [];
+  open.forEach((lab) => lab.fields.forEach((field) => {
+    const key = `${user.userId}|${field}`;
+    if (state[field] && !itswPickedFiles.has(key) && !itswDraftLookedUp.has(key)) { itswDraftRestoring.add(key); waiting.push(key); }
+  }));
+  return itswDraftRun('readonly', (store) => store.getAll()).then((records) => {
+    const discard = [];
+    (Array.isArray(records) ? records : []).forEach((record) => {
+      if (!record || typeof record !== 'object') return;
+      if (record.userId !== user.userId) { discard.push(record); return; }
+      const lab = labs.find((item) => item.labKey === record.labKey);
+      if (!lab) return; // another module's lab: its own page decides
+      const key = `${user.userId}|${record.field}`;
+      if (itswPickedFiles.has(key)) return;
+      const saved = state[record.field];
+      const usable = open.includes(lab) && lab.fields.includes(record.field) && saved && saved.uploadedAt === record.addedAt
+        && record.file && !itswEvidenceFileError(record.file);
+      if (usable) itswPickedFiles.set(key, record.file);
+      else discard.push(record);
+    });
+    if (discard.length) itswDraftRun('readwrite', (store) => { discard.forEach((record) => store.delete(itswDraftKey(record.userId, record.labKey, record.field))); });
+    waiting.forEach((key) => { itswDraftRestoring.delete(key); itswDraftLookedUp.add(key); });
+    return waiting.length > 0;
+  });
+}
+
+/* A student's file copies leave the browser when they sign out. The Sign Out
+ * button, the idle timeout, a session the portal no longer accepts, and an
+ * expired login all end in Supabase Auth's SIGNED_OUT event, which other open
+ * tabs receive too; a page that opens with nobody signed in clears them as
+ * well. Help Desk listens to the Auth client directly, so app.js's sign-out
+ * code needs no change. */
+let itswSignOutWatched = false;
+
+function itswWatchSignOut() {
+  if (itswSignOutWatched || typeof mntSupabase === 'undefined' || !mntSupabase.auth || typeof mntSupabase.auth.onAuthStateChange !== 'function') return;
+  itswSignOutWatched = true;
+  mntSupabase.auth.onAuthStateChange((event, session) => {
+    if (event !== 'SIGNED_OUT' && !(event === 'INITIAL_SESSION' && !session)) return;
+    itswPickedFiles.clear();
+    itswEvidenceErrors.clear();
+    itswDraftRestoring.clear();
+    itswDraftLookedUp.clear();
+    itswForgetAllDraftFiles();
+  });
+}
+
+itswWatchSignOut();
+
+/* Takes a picked file for one field: keeps the File in memory (and a copy in
+ * this browser when labKey is given) and returns the metadata to save in the
+ * lab's state. A refused pick replaces the field's earlier file too, so the
+ * old screenshot can't be submitted in its place: it returns null, the caller
+ * saves the field as empty, and the tile shows why. previous: the field's
+ * saved metadata, if any. */
+function itswTakeEvidence(user, field, picked, previous = null, labKey = null) {
   if (!user || !picked) return previous;
   const key = `${user.userId}|${field}`;
+  itswDraftRestoring.delete(key);
   if (picked.error || !picked.file) {
     const hadFile = Boolean(previous || itswPickedFiles.has(key));
     itswPickedFiles.delete(key);
+    if (labKey) itswForgetDraftFiles(user, labKey, [field]);
     itswEvidenceErrors.set(key, `${picked.error || 'That file wasn’t added.'} ${hadFile ? 'Your earlier file was removed. ' : ''}Choose a file again.`);
     return null;
   }
   itswEvidenceErrors.delete(key);
   itswPickedFiles.set(key, picked.file);
+  if (labKey) itswKeepDraftFile(user, labKey, field, picked.file, picked.uploadedAt);
   return { name: picked.name, sizeLabel: picked.sizeLabel, uploadedAt: picked.uploadedAt };
 }
 
@@ -103,8 +241,10 @@ function itswEvidenceTile({ id, user, field, hint, file }) {
   const error = user ? itswEvidenceErrors.get(`${user.userId}|${field}`) : '';
   const status = file && picked
     ? `<div class="itsw-evidence-status itsw-evidence-done"><i class="ri-checkbox-circle-fill" aria-hidden="true"></i><span class="itsw-evidence-file"><strong>Added</strong> — ${esc(file.name)} · ${esc(file.sizeLabel)}<time>${esc(itswFormatTimestamp(file.uploadedAt))}</time></span></div>`
+    : file && user && itswDraftRestoring.has(`${user.userId}|${field}`)
+      ? `<div class="itsw-evidence-status"><i class="ri-loader-4-line" aria-hidden="true"></i><span class="itsw-evidence-file">Looking for “${esc(file.name)}” in this browser…</span></div>`
     : file
-      ? `<div class="itsw-evidence-status"><i class="ri-refresh-line" aria-hidden="true"></i><span class="itsw-evidence-file">Choose this file again — “${esc(file.name)}” was added before the page reloaded, and files are kept only until you submit.</span></div>`
+      ? `<div class="itsw-evidence-status"><i class="ri-refresh-line" aria-hidden="true"></i><span class="itsw-evidence-file">Choose this file again — “${esc(file.name)}” isn’t in this browser any more. Files you add are kept only in the browser you added them in, until you submit or sign out.</span></div>`
       : `<div class="itsw-evidence-status"><i class="ri-time-line" aria-hidden="true"></i><span>Not uploaded yet</span></div>`;
   return `<div class="itsw-evidence" data-itsw-evidence="${esc(id)}">
     <div class="itsw-evidence-head"><span class="itsw-evidence-icon"><i class="ri-upload-cloud-2-line" aria-hidden="true"></i></span><div><strong>${esc(label)}</strong><p>${esc(hint)}</p></div></div>
@@ -221,6 +361,7 @@ function itsSubmitLabAttempt(user, moduleKey, labKey, fields, evidenceFields = n
           if (!saved) return upload.discard().then(() => false);
           itsUploadedEvidence.set(inFlightKey, upload.files);
           evidenceFields.forEach((field) => itswPickedFiles.delete(`${user.userId}|${field}`));
+          itswForgetDraftFiles(user, labKey, evidenceFields);
           return true;
         });
     }).catch((err) => { console.error('lab evidence submit threw', labKey, err); return false; });
@@ -364,8 +505,9 @@ function itsEvidenceRedo(user, state, labKey, fileFields) {
  * A lab's status, the hero counter and the rail come only from the database:
  * the newest attempt loaded at sign-in, read with requiredLabStatus() (the
  * module cards' rule): 'not_submitted', 'waiting', 'passed' or 'returned'.
- * Browser storage holds only work not yet sent (files added, the policy
- * checkbox), so clearing site data never changes what a lab shows. */
+ * The lab's saved state (module_progress.case_state) and this browser's file
+ * copies hold only work not yet sent (files added, the policy checkbox), so
+ * clearing site data never changes what a lab shows. */
 
 function itsLabStatus(user, labKey) {
   return requiredLabStatus(itsLabAttempt(user, labKey));
