@@ -254,8 +254,10 @@ Create it:
    **Description**: `Lets student-portal's Staging sync workflow start Deploy staging site.`
 3. **Resource owner**: `Mission-Next-Technical-Academy` (the organization, not your
    personal account).
-4. **Expiration**: **Custom**, a date no more than one year away (the
-   organization may set a shorter limit).
+4. **Expiration**: **Custom**, no more than **90 days** away (Randy's
+   2026-10-27 security directive), on a date that isn't in a freeze, an
+   acceptance run or a launch week. GitHub can't change a token's expiry
+   later; see "Renewing it" below.
 5. **Repository access**: **Only select repositories** → `student-portal-staging`
    only.
 6. **Permissions** → **Repository permissions** → **Actions**: **Read and write**.
@@ -270,10 +272,41 @@ Create it:
 9. Put a calendar reminder **three weeks before the expiry date**: "Replace
    STAGING_DEPLOY_TOKEN (student-portal staging-sync)".
 
-Replace it before it expires: repeat steps 1–7 to make a new token, update the
-`STAGING_DEPLOY_TOKEN` environment secret (pencil icon → paste → save), start a
-manual run to check it, then delete the old token under **Fine-grained tokens**.
-Move the calendar reminder to the new expiry date.
+### Renewing it (every 90 days)
+
+Added 2026-10-29 (Megan).
+
+**Current token:** owned by Megan, last renewed 2026-10-29, expires
+**2027-01-27**. Calendar reminder: 2027-01-11. Update this line on every
+renewal.
+
+Renew it in a quiet week, before the reminder date if you can, and never in a
+freeze, an acceptance run or a launch week. Choose a custom expiry date that
+also avoids those windows.
+
+**Same owner** (the person who owns the current token renews it):
+
+1. GitHub → your profile picture → **Settings** → **Developer settings** →
+   **Personal access tokens** → **Fine-grained tokens** → click the token's name.
+2. **Regenerate token** → **Expiration**: **Custom**, no more than 90 days away
+   → **Regenerate token**. Copy the new value. The old value stops working at
+   once, so do steps 3 and 4 straight away: until then, staging can't redeploy.
+3. In the `staging-sync` environment, click the pencil next to
+   `STAGING_DEPLOY_TOKEN` → paste → **Update secret**.
+4. Start a manual run (see "Starting a run by hand"). Check that **Start the
+   staging website deploy** passed, and that the **Deploy staging site** run it
+   started in student-portal-staging finished green.
+5. Move the calendar reminder to three weeks before the new expiry date, and
+   update the "Current token" line above.
+
+**New owner** (the current owner is leaving or loses access): follow steps 1–8
+under "Create it" above, check it with a manual run (step 4 here), then the
+old owner deletes their token under **Fine-grained tokens**.
+
+If an organization owner sets a maximum token lifetime under the
+organization's **Settings → Personal access tokens**, any existing token
+longer than that limit is blocked from the organization at once. Renew this
+token within the new limit before the limit is switched on.
 
 ## Edge Functions are deployed by hand
 
