@@ -27,6 +27,8 @@ ctx.currentUser = async () => signedIn;
 const SIM = new URL(run('SIM_ORIGIN')).origin;
 const HD = run(`PROGRAMS.find((p) => p.slug === 'it-support')`);
 const LabRuntime = run('LabRuntime');
+// The anonymous id a walkthrough launch link carries (never the email).
+const studentOf = (user) => LabRuntime.anonymousStudentId(user);
 const moduleLab = (n) => run(`MODULE_LABS['it-support/${n}']`);
 const seed = (labId, user, state) => LabRuntime.save(labId, user, { ...LabRuntime.load(labId, user, {}), ...state });
 
@@ -288,7 +290,7 @@ async function testWalkthroughCompletionShowsWaiting() {
   fresh(user);
   moduleLab(3).view(user, HD);
   const work = { version: 1, tickets: [{ id: 'HD-2109', diagnosis: 'Temporary profile', checkedSteps: ['Check event logs'] }] };
-  await moduleLab(3).onMessage({ data: { type: 'mnt-coach-complete', id: 'hd-m03', work }, origin: SIM });
+  await moduleLab(3).onMessage({ data: { type: 'mnt-coach-complete', id: 'hd-m03', student: studentOf(user), work }, origin: SIM });
   await settle();
   const html = moduleLab(3).view(user, HD);
   assert.match(statusLine(html, 'lab-its-03-blank-desktop'), /^Lab submitted .+, waiting for instructor review$/);
@@ -303,10 +305,186 @@ async function testDuplicateCoachCompletionMessageCreatesOneAttempt() {
   const user = hdUser();
   fresh(user);
   moduleLab(3).view(user, HD);
-  const message = { data: { type: 'mnt-coach-complete', id: 'hd-m03', work: { version: 1, tickets: [{ id: 'HD-2109' }] } }, origin: SIM };
+  const message = { data: { type: 'mnt-coach-complete', id: 'hd-m03', student: studentOf(user), work: { version: 1, tickets: [{ id: 'HD-2109' }] } }, origin: SIM };
   await Promise.all([moduleLab(3).onMessage(message), moduleLab(3).onMessage(message)]);
   await settle();
   assert.equal(inserts('lab-its-03-blank-desktop').length, 1, 'rapid duplicate completion messages are guarded');
+}
+
+/* ------------------------------------------- walkthrough receipt replies */
+
+// The simulator keeps a finished walkthrough's work until this page answers
+// its completion message, so every message gets a reply naming its nonce.
+function replyCatcher() {
+  const replies = [];
+  return { replies, source: { postMessage: (data, origin) => replies.push({ data, origin }) } };
+}
+// `student` defaults to the signed-in student's launch id, as the simulator sends it.
+const finishMessage = (id, source, student = signedIn ? studentOf(signedIn) : '') => ({ data: { type: 'mnt-coach-complete', id, nonce: 'n-1', student, work: { version: 1, tickets: [{ id: 'HD-2109' }] } }, origin: SIM, source });
+
+async function testReceiptSavedAfterSubmit() {
+  const user = hdUser();
+  fresh(user);
+  moduleLab(3).view(user, HD);
+  const { replies, source } = replyCatcher();
+  await moduleLab(3).onMessage(finishMessage('hd-m03', source));
+  await settle();
+  assert.equal(inserts('lab-its-03-blank-desktop').length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(replies)), [{ data: { type: 'mnt-coach-received', id: 'hd-m03', nonce: 'n-1', saved: true }, origin: SIM }]);
+}
+
+async function testReceiptNotSavedWhenSignedOut() {
+  fresh(null);
+  const { replies, source } = replyCatcher();
+  await moduleLab(3).onMessage(finishMessage('hd-m03', source));
+  await moduleLab(1).onMessage(finishMessage('hd-m01', source));
+  await settle();
+  assert.equal(inserts().length, 0);
+  assert.deepEqual(replies.map((r) => [r.data.id, r.data.saved]), [['hd-m03', false], ['hd-m01', false]]);
+}
+
+async function testReceiptNotSavedWhenSaveFails() {
+  const user = hdUser();
+  fresh(user);
+  ctx.supabaseResponder = (call) => (call.table === 'lab_attempts' && call.op === 'insert' ? { data: null, error: { message: 'network' } } : { data: null, error: null });
+  moduleLab(2).view(user, HD);
+  const { replies, source } = replyCatcher();
+  await moduleLab(2).onMessage(finishMessage('hd-m02', source));
+  await settle();
+  assert.deepEqual(replies.map((r) => r.data.saved), [false]);
+}
+
+async function testReceiptSavedWhenLabAlreadyWaiting() {
+  const user = hdUser({ 'lab-its-03-blank-desktop': waiting() });
+  fresh(user);
+  moduleLab(3).view(user, HD);
+  const { replies, source } = replyCatcher();
+  await moduleLab(3).onMessage(finishMessage('hd-m03', source));
+  await settle();
+  assert.equal(inserts().length, 0, 'a waiting lab takes no new attempt');
+  assert.deepEqual(replies.map((r) => r.data.saved), [true], 'nothing left to save counts as received');
+}
+
+// A walkthrough lab counts as complete (local engagement, the module's
+// consoleCompleted flag, and the verified-progress refresh that
+// markModuleLabComplete can trigger) only once the portal has its attempt.
+const LAB03 = 'lab-its-03-blank-desktop';
+function completion(user, moduleKey, labKey, stateId) {
+  const completedLabs = run('loadModuleEngagement')(user).completedLabs;
+  return {
+    labMarked: completedLabs.includes(run('moduleLabEngagementId')('it-support', moduleKey, labKey)),
+    consoleCompleted: LabRuntime.load(stateId, user, {}).consoleCompleted === true,
+    progressRefreshed: ctx.supabaseCalls.some((c) => c.table === 'student_verified_module_progress'),
+  };
+}
+const failInserts = (call) => (call.table === 'lab_attempts' && call.op === 'insert' ? { data: null, error: { message: 'network' } } : { data: null, error: null });
+
+async function testFailedSaveMarksNothingComplete() {
+  for (const [n, coach, moduleKey, labKey, stateId] of [
+    [3, 'hd-m03', 'its-03', LAB03, 'its-coach-its-03-v1'],
+    [1, 'hd-m01', 'its-01', LAB12, 'its01-lms-validation-v1'],
+    [2, 'hd-m02', 'its-02', LAB23, 'its02-lab-state-v1'],
+  ]) {
+    const user = hdUser();
+    fresh(user);
+    ctx.supabaseResponder = failInserts;
+    moduleLab(n).view(user, HD);
+    await moduleLab(n).onMessage(finishMessage(coach, replyCatcher().source));
+    await settle();
+    assert.deepEqual({ ...completion(user, moduleKey, labKey, stateId) }, { labMarked: false, consoleCompleted: false, progressRefreshed: false }, `Module ${n}`);
+  }
+}
+
+async function testSuccessfulSaveMarksLabComplete() {
+  const user = hdUser();
+  fresh(user);
+  moduleLab(3).view(user, HD);
+  await moduleLab(3).onMessage(finishMessage('hd-m03', replyCatcher().source));
+  await settle();
+  const state = completion(user, 'its-03', LAB03, 'its-coach-its-03-v1');
+  assert.equal(state.labMarked, true);
+  assert.equal(state.consoleCompleted, true);
+}
+
+async function testAlreadyWaitingLabStillCountsComplete() {
+  const user = hdUser({ [LAB03]: waiting() });
+  fresh(user);
+  moduleLab(3).view(user, HD);
+  await moduleLab(3).onMessage(finishMessage('hd-m03', replyCatcher().source));
+  await settle();
+  assert.equal(inserts().length, 0);
+  const state = completion(user, 'its-03', LAB03, 'its-coach-its-03-v1');
+  assert.equal(state.labMarked, true);
+  assert.equal(state.consoleCompleted, true);
+}
+
+// Finished work is saved only for the student whose launch opened it: if
+// student B signs in on the course page before A's simulator finishes, A's
+// work must not become B's attempt.
+async function testMismatchedStudentSavesNothing() {
+  const studentA = hdUser();
+  const studentB = { ...hdUser(), userId: 'user-hdesk-b', email: 'hdesk-b@test.invalid' };
+  for (const [n, coach] of [[3, 'hd-m03'], [1, 'hd-m01'], [2, 'hd-m02']]) {
+    fresh(studentB);
+    moduleLab(n).view(studentB, HD);
+    const { replies, source } = replyCatcher();
+    await moduleLab(n).onMessage(finishMessage(coach, source, studentOf(studentA)));
+    await settle();
+    assert.equal(inserts().length, 0, `Module ${n}: nothing saved for B`);
+    assert.deepEqual(replies.map((r) => [r.data.saved, r.data.reason]), [[false, 'other-student']], `Module ${n}`);
+    assert.equal(run('loadModuleEngagement')(studentB).completedLabs.length, 0, `Module ${n}: nothing marked complete for B`);
+  }
+}
+
+async function testMissingStudentSavesNothing() {
+  const user = hdUser();
+  for (const student of ['', undefined]) {
+    fresh(user);
+    moduleLab(3).view(user, HD);
+    const { replies, source } = replyCatcher();
+    const message = finishMessage('hd-m03', source);
+    if (student === undefined) delete message.data.student; else message.data.student = student;
+    await moduleLab(3).onMessage(message);
+    await settle();
+    assert.equal(inserts().length, 0);
+    assert.deepEqual(replies.map((r) => [r.data.saved, r.data.reason]), [[false, 'no-student']]);
+  }
+}
+
+async function testMatchingStudentSaves() {
+  const user = hdUser();
+  fresh(user);
+  moduleLab(3).view(user, HD);
+  const { replies, source } = replyCatcher();
+  await moduleLab(3).onMessage(finishMessage('hd-m03', source, studentOf(user)));
+  await settle();
+  assert.equal(inserts('lab-its-03-blank-desktop').length, 1);
+  assert.deepEqual(replies.map((r) => [r.data.saved, r.data.reason]), [[true, undefined]]);
+}
+
+// The id is a hash of the sign-in, never the email or a piece of it.
+function testStudentIdIsNeverTheEmail() {
+  for (const email of ['hdesk@test.invalid', 'jane.doe@school.example']) {
+    const id = studentOf({ email });
+    assert.match(id, /^student-[0-9a-z]+$/, id);
+    assert.ok(!id.includes(email) && !id.includes(email.split('@')[0]) && !id.includes('@'), id);
+  }
+  assert.notEqual(studentOf({ email: 'a@test.invalid' }), studentOf({ email: 'b@test.invalid' }), 'different students, different ids');
+}
+
+// Walkthrough links name the student by the anonymous hash, never the email.
+function testLaunchLinksNameTheStudent() {
+  const user = hdUser();
+  fresh(user);
+  const student = run('LabRuntime').anonymousStudentId(user);
+  assert.match(student, /^student-/);
+  for (const [n, coach] of [[1, 'hd-m01'], [2, 'hd-m02'], [3, 'hd-m03'], [11, 'hd-m11']]) {
+    const html = moduleLab(n).view(user, HD);
+    const href = (new RegExp(`href="([^"]*coach=${coach}[^"]*)"`).exec(html) || [])[1];
+    assert.ok(href, `Module ${n}: walkthrough link`);
+    assert.ok(href.includes(`coach=${coach}&amp;restart=1&amp;student=${student}#/helpdesk/tickets`), `Module ${n}: ${href}`);
+    assert.ok(!href.includes('hdesk%40') && !href.includes('hdesk@'), `Module ${n}: no email in the link`);
+  }
 }
 
 /* ---------------------------------------------- walkthrough not recorded */
@@ -401,6 +579,18 @@ async function testBlockedPopupShowsMessage() {
     testSharedWalkthroughModules,
     testWalkthroughCompletionShowsWaiting,
     testDuplicateCoachCompletionMessageCreatesOneAttempt,
+    testReceiptSavedAfterSubmit,
+    testReceiptNotSavedWhenSignedOut,
+    testReceiptNotSavedWhenSaveFails,
+    testReceiptSavedWhenLabAlreadyWaiting,
+    testFailedSaveMarksNothingComplete,
+    testSuccessfulSaveMarksLabComplete,
+    testAlreadyWaitingLabStillCountsComplete,
+    testMismatchedStudentSavesNothing,
+    testMissingStudentSavesNothing,
+    testMatchingStudentSaves,
+    testStudentIdIsNeverTheEmail,
+    testLaunchLinksNameTheStudent,
     testReturnLinkRecordsNothing,
     testBlockedPopupShowsMessage,
   ];

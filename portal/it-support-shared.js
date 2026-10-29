@@ -430,10 +430,40 @@ function itsUploadedEvidenceHtml(user, labKey) {
 
 // A guided walkthrough finished: submit each of its labs that can take an
 // attempt (never submitted, or returned). Waiting/approved labs send nothing.
+// Resolves true when the portal has the work: every lab that could take an
+// attempt saved one (a lab already waiting or approved has nothing to save).
 function itsSubmitWalkthroughLabs(user, moduleKey, labKeys, work = null) {
+  const accepting = labKeys.map((labKey) => itsLabAcceptsAttempt(user, labKey));
   return Promise.all(labKeys.map((labKey) => itsSubmitLabAttempt(user, moduleKey, labKey, {
     state: 'complete', result: { source: 'mnt-coach-complete', ...(work ? { work } : {}) },
-  })));
+  }))).then((saved) => saved.every((ok, i) => ok === true || !accepting[i]));
+}
+
+// The simulator keeps a finished walkthrough's work until this page confirms
+// it was saved (ui/coach.js finishWithReceipt), so every completion message
+// gets an answer: saved, or not (signed out, wrong student, or the save
+// failed). `reason` lets the simulator say which.
+function itsConfirmCoachReceipt(event, saved, reason) {
+  if (!event.source || typeof event.source.postMessage !== 'function') return;
+  event.source.postMessage({ type: 'mnt-coach-received', id: event.data.id, nonce: event.data.nonce, saved: saved === true, ...(reason ? { reason } : {}) }, event.origin);
+}
+
+// Finished work belongs to the student whose launch link opened it (the
+// anonymous id it carried). Saving it for whoever is signed in now could
+// credit another student, so a missing or different id saves nothing.
+// Returns null when the ids match, else the reason to send back.
+function itsCoachStudentMismatch(event, user) {
+  const student = event.data && typeof event.data.student === 'string' ? event.data.student : '';
+  if (!student) return 'no-student';
+  return student === LabRuntime.anonymousStudentId(user) ? null : 'other-student';
+}
+
+// The walkthrough link names the student by the anonymous id (a hash, never
+// the email), so the simulator resumes an unfinished lab only for the same
+// student on a shared browser.
+function itsCoachLaunchHref(coachId, user) {
+  const student = typeof LabRuntime !== 'undefined' ? LabRuntime.anonymousStudentId(user) : '';
+  return `${SIM_ORIGIN}?coach=${encodeURIComponent(coachId)}&restart=1&student=${encodeURIComponent(student)}#/helpdesk/tickets`;
 }
 
 // postMessage data is student-controlled. Store only the small, known work
@@ -754,7 +784,7 @@ function itsSimpleLessonCard(lesson) {
 function itsCoachLaunchCard({ user, coachId, labKeys }) {
   const button = itsWalkthroughButton(user, labKeys);
   const label = { redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: ITS_WALKTHROUGH_START }[button.mode];
-  return `<a class="itsw-evidence-button" data-its-coach-launch href="${esc(SIM_ORIGIN)}?coach=${esc(coachId)}&amp;restart=1#/helpdesk/tickets" target="_blank" rel="opener">
+  return `<a class="itsw-evidence-button" data-its-coach-launch href="${esc(itsCoachLaunchHref(coachId, user))}" target="_blank" rel="opener">
     <i class="${button.icon}" aria-hidden="true"></i> ${label}
   </a>
   ${itsWalkthroughNoticeHtml(user, coachId, labKeys, ITS_WALKTHROUGH_START)}
@@ -849,19 +879,25 @@ function itsRegisterCoachModule(config) {
     if (!event.data || event.data.type !== 'mnt-coach-complete' || event.data.id !== coachId) return;
     if (event.origin !== new URL(SIM_ORIGIN).origin) return;
     const user = await currentUser();
-    if (!user) return;
+    if (!user) { itsConfirmCoachReceipt(event, false); return; }
+    const wrongStudent = itsCoachStudentMismatch(event, user);
+    if (wrongStudent) { itsConfirmCoachReceipt(event, false, wrongStudent); return; }
 
     const work = itsCleanCoachWork(event.data.work);
 
-    const saved = LabRuntime.load(stateId, user, defaultState);
-    saved.consoleStarted = true;
-    saved.consoleCompleted = true;
-    LabRuntime.save(stateId, user, saved);
-    state = saved;
+    // Submit first: a lab counts as complete only once the portal has its
+    // attempt (saved now, or already waiting or approved).
+    const received = await itsSubmitWalkthroughLabs(user, moduleKey, labKeys, work);
     lastUser = user;
-
-    if (typeof markModuleLabComplete === 'function') labKeys.forEach((key) => markModuleLabComplete(user, 'it-support', moduleKey, key));
-    await itsSubmitWalkthroughLabs(user, moduleKey, labKeys, work);
+    if (received) {
+      const saved = LabRuntime.load(stateId, user, defaultState);
+      saved.consoleStarted = true;
+      saved.consoleCompleted = true;
+      LabRuntime.save(stateId, user, saved);
+      state = saved;
+      if (typeof markModuleLabComplete === 'function') labKeys.forEach((key) => markModuleLabComplete(user, 'it-support', moduleKey, key));
+    }
+    itsConfirmCoachReceipt(event, received);
 
     const mounted = Boolean(document.querySelector('.itss-shell'));
     if (!mounted) return;

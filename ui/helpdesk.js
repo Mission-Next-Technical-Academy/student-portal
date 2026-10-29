@@ -201,7 +201,9 @@ function hdLinkProblem(id) {
 }
 function hdResetShift() {
   if (!confirm('Reset the Help Desk shift and discard only Help Desk simulator progress?')) return;
-  hdState = hdFreshState(); hdRerender();
+  hdState = hdFreshState();
+  if (typeof window.forgetModuleCoachProgress === 'function') window.forgetModuleCoachProgress();
+  hdRerender();
 }
 
 function hdQueueRows(tickets) {
