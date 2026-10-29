@@ -1,3 +1,14 @@
+**2026-10-29 (Megan; staging deploy token renewed; docs only, shared `docs/operations/STAGING_AUTOMATION.md`):**
+`STAGING_DEPLOY_TOKEN` was regenerated on 2026-10-29 with a 90-day expiry
+(expires 2027-01-27), per Randy's 2026-10-27 security directive. Megan owns it
+and renews it; reminder 2027-01-11. Same scope as before (regenerated, not
+re-scoped): student-portal-staging only, Actions read and write. The
+`staging-sync` environment secret was updated, and a manual Staging sync from
+`master` passed, with Deploy staging site green. STAGING_AUTOMATION.md now
+says 90 days at most and has a "Renewing it" section. Nothing for you to do.
+If a staging deploy fails with HTTP 401 or 403, the token has expired or been
+revoked: tell Megan.
+
 **2026-10-26 (Megan; PR #85 "Coach labs keep their work on reload; Help Desk walkthroughs resume and confirm their save"; shared `ui/coach.js`, `ui/styles.css`, `ui/index.html`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk files — please review the shared ones):**
 Reloading the simulator in a coach lab no longer starts it over. The portal's
 launch parameters (`restart=1`, and for Help Desk `student=`) now leave the
