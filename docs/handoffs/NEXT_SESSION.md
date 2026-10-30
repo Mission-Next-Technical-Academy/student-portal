@@ -1,3 +1,87 @@
+**2026-10-30 (Megan; PR #90 (draft) "Help Desk Module 1 completes on its Prove It; Labs 1.1 and 1.2 become Practice It (L-003)"; shared `supabase/` migration, `portal/app.js`, `tests/module-card-state.test.js`, a new `supabase/tests/` file and `docs/operations/AI_AGENT_RULES.md`, plus Help Desk `portal/data.js` — please review the shared ones):**
+**Held: the PR stays open and the migration must not reach production until a
+Module 1 Prove It can submit to `lab-its-01-prove-it`.** Until then no Help
+Desk student can complete Module 1, and Modules 2–12 stay locked. It is not
+on staging yet either (Megan, 2026-10-30): it waits until the Module 1 Prove
+It can submit, so staging is never left with an uncompletable Module 1 and
+the hosted check covers the full path. Then, together with that work:
+(1) push the branch; (2) a person, never an agent, runs `cat
+supabase/.temp/project-ref` (must print `xbblgtrfwgeiyttdlbue`), then
+`supabase db push --linked --project-ref xbblgtrfwgeiyttdlbue --dry-run`
+(must list only this migration), then the same without `--dry-run` (plain
+`supabase db push` also acts on the linked project but was not checked on CLI
+2.118); (3) a person runs Deploy staging
+site in `student-portal-staging` with `ref` = this branch; (4) check the
+hosted footer shows the branch's commit SHA; (5) run the hosted checks and
+record the four synthetic students' Module 1 state before and after. Any
+merge to master reruns Staging sync and puts master's portal code back on
+hosted staging while the database keeps this change (Module 1 then lists
+three required labs, one shown by its raw key, and never completes), so
+redeploy the branch or merge it promptly after the db push. Hosted checks
+include: the Module 1 card shows Practice Submitted after Labs 1.1 and 1.2 are
+in, and Waiting/Passed for the Prove It. Production order: apply the
+migration to production by hand, the same way as PR #89, immediately before
+merging, then merge straight away. Migration first
+with master's code shows the raw-key screen; code first without the migration
+makes the card require a Prove It the database doesn't. Help Desk
+Module 1 now completes only on an instructor-approved `lab-its-01-prove-it`
+attempt (an independent ticket, HD-2125). Lab 1.1 (evidence upload) and Lab
+1.2 (coach walkthrough) are Practice It: they still save, upload evidence,
+take one waiting attempt and appear in Lab Attempts and the grading badges,
+but they no longer gate completion. Every other module of every track
+computes exactly what it did before.
+- Migration `20261030175603_course_module_labs_gates_completion.sql`: adds
+  `course_module_labs.gates_completion boolean not null default true`
+  (false only for `lab-its-01-lms-validation` and `lab-its-01-ticket-triage`),
+  adds the `lab-its-01-prove-it` row, and recreates
+  `student_verified_module_progress` with the 20261017130000 formula joined
+  only to gating rows. Rows were kept, not deleted (unlike the SOC
+  20261005200000 cleanup), because `can_write_lab_evidence()` only accepts
+  uploads for a mapped lab and `guard_lab_attempt_single_pending()` only
+  guards mapped labs; both still read every row. Any new reader of
+  `course_module_labs` must decide whether it filters on `gates_completion`
+  (also in the table and column comments).
+- The same migration demotes Help Desk `its-01` `module_progress` rows that are
+  `complete` but no longer verified (to `in_progress`, percent capped at 99,
+  `completed_at` cleared, `updated_at` unchanged). It saves their
+  before-image in a new `module_progress_its01_gate_backup` table (RLS on, no
+  API access) that the header's rollback restores from. Admin overrides are
+  untouched.
+- Hour awards are not changed. Students whose Module 1 flips keep their Module
+  1 row in `student_course_hour_awards` while Module 1 is no longer verified
+  complete: on staging, the four synthetic Help Desk students whose Module 1
+  is verified today (each holds a Module 1 award), and the same will happen
+  to any production student whose Module 1 flips. This
+  belongs with the hours, completion and transcript issue (ISSUE-079 in
+  Megan's Code Issues Log).
+- `portal/app.js` (shared): `fetchUserDetails()` reads only
+  `gates_completion = true` rows for the required-labs list;
+  `adminGradingLabMeta()` labels a lab whose record has `phase: 'practice'`
+  "PRACTICE IT", so Module 1's Practice It and Prove It attempts are separate
+  Lab Attempts items. SOC and other Help Desk labels are unchanged.
+- `portal/data.js` (Help Desk): Labs 1.1 and 1.2 get `phase: 'practice'`
+  (this switches on the existing "Practice Submitted" card state for Module
+  1); new `lab-its-01-prove-it` record. Minutes (decided by Megan): Prove It
+  20, Lab 1.1 15 (was 30), Lab 1.2 25 (was 30). Module 1 stays 180,
+  ITHD-101.1 stays 60 lab minutes, total stays 3,600.
+- Not built here: the Prove It's submit path, its instructor sheet and the
+  removal of Module 1's generic Assessment Lab box (`its-01-assessment-module`
+  does not satisfy the new gate).
+- Tests: `tests/module-card-state.test.js` (shared) mirrors the gating rows and
+  covers Module 1's Practice It and Prove It states and labels;
+  `supabase/tests/course_module_labs_gates_completion.sql` proves every other
+  module of every track matches the previous view. The existing
+  `supabase/tests/student_write_lockdown.sql` already fails locally at its
+  first student write ("An active academy session is required for writes"):
+  it predates the session-bound login migration (20261005230000). Not
+  touched here.
+- `docs/operations/AI_AGENT_RULES.md` (shared): documents the staging push
+  form a person (never an agent) runs on CLI 2.118: `cat
+  supabase/.temp/project-ref`, then `supabase db push --linked --project-ref
+  xbblgtrfwgeiyttdlbue --dry-run`, then without `--dry-run`. Plain `supabase
+  db push` also acts on the linked project but was not checked on 2.118.
+  `db query` needs `--linked` together with `--project-ref`.
+
 **2026-10-29 (Megan; PR #89 "Generic Assessment Lab box: save honestly, reach Lab Attempts, one waiting submission"; shared `portal/app.js`, `portal/index.html`, `bin/ci-check.sh` and a new `supabase/` migration — please review those):**
 The platform's generic Assessment Lab box (`moduleAssessmentModule()`, the
 "Prove It · Assessment Lab" form appended by `module-registry.js`) never

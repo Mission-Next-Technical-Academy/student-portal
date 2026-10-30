@@ -35,8 +35,14 @@ or merge work. Details: `docs/operations/STAGING_AUTOMATION.md`.
   pushes/resets, and function deploys are not covered by a data-task exception.
 - Never run `supabase db push` or `supabase db reset --linked` until
   `cat supabase/.temp/project-ref` prints `xbblgtrfwgeiyttdlbue` (staging).
-  These commands have no `--project-ref` option: they act on whichever project
-  the CLI is linked to. If it prints anything else, stop and ask the person.
+  If it prints anything else, stop and ask the person.
+- Updated 2026-10-30 (CLI 2.118): a person, never an agent, pushes migrations
+  to staging in this form: first `cat supabase/.temp/project-ref` (must print
+  `xbblgtrfwgeiyttdlbue`), then
+  `supabase db push --linked --project-ref xbblgtrfwgeiyttdlbue --dry-run`,
+  then the same command without `--dry-run`. Plain `supabase db push` also
+  acts on the linked project, but that form was not checked on CLI 2.118.
+  `supabase db query` refuses `--project-ref` without `--linked`, so use both.
 - Never run `supabase functions deploy` without `--project-ref xbblgtrfwgeiyttdlbue`.
 - Run `supabase db push` with `--dry-run` first.
 - Ask the person before running any of them.

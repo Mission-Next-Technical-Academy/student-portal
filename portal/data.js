@@ -2245,14 +2245,20 @@ const LABS = [
   /* IT Help Desk lab catalogue. Only Modules 1, 2, and 12 have a built,
    * scored lab — see the compliance.sourceNotes on the it-support program
    * entry above for why Modules 3–11 don't have LABS rows yet. */
-  itsLab({ key: 'lab-its-01-lms-validation', module: 'its-01', title: 'LMS & Environment Validation', difficulty: 'Foundational', minutes: 30,
-    parentAllocations: [allocation('ITHD-101.1', 30)], objective: 'Confirm LMS and lab-environment access, submit a test file through the evidence workflow, and acknowledge the Acceptable Use Policy.',
+  itsLab({ key: 'lab-its-01-lms-validation', module: 'its-01', title: 'LMS & Environment Validation', difficulty: 'Foundational', minutes: 15, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.1', 15)], objective: 'Confirm LMS and lab-environment access, submit a test file through the evidence workflow, and acknowledge the Acceptable Use Policy.',
     description: 'Log into both the LMS and the separate lab-sandbox environment, upload a test file as evidence, and formally acknowledge the Acceptable Use Policy.',
     skills: ['LMS Navigation', 'Credential Discipline', 'Policy Acknowledgment'], portalEntry: '#/program/it-support/module/1' }),
-  itsLab({ key: 'lab-its-01-ticket-triage', module: 'its-01', title: 'A Day in the Life of an L1 Technician', difficulty: 'Foundational', minutes: 30,
-    parentAllocations: [allocation('ITHD-101.1', 30)], objective: 'Resolve a real account-lockout ticket end to end: read the evidence, work the troubleshooting path, diagnose against the log, document it, and resolve it.',
+  itsLab({ key: 'lab-its-01-ticket-triage', module: 'its-01', title: 'A Day in the Life of an L1 Technician', difficulty: 'Foundational', minutes: 25, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.1', 25)], objective: 'Resolve a real account-lockout ticket end to end: read the evidence, work the troubleshooting path, diagnose against the log, document it, and resolve it.',
     description: 'A coach-guided walkthrough of ticket HD-2101 (an account lockout) in the IT Service Desk simulator, applying the five-step troubleshooting mindset to a real ticket rather than a written scenario.',
     skills: ['Ticket Triage', 'Troubleshooting Mindset', 'Resolve/Escalate Judgment'], portalEntry: '#/program/it-support/module/1' }),
+  // Module 1's Prove It, the only lab that gates its completion
+  // (course_module_labs.gates_completion). Its submit path is not built yet.
+  itsLab({ key: 'lab-its-01-prove-it', module: 'its-01', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 20,
+    parentAllocations: [allocation('ITHD-101.1', 20)], objective: 'Independently work a new service desk ticket end to end: categorize and prioritize it, decide and act within policy, document the work, and explain the outcome to the user.',
+    description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
+    skills: ['Ticket Triage', 'Policy Judgment', 'Documentation'], portalEntry: '#/program/it-support/module/1' }),
   itsLab({ key: 'lab-its-02-vm-build', module: 'its-02', title: 'Build Your Windows Client VM', difficulty: 'Foundational', minutes: 90,
     parentAllocations: [allocation('ITHD-101.3', 90)], objective: 'Install VirtualBox and build a working Windows 11 client VM meeting the program\'s minimum resource spec.',
     description: 'Physical, evidence-based lab performed on the student\'s own device: install VirtualBox, build a Windows 11 client VM, and submit evidence of the finished build.',
