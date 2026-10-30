@@ -37,6 +37,15 @@ notes and takes one new submission.
   page reload (or a second tab racing the first) can store one extra artifact
   with no attempt; it never reaches the queue. A lost reply after the attempt
   landed no longer duplicates it: the retry's re-read finds it waiting.
+- Known gap, not new: `guard_lab_attempt_single_pending()` picks the newest
+  attempt by `completed_at`, which `recordLabAttempt()` takes from the
+  browser clock. It has trusted that value for all graded labs since the
+  Oct 5 migration; this change only adds the box's keys. A student whose
+  clock is set earlier than a returned attempt can resubmit behind it and
+  leave two waiting attempts. The fix (a server-set `completed_at` in
+  `guard_lab_attempt_write()`, or refusing an insert while any unreviewed,
+  unsuperseded attempt exists) changes every graded lab, so it needs your
+  review as a separate PR.
 - `bin/ci-check.sh` (shared): runs the new `tests/module-assessment-submit.test.js`.
 
 **2026-10-29 (Megan; staging deploy token renewed; docs only, shared `docs/operations/STAGING_AUTOMATION.md`):**
