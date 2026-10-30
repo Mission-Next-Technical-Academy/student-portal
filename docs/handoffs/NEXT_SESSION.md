@@ -41,6 +41,11 @@ work is saved in this browser.") until the portal can receive the work.
   or KB article appears in Practice (the Practice fixtures, the coach labs or
   the capstone), or if a Prove shift's fixtures carry answer-like field names.
 - `bin/ci-check.sh` (shared): runs the new `tests/hdesk-prove-mode.test.js`.
+- Layout: the Prove view styles its card headers, choices and the
+  unavailable Submit inline, so `ui/styles.css` is unchanged. Practice's card
+  headers still have no space before their note (for example "Troubleshooting
+  pathRecord what you actually checked."): `.card-header` has no base rule in
+  `ui/styles.css`, so its `gap: 8px` never applies.
 - Known limit, accepted for now: the `student=` id in the address chooses
   which local attempt a browser shows, the same model as the coach labs'
   resume. The Prove It submit work must bind Submit to the signed-in student:

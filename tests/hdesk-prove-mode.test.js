@@ -136,6 +136,9 @@ function testProveTicketViewRevealsNothing() {
     .forEach((pattern) => assert.doesNotMatch(html, pattern, `the Prove view shows nothing like ${pattern}`));
   assert.match(html, /<button class="btn btn-primary" disabled aria-disabled="true"[^>]*>Submit for faculty review<\/button>/);
   assert.match(html, /Not available yet: your work is saved in this browser\./);
+  // The unavailable Submit looks unavailable; choices have no number column.
+  assert.match(html, /aria-disabled="true"[^>]*style="[^"]*cursor:not-allowed/);
+  assert.equal((html.match(/<label style="grid-template-columns:18px 1fr"><input type="(checkbox|radio)"/g) || []).length, PROVE_TICKET.pathPool.length + 2);
   assert.ok(html.includes(tab.run('hdEsc')(PROVE_TICKET.description)), 'the requester statement');
   assert.ok(html.includes(tab.run('hdEsc')(PROVE_TICKET.conversation[0].text)), 'the CC reply');
   assert.ok(html.includes(tab.run('hdEsc')(PROVE_TICKET.cc)), 'the CC line');
