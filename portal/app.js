@@ -1026,6 +1026,7 @@ function adminAttemptReviewCard(item, olderAttempt) {
     ${adminResponseDesignReviewPanel(row)}
     ${adminModuleTwoAccessReviewPanel(row)}
     ${typeof itsEvidenceReviewPanel === 'function' ? itsEvidenceReviewPanel(row) : ''}
+    ${typeof itsProveReviewPanel === 'function' ? itsProveReviewPanel(row) : ''}
     ${competencyPanel}
     ${readableResult}
     ${studentWorkPanel}
@@ -1118,6 +1119,7 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
       <p class="mt-1 text-xs text-gray-500">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}${row.reviewed_at ? ` · Reviewed ${new Date(row.reviewed_at).toLocaleString()}` : ''}</p>
       ${ticket ? `<div class="mt-3">${ticket}</div>` : ''}
       ${typeof itsEvidenceReviewPanel === 'function' ? itsEvidenceReviewPanel(row) : ''}
+      ${typeof itsProveReviewPanel === 'function' ? itsProveReviewPanel(row) : ''}
     </details>`;
   };
   const attemptHtml = (item, isLatest) => (pending.has(item.lead.id) ? adminAttemptReviewCard(item, !isLatest) : recordRow(item, isLatest));
@@ -5146,6 +5148,9 @@ function moduleNavStatuses(rows, titleOf = (row) => row.title) {
     if (!gated(row)) return { statusClass: 'munified-row-ungated', locked: false };
     if (row.isComplete) return { statusClass: 'mnav-chip-complete', locked: false };
     if (blockerIndex >= 0 && blockerIndex < index) {
+      // Help Desk Module 1's Prove It: recommended after Practice It, never
+      // locked behind it. It still counts toward the rail's percent.
+      if (row.neverLocked) return { statusClass: 'munified-row-ungated', locked: false };
       return { statusClass: 'mnav-chip-locked', locked: true, reason: titleOf(blocker), target: blocker.scrollId };
     }
     return { statusClass: 'mnav-chip-current', locked: false };

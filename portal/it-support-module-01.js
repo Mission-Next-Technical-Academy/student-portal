@@ -71,9 +71,10 @@ const ITS01_AUP_PARAGRAPHS = [
 const ITS01_LAB1_ID = 'its01-lms-validation-v1';
 const ITS01_LAB1_KEY = 'lab-its-01-lms-validation';
 const ITS01_LAB2_KEY = 'lab-its-01-ticket-triage';
+const ITS01_PROVE_KEY = 'lab-its-01-prove-it';
 
 const ITS01_LAB1_FIELDS = ['evidence1', 'evidence2'];
-const ITS01_LAB_KEYS = [ITS01_LAB1_KEY, ITS01_LAB2_KEY];
+const ITS01_LAB_KEYS = [ITS01_LAB1_KEY, ITS01_LAB2_KEY, ITS01_PROVE_KEY];
 const ITS01_LAB2_START = 'Start Lab 1.2 walkthrough';
 const ITS01_EVIDENCE_FIELD_BY_INPUT = { 'its01-evidence-1': 'evidence1', 'its01-evidence-2': 'evidence2' };
 
@@ -211,6 +212,27 @@ function its01Lab2() {
   </section>`;
 }
 
+// Module 1's Prove It: one independent ticket in the simulator, reviewed by the
+// instructor. Practice It is recommended first, never required. A submitted
+// attempt has nothing left to open. What it shows comes from the server's
+// attempt (itsLabStatus); the simulator reports back by message
+// (itsProveReceiveMessage).
+function its01Prove() {
+  const user = its01User;
+  const returned = itsLabReturned(user, ITS01_PROVE_KEY);
+  return `<section class="its01-section its01-lab-section" id="its01-prove-it" aria-labelledby="its01-prove-it-title">
+    <div class="its01-section-heading"><span>3</span><div><p class="its01-kicker">Prove It · Assessment Lab · instructor reviewed</p><h2 id="its01-prove-it-title">${esc(itsLabTitle(ITS01_PROVE_KEY))}</h2></div></div>
+    <p class="its01-instruction">Work one new ticket on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Your instructor reviews your work.</p>
+    <p class="its01-instruction">Complete Practice It (Labs 1.1 and 1.2) first: it prepares you for this.</p>
+    ${itsLabSubmitted(user, ITS01_PROVE_KEY) ? '' : `<a class="itsw-evidence-button" data-its01-prove-launch href="${esc(itsProveLaunchHref('its-01', user))}" target="_blank" rel="opener">
+      <i class="${returned ? 'ri-restart-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${returned ? 'Reopen the Prove It' : 'Start the Prove It'}
+    </a>`}
+    <div class="itss-walkthrough-notice" data-its01-prove-notice role="status" hidden></div>
+    ${itsLabStatusHtml(user, ITS01_PROVE_KEY, { label: 'Prove It', prefix: 'its01', pendingText: 'Press Submit in the simulator when you finish the ticket.' })}
+    ${itsRedoNoticeHtml(user, [{ key: ITS01_PROVE_KEY, action: 'Reopen the Prove It, make your changes, then press Resubmit in the simulator. You can resubmit once for each return.' }])}
+  </section>`;
+}
+
 function viewItsModuleOne(user, program) {
   its01Load(user);
   const module = program.modules['its-01'];
@@ -218,6 +240,9 @@ function viewItsModuleOne(user, program) {
     { id: 'lessons', title: 'Foundation lessons', type: 'lecture', isComplete: true, scrollId: 'its01-lessons' },
     { id: 'environment', title: 'Environment validation', type: 'lab', ...itsLabRail(user, [ITS01_LAB1_KEY]), scrollId: 'its01-lab-1-1' },
     { id: 'service-desk', title: 'Service desk walkthrough', type: 'lab', ...itsLabRail(user, [ITS01_LAB2_KEY]), scrollId: 'its01-lab-1-2' },
+    // Named so the platform's generic Assessment Lab box isn't added
+    // (normalizeModuleStages).
+    { id: 'assessment', title: 'Assessment Lab', type: 'review', neverLocked: true, ...itsLabRail(user, [ITS01_PROVE_KEY]), scrollId: 'its01-prove-it' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'its01-sources', gated: false, supplemental: true },
   ];
   return `<div class="its01-shell">
@@ -230,6 +255,7 @@ function viewItsModuleOne(user, program) {
 
       ${its01Lab1()}
       ${its01Lab2()}
+      ${its01Prove()}
 
       <section class="its01-section" id="its01-sources" aria-labelledby="its01-sources-title"><div class="its01-section-heading"><span><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="its01-kicker">Reference — not a graded step</p><h2 id="its01-sources-title">Sources &amp; Further Reading</h2></div></div>${moduleSourcesBlock(ITS01_SOURCES)}</section>
     </main>
@@ -367,6 +393,18 @@ function wireItsModuleOneLab() {
       its01ResubmitLab(resubmit.dataset.itsResubmit);
       return;
     }
+    const proveLaunch = event.target.closest('[data-its01-prove-launch]');
+    if (proveLaunch) {
+      // Opened as a popup so the simulator can report back to this page.
+      event.preventDefault();
+      const notice = shell.querySelector('[data-its01-prove-notice]');
+      const opened = window.open(proveLaunch.href, '_blank');
+      if (notice) {
+        notice.hidden = Boolean(opened);
+        notice.textContent = opened ? '' : 'Your browser blocked the Prove It window. Allow pop-ups for this site, then try again.';
+      }
+      return;
+    }
     const launch = event.target.closest('[data-its01-console-launch]');
     if (launch) {
       if (itsLaunchWalkthrough(event, launch, its01User, 'hd-m01')) {
@@ -407,7 +445,17 @@ async function its01ReceiveCoachCompletion(event) {
   if (section) section.scrollIntoView({ block: 'start' });
 }
 
+// A Prove It message changed the attempt: show it if this page is open.
+function its01ProveChanged() {
+  if (document.querySelector('.its01-shell')) render();
+}
+
+function its01OnMessage(event) {
+  itsProveReceiveMessage(event, { moduleKey: 'its-01', labKey: ITS01_PROVE_KEY, onChange: its01ProveChanged });
+  return its01ReceiveCoachCompletion(event);
+}
+
 registerModuleLab({
   program: 'it-support', moduleNumber: 1, moduleKey: 'its-01',
-  view: viewItsModuleOne, wire: wireItsModuleOneLab, onMessage: its01ReceiveCoachCompletion,
+  view: viewItsModuleOne, wire: wireItsModuleOneLab, onMessage: its01OnMessage,
 });
