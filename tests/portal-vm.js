@@ -42,6 +42,7 @@ function loadPortal() {
 
     var supabaseCalls = [];
     var supabaseResponder = () => ({ data: null, error: null });
+    var supabaseRpcResponder = () => ({ data: null, error: null });
     var mntSupabase = {
       auth: { async getSession() { return { data: { session: null } }; }, async signOut() { return { error: null }; } },
       from(table) {
@@ -60,7 +61,10 @@ function loadPortal() {
         };
         return builder;
       },
-      async rpc() { return { data: null, error: null }; },
+      async rpc(name, args) {
+        supabaseCalls.push({ rpc: name, args });
+        return supabaseRpcResponder(name, args);
+      },
       // Storage calls are recorded in supabaseCalls too ({ table: 'storage:<bucket>',
       // op: 'upload' | 'remove' | 'createSignedUrl' }) and answered by supabaseResponder.
       storage: {

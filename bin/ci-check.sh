@@ -30,6 +30,7 @@ node tests/hdesk-prove-mode.test.js
 
 echo '== Help Desk Prove It Submit: honest save, faculty review, no score =='
 node tests/hdesk-prove-submit.test.js
+node tests/hdesk-faculty-grading.test.js
 
 echo '== Help Desk curriculum minutes =='
 node bin/its-curriculum-check.js

@@ -572,8 +572,7 @@ async function testInstructorReadsPlainText() {
   assert.ok(panel.includes('Escalate'));
   assert.ok(panel.includes(tab.run('hdEsc')(ticket.pathPool[0].text)), 'steps as text, not ids');
   assert.ok(panel.includes('Knowledge Base'), 'evidence opened');
-  assert.ok(panel.includes('hdesk-its-01-prove-v1'));
-  assert.match(panel, /Approve counts as a pass/, 'until the faculty-gate work, instructors are told');
+  assert.doesNotMatch(panel, /Approve counts as a pass/, 'the grading sheet replaced the warning');
   assert.doesNotMatch(panel, /<script|<two>/);
   // A student's markup never runs.
   const hostile = prun('itsProveReviewPanel')(savedRow({ ...row.result, userReply: '<img src=x onerror=1>', diagnosis: '<b>x</b>', commands: [{ command: '<i>', computer: '<u>' }] }));
@@ -583,9 +582,8 @@ async function testInstructorReadsPlainText() {
   const card = prun('adminAttemptReviewCard')({ lead: row, ids: [row.id], name: meta.itemName, labTitles: [meta.labTitle] }, false);
   assert.ok(card.indexOf('data-its-prove-panel') >= 0);
   assert.ok(card.indexOf('data-its-prove-panel') < card.indexOf('Full raw result'), 'plain text first');
-  assert.match(card, /No score/);
-  assert.match(card, /admin-grading-approve/);
-  assert.match(card, /admin-grading-send-back/);
+  assert.match(card, /data-its-prove-decide="approved"/, 'the grading sheet, tested in hdesk-faculty-grading.test.js');
+  assert.doesNotMatch(card, /admin-grading-approve|admin-grading-send-back/, 'a decision can only go through the sheet');
 
   // A row that didn't come through Submit is flagged, however it looks.
   assert.match(prun('itsProveReviewPanel')(savedRow({ score: 100 })), /No readable Prove It package/);
