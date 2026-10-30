@@ -218,7 +218,9 @@ async function fetchUserDetails(userId, trackCode) {
       .eq('student_id', userId)
       .eq('track_code', trackCode)
       .order('created_at', { ascending: true }),
-    mntSupabase.from('course_module_labs').select('module_key, lab_key').eq('track_code', trackCode),
+    // Only the labs that gate completion; Practice It rows (gates_completion
+    // false) still save and upload evidence but never make a module required.
+    mntSupabase.from('course_module_labs').select('module_key, lab_key').eq('track_code', trackCode).eq('gates_completion', true),
   ]);
 
   if (progressError) {
@@ -4231,7 +4233,8 @@ function moduleRequiredLabKeys(program, moduleKey, user) {
 }
 
 // Practice labs are only those a lab record explicitly marks
-// `phase: 'practice'`; none are marked yet, so practice_submitted stays dormant.
+// `phase: 'practice'`. Since 2026-10-30 Help Desk Module 1's Labs 1.1 and 1.2
+// are, so Module 1 can show Practice Submitted.
 function modulePracticeLabKeys(program, moduleKey) {
   return programLabs(program)
     .filter((lab) => lab.module === moduleKey && lab.optional !== true && lab.phase === 'practice')
@@ -9857,9 +9860,11 @@ function adminGradingLabMeta(row) {
   // (guided lab), Prove It (assessment lab or capstone).
   // Outside SOC every catalogued lab is the module's instructor-approved
   // assessment (course_module_labs maps all HDESK/AIENG labs), so it is a
-  // Prove It, not an unlabelled "LAB".
+  // Prove It, not an unlabelled "LAB", unless its record marks it
+  // `phase: 'practice'` (Help Desk Module 1's Labs 1.1 and 1.2).
   const kind = knowledgeCheck ? 'LEARN IT'
     : (lab && lab.kind === 'capstone') || ADMIN_PROVE_IT_LAB_KEYS.has(row.lab_key) ? 'PROVE IT'
+    : lab && lab.phase === 'practice' ? 'PRACTICE IT'
     : slug === 'soc-analyst' ? 'PRACTICE IT' : lab ? 'PROVE IT' : 'LAB';
   return {
     moduleKey: module ? moduleKey : 'other',

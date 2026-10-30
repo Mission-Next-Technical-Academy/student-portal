@@ -114,12 +114,19 @@ assert.equal(run('STATE_STYLES').complete.label, 'Complete', 'default labels unc
 
 const LAB_1 = 'lab-its-01-lms-validation';
 const LAB_2 = 'lab-its-01-ticket-triage';
+const PROVE = 'lab-its-01-prove-it';
 const TITLE_1 = 'LMS & Environment Validation';
 const TITLE_2 = 'A Day in the Life of an L1 Technician';
-// course_module_labs as loaded by fetchUserDetails (same rows as the migrations).
-const REGISTRY = Object.fromEntries(Object.keys(HD.modules).map((key) => [key, run('LABS').filter((l) => l.module === key).map((l) => l.key)]));
+const PROVE_TITLE = 'Prove It: Independent Ticket';
+// course_module_labs rows with gates_completion as loaded by fetchUserDetails
+// (same rows as the migrations): every catalogued lab except Practice It ones.
+const REGISTRY = Object.fromEntries(Object.keys(HD.modules).map((key) => [key, run('LABS').filter((l) => l.module === key && l.phase !== 'practice').map((l) => l.key)]));
+// A module with two required labs, for the per-lab card mechanics below
+// (Module 1's registry before its Prove It gated completion).
+const TWO_LABS = { ...REGISTRY, 'its-01': [LAB_1, LAB_2] };
 
 const hdUser = (data = {}) => makeUser('it-support', 'HDESK', { requiredLabsByModuleKey: REGISTRY, openLabRedoFeedbackByLabKey: {}, ...data });
+const hdUser2 = (data = {}) => hdUser({ requiredLabsByModuleKey: TWO_LABS, ...data });
 const pill = (html) => (/<i class="ri-[^"]+"><\/i>([^<]+)\n/.exec(html) || [])[1];
 const dot = (html) => /mnt-module-completion-dot[^>]*aria-label="([^"]*)"/.exec(html)[1];
 const panel = (html) => (/<div [^>]*data-module-lab-status>[\s\S]*?<\/div>/.exec(html) || [''])[0];
@@ -171,7 +178,7 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
 // One of two required labs submitted: In Progress with the count and per-lab
 // lines, and no promise that approval alone unlocks the next module.
 {
-  const c = card(hdUser({ remoteModuleProgress: { 'its-01': 'in_progress' }, latestLabAttemptByKey: { [LAB_1]: finished() } }));
+  const c = card(hdUser2({ remoteModuleProgress: { 'its-01': 'in_progress' }, latestLabAttemptByKey: { [LAB_1]: finished() } }));
   assert.deepEqual([c.state, c.label], ['in_progress', 'In Progress']);
   assert.match(c.panel, /1 of 2 required labs submitted/);
   assert.deepEqual(c.lines, [['waiting', `${TITLE_1}: waiting on your instructor.`], ['not_submitted', `${TITLE_2}: not submitted yet.`]]);
@@ -181,7 +188,7 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
 
 // Every required lab submitted, none reviewed: Submitted for Faculty Review.
 {
-  const c = card(hdUser({ latestLabAttemptByKey: { [LAB_1]: finished(), [LAB_2]: finished() } }));
+  const c = card(hdUser2({ latestLabAttemptByKey: { [LAB_1]: finished(), [LAB_2]: finished() } }));
   assert.deepEqual([c.state, c.label], ['awaiting_approval', 'Submitted for Faculty Review']);
   assert.match(c.panel, /2 of 2 required labs submitted/);
   assert.match(c.panel, /The next module unlocks as soon as your instructor approves the remaining labs\./);
@@ -189,7 +196,7 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
 
 // One approved, one waiting: still Submitted for Faculty Review; singular promise.
 {
-  const c = card(hdUser({ latestLabAttemptByKey: { [LAB_1]: approved(), [LAB_2]: finished() } }));
+  const c = card(hdUser2({ latestLabAttemptByKey: { [LAB_1]: approved(), [LAB_2]: finished() } }));
   assert.equal(c.state, 'awaiting_approval');
   assert.deepEqual(c.lines, [['passed', `${TITLE_1} passed.`], ['waiting', `${TITLE_2}: waiting on your instructor.`]]);
   assert.match(c.panel, /approves the remaining lab\./);
@@ -197,7 +204,7 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
 
 // A superseded latest attempt does not count as submitted.
 {
-  const c = card(hdUser({ latestLabAttemptByKey: { [LAB_1]: finished(), [LAB_2]: finished({ supersededAt: '2026-10-03T00:00:00Z' }) } }));
+  const c = card(hdUser2({ latestLabAttemptByKey: { [LAB_1]: finished(), [LAB_2]: finished({ supersededAt: '2026-10-03T00:00:00Z' }) } }));
   assert.equal(c.state, 'in_progress');
   assert.deepEqual(c.lines.map((l) => l[0]), ['waiting', 'not_submitted']);
 }
@@ -205,7 +212,7 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
 // Returned for Revision beats Submitted for Faculty Review; the line links to
 // the marked lab (notes beside each section) and counts the notes.
 {
-  const c = card(hdUser({
+  const c = card(hdUser2({
     latestLabAttemptByKey: { [LAB_1]: finished(), [LAB_2]: finished({ reviewedAt: '2026-10-02T10:00:00Z', redoRequested: true }) },
     openLabRedoFeedbackByLabKey: { [LAB_2]: [{ item_label: 'Evidence', comment: 'Attach the Event Viewer entry.' }] },
   }));
@@ -220,25 +227,25 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
 
 // Passed: verified record complete, every lab approved.
 {
-  const c = card(hdUser({ remoteVerifiedModuleProgress: { 'its-01': true }, latestLabAttemptByKey: { [LAB_1]: approved(), [LAB_2]: approved() } }));
+  const c = card(hdUser2({ remoteVerifiedModuleProgress: { 'its-01': true }, latestLabAttemptByKey: { [LAB_1]: approved(), [LAB_2]: approved() } }));
   assert.deepEqual([c.state, c.label, c.dot], ['complete', 'Passed', PASSED_DOT]);
   // A passed module keeps a link to each marked lab.
   assert.deepEqual(c.lines.map((l) => l[0]), ['passed', 'passed']);
   assert.match(c.panel, new RegExp(`data-lab-key="${LAB_1}">See your marked lab`));
   assert.match(c.html, /data-module-primary-action>Review Module</);
   // Module 2 unlocks once Module 1 has passed.
-  assert.equal(card(hdUser({ remoteVerifiedModuleProgress: { 'its-01': true } }), 'its-02').state, 'not_started');
+  assert.equal(card(hdUser2({ remoteVerifiedModuleProgress: { 'its-01': true } }), 'its-02').state, 'not_started');
 }
 
 // Returned for Revision beats a verified complete record.
 {
-  const c = card(hdUser({ remoteVerifiedModuleProgress: { 'its-01': true }, latestLabAttemptByKey: { [LAB_1]: approved(), [LAB_2]: finished({ reviewedAt: 'x', redoRequested: true }) } }));
+  const c = card(hdUser2({ remoteVerifiedModuleProgress: { 'its-01': true }, latestLabAttemptByKey: { [LAB_1]: approved(), [LAB_2]: finished({ reviewedAt: 'x', redoRequested: true }) } }));
   assert.equal(c.state, 'needs_redo');
 }
 
 // Every lab approved but the record is not complete yet: In Progress, no promise.
 {
-  const c = card(hdUser({ latestLabAttemptByKey: { [LAB_1]: approved(), [LAB_2]: approved() } }));
+  const c = card(hdUser2({ latestLabAttemptByKey: { [LAB_1]: approved(), [LAB_2]: approved() } }));
   assert.equal(c.state, 'in_progress');
   assert.match(c.panel, /Every required lab is approved\. Open the module to finish its remaining steps\./);
 }
@@ -256,28 +263,36 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
   assert.equal(c.state, 'awaiting_approval');
   assert.match(c.panel, /1 of 1 required lab submitted/);
 }
-// ...and falls back to the catalogue only when that read failed.
+// ...and falls back to the catalogue's non-practice labs only when that read failed.
 {
-  const c = card(hdUser({ requiredLabsByModuleKey: null, latestLabAttemptByKey: { [LAB_1]: finished() } }));
-  assert.match(c.panel, /1 of 2 required labs submitted/);
+  assert.deepEqual([...run('moduleRequiredLabKeys')(HD, 'its-01', { requiredLabsByModuleKey: null })], [PROVE]);
+  assert.deepEqual([...run('moduleRequiredLabKeys')(HD, 'its-02', { requiredLabsByModuleKey: null })], [...REGISTRY['its-02']]);
 }
 
-// Practice Submitted: only labs explicitly marked phase 'practice' count.
+// Module 1 gates on its Prove It only. Labs 1.1 and 1.2 are Practice It
+// (gates_completion false in course_module_labs, phase 'practice' in LABS):
+// they still submit and count as activity, but never pass the module.
 {
-  const labs = run('LABS');
-  labs.push({ key: 'lab-its-01-practice-test', module: 'its-01', title: 'Practice ticket', phase: 'practice', kind: 'lab' });
-  try {
-    assert.equal(card(hdUser({ latestLabAttemptByKey: { 'lab-its-01-practice-test': finished() } })).state, 'practice_submitted');
-    assert.equal(card(hdUser({ latestLabAttemptByKey: { 'lab-its-01-practice-test': finished() } })).label, 'Practice Submitted');
-    // Once a Prove It attempt exists, the module has moved on.
-    assert.equal(card(hdUser({ latestLabAttemptByKey: { 'lab-its-01-practice-test': finished(), [LAB_1]: finished() } })).state, 'in_progress');
-    // The catalogue fallback never counts a practice lab as required.
-    assert.match(card(hdUser({ requiredLabsByModuleKey: null, latestLabAttemptByKey: { [LAB_1]: finished() } })).panel, /1 of 2 required/);
-  } finally {
-    labs.splice(labs.findIndex((l) => l.key === 'lab-its-01-practice-test'), 1);
-  }
-  // Unmarked labs never produce it (dormant today).
-  assert.equal(card(hdUser({ requiredLabsByModuleKey: { ...REGISTRY, 'its-01': [LAB_1] }, latestLabAttemptByKey: { [LAB_2]: finished() } })).state, 'in_progress');
+  assert.deepEqual([...REGISTRY['its-01']], [PROVE]);
+  assert.deepEqual([...run('LABS').filter((l) => l.module === 'its-01' && l.phase === 'practice').map((l) => l.key)], [LAB_1, LAB_2]);
+  // Both Practice It labs in, no Prove It: Practice Submitted.
+  assert.deepEqual([card(hdUser({ latestLabAttemptByKey: { [LAB_1]: finished(), [LAB_2]: finished() } })).state,
+    card(hdUser({ latestLabAttemptByKey: { [LAB_1]: finished(), [LAB_2]: finished() } })).label], ['practice_submitted', 'Practice Submitted']);
+  // One Practice It lab in: In Progress.
+  assert.equal(card(hdUser({ latestLabAttemptByKey: { [LAB_1]: finished() } })).state, 'in_progress');
+  // Both Practice It labs approved, no Prove It: not passed, Module 2 locked.
+  const practiceApproved = hdUser({ latestLabAttemptByKey: { [LAB_1]: approved(), [LAB_2]: approved() } });
+  assert.notEqual(card(practiceApproved).state, 'complete');
+  assert.equal(card(practiceApproved, 'its-02').state, 'locked');
+  // Prove It submitted: waiting on the instructor, one required lab.
+  const waiting = card(hdUser({ latestLabAttemptByKey: { [LAB_1]: approved(), [LAB_2]: approved(), [PROVE]: finished() } }));
+  assert.equal(waiting.state, 'awaiting_approval');
+  assert.match(waiting.panel, /1 of 1 required lab submitted/);
+  assert.deepEqual(waiting.lines, [['waiting', `${PROVE_TITLE}: waiting on your instructor.`]]);
+  // Prove It approved and verified: Passed, Module 2 opens.
+  const passed = hdUser({ remoteVerifiedModuleProgress: { 'its-01': true }, latestLabAttemptByKey: { [PROVE]: approved() } });
+  assert.equal(card(passed).state, 'complete');
+  assert.equal(card(passed, 'its-02').state, 'not_started');
 }
 
 // The Passed text never claims module content was checked, even for soc-01
@@ -294,6 +309,20 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
   assert.equal(card(practiceOnly, 'soc-01', soc).state, 'in_progress');
 }
 
+// Lab Attempts: Module 1's Practice It labs and its Prove It are separate
+// items under Module 1, so a Prove It never hides a Practice It attempt.
+{
+  const meta = (labKey, track = 'HDESK') => run('adminGradingLabMeta')({ lab_key: labKey, track_code: track });
+  assert.deepEqual([meta(LAB_1).itemName, meta(LAB_2).itemName, meta(PROVE).itemName],
+    ['Module 1 · PRACTICE IT', 'Module 1 · PRACTICE IT', 'Module 1 · PROVE IT']);
+  assert.equal(meta(PROVE).labTitle, PROVE_TITLE);
+  // Every other Help Desk lab, and SOC, keep their labels.
+  assert.equal(meta('lab-its-02-vm-build').kind, 'PROVE IT');
+  assert.equal(meta('lab-its-12-capstone').kind, 'PROVE IT');
+  assert.equal(meta('lab-soc-environment', 'SOCAN').kind, 'PRACTICE IT');
+  assert.equal(meta('lab-soc-escalation', 'SOCAN').kind, 'PROVE IT');
+}
+
 /* ---------------------------------- 3. database reads and the "opened" write */
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
@@ -301,7 +330,11 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
 (async () => {
   // fetchUserDetails loads course_module_labs and superseded_at.
   ctx.supabaseResponder = (call) => {
-    if (call.table === 'course_module_labs') return { data: [{ module_key: 'its-01', lab_key: LAB_1 }, { module_key: 'its-01', lab_key: LAB_2 }], error: null };
+    if (call.table === 'course_module_labs') {
+      // Only the rows that gate completion; Practice It rows are left out.
+      assert.equal(call.filters.gates_completion, true, 'required labs read filters on gates_completion');
+      return { data: [{ module_key: 'its-01', lab_key: PROVE }], error: null };
+    }
     if (call.table === 'lab_attempts') return { data: [
       { id: 'a2', lab_key: LAB_1, completed_at: '2026-10-02T00:00:00Z', reviewed_at: null, redo_requested: false, superseded_at: null },
       { id: 'a1', lab_key: LAB_1, completed_at: '2026-10-01T00:00:00Z', reviewed_at: null, redo_requested: false, superseded_at: '2026-10-02T00:00:00Z' },
@@ -309,7 +342,7 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
     return { data: [], error: null };
   };
   let details = await run('fetchUserDetails')('u1', 'HDESK');
-  assert.deepEqual(JSON.parse(JSON.stringify(details.requiredLabsByModuleKey)), { 'its-01': [LAB_1, LAB_2] });
+  assert.deepEqual(JSON.parse(JSON.stringify(details.requiredLabsByModuleKey)), { 'its-01': [PROVE] });
   assert.equal(details.latestLabAttemptByKey[LAB_1].supersededAt, null, 'latest attempt per lab is kept');
   ctx.supabaseResponder = (call) => (call.table === 'course_module_labs' ? { data: null, error: { message: 'boom' } } : { data: [], error: null });
   const errors = [];
