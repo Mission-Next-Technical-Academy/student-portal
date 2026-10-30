@@ -1,4 +1,4 @@
-**2026-10-29 (Megan; PR #<added by /pr-ready> "Generic Assessment Lab box: save honestly, reach Lab Attempts, one waiting submission"; shared `portal/app.js`, `portal/index.html`, `bin/ci-check.sh` and a new `supabase/` migration — please review those):**
+**2026-10-29 (Megan; PR #89 "Generic Assessment Lab box: save honestly, reach Lab Attempts, one waiting submission"; shared `portal/app.js`, `portal/index.html`, `bin/ci-check.sh` and a new `supabase/` migration — please review those):**
 The platform's generic Assessment Lab box (`moduleAssessmentModule()`, the
 "Prove It · Assessment Lab" form appended by `module-registry.js`) never
 saved anything an instructor could see. Its portfolio artifact used kind
