@@ -1,4 +1,4 @@
-**2026-10-30 (Megan; PR #<added by /pr-ready> "Help Desk Module 1 completes on its Prove It; Labs 1.1 and 1.2 become Practice It"; shared `supabase/` migration, `portal/app.js`, `tests/module-card-state.test.js`, a new `supabase/tests/` file and `docs/operations/AI_AGENT_RULES.md`, plus Help Desk `portal/data.js` — please review the shared ones):**
+**2026-10-30 (Megan; PR #90 (draft) "Help Desk Module 1 completes on its Prove It; Labs 1.1 and 1.2 become Practice It (L-003)"; shared `supabase/` migration, `portal/app.js`, `tests/module-card-state.test.js`, a new `supabase/tests/` file and `docs/operations/AI_AGENT_RULES.md`, plus Help Desk `portal/data.js` — please review the shared ones):**
 **Held: the PR stays open and the migration must not reach production until a
 Module 1 Prove It can submit to `lab-its-01-prove-it`.** Until then no Help
 Desk student can complete Module 1, and Modules 2–12 stay locked. It is not
