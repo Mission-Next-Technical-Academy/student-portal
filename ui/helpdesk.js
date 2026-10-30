@@ -581,9 +581,20 @@ function hdProvePackage() {
   };
 }
 // Inline styles keep these Prove-only: the card header's note gets its
-// space, a choice has no number column, and the unavailable Submit looks it.
+// space, a choice has no number column and a neutral selected outline (the
+// shared step list turns a ticked step green, which reads as "correct"), and
+// the unavailable Submit looks it.
 const HD_PROVE_HEADER = 'style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px"';
-const HD_PROVE_CHOICE = 'style="grid-template-columns:18px 1fr"';
+function hdProveChoiceStyle(selected) {
+  return `grid-template-columns:18px 1fr;background:#fff;color:inherit;${selected
+    ? 'border-color:var(--workload);box-shadow:inset 0 0 0 1px var(--workload)'
+    : 'border-color:var(--border);box-shadow:none'}`;
+}
+// Restyles a choice (and, for a radio, its group) as soon as it changes.
+function hdProveMark(input) {
+  const group = input.type === 'radio' ? document.querySelectorAll(`input[name="${input.name}"]`) : [input];
+  group.forEach(item => { const label = item.closest('label'); if (label) label.setAttribute('style', hdProveChoiceStyle(item.checked)); });
+}
 const HD_PROVE_SUBMIT_OFF = 'style="background:#d0d5dd;border-color:#d0d5dd;color:#475467;cursor:not-allowed"';
 function hdProveSelect(field, label, options, value, locked) {
   return `<label>${hdEsc(label)}<select class="select" ${locked ? 'disabled' : ''} onchange="hdProveSetField('${field}',this.value)"><option value="">Choose…</option>${options.map(option => `<option ${option === value ? 'selected' : ''}>${hdEsc(option)}</option>`).join('')}</select></label>`;
@@ -600,8 +611,8 @@ function hdProveTicketView(ticket) {
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Requester statement</strong>${hdBadge(ticket.status)}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid"><div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Title</span><strong>${hdEsc(ticket.requesterTitle)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Device</span><strong>${hdEsc(ticket.device)}</strong></div><div><span>CC</span><strong>${hdEsc(ticket.cc)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div></div></div></div>
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Ticket replies</strong></div><div class="card-body hd-note-list">${ticket.conversation.map(reply => `<div><strong>${hdEsc(reply.from)} · ${hdEsc(reply.role)}</strong><p>${hdEsc(reply.text)}</p></div>`).join('')}</div></div>
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your diagnosis</strong></div><div class="card-body"><select id="hd-prove-diagnosis" class="select" ${off} onchange="hdProveChoose('diagnosis',this.value)"><option value="">Choose what this ticket is…</option>${prove.order.diagnosis.map(value => `<option ${prove.diagnosis === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></div></div>
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Steps you took</strong><span class="muted">Select every step you actually took.</span></div><div class="card-body"><div class="hd-path">${steps.map(step => `<label ${HD_PROVE_CHOICE}><input type="checkbox" ${off} onchange="hdProveToggleStep('${step.id}',this.checked)" ${prove.steps.includes(step.id) ? 'checked' : ''}>${hdEsc(step.text)}</label>`).join('')}</div></div></div>
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your decision</strong></div><div class="card-body"><div class="hd-path">${['Resolve','Escalate'].map(value => `<label ${HD_PROVE_CHOICE}><input type="radio" name="hd-prove-decision" ${off} onchange="hdProveChoose('decision','${value}')" ${prove.decision === value ? 'checked' : ''}>${value}</label>`).join('')}</div></div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Steps you took</strong><span class="muted">Select every step you actually took.</span></div><div class="card-body"><div class="hd-path">${steps.map(step => `<label style="${hdProveChoiceStyle(prove.steps.includes(step.id))}"><input type="checkbox" ${off} onchange="hdProveToggleStep('${step.id}',this.checked);hdProveMark(this)" ${prove.steps.includes(step.id) ? 'checked' : ''}>${hdEsc(step.text)}</label>`).join('')}</div></div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your decision</strong></div><div class="card-body"><div class="hd-path">${['Resolve','Escalate'].map(value => `<label style="${hdProveChoiceStyle(prove.decision === value)}"><input type="radio" name="hd-prove-decision" ${off} onchange="hdProveChoose('decision','${value}');hdProveMark(this)" ${prove.decision === value ? 'checked' : ''}>${value}</label>`).join('')}</div></div></div>
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Resolution note</strong><span class="muted">What you did, what it proved, and the outcome.</span></div><div class="card-body"><textarea id="hd-prove-resolution" class="ipt hd-note-input" rows="7" ${off} oninput="hdProveText('resolutionNote',this.value)">${hdEsc(prove.resolutionNote)}</textarea></div></div>
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Reply to the user</strong><span class="muted">Written to ${hdEsc(ticket.requester)}, in your own words.</span></div><div class="card-body"><textarea id="hd-prove-reply" class="ipt hd-note-input" rows="7" ${off} oninput="hdProveText('userReply',this.value)">${hdEsc(prove.userReply)}</textarea></div></div>
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Work notes</strong><span class="muted">Facts, commands, results, interpretation, next action.</span></div><div class="card-body"><div class="hd-note-list">${ticket.notes.length ? ticket.notes.map(note => `<div><strong>${hdEsc(note.author)} · ${hdEsc(note.time)}</strong><p>${hdEsc(note.text)}</p></div>`).join('') : '<p class="muted">No technician notes yet.</p>'}</div>${locked ? '' : `<textarea id="hd-note-input" class="ipt hd-note-input" rows="7" placeholder="Document the action you took and what the result proved…"></textarea><button class="btn btn-secondary" onclick="hdAddNote('${ticket.id}')">Add work note</button>`}</div></div>
@@ -615,7 +626,7 @@ function hdProveTicketView(ticket) {
     </div>`;
 }
 window.hdProveSetField=hdProveSetField; window.hdProveChoose=hdProveChoose; window.hdProveToggleStep=hdProveToggleStep;
-window.hdProveText=hdProveText; window.hdProvePackage=hdProvePackage;
+window.hdProveText=hdProveText; window.hdProvePackage=hdProvePackage; window.hdProveMark=hdProveMark;
 
 // Opening an evidence screen is recorded once per screen.
 if (HD_PROVE) {

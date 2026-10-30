@@ -138,7 +138,7 @@ function testProveTicketViewRevealsNothing() {
   assert.match(html, /Not available yet: your work is saved in this browser\./);
   // The unavailable Submit looks unavailable; choices have no number column.
   assert.match(html, /aria-disabled="true"[^>]*style="[^"]*cursor:not-allowed/);
-  assert.equal((html.match(/<label style="grid-template-columns:18px 1fr"><input type="(checkbox|radio)"/g) || []).length, PROVE_TICKET.pathPool.length + 2);
+  assert.equal((html.match(/<label style="grid-template-columns:18px 1fr;[^"]*"><input type="(checkbox|radio)"/g) || []).length, PROVE_TICKET.pathPool.length + 2);
   assert.ok(html.includes(tab.run('hdEsc')(PROVE_TICKET.description)), 'the requester statement');
   assert.ok(html.includes(tab.run('hdEsc')(PROVE_TICKET.conversation[0].text)), 'the CC reply');
   assert.ok(html.includes(tab.run('hdEsc')(PROVE_TICKET.cc)), 'the CC line');
@@ -288,7 +288,34 @@ function testLaunchWithoutStudentOpensNothing() {
   assert.equal([...local.map.keys()].filter((key) => key.startsWith('defender-lab.helpdesk')).length, 0, 'nothing is saved');
 }
 
+// A selected step or decision gets a neutral outline, never the shared step
+// list's green (it reads as "correct"); unselected ones get none.
+function testSelectedChoiceIsNeutral() {
+  const GREEN = /#ecfdf3|#abefc6|#067647|#12b76a|#027a48|green|success/i;
+  const tab = sim(proveUrl('student-neutral1', '#/helpdesk/ticket'));
+  const [stepA] = tab.hd().prove.order.path;
+  tab.run(`hdProveToggleStep('${stepA}', true); hdProveChoose('decision', 'Escalate')`);
+  const html = tab.view('helpdesk/ticket');
+  const labels = [...html.matchAll(/<label style="([^"]*)"><input type="(checkbox|radio)"[^>]*?(checked)?>/g)];
+  const selected = labels.filter((m) => m[3]);
+  const unselected = labels.filter((m) => !m[3]);
+  assert.equal(selected.length, 2, 'the ticked step and the chosen decision');
+  selected.forEach((m) => {
+    assert.match(m[1], /border-color:var\(--workload\)/, 'selected: theme outline');
+    assert.match(m[1], /background:#fff/, 'selected: overrides the shared green background');
+    assert.match(m[1], /color:inherit/, 'selected: overrides the shared green text');
+    assert.doesNotMatch(m[1], GREEN);
+  });
+  unselected.forEach((m) => {
+    assert.match(m[1], /border-color:var\(--border\)/, 'unselected: the plain border');
+    assert.doesNotMatch(m[1], GREEN);
+  });
+  [true, false].forEach((on) => assert.doesNotMatch(tab.run(`hdProveChoiceStyle(${on})`), GREEN));
+  assert.match(html, /hdProveMark\(this\)/, 'a change restyles the choice at once');
+}
+
 const tests = [
+  testSelectedChoiceIsNeutral,
   testLaunchWithoutStudentOpensNothing,
   testPracticeNeverGetsProveMaterial, testProveLaunchOpensOnlyItsTicketWithNoCoach, testProveTicketViewRevealsNothing,
   testShellMachineState, testPracticeShellUnchanged, testOnlyMeaningfulEventsAndThePackage,
