@@ -1,4 +1,4 @@
-**2026-10-30 (Megan; PR #<number when opened> (draft) "Official faculty grades, Help Desk Module 1 Prove It first (L-003)"; shared new `supabase/` migration and tests, `portal/app.js`, `portal/index.html`, `bin/ci-check.sh` and `tests/portal-vm.js`, plus Help Desk `portal/it-support-shared.js`, `portal/it-support-module-01.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests — please review the shared ones):**
+**2026-10-30 (Megan; PR #93 (draft) "Official faculty grades, Help Desk Module 1 Prove It first (L-003)"; shared new `supabase/` migration and tests, `portal/app.js`, `portal/index.html`, `bin/ci-check.sh` and `tests/portal-vm.js`, plus Help Desk `portal/it-support-shared.js`, `portal/it-support-module-01.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests — please review the shared ones):**
 **Hold (updated 2026-10-30): PR #90, PR #91, PR #92 and the faculty-gate PR roll out together, and none reaches production alone. Staging goes together once Megan has the production impact numbers. Before the production push Megan sends Randy a heads-up on four points: L-003 stays open for other labs, the records change, Module 2 waits on review, and the hours and transcript gap (L-005). The push doesn't wait for his answer; any change he asks for is handled afterwards. Production order: run the read-only impact query, apply the migrations by hand, then merge straight away.**
 Built on PR #92. A lab with `course_module_labs.requires_official_score = true` now
 passes only when its newest attempt holds an approved official faculty grade of
@@ -214,7 +214,7 @@ supabase/.temp/project-ref` (must print `xbblgtrfwgeiyttdlbue`), then
 (must list only this migration and the faculty-gate PR's), then the same without `--dry-run` (plain
 `supabase db push` also acts on the linked project but was not checked on CLI
 2.118); (3) a person runs Deploy staging
-site in `student-portal-staging` with `ref` = this branch; (4) check the
+site in `student-portal-staging` with `ref` = PR #93's branch, which holds all four PRs; (4) check the
 hosted footer shows the branch's commit SHA; (5) run the hosted checks and
 record the four synthetic students' Module 1 state before and after. Any
 merge to master reruns Staging sync and puts master's portal code back on
