@@ -219,7 +219,7 @@ async function testModuleOneClearedStorage() {
   const html = moduleLab(1).view(user, HD);
   assert.equal(statusLine(html, LAB11), `Lab 1.1 submitted ${DAY}, waiting for instructor review`);
   assert.equal(statusLine(html, LAB12), 'Lab 1.2 passed');
-  assert.equal(counter(html, 'its01-status'), '2 labs · 1 waiting for review · 1 passed');
+  assert.equal(counter(html, 'its01-status'), '3 labs · 1 waiting for review · 1 passed');
   assert.doesNotMatch(section(html, 'its01-lab-1-1'), /Not uploaded yet|data-itsw-evidence-input|data-its01-aup-checkbox/);
   assert.match(section(html, 'its01-lab-1-1'), new RegExp(`Acknowledged with your Lab 1\\.1 submission on ${DAY}`));
   assert.match(section(html, 'its01-lab-1-2'), /Review the walkthrough/);
@@ -250,7 +250,7 @@ async function testModuleOneExplicitSubmit() {
   assert.equal(inserts(LAB11).length, 1);
   html = moduleLab(1).view(user, HD);
   assert.match(statusLine(html, LAB11), /^Lab 1\.1 submitted .+, waiting for instructor review$/);
-  assert.equal(counter(html, 'its01-status'), '2 labs · 1 waiting for review · 0 passed');
+  assert.equal(counter(html, 'its01-status'), '3 labs · 1 waiting for review · 0 passed');
 }
 
 /* --------------------------------------------------------------- Modules 3-11 */

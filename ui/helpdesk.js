@@ -116,7 +116,7 @@ function hdFreshProveState() {
     selectedComputer:shift.selectedComputer, selectedUserId:requester ? requester.id : state.selectedUserId,
     machines:hdClone(shift.machines || {}),
     prove:{
-      startedAt:new Date().toISOString(), submittedAt:null,
+      startedAt:new Date().toISOString(),
       order:{
         diagnosis:hdSeededOrder(ticket.diagnosisOptions, state.seed),
         path:hdSeededOrder(ticket.pathPool.map(step => step.id), state.seed ^ 0x5bd1e995),
@@ -157,8 +157,12 @@ function hdEvents() {
 
 // Prove It record: only meaningful events (evidence opened, commands run,
 // diagnosis, steps, decision), never every click. Nothing is recorded once
-// the attempt is submitted.
-function hdProveLocked() { return !!(HD_PROVE && (HD_PROVE.blocked || (hdState.prove && hdState.prove.submittedAt))); }
+// the attempt is submitted. Whether it is submitted comes only from the
+// server's answer, by way of the portal (hdProveServer), never from this
+// browser. status: checking (no answer yet), unknown (no answer came),
+// not_submitted, returned, waiting or passed.
+const hdProveServer = { status:'checking', notice:'', sending:false };
+function hdProveLocked() { return !!(HD_PROVE && (HD_PROVE.blocked || ['waiting','passed'].includes(hdProveServer.status))); }
 function hdProveEvent(type, detail) {
   if (!HD_PROVE || !hdState.prove || hdProveLocked()) return;
   const events = hdState.prove.events;
@@ -539,12 +543,14 @@ function hdProveSetField(field, value) {
   if (hdProveLocked() || !['category','type','priority'].includes(field)) return;
   hdState.prove.fields[field] = String(value || '');
   hdSave();
+  hdProveSyncSubmit();
 }
 function hdProveChoose(field, value) {
   if (hdProveLocked() || !['diagnosis','decision'].includes(field)) return;
   hdState.prove[field] = String(value || '');
   hdProveEvent(field === 'diagnosis' ? 'diagnosis_chosen' : 'decision_chosen', { value:hdState.prove[field] });
   hdSave();
+  hdProveSyncSubmit();
 }
 function hdProveToggleStep(id, checked) {
   const ticket = hdState.tickets[0];
@@ -560,10 +566,11 @@ function hdProveText(field, value) {
   if (hdProveLocked() || !['resolutionNote','userReply'].includes(field)) return;
   hdState.prove[field] = String(value || '').slice(0, 4000);
   hdSave();
+  hdProveSyncSubmit();
 }
-// The work the portal will receive on Submit (the submit itself is not
-// built yet): the ticket fields, choices, writing, commands, events and the
-// machine's end state.
+// The work the portal receives on Submit: the ticket fields, choices, writing,
+// commands, events and the machine's end state. stepTexts: the portal doesn't
+// load this simulator's data, so the instructor reads the steps from here.
 function hdProvePackage() {
   if (!HD_PROVE || !hdState.prove) return null;
   const prove = hdState.prove;
@@ -572,7 +579,8 @@ function hdProvePackage() {
   return {
     version:1, kind:'hdesk-prove', moduleKey:HD_PROVE.moduleKey, labKey:shift.labKey, rubricVersion:shift.rubricVersion,
     ticketId:ticket.id, startedAt:prove.startedAt,
-    fields:{ ...prove.fields }, diagnosis:prove.diagnosis, steps:prove.steps.slice(), decision:prove.decision,
+    fields:{ ...prove.fields }, diagnosis:prove.diagnosis, steps:prove.steps.slice(),
+    stepTexts:prove.steps.map(id => (ticket.pathPool.find(step => step.id === id) || {}).text || ''), decision:prove.decision,
     resolutionNote:prove.resolutionNote, userReply:prove.userReply,
     workNotes:ticket.notes.map(note => note.text),
     commands:prove.events.filter(event => event.type === 'command_run').map(event => ({ command:event.command, computer:event.computer, at:event.at })),
@@ -580,6 +588,103 @@ function hdProvePackage() {
     machine:hdClone(hdMachine(shift.selectedComputer) || {}),
   };
 }
+
+// Which required parts are still empty. Completeness only: nothing here looks
+// at what was chosen or written, so it can never hint at what is right.
+function hdProveMissing() {
+  const prove = hdState.prove;
+  return [
+    ['category', prove.fields.category], ['type', prove.fields.type], ['priority', prove.fields.priority],
+    ['diagnosis', prove.diagnosis], ['decision', prove.decision],
+    ['resolution note', prove.resolutionNote], ['reply to the user', prove.userReply],
+  ].filter(([, value]) => !String(value || '').trim()).map(([name]) => name);
+}
+
+// Submit's handoff follows the coach's Finish (ui/coach.js finishWithReceipt):
+// a message to the portal tab that opened this one, and only a reply with this
+// message's nonce, from that tab and the portal's origin, counts. Every other
+// outcome keeps the work and leaves Submit available.
+const HD_PROVE_REPLY_MS = 10000;
+const HD_PROVE_NOTICES = {
+  closed: 'Your course page is closed, so this page can\'t check or send your work. Your work is still here. Reopen the Prove It from your course page.',
+  'signed-out': 'You\'re signed out on your course page, so this page can\'t check or send your work. Your work is still here. Sign in on your course page, then press Submit.',
+  'other-student': 'Your course page is signed in as a different student, so this page can\'t check or send your work. Your work is still here. Sign in as yourself on your course page, then press Submit.',
+  unreadable: 'Your course page couldn\'t reach the server. Your work is still here. Check your connection, then press Submit.',
+  invalid: 'Your course page couldn\'t accept this work, so it wasn\'t saved. Your work is still here. Reload your course page, reopen the Prove It from there, then press Submit.',
+  'too-large': 'Your work notes are too long to send, so they weren\'t saved. Your work is still here. Shorten them, then press Submit.',
+  'save-failed': 'Your work wasn\'t saved. Your work is still here. Check your connection, then press Submit.',
+  unconfirmed: 'Your course page didn\'t confirm it has your work. Your work is still here. Make sure you\'re signed in on your course page, then press Submit.',
+};
+function hdPortalOrigin() {
+  return ['127.0.0.1', 'localhost'].includes(location.hostname) ? `${location.protocol}//${location.hostname}:8768` : location.origin;
+}
+function hdProveAsk(type, extra, done) {
+  const opener = window.opener && !window.opener.closed ? window.opener : null;
+  if (!opener) { done({ reason:'closed' }); return; }
+  const origin = hdPortalOrigin();
+  const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  let timer = 0;
+  const finish = reply => { clearTimeout(timer); window.removeEventListener('message', onReply); done(reply); };
+  function onReply(event) {
+    const data = event.data;
+    if (event.source !== opener || event.origin !== origin) return;
+    if (!data || data.type !== 'mnt-prove-received' || data.id !== HD_PROVE.moduleKey || data.nonce !== nonce) return;
+    finish(data);
+  }
+  window.addEventListener('message', onReply);
+  timer = setTimeout(() => finish({ reason:'unconfirmed' }), HD_PROVE_REPLY_MS);
+  opener.postMessage({ type, id:HD_PROVE.moduleKey, nonce, student:HD_PROVE.student, ...extra }, origin);
+}
+function hdProveApply(reply) {
+  const wasLocked = hdProveLocked();
+  hdProveServer.sending = false;
+  if (reply.status) hdProveServer.status = reply.status;
+  else if (hdProveServer.status === 'checking') hdProveServer.status = 'unknown';
+  hdProveServer.notice = hdProveLocked() || !reply.reason ? '' : HD_PROVE_NOTICES[reply.reason] || HD_PROVE_NOTICES.unconfirmed;
+  if (hdProveLocked() !== wasLocked) render(); else hdProveSyncSubmit();
+}
+function hdProveSubmit() {
+  if (hdProveLocked() || hdProveServer.sending || hdProveServer.status === 'checking' || hdProveMissing().length) return;
+  // A note typed but not yet added is part of the work.
+  const note = document.getElementById('hd-note-input');
+  if (note && note.value.trim()) hdAddNote(hdState.tickets[0].id);
+  hdProveServer.sending = true;
+  hdProveServer.notice = '';
+  hdProveSyncSubmit();
+  hdProveAsk('mnt-prove-submit', { work:hdProvePackage() }, hdProveApply);
+}
+// What Submit shows now. Typing doesn't re-render the page, so this also
+// updates the button in place (hdProveSyncSubmit).
+function hdProveSubmitState() {
+  const label = hdProveServer.status === 'returned' ? 'Resubmit for faculty review' : 'Submit for faculty review';
+  if (hdProveServer.status === 'checking') return { enabled:false, label, note:'Checking your attempt…' };
+  if (hdProveServer.sending) return { enabled:false, label, note:'Sending your work…' };
+  const missing = hdProveMissing();
+  const parts = [
+    hdProveServer.status === 'returned' ? 'Your instructor returned this Prove It. Their notes are on your course page.' : '',
+    hdProveServer.notice,
+    missing.length ? `Still needed: ${missing.join(', ')}.` : '',
+  ];
+  return { enabled:!missing.length, label, note:parts.filter(Boolean).join(' ') };
+}
+function hdProveSyncSubmit() {
+  const button = document.getElementById('hd-prove-submit');
+  const note = document.getElementById('hd-prove-submit-note');
+  if (!button || !note) return;
+  const state = hdProveSubmitState();
+  button.disabled = !state.enabled;
+  button.setAttribute('aria-disabled', String(!state.enabled));
+  button.setAttribute('style', state.enabled ? '' : HD_PROVE_SUBMIT_OFF);
+  button.textContent = state.label;
+  note.textContent = state.note;
+}
+function hdProveSubmitCard() {
+  if (hdProveServer.status === 'passed') return '<p role="status"><strong>Reviewed by your instructor</strong> Your course page has the result.</p>';
+  if (hdProveLocked()) return '<p role="status"><strong>Submitted for faculty review</strong> Your instructor has your work. This page only shows this browser\'s copy.</p>';
+  const state = hdProveSubmitState();
+  return `<button id="hd-prove-submit" class="btn btn-primary" onclick="hdProveSubmit()" ${state.enabled ? '' : `disabled aria-disabled="true" style="${HD_PROVE_SUBMIT_OFF}"`}>${hdEsc(state.label)}</button><p id="hd-prove-submit-note" class="muted" role="status">${hdEsc(state.note)}</p>`;
+}
+
 // Inline styles keep these Prove-only: the card header's note gets its
 // space, a choice has no number column and a neutral selected outline (the
 // shared step list turns a ticked step green, which reads as "correct"), and
@@ -595,7 +700,7 @@ function hdProveMark(input) {
   const group = input.type === 'radio' ? document.querySelectorAll(`input[name="${input.name}"]`) : [input];
   group.forEach(item => { const label = item.closest('label'); if (label) label.setAttribute('style', hdProveChoiceStyle(item.checked)); });
 }
-const HD_PROVE_SUBMIT_OFF = 'style="background:#d0d5dd;border-color:#d0d5dd;color:#475467;cursor:not-allowed"';
+const HD_PROVE_SUBMIT_OFF = 'background:#d0d5dd;border-color:#d0d5dd;color:#475467;cursor:not-allowed';
 function hdProveSelect(field, label, options, value, locked) {
   return `<label>${hdEsc(label)}<select class="select" ${locked ? 'disabled' : ''} onchange="hdProveSetField('${field}',this.value)"><option value="">Choose…</option>${options.map(option => `<option ${option === value ? 'selected' : ''}>${hdEsc(option)}</option>`).join('')}</select></label>`;
 }
@@ -613,23 +718,23 @@ function hdProveTicketView(ticket) {
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your diagnosis</strong></div><div class="card-body"><select id="hd-prove-diagnosis" class="select" ${off} onchange="hdProveChoose('diagnosis',this.value)"><option value="">Choose what this ticket is…</option>${prove.order.diagnosis.map(value => `<option ${prove.diagnosis === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></div></div>
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Steps you took</strong><span class="muted">Select every step you actually took.</span></div><div class="card-body"><div class="hd-path">${steps.map(step => `<label style="${hdProveChoiceStyle(prove.steps.includes(step.id))}"><input type="checkbox" ${off} onchange="hdProveToggleStep('${step.id}',this.checked);hdProveMark(this)" ${prove.steps.includes(step.id) ? 'checked' : ''}>${hdEsc(step.text)}</label>`).join('')}</div></div></div>
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your decision</strong></div><div class="card-body"><div class="hd-path">${['Resolve','Escalate'].map(value => `<label style="${hdProveChoiceStyle(prove.decision === value)}"><input type="radio" name="hd-prove-decision" ${off} onchange="hdProveChoose('decision','${value}');hdProveMark(this)" ${prove.decision === value ? 'checked' : ''}>${value}</label>`).join('')}</div></div></div>
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Resolution note</strong><span class="muted">What you did, what it proved, and the outcome.</span></div><div class="card-body"><textarea id="hd-prove-resolution" class="ipt hd-note-input" rows="7" ${off} oninput="hdProveText('resolutionNote',this.value)">${hdEsc(prove.resolutionNote)}</textarea></div></div>
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Reply to the user</strong><span class="muted">Written to ${hdEsc(ticket.requester)}, in your own words.</span></div><div class="card-body"><textarea id="hd-prove-reply" class="ipt hd-note-input" rows="7" ${off} oninput="hdProveText('userReply',this.value)">${hdEsc(prove.userReply)}</textarea></div></div>
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Work notes</strong><span class="muted">Facts, commands, results, interpretation, next action.</span></div><div class="card-body"><div class="hd-note-list">${ticket.notes.length ? ticket.notes.map(note => `<div><strong>${hdEsc(note.author)} · ${hdEsc(note.time)}</strong><p>${hdEsc(note.text)}</p></div>`).join('') : '<p class="muted">No technician notes yet.</p>'}</div>${locked ? '' : `<textarea id="hd-note-input" class="ipt hd-note-input" rows="7" placeholder="Document the action you took and what the result proved…"></textarea><button class="btn btn-secondary" onclick="hdAddNote('${ticket.id}')">Add work note</button>`}</div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Resolution note</strong><span class="muted">What you did, what it proved, and the outcome.</span></div><div class="card-body"><textarea id="hd-prove-resolution" class="ipt hd-note-input" rows="7" maxlength="4000" ${off} oninput="hdProveText('resolutionNote',this.value)">${hdEsc(prove.resolutionNote)}</textarea></div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Reply to the user</strong><span class="muted">Written to ${hdEsc(ticket.requester)}, in your own words.</span></div><div class="card-body"><textarea id="hd-prove-reply" class="ipt hd-note-input" rows="7" maxlength="4000" ${off} oninput="hdProveText('userReply',this.value)">${hdEsc(prove.userReply)}</textarea></div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Work notes</strong><span class="muted">Facts, commands, results, interpretation, next action.</span></div><div class="card-body"><div class="hd-note-list">${ticket.notes.length ? ticket.notes.map(note => `<div><strong>${hdEsc(note.author)} · ${hdEsc(note.time)}</strong><p>${hdEsc(note.text)}</p></div>`).join('') : '<p class="muted">No technician notes yet.</p>'}</div>${locked ? '' : `<textarea id="hd-note-input" class="ipt hd-note-input" rows="7" maxlength="2000" placeholder="Document the action you took and what the result proved…"></textarea><button class="btn btn-secondary" onclick="hdAddNote('${ticket.id}')">Add work note</button>`}</div></div>
       </div>
       <aside class="hd-ticket-side">
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Ticket fields</strong></div><div class="card-body hd-control-stack">${hdProveSelect('category', 'Category', ticket.categoryOptions, prove.fields.category, locked)}${hdProveSelect('type', 'Type', ticket.typeOptions, prove.fields.type, locked)}${hdProveSelect('priority', 'Priority', ['P1','P2','P3','P4'], prove.fields.priority, locked)}</div></div>
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Submit</strong></div><div class="card-body hd-control-stack">${locked
-          ? '<p role="status"><strong>Submitted for faculty review</strong></p>'
-          : `<button class="btn btn-primary" disabled aria-disabled="true" aria-describedby="hd-prove-submit-note" ${HD_PROVE_SUBMIT_OFF}>Submit for faculty review</button><p id="hd-prove-submit-note" class="muted" role="status">Not available yet: your work is saved in this browser.</p>`}</div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Submit</strong></div><div class="card-body hd-control-stack">${hdProveSubmitCard()}</div></div>
       </aside>
     </div>`;
 }
 window.hdProveSetField=hdProveSetField; window.hdProveChoose=hdProveChoose; window.hdProveToggleStep=hdProveToggleStep;
-window.hdProveText=hdProveText; window.hdProvePackage=hdProvePackage; window.hdProveMark=hdProveMark;
+window.hdProveText=hdProveText; window.hdProvePackage=hdProvePackage; window.hdProveMark=hdProveMark; window.hdProveSubmit=hdProveSubmit;
 
-// Opening an evidence screen is recorded once per screen.
+// Opening an evidence screen is recorded once per screen. Each load asks the
+// portal for this attempt's status on the server.
 if (HD_PROVE) {
+  if (!HD_PROVE.blocked) hdProveAsk('mnt-prove-status', {}, hdProveApply);
   const HD_PROVE_EVIDENCE_ROUTES = {
     'helpdesk/directory':'User Directory', 'helpdesk/active-directory':'Active Directory', 'helpdesk/windows':'Windows Desktop',
     'helpdesk/event-viewer':'Event Viewer', 'helpdesk/remote-support':'Remote Support', 'helpdesk/server-manager':'Server Manager',

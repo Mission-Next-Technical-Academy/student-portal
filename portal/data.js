@@ -2254,7 +2254,8 @@ const LABS = [
     description: 'A coach-guided walkthrough of ticket HD-2101 (an account lockout) in the IT Service Desk simulator, applying the five-step troubleshooting mindset to a real ticket rather than a written scenario.',
     skills: ['Ticket Triage', 'Troubleshooting Mindset', 'Resolve/Escalate Judgment'], portalEntry: '#/program/it-support/module/1' }),
   // Module 1's Prove It, the only lab that gates its completion
-  // (course_module_labs.gates_completion). Its submit path is not built yet.
+  // (course_module_labs.gates_completion). The simulator's Submit saves it
+  // (itsProveReceiveMessage, it-support-shared.js).
   itsLab({ key: 'lab-its-01-prove-it', module: 'its-01', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 20,
     parentAllocations: [allocation('ITHD-101.1', 20)], objective: 'Independently work a new service desk ticket end to end: categorize and prioritize it, decide and act within policy, document the work, and explain the outcome to the user.',
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',

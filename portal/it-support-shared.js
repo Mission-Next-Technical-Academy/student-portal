@@ -509,6 +509,193 @@ function itsCleanCoachWork(input) {
   return work;
 }
 
+/* ---------- Prove It: the simulator's Submit ----------
+ * Same handoff as a walkthrough's Finish: a message from the simulator tab
+ * this page opened, answered with its nonce. The message is student-controlled,
+ * and so is this page's JavaScript, so these checks keep honest mistakes out
+ * (a stale tab, another student signed in on a shared browser); they aren't
+ * what makes the attempt count. Only an instructor's review does, and no score
+ * is ever sent: the answer key isn't in this public repository. */
+const ITS_PROVE_REPLY = 'mnt-prove-received';
+const ITS_PROVE_STATUS = 'mnt-prove-status';
+const ITS_PROVE_SUBMIT = 'mnt-prove-submit';
+const ITS_PROVE_MAX_BYTES = 96 * 1024;
+const ITS_PROVE_EVENT_TYPES = ['evidence_opened', 'command_run', 'diagnosis_chosen', 'step_chosen', 'step_cleared', 'decision_chosen'];
+
+function itsProveLaunchHref(moduleKey, user) {
+  const student = typeof LabRuntime !== 'undefined' ? LabRuntime.anonymousStudentId(user) : '';
+  return `${SIM_ORIGIN}?prove=${encodeURIComponent(moduleKey)}&student=${encodeURIComponent(student)}#/helpdesk/tickets`;
+}
+
+// Resolves { work } with only the known fields, or { reason }. Writing that
+// doesn't fit is refused, never cut; the recorded actions can be trimmed.
+function itsCleanProveWork(input, moduleKey, labKey) {
+  const invalid = { reason: 'invalid' };
+  const tooLarge = { reason: 'too-large' };
+  const rubric = typeof HDESK_PROVE_RUBRICS !== 'undefined' ? HDESK_PROVE_RUBRICS[labKey] : null;
+  if (!rubric || !input || typeof input !== 'object' || input.version !== 1 || input.kind !== 'hdesk-prove') return invalid;
+  if (input.moduleKey !== moduleKey || input.labKey !== labKey || input.rubricVersion !== rubric.version) return invalid;
+  const isText = (value, max) => typeof value === 'string' && value.length <= max;
+  const filled = (value, max) => isText(value, max) && value.trim() !== '';
+  const fields = input.fields;
+  if (!/^[A-Z]{2,4}-\d{4}$/.test(String(input.ticketId || '')) || !isText(input.startedAt, 40) || !fields || typeof fields !== 'object') return invalid;
+  if (!filled(fields.category, 80) || !filled(fields.type, 80) || !['P1', 'P2', 'P3', 'P4'].includes(fields.priority)) return invalid;
+  if (!filled(input.diagnosis, 300) || !['Resolve', 'Escalate'].includes(input.decision)) return invalid;
+  if (!Array.isArray(input.steps) || !Array.isArray(input.stepTexts) || input.steps.length > 20 || input.steps.length !== input.stepTexts.length) return invalid;
+  if (!input.steps.every((id) => /^[a-z0-9_-]{1,16}$/i.test(String(id))) || !input.stepTexts.every((text) => isText(text, 300))) return invalid;
+  if (typeof input.resolutionNote !== 'string' || !input.resolutionNote.trim() || typeof input.userReply !== 'string' || !input.userReply.trim()) return invalid;
+  if (!Array.isArray(input.workNotes) || !input.workNotes.every((note) => typeof note === 'string')) return invalid;
+  if (input.resolutionNote.length > 4000 || input.userReply.length > 4000 || input.workNotes.length > 30 || input.workNotes.some((note) => note.length > 2000)) return tooLarge;
+
+  const short = (value, max) => (typeof value === 'string' ? value.slice(0, max) : '');
+  const list = (value) => (Array.isArray(value) ? value.filter((entry) => entry && typeof entry === 'object') : []);
+  const commands = list(input.commands).slice(-400).map((entry) => ({ command: short(entry.command, 200), computer: short(entry.computer, 40), at: short(entry.at, 40) })).filter((entry) => entry.command);
+  const events = list(input.events).slice(-400).filter((entry) => ITS_PROVE_EVENT_TYPES.includes(entry.type)).map((entry) => ({
+    type: entry.type, at: short(entry.at, 40), source: short(entry.source, 80), label: short(entry.label, 120), command: short(entry.command, 200),
+    computer: short(entry.computer, 40), value: short(entry.value, 300), step: short(entry.step, 16),
+  }));
+  let machine = {};
+  try {
+    if (input.machine && typeof input.machine === 'object' && !Array.isArray(input.machine) && JSON.stringify(input.machine).length <= 4096) machine = JSON.parse(JSON.stringify(input.machine));
+  } catch (_) { machine = {}; }
+  const work = {
+    version: 1, kind: 'hdesk-prove', moduleKey, labKey, rubricVersion: rubric.version, ticketId: input.ticketId, startedAt: input.startedAt,
+    fields: { category: fields.category, type: fields.type, priority: fields.priority },
+    diagnosis: input.diagnosis, steps: input.steps.slice(), stepTexts: input.stepTexts.slice(), decision: input.decision,
+    resolutionNote: input.resolutionNote, userReply: input.userReply, workNotes: input.workNotes.slice(),
+    commands, events, machine, logTrimmed: false,
+  };
+  while (JSON.stringify(work).length > ITS_PROVE_MAX_BYTES && (work.events.length || work.commands.length)) {
+    work.logTrimmed = true;
+    if (work.events.length) work.events.shift(); else work.commands.shift();
+  }
+  return JSON.stringify(work).length > ITS_PROVE_MAX_BYTES ? tooLarge : { work };
+}
+
+// The newest attempt, read from the server: the copy from sign-in can be out
+// of date (an instructor's return, another browser, a reply lost after an
+// insert landed). A returned attempt's notes come with it, so the course page
+// never says it came back without them. Resolves requiredLabStatus(), or null
+// when the read fails.
+async function itsProveRefreshAttempt(user, moduleKey, labKey) {
+  try {
+    const { data, error } = await mntSupabase.from('lab_attempts')
+      .select('id, completed_at, reviewed_at, redo_requested, superseded_at')
+      .eq('user_id', user.userId)
+      .eq('track_code', user.trackCode)
+      .eq('lab_key', labKey)
+      .not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false })
+      .limit(1);
+    if (error) throw error;
+    const latest = data && data[0];
+    const attempts = { ...(user.latestLabAttemptByKey || {}) };
+    if (latest) attempts[labKey] = { completedAt: latest.completed_at, reviewedAt: latest.reviewed_at || null, redoRequested: latest.redo_requested === true, supersededAt: latest.superseded_at || null };
+    else delete attempts[labKey];
+    user.latestLabAttemptByKey = attempts;
+    if (latest && latest.redo_requested === true) {
+      const { data: rows, error: notesError } = await mntSupabase.from('lab_attempt_feedback')
+        .select('item_label, comment')
+        .eq('lab_attempt_id', latest.id)
+        .order('created_at', { ascending: true });
+      if (notesError) throw notesError;
+      const feedback = (rows || []).filter((row) => String(row.comment || '').trim());
+      user.openLabRedoFeedbackByLabKey = { ...(user.openLabRedoFeedbackByLabKey || {}), [labKey]: feedback };
+      user.openLabRedosByModuleKey = { ...(user.openLabRedosByModuleKey || {}), [moduleKey]: { labKey, labTitle: itsLabTitle(labKey), feedback } };
+    }
+    return itsLabStatus(user, labKey);
+  } catch (err) {
+    console.error('Prove It: could not read the latest attempt', labKey, err);
+    return null;
+  }
+}
+
+/* Answers both messages. Every message that names this Prove It gets a reply,
+ * and saved: true is sent only after the server has confirmed the new row.
+ * state 'complete' with no score: the completion view counts only 'complete',
+ * and only once an instructor has reviewed it. */
+async function itsProveReceiveMessage(event, { moduleKey, labKey, onChange }) {
+  const data = event.data;
+  if (!data || (data.type !== ITS_PROVE_SUBMIT && data.type !== ITS_PROVE_STATUS) || data.id !== moduleKey) return;
+  if (event.origin !== new URL(SIM_ORIGIN).origin) return;
+  if (typeof data.nonce !== 'string' || !/^[A-Za-z0-9-]{8,64}$/.test(data.nonce)) return;
+  if (!event.source || typeof event.source.postMessage !== 'function') return;
+  const answer = (fields) => event.source.postMessage({ type: ITS_PROVE_REPLY, id: moduleKey, nonce: data.nonce, saved: false, ...fields }, event.origin);
+  try {
+    const user = await currentUser();
+    if (!user) { answer({ reason: 'signed-out' }); return; }
+    if (user.trackCode !== 'HDESK' || itsCoachStudentMismatch(event, user)) { answer({ reason: 'other-student' }); return; }
+    const before = itsLabStatus(user, labKey);
+    const status = await itsProveRefreshAttempt(user, moduleKey, labKey);
+    if (!status) { answer({ reason: 'unreadable' }); return; }
+    if (status !== before && onChange) onChange();
+    if (data.type === ITS_PROVE_STATUS) { answer({ status }); return; }
+    if (status === 'waiting' || status === 'passed') { answer({ status, reason: 'already-submitted' }); return; }
+    const { work, reason } = itsCleanProveWork(data.work, moduleKey, labKey);
+    if (!work) { answer({ status, reason }); return; }
+    const saved = await itsSubmitLabAttempt(user, moduleKey, labKey, {
+      state: 'complete', score: null, rubricVersion: work.rubricVersion, scoringEngineVersion: 'instructor-review-v1',
+      result: { source: ITS_PROVE_SUBMIT, ...work },
+    });
+    if (!saved) {
+      // Refused or lost: the server's own answer says whether a row landed.
+      const after = await itsProveRefreshAttempt(user, moduleKey, labKey);
+      answer({ status: after || status, reason: 'save-failed' });
+      if (after && after !== status && onChange) onChange();
+      return;
+    }
+    answer({ saved: true, status: 'waiting' });
+    if (onChange) onChange();
+  } catch (err) {
+    console.error('Prove It: could not handle the message', labKey, err);
+    answer({ reason: 'unreadable' });
+  }
+}
+
+/* Faculty Lab Attempts: the student's work as plain text, with the writing
+ * first. Called from the shared review cards for every attempt; it renders only
+ * for a Help Desk Prove It lab. The full grading sheet replaces this. */
+function itsProveReviewPanel(row) {
+  const rubric = row && typeof HDESK_PROVE_RUBRICS !== 'undefined' ? HDESK_PROVE_RUBRICS[row.lab_key] : null;
+  if (!rubric) return '';
+  const work = row.result || {};
+  if (work.kind !== 'hdesk-prove') {
+    return `<div class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" data-its-prove-panel="${esc(row.id)}"><strong>No readable Prove It package.</strong> This attempt didn't come from the simulator's Submit. Return it rather than approving it.</div>`;
+  }
+  const text = (value) => esc(String(value == null ? '' : value));
+  const writing = (label, value) => `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">${label}</h4><p class="mt-1 text-base text-gray-900 whitespace-pre-wrap leading-relaxed">${text(value) || '<span class="text-gray-500">Nothing written.</span>'}</p>`;
+  const fields = work.fields || {};
+  const fact = (label, value) => `<div><dt class="text-xs font-semibold text-gray-600">${label}</dt><dd class="text-sm text-gray-900">${text(value) || '—'}</dd></div>`;
+  const items = (values, empty) => (values.length ? `<ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-gray-900">${values.map((value) => `<li>${text(value)}</li>`).join('')}</ul>` : `<p class="mt-1 text-sm text-gray-500">${empty}</p>`);
+  const array = (value) => (Array.isArray(value) ? value : []);
+  const opened = array(work.events).filter((entry) => entry && entry.type === 'evidence_opened').map((entry) => entry.label || entry.source);
+  const commands = array(work.commands).filter(Boolean).map((entry) => `${entry.command}${entry.computer ? ` (on ${entry.computer})` : ''}`);
+  const machine = Object.entries(work.machine && typeof work.machine === 'object' ? work.machine : {}).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') || '(none)' : typeof value === 'object' ? JSON.stringify(value) : value}`);
+  return `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" data-its-prove-panel="${esc(row.id)}">
+    <p class="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">Grade from the rubric below. <strong>Approve counts as a pass</strong>, and no score is saved. Return anything below ${esc(String(rubric.passPercent))}% or with a critical error. Put the points in your notes.</p>
+    <h3 class="mt-3 text-sm font-semibold text-[#1e3a5f]">Student's written work · ${text(work.ticketId)}</h3>
+    ${writing('Resolution note', work.resolutionNote)}
+    ${writing('Reply to the user', work.userReply)}
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Work notes</h4>
+    ${array(work.workNotes).length ? array(work.workNotes).map((note) => `<p class="mt-1 text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">${text(note)}</p>`).join('') : '<p class="mt-1 text-sm text-gray-500">No work notes.</p>'}
+    <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">Student's choices</h3>
+    <dl class="mt-1 grid gap-2 sm:grid-cols-3">${fact('Category', fields.category)}${fact('Type', fields.type)}${fact('Priority', fields.priority)}${fact('Diagnosis', work.diagnosis)}${fact('Decision', work.decision)}</dl>
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Steps the student says they took</h4>
+    ${items(array(work.stepTexts), 'None selected.')}
+    <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">What the student did in the simulator</h3>
+    <h4 class="mt-2 text-xs font-semibold uppercase tracking-wide text-gray-600">Evidence opened</h4>
+    ${items(opened, 'None recorded.')}
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Commands run</h4>
+    ${items(commands, 'None recorded.')}
+    ${work.logTrimmed ? '<p class="mt-1 text-xs text-gray-500">The oldest recorded actions were left out to fit. All the student\'s writing is above.</p>' : ''}
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Laptop at submit</h4>
+    ${items(machine, 'Not recorded.')}
+    <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">Rubric ${text(rubric.version)}</h3>
+    <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-gray-900">${rubric.competencies.map((item) => `<li>${text(item.label)}: ${text(item.points)} points</li>`).join('')}</ul>
+    <p class="mt-1 text-sm text-gray-700">${text(rubric.criticalErrorRule)} ${text(rubric.partialCredit)}</p>
+  </div>`;
+}
+
 /* Evidence labs: Resubmit stays disabled until the student has added or
  * replaced at least one file since the return, and every file is picked on
  * this page (a resubmission uploads its own full set). The files' upload times when

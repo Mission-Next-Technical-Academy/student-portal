@@ -3,8 +3,8 @@
 //   - Practice shifts never get the Prove ticket or its fixtures.
 //   - A Prove launch opens only its ticket, with no coach (not even one saved
 //     earlier in the tab) and its own saved state per student.
-//   - The Prove ticket view shows no answer, no feedback and no marks; Submit
-//     is disabled with "Not available yet" until the portal can receive it.
+//   - The Prove ticket view shows no answer, no feedback and no marks. Submit
+//     itself is covered in tests/hdesk-prove-submit.test.js.
 //   - The shell's machine state changes with the commands the student types.
 //   - Only meaningful events are recorded; the package has the work.
 //   - The committed rubric file names no answers.
@@ -134,8 +134,7 @@ function testProveTicketViewRevealsNothing() {
   [/Expected resolution/i, /Check diagnosis/i, /Supported by the evidence/i, /Not sufficiently supported/i, /Escalation criteria/i,
     /[✓✗⚠✔✘]/, /\bcorrect\b/i, /\bexpected\b/i, /data-(correct|flag|credit)/i, /score/i]
     .forEach((pattern) => assert.doesNotMatch(html, pattern, `the Prove view shows nothing like ${pattern}`));
-  assert.match(html, /<button class="btn btn-primary" disabled aria-disabled="true"[^>]*>Submit for faculty review<\/button>/);
-  assert.match(html, /Not available yet: your work is saved in this browser\./);
+  assert.match(html, /<button id="hd-prove-submit"[^>]* disabled aria-disabled="true"[^>]*>Submit for faculty review<\/button>/);
   // The unavailable Submit looks unavailable; choices have no number column.
   assert.match(html, /aria-disabled="true"[^>]*style="[^"]*cursor:not-allowed/);
   assert.equal((html.match(/<label style="grid-template-columns:18px 1fr;[^"]*"><input type="(checkbox|radio)"/g) || []).length, PROVE_TICKET.pathPool.length + 2);
@@ -212,8 +211,9 @@ function testOnlyMeaningfulEventsAndThePackage() {
 
   const pkg = tab.run('hdProvePackage()');
   assert.deepEqual([...Object.keys(pkg)], ['version', 'kind', 'moduleKey', 'labKey', 'rubricVersion', 'ticketId', 'startedAt', 'fields', 'diagnosis',
-    'steps', 'decision', 'resolutionNote', 'userReply', 'workNotes', 'commands', 'events', 'machine']);
+    'steps', 'stepTexts', 'decision', 'resolutionNote', 'userReply', 'workNotes', 'commands', 'events', 'machine']);
   assert.equal(pkg.labKey, 'lab-its-01-prove-it');
+  assert.deepEqual([...pkg.stepTexts], [PROVE_TICKET.pathPool.find((step) => step.id === stepB).text], 'the portal has no simulator data, so the steps travel as text');
   assert.equal(pkg.ticketId, PROVE_ID);
   assert.deepEqual(JSON.parse(JSON.stringify(pkg.fields)), { category: 'Incident', type: '', priority: 'P2' });
   assert.equal(pkg.decision, 'Escalate');
@@ -240,7 +240,7 @@ function testReloadKeepsTheAttemptPerStudent() {
 
 function testSubmittedAttemptIsLocked() {
   const tab = sim(proveUrl('student-locked01'));
-  tab.run("hdState.prove.submittedAt = '2026-10-30T12:00:00Z'");
+  tab.run("hdProveServer.status = 'waiting'");
   const html = tab.view('helpdesk/ticket');
   assert.match(html, /Submitted for faculty review/);
   assert.doesNotMatch(html, /<button[^>]*>Submit for faculty review/);

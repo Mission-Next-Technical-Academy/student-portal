@@ -1,3 +1,81 @@
+**2026-10-30 (Megan; PR #92 (draft) "Help Desk Module 1 Prove It Submit: faculty review, no score (L-003)"; shared `portal/app.js`, `portal/index.html`, `bin/ci-check.sh` and a new `supabase/tests/` file, plus Help Desk `ui/helpdesk.js`, `ui/index.html`, `portal/it-support-module-01.js`, `portal/it-support-shared.js`, `portal/data.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests — please review the shared ones):**
+**Don't merge or roll out until the faculty-gate work is in the same rollout. Until then, Approve means pass: no instructor score is recorded, the 69% critical-error cap isn't enforced, and Approve doesn't warn below pass.**
+Built on PR #91, which is built on PR #90; none of them merges or reaches
+production on its own. Module 1's Prove It can now be submitted. The course
+page has a launch card ("Complete Practice It (Labs 1.1 and 1.2) first: it
+prepares you for this.", no lock) that opens the simulator as a popup. Submit
+turns on once category, type, priority, diagnosis, decision, resolution note
+and reply are filled in: a completeness check that looks at no value. The
+package goes to the portal tab by `postMessage`, and the portal replies
+`saved: true` only after the server confirms one `lab_attempts` row for
+`lab-its-01-prove-it`. The simulator then locks with "Submitted for faculty
+review", with no score and no answers. Every failure keeps the work, leaves
+Submit available and says what happened. A returned attempt reopens for one
+resubmission; the earlier row and the instructor's notes are kept.
+- **No migration.** PR #90's lab row, the insert policy, the one-waiting rule
+  and the redo rule already do this. The rollout order in PR #90's entry stands;
+  the dry run still lists only that migration.
+- **The row:** `state: 'complete'`, `score: null`, rubric version
+  `hdesk-its-01-prove-v1`, engine `instructor-review-v1`, the package in
+  `result`. It must be `complete`: `student_verified_module_progress` counts
+  only `complete`, so `submitted` could never finish Module 1 once approved.
+  It doesn't call `markModuleLabComplete`, so the browser never records it as
+  done before review.
+- **What Approve does today:** the view allows an empty score, so Approve on
+  this attempt completes Module 1 whatever the rubric says: `module_progress`
+  goes to complete at 100%, hours are awarded and Module 2 unlocks. Instructors
+  can only write `reviewed_at`, `reviewed_by` and `redo_requested`, so points
+  can only go in the notes, and nothing can set `result.critical_errors`.
+  `supabase/tests/hdesk_prove_submit.sql` states this as a known gap, and its
+  expectation must change with the faculty-gate work. The instructor panel
+  tells instructors to Return anything below 70% or with a critical error.
+- **Known gap for the server-side scoring work:** the portal's checks run in
+  the student's own browser, so a student can skip them and insert a row
+  directly (RLS allows their own row), including a made-up `score` of 70 or
+  more. It still can't count without an instructor's approval. This applies to
+  every lab today. A row without a valid package shows "No readable Prove It
+  package" in the panel, but a forged score still shows in the card's pill.
+- **Messages** (same opener channel as the coach's Finish; new type names so no
+  coach handler reads a package): `mnt-prove-status` and `mnt-prove-submit`
+  from the simulator, `mnt-prove-received` from the portal. As in PR #69, the
+  simulator makes the nonce, the portal requires a well-formed one and echoes
+  it, and the simulator accepts only a reply with its own nonce, from its
+  opener and the portal's origin. The portal also requires the simulator's
+  origin, the signed-in student's anonymous id (this closes the shared-browser
+  limit in PR #91's entry) and the `HDESK` track.
+- `portal/it-support-shared.js` (Help Desk): `itsProveReceiveMessage`,
+  `itsCleanProveWork` (known fields only; writing that doesn't fit is refused,
+  never cut; recorded actions can be trimmed), `itsProveRefreshAttempt` (reads
+  the newest attempt and a returned attempt's notes from the server first, since
+  the sign-in copy can be out of date), `itsProveReviewPanel`.
+- `ui/helpdesk.js` (Help Desk): whether an attempt is locked now comes only from
+  the portal's server read (`hdProveServer`); PR #91's browser `submittedAt` is
+  gone. On each load the simulator asks for the status. If the portal tab is
+  closed it can't check, so it stays editable, says so, and Submit fails
+  honestly. `hdProvePackage()` adds `stepTexts`, because the portal doesn't load
+  the simulator's data. A work note typed but not added goes with the Submit.
+- `portal/it-support-module-01.js` (Help Desk): the launch card. Its rail row is
+  titled "Assessment Lab", which removes Module 1's generic Assessment Lab box
+  and its rail entry through the existing `normalizeModuleStages` rule. Attempts
+  already in that box stay in Lab Attempts. The hero counter now reads "3 labs".
+- `portal/app.js` (shared): `moduleNavStatuses` honours a new `neverLocked` row
+  flag, used only here, so the Prove It isn't locked behind Practice It but still
+  counts in the rail's percent. No other module sets it, so SOC is unchanged. The
+  waiting and graded review cards call `itsProveReviewPanel`, which renders only
+  for labs in `HDESK_PROVE_RUBRICS`.
+- `portal/index.html` (shared): loads `admin-sheets/hdesk-prove-rubrics.js`, and
+  new cache versions. `bin/ci-check.sh` (shared): runs the new test.
+- Instructor view: the attempt shows in Lab Attempts under Module 1 as PROVE IT
+  on the existing card, with the student's writing first, then choices, evidence
+  opened, commands, the laptop's end state and the rubric. The full grading sheet
+  is separate work and replaces this panel. "See your marked lab" stays: it only
+  appears when there are notes, and with no sheet it lists those notes.
+- Tests: `tests/hdesk-prove-submit.test.js` joins the real simulator and portal
+  code over a stand-in database. `supabase/tests/hdesk_prove_submit.sql` ran
+  against local Docker with PR #90's migration and passes. Neither is a browser
+  test: `bin/dev.sh` can't target local Docker, so the real two-tab flow waits
+  for the staging rollout of PR #90, PR #91 and this work together.
+
 **2026-10-30 (Megan; PR #91 (draft) "Help Desk Module 1 Prove It mode in the simulator (L-003)"; shared `ui/coach.js`, `ui/index.html`, `bin/ci-check.sh` and `bin/its-curriculum-check.js`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, a new `portal/admin-sheets/hdesk-prove-rubrics.js` and a new test — please review the shared ones):**
 **Held with PR #90: built on that branch and merges together with it, the Prove It
 submit and removing Module 1's generic Assessment Lab box.** The simulator now

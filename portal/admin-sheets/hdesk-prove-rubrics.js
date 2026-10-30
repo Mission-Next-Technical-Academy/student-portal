@@ -2,8 +2,7 @@
  * General terms only: competency names, points, the pass mark and the
  * critical-error rule. This repository is public, so nothing here says which
  * ticket fields, diagnosis, steps or decision earn credit; that answer key is
- * kept outside the repository. Faculty have final grading authority.
- * Not loaded by any page yet. */
+ * kept outside the repository. Faculty have final grading authority. */
 (() => {
   'use strict';
   const HDESK_PROVE_RUBRICS = {
