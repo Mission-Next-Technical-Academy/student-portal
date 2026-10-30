@@ -25,6 +25,9 @@ node tests/module-assessment-submit.test.js
 echo '== Coach labs survive reload and relaunch (Help Desk + SOC Module 1) =='
 node tests/coach-reload-resume.test.js
 
+echo '== Help Desk Prove It mode: no coach, no answers, machine state =='
+node tests/hdesk-prove-mode.test.js
+
 echo '== Help Desk curriculum minutes =='
 node bin/its-curriculum-check.js
 

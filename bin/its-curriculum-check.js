@@ -9,7 +9,12 @@
  *   (c) the minutes the modules allocate to a parent don't add up to it;
  *   (d) a module page shows a lesson duration other than the approved
  *       hour mapping's lesson total (lesson + its lab share);
- *   (e) a Help Desk file names "Windows Server" with a year. */
+ *   (e) a Help Desk file names "Windows Server" with a year;
+ *   (f) a Prove It ticket, computer or KB article (HD_PROVE_SHIFTS in
+ *       ui/helpdesk-data.js) appears in Practice: the Practice shift's
+ *       fixtures, a coach lab or the capstone;
+ *   (g) a Prove It shift's committed fixtures carry answer fields (the
+ *       repository is public; the answer key lives outside it). */
 
 const fs = require('fs');
 const path = require('path');
@@ -103,6 +108,22 @@ function helpDeskFiles() {
 }
 
 const SERVER_YEAR = /Windows Server\s+(?:19|20)\d{2}/i;
+
+function loadSimulatorData() {
+  const file = path.join(ROOT, 'ui', 'helpdesk-data.js');
+  const context = vm.createContext({ console });
+  return vm.runInContext(`${fs.readFileSync(file, 'utf8')}\n;({ HD_TICKET_TEMPLATES, HD_COMPUTERS, HD_KB_ARTICLES, HD_PROVE_SHIFTS: typeof HD_PROVE_SHIFTS === 'undefined' ? {} : HD_PROVE_SHIFTS });`, context, { filename: file });
+}
+
+// Field names that would hold an answer.
+const ANSWER_FIELD = /expected|correct|hidden|critical|credit|flag|answer|model|rootcause|escalationcriteria|plausible/i;
+function answerFields(value, trail = []) {
+  if (!value || typeof value !== 'object') return [];
+  return Object.entries(value).flatMap(([key, child]) => [
+    ...(Array.isArray(value) || !ANSWER_FIELD.test(key) ? [] : [[...trail, key].join('.')]),
+    ...answerFields(child, [...trail, key]),
+  ]);
+}
 
 let helpDesk;
 try {
@@ -216,10 +237,43 @@ if (program) {
   const dataMatch = dataText.match(SERVER_YEAR);
   assert(!dataMatch, `portal/data.js Help Desk entries name "${dataMatch && dataMatch[0]}"; use "Windows Server"`);
 
+  // (f) Prove It material never appears in Practice, and (g) carries no answers.
+  let sim = null;
+  try {
+    sim = loadSimulatorData();
+  } catch (error) {
+    assert(false, `could not evaluate ui/helpdesk-data.js: ${error.message}`);
+  }
+  if (sim) {
+    const practiceIds = new Set(sim.HD_TICKET_TEMPLATES.map((ticket) => ticket.id));
+    const practiceComputers = new Set(sim.HD_COMPUTERS.map((computer) => computer.name));
+    const practiceKb = new Set(sim.HD_KB_ARTICLES.map((article) => article.id));
+    const practiceFiles = ['ui/helpdesk-coaches.js', 'portal/it-support-module-12.js']
+      .map((relative) => [relative, fs.readFileSync(path.join(ROOT, relative), 'utf8')]);
+    Object.entries(sim.HD_PROVE_SHIFTS).forEach(([moduleKey, shift]) => {
+      (shift.tickets || []).forEach((ticket) => {
+        assert(!practiceIds.has(ticket.id), `${ticket.id} (the ${moduleKey} Prove It) is also a Practice ticket in HD_TICKET_TEMPLATES`);
+        practiceFiles.forEach(([relative, source]) => {
+          assert(!source.includes(ticket.id), `${ticket.id} (the ${moduleKey} Prove It) appears in ${relative}`);
+        });
+      });
+      (shift.computers || []).forEach((computer) => {
+        assert(!practiceComputers.has(computer.name), `${computer.name} (the ${moduleKey} Prove shift) is also in the Practice HD_COMPUTERS`);
+      });
+      (shift.kbArticles || []).forEach((article) => {
+        assert(!practiceKb.has(article.id), `${article.id} (the ${moduleKey} Prove shift) is also in the Practice HD_KB_ARTICLES`);
+      });
+      answerFields(shift).forEach((field) => {
+        assert(false, `HD_PROVE_SHIFTS['${moduleKey}'].${field} looks like an answer field; keep the answer key out of the repository`);
+      });
+    });
+  }
+
   if (errors.length === 0) {
     console.log(`PASS ${PREFIX} ${theoryMinutes} theory + ${labMinutes} lab = ${theoryMinutes + labMinutes} technical minutes`);
     console.log(`parents: ${parents.map((parent) => `${parent.code}=${parent.hours}h`).join(', ')}`);
     console.log('module pages: every lesson matches the hour mapping totals');
+    console.log(`Prove It shifts: ${Object.keys(sim ? sim.HD_PROVE_SHIFTS : {}).join(', ') || 'none'} kept out of Practice, no answer fields`);
     console.log('SKIPPED program page Curriculum Blocks: they show theory-only minutes until the program page can show lesson totals');
   }
 }
