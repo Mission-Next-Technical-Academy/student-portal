@@ -19,6 +19,9 @@ node tests/hdesk-returned-lab-resubmit.test.js
 node tests/hdesk-module-page-states.test.js
 node tests/hdesk-capstone-review.test.js
 
+echo '== Generic Assessment Lab box saves honestly and locks while waiting =='
+node tests/module-assessment-submit.test.js
+
 echo '== Coach labs survive reload and relaunch (Help Desk + SOC Module 1) =='
 node tests/coach-reload-resume.test.js
 
