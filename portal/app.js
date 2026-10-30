@@ -4920,6 +4920,98 @@ function moduleAssessmentState(moduleKey, user) {
   return LabRuntime.load(labId, user, { rationale: '', submittedAt: '', attempts: 0 });
 }
 
+function moduleAssessmentLabKey(moduleKey) {
+  return `${moduleKey}-assessment-module`;
+}
+
+// The box's review status comes only from the student's newest attempt on
+// the server (user.latestLabAttemptByKey, loaded at sign-in), never from
+// browser storage, so clearing site data or another browser can't unlock it.
+// 'open' (none yet), 'pending', 'returned' (one new submission) or 'approved'.
+function moduleAssessmentReviewStatus(attempt) {
+  if (!attempt || !attempt.completedAt) return 'open';
+  if (attempt.redoRequested === true) return 'returned';
+  return attempt.reviewedAt ? 'approved' : 'pending';
+}
+
+const MODULE_ASSESSMENT_LOCKED_TEXT = {
+  pending: 'Submitted. Your assessment is waiting for instructor review.',
+  approved: 'Approved by your instructor.',
+};
+
+// Rationale already stored as an artifact for a submission whose lab attempt
+// then failed, so a retry with the same text doesn't store it twice.
+const moduleAssessmentStoredArtifacts = new Map();
+
+// Reads the student's newest attempt for this box from the server into
+// user.latestLabAttemptByKey and returns its review status, or null when the
+// read fails.
+async function refreshModuleAssessmentStatus(user, labKey) {
+  try {
+    const { data, error } = await mntSupabase.from('lab_attempts')
+      .select('completed_at, reviewed_at, redo_requested')
+      .eq('user_id', user.userId)
+      .eq('track_code', user.trackCode)
+      .eq('lab_key', labKey)
+      .not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false })
+      .limit(1);
+    if (error) throw error;
+    const latest = data && data[0];
+    if (latest) {
+      user.latestLabAttemptByKey = { ...(user.latestLabAttemptByKey || {}), [labKey]: {
+        completedAt: latest.completed_at, reviewedAt: latest.reviewed_at || null, redoRequested: latest.redo_requested === true, supersededAt: null,
+      } };
+    }
+    return moduleAssessmentReviewStatus(user.latestLabAttemptByKey && user.latestLabAttemptByKey[labKey]);
+  } catch (err) {
+    console.error('Assessment Lab: could not check the latest attempt', labKey, err);
+    return null;
+  }
+}
+
+/* Saves one Assessment Lab submission: the artifact first, the lab attempt
+ * last, so an instructor's queue never holds an attempt without its saved
+ * work. Both save helpers return a falsy value instead of throwing, so each
+ * result is checked. Re-reads the newest attempt first: the sign-in copy can
+ * be stale (another tab or browser, or a reply lost after an insert landed).
+ * The database's one-pending rule refuses a second waiting attempt from a
+ * concurrent tab; a refused save re-reads so that tab shows it waiting.
+ * Resolves { ok, status }: ok only when both rows were stored. */
+async function submitModuleAssessment(user, { moduleKey, programSlug, rationale, attempt }) {
+  if (!user || !user.userId || !user.trackCode) return { ok: false, status: 'open' };
+  const labKey = moduleAssessmentLabKey(moduleKey);
+  const current = await refreshModuleAssessmentStatus(user, labKey);
+  if (!current) return { ok: false, status: 'open' };
+  if (current === 'pending' || current === 'approved') return { ok: false, status: current };
+
+  const storedKey = `${user.userId}|${labKey}`;
+  if (moduleAssessmentStoredArtifacts.get(storedKey) !== rationale) {
+    const artifact = await persistPortfolioArtifact(user, {
+      moduleKey, labKey, kind: 'module_assessment',
+      title: `${programSlug} ${moduleKey} Assessment Lab`, content: rationale,
+      rubricVersion: 'academy-module-assessment-v1', scoringEngineVersion: 'instructor-review-v1',
+    });
+    if (!artifact) return { ok: false, status: current };
+    moduleAssessmentStoredArtifacts.set(storedKey, rationale);
+  }
+  // 'submitted' puts the attempt in the instructor's Lab Attempts queue; it
+  // never completes the module (this key is not in course_module_labs).
+  const saved = await recordLabAttempt(user, labKey, {
+    state: 'submitted', score: null,
+    result: { rationale, attested: true, attempt, assessmentType: 'instructor_review' },
+  });
+  if (!saved) {
+    const after = await refreshModuleAssessmentStatus(user, labKey);
+    return { ok: false, status: after === 'pending' || after === 'approved' ? after : current };
+  }
+  moduleAssessmentStoredArtifacts.delete(storedKey);
+  user.latestLabAttemptByKey = { ...(user.latestLabAttemptByKey || {}), [labKey]: {
+    completedAt: new Date().toISOString(), reviewedAt: null, redoRequested: false, supersededAt: null,
+  } };
+  return { ok: true, status: 'pending' };
+}
+
 /* The common Prove It surface is intentionally a reviewable artifact rather
  * than another completion checkbox.  Module authors can (and do) add richer,
  * domain-specific scored exercises above it; this guarantees that every
@@ -4931,7 +5023,16 @@ function moduleAssessmentModule(user, program, moduleKey, options = {}) {
   const guidedId = standardModuleStageId(moduleKey, 'guided-lab');
   const foundationsId = standardModuleStageId(moduleKey, 'foundations');
   const state = moduleAssessmentState(moduleKey, user);
-  const submitted = Boolean(state.submittedAt);
+  const labKey = moduleAssessmentLabKey(moduleKey);
+  const reviewStatus = moduleAssessmentReviewStatus(((user && user.latestLabAttemptByKey) || {})[labKey]);
+  const locked = reviewStatus === 'pending' || reviewStatus === 'approved';
+  const returnNotes = reviewStatus === 'returned' ? (((user && user.openLabRedoFeedbackByLabKey) || {})[labKey] || []) : [];
+  const pill = {
+    open: ['bg-amber-100 text-amber-800', 'Assessment required'],
+    pending: ['bg-amber-100 text-amber-800', 'Waiting for review'],
+    returned: ['bg-red-100 text-red-800', 'Returned for revision'],
+    approved: ['bg-emerald-100 text-emerald-800', 'Approved'],
+  }[reviewStatus];
   const objective = Array.isArray(module.objectives) && module.objectives[0]
     ? module.objectives[0]
     : `Apply the module skill in ${module.title || 'this module'}.`;
@@ -4957,16 +5058,20 @@ function moduleAssessmentModule(user, program, moduleKey, options = {}) {
           <h2 id="${esc(assessmentId)}-title" class="mt-2 text-2xl font-bold text-[#1e3a5f]">Independent evidence submission</h2>
           <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Use evidence from the Guided Lab to explain your independent decision. This submission is retained as an instructor-reviewable assessment artifact; it is not practice work.</p>
         </div>
-        <span class="rounded-full ${submitted ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'} px-3 py-1 text-xs font-bold">${submitted ? 'Submitted for review' : 'Assessment required'}</span>
+        <span class="rounded-full ${pill[0]} px-3 py-1 text-xs font-bold" data-module-assessment-pill>${pill[1]}</span>
       </div>
       <div class="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-700"><strong class="text-[#1e3a5f]">Assessment focus:</strong> ${esc(objective)}</div>
-      <form class="mt-5 space-y-4" data-module-assessment-form data-module-key="${esc(moduleKey)}" data-program-slug="${esc(program.slug)}">
+      ${reviewStatus === 'returned' ? `<div class="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900" data-module-assessment-returned>
+        <strong>Your instructor returned this assessment.</strong> Revise your rationale and submit it once more.
+        ${returnNotes.length ? `<ul class="mt-2 list-disc space-y-1 pl-5">${returnNotes.map((note) => `<li>${note.item_label ? `<strong>${esc(note.item_label)}:</strong> ` : ''}${esc(note.comment)}</li>`).join('')}</ul>` : ''}
+      </div>` : ''}
+      ${locked ? `<p class="mt-5 text-sm font-semibold text-[#1e3a5f]" data-module-assessment-status aria-live="polite">${MODULE_ASSESSMENT_LOCKED_TEXT[reviewStatus]}</p>` : `<form class="mt-5 space-y-4" data-module-assessment-form data-module-key="${esc(moduleKey)}" data-program-slug="${esc(program.slug)}">
         <label class="block text-sm font-semibold text-[#1e3a5f]" for="${esc(assessmentId)}-rationale">Evidence-backed rationale
           <textarea id="${esc(assessmentId)}-rationale" name="rationale" required minlength="120" rows="5" class="mt-2 w-full rounded-xl border border-slate-300 p-3 font-normal text-slate-800" placeholder="State the evidence you used, the decision you made, and why that decision is appropriately scoped.">${esc(state.rationale || '')}</textarea>
         </label>
-        <label class="flex items-start gap-3 text-sm text-slate-700"><input name="attestation" required type="checkbox" class="mt-1" ${submitted ? 'checked' : ''} /><span>This is my independent work and the rationale is supported by the module evidence.</span></label>
-        <div class="flex flex-wrap items-center gap-3"><button type="submit" class="rounded-xl bg-[#1e3a5f] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#16324a]">${submitted ? 'Submit updated assessment' : 'Submit assessment for review'}</button><p class="text-sm text-slate-600" data-module-assessment-status aria-live="polite">${submitted ? `Submitted ${esc(new Date(state.submittedAt).toLocaleString())}. Instructor review is pending.` : 'A rationale of at least 120 characters and your attestation are required.'}</p></div>
-      </form>
+        <label class="flex items-start gap-3 text-sm text-slate-700"><input name="attestation" required type="checkbox" class="mt-1" /><span>This is my independent work and the rationale is supported by the module evidence.</span></label>
+        <div class="flex flex-wrap items-center gap-3"><button type="submit" class="rounded-xl bg-[#1e3a5f] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#16324a] disabled:cursor-not-allowed disabled:opacity-50">${reviewStatus === 'returned' ? 'Resubmit assessment' : 'Submit assessment for review'}</button><p class="text-sm text-slate-600" data-module-assessment-status aria-live="polite">A rationale of at least 120 characters and your attestation are required.</p></div>
+      </form>`}
     </div>
   </section>`;
 }
@@ -7949,36 +8054,35 @@ function wireCommon() {
       const user = await currentUser();
       const moduleKey = form.dataset.moduleKey;
       const programSlug = form.dataset.programSlug;
+      // The draft text is kept locally; the submit time and attempt number
+      // are recorded only once the server has the submission.
       const state = moduleAssessmentState(moduleKey, user);
       state.rationale = rationale;
-      state.attempts = Number(state.attempts || 0) + 1;
-      state.submittedAt = new Date().toISOString();
       LabRuntime.save(`academy-assessment-${moduleKey}`, user, state);
       submit.disabled = true;
       if (status) status.textContent = 'Saving your assessment artifact…';
-      const labKey = `${moduleKey}-assessment-module`;
-      try {
-        await Promise.all([
-          recordLabAttempt(user, labKey, {
-            // progress_state is deliberately limited to not_started /
-            // in_progress / complete.  Faculty acceptance, not this student
-            // submission, is what may later produce a completed assessment.
-            state: 'in_progress', score: null,
-            result: { rationale, attested: true, attempt: state.attempts, assessmentType: 'instructor_review' },
-          }),
-          persistPortfolioArtifact(user, {
-            moduleKey, labKey, kind: 'module_assessment',
-            title: `${programSlug} ${moduleKey} Assessment Lab`, content: rationale,
-            rubricVersion: 'academy-module-assessment-v1', scoringEngineVersion: 'instructor-review-v1',
-          }),
-        ]);
-        if (status) status.textContent = 'Submitted for instructor review. Your submitted rationale has been retained.';
-      } catch (error) {
-        // The local durable draft is already saved.  Give the learner a clear
-        // retry path if the remote append-only record is temporarily offline.
-        submit.disabled = false;
-        if (status) status.textContent = 'Your assessment is saved locally, but it could not be sent for review. Please submit again.';
+      const attempt = Number(state.attempts || 0) + 1;
+      const outcome = await submitModuleAssessment(user, { moduleKey, programSlug, rationale, attempt });
+      if (outcome.ok) {
+        state.attempts = attempt;
+        state.submittedAt = new Date().toISOString();
+        LabRuntime.save(`academy-assessment-${moduleKey}`, user, state);
       }
+      if (outcome.ok || MODULE_ASSESSMENT_LOCKED_TEXT[outcome.status]) {
+        // Waiting for review (or already approved): nothing more to submit.
+        Array.from(form.elements).forEach((el) => { el.disabled = true; });
+        const pill = form.closest('section')?.querySelector('[data-module-assessment-pill]');
+        if (pill) {
+          pill.className = `rounded-full ${outcome.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'} px-3 py-1 text-xs font-bold`;
+          pill.textContent = outcome.status === 'approved' ? 'Approved' : 'Waiting for review';
+        }
+        if (status) status.textContent = outcome.ok ? 'Submitted for instructor review. Your submitted rationale has been retained.' : MODULE_ASSESSMENT_LOCKED_TEXT[outcome.status];
+        return;
+      }
+      // The local draft is already saved.  Give the learner a clear retry
+      // path if the remote record could not be stored.
+      submit.disabled = false;
+      if (status) status.textContent = 'Your assessment is saved locally, but it could not be sent for review. Please submit again.';
     });
   });
 

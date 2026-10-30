@@ -1,3 +1,44 @@
+**2026-10-29 (Megan; PR #<added by /pr-ready> "Generic Assessment Lab box: save honestly, reach Lab Attempts, one waiting submission"; shared `portal/app.js`, `portal/index.html`, `bin/ci-check.sh` and a new `supabase/` migration — please review those):**
+The platform's generic Assessment Lab box (`moduleAssessmentModule()`, the
+"Prove It · Assessment Lab" form appended by `module-registry.js`) never
+saved anything an instructor could see. Its portfolio artifact used kind
+`module_assessment`, which the `portfolio_artifacts.kind` check refused, and
+its lab attempt was `in_progress` with no `completed_at`, which the grading
+queues skip. Both save helpers return `null`/`false` instead of throwing, so
+the student still saw "Submitted for instructor review". Now the box saves the
+artifact first and the lab attempt last (state `submitted`), shows
+"Submitted" only when both landed, and otherwise shows "could not be sent for
+review" with Submit re-enabled. The lock comes from the server: the box reads
+the student's newest attempt for `<module key>-assessment-module` (sign-in's
+`latestLabAttemptByKey`, re-read before each submit). While it waits or once
+it's approved there is no form; a returned attempt shows the instructor's
+notes and takes one new submission.
+- Applies to every module that uses the generic box: all 12 Help Desk modules,
+  plus the placeholder AI/ML and Electrical modules (same box; no live
+  students or instructors). SOC Analyst (every module authors its own
+  Assessment Lab) and M360 are unaffected.
+- `portal/app.js` (shared): new `moduleAssessmentLabKey()`,
+  `moduleAssessmentReviewStatus()`, `refreshModuleAssessmentStatus()`,
+  `submitModuleAssessment()`; `moduleAssessmentModule()` renders from the
+  server status; the box's submit handler. `persistPortfolioArtifact()` and
+  `recordLabAttempt()` are unchanged for their other callers. `portal/index.html`:
+  `app.js` version line only.
+- Migration `20261029234710_portfolio_artifact_module_assessment_kind.sql`:
+  drops the `kind` check on `portfolio_artifacts` (whatever its name) and adds
+  `portfolio_artifacts_kind_check` with the six existing kinds plus
+  `module_assessment`; replaces `guard_lab_attempt_single_pending()` with the
+  same body plus one condition, so `%-assessment-module` keys get the
+  one-pending rule too (graded labs unchanged).
+- Lab Attempts: these attempts now appear (and count in the "needs grading"
+  badge) under "Other labs", titled by the raw key; the rationale is in the
+  attempt's raw result JSON. Approving one doesn't complete a module (the key
+  isn't in `course_module_labs`). Older `in_progress` rows stay invisible.
+- Known gaps: if the artifact saves and the attempt fails, a retry after a
+  page reload (or a second tab racing the first) can store one extra artifact
+  with no attempt; it never reaches the queue. A lost reply after the attempt
+  landed no longer duplicates it: the retry's re-read finds it waiting.
+- `bin/ci-check.sh` (shared): runs the new `tests/module-assessment-submit.test.js`.
+
 **2026-10-29 (Megan; staging deploy token renewed; docs only, shared `docs/operations/STAGING_AUTOMATION.md`):**
 `STAGING_DEPLOY_TOKEN` was regenerated on 2026-10-29 with a 90-day expiry
 (expires 2027-01-27), per Randy's 2026-10-27 security directive. Megan owns it
