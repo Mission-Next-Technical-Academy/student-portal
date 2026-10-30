@@ -1,3 +1,58 @@
+**2026-10-30 (Megan; PR #91 (draft) "Help Desk Module 1 Prove It mode in the simulator (L-003)"; shared `ui/coach.js`, `ui/index.html`, `bin/ci-check.sh` and `bin/its-curriculum-check.js`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, a new `portal/admin-sheets/hdesk-prove-rubrics.js` and a new test — please review the shared ones):**
+**Held with PR #90: built on that branch and merges together with it, the Prove It
+submit and removing Module 1's generic Assessment Lab box.** The simulator now
+has a Prove It mode: `?prove=its-01&student=<anonymous id>` opens a fresh
+shift with only Module 1's Prove It ticket (HD-2125), no coach and no
+feedback. The student sets the category, type and priority, works the
+evidence (AD, Printer Management, Server Manager, the KB, the laptop's
+Windows screen and PowerShell), picks a diagnosis from a shuffled list and
+the steps they took from a shuffled mixed pool, chooses Resolve or Escalate,
+and writes a resolution note and a reply to the user. Nothing on the page
+says which choice is right. **Submit is disabled** ("Not available yet: your
+work is saved in this browser.") until the portal can receive the work.
+- `ui/coach.js` (shared): `boot()` returns at once when the address has
+  `prove`, so no coach starts or is restored from the tab's
+  `sessionStorage`, and the launch parameters stay for a reload. Coach labs
+  are unchanged.
+- `ui/helpdesk.js` (Help Desk): `HD_PROVE` (the launch), its own saved state
+  per student (`defender-lab.helpdesk.prove.v1.<module>.<student>`; Practice's
+  key is untouched); `hdFreshState(templates)` now takes the ticket list
+  (Practice still passes `HD_TICKET_TEMPLATES`); `hdComputers()`,
+  `hdKbArticles()`, `hdServers()`, `hdEvents()` add a Prove shift's own
+  fixtures and overrides; the Prove ticket view; `hdProvePackage()` (the work
+  the portal will receive); event recording (evidence screens opened once
+  each, commands run, diagnosis, steps, decision; typing and field changes
+  are saved, not recorded). A launch with no student id opens no ticket and
+  saves nothing. A Prove shift has no Reset / Generate new shift.
+- PowerShell: per-computer machine state (a Prove shift's `machines`) with
+  `whoami /groups`, `Get-Printer`, `gpupdate /force`, `Add-Printer`,
+  `Get-/Add-/Remove-LocalGroupMember`, and uptime in `Get-ComputerInfo`.
+  Commands change the state silently, as real ones do. Computers without
+  state answer as before; `Get-Help` lists the new commands.
+- `ui/helpdesk-data.js` (Help Desk): `HD_PROVE_SHIFTS['its-01']`: the ticket
+  as the student sees it, its option lists in alphabetical order (shuffled
+  per attempt), laptop NS-LT-0122, KB-0058, a healthy NS-PRINT01 for this
+  shift, and the laptop's machine state. No answer key: this repository is
+  public, so the key is kept outside it.
+- `portal/admin-sheets/hdesk-prove-rubrics.js` (new, not loaded yet):
+  competency names and points (22 / 11 / 11 / 28 / 28), efficiency formative,
+  70% pass, a critical error caps the attempt at 69%, faculty final.
+- `bin/its-curriculum-check.js` (shared): fails if a Prove ticket, computer
+  or KB article appears in Practice (the Practice fixtures, the coach labs or
+  the capstone), or if a Prove shift's fixtures carry answer-like field names.
+- `bin/ci-check.sh` (shared): runs the new `tests/hdesk-prove-mode.test.js`.
+- Layout: the Prove view styles its card headers, choices and the
+  unavailable Submit inline, so `ui/styles.css` is unchanged. Practice's card
+  headers still have no space before their note (for example "Troubleshooting
+  pathRecord what you actually checked."): `.card-header` has no base rule in
+  `ui/styles.css`, so its `gap: 8px` never applies.
+- Known limit, accepted for now: the `student=` id in the address chooses
+  which local attempt a browser shows, the same model as the coach labs'
+  resume. The Prove It submit work must bind Submit to the signed-in student:
+  the portal refuses a package whose student id isn't the signed-in user, and
+  only the server-side attempt counts. Browser drafts stay per-browser until
+  the server-side scoring and drafts work.
+
 **2026-10-30 (Megan; PR #90 (draft) "Help Desk Module 1 completes on its Prove It; Labs 1.1 and 1.2 become Practice It (L-003)"; shared `supabase/` migration, `portal/app.js`, `tests/module-card-state.test.js`, a new `supabase/tests/` file and `docs/operations/AI_AGENT_RULES.md`, plus Help Desk `portal/data.js` — please review the shared ones):**
 **Held: the PR stays open and the migration must not reach production until a
 Module 1 Prove It can submit to `lab-its-01-prove-it`.** Until then no Help
