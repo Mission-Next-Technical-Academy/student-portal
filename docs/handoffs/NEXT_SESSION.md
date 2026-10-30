@@ -1,4 +1,4 @@
-**2026-10-30 (Megan; PR #<added by /pr-ready> "Help Desk Module 1 Prove It mode in the simulator"; shared `ui/coach.js`, `ui/index.html`, `bin/ci-check.sh` and `bin/its-curriculum-check.js`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, a new `portal/admin-sheets/hdesk-prove-rubrics.js` and a new test — please review the shared ones):**
+**2026-10-30 (Megan; PR #91 (draft) "Help Desk Module 1 Prove It mode in the simulator (L-003)"; shared `ui/coach.js`, `ui/index.html`, `bin/ci-check.sh` and `bin/its-curriculum-check.js`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, a new `portal/admin-sheets/hdesk-prove-rubrics.js` and a new test — please review the shared ones):**
 **Held with PR #90: built on that branch and merges together with it, the Prove It
 submit and removing Module 1's generic Assessment Lab box.** The simulator now
 has a Prove It mode: `?prove=its-01&student=<anonymous id>` opens a fresh
