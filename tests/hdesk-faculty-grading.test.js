@@ -265,6 +265,65 @@ function testStudentSeesOnlyTheLatestDecisionsNotes() {
   assert.doesNotMatch(html, /Note on the approval/);
 }
 
+// The instructor's panel: every decision on the attempt, with its notes.
+const correctedHistory = () => prun('labDecisionsWithNotes')([
+  { decision: 'returned', official_score: null, competency_scores: [], correction_reason: 'Approved by mistake.', created_at: '2026-10-30T11:00:00.200+00:00' },
+  { decision: 'approved', official_score: 70, competency_scores: [{ id: 'triage', label: 'Triage', points: 22, earned: 20, justification: 'Close <enough>.' }], critical_error: false, efficiency_feedback: 'Took a while.', created_at: '2026-10-30T10:00:00.100+00:00' },
+], [
+  { item_label: 'Triage', comment: 'Close <enough>.', created_at: '2026-10-30T10:00:00.100+00:00' },
+  { item_label: 'Efficiency', comment: 'Took a while.', created_at: '2026-10-30T10:00:00.100+00:00' },
+  { item_label: 'Overall', comment: 'Note on the <approval>.', created_at: '2026-10-30T10:00:00.100+00:00' },
+  { item_label: 'Overall', comment: 'Note on the correction.', created_at: '2026-10-30T11:00:00.200+00:00' },
+]);
+
+function testPanelShowsEveryDecisionWithItsNotes() {
+  const history = correctedHistory();
+  assert.deepEqual(JSON.parse(JSON.stringify(history.map((d) => d.notes.map((n) => n.comment)))), [['Note on the correction.'], ['Close <enough>.', 'Took a while.', 'Note on the <approval>.']]);
+  const panel = prun('itsProveReviewPanel')(row({ official_grade: history[0], official_grade_history: history }));
+  assert.ok(panel.indexOf('Current decision: Returned no score entered, Oct 30') < panel.indexOf('Approved 70%, Oct 30, replaced by a correction'), 'newest first');
+  assert.match(panel, /Correction:<\/strong> Approved by mistake\./);
+  assert.match(panel, /Note on the correction\./);
+  const older = panel.slice(panel.indexOf('<details', panel.indexOf('data-its-prove-decisions')));
+  assert.match(older, /^<details [^>]*data-its-prove-older-decision>/, 'the older decision starts collapsed');
+  assert.match(older, /Official grade: 70%/);
+  assert.match(older, /Triage:<\/strong> 20 \/ 22/);
+  assert.match(older, /Efficiency:<\/strong> Took a while\./);
+  assert.ok(older.includes('Note on the &lt;approval&gt;.'), 'notes are escaped');
+  assert.equal(older.split('Close &lt;enough&gt;.').length, 2, 'a justification shows once, beside its competency');
+  assert.equal(older.split('Took a while.').length, 2, 'and so does Efficiency');
+
+  const critical = prun('labDecisionsWithNotes')([{ decision: 'returned', official_score: null, competency_scores: [], critical_error: true, critical_error_reason: 'Reason.', created_at: '2026-10-30T10:00:00Z' }], [{ item_label: 'Critical error', comment: 'Reason.', created_at: '2026-10-30T10:00:00Z' }]);
+  const one = prun('itsProveReviewPanel')(row({ official_grade: critical[0], official_grade_history: critical }));
+  assert.match(one, /Critical error:<\/strong> Reason\./);
+  assert.doesNotMatch(one, /replaced by a correction/, 'one decision, nothing replaced');
+  assert.doesNotMatch(one, /data-its-prove-older-decision>/);
+}
+
+async function testHistoryReadsOnlyForOfficialGradeLabs() {
+  const apply = prun('applyOfficialGradeHistory');
+  portal.supabaseCalls.length = 0;
+  portal.supabaseResponder = () => ({ data: [], error: null });
+  const other = await apply([{ id: 'u', lab_key: 'lab-its-02-vm-build', score: 85, official_grade: null }, { id: 's', lab_key: 'lab-identity-investigation', score: 90 }]);
+  assert.equal(portal.supabaseCalls.length, 0, 'other labs make no extra read');
+  assert.equal(other[0].official_grade_history, undefined);
+
+  portal.supabaseResponder = (call) => (call.table === 'lab_attempt_grades'
+    ? { data: [{ lab_attempt_id: 'p', decision: 'approved', official_score: 82, created_at: '2026-10-30T11:00:00Z' }], error: null }
+    : { data: [{ lab_attempt_id: 'p', item_label: 'Overall', comment: 'Good.', created_at: '2026-10-30T11:00:00Z' }], error: null });
+  const [loaded] = await apply([{ id: 'p', lab_key: LAB, official_grade: { decision: 'approved', official_score: 82 } }]);
+  assert.equal(loaded.official_grade_history[0].notes[0].comment, 'Good.');
+
+  // A failed read: the current grade still shows, and the panel says what's missing.
+  portal.supabaseResponder = (call) => (call.table === 'lab_attempt_feedback' ? { data: null, error: { message: 'network' } } : { data: [], error: null });
+  const grade = { decision: 'approved', official_score: 82, competency_scores: [] };
+  const [failed] = await apply([{ ...row(), official_grade: grade }]);
+  assert.equal(failed.official_grade_history, null);
+  const panel = prun('itsProveReviewPanel')(failed);
+  assert.match(panel, /Official grade: 82%/);
+  assert.match(panel, /couldn't be loaded/);
+  portal.supabaseResponder = () => ({ data: [], error: null });
+}
+
 async function testStudentReadsTheScoreFromTheServerAtSignIn() {
   portal.supabaseCalls.length = 0;
   portal.supabaseResponder = (call) => {
@@ -314,7 +373,7 @@ async function testRecordsReportTheOfficialScore() {
 const tests = [
   testRubricIsTheApprovedOne, testTotalAndApproveRules, testCardOrderAndContent, testOtherLabsKeepTheirCard,
   testSubmitSendsTheGradeOnce, testReturnWithNoScoreSendsNone, testIncompleteScoresStayInTheBrowser, testFailedSaveKeepsTheWork,
-  testDecidedRecordAndReturnButton, testStudentResult, testStudentSeesOnlyTheLatestDecisionsNotes, testStudentReadsTheScoreFromTheServerAtSignIn, testRecordsReportTheOfficialScore,
+  testDecidedRecordAndReturnButton, testStudentResult, testStudentSeesOnlyTheLatestDecisionsNotes, testPanelShowsEveryDecisionWithItsNotes, testHistoryReadsOnlyForOfficialGradeLabs, testStudentReadsTheScoreFromTheServerAtSignIn, testRecordsReportTheOfficialScore,
 ];
 (async () => {
   let failed = 0;

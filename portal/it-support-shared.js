@@ -728,7 +728,7 @@ function itsProveReviewPanel(row) {
     ${work.logTrimmed ? '<p class="mt-1 text-xs text-gray-500">The oldest recorded actions were left out to fit. All the student\'s writing is above.</p>' : ''}
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Laptop at submit</h4>
     ${items(machine, 'Not recorded.')}
-    ${row.official_grade ? itsProveGradeSummaryHtml(row.official_grade) : ''}
+    ${itsProveDecisionsHtml(row)}
   </div>`;
 }
 
@@ -869,6 +869,45 @@ async function itsProveSubmitDecision(sheet, button, onSaved) {
 }
 
 /* A decided attempt: the official grade, read-only. */
+// Lab Attempts: every decision on this attempt, newest first. Older ones start
+// collapsed. Only a correction adds a second decision (record_lab_grade), so a
+// decision that isn't the newest was replaced by one.
+function itsProveDecisionLabel(grade) {
+  const decision = grade.decision === 'approved' ? 'Approved' : 'Returned';
+  const score = grade.official_score === null || grade.official_score === undefined ? 'no score entered' : `${grade.official_score}%`;
+  const day = grade.created_at ? new Date(grade.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'date not recorded';
+  return `${decision} ${score}, ${day}`;
+}
+
+function itsProveDecisionsHtml(row) {
+  if (!row.official_grade) return '';
+  const history = Array.isArray(row.official_grade_history) ? row.official_grade_history : [];
+  if (!history.length) {
+    return `${itsProveGradeSummaryHtml(row.official_grade)}<p class="mt-2 text-sm text-amber-900" data-its-prove-history-missing>Earlier decisions and saved notes couldn't be loaded. Reload this page to try again.</p>`;
+  }
+  const [current, ...older] = history;
+  return `<div class="mt-4" data-its-prove-decisions>
+    <h3 class="text-sm font-semibold text-[#1e3a5f]">Current decision: ${esc(itsProveDecisionLabel(current))}</h3>
+    ${itsProveGradeSummaryHtml(current)}
+    ${older.map((grade) => `<details class="mt-3 rounded-lg border border-gray-200 bg-white px-3 py-2" data-its-prove-older-decision>
+      <summary class="cursor-pointer text-sm font-semibold text-[#1e3a5f]">${esc(itsProveDecisionLabel(grade))}, replaced by a correction</summary>
+      ${itsProveGradeSummaryHtml(grade)}
+    </details>`).join('')}
+  </div>`;
+}
+
+// The notes saved with a decision, leaving out the ones the summary already
+// shows beside their competency, Efficiency or the critical error.
+function itsProveDecisionNotes(grade) {
+  const scores = Array.isArray(grade.competency_scores) ? grade.competency_scores : [];
+  const shown = new Set([
+    ...scores.filter((item) => item.justification).map((item) => `${item.label || item.id}|${String(item.justification).trim()}`),
+    `Efficiency|${String(grade.efficiency_feedback || '').trim()}`,
+    `Critical error|${String(grade.critical_error_reason || '').trim()}`,
+  ]);
+  return (grade.notes || []).filter((note) => String(note.comment || '').trim() && !shown.has(`${note.item_label}|${String(note.comment).trim()}`));
+}
+
 function itsProveGradeSummaryHtml(grade) {
   const scores = Array.isArray(grade.competency_scores) ? grade.competency_scores : [];
   return `<div class="mt-4 rounded-lg border border-gray-200 bg-white p-3" data-its-prove-grade-summary>
@@ -877,6 +916,8 @@ function itsProveGradeSummaryHtml(grade) {
     ${grade.critical_error ? `<p class="mt-2 text-sm text-red-800"><strong>Critical error:</strong> ${esc(String(grade.critical_error_reason || ''))}</p>` : ''}
     ${grade.efficiency_feedback ? `<p class="mt-2 text-sm text-gray-800"><strong>Efficiency:</strong> ${esc(String(grade.efficiency_feedback))}</p>` : ''}
     ${grade.correction_reason ? `<p class="mt-2 text-sm text-gray-800"><strong>Correction:</strong> ${esc(String(grade.correction_reason))}</p>` : ''}
+    ${itsProveDecisionNotes(grade).length ? `<h4 class="mt-2 text-xs font-semibold text-gray-600">Notes sent to the student</h4><ul class="mt-1 space-y-1 text-sm text-gray-900">${itsProveDecisionNotes(grade).map((note) => `<li>${note.item_label ? `<strong>${esc(String(note.item_label))}:</strong> ` : ''}${esc(String(note.comment))}</li>`).join('')}</ul>` : ''}
+    ${grade.created_at ? `<p class="mt-2 text-xs text-gray-500">Decided ${esc(new Date(grade.created_at).toLocaleString())}</p>` : ''}
   </div>`;
 }
 

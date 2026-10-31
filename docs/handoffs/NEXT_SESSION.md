@@ -67,7 +67,13 @@ them against the previous view's formula. Local Docker and Node only so far.
   if one was entered, plus notes, with no pass/fail. A pass shows the score,
   competency points and feedback, read from the server after signing back in.
   After a correction the student sees only the newest decision's notes
-  (`latestDecisionNotes()`); earlier notes stay in the record and on staff views.
+  (`latestDecisionNotes()`). The earlier notes stay in the record.
+- **Instructor's attempt panel:** shows every decision on every attempt, newest
+  first (date, decision, official score, competency points, critical error and
+  reason, correction reason), with all the notes saved with it, including overall
+  and correction notes (`applyOfficialGradeHistory()`, `itsProveDecisionsHtml()`).
+  Older decisions start collapsed, labelled like "Approved 70%, Oct 30, replaced
+  by a correction". Only official-grade labs make these reads. No migration.
 - **Resubmit prefill:** a returned Prove It reopens with the student's own last
   submitted choices and writing, so "make your changes" holds after sign-out
   (which clears browser drafts) or on another device. The portal reads the
@@ -81,6 +87,8 @@ them against the previous view's formula. Local Docker and Node only so far.
   - After a correction `module_progress` still says complete at 100% while the
     verified view says not complete. Left to the hours, completion and transcript
     gap (L-005).
+  - Follow-up, not now: earlier attempts' feedback is saved and readable, but the
+    student's marked-lab link opens only the newest attempt.
   - PDFs to be checked manually by Megan before production: the agent run didn't download them, because
     each download writes an audit row.
 - **Not closed here:**

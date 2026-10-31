@@ -200,6 +200,56 @@ async function applyOfficialLabGrades(rows) {
   return rows;
 }
 
+// Staff review: a note belongs to the decision saved with it. record_lab_grade
+// saves both in one transaction, so a note goes to the newest decision no later
+// than the note, or the oldest if it's older than them all. grades: newest first.
+function labDecisionsWithNotes(grades, notes) {
+  const decisions = grades.map((grade) => ({ ...grade, notes: [] }));
+  (notes || []).forEach((note) => {
+    const at = Date.parse(note.created_at);
+    const home = decisions.find((grade) => Date.parse(grade.created_at) <= at) || decisions[decisions.length - 1];
+    if (home) home.notes.push(note);
+  });
+  return decisions;
+}
+
+// Staff review: every decision on each official-grade attempt, newest first,
+// with its notes. Only Lab Attempts asks, and other labs make no extra read. If
+// a read fails the row has no history, and the panel says so.
+async function applyOfficialGradeHistory(rows) {
+  const graded = rows.filter((row) => row.id && row.official_grade && labTakesOfficialGrade(row.lab_key));
+  const gradesByAttempt = new Map();
+  const notesByAttempt = new Map();
+  const add = (map, row) => map.set(row.lab_attempt_id, [...(map.get(row.lab_attempt_id) || []), row]);
+  let complete = true;
+  for (let index = 0; index < graded.length; index += 100) {
+    const ids = graded.slice(index, index + 100).map((row) => row.id);
+    const { data: grades, error: gradesError } = await mntSupabase
+      .from('lab_attempt_grades')
+      .select('lab_attempt_id, decision, official_score, competency_scores, critical_error, critical_error_reason, efficiency_feedback, correction_reason, rubric_version, created_by, created_at')
+      .in('lab_attempt_id', ids)
+      .order('created_at', { ascending: false });
+    const { data: notes, error: notesError } = await mntSupabase
+      .from('lab_attempt_feedback')
+      .select('lab_attempt_id, item_label, comment, created_at')
+      .in('lab_attempt_id', ids)
+      .order('created_at', { ascending: true });
+    if (gradesError || notesError) {
+      console.error('official grade history fetch failed', gradesError || notesError);
+      complete = false;
+      break;
+    }
+    (grades || []).forEach((row) => add(gradesByAttempt, row));
+    (notes || []).forEach((row) => add(notesByAttempt, row));
+  }
+  graded.forEach((row) => {
+    row.official_grade_history = complete && gradesByAttempt.has(row.id)
+      ? labDecisionsWithNotes(gradesByAttempt.get(row.id), notesByAttempt.get(row.id))
+      : null;
+  });
+  return rows;
+}
+
 async function fetchUserDetails(userId, trackCode) {
   let remoteModuleProgress = {};
   let remoteVerifiedModuleProgress = {};
@@ -7763,6 +7813,7 @@ async function render(options = {}) {
         const gradedStudentIdByUserId = new Map(dashboardRows.map((row) => [row.user_id, row.student_id]));
         gradedRows = (gradedResult.data || []).map((row) => ({ ...row, student_id: gradedStudentIdByUserId.get(row.user_id) || 'Unknown student' }));
         await applyOfficialLabGrades(gradedRows);
+        await applyOfficialGradeHistory(gradedRows);
 
         // Read-only Submission Sheets show the notes actually sent with each
         // decision. Read-only select (existing admin / assigned-instructor
