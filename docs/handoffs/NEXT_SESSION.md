@@ -84,6 +84,19 @@ them against the previous view's formula. Local Docker and Node only so far.
   signed-in student's newest attempt and sends the simulator a field-by-field
   copy (`itsProvePrefillWork()`), never scores or notes. A browser draft edited
   after that attempt stays (`prove.editedAt`). No migration.
+- **One status model for official-grade labs (2026-10-31, Megan):** replaces the raw "Complete" for `lab-its-01-prove-it`, following the two-field model of Moodle, Canvas, Google Classroom and Blackboard, where submission and grading are separate. `OFFICIAL_LAB_STATES` and `OFFICIAL_LAB_TONES` in `portal/app.js` are the one label and colour map.
+  - Name everywhere listed: "Module 1 · Prove It · HD-2125", from that attempt's saved `ticketId`, else "Module 1 · Prove It".
+  - States: Locked, Not started, In progress, Submitted for grading (staff "Needs grading", student "Submitted, waiting for review"), Returned for revision, Grade changed returned, Passed (the only green), Attempt limit reached (defined, not triggered), Credit by override.
+  - Locked is defined but can't appear yet: the only official-grade lab is in Module 1, which has no prerequisite.
+  - Each attempt shows Attempt n of N, ticket, Started (first opened), Submitted, Returned or Graded, graded by, any grade change with date, person and reason, and the official score once a decision is posted. Every attempt but the newest says "Earlier attempt: doesn't count toward the grade".
+  - An earned pass outranks an admin override. A student sees "your instructor", never a staff ID, because there's no name column yet and a staff ID is that person's login. An instructor sees "you", or "another staff member" for a row they can't read.
+  - Records use Catalog v1.2's scale (A 90–100, B 80–89, C 70–79 minimum passing, F below 70): score, letter and completion date only when the newest decision is an approval at or above the pass mark. Waiting, returned or grade changed show Score "—" and "In progress" with no date. F needs a final non-passing grade, so a return can't reach it. An override shows "Credit by override".
+  - **Credited hours are left as they are** (the hours, completion and transcript gap, L-005): a returned module can show no completion date while its hours stay credited.
+  - **Migration** `20261031120000_official_lab_snapshot_letter_grade.sql`: writes no student data. Adds `lab_letter_grade()`; for flagged labs only, the completion snapshot takes the newest attempt's newest decision and adds the letter and status. Rollback note in its header.
+  - SOC and every other lab keep their labels and transcript rows exactly (tested).
+  - Production now applies three migrations in order: `20261030175603`, `20261030221555`, `20261031120000`. Staging needs only the last.
+  - Adversarial review, 2026-10-31: two medium findings, both matching decisions, not fixed. A returned attempt's score shows on the student's marked lab (Megan's rule: the student sees it there, while the course page and records show "—"). F can't appear yet, because the attempt limit isn't enforced.
+  - Platform-wide follow-up, not changed: other screens still say "Complete" for a lab or module: the student detail table and evidence bundle for other labs, `portal/prove-it-gate.js`, `portal/soc-analyst-module-01.js`, and the module cards' "Complete" badge, which also appears on Help Desk Module 1 because it shows the module, not the attempt.
 - **Hosted staging, 2026-10-30 (Megan):** the checklist ran on `cdf36d8`; steps 5,
   6 and 10 rerun after the two changes above.
   - SOC review card left as it is: staging has no SOC attempts to review, so the

@@ -632,13 +632,14 @@ async function testModuleOnePage() {
   user = resetWorld(hdUser({ latestLabAttemptByKey: { [LAB]: WAITING } }));
   html = moduleOneHtml(user);
   assert.doesNotMatch(proveSection(html), /data-its01-prove-launch/);
-  assert.match(proveSection(html), /Prove It submitted .*waiting for instructor review/);
+  assert.match(proveSection(html), /Submitted, waiting for review/);
   assert.match(railRow(html).text, /In review/);
 
   // Passed.
-  user = resetWorld(hdUser({ latestLabAttemptByKey: { [LAB]: { ...WAITING, reviewedAt: '2026-10-02T15:00:00Z' } } }));
+  user = resetWorld(hdUser({ latestLabAttemptByKey: { [LAB]: { ...WAITING, reviewedAt: '2026-10-02T15:00:00Z', officialGrade: { decision: 'approved', official_score: 83, created_at: '2026-10-02T15:00:00Z' } } } }));
   html = moduleOneHtml(user);
-  assert.match(proveSection(html), /Prove It passed/);
+  assert.match(proveSection(html), /data-official-state="passed"/);
+  assert.match(proveSection(html), /Passed · 83/);
   assert.match(railRow(html).cls, /mnav-chip-complete/);
 
   // Returned: reopen, the notes, and the marked-lab link only with notes.

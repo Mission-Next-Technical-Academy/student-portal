@@ -177,6 +177,157 @@ async function fetchOfficialGrades(attemptIds) {
   return grades;
 }
 
+/* One status model for official-grade labs: submission and grading are separate
+ * fields, and these maps are the only place their labels and colours live.
+ * Nothing here applies to any other lab. attempt_limit is defined but nothing
+ * triggers it yet, because the attempt limit isn't enforced. */
+const OFFICIAL_LAB_TONES = {
+  muted: { pill: 'bg-gray-50 text-gray-400 border-gray-200', dot: 'bg-gray-200', color: '#9ca3af' },
+  neutral: { pill: 'bg-gray-100 text-gray-700 border-gray-200', dot: 'bg-gray-400', color: '#4b5563' },
+  amber: { pill: 'bg-amber-50 text-amber-800 border-amber-300', dot: 'bg-amber-400', color: '#b45309' },
+  green: { pill: 'bg-green-50 text-green-800 border-green-200', dot: 'bg-green-500', color: '#15803d' },
+  blue: { pill: 'bg-blue-50 text-blue-800 border-blue-200', dot: 'bg-blue-500', color: '#1d4ed8' },
+};
+const OFFICIAL_LAB_STATES = {
+  locked: { label: 'Locked', tone: 'muted' },
+  not_started: { label: 'Not started', tone: 'neutral' },
+  in_progress: { label: 'In progress', tone: 'neutral' },
+  submitted: { label: 'Needs grading', studentLabel: 'Submitted, waiting for review', tone: 'neutral' },
+  returned: { label: 'Returned for revision', tone: 'amber' },
+  grade_changed: { label: 'Grade changed, returned', tone: 'amber' },
+  passed: { label: 'Passed', tone: 'green' },
+  attempt_limit: { label: 'Attempt limit reached, meet with instructor', tone: 'amber' },
+  override: { label: 'Credit by override', tone: 'blue' },
+};
+const OFFICIAL_GRADE_SCALE = 'A 90–100, B 80–89, C 70–79 (minimum passing), F below 70 (Catalog v1.2)';
+const OFFICIAL_EARLIER_ATTEMPT = 'Earlier attempt: doesn\'t count toward the grade';
+const officialLockedText = (moduleNumber) => `Complete Module ${moduleNumber} first`;
+
+function officialLetterGrade(score) {
+  const n = Number(score);
+  return n >= 90 ? 'A' : n >= 80 ? 'B' : n >= 70 ? 'C' : 'F';
+}
+
+function officialTicketId(row) {
+  const id = row && row.result && row.result.ticketId;
+  return /^[A-Z]{2,4}-\d{4}$/.test(String(id || '')) ? id : '';
+}
+
+function officialLabName(labKey, ticketId) {
+  const lab = LABS.find((item) => item.key === labKey);
+  const number = lab ? Number(String(lab.module).split('-').pop()) : NaN;
+  return [number ? `Module ${number}` : '', 'Prove It', ticketId || ''].filter(Boolean).join(' · ');
+}
+
+function officialStateLabel(stateKey, viewer = 'staff') {
+  const state = OFFICIAL_LAB_STATES[stateKey];
+  return viewer === 'student' && state.studentLabel ? state.studentLabel : state.label;
+}
+
+function officialStateTone(stateKey) {
+  return OFFICIAL_LAB_TONES[OFFICIAL_LAB_STATES[stateKey].tone];
+}
+
+// One attempt's state, from its newest decision. Only an approval at or above
+// the pass mark is green.
+function officialAttemptStateKey(row) {
+  if (!row || !row.completed_at) return 'not_started';
+  if (!row.reviewed_at) return 'submitted';
+  const grade = row.official_grade;
+  const mark = Number(row.pass_threshold);
+  const atMark = grade && grade.official_score !== null && grade.official_score !== undefined && (!mark || Number(grade.official_score) >= mark);
+  if (grade && grade.decision === 'approved' && atMark && !row.redo_requested) return 'passed';
+  if (grade && grade.correction_reason) return 'grade_changed';
+  if (row.redo_requested || (grade && grade.decision === 'returned')) return 'returned';
+  return 'submitted';
+}
+
+// The status text with the one score the model allows beside it.
+function officialStatusText(stateKey, row, viewer = 'staff') {
+  const label = officialStateLabel(stateKey, viewer);
+  return stateKey === 'passed' && row && row.official_grade ? `${label} · ${row.official_grade.official_score}` : label;
+}
+
+function officialDateTime(value) {
+  return value ? new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
+}
+
+// Attempt n of N, ticket, the dates faculty and students need, who decided,
+// and any grade change. viewer 'student' never names staff: there's no name
+// column yet, and a staff ID is that person's login.
+function officialAttemptFactsHtml(row, { number, of, viewer = 'staff' } = {}) {
+  const grade = row.official_grade;
+  const stateKey = officialAttemptStateKey(row);
+  const decided = grade && row.reviewed_at;
+  const who = !grade ? '' : viewer === 'student' ? 'your instructor' : grade.graded_by_label || 'staff member not available';
+  const hasScore = decided && grade.official_score !== null && grade.official_score !== undefined;
+  const line = (text) => `<li>${esc(text)}</li>`;
+  return `<ul class="mt-1 space-y-0.5 text-xs text-gray-600" data-official-attempt-facts>
+    ${number && of && number < of ? `<li class="font-semibold text-gray-700" data-official-earlier-attempt>${esc(OFFICIAL_EARLIER_ATTEMPT)}</li>` : ''}
+    ${line([number && of ? `Attempt ${number} of ${of}` : '', officialTicketId(row)].filter(Boolean).join(' · ') || 'Attempt')}
+    ${line(`Started (first opened): ${officialDateTime(row.result && row.result.startedAt)}`)}
+    ${line(`Submitted: ${officialDateTime(row.completed_at)}`)}
+    ${decided ? line(`${stateKey === 'passed' ? 'Graded' : 'Returned'}: ${officialDateTime(grade.created_at)}`) : ''}
+    ${decided ? line(`Graded by: ${who}`) : ''}
+    ${hasScore ? line(`Official score: ${grade.official_score}%`) : ''}
+    ${decided && grade.correction_reason ? `<li data-official-grade-change>${esc(`Grade changed ${officialDateTime(grade.created_at)} by ${who}. Reason: ${grade.correction_reason}`)}</li>` : ''}
+  </ul>`;
+}
+
+// A module's record line for an official-grade lab, from its newest attempt.
+// An earned pass outranks an override; a score, letter and completion date
+// appear only on that pass. F needs a final non-passing grade, which only the
+// attempt limit will produce, so a return can never reach it.
+function officialModuleRecord(labKey, attemptRows, progressRow) {
+  const rows = attemptRows.filter((row) => row.lab_key === labKey && row.completed_at)
+    .sort((a, b) => String(a.completed_at).localeCompare(String(b.completed_at)));
+  const newest = rows[rows.length - 1] || null;
+  const attemptKey = officialAttemptStateKey(newest);
+  const name = officialLabName(labKey, officialTicketId(newest));
+  const base = { labKey, name, attempts: rows.length, newest };
+  if (attemptKey === 'passed') {
+    const score = Number(newest.official_grade.official_score);
+    return { ...base, stateKey: 'passed', status: officialStatusText('passed', newest), score, grade: officialLetterGrade(score), completedAt: newest.official_grade.created_at };
+  }
+  if (progressRow && progressRow.admin_override) {
+    return { ...base, stateKey: 'override', status: officialStateLabel('override'), score: null, grade: officialStateLabel('override'), completedAt: progressRow.admin_override_at || progressRow.completed_at || null, overrideNote: progressRow.admin_override_note || '' };
+  }
+  if (attemptKey === 'attempt_limit') return { ...base, stateKey: attemptKey, status: officialStateLabel(attemptKey), score: null, grade: 'F', completedAt: null };
+  if (attemptKey === 'not_started') return { ...base, stateKey: attemptKey, status: officialStateLabel(attemptKey), score: null, grade: 'Not attempted', completedAt: null };
+  return { ...base, stateKey: attemptKey, status: officialStateLabel(attemptKey), score: null, grade: 'In progress', completedAt: null };
+}
+
+function officialLabForModule(moduleKey) {
+  const lab = LABS.find((item) => item.module === moduleKey && labTakesOfficialGrade(item.key));
+  return lab ? lab.key : null;
+}
+
+// A student's newest attempt, as loaded at sign-in, in the shape above.
+function officialRowFromAttempt(labKey, attempt) {
+  if (!attempt || !attempt.completedAt || attempt.supersededAt) return null;
+  return {
+    lab_key: labKey, completed_at: attempt.completedAt, reviewed_at: attempt.reviewedAt, redo_requested: attempt.redoRequested,
+    pass_threshold: attempt.passThreshold, official_grade: attempt.officialGrade || null,
+    result: { ticketId: attempt.ticketId || '', startedAt: attempt.startedAt || null },
+  };
+}
+
+// Staff views: who made each decision. An instructor's row can be read only by
+// that instructor or an admin, so anyone else stays unnamed.
+async function applyGraderLabels(rows, moduleRows = []) {
+  const grades = rows.flatMap((row) => [row.official_grade, ...(row.official_grade_history || [])]).filter(Boolean);
+  const ids = [...new Set([...grades.map((grade) => grade.created_by), ...moduleRows.map((row) => row.admin_override_by)].filter(Boolean))];
+  if (!ids.length) return rows;
+  const me = await currentUser();
+  const { data, error } = await mntSupabase.from('students').select('user_id, student_id').in('user_id', ids);
+  if (error) console.error('grader labels fetch failed', error);
+  const known = new Map((data || []).map((row) => [row.user_id, row.student_id]));
+  const label = (id) => (me && me.userId === id ? 'you' : known.get(id) || 'another staff member');
+  grades.forEach((grade) => { grade.graded_by_label = label(grade.created_by); });
+  moduleRows.forEach((row) => { if (row.admin_override_by) row.admin_override_by_label = label(row.admin_override_by); });
+  return rows;
+}
+
 // A correction gives an attempt a second decision. The student sees only the
 // newest decision's notes; earlier ones stay in the record and on the staff
 // views. record_lab_grade saves a decision's grade and notes in one
@@ -252,6 +403,7 @@ async function applyOfficialGradeHistory(rows) {
 
 async function fetchUserDetails(userId, trackCode) {
   let remoteModuleProgress = {};
+  let remoteModuleOverrides = {};
   let remoteVerifiedModuleProgress = {};
   let remoteModuleEvidence = {};
   let remoteModuleDetail = {};
@@ -270,7 +422,7 @@ async function fetchUserDetails(userId, trackCode) {
   let requiredLabsByModuleKey = null;
   let studentMessages = [];
   if (!trackCode) {
-    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, openLabRedoFeedbackByLabKey, latestLabAttemptByKey, reviewedLabFeedbackByLabKey, requiredLabsByModuleKey, studentMessages };
+    return { remoteModuleProgress, remoteModuleOverrides, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, openLabRedoFeedbackByLabKey, latestLabAttemptByKey, reviewedLabFeedbackByLabKey, requiredLabsByModuleKey, studentMessages };
   }
 
   const [
@@ -281,7 +433,7 @@ async function fetchUserDetails(userId, trackCode) {
     { data: messageRows, error: messagesError },
     { data: requiredLabRows, error: requiredLabsError },
   ] = await Promise.all([
-    mntSupabase.from('module_progress').select('module_key, state, detail, case_state').eq('user_id', userId).eq('track_code', trackCode),
+    mntSupabase.from('module_progress').select('module_key, state, detail, case_state, admin_override, admin_override_note, admin_override_at').eq('user_id', userId).eq('track_code', trackCode),
     // This view is the institutional completion record.  It derives a
     // module's status from the required, passing assessment attempts (and
     // any declared detail requirements), rather than trusting a browser
@@ -298,7 +450,7 @@ async function fetchUserDetails(userId, trackCode) {
     // redo clears on its own — no separate acknowledgment step needed.
     mntSupabase
       .from('lab_attempts')
-      .select('id, lab_key, completed_at, reviewed_at, redo_requested, superseded_at')
+      .select('id, lab_key, completed_at, reviewed_at, redo_requested, superseded_at, pass_threshold, ticket_id:result->>ticketId, first_opened:result->>startedAt')
       .eq('user_id', userId)
       .eq('track_code', trackCode)
       .not('completed_at', 'is', null)
@@ -320,6 +472,7 @@ async function fetchUserDetails(userId, trackCode) {
     console.error('fetchUserDetails: module_progress fetch failed', progressError);
   } else {
     remoteModuleProgress = Object.fromEntries((progressRows || []).map((r) => [r.module_key, r.state]));
+    remoteModuleOverrides = Object.fromEntries((progressRows || []).filter((r) => r.admin_override).map((r) => [r.module_key, { note: r.admin_override_note || '', at: r.admin_override_at || null }]));
     remoteModuleDetail = Object.fromEntries((progressRows || []).map((r) => [r.module_key, r.detail || {}]));
     remoteCaseState = Object.fromEntries((progressRows || []).map((r) => [r.module_key, r.case_state || {}]));
   }
@@ -347,6 +500,13 @@ async function fetchUserDetails(userId, trackCode) {
     latestByLabKey.forEach((row, labKey) => {
       latestLabAttemptByKey[labKey] = { completedAt: row.completed_at, reviewedAt: row.reviewed_at || null, redoRequested: row.redo_requested === true, supersededAt: row.superseded_at || null };
     });
+    latestByLabKey.forEach((row, labKey) => {
+      if (!labTakesOfficialGrade(labKey)) return;
+      Object.assign(latestLabAttemptByKey[labKey], {
+        ticketId: row.ticket_id || '', startedAt: row.first_opened || null, passThreshold: row.pass_threshold,
+        attemptCount: (attemptRows || []).filter((other) => other.lab_key === labKey).length,
+      });
+    });
     // Only labs with official grades ask; every other lab makes no extra read.
     const gradedLatest = Array.from(latestByLabKey.values()).filter((row) => row.reviewed_at && labTakesOfficialGrade(row.lab_key));
     let latestGrades = new Map();
@@ -356,6 +516,7 @@ async function fetchUserDetails(userId, trackCode) {
       gradedLatest.forEach((row) => {
         const grade = grades.get(row.id);
         latestLabAttemptByKey[row.lab_key].officialScore = grade ? grade.official_score : null;
+        latestLabAttemptByKey[row.lab_key].officialGrade = grade || null;
       });
     }
     const openAttempts = Array.from(latestByLabKey.values()).filter((row) => row.redo_requested);
@@ -408,7 +569,7 @@ async function fetchUserDetails(userId, trackCode) {
     });
   }
 
-  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, openLabRedoFeedbackByLabKey, latestLabAttemptByKey, reviewedLabFeedbackByLabKey, requiredLabsByModuleKey, studentMessages };
+  return { remoteModuleProgress, remoteModuleOverrides, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, openLabRedoFeedbackByLabKey, latestLabAttemptByKey, reviewedLabFeedbackByLabKey, requiredLabsByModuleKey, studentMessages };
 }
 
 async function buildUserFromSession(session) {
@@ -1158,7 +1319,7 @@ function adminAttemptReviewCard(item, olderAttempt) {
 }
 
 function adminOpenRedoRequestsHtml(redoRows) {
-  return redoRows.length ? `<section class="mt-8 border-t border-gray-200 pt-6"><h3 class="text-lg font-bold text-[#1e3a5f]">Open redo requests</h3><p class="mt-1 mb-3 text-sm text-gray-500">These are the live redo notices learners can currently see. Use this only to reverse a faculty decision made in error; otherwise the learner must submit a new attempt.</p><div class="space-y-3">${redoRows.map((row) => `<article class="bg-amber-50 border border-amber-200 rounded-xl p-4" data-grading-row="${esc(row.id)}"><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p><p class="mt-0.5 text-sm text-gray-700">${esc(adminGradingLabMeta(row).moduleLabel)} <span class="text-gray-400">·</span> ${esc(adminGradingLabMeta(row).labTitle)} <span class="text-gray-400">·</span> sent back ${row.reviewed_at ? new Date(row.reviewed_at).toLocaleString() : '—'}</p><div class="mt-3 flex flex-wrap items-center gap-2">${labTakesOfficialGrade(row.lab_key) ? '<span class="text-xs text-gray-600">Waiting for the student\'s new attempt. This lab needs an official grade, so it can\'t be approved here.</span>' : `<button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(row.id)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Approve without resubmission</button>`}<span data-grading-status class="text-xs text-gray-600"></span></div></article>`).join('')}</div></section>` : '';
+  return redoRows.length ? `<section class="mt-8 border-t border-gray-200 pt-6"><h3 class="text-lg font-bold text-[#1e3a5f]">Open redo requests</h3><p class="mt-1 mb-3 text-sm text-gray-500">These are the live redo notices learners can currently see. Use this only to reverse a faculty decision made in error; otherwise the learner must submit a new attempt.</p><div class="space-y-3">${redoRows.map((row) => `<article class="bg-amber-50 border border-amber-200 rounded-xl p-4" data-grading-row="${esc(row.id)}"><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p><p class="mt-0.5 text-sm text-gray-700">${labTakesOfficialGrade(row.lab_key) ? esc(officialLabName(row.lab_key, officialTicketId(row))) : `${esc(adminGradingLabMeta(row).moduleLabel)} <span class="text-gray-400">·</span> ${esc(adminGradingLabMeta(row).labTitle)}`} <span class="text-gray-400">·</span> sent back ${row.reviewed_at ? new Date(row.reviewed_at).toLocaleString() : '—'}</p><div class="mt-3 flex flex-wrap items-center gap-2">${labTakesOfficialGrade(row.lab_key) ? '<span class="text-xs text-gray-600">Waiting for the student\'s new attempt. This lab needs an official grade, so it can\'t be approved here.</span>' : `<button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(row.id)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Approve without resubmission</button>`}<span data-grading-status class="text-xs text-gray-600"></span></div></article>`).join('')}</div></section>` : '';
 }
 
 /* Lab Attempts tab (owner, 2026-10-05): replaces the Grading/Graded split.
@@ -1184,6 +1345,7 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
   const autograded = new Set(autogradedRows.map((row) => row.id));
   const groups = adminGroupGradingRows([...pendingRows, ...gradedRows, ...supersededRows, ...autogradedRows]);
   const pendingCount = adminGroupGradingRows(pendingRows).reduce((n, student) => n + student.items.length, 0);
+  const hasOfficialLab = [...pendingRows, ...gradedRows, ...supersededRows, ...autogradedRows].some((row) => labTakesOfficialGrade(row.lab_key));
   const header = `<div class="mb-6">
       <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Lab Attempts</h2>
       <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
@@ -1193,6 +1355,8 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
         <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>Passed</span>
         <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>Returned / failed</span>
         <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-gray-300"></span>Not reviewed (replaced)</span>
+        ${hasOfficialLab ? `<span class="inline-flex items-center gap-1.5" data-official-legend><span class="w-2.5 h-2.5 rounded-full ${officialStateTone('submitted').dot}"></span>Needs grading</span>
+        <span class="inline-flex items-center gap-1.5" data-official-legend><span class="w-2.5 h-2.5 rounded-full ${officialStateTone('returned').dot}"></span>Returned for revision or grade changed</span>` : ''}
       </div>
     </div>`;
   if (!groups.length) {
@@ -1200,6 +1364,11 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
   }
   const pill = (text, tone) => `<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${tone}">${esc(text)}</span>`;
   const status = (row) => {
+    if (labTakesOfficialGrade(row.lab_key)) {
+      const stateKey = officialAttemptStateKey(row);
+      const tone = officialStateTone(stateKey);
+      return { label: officialStatusText(stateKey, row), tone: tone.pill, dot: tone.dot, official: true };
+    }
     const hasScore = row.score !== null && row.score !== undefined;
     const passing = hasScore && Number(row.score) >= Number(row.pass_threshold ?? 70);
     if (pending.has(row.id)) return { label: 'Under review', tone: 'bg-amber-50 text-amber-800 border-amber-300', dot: 'bg-amber-400' };
@@ -1225,13 +1394,14 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
       ? AdminSubmissionSheet.render(row, { item, readOnly: true, sentFeedback: superseded.has(row.id) || autograded.has(row.id) ? undefined : row.sent_feedback })
       : '';
     const ticket = sheet || adminCaseTicketSubmissionPanel(row);
+    const official = labTakesOfficialGrade(row.lab_key);
     return `<details class="rounded-lg border border-gray-200 bg-white px-3 py-2.5" data-graded-row="${esc(row.id)}" ${open ? 'open' : ''}>
       <summary class="cursor-pointer list-none flex flex-wrap items-center justify-between gap-2 text-sm">
-        <span class="font-medium text-[#1e3a5f]">${esc(item.name)}${row.attempt ? ` <span class="font-normal text-gray-500">· ${esc(adminAttemptLabel(row))}</span>` : ''}</span>
-        <span class="flex flex-wrap items-center gap-1.5">${pill(hasScore ? `${row.score}%` : 'No score', !hasScore ? 'bg-gray-100 text-gray-600' : passing ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700')}${outcomePill(row)}<span class="w-7 h-7 grid place-items-center rounded-full bg-gray-50 border border-gray-200 text-gray-500 text-lg transition-transform" data-grading-chevron aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></span>
+        <span class="font-medium text-[#1e3a5f]">${esc(official ? officialLabName(row.lab_key, officialTicketId(row)) : item.name)}${row.attempt ? ` <span class="font-normal text-gray-500">· ${esc(adminAttemptLabel(row))}</span>` : ''}</span>
+        <span class="flex flex-wrap items-center gap-1.5">${official ? pill(officialStatusText(officialAttemptStateKey(row), row), officialStateTone(officialAttemptStateKey(row)).pill) : `${pill(hasScore ? `${row.score}%` : 'No score', !hasScore ? 'bg-gray-100 text-gray-600' : passing ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700')}${outcomePill(row)}`}<span class="w-7 h-7 grid place-items-center rounded-full bg-gray-50 border border-gray-200 text-gray-500 text-lg transition-transform" data-grading-chevron aria-hidden="true"><i class="ri-arrow-down-s-line"></i></span></span>
       </summary>
-      <p class="mt-2 text-xs text-gray-500">${esc(item.labTitles.join(' · '))}</p>
-      <p class="mt-1 text-xs text-gray-500">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}${row.reviewed_at ? ` · Reviewed ${new Date(row.reviewed_at).toLocaleString()}` : ''}</p>
+      ${official ? officialAttemptFactsHtml(row, { number: row.attempt && row.attempt.number, of: row.attempt && row.attempt.of }) : `<p class="mt-2 text-xs text-gray-500">${esc(item.labTitles.join(' · '))}</p>
+      <p class="mt-1 text-xs text-gray-500">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}${row.reviewed_at ? ` · Reviewed ${new Date(row.reviewed_at).toLocaleString()}` : ''}</p>`}
       ${ticket ? `<div class="mt-3">${ticket}</div>` : ''}
       ${typeof itsEvidenceReviewPanel === 'function' ? itsEvidenceReviewPanel(row) : ''}
       ${typeof itsProveReviewPanel === 'function' ? itsProveReviewPanel(row) : ''}
@@ -1250,7 +1420,9 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
       const ordered = items.slice().sort((a, b) => String(b.lead.completed_at).localeCompare(String(a.lead.completed_at))
         || ((b.lead.attempt && b.lead.attempt.number) || 0) - ((a.lead.attempt && a.lead.attempt.number) || 0));
       const meta = adminGradingLabMeta(ordered[0].lead);
-      return { name, items: ordered, meta, key: `${student.studentId}|${name}`, status: status(ordered[0].lead) };
+      const newest = ordered[0].lead;
+      const display = labTakesOfficialGrade(newest.lab_key) ? officialLabName(newest.lab_key, officialTicketId(newest)) : name;
+      return { name: display, items: ordered, meta, key: `${student.studentId}|${name}`, status: status(newest) };
     }).sort((a, b) => phaseOrder(a.meta) - phaseOrder(b.meta));
     return { ...student, phases, pendingItems: student.items.filter((item) => pending.has(item.lead.id)).length };
   }).sort((a, b) => (b.pendingItems > 0) - (a.pendingItems > 0) || String(a.studentId).localeCompare(String(b.studentId)));
@@ -1262,7 +1434,7 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
       </div>
       <div class="mt-3 grid gap-1.5" style="grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));">${student.phases.map((phase) => {
         const row = phase.items[0].lead;
-        const hasScore = row.score !== null && row.score !== undefined;
+        const hasScore = !phase.status.official && row.score !== null && row.score !== undefined;
         return `<button type="button" data-attempt-chip="${esc(phase.key)}" aria-expanded="false" aria-controls="attempt-panel-${esc(domId(phase.key))}" title="Open the latest ${esc(phase.name)} attempt" class="flex items-center justify-between gap-2 rounded-full border px-3 py-1 text-xs font-semibold text-left transition-shadow hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a5f]/40 ${phase.status.tone}">
           <span class="flex items-center gap-1.5 min-w-0"><span class="w-2 h-2 flex-shrink-0 rounded-full ${phase.status.dot}" aria-hidden="true"></span><span class="truncate">${esc(phase.name)}</span></span>
           <span class="flex-shrink-0 tabular-nums">${esc(phase.status.label)}${hasScore ? ` <span class="font-normal opacity-75">· ${esc(String(row.score))}%</span>` : ''}</span>
@@ -1270,7 +1442,7 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
       }).join('')}</div>
       ${student.phases.map((phase) => `<div id="attempt-panel-${esc(domId(phase.key))}" data-attempt-panel="${esc(phase.key)}" class="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-3" hidden>
         <div class="flex items-center justify-between gap-2">
-          <h3 class="text-sm font-bold text-[#1e3a5f]">${esc(phase.meta.moduleLabel)} <span class="text-gray-400">·</span> ${esc(phase.meta.kind)}</h3>
+          <h3 class="text-sm font-bold text-[#1e3a5f]">${phase.status.official ? esc(phase.name) : `${esc(phase.meta.moduleLabel)} <span class="text-gray-400">·</span> ${esc(phase.meta.kind)}`}</h3>
           <button type="button" data-attempt-close class="text-xs font-semibold text-gray-500 hover:text-[#1e3a5f]" aria-label="Close ${esc(phase.name)}">Close <i class="ri-close-line" aria-hidden="true"></i></button>
         </div>
         ${attemptHtml(phase.items[0], true)}
@@ -2919,7 +3091,7 @@ async function renderTranscriptPdf(transcriptData, reportId) {
         fmtDate(m.startedAt),
         fmtDate(m.completedAt),
         `${fmtVal(m.attemptedHours, '0')} / ${fmtVal(m.attendedHours, '0')}`,
-        fmtScore(m.score),
+        m.scoreLabel || fmtScore(m.score),
         m.grade,
       ]),
       theme: 'grid',
@@ -2928,7 +3100,7 @@ async function renderTranscriptPdf(transcriptData, reportId) {
       didParseCell: (data) => {
         if (data.section === 'body' && data.column.index === 5) {
           const raw = data.cell.raw;
-          data.cell.styles.textColor = raw === 'Pass' ? PDF_GREEN : (raw === 'Fail' ? PDF_RED : PDF_GRAY);
+          data.cell.styles.textColor = ['Pass', 'A', 'B', 'C'].includes(raw) ? PDF_GREEN : (['Fail', 'F'].includes(raw) ? PDF_RED : PDF_GRAY);
           data.cell.styles.fontStyle = 'bold';
         }
       },
@@ -3320,7 +3492,11 @@ function computeModuleScores(program, moduleProgressRows, labAttemptRows) {
       return aScore > bestScore ? a : best;
     }, null);
     const state = progressRow ? progressRow.state : 'not_started';
+    const officialLab = officialLabForModule(moduleKey);
+    const official = officialLab ? officialModuleRecord(officialLab, attemptsForModule, progressRow) : null;
+    const attemptOrder = official ? attemptsForModule.filter((a) => a.lab_key === officialLab && a.completed_at).sort((a, b) => String(a.completed_at).localeCompare(String(b.completed_at))) : [];
     return {
+      official,
       moduleKey,
       title: module.title,
       state,
@@ -3330,7 +3506,7 @@ function computeModuleScores(program, moduleProgressRows, labAttemptRows) {
       completedAt: progressRow ? progressRow.completed_at : null,
       completed: state === 'complete',
       creditMinutes: Number(module.creditMinutes || module.durationMinutes || 0),
-      bestLabScore: bestAttempt && bestAttempt.score !== null && bestAttempt.score !== undefined ? Number(bestAttempt.score) : null,
+      bestLabScore: official ? official.score : bestAttempt && bestAttempt.score !== null && bestAttempt.score !== undefined ? Number(bestAttempt.score) : null,
       labAttempts: attemptsForModule.map((a) => ({
         labKey: a.lab_key,
         title: adminLabLabel(a.lab_key),
@@ -3340,6 +3516,14 @@ function computeModuleScores(program, moduleProgressRows, labAttemptRows) {
         completedAt: a.completed_at,
         rubricResult: a.result || null,
         officialGrade: a.official_grade || null,
+        officialAttempt: official && a.lab_key === officialLab ? {
+          name: officialLabName(officialLab, officialTicketId(a)),
+          stateKey: officialAttemptStateKey(a),
+          status: officialStatusText(officialAttemptStateKey(a), a),
+          earlier: attemptOrder.length > 0 && attemptOrder[attemptOrder.length - 1] !== a,
+          score: officialAttemptStateKey(a) === 'passed' ? Number(a.official_grade.official_score) : null,
+          correctionReason: a.official_grade ? a.official_grade.correction_reason || '' : '',
+        } : null,
       })),
     };
   });
@@ -3589,7 +3773,7 @@ function assessProgressGradesCompletion(program, moduleScores, capstoneRecord, h
     moduleKey: m.moduleKey,
     title: m.title,
     score: m.bestLabScore,
-    grade: m.bestLabScore === null ? 'Not attempted' : (m.bestLabScore >= passingThreshold ? 'Pass' : 'Fail'),
+    grade: m.official ? m.official.grade : m.bestLabScore === null ? 'Not attempted' : (m.bestLabScore >= passingThreshold ? 'Pass' : 'Fail'),
   }));
 
   const hasCapstone = capstoneRecord.status !== 'not_applicable';
@@ -3617,7 +3801,7 @@ function assessProgressGradesCompletion(program, moduleScores, capstoneRecord, h
     progressPercentage: Number(progressPercentage.toFixed(1)),
     academicAverage: academicAverage === null ? null : Number(academicAverage.toFixed(1)),
     moduleGrades,
-    gradeScale: `${passingThreshold}/100 passing threshold per module (docs/specs/ASSESSMENT_REPORTING_SPEC.md §2)`,
+    gradeScale: `${passingThreshold}/100 passing threshold per module (docs/specs/ASSESSMENT_REPORTING_SPEC.md §2)${moduleScores.some((m) => m.official) ? `; official-grade labs: ${OFFICIAL_GRADE_SCALE}` : ''}`,
     capstoneOutcome: capstoneRecord.status,
     programCompletionAssessment: {
       status: verifiableConditionsMet ? 'all_currently_verifiable_conditions_met' : 'incomplete',
@@ -3705,10 +3889,11 @@ async function buildTranscriptData(studentId, identity) {
     gradeScale: grades.gradeScale,
     modules: moduleScores.map((m) => ({
       moduleKey: m.moduleKey,
-      title: m.title,
+      title: m.official ? `${m.title}\n${m.official.name}: ${m.official.status}` : m.title,
       startedAt: m.startedAt,
-      completedAt: m.completedAt,
-      progressState: m.status,
+      completedAt: m.official ? m.official.completedAt : m.completedAt,
+      scoreLabel: m.official && m.official.score !== null ? String(m.official.score) : undefined,
+      progressState: m.official ? m.official.status : m.status,
       percentComplete: m.percent,
       attemptedHours: (fixedCreditHours.modules.find((h) => h.moduleKey === m.moduleKey) || {}).attemptedHours || 0,
       attendedHours: (fixedCreditHours.modules.find((h) => h.moduleKey === m.moduleKey) || {}).creditedHours || 0,
@@ -3762,12 +3947,14 @@ async function buildEvidencePacketData(studentId, identity) {
       moduleKey: m.moduleKey,
       moduleTitle: m.title,
       labKey: a.labKey,
-      labTitle: a.title,
+      labTitle: a.officialAttempt ? a.officialAttempt.name : a.title,
       state: a.state,
-      completionStatus: adminStateLabel(a.state),
+      completionStatus: a.officialAttempt
+        ? [a.officialAttempt.status, a.officialAttempt.correctionReason ? `Reason: ${a.officialAttempt.correctionReason}` : '', a.officialAttempt.earlier ? OFFICIAL_EARLIER_ATTEMPT : ''].filter(Boolean).join('. ')
+        : adminStateLabel(a.state),
       startedAt: a.startedAt,
-      completedAt: a.completedAt,
-      score: a.score,
+      completedAt: a.officialAttempt ? (a.officialAttempt.stateKey === 'passed' ? a.officialGrade.created_at : null) : a.completedAt,
+      score: a.officialAttempt ? a.officialAttempt.score : a.score,
       rubricBreakdown: a.rubricResult,
       competenciesEvaluated: a.rubricResult && typeof a.rubricResult === 'object' ? Object.keys(a.rubricResult) : [],
       submittedArtifactReference: (() => { const artifact = bundle.artifactRows.find((x) => x.lab_key === a.labKey); return artifact ? `Portfolio artifact ${artifact.id}` : 'No durable artifact recorded for this attempt'; })(),
@@ -4376,7 +4563,8 @@ function moduleCardState(program, moduleKey, user, unlocked) {
   const labs = moduleRequiredLabKeys(program, moduleKey, user).map((key) => {
     const record = LABS.find((lab) => lab.key === key);
     const status = requiredLabStatus(attempts[key]);
-    return { key, title: record ? record.title : key, status, feedback: status === 'returned' ? (notes[key] || []) : [] };
+    const official = labTakesOfficialGrade(key) ? officialRowFromAttempt(key, attempts[key]) : null;
+    return { key, title: record ? record.title : key, status, feedback: status === 'returned' ? (notes[key] || []) : [], official };
   });
   const submitted = labs.filter((lab) => lab.status === 'waiting' || lab.status === 'passed').length;
   const waiting = labs.filter((lab) => lab.status === 'waiting').length;
@@ -4404,6 +4592,10 @@ const TRUTHFUL_DOT_LABELS = {
 };
 
 function truthfulLabLine(lab) {
+  if (lab.official) {
+    const stateKey = officialAttemptStateKey(lab.official);
+    return `${esc(officialLabName(lab.key, officialTicketId(lab.official)))}: ${esc(officialStatusText(stateKey, lab.official, 'student'))}.${['passed', 'returned', 'grade_changed'].includes(stateKey) ? ` ${markedLabLinkHtml(lab.key)}` : ''}`;
+  }
   if (lab.status === 'passed') return `${esc(lab.title)} passed. ${markedLabLinkHtml(lab.key)}`;
   if (lab.status === 'returned') return `${esc(lab.title)} returned for revision. ${markedLabLinkHtml(lab.key)}`;
   if (lab.status === 'waiting') return `${esc(lab.title)}: waiting on your instructor.`;
@@ -7823,6 +8015,7 @@ async function render(options = {}) {
         gradedRows = (gradedResult.data || []).map((row) => ({ ...row, student_id: gradedStudentIdByUserId.get(row.user_id) || 'Unknown student' }));
         await applyOfficialLabGrades(gradedRows);
         await applyOfficialGradeHistory(gradedRows);
+        await applyGraderLabels(gradedRows);
 
         // Read-only Submission Sheets show the notes actually sent with each
         // decision. Read-only select (existing admin / assigned-instructor
@@ -8349,7 +8542,9 @@ async function openMarkedLab(labKey, trigger) {
       .order('created_at', { ascending: true });
     if (feedbackError) throw feedbackError;
     if (labTakesOfficialGrade(labKey) && typeof itsProveMarkedLabHtml === 'function') {
-      const graded = itsProveMarkedLabHtml(row, (await fetchOfficialGrades([row.id])).get(row.id), feedback || []);
+      const { data: allAttempts } = await mntSupabase.from('lab_attempts').select('id').eq('user_id', userId).eq('lab_key', labKey).not('completed_at', 'is', null);
+      const count = (allAttempts || []).length;
+      const graded = itsProveMarkedLabHtml(row, (await fetchOfficialGrades([row.id])).get(row.id), feedback || [], count ? { number: count, of: count } : {});
       if (graded) { body.innerHTML = graded; return; }
     }
     const sheet = typeof AdminSubmissionSheet !== 'undefined' ? AdminSubmissionSheet.renderStudent(row, { feedback: feedback || [] }) : '';
@@ -9806,14 +10001,15 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
     panel.dataset.studentId = studentId;
     panel.innerHTML = `<div class="text-sm text-gray-400 py-6">Loading student record…</div>`;
     const [moduleRes, labRes, capstoneRes, scorecardRes, artifactRes, reviewRes] = await Promise.all([
-      mntSupabase.from('module_progress').select('module_key, state, percent, started_at, completed_at, admin_override, admin_override_at').eq('user_id', row.user_id).eq('track_code', row.track_code),
-      mntSupabase.from('lab_attempts').select('id, lab_key, state, score, started_at, completed_at, result').eq('user_id', row.user_id).eq('track_code', row.track_code),
+      mntSupabase.from('module_progress').select('module_key, state, percent, started_at, completed_at, admin_override, admin_override_at, admin_override_by, admin_override_note').eq('user_id', row.user_id).eq('track_code', row.track_code),
+      mntSupabase.from('lab_attempts').select('id, lab_key, state, score, started_at, completed_at, result, reviewed_at, redo_requested, pass_threshold').eq('user_id', row.user_id).eq('track_code', row.track_code),
       mntSupabase.from('capstone_submissions').select('stage, score, submitted_at, answers').eq('user_id', row.user_id).eq('track_code', row.track_code).order('stage', { ascending: true }),
       mntSupabase.from('capstone_scorecard').select('overall_score, investigation_accuracy, detection_score, threat_hunting_score, incident_response_score, vulnerability_score, reporting_score, stages_submitted').eq('user_id', row.user_id).eq('track_code', row.track_code).maybeSingle(),
       mntSupabase.from('portfolio_artifacts').select('id, lab_key, submitted_at, content_sha256').eq('user_id', row.user_id).eq('track_code', row.track_code).order('submitted_at', { ascending: false }),
       mntSupabase.from('capstone_reviews').select('id, artifact_id, review_status, official_outcome, reviewed_by, reviewed_at, reviewer_notes, supervision_method').eq('user_id', row.user_id).eq('track_code', row.track_code).order('created_at', { ascending: false }),
     ]);
     await applyOfficialLabGrades(labRes.data || []);
+    await applyGraderLabels(labRes.data || [], moduleRes.data || []);
     if (panel.dataset.studentId !== studentId) return;
     panel.innerHTML = renderStudentDetail(row, moduleRes.data || [], labRes.data || [], capstoneRes.data || [], scorecardRes.data || null, artifactRes.data || [], reviewRes.data || [], cheatingFlagsByUserId.get(row.user_id) || []);
   }
@@ -10086,6 +10282,35 @@ function adminSplitSupersededAttempts(pendingRows, gradedRows) {
   return { pending, superseded };
 }
 
+// Student detail, official-grade labs only: the module's status comes from its
+// newest attempt, not module_progress.state. Hours still read module_progress.
+function adminModuleStatusCells(m, labRows) {
+  const labKey = officialLabForModule(m.module_key);
+  if (!labKey) {
+    return `<td class="px-4 py-2"><span style="color:${adminStateColor(m.state)}">${adminStateLabel(m.state)}</span>${m.admin_override ? ' <span class="text-xs font-semibold text-amber-700">(admin override)</span>' : ''}</td>
+                 <td class="px-4 py-2 text-gray-600">${m.percent}%</td>`;
+  }
+  const record = officialModuleRecord(labKey, labRows, m);
+  const earned = record.stateKey === 'passed' || record.stateKey === 'override';
+  const override = record.stateKey === 'override'
+    ? `<p class="mt-0.5 text-xs text-gray-600" data-official-override>${esc(`Approved by ${m.admin_override_by_label || 'an administrator'}. Reason: ${record.overrideNote || 'none recorded'}`)}</p>`
+    : '';
+  return `<td class="px-4 py-2"><span class="font-semibold" style="color:${officialStateTone(record.stateKey).color}" data-official-module-status="${esc(record.stateKey)}">${esc(record.status)}</span>${override}</td>
+                 <td class="px-4 py-2 text-gray-600">${earned ? `${m.percent}%` : '—'}</td>`;
+}
+
+function adminOfficialLabRow(l, number, of) {
+  const stateKey = officialAttemptStateKey(l);
+  const passed = stateKey === 'passed';
+  return `
+               <tr class="border-b border-gray-100" data-official-lab-row>
+                 <td class="px-4 py-2 text-gray-900">${esc(officialLabName(l.lab_key, officialTicketId(l)))}${officialAttemptFactsHtml(l, { number, of })}</td>
+                 <td class="px-4 py-2"><span class="font-semibold" style="color:${officialStateTone(stateKey).color}">${esc(officialStatusText(stateKey, l))}</span></td>
+                 <td class="px-4 py-2 text-gray-600">${passed ? esc(String(l.official_grade.official_score)) : '—'}</td>
+                 <td class="px-4 py-2 text-gray-600">${passed ? adminDate(l.official_grade.created_at) : '—'}</td>
+               </tr>`;
+}
+
 function adminStateLabel(state) {
   return state === 'complete' ? 'Complete' : state === 'in_progress' ? 'In Progress' : 'Not Started';
 }
@@ -10130,8 +10355,7 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
              ${moduleRows.slice().sort((a, b) => String(a.module_key).localeCompare(String(b.module_key))).map((m) => `
                <tr class="border-b border-gray-100">
                  <td class="px-4 py-2 text-gray-900">${esc(adminModuleLabel(row.track_code, m.module_key))}</td>
-                 <td class="px-4 py-2"><span style="color:${adminStateColor(m.state)}">${adminStateLabel(m.state)}</span>${m.admin_override ? ' <span class="text-xs font-semibold text-amber-700">(admin override)</span>' : ''}</td>
-                 <td class="px-4 py-2 text-gray-600">${m.percent}%</td>
+                 ${adminModuleStatusCells(m, labRows)}
                  <td class="px-4 py-2">
                    <button type="button"
                      data-admin-module-override
@@ -10175,6 +10399,7 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
                  const attemptNumber = (labAttemptIndex.get(l.lab_key) || 0) + 1;
                  labAttemptIndex.set(l.lab_key, attemptNumber);
                  const attemptLabel = labAttemptCounts.get(l.lab_key) > 1 ? ` <span class="text-xs text-gray-400">(Attempt ${attemptNumber} of ${labAttemptCounts.get(l.lab_key)})</span>` : '';
+                 if (labTakesOfficialGrade(l.lab_key)) return adminOfficialLabRow(l, attemptNumber, labAttemptCounts.get(l.lab_key));
                  return `
                <tr class="border-b border-gray-100">
                  <td class="px-4 py-2 text-gray-900">${esc(adminLabLabel(l.lab_key))}${attemptLabel}</td>

@@ -244,11 +244,11 @@ function testStudentResult() {
 
   assert.equal(marked(row(), null, notes), '', 'no grade, no graded view');
 
-  const student = { userId: 's', trackCode: 'HDESK', latestLabAttemptByKey: { [LAB]: { completedAt: '2026-10-30T10:00:00Z', reviewedAt: '2026-10-30T11:00:00Z', redoRequested: false, officialScore: 82 } } };
-  assert.match(prun('itsLabStatusHtml')(student, LAB, { label: 'Prove It', prefix: 'its01', pendingText: 'x' }), /Prove It passed · 82%/);
+  const student = { userId: 's', trackCode: 'HDESK', latestLabAttemptByKey: { [LAB]: { completedAt: '2026-10-30T10:00:00Z', reviewedAt: '2026-10-30T11:00:00Z', redoRequested: false, officialScore: 82, officialGrade: { decision: 'approved', official_score: 82, created_at: '2026-10-30T11:00:00Z' } } } };
+  assert.match(prun('itsLabStatusHtml')(student, LAB, { label: 'Prove It', prefix: 'its01', pendingText: 'x' }), /Passed · 82/);
   student.latestLabAttemptByKey[LAB] = { completedAt: '2026-10-30T10:00:00Z', reviewedAt: null, redoRequested: false, supersededAt: null };
   const waiting = prun('itsLabStatusHtml')(student, LAB, { label: 'Prove It', prefix: 'its01', pendingText: 'x' });
-  assert.match(waiting, /waiting for instructor review/);
+  assert.match(waiting, /Submitted, waiting for review/);
   assert.doesNotMatch(waiting, /%/, 'nothing about a score while it waits');
 }
 
@@ -375,7 +375,7 @@ async function testRecordsReportTheOfficialScore() {
     ? { data: [{ lab_attempt_id: 'p', decision: 'approved', official_score: 82, created_by: 'staff-1', created_at: '2026-10-30T11:00:00Z' }], error: null }
     : { data: [], error: null });
   const rows = [
-    { id: 'p', lab_key: LAB, score: null, state: 'complete' },
+    { id: 'p', lab_key: LAB, score: null, state: 'complete', completed_at: '2026-10-30T10:00:00Z', reviewed_at: '2026-10-30T11:00:00Z', redo_requested: false, pass_threshold: 70 },
     { id: 'u', lab_key: 'lab-its-02-vm-build', score: 85, state: 'complete' },
     { id: 'w', lab_key: LAB, score: null, state: 'complete' },
   ];
@@ -390,10 +390,163 @@ async function testRecordsReportTheOfficialScore() {
   assert.equal(moduleOne.bestLabScore, 82, 'Module 1\'s records show the official grade');
 }
 
+// One status model for official-grade labs.
+const decided = (decision, score, extra = {}) => ({ decision, official_score: score, competency_scores: [], created_by: 'staff-1', created_at: '2026-10-30T12:00:00Z', ...extra });
+const attemptRow = (extra = {}) => ({ id: 'x', lab_key: LAB, state: 'complete', score: null, pass_threshold: 70, completed_at: '2026-10-30T10:00:00Z', reviewed_at: null, redo_requested: false, official_grade: null, result: { ticketId: 'HD-2125', startedAt: '2026-10-30T09:30:00Z' }, ...extra });
+const stateOf = (extra) => prun('officialAttemptStateKey')(attemptRow(extra));
+const reviewed = { reviewed_at: '2026-10-30T12:00:00Z' };
+
+function testStatesAndColours() {
+  assert.equal(prun('officialAttemptStateKey')(null), 'not_started');
+  assert.equal(stateOf({}), 'submitted');
+  assert.equal(stateOf({ ...reviewed, redo_requested: true, official_grade: decided('returned', 58) }), 'returned');
+  assert.equal(stateOf({ ...reviewed, redo_requested: true, official_grade: decided('returned', null, { correction_reason: 'Why.' }) }), 'grade_changed');
+  assert.equal(stateOf({ ...reviewed, official_grade: decided('approved', 83) }), 'passed');
+  assert.equal(stateOf({ ...reviewed, official_grade: decided('approved', 69) }), 'submitted', 'an approval below the mark is never green');
+  assert.equal(stateOf({ ...reviewed, official_grade: null }), 'submitted', 'no grade read: never green');
+  assert.notEqual(stateOf({ ...reviewed, official_grade: decided('approved', 95), redo_requested: true }), 'passed');
+
+  const states = prun('OFFICIAL_LAB_STATES');
+  const tones = Object.fromEntries(Object.keys(states).map((key) => [key, states[key].tone]));
+  assert.deepEqual(JSON.parse(JSON.stringify(tones)), { locked: 'muted', not_started: 'neutral', in_progress: 'neutral', submitted: 'neutral', returned: 'amber', grade_changed: 'amber', passed: 'green', attempt_limit: 'amber', override: 'blue' });
+  Object.entries(states).forEach(([key, state]) => {
+    assert.doesNotMatch(`${state.label} ${state.studentLabel || ''}`, /\bComplete\b|\bFail/, `${key} never says Complete or Fail`);
+  });
+  assert.equal(prun('officialStateLabel')('submitted', 'staff'), 'Needs grading');
+  assert.equal(prun('officialStateLabel')('submitted', 'student'), 'Submitted, waiting for review');
+  assert.equal(prun('officialLockedText')(3), 'Complete Module 3 first');
+}
+
+function testNameComesFromTheAttempt() {
+  assert.equal(prun('officialLabName')(LAB, 'HD-2125'), 'Module 1 · Prove It · HD-2125');
+  assert.equal(prun('officialLabName')(LAB, ''), 'Module 1 · Prove It');
+  assert.equal(prun('officialTicketId')(attemptRow()), 'HD-2125');
+  assert.equal(prun('officialTicketId')(attemptRow({ result: { ticketId: '<b>x' } })), '', 'only a ticket ID');
+  assert.equal(prun('officialTicketId')(attemptRow({ result: null })), '');
+}
+
+function testLetterGradeBoundaries() {
+  const letter = prun('officialLetterGrade');
+  [[100, 'A'], [90, 'A'], [89, 'B'], [80, 'B'], [79, 'C'], [70, 'C'], [69, 'F'], [0, 'F']].forEach(([score, expected]) => assert.equal(letter(score), expected, String(score)));
+}
+
+function testAttemptFacts() {
+  const facts = prun('officialAttemptFactsHtml');
+  const earlier = facts(attemptRow({ ...reviewed, redo_requested: true, official_grade: decided('returned', 58, { graded_by_label: 'you' }) }), { number: 1, of: 3 });
+  assert.match(earlier, /Earlier attempt: doesn&#39;t count toward the grade|Earlier attempt: doesn't count toward the grade/);
+  assert.match(earlier, /Attempt 1 of 3 · HD-2125/);
+  assert.match(earlier, /Started \(first opened\): Oct 30, 2026/);
+  assert.match(earlier, /Submitted: Oct 30, 2026/);
+  assert.match(earlier, /Returned: Oct 30, 2026/);
+  assert.match(earlier, /Graded by: you/);
+  assert.match(earlier, /Official score: 58%/, 'a posted decision');
+  const newest = facts(attemptRow({ ...reviewed, official_grade: decided('approved', 83) }), { number: 3, of: 3 });
+  assert.doesNotMatch(newest, /Earlier attempt/, 'the newest attempt counts');
+  assert.match(newest, /Graded: Oct 30, 2026/);
+  const waiting = facts(attemptRow(), { number: 2, of: 2 });
+  assert.doesNotMatch(waiting, /Official score|Graded by/, 'no score before a decision');
+  const changed = facts(attemptRow({ ...reviewed, redo_requested: true, official_grade: decided('returned', null, { correction_reason: 'Approved by <mistake>.', graded_by_label: '123-HDINST' }) }), { number: 2, of: 2 });
+  assert.match(changed, /Grade changed Oct 30, 2026.*by 123-HDINST\. Reason: Approved by &lt;mistake&gt;\./);
+  const student = facts(attemptRow({ ...reviewed, redo_requested: true, official_grade: decided('returned', null, { correction_reason: 'Why.', graded_by_label: '123-HDINST' }) }), { number: 2, of: 2, viewer: 'student' });
+  assert.match(student, /by your instructor/);
+  assert.doesNotMatch(student, /123-HDINST/, 'a staff ID is a login: never to a student');
+}
+
+function testModuleRecord() {
+  const record = prun('officialModuleRecord');
+  const passedRows = [attemptRow({ ...reviewed, id: 'a', redo_requested: true, official_grade: decided('returned', 91) }), attemptRow({ ...reviewed, id: 'b', completed_at: '2026-10-30T14:00:00Z', official_grade: decided('approved', 83) })];
+  const passed = record(LAB, passedRows, { state: 'complete', completed_at: '2026-10-29T00:00:00Z' });
+  assert.equal(passed.stateKey, 'passed');
+  assert.equal(passed.score, 83, 'the newest decision, not the best score');
+  assert.equal(passed.grade, 'B');
+  assert.equal(passed.status, 'Passed · 83');
+  assert.equal(passed.completedAt, '2026-10-30T12:00:00Z', 'the grade date, not module_progress');
+
+  [[{ ...reviewed, redo_requested: true, official_grade: decided('returned', 58) }, 'Returned for revision'],
+    [{ ...reviewed, redo_requested: true, official_grade: decided('returned', null, { correction_reason: 'Why.' }) }, 'Grade changed, returned'],
+    [{}, 'Needs grading']].forEach(([extra, status]) => {
+    const open = record(LAB, [attemptRow(extra)], { state: 'complete', completed_at: '2026-10-29T00:00:00Z', percent: 100 });
+    assert.equal(open.status, status);
+    assert.equal(open.score, null, `${status}: Score —`);
+    assert.equal(open.grade, 'In progress', `${status}: never F`);
+    assert.equal(open.completedAt, null, `${status}: no completion date`);
+  });
+
+  const override = record(LAB, [attemptRow({ ...reviewed, redo_requested: true, official_grade: decided('returned', 40) })], { admin_override: true, admin_override_at: '2026-10-30T15:00:00Z', admin_override_note: 'Transfer credit.' });
+  assert.equal(override.stateKey, 'override');
+  assert.equal(override.grade, 'Credit by override', 'not a letter');
+  assert.equal(override.score, null);
+  assert.equal(override.overrideNote, 'Transfer credit.');
+  assert.equal(record(LAB, passedRows, { admin_override: true }).stateKey, 'passed', 'an earned pass outranks an override');
+  assert.equal(record(LAB, [], null).grade, 'Not attempted');
+}
+
+function testHelpDeskRecordsAndOtherLabsUnchanged() {
+  const program = prun(`PROGRAMS.find((p) => p.slug === 'it-support')`);
+  const practice = { id: 'lab', lab_key: 'lab-its-01-ticket-triage', state: 'complete', score: 100, completed_at: '2026-10-29T10:00:00Z' };
+  const returned = attemptRow({ ...reviewed, redo_requested: true, official_grade: decided('returned', 58) });
+  const moduleScores = prun('computeModuleScores')(program, [{ module_key: 'its-01', state: 'complete', percent: 100, completed_at: '2026-10-29T00:00:00Z' }], [practice, returned]);
+  const one = moduleScores.find((m) => m.moduleKey === 'its-01');
+  assert.equal(one.bestLabScore, null, 'a practice lab\'s 100 or a returned 58 never speaks for the module');
+  assert.equal(one.completed, true, 'hours still read module_progress');
+  assert.equal(one.official.status, 'Returned for revision');
+  const hours = prun('computeFixedCreditHours')(program, moduleScores, [], null);
+  assert.ok(hours.modules.find((m) => m.moduleKey === 'its-01').creditedHours > 0, 'credited hours are left as they are');
+  const grades = prun('assessProgressGradesCompletion')(program, moduleScores, { status: 'not_applicable' }, hours);
+  assert.equal(grades.moduleGrades.find((g) => g.moduleKey === 'its-01').grade, 'In progress');
+  assert.match(grades.gradeScale, /A 90–100, B 80–89, C 70–79 \(minimum passing\), F below 70/);
+
+  // SOC keeps its transcript rows and scale exactly.
+  const soc = prun(`PROGRAMS.find((p) => p.slug === 'soc-analyst')`);
+  const socKey = Object.keys(soc.modules)[0];
+  const socLab = prun(`LABS.find((l) => l.module === ${JSON.stringify(socKey)})`).key;
+  const socScores = prun('computeModuleScores')(soc, [{ module_key: socKey, state: 'complete', percent: 100, completed_at: '2026-10-29T00:00:00Z' }], [{ id: 's', lab_key: socLab, state: 'complete', score: 85, completed_at: '2026-10-29T10:00:00Z' }]);
+  const socOne = socScores.find((m) => m.moduleKey === socKey);
+  assert.equal(socOne.official, null);
+  assert.equal(socOne.bestLabScore, 85);
+  assert.equal(socOne.labAttempts[0].officialAttempt, null);
+  const socGrades = prun('assessProgressGradesCompletion')(soc, socScores, { status: 'not_applicable' }, prun('computeFixedCreditHours')(soc, socScores, [], null));
+  assert.equal(socGrades.moduleGrades.find((g) => g.moduleKey === socKey).grade, 'Pass');
+  assert.doesNotMatch(socGrades.gradeScale, /official-grade|Catalog/);
+
+  // Student detail: other labs keep their cells word for word.
+  const cells = prun('adminModuleStatusCells');
+  assert.ok(cells({ module_key: socKey, state: 'complete', percent: 100, admin_override: false }, []).includes('>Complete</span>'));
+  assert.ok(cells({ module_key: socKey, state: 'complete', percent: 100, admin_override: false }, []).includes('100%'));
+  const helpDesk = cells({ module_key: 'its-01', state: 'complete', percent: 100 }, [returned]);
+  assert.match(helpDesk, /Returned for revision/);
+  assert.doesNotMatch(helpDesk, /Complete|100%/, 'an official-grade module never says Complete');
+  const passedCell = cells({ module_key: 'its-01', state: 'complete', percent: 100 }, [attemptRow({ ...reviewed, official_grade: decided('approved', 83) })]);
+  assert.match(passedCell, /Passed · 83/);
+  assert.match(passedCell, /#15803d/, 'green');
+  const overrideCell = cells({ module_key: 'its-01', state: 'complete', percent: 100, admin_override: true, admin_override_note: 'Transfer credit.', admin_override_by_label: '9-ADMIN' }, []);
+  assert.match(overrideCell, /Credit by override/);
+  assert.match(overrideCell, /Approved by 9-ADMIN\. Reason: Transfer credit\./);
+  assert.doesNotMatch(overrideCell, /#15803d/, 'never styled as an earned pass');
+  const labRow = prun('adminOfficialLabRow')(attemptRow({ ...reviewed, redo_requested: true, official_grade: decided('returned', 58) }), 1, 2);
+  assert.match(labRow, /Module 1 · Prove It · HD-2125/);
+  assert.match(labRow, /<td class="px-4 py-2 text-gray-600">—<\/td>\s*<td class="px-4 py-2 text-gray-600">—<\/td>/, 'Score and date stay empty');
+}
+
+function testLabAttemptsListsOfficialStates() {
+  const panel = prun('adminLabAttemptsPanel');
+  const student = { user_id: 'u', student_id: '9900000001-HDESK', track_code: 'HDESK' };
+  const html = panel({ pendingRows: [attemptRow({ ...student, id: 'n' })] });
+  assert.match(html, /Module 1 · Prove It · HD-2125/);
+  assert.match(html, /Needs grading/);
+  const graded = panel({ gradedRows: [attemptRow({ ...student, ...reviewed, id: 'g', official_grade: decided('approved', 83) })] });
+  assert.match(graded, /Passed · 83/);
+  assert.doesNotMatch(graded, /Approved<\/span>/);
+  const soc = { ...student, id: 's', student_id: '9900000002-SOCAN', track_code: 'SOCAN', lab_key: 'lab-identity-investigation', score: 90, pass_threshold: 70, completed_at: '2026-10-30T10:00:00Z', reviewed_at: '2026-10-30T12:00:00Z', redo_requested: false };
+  const socHtml = panel({ gradedRows: [soc] });
+  assert.match(socHtml, /Approved/, 'other labs keep their pills');
+  assert.doesNotMatch(socHtml, /data-official-legend|data-official-attempt-facts|Needs grading/);
+}
+
 const tests = [
   testRubricIsTheApprovedOne, testTotalAndApproveRules, testCardOrderAndContent, testOtherLabsKeepTheirCard,
   testSubmitSendsTheGradeOnce, testReturnWithNoScoreSendsNone, testIncompleteScoresStayInTheBrowser, testFailedSaveKeepsTheWork,
-  testDecidedRecordAndReturnButton, testStudentResult, testStudentSeesOnlyTheLatestDecisionsNotes, testPanelShowsEveryDecisionWithItsNotes, testHistoryReadsOnlyForOfficialGradeLabs, testLabAttemptsInstructions, testStudentReadsTheScoreFromTheServerAtSignIn, testRecordsReportTheOfficialScore,
+  testDecidedRecordAndReturnButton, testStudentResult, testStudentSeesOnlyTheLatestDecisionsNotes, testPanelShowsEveryDecisionWithItsNotes, testHistoryReadsOnlyForOfficialGradeLabs, testLabAttemptsInstructions, testStatesAndColours, testNameComesFromTheAttempt, testLetterGradeBoundaries, testAttemptFacts, testModuleRecord, testHelpDeskRecordsAndOtherLabsUnchanged, testLabAttemptsListsOfficialStates, testStudentReadsTheScoreFromTheServerAtSignIn, testRecordsReportTheOfficialScore,
 ];
 (async () => {
   let failed = 0;
