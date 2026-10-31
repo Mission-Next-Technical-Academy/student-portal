@@ -1,5 +1,18 @@
 **2026-10-30 (Megan; PR #93 (draft) "Official faculty grades, Help Desk Module 1 Prove It first (L-003)"; shared new `supabase/` migration and tests, `portal/app.js`, `portal/index.html`, `bin/ci-check.sh` and `tests/portal-vm.js`, plus Help Desk `portal/it-support-shared.js`, `portal/it-support-module-01.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests — please review the shared ones):**
 **Hold (updated 2026-10-30): PR #90, PR #91, PR #92 and the faculty-gate PR roll out together, and none reaches production alone. Staging goes together once Megan has the production impact numbers. Before the production push Megan sends Randy a heads-up on four points: L-003 stays open for other labs, the records change, Module 2 waits on review, and the hours and transcript gap (L-005). The push doesn't wait for his answer; any change he asks for is handled afterwards. Production order: run the read-only impact query, apply the migrations by hand, then merge straight away.**
+**Production impact, read-only query, run 2026-10-30 before any of PR #90–#93 (Megan):**
+
+| Track | Students | Complete modules | Flip from PR #90 (Module 1) | Other complete modules then behind the lock | If every lab needed `score` ≥ 70 | If every lab needed an official score | Admin override | Marked complete but not verified |
+|---|---|---|---|---|---|---|---|---|
+| AIENG | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| HDESK | 3 | 13 | 1 | 11 | 12 (2 students) | 13 (2 students) | 0 | 11 |
+| SOCAN | 8 | 33 | 0 | 0 | 0 | 32 (5 students) | 1 | 9 |
+
+Instructor notes on unreviewed attempts: 0 across all tracks, so hiding them from students changes nothing today.
+
+As built, SOC and AI/ML don't change. The one Help Desk student whose Module 1 flips is a synthetic test account (Megan, 2026-10-30), not a real student. Its 11 other complete modules will sit behind the lock, and it keeps its hours.
+
+For later, not in this rollout: the "`score` ≥ 70" column is 0 for SOC, so an "empty score never passes" rule could extend to SOC without flipping anyone today. The last column (11 Help Desk, 9 SOC) is an existing mismatch and belongs with the hours, completion and transcript gap (L-005).
 Built on PR #92. A lab with `course_module_labs.requires_official_score = true` now
 passes only when its newest attempt holds an approved official faculty grade of
 at least the pass mark. Today that is one lab, `lab-its-01-prove-it`; each new
@@ -201,6 +214,7 @@ work is saved in this browser.") until the portal can receive the work.
   the server-side scoring and drafts work.
 
 **2026-10-30 (Megan; PR #90 (draft) "Help Desk Module 1 completes on its Prove It; Labs 1.1 and 1.2 become Practice It (L-003)"; shared `supabase/` migration, `portal/app.js`, `tests/module-card-state.test.js`, a new `supabase/tests/` file and `docs/operations/AI_AGENT_RULES.md`, plus Help Desk `portal/data.js` — please review the shared ones):**
+Production impact numbers (2026-10-30): see the PR #93 entry above. One Help Desk student's Module 1 flips because of this PR, with 11 other complete modules then behind the lock. It is a synthetic test account, not a real student.
 **Hold (updated 2026-10-30): PR #90, PR #91, PR #92 and the faculty-gate PR roll out together, and none reaches production alone. Staging goes together once Megan has the production impact numbers. Before the production push Megan sends Randy a heads-up on four points: L-003 stays open for other labs, the records change, Module 2 waits on review, and the hours and transcript gap (L-005). The push doesn't wait for his answer; any change he asks for is handled afterwards. Production order: run the read-only impact query, apply the migrations by hand, then merge straight away.**
 **The migration must not reach production until a
 Module 1 Prove It can submit to `lab-its-01-prove-it`.** Until then no Help
