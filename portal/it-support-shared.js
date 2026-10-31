@@ -580,7 +580,7 @@ function itsCleanProveWork(input, moduleKey, labKey) {
 async function itsProveRefreshAttempt(user, moduleKey, labKey) {
   try {
     const { data, error } = await mntSupabase.from('lab_attempts')
-      .select('id, completed_at, reviewed_at, redo_requested, superseded_at, pass_threshold, ticket_id:result->>ticketId, first_opened:result->>startedAt')
+      .select('id, completed_at, reviewed_at, redo_requested, superseded_at')
       .eq('user_id', user.userId)
       .eq('track_code', user.trackCode)
       .eq('lab_key', labKey)
@@ -596,11 +596,6 @@ async function itsProveRefreshAttempt(user, moduleKey, labKey) {
     if (latest && latest.reviewed_at) {
       grade = (await fetchOfficialGrades([latest.id])).get(latest.id) || null;
       attempts[labKey].officialScore = grade ? grade.official_score : null;
-      attempts[labKey].officialGrade = grade;
-    }
-    if (latest) {
-      const { data: all } = await mntSupabase.from('lab_attempts').select('id').eq('user_id', user.userId).eq('track_code', user.trackCode).eq('lab_key', labKey).not('completed_at', 'is', null);
-      Object.assign(attempts[labKey], { ticketId: latest.ticket_id || '', startedAt: latest.first_opened || null, passThreshold: latest.pass_threshold, attemptCount: (all || []).length });
     }
     user.latestLabAttemptByKey = attempts;
     if (latest && latest.redo_requested === true) {
@@ -776,8 +771,7 @@ function itsProveGradingCard(item, olderAttempt) {
   const box = 'class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"';
   return `<article class="bg-white border border-gray-200 rounded-xl p-5" data-grading-row="${esc(row.id)}" data-its-prove-grade="${esc(row.id)}" data-lab-key="${esc(row.lab_key)}" data-pass-mark="${esc(String(row.pass_threshold ?? ''))}">
     <div class="mb-3">
-      <p class="text-sm font-semibold text-[#1e3a5f]">${esc(officialLabName(row.lab_key, officialTicketId(row)))}${row.attempt ? ` <span class="font-normal text-gray-500">· ${esc(adminAttemptLabel(row))}</span>` : ''}</p>
-      ${officialAttemptFactsHtml(row, { number: row.attempt && row.attempt.number, of: row.attempt && row.attempt.of })}
+      <p class="text-sm font-semibold text-[#1e3a5f]">${esc(item.name)}${row.attempt ? ` <span class="font-normal text-gray-500">· ${esc(adminAttemptLabel(row))}</span>` : ''}</p>
       <p class="text-xs text-gray-500 mt-0.5">${esc(item.labTitles.join(' · '))} <span class="text-gray-400">·</span> <span class="font-mono">${esc(row.student_id)}</span></p>
       ${olderAttempt ? '<p class="mt-1 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Older attempt — a newer submission of this lab is below</p>' : ''}
       <p class="text-xs text-gray-400 mt-0.5">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}</p>
@@ -935,7 +929,7 @@ function itsProveReturnActionHtml(row, isNewest) {
   return `<details class="mt-3 rounded-lg border border-gray-200 bg-white px-3 py-2" data-its-prove-correction="${esc(row.id)}">
     <summary class="cursor-pointer text-sm font-semibold text-[#1e3a5f]">Return for another attempt</summary>
     <p class="mt-2 text-sm text-gray-700">Use this if the approval was a mistake. The module stops counting as complete and the student gets one new attempt. Hours already awarded don't change.</p>
-    <label class="mt-2 block text-xs font-semibold text-gray-600">Why you are correcting this decision (kept in the record, and the student sees it)
+    <label class="mt-2 block text-xs font-semibold text-gray-600">Why you are correcting this decision (kept in the record)
       <textarea rows="2" data-its-prove-correction-reason ${box}></textarea>
     </label>
     <label class="mt-2 block text-xs font-semibold text-gray-600">Note to the student (required)
@@ -987,17 +981,14 @@ function itsProveWireGrading(onSaved) {
 
 /* The student's marked lab for a graded Prove It. A return shows the
  * instructor's score if one was entered, with no pass/fail. */
-function itsProveMarkedLabHtml(row, grade, feedback, attempt = {}) {
+function itsProveMarkedLabHtml(row, grade, feedback) {
   if (!grade) return '';
-  const graded = { ...row, official_grade: grade, reviewed_at: row.reviewed_at || grade.created_at || true };
-  const stateKey = officialAttemptStateKey(graded);
-  const passed = stateKey === 'passed';
+  const passed = grade.decision === 'approved' && !row.redo_requested;
   const scores = Array.isArray(grade.competency_scores) ? grade.competency_scores : [];
   const notes = latestDecisionNotes(feedback || [], grade).filter((item) => String(item.comment || '').trim());
   const hasScore = grade.official_score !== null && grade.official_score !== undefined;
   return `<div class="mnt-marked-lab-status" data-its-prove-marked="${passed ? 'passed' : 'returned'}">
-    <p class="font-semibold text-[#1e3a5f]">${esc(officialLabName(row.lab_key, officialTicketId(row)))}: ${esc(officialStateLabel(stateKey, 'student'))}</p>
-    ${officialAttemptFactsHtml(graded, { ...attempt, viewer: 'student' })}
+    <p class="font-semibold text-[#1e3a5f]">${esc(itsLabTitle(row.lab_key))}: ${passed ? 'Passed' : 'Returned for revision'}</p>
     ${hasScore ? `<p class="mt-1 text-gray-800">${passed ? 'Your score' : 'Your instructor\'s score'}: <strong>${esc(String(grade.official_score))}%</strong></p>` : ''}
     ${scores.length ? `<ul class="mt-2 space-y-1">${scores.map((item) => `<li>${esc(String(item.label || item.id))}: ${esc(String(item.earned))} / ${esc(String(item.points))}</li>`).join('')}</ul>` : ''}
     ${notes.length ? `<h3 class="mt-3 font-semibold text-[#1e3a5f]">Your instructor's feedback</h3><ul class="mt-1 list-disc pl-5 space-y-1">${notes.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment)}</li>`).join('')}</ul>` : '<p class="mt-2 text-gray-600">Your instructor did not leave written notes.</p>'}
@@ -1059,48 +1050,8 @@ function itsLabSubmitting(user, labKey) {
  * prefix: the module's status classes (its01, its02, itss). ready: every
  * file the lab needs is added. pendingText: the prompt before anything is
  * submitted. */
-// The student's state for an official-grade lab: an earned pass, then an admin
-// override, then the attempt; a browser draft counts as In progress.
-function itsOfficialStudentState(user, labKey) {
-  const row = officialRowFromAttempt(labKey, itsLabAttempt(user, labKey));
-  const attemptKey = officialAttemptStateKey(row);
-  const lab = LABS.find((item) => item.key === labKey);
-  if (attemptKey !== 'passed' && lab && ((user && user.remoteModuleOverrides) || {})[lab.module]) return { stateKey: 'override', row };
-  if (attemptKey === 'not_started' && itsProveHasDraft(user, lab)) return { stateKey: 'in_progress', row };
-  return { stateKey: attemptKey, row };
-}
-
-function itsProveHasDraft(user, lab) {
-  if (!user || !lab || typeof LabRuntime === 'undefined') return false;
-  try {
-    const saved = JSON.parse(localStorage.getItem(`defender-lab.helpdesk.prove.v1.${lab.module}.${LabRuntime.anonymousStudentId(user)}`) || 'null');
-    return !!(saved && saved.prove && saved.prove.editedAt);
-  } catch (_) { return false; }
-}
-
-function itsLabDisplayTitle(user, labKey) {
-  if (!labTakesOfficialGrade(labKey)) return itsLabTitle(labKey);
-  return officialLabName(labKey, officialTicketId(officialRowFromAttempt(labKey, itsLabAttempt(user, labKey))));
-}
-
-// Below the status line: this attempt's dates, decision and any grade change.
-function itsOfficialFactsHtml(user, labKey) {
-  const attempt = itsLabAttempt(user, labKey);
-  const row = officialRowFromAttempt(labKey, attempt);
-  if (!row) return '';
-  return officialAttemptFactsHtml(row, { number: attempt.attemptCount, of: attempt.attemptCount, viewer: 'student' });
-}
-
 function itsLabStatusHtml(user, labKey, { label, prefix, pendingText, ready = false }) {
   const status = itsLabStatus(user, labKey);
-  if (labTakesOfficialGrade(labKey) && !itsLabSubmitting(user, labKey) && !(user && itsLabSubmitFailures.has(`${user.userId}|${labKey}`))) {
-    const { stateKey, row } = itsOfficialStudentState(user, labKey);
-    const text = stateKey === 'not_started' ? pendingText
-      : ['returned', 'grade_changed'].includes(stateKey) ? `${officialStateLabel(stateKey, 'student')} · Score — · see your instructor’s notes below.`
-      : officialStatusText(stateKey, row, 'student');
-    const pass = stateKey === 'passed';
-    return `<div class="${prefix}-lab-status ${prefix}-status-${pass ? 'pass' : 'pending'}" data-its-lab-status="${esc(labKey)}" data-status="${status}" data-official-state="${stateKey}"><i class="${pass ? 'ri-checkbox-circle-fill' : ['returned', 'grade_changed'].includes(stateKey) ? 'ri-error-warning-line' : stateKey === 'submitted' ? 'ri-send-plane-line' : 'ri-time-line'}" aria-hidden="true"></i><span>${esc(text)}</span></div>`;
-  }
   const officialScore = (itsLabAttempt(user, labKey) || {}).officialScore;
   const line = status === 'passed' ? { pass: true, icon: 'ri-checkbox-circle-fill', text: `${label} passed${typeof officialScore === 'number' ? ` · ${officialScore}%` : ''}` }
     : status === 'waiting' ? { icon: 'ri-send-plane-line', text: `${label} submitted ${itsSubmittedDay(user, labKey)}, waiting for instructor review` }
@@ -1228,7 +1179,7 @@ function itsRedoNoticeHtml(user, labs) {
     const items = notes[lab.key] || [];
     // The marked-lab view (portal/app.js) shows each note beside its section.
     const marked = typeof markedLabLinkHtml === 'function' ? `<p>${markedLabLinkHtml(lab.key)}</p>` : '';
-    return `<div class="m01-redo-feedback" role="note" data-its-redo-notice="${esc(lab.key)}"><strong><i class="ri-feedback-line" aria-hidden="true"></i> ${labTakesOfficialGrade(lab.key) ? `${esc(officialStateLabel(officialAttemptStateKey(officialRowFromAttempt(lab.key, itsLabAttempt(user, lab.key))), 'student'))}: ${esc(itsLabDisplayTitle(user, lab.key))}` : `Returned for revision: ${esc(itsLabTitle(lab.key))}`}</strong>${items.length
+    return `<div class="m01-redo-feedback" role="note" data-its-redo-notice="${esc(lab.key)}"><strong><i class="ri-feedback-line" aria-hidden="true"></i> Returned for revision: ${esc(itsLabTitle(lab.key))}</strong>${items.length
       ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>${marked}`
       : '<p>Your instructor returned this lab without written notes.</p>'}<p>${esc(lab.action)}</p></div>`;
   }).join('');

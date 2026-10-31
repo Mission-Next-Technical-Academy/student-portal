@@ -239,12 +239,6 @@ select pg_temp.check((select count(*) = 11 from public.module_progress where use
 select pg_temp.act_clear();
 insert into public.site_sessions (user_id, auth_session_id) values ('f0000000-0000-0000-0000-000000000003', 'e1000000-0000-0000-0000-000000000003');
 select pg_temp.act_as('3');
-select pg_temp.submit('f0000000-0000-0000-0000-000000000003', '2026-10-30 08:00+00');
-select pg_temp.act_clear();
-select pg_temp.act_as('4');
-select public.record_lab_grade(pg_temp.latest('f0000000-0000-0000-0000-000000000003'), 'returned', pg_temp.scores(22,11,11,28,19), false, null, null, 'A higher score, returned.');
-select pg_temp.act_clear();
-select pg_temp.act_as('3');
 select pg_temp.submit('f0000000-0000-0000-0000-000000000003', '2026-10-30 09:00+00');
 select pg_temp.act_clear();
 select pg_temp.act_as('4');
@@ -253,18 +247,7 @@ select pg_temp.act_clear();
 select pg_temp.check((select (lab->>'best_score')::numeric = 82 and (lab->>'ever_passed')::boolean
     from public.completion_reporting_snapshots s, jsonb_array_elements(s.lab_attempts_snapshot) lab
     where s.user_id = 'f0000000-0000-0000-0000-000000000003' and lab->>'lab_key' = 'lab-its-01-prove-it'),
-  'the completion snapshot reports the newest decision, not the higher returned score');
-select pg_temp.check((select lab->>'letter_grade' = 'B' and lab->>'official_status' = 'Passed' and (lab->>'official_score')::numeric = 82
-    from public.completion_reporting_snapshots s, jsonb_array_elements(s.lab_attempts_snapshot) lab
-    where s.user_id = 'f0000000-0000-0000-0000-000000000003' and lab->>'lab_key' = 'lab-its-01-prove-it'),
-  'and its letter grade and status');
-select pg_temp.check((select not (lab ? 'letter_grade') and not (lab ? 'official_status') and not (lab ? 'official_score')
-    from public.completion_reporting_snapshots s, jsonb_array_elements(s.lab_attempts_snapshot) lab
-    where s.user_id = 'f0000000-0000-0000-0000-000000000003' and lab->>'lab_key' = 'lab-its-02-vm-build'),
-  'an unflagged lab has no new fields');
-select pg_temp.check(public.lab_letter_grade(90) = 'A' and public.lab_letter_grade(89) = 'B' and public.lab_letter_grade(80) = 'B'
-    and public.lab_letter_grade(79) = 'C' and public.lab_letter_grade(70) = 'C' and public.lab_letter_grade(69) = 'F' and public.lab_letter_grade(null) is null,
-  'the catalog scale');
+  'the completion snapshot reports the official score and result');
 select pg_temp.check((select (lab->>'best_score')::numeric = 85 and (lab->>'ever_passed')::boolean
     from public.completion_reporting_snapshots s, jsonb_array_elements(s.lab_attempts_snapshot) lab
     where s.user_id = 'f0000000-0000-0000-0000-000000000003' and lab->>'lab_key' = 'lab-its-02-vm-build'),

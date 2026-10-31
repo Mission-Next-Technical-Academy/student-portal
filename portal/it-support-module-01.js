@@ -221,7 +221,7 @@ function its01Prove() {
   const user = its01User;
   const returned = itsLabReturned(user, ITS01_PROVE_KEY);
   return `<section class="its01-section its01-lab-section" id="its01-prove-it" aria-labelledby="its01-prove-it-title">
-    <div class="its01-section-heading"><span>3</span><div><p class="its01-kicker">Prove It · Assessment Lab · instructor reviewed</p><h2 id="its01-prove-it-title">${esc(itsLabDisplayTitle(user, ITS01_PROVE_KEY))}</h2></div></div>
+    <div class="its01-section-heading"><span>3</span><div><p class="its01-kicker">Prove It · Assessment Lab · instructor reviewed</p><h2 id="its01-prove-it-title">${esc(itsLabTitle(ITS01_PROVE_KEY))}</h2></div></div>
     <p class="its01-instruction">Work one new ticket on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Your instructor reviews your work.</p>
     <p class="its01-instruction">Complete Practice It (Labs 1.1 and 1.2) first: it prepares you for this.</p>
     ${itsLabSubmitted(user, ITS01_PROVE_KEY) ? '' : `<a class="itsw-evidence-button" data-its01-prove-launch href="${esc(itsProveLaunchHref('its-01', user))}" target="_blank" rel="opener">
@@ -229,7 +229,6 @@ function its01Prove() {
     </a>`}
     <div class="itss-walkthrough-notice" data-its01-prove-notice role="status" hidden></div>
     ${itsLabStatusHtml(user, ITS01_PROVE_KEY, { label: 'Prove It', prefix: 'its01', pendingText: 'Press Submit in the simulator when you finish the ticket.' })}
-    ${itsOfficialFactsHtml(user, ITS01_PROVE_KEY)}
     ${itsLabStatus(user, ITS01_PROVE_KEY) === 'passed' && typeof markedLabLinkHtml === 'function' ? `<p>${markedLabLinkHtml(ITS01_PROVE_KEY, 'See your score and feedback')}</p>` : ''}
     ${itsRedoNoticeHtml(user, [{ key: ITS01_PROVE_KEY, action: 'Reopen the Prove It, make your changes, then press Resubmit in the simulator. You can resubmit once for each return.' }])}
   </section>`;

@@ -652,8 +652,6 @@ function hdProvePrefill(work) {
   const ticket = hdState.tickets[0];
   const submitted = Date.parse(work && work.completedAt);
   if (!prove || !ticket || work.ticketId !== ticket.id || !submitted) return false;
-  // Started means first opened for this attempt, not an earlier one.
-  if (Date.parse(prove.startedAt) <= submitted) { prove.startedAt = new Date().toISOString(); hdSave(); }
   if (prove.editedAt && Date.parse(prove.editedAt) > submitted) return false;
   const fields = work.fields || {};
   const offered = (value, options) => (options.includes(value) ? value : '');

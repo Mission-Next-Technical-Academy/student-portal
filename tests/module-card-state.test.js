@@ -288,7 +288,7 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
   const waiting = card(hdUser({ latestLabAttemptByKey: { [LAB_1]: approved(), [LAB_2]: approved(), [PROVE]: finished() } }));
   assert.equal(waiting.state, 'awaiting_approval');
   assert.match(waiting.panel, /1 of 1 required lab submitted/);
-  assert.deepEqual(waiting.lines, [['waiting', 'Module 1 · Prove It: Submitted, waiting for review.']]);
+  assert.deepEqual(waiting.lines, [['waiting', `${PROVE_TITLE}: waiting on your instructor.`]]);
   // Prove It approved and verified: Passed, Module 2 opens.
   const passed = hdUser({ remoteVerifiedModuleProgress: { 'its-01': true }, latestLabAttemptByKey: { [PROVE]: approved() } });
   assert.equal(card(passed).state, 'complete');
