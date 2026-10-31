@@ -84,6 +84,12 @@ them against the previous view's formula. Local Docker and Node only so far.
   signed-in student's newest attempt and sends the simulator a field-by-field
   copy (`itsProvePrefillWork()`), never scores or notes. A browser draft edited
   after that attempt stays (`prove.editedAt`). No migration.
+- **Walked back, 2026-10-31 (Megan):** a wider status model for official-grade labs (status map, name with the ticket ID, per-attempt details, letter grades) was built and reverted before reaching staging's database, because it went beyond this rollout. See Code Issues Log ISSUE-100 to ISSUE-106.
+- **Records use the newest standing decision, official-grade labs only:** the transcript, completion snapshot, evidence bundle and student detail read the newest attempt's newest decision. An approval at or above the pass mark shows that official score, "Pass" and the approval date. Waiting, returned or grade changed shows Score "—", "In progress" and no completion date. They never reach back to an older attempt's score, or a practice lab in the same module, and never show "Fail" or a withdrawn grade. Other labs are unchanged (tested). No letter grades (ISSUE-102).
+  - A module with no attempt keeps its existing line. In the student detail table and evidence bundle, an earlier attempt's row also reads "In progress" with no score, because only the newest decision stands.
+  - Credited hours and the raw `module_progress` row are unchanged, so a returned module can show no completion date while its hours stay credited.
+  - **Migration** `20261031120000_official_lab_snapshot_letter_grade.sql`: its contents were replaced before it reached any shared database, so the name still says "letter grade" though it adds none. Writes no student data. Adds `lab_standing_decision()`, which no API role can call. Rollback in its header.
+  - Production applies three migrations in order: `20261030175603`, `20261030221555`, `20261031120000`.
 - **Hosted staging, 2026-10-30 (Megan):** the checklist ran on `cdf36d8`; steps 5,
   6 and 10 rerun after the two changes above.
   - SOC review card left as it is: staging has no SOC attempts to review, so the

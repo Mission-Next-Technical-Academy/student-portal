@@ -177,6 +177,34 @@ async function fetchOfficialGrades(attemptIds) {
   return grades;
 }
 
+/* Records (transcript, evidence bundle, student detail), official-grade labs
+ * only: the newest attempt's newest decision is the only one that stands. An
+ * approval at or above the pass mark shows its score and date; anything else
+ * shows no score and no date. Never an older attempt's score, a withdrawn grade
+ * or a Fail. Every other lab's record is unchanged. */
+function officialLabForModule(moduleKey) {
+  const lab = LABS.find((item) => item.module === moduleKey && labTakesOfficialGrade(item.key));
+  return lab ? lab.key : null;
+}
+
+function officialLabStanding(labKey, attemptRows) {
+  const newest = attemptRows.filter((row) => row.lab_key === labKey && row.completed_at)
+    .sort((a, b) => String(a.completed_at).localeCompare(String(b.completed_at))).pop() || null;
+  const grade = newest && newest.official_grade;
+  const score = grade ? Number(grade.official_score) : NaN;
+  const mark = newest ? Number(newest.pass_threshold) : NaN;
+  const passed = !!(newest && newest.reviewed_at && !newest.redo_requested && grade && grade.decision === 'approved'
+    && grade.official_score !== null && grade.official_score !== undefined && (!mark || score >= mark));
+  return { newestId: newest ? newest.id : null, attempted: !!newest, passed, score: passed ? score : null, decidedAt: passed ? grade.created_at : null };
+}
+
+// One attempt's line in the records, from the decision that stands.
+function officialAttemptRecord(row, standing) {
+  return standing.passed && row.id === standing.newestId
+    ? { status: 'Pass', state: 'complete', score: standing.score, date: standing.decidedAt }
+    : { status: 'In progress', state: 'in_progress', score: null, date: null };
+}
+
 // A correction gives an attempt a second decision. The student sees only the
 // newest decision's notes; earlier ones stay in the record and on the staff
 // views. record_lab_grade saves a decision's grade and notes in one
@@ -3320,7 +3348,10 @@ function computeModuleScores(program, moduleProgressRows, labAttemptRows) {
       return aScore > bestScore ? a : best;
     }, null);
     const state = progressRow ? progressRow.state : 'not_started';
+    const officialLab = officialLabForModule(moduleKey);
+    const standing = officialLab ? officialLabStanding(officialLab, attemptsForModule) : null;
     return {
+      official: standing,
       moduleKey,
       title: module.title,
       state,
@@ -3330,7 +3361,7 @@ function computeModuleScores(program, moduleProgressRows, labAttemptRows) {
       completedAt: progressRow ? progressRow.completed_at : null,
       completed: state === 'complete',
       creditMinutes: Number(module.creditMinutes || module.durationMinutes || 0),
-      bestLabScore: bestAttempt && bestAttempt.score !== null && bestAttempt.score !== undefined ? Number(bestAttempt.score) : null,
+      bestLabScore: standing ? standing.score : bestAttempt && bestAttempt.score !== null && bestAttempt.score !== undefined ? Number(bestAttempt.score) : null,
       labAttempts: attemptsForModule.map((a) => ({
         labKey: a.lab_key,
         title: adminLabLabel(a.lab_key),
@@ -3340,6 +3371,7 @@ function computeModuleScores(program, moduleProgressRows, labAttemptRows) {
         completedAt: a.completed_at,
         rubricResult: a.result || null,
         officialGrade: a.official_grade || null,
+        officialRecord: standing && a.lab_key === officialLab ? officialAttemptRecord(a, standing) : null,
       })),
     };
   });
@@ -3589,7 +3621,9 @@ function assessProgressGradesCompletion(program, moduleScores, capstoneRecord, h
     moduleKey: m.moduleKey,
     title: m.title,
     score: m.bestLabScore,
-    grade: m.bestLabScore === null ? 'Not attempted' : (m.bestLabScore >= passingThreshold ? 'Pass' : 'Fail'),
+    grade: m.official && m.official.passed ? 'Pass'
+      : m.official && m.official.attempted ? 'In progress'
+      : m.bestLabScore === null ? 'Not attempted' : (m.bestLabScore >= passingThreshold ? 'Pass' : 'Fail'),
   }));
 
   const hasCapstone = capstoneRecord.status !== 'not_applicable';
@@ -3707,8 +3741,8 @@ async function buildTranscriptData(studentId, identity) {
       moduleKey: m.moduleKey,
       title: m.title,
       startedAt: m.startedAt,
-      completedAt: m.completedAt,
-      progressState: m.status,
+      completedAt: m.official ? m.official.decidedAt || (m.official.attempted ? null : m.completedAt) : m.completedAt,
+      progressState: m.official && m.official.attempted ? (m.official.passed ? m.status : 'In progress') : m.status,
       percentComplete: m.percent,
       attemptedHours: (fixedCreditHours.modules.find((h) => h.moduleKey === m.moduleKey) || {}).attemptedHours || 0,
       attendedHours: (fixedCreditHours.modules.find((h) => h.moduleKey === m.moduleKey) || {}).creditedHours || 0,
@@ -3764,10 +3798,10 @@ async function buildEvidencePacketData(studentId, identity) {
       labKey: a.labKey,
       labTitle: a.title,
       state: a.state,
-      completionStatus: adminStateLabel(a.state),
+      completionStatus: a.officialRecord ? a.officialRecord.status : adminStateLabel(a.state),
       startedAt: a.startedAt,
-      completedAt: a.completedAt,
-      score: a.score,
+      completedAt: a.officialRecord ? a.officialRecord.date : a.completedAt,
+      score: a.officialRecord ? a.officialRecord.score : a.score,
       rubricBreakdown: a.rubricResult,
       competenciesEvaluated: a.rubricResult && typeof a.rubricResult === 'object' ? Object.keys(a.rubricResult) : [],
       submittedArtifactReference: (() => { const artifact = bundle.artifactRows.find((x) => x.lab_key === a.labKey); return artifact ? `Portfolio artifact ${artifact.id}` : 'No durable artifact recorded for this attempt'; })(),
@@ -9807,7 +9841,7 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
     panel.innerHTML = `<div class="text-sm text-gray-400 py-6">Loading student record…</div>`;
     const [moduleRes, labRes, capstoneRes, scorecardRes, artifactRes, reviewRes] = await Promise.all([
       mntSupabase.from('module_progress').select('module_key, state, percent, started_at, completed_at, admin_override, admin_override_at').eq('user_id', row.user_id).eq('track_code', row.track_code),
-      mntSupabase.from('lab_attempts').select('id, lab_key, state, score, started_at, completed_at, result').eq('user_id', row.user_id).eq('track_code', row.track_code),
+      mntSupabase.from('lab_attempts').select('id, lab_key, state, score, started_at, completed_at, result, reviewed_at, redo_requested, pass_threshold').eq('user_id', row.user_id).eq('track_code', row.track_code),
       mntSupabase.from('capstone_submissions').select('stage, score, submitted_at, answers').eq('user_id', row.user_id).eq('track_code', row.track_code).order('stage', { ascending: true }),
       mntSupabase.from('capstone_scorecard').select('overall_score, investigation_accuracy, detection_score, threat_hunting_score, incident_response_score, vulnerability_score, reporting_score, stages_submitted').eq('user_id', row.user_id).eq('track_code', row.track_code).maybeSingle(),
       mntSupabase.from('portfolio_artifacts').select('id, lab_key, submitted_at, content_sha256').eq('user_id', row.user_id).eq('track_code', row.track_code).order('submitted_at', { ascending: false }),
@@ -10086,6 +10120,28 @@ function adminSplitSupersededAttempts(pendingRows, gradedRows) {
   return { pending, superseded };
 }
 
+// Student detail: official-grade labs read the decision that stands.
+function adminModuleStatusHtml(m, labRows) {
+  const labKey = officialLabForModule(m.module_key);
+  const standing = labKey ? officialLabStanding(labKey, labRows) : null;
+  if (standing && standing.attempted) {
+    return `<span style="color:${adminStateColor(standing.passed ? 'complete' : 'in_progress')}">${standing.passed ? 'Pass' : 'In progress'}</span>`;
+  }
+  return `<span style="color:${adminStateColor(m.state)}">${adminStateLabel(m.state)}</span>`;
+}
+
+function adminLabRecordCells(l, labRows) {
+  const record = labTakesOfficialGrade(l.lab_key) ? officialAttemptRecord(l, officialLabStanding(l.lab_key, labRows)) : null;
+  if (record) {
+    return `<td class="px-4 py-2"><span style="color:${adminStateColor(record.state)}">${record.status}</span></td>
+                 <td class="px-4 py-2 text-gray-600">${adminScore(record.score)}</td>
+                 <td class="px-4 py-2 text-gray-600">${record.date ? adminDate(record.date) : '—'}</td>`;
+  }
+  return `<td class="px-4 py-2"><span style="color:${adminStateColor(l.state)}">${adminStateLabel(l.state)}</span></td>
+                 <td class="px-4 py-2 text-gray-600">${adminScore(l.score)}</td>
+                 <td class="px-4 py-2 text-gray-600">${adminDate(l.completed_at)}</td>`;
+}
+
 function adminStateLabel(state) {
   return state === 'complete' ? 'Complete' : state === 'in_progress' ? 'In Progress' : 'Not Started';
 }
@@ -10130,7 +10186,7 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
              ${moduleRows.slice().sort((a, b) => String(a.module_key).localeCompare(String(b.module_key))).map((m) => `
                <tr class="border-b border-gray-100">
                  <td class="px-4 py-2 text-gray-900">${esc(adminModuleLabel(row.track_code, m.module_key))}</td>
-                 <td class="px-4 py-2"><span style="color:${adminStateColor(m.state)}">${adminStateLabel(m.state)}</span>${m.admin_override ? ' <span class="text-xs font-semibold text-amber-700">(admin override)</span>' : ''}</td>
+                 <td class="px-4 py-2">${adminModuleStatusHtml(m, labRows)}${m.admin_override ? ' <span class="text-xs font-semibold text-amber-700">(admin override)</span>' : ''}</td>
                  <td class="px-4 py-2 text-gray-600">${m.percent}%</td>
                  <td class="px-4 py-2">
                    <button type="button"
@@ -10178,9 +10234,7 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
                  return `
                <tr class="border-b border-gray-100">
                  <td class="px-4 py-2 text-gray-900">${esc(adminLabLabel(l.lab_key))}${attemptLabel}</td>
-                 <td class="px-4 py-2"><span style="color:${adminStateColor(l.state)}">${adminStateLabel(l.state)}</span></td>
-                 <td class="px-4 py-2 text-gray-600">${adminScore(l.score)}</td>
-                 <td class="px-4 py-2 text-gray-600">${adminDate(l.completed_at)}</td>
+                 ${adminLabRecordCells(l, labRows)}
                </tr>`;
                }).join('')}
            </tbody>

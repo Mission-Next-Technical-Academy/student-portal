@@ -239,15 +239,51 @@ select pg_temp.check((select count(*) = 11 from public.module_progress where use
 select pg_temp.act_clear();
 insert into public.site_sessions (user_id, auth_session_id) values ('f0000000-0000-0000-0000-000000000003', 'e1000000-0000-0000-0000-000000000003');
 select pg_temp.act_as('3');
+select pg_temp.submit('f0000000-0000-0000-0000-000000000003', '2026-10-30 08:00+00');
+select pg_temp.act_clear();
+select pg_temp.act_as('4');
+select public.record_lab_grade(pg_temp.latest('f0000000-0000-0000-0000-000000000003'), 'returned', pg_temp.scores(22,11,11,28,19), false, null, null, 'A higher score, returned.');
+select pg_temp.act_clear();
+select pg_temp.check((select not passed and official_score is null and decided_at is null from public.lab_standing_decision('f0000000-0000-0000-0000-000000000003', 'HDESK', 'lab-its-01-prove-it')),
+  'a returned score does not stand');
+select pg_temp.act_as('3');
 select pg_temp.submit('f0000000-0000-0000-0000-000000000003', '2026-10-30 09:00+00');
 select pg_temp.act_clear();
+select pg_temp.check((select not passed and official_score is null from public.lab_standing_decision('f0000000-0000-0000-0000-000000000003', 'HDESK', 'lab-its-01-prove-it')),
+  'a waiting attempt has no standing score');
 select pg_temp.act_as('4');
 select public.record_lab_grade(pg_temp.latest('f0000000-0000-0000-0000-000000000003'), 'approved', pg_temp.scores(22,11,11,28,10));
 select pg_temp.act_clear();
 select pg_temp.check((select (lab->>'best_score')::numeric = 82 and (lab->>'ever_passed')::boolean
     from public.completion_reporting_snapshots s, jsonb_array_elements(s.lab_attempts_snapshot) lab
     where s.user_id = 'f0000000-0000-0000-0000-000000000003' and lab->>'lab_key' = 'lab-its-01-prove-it'),
-  'the completion snapshot reports the official score and result');
+  'the completion snapshot reports the newest decision, not the higher returned score');
+select pg_temp.check((select lab->>'status' = 'Pass' and lab->>'last_completed_at' is not null
+    from public.completion_reporting_snapshots s, jsonb_array_elements(s.lab_attempts_snapshot) lab
+    where s.user_id = 'f0000000-0000-0000-0000-000000000003' and lab->>'lab_key' = 'lab-its-01-prove-it'),
+  'and its status and approval date');
+select pg_temp.check((select m->>'state' = 'complete' and m->>'completed_at' is not null
+    from public.completion_reporting_snapshots s, jsonb_array_elements(s.module_progress_snapshot) m
+    where s.user_id = 'f0000000-0000-0000-0000-000000000003' and m->>'module_key' = 'its-01'),
+  'and its module entry');
+select pg_temp.check((select not (lab ? 'status')
+    from public.completion_reporting_snapshots s, jsonb_array_elements(s.lab_attempts_snapshot) lab
+    where s.user_id = 'f0000000-0000-0000-0000-000000000003' and lab->>'lab_key' = 'lab-its-02-vm-build'),
+  'an unflagged lab has no new field');
+select pg_temp.check((select lab->>'last_completed_at' is not null
+    from public.completion_reporting_snapshots s, jsonb_array_elements(s.lab_attempts_snapshot) lab
+    where s.user_id = 'f0000000-0000-0000-0000-000000000003' and lab->>'lab_key' = 'lab-its-02-vm-build'),
+  'and keeps its date');
+select pg_temp.check((select passed and official_score = 82 and decided_at is not null from public.lab_standing_decision('f0000000-0000-0000-0000-000000000003', 'HDESK', 'lab-its-01-prove-it')),
+  'an approval at or above the pass mark stands');
+select pg_temp.act_as('4');
+select public.record_lab_grade(pg_temp.latest('f0000000-0000-0000-0000-000000000003'), 'returned', '[]'::jsonb, false, null, null, 'Try again.', 'Approved by mistake.');
+select pg_temp.act_clear();
+select pg_temp.check((select not passed and official_score is null and decided_at is null from public.lab_standing_decision('f0000000-0000-0000-0000-000000000003', 'HDESK', 'lab-its-01-prove-it')),
+  'a corrected approval no longer stands');
+set local role authenticated;
+select pg_temp.expect_error($$select * from public.lab_standing_decision('f0000000-0000-0000-0000-000000000003', 'HDESK', 'lab-its-01-prove-it')$$, null, 'no API role can call it');
+reset role;
 select pg_temp.check((select (lab->>'best_score')::numeric = 85 and (lab->>'ever_passed')::boolean
     from public.completion_reporting_snapshots s, jsonb_array_elements(s.lab_attempts_snapshot) lab
     where s.user_id = 'f0000000-0000-0000-0000-000000000003' and lab->>'lab_key' = 'lab-its-02-vm-build'),

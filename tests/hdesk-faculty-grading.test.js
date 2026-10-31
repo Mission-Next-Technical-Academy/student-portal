@@ -375,7 +375,7 @@ async function testRecordsReportTheOfficialScore() {
     ? { data: [{ lab_attempt_id: 'p', decision: 'approved', official_score: 82, created_by: 'staff-1', created_at: '2026-10-30T11:00:00Z' }], error: null }
     : { data: [], error: null });
   const rows = [
-    { id: 'p', lab_key: LAB, score: null, state: 'complete' },
+    { id: 'p', lab_key: LAB, score: null, state: 'complete', pass_threshold: 70, completed_at: '2026-10-30T10:00:00Z', reviewed_at: '2026-10-30T11:00:00Z', redo_requested: false },
     { id: 'u', lab_key: 'lab-its-02-vm-build', score: 85, state: 'complete' },
     { id: 'w', lab_key: LAB, score: null, state: 'complete' },
   ];
@@ -390,10 +390,111 @@ async function testRecordsReportTheOfficialScore() {
   assert.equal(moduleOne.bestLabScore, 82, 'Module 1\'s records show the official grade');
 }
 
+// Records use the newest standing decision, official-grade labs only.
+const recordRow = (extra = {}) => ({ id: 'x', lab_key: LAB, state: 'complete', score: null, pass_threshold: 70, started_at: '2026-10-30T09:00:00Z', completed_at: '2026-10-30T10:00:00Z', reviewed_at: '2026-10-30T12:00:00Z', redo_requested: false, official_grade: null, result: {}, ...extra });
+const graded = (decision, score, at = '2026-10-30T12:00:00Z', extra = {}) => ({ decision, official_score: score, created_at: at, ...extra });
+const moduleRow = { module_key: 'its-01', state: 'complete', percent: 100, started_at: '2026-10-29T09:00:00Z', completed_at: '2026-10-29T10:00:00Z' };
+
+async function transcriptFor(slug, track, rows, modules) {
+  const program = prun(`PROGRAMS.find((p) => p.slug === '${slug}')`);
+  portal.supabaseResponder = (call) => {
+    if (call.table === 'module_progress') return { data: modules, error: null };
+    if (call.table === 'lab_attempts') return { data: rows.map((row) => ({ ...row })), error: null };
+    if (call.table === 'lab_attempt_grades') return { data: rows.filter((row) => row.official_grade).map((row) => ({ lab_attempt_id: row.id, ...row.official_grade })), error: null };
+    return { data: call.table === 'students' ? null : [], error: null };
+  };
+  const identity = { userId: 'u', trackCode: track, program };
+  const transcript = await prun('buildTranscriptData')('sid', identity);
+  const evidence = await prun('buildEvidencePacketData')('sid', identity);
+  portal.supabaseResponder = () => ({ data: [], error: null });
+  return { transcript, evidence };
+}
+
+async function testRecordsUseTheStandingDecision() {
+  const check = async (rows, expected, label) => {
+    const { transcript, evidence } = await transcriptFor('it-support', 'HDESK', rows, [moduleRow]);
+    const row = transcript.modules.find((m) => m.moduleKey === 'its-01');
+    assert.equal(row.score, expected.score, `${label}: transcript score`);
+    assert.equal(row.grade, expected.grade, `${label}: transcript grade`);
+    assert.equal(row.completedAt, expected.date, `${label}: transcript date`);
+    const newest = evidence.labs.filter((lab) => lab.labKey === LAB).pop();
+    assert.equal(newest.score, expected.score, `${label}: evidence score`);
+    assert.equal(newest.completionStatus, expected.grade, `${label}: evidence status`);
+    assert.equal(newest.completedAt, expected.date, `${label}: evidence date`);
+    return row;
+  };
+  const inProgress = { score: null, grade: 'In progress', date: null };
+  await check([recordRow({ redo_requested: true, official_grade: graded('returned', 58) })], inProgress, 'returned 58');
+  await check([recordRow({ official_grade: graded('approved', 83) })], { score: 83, grade: 'Pass', date: '2026-10-30T12:00:00Z' }, 'approved 83');
+  await check([recordRow({ redo_requested: true, official_grade: graded('returned', null, '2026-10-30T13:00:00Z', { correction_reason: 'Approved by mistake.' }) })], inProgress, 'approved 100, then corrected');
+  await check([recordRow({ reviewed_at: null })], inProgress, 'waiting');
+  // Never reach back to an older attempt, or a practice lab in the same module.
+  await check([
+    recordRow({ id: 'old', official_grade: graded('approved', 83) }),
+    recordRow({ id: 'new', completed_at: '2026-10-30T15:00:00Z', redo_requested: true, official_grade: graded('returned', 58, '2026-10-30T16:00:00Z') }),
+    { id: 'practice', lab_key: 'lab-its-01-ticket-triage', state: 'complete', score: 100, started_at: '2026-10-29T09:00:00Z', completed_at: '2026-10-29T10:00:00Z', result: {} },
+  ], inProgress, 'older approval, newer return');
+  // A higher returned score doesn't beat the newer approval; the older row shows nothing.
+  const { evidence } = await transcriptFor('it-support', 'HDESK', [
+    recordRow({ id: 'old', redo_requested: true, official_grade: graded('returned', 91) }),
+    recordRow({ id: 'new', completed_at: '2026-10-30T15:00:00Z', official_grade: graded('approved', 83, '2026-10-30T16:00:00Z') }),
+  ], [moduleRow]);
+  const proveRows = evidence.labs.filter((lab) => lab.labKey === LAB);
+  assert.deepEqual(JSON.parse(JSON.stringify(proveRows.map((lab) => lab.score))), [null, 83]);
+  // A module nobody attempted keeps its existing line: never a Fail.
+  const none = await transcriptFor('it-support', 'HDESK', [], []);
+  assert.equal(none.transcript.modules.find((m) => m.moduleKey === 'its-01').grade, 'Not attempted');
+}
+
+async function testOtherLabsRecordsAreUnchanged() {
+  const soc = prun(`PROGRAMS.find((p) => p.slug === 'soc-analyst')`);
+  const key = Object.keys(soc.modules)[0];
+  const lab = prun(`LABS.find((l) => l.module === ${JSON.stringify(key)})`).key;
+  const started = '2026-10-29T09:00:00Z';
+  const finished = '2026-10-29T10:00:00Z';
+  const { transcript, evidence } = await transcriptFor('soc-analyst', 'SOCAN', [{ id: 's', lab_key: lab, state: 'complete', score: 85, started_at: started, completed_at: finished, result: {} }], [{ module_key: key, state: 'complete', percent: 100, started_at: started, completed_at: finished }]);
+  const row = transcript.modules.find((m) => m.moduleKey === key);
+  assert.equal(row.title, soc.modules[key].title);
+  assert.equal(row.startedAt, started);
+  assert.equal(row.completedAt, finished);
+  assert.equal(row.progressState, 'Complete');
+  assert.equal(row.score, 85);
+  assert.equal(row.grade, 'Pass');
+  const entry = evidence.labs.find((item) => item.labKey === lab);
+  assert.equal(entry.completionStatus, 'Complete');
+  assert.equal(entry.score, 85);
+  assert.equal(entry.completedAt, finished);
+  // A below-pass SOC lab keeps its Fail: only official-grade labs drop it.
+  const low = await transcriptFor('soc-analyst', 'SOCAN', [{ id: 's', lab_key: lab, state: 'complete', score: 40, started_at: started, completed_at: finished, result: {} }], [{ module_key: key, state: 'in_progress', percent: 50, started_at: started, completed_at: null }]);
+  assert.equal(low.transcript.modules.find((m) => m.moduleKey === key).grade, 'Fail');
+
+  // Student detail keeps its cells word for word on other labs.
+  const cells = prun('adminLabRecordCells')({ id: 's', lab_key: lab, state: 'complete', score: 85, completed_at: finished }, []);
+  assert.ok(cells.includes('>Complete</span>'));
+  assert.ok(cells.includes('85.0'));
+  assert.ok(prun('adminModuleStatusHtml')({ module_key: key, state: 'complete' }, []).includes('>Complete</span>'));
+}
+
+function testStudentDetailUsesTheStandingDecision() {
+  const cells = prun('adminLabRecordCells');
+  const returned = recordRow({ redo_requested: true, official_grade: graded('returned', 58), score: 58 });
+  const html = cells(returned, [returned]);
+  assert.match(html, />In progress</);
+  assert.doesNotMatch(html, /58|Complete|Fail/);
+  const approved = recordRow({ official_grade: graded('approved', 83), score: 83 });
+  const passed = cells(approved, [approved]);
+  assert.match(passed, />Pass</);
+  assert.match(passed, /83\.0/);
+  const moduleStatus = prun('adminModuleStatusHtml');
+  assert.match(moduleStatus(moduleRow, [returned]), />In progress</);
+  assert.match(moduleStatus(moduleRow, [approved]), />Pass</);
+  assert.match(moduleStatus(moduleRow, []), />Complete</, 'nothing attempted: as before');
+}
+
 const tests = [
   testRubricIsTheApprovedOne, testTotalAndApproveRules, testCardOrderAndContent, testOtherLabsKeepTheirCard,
   testSubmitSendsTheGradeOnce, testReturnWithNoScoreSendsNone, testIncompleteScoresStayInTheBrowser, testFailedSaveKeepsTheWork,
-  testDecidedRecordAndReturnButton, testStudentResult, testStudentSeesOnlyTheLatestDecisionsNotes, testPanelShowsEveryDecisionWithItsNotes, testHistoryReadsOnlyForOfficialGradeLabs, testLabAttemptsInstructions, testStudentReadsTheScoreFromTheServerAtSignIn, testRecordsReportTheOfficialScore,
+  testDecidedRecordAndReturnButton, testStudentResult, testStudentSeesOnlyTheLatestDecisionsNotes, testPanelShowsEveryDecisionWithItsNotes, testHistoryReadsOnlyForOfficialGradeLabs, testLabAttemptsInstructions, testRecordsUseTheStandingDecision, testOtherLabsRecordsAreUnchanged, testStudentDetailUsesTheStandingDecision, testStudentReadsTheScoreFromTheServerAtSignIn, testRecordsReportTheOfficialScore,
 ];
 (async () => {
   let failed = 0;
