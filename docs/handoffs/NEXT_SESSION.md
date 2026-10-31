@@ -81,7 +81,7 @@ them against the previous view's formula. Local Docker and Node only so far.
   - After a correction `module_progress` still says complete at 100% while the
     verified view says not complete. Left to the hours, completion and transcript
     gap (L-005).
-  - PDFs checked manually by Megan: the agent run didn't download them, because
+  - PDFs to be checked manually by Megan before production: the agent run didn't download them, because
     each download writes an audit row.
 - **Not closed here:**
   - L-003 stays open for every other lab, where Approve still counts as a pass.
