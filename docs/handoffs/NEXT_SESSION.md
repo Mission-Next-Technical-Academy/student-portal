@@ -74,6 +74,10 @@ them against the previous view's formula. Local Docker and Node only so far.
   and correction notes (`applyOfficialGradeHistory()`, `itsProveDecisionsHtml()`).
   Older decisions start collapsed, labelled like "Approved 70%, Oct 30, replaced
   by a correction". Only official-grade labs make these reads. No migration.
+- **Lab Attempts instructions:** a tab listing an official-grade lab says the
+  instructor's grade on the grading sheet is the official score and when Approve
+  is available, and keeps the old sentence for "every other lab". A tab with no
+  official-grade lab, including SOC, keeps its wording exactly (tested).
 - **Resubmit prefill:** a returned Prove It reopens with the student's own last
   submitted choices and writing, so "make your changes" holds after sign-out
   (which clears browser drafts) or on another device. The portal reads the
@@ -89,6 +93,11 @@ them against the previous view's formula. Local Docker and Node only so far.
     gap (L-005).
   - Follow-up, not now: earlier attempts' feedback is saved and readable, but the
     student's marked-lab link opens only the newest attempt.
+  - Known, not fixed (adversarial review, both rated medium, 2026-10-30): the
+    prefill compares the browser's edit time with the attempt's completed time,
+    so a device with a wrong clock could overwrite a newer draft in that browser;
+    and if the student's grade read fails but the notes read works, the student
+    can see a replaced decision's notes until the next load.
   - PDFs to be checked manually by Megan before production: the agent run didn't download them, because
     each download writes an audit row.
 - **Not closed here:**

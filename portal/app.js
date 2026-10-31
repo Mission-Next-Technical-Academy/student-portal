@@ -1169,6 +1169,15 @@ function adminOpenRedoRequestsHtml(redoRows) {
  * attempts awaiting review. */
 let adminOpenAttemptPanel = null; // reopened after a decision re-renders the tab
 
+// A tab can list official-grade labs and other labs together, so it names both
+// only when it does. A tab with no official-grade lab keeps its wording as it was.
+function adminLabAttemptsGuidance(rows) {
+  const official = rows.find((row) => labTakesOfficialGrade(row.lab_key));
+  if (!official) return "The score is the system's pregrade; your approval is what unlocks the next module.";
+  const mark = Number(official.pass_threshold);
+  return `On an official-grade lab, your grade on the grading sheet is the official score, and Approve is only available at ${mark ? `${mark} or more` : 'the pass mark or more'} with no critical error. On every other lab, the score is the system's pregrade; your approval is what unlocks the next module.`;
+}
+
 function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRows = [], autogradedRows = [], openRedoRows = [] } = {}) {
   const pending = new Set(pendingRows.map((row) => row.id));
   const superseded = new Set(supersededRows.map((row) => row.id));
@@ -1178,7 +1187,7 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
   const header = `<div class="mb-6">
       <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Lab Attempts</h2>
       <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
-      <p class="text-gray-500 text-sm">${pendingCount ? `<strong class="text-[#1e3a5f]">${pendingCount} awaiting your review.</strong> ` : 'Nothing awaiting review. '}Each pill is a module phase's latest attempt — click one to open it. The score is the system's pregrade; your approval is what unlocks the next module.</p>
+      <p class="text-gray-500 text-sm">${pendingCount ? `<strong class="text-[#1e3a5f]">${pendingCount} awaiting your review.</strong> ` : 'Nothing awaiting review. '}Each pill is a module phase's latest attempt — click one to open it. ${adminLabAttemptsGuidance([...pendingRows, ...gradedRows, ...supersededRows, ...autogradedRows])}</p>
       <div class="mt-3 flex flex-wrap gap-3 text-xs text-gray-500" aria-label="Status key">
         <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>Under review</span>
         <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>Passed</span>

@@ -324,6 +324,26 @@ async function testHistoryReadsOnlyForOfficialGradeLabs() {
   portal.supabaseResponder = () => ({ data: [], error: null });
 }
 
+// Lab Attempts instructions. The first string is the wording every tab had
+// before official grades; it must not change for a tab without one.
+function testLabAttemptsInstructions() {
+  const unchanged = "Each pill is a module phase's latest attempt — click one to open it. The score is the system's pregrade; your approval is what unlocks the next module.";
+  const panel = prun('adminLabAttemptsPanel');
+  const soc = { id: 's', user_id: 'u', student_id: '9900000002-SOCAN', track_code: 'SOCAN', lab_key: 'lab-identity-investigation', score: 90, pass_threshold: 70, completed_at: '2026-10-30T10:00:00Z' };
+  const helpDesk = { ...soc, id: 'h', track_code: 'HDESK', lab_key: 'lab-its-02-vm-build' };
+  assert.ok(panel().includes(`Nothing awaiting review. ${unchanged}`), 'no attempts');
+  assert.ok(panel({ pendingRows: [soc] }).includes(`1 awaiting your review.</strong> ${unchanged}`), 'SOC');
+  assert.ok(panel({ gradedRows: [helpDesk] }).includes(unchanged), 'another Help Desk lab');
+  assert.doesNotMatch(panel({ pendingRows: [soc] }), /official-grade|grading sheet/);
+
+  const official = row({ pass_threshold: '70.00' });
+  const mixed = panel({ pendingRows: [official], gradedRows: [helpDesk] });
+  assert.match(mixed, /your grade on the grading sheet is the official score, and Approve is only available at 70 or more with no critical error\./);
+  assert.match(mixed, /On every other lab, the score is the system's pregrade; your approval is what unlocks the next module\./);
+  assert.doesNotMatch(mixed, /click one to open it\. The score is the system's pregrade/, 'the old sentence no longer speaks for every lab');
+  assert.match(panel({ gradedRows: [row({ pass_threshold: 75 })] }), /available at 75 or more/, 'the mark comes from the attempt, not this file');
+}
+
 async function testStudentReadsTheScoreFromTheServerAtSignIn() {
   portal.supabaseCalls.length = 0;
   portal.supabaseResponder = (call) => {
@@ -373,7 +393,7 @@ async function testRecordsReportTheOfficialScore() {
 const tests = [
   testRubricIsTheApprovedOne, testTotalAndApproveRules, testCardOrderAndContent, testOtherLabsKeepTheirCard,
   testSubmitSendsTheGradeOnce, testReturnWithNoScoreSendsNone, testIncompleteScoresStayInTheBrowser, testFailedSaveKeepsTheWork,
-  testDecidedRecordAndReturnButton, testStudentResult, testStudentSeesOnlyTheLatestDecisionsNotes, testPanelShowsEveryDecisionWithItsNotes, testHistoryReadsOnlyForOfficialGradeLabs, testStudentReadsTheScoreFromTheServerAtSignIn, testRecordsReportTheOfficialScore,
+  testDecidedRecordAndReturnButton, testStudentResult, testStudentSeesOnlyTheLatestDecisionsNotes, testPanelShowsEveryDecisionWithItsNotes, testHistoryReadsOnlyForOfficialGradeLabs, testLabAttemptsInstructions, testStudentReadsTheScoreFromTheServerAtSignIn, testRecordsReportTheOfficialScore,
 ];
 (async () => {
   let failed = 0;
