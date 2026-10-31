@@ -592,18 +592,19 @@ async function itsProveRefreshAttempt(user, moduleKey, labKey) {
     const attempts = { ...(user.latestLabAttemptByKey || {}) };
     if (latest) attempts[labKey] = { completedAt: latest.completed_at, reviewedAt: latest.reviewed_at || null, redoRequested: latest.redo_requested === true, supersededAt: latest.superseded_at || null };
     else delete attempts[labKey];
+    let grade = null;
     if (latest && latest.reviewed_at) {
-      const grade = (await fetchOfficialGrades([latest.id])).get(latest.id);
+      grade = (await fetchOfficialGrades([latest.id])).get(latest.id) || null;
       attempts[labKey].officialScore = grade ? grade.official_score : null;
     }
     user.latestLabAttemptByKey = attempts;
     if (latest && latest.redo_requested === true) {
       const { data: rows, error: notesError } = await mntSupabase.from('lab_attempt_feedback')
-        .select('item_label, comment')
+        .select('item_label, comment, created_at')
         .eq('lab_attempt_id', latest.id)
         .order('created_at', { ascending: true });
       if (notesError) throw notesError;
-      const feedback = (rows || []).filter((row) => String(row.comment || '').trim());
+      const feedback = latestDecisionNotes(rows || [], grade).filter((row) => String(row.comment || '').trim());
       user.openLabRedoFeedbackByLabKey = { ...(user.openLabRedoFeedbackByLabKey || {}), [labKey]: feedback };
       user.openLabRedosByModuleKey = { ...(user.openLabRedosByModuleKey || {}), [moduleKey]: { labKey, labTitle: itsLabTitle(labKey), feedback } };
     }
@@ -612,6 +613,36 @@ async function itsProveRefreshAttempt(user, moduleKey, labKey) {
     console.error('Prove It: could not read the latest attempt', labKey, err);
     return null;
   }
+}
+
+// What a returned attempt's form reopens with: the student's own choices and
+// writing from the saved package, field by field. Never the instructor's
+// scores or notes, which aren't in the package, and never anything else in it.
+function itsProvePrefillWork(row) {
+  const work = row && row.result;
+  if (!work || work.kind !== 'hdesk-prove' || !row.completed_at || !work.fields) return null;
+  const text = (value) => (typeof value === 'string' ? value : '');
+  return {
+    completedAt: row.completed_at, ticketId: text(work.ticketId),
+    fields: { category: text(work.fields.category), type: text(work.fields.type), priority: text(work.fields.priority) },
+    diagnosis: text(work.diagnosis), steps: Array.isArray(work.steps) ? work.steps.map(text) : [], decision: text(work.decision),
+    resolutionNote: text(work.resolutionNote), userReply: text(work.userReply),
+    workNotes: Array.isArray(work.workNotes) ? work.workNotes.map(text) : [],
+  };
+}
+
+// This student's own newest attempt. A failed read just means no prefill.
+async function itsProveLastWork(user, labKey) {
+  const { data, error } = await mntSupabase.from('lab_attempts')
+    .select('completed_at, result')
+    .eq('user_id', user.userId)
+    .eq('track_code', user.trackCode)
+    .eq('lab_key', labKey)
+    .not('completed_at', 'is', null)
+    .order('completed_at', { ascending: false })
+    .limit(1);
+  if (error) { console.error('Prove It: could not read the last submitted work', labKey, error); return null; }
+  return itsProvePrefillWork(data && data[0]);
 }
 
 /* Answers both messages. Every message that names this Prove It gets a reply,
@@ -633,7 +664,11 @@ async function itsProveReceiveMessage(event, { moduleKey, labKey, onChange }) {
     const status = await itsProveRefreshAttempt(user, moduleKey, labKey);
     if (!status) { answer({ reason: 'unreadable' }); return; }
     if (status !== before && onChange) onChange();
-    if (data.type === ITS_PROVE_STATUS) { answer({ status }); return; }
+    if (data.type === ITS_PROVE_STATUS) {
+      const lastWork = status === 'returned' ? await itsProveLastWork(user, labKey) : null;
+      answer(lastWork ? { status, lastWork } : { status });
+      return;
+    }
     if (status === 'waiting' || status === 'passed') { answer({ status, reason: 'already-submitted' }); return; }
     const { work, reason } = itsCleanProveWork(data.work, moduleKey, labKey);
     if (!work) { answer({ status, reason }); return; }
@@ -909,7 +944,7 @@ function itsProveMarkedLabHtml(row, grade, feedback) {
   if (!grade) return '';
   const passed = grade.decision === 'approved' && !row.redo_requested;
   const scores = Array.isArray(grade.competency_scores) ? grade.competency_scores : [];
-  const notes = (feedback || []).filter((item) => String(item.comment || '').trim());
+  const notes = latestDecisionNotes(feedback || [], grade).filter((item) => String(item.comment || '').trim());
   const hasScore = grade.official_score !== null && grade.official_score !== undefined;
   return `<div class="mnt-marked-lab-status" data-its-prove-marked="${passed ? 'passed' : 'returned'}">
     <p class="font-semibold text-[#1e3a5f]">${esc(itsLabTitle(row.lab_key))}: ${passed ? 'Passed' : 'Returned for revision'}</p>

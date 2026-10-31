@@ -252,6 +252,19 @@ function testStudentResult() {
   assert.doesNotMatch(waiting, /%/, 'nothing about a score while it waits');
 }
 
+// After a correction the student sees only the newest decision's notes.
+function testStudentSeesOnlyTheLatestDecisionsNotes() {
+  const approved = { lab_attempt_id: 'a', item_label: 'Overall', comment: 'Note on the approval.', created_at: '2026-10-30T10:00:00.100+00:00' };
+  const corrected = { lab_attempt_id: 'a', item_label: 'Overall', comment: 'Note on the correction.', created_at: '2026-10-30T11:00:00.200+00:00' };
+  const latest = { decision: 'returned', official_score: null, competency_scores: [], created_at: '2026-10-30T11:00:00.200+00:00' };
+  const notes = prun('latestDecisionNotes');
+  assert.deepEqual(JSON.parse(JSON.stringify(notes([approved, corrected], latest))), [JSON.parse(JSON.stringify(corrected))]);
+  assert.equal(notes([approved, corrected], null).length, 2, 'no grade: nothing to compare, nothing hidden');
+  const html = prun('itsProveMarkedLabHtml')(row({ redo_requested: true }), latest, [approved, corrected]);
+  assert.match(html, /Note on the correction\./);
+  assert.doesNotMatch(html, /Note on the approval/);
+}
+
 async function testStudentReadsTheScoreFromTheServerAtSignIn() {
   portal.supabaseCalls.length = 0;
   portal.supabaseResponder = (call) => {
@@ -301,7 +314,7 @@ async function testRecordsReportTheOfficialScore() {
 const tests = [
   testRubricIsTheApprovedOne, testTotalAndApproveRules, testCardOrderAndContent, testOtherLabsKeepTheirCard,
   testSubmitSendsTheGradeOnce, testReturnWithNoScoreSendsNone, testIncompleteScoresStayInTheBrowser, testFailedSaveKeepsTheWork,
-  testDecidedRecordAndReturnButton, testStudentResult, testStudentReadsTheScoreFromTheServerAtSignIn, testRecordsReportTheOfficialScore,
+  testDecidedRecordAndReturnButton, testStudentResult, testStudentSeesOnlyTheLatestDecisionsNotes, testStudentReadsTheScoreFromTheServerAtSignIn, testRecordsReportTheOfficialScore,
 ];
 (async () => {
   let failed = 0;

@@ -654,10 +654,110 @@ async function testModuleOnePage() {
   assert.doesNotMatch(html, /open-marked-lab/, 'no link with nothing behind it');
 }
 
+// A returned attempt reopens with the student's own last submitted work.
+async function submittedAndReturned() {
+  const user = resetWorld();
+  const first = await openTab(null, { local: store() });
+  fill(first);
+  first.run("hdProveToggleStep(hdState.prove.order.path[0], true)");
+  first.run("{ const real = document.getElementById; document.getElementById = (id) => (id === 'hd-note-input' ? { value: 'Checked the account.' } : real(id)); hdAddNote(hdState.tickets[0].id); document.getElementById = real; hdProveSubmit(); }");
+  await flush();
+  assert.equal(db.attempts.length, 1);
+  Object.assign(db.attempts[0], { completed_at: new Date(Date.now() - 60000).toISOString(), reviewed_at: new Date().toISOString(), redo_requested: true });
+  db.feedback.push({ lab_attempt_id: 'row-1', item_label: 'Overall', comment: 'Instructor note text.' });
+  return { user, first };
+}
+
+async function testReturnedPrefillsFromTheLastAttemptOnAnotherBrowser() {
+  const { user, first } = await submittedAndReturned();
+  const blank = store();
+  const tab = await openTab(null, { local: blank });
+  assert.equal(tab.status(), 'returned');
+  const prove = JSON.parse(JSON.stringify(tab.run('hdState.prove')));
+  const was = JSON.parse(JSON.stringify(first.run('hdState.prove')));
+  assert.deepEqual(prove.fields, was.fields);
+  assert.equal(prove.diagnosis, was.diagnosis);
+  assert.equal(prove.decision, was.decision);
+  assert.deepEqual(prove.steps, was.steps);
+  assert.equal(prove.resolutionNote, was.resolutionNote);
+  assert.equal(prove.userReply, 'Hello Evan.');
+  assert.deepEqual(JSON.parse(JSON.stringify(tab.run('hdState.tickets[0].notes.map((n) => n.text)'))), ['Checked the account.']);
+  assert.equal(prove.editedAt, undefined, 'prefilling is not an edit');
+  assert.equal(tab.submitState().enabled, true, 'nothing left to fill in');
+  assert.equal(tab.submitState().label, 'Resubmit for faculty review');
+  assert.doesNotMatch(blank.getItem(`defender-lab.helpdesk.prove.v1.its-01.${studentOf(user)}`), /Instructor note text/);
+  const read = portal.supabaseCalls.filter((call) => call.table === 'lab_attempts' && /result/.test(call.columns || ''));
+  assert.ok(read.length, 'the package was read');
+  read.forEach((call) => assert.equal(call.filters.user_id, user.userId, 'only ever this student\'s attempts'));
+}
+
+function testPrefillCarriesOnlyTheStudentsOwnWork() {
+  const work = prun('itsProvePrefillWork')({
+    completed_at: '2026-10-30T12:00:00Z', score: 88, official_grade: { official_score: 88 }, feedback: ['x'],
+    result: { kind: 'hdesk-prove', ticketId: 'HD-2125', fields: { category: 'c', type: 't', priority: 'P1', extra: 'no' }, diagnosis: 'd', steps: ['s1'], decision: 'Resolve', resolutionNote: 'r', userReply: 'u', workNotes: ['n'],
+      official_score: 88, competency_scores: [1], answerKey: 'no', expectedDiagnosis: 'no', events: [{ type: 'x' }], machine: { a: 1 } },
+  });
+  assert.deepEqual(Object.keys(work).sort(), ['completedAt', 'decision', 'diagnosis', 'fields', 'resolutionNote', 'steps', 'ticketId', 'userReply', 'workNotes']);
+  assert.deepEqual(Object.keys(work.fields).sort(), ['category', 'priority', 'type']);
+  assert.equal(prun('itsProvePrefillWork')({ completed_at: 'x', result: { kind: 'other', fields: {} } }), null, 'only a Prove It package');
+  assert.equal(prun('itsProvePrefillWork')({ result: { kind: 'hdesk-prove', fields: {} } }), null, 'only a submitted attempt');
+}
+
+async function testNewerBrowserDraftIsKept() {
+  await submittedAndReturned();
+  const local = store();
+  const tab = await openTab(null, { local });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  tab.run("hdProveText('userReply', 'My newer draft.')");
+  const again = await openTab(null, { local });
+  assert.equal(again.status(), 'returned');
+  assert.equal(again.run('hdState.prove.userReply'), 'My newer draft.', 'typed after the attempt, so it stays');
+}
+
+async function testDraftOlderThanTheAttemptIsReplaced() {
+  await submittedAndReturned();
+  const local = store();
+  const old = await openTab(null, { local });
+  old.run("hdProveText('userReply', 'An old draft.')");
+  db.attempts[0].completed_at = new Date(Date.now() + 60000).toISOString();
+  const again = await openTab(null, { local });
+  assert.equal(again.run('hdState.prove.userReply'), 'Hello Evan.', 'the attempt on the server is newer');
+}
+
+async function testNoPrefillUnlessReturnedOrForAnotherStudent() {
+  await submittedAndReturned();
+  db.attempts[0].redo_requested = false;
+  db.attempts[0].reviewed_at = null;
+  const waiting = await openTab(null, { local: store() });
+  assert.equal(waiting.status(), 'waiting');
+  assert.equal(waiting.run('hdState.prove.userReply'), '', 'a waiting attempt reopens nothing');
+  Object.assign(db.attempts[0], { reviewed_at: new Date().toISOString(), redo_requested: true });
+  const other = hdUser({ userId: 'user-other', email: 'other@test.invalid' });
+  const link = bridge();
+  const tab = sim({ student: studentOf(other), opener: link, local: store() });
+  await flush();
+  assert.equal(tab.run('hdState.prove.userReply'), '', 'the signed-in student is someone else, so nothing comes back');
+  assert.notEqual(tab.status(), 'returned');
+}
+
+async function testPrefillDropsValuesTheTicketNoLongerOffers() {
+  await submittedAndReturned();
+  db.attempts[0].result = { ...db.attempts[0].result, diagnosis: 'A retired option', steps: ['gone'], ticketId: 'HD-2125' };
+  const tab = await openTab(null, { local: store() });
+  assert.equal(tab.run('hdState.prove.diagnosis'), '');
+  assert.equal(tab.run('hdState.prove.steps.length'), 0);
+  assert.equal(tab.submitState().enabled, false, 'Submit asks for what is missing');
+  db.attempts[0].result = { ...db.attempts[0].result, ticketId: 'HD-9999' };
+  const otherTicket = await openTab(null, { local: store() });
+  assert.equal(otherTicket.run('hdState.prove.userReply'), '', 'a package for another ticket prefills nothing');
+}
+
 const tests = [
   testSubmitTurnsOnFromCompletenessOnly, testConfirmedSaveOnlyAfterTheServerHasTheRow, testUnsentWorkNoteTravelsWithTheSubmit,
   testReloadTakesTheLockFromTheServer, testFailuresKeepWorkAndShowNoSuccess, testSimulatorOnlyAcceptsItsOwnReply, testPortalRefusals,
-  testOneWaitingAttempt, testReturnedReopensForOneResubmission, testInstructorReadsPlainText, testModuleOnePage,
+  testOneWaitingAttempt, testReturnedReopensForOneResubmission, testReturnedPrefillsFromTheLastAttemptOnAnotherBrowser, testPrefillCarriesOnlyTheStudentsOwnWork,
+  testNewerBrowserDraftIsKept, testDraftOlderThanTheAttemptIsReplaced, testNoPrefillUnlessReturnedOrForAnotherStudent, testPrefillDropsValuesTheTicketNoLongerOffers,
+  testInstructorReadsPlainText, testModuleOnePage,
 ];
 (async () => {
   let failed = 0;

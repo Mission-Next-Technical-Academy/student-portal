@@ -177,6 +177,16 @@ async function fetchOfficialGrades(attemptIds) {
   return grades;
 }
 
+// A correction gives an attempt a second decision. The student sees only the
+// newest decision's notes; earlier ones stay in the record and on the staff
+// views. record_lab_grade saves a decision's grade and notes in one
+// transaction, so they share a created_at.
+function latestDecisionNotes(feedback, grade) {
+  if (!grade || !grade.created_at) return feedback;
+  const decided = Date.parse(grade.created_at);
+  return feedback.filter((row) => !row.created_at || Date.parse(row.created_at) >= decided);
+}
+
 // Records and review lists: an official-grade lab reports the official score.
 // lab_attempts.score stays what it is on every other lab.
 async function applyOfficialLabGrades(rows) {
@@ -289,8 +299,10 @@ async function fetchUserDetails(userId, trackCode) {
     });
     // Only labs with official grades ask; every other lab makes no extra read.
     const gradedLatest = Array.from(latestByLabKey.values()).filter((row) => row.reviewed_at && labTakesOfficialGrade(row.lab_key));
+    let latestGrades = new Map();
     if (gradedLatest.length) {
       const grades = await fetchOfficialGrades(gradedLatest.map((row) => row.id));
+      latestGrades = grades;
       gradedLatest.forEach((row) => {
         const grade = grades.get(row.id);
         latestLabAttemptByKey[row.lab_key].officialScore = grade ? grade.official_score : null;
@@ -302,14 +314,14 @@ async function fetchUserDetails(userId, trackCode) {
     if (openAttempts.length || approvedAttempts.length) {
       const { data: feedbackRows, error: feedbackError } = await mntSupabase
         .from('lab_attempt_feedback')
-        .select('lab_attempt_id, item_label, comment')
+        .select('lab_attempt_id, item_label, comment, created_at')
         .in('lab_attempt_id', [...openAttempts, ...approvedAttempts].map((row) => row.id))
         .order('created_at', { ascending: true });
       if (feedbackError) console.error('fetchUserDetails: lab_attempt_feedback fetch failed', feedbackError);
       const feedbackByAttemptId = new Map();
       // A row with no comment is not a note (empty section boxes were saved
       // as blank rows by the first per-section build on 2026-10-17).
-      (feedbackRows || []).filter((row) => String(row.comment || '').trim()).forEach((row) => {
+      (feedbackRows || []).filter((row) => String(row.comment || '').trim() && latestDecisionNotes([row], latestGrades.get(row.lab_attempt_id)).length).forEach((row) => {
         const list = feedbackByAttemptId.get(row.lab_attempt_id) || [];
         list.push(row);
         feedbackByAttemptId.set(row.lab_attempt_id, list);

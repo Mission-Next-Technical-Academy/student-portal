@@ -66,6 +66,23 @@ them against the previous view's formula. Local Docker and Node only so far.
 - **Student view:** no score while waiting. A return shows the instructor's score
   if one was entered, plus notes, with no pass/fail. A pass shows the score,
   competency points and feedback, read from the server after signing back in.
+  After a correction the student sees only the newest decision's notes
+  (`latestDecisionNotes()`); earlier notes stay in the record and on staff views.
+- **Resubmit prefill:** a returned Prove It reopens with the student's own last
+  submitted choices and writing, so "make your changes" holds after sign-out
+  (which clears browser drafts) or on another device. The portal reads the
+  signed-in student's newest attempt and sends the simulator a field-by-field
+  copy (`itsProvePrefillWork()`), never scores or notes. A browser draft edited
+  after that attempt stays (`prove.editedAt`). No migration.
+- **Hosted staging, 2026-10-30 (Megan):** the checklist ran on `cdf36d8`; steps 5,
+  6 and 10 rerun after the two changes above.
+  - SOC review card left as it is: staging has no SOC attempts to review, so the
+    hosted card wasn't seen. A database test covers unflagged labs' completion.
+  - After a correction `module_progress` still says complete at 100% while the
+    verified view says not complete. Left to the hours, completion and transcript
+    gap (L-005).
+  - PDFs checked manually by Megan: the agent run didn't download them, because
+    each download writes an audit row.
 - **Not closed here:**
   - L-003 stays open for every other lab, where Approve still counts as a pass.
   - A student can still write `module_progress` complete directly, which reaches
