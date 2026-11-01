@@ -667,6 +667,9 @@
   function boot() {
     mount();
     const search = new URLSearchParams(location.search);
+    // A Help Desk Prove It runs with no coach at all, not even one saved
+    // earlier in this tab, and keeps its launch parameters.
+    if (search.has('prove')) return;
     const requested = search.get('coach');
     const restart = search.get('restart') === '1';
     const student = search.get('student') || '';

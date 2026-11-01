@@ -152,3 +152,61 @@ const HD_TICKET_TEMPLATES = [
   }),
   hdTicket({ id:'HD-2124', requester:'Tara Singh', department:'Sales', category:'Incident', subcategory:'Email / Outlook', priority:'P2', businessImpact:'Sales manager blocked from sending a time-critical client proposal', sla:'8 hours', createdMinutesAgo:51, description:'This is the second time I\'ve called about this today. Outlook keeps asking for my password and it just fails. I have a client waiting on this proposal and I cannot keep retyping it every five minutes.', symptoms:['Outlook repeatedly prompts for password mid-session','Send/receive fails after the prompt is dismissed','Teams and the browser M365 apps sign in fine','Second contact today about the same issue'], logs:['Outlook Connection Status: Auth error 0x8004101 on send/receive','Azure AD sign-in log: password changed 09:02 today','Credential Manager: generic credential MicrosoftOffice16_Data:ssp: last modified 3 weeks ago'], systemState:['Domain password changed this morning per policy','Browser and Teams already authenticate with the new password','Outlook profile still failing to authenticate'], plausibleCauses:['Outlook profile corruption','Exchange service outage','Stale cached credential in Credential Manager'], correctPath:['Verify identity and confirm the recent password change','Check other M365 apps to confirm the failure is scoped to Outlook','Open Credential Manager and locate the stale Office/Outlook entry','Remove the stale credential and restart Outlook','Re-authenticate and confirm send/receive succeeds','Set a clear, honest expectation before ending the call'], hiddenRootCause:'Windows Credential Manager retained a stale cached password for Outlook after this morning\'s required domain password change.', expectedResolution:'Remove the stale Outlook/Office credential from Credential Manager, restart Outlook, re-authenticate with the new password, and confirm send/receive succeeds before closing.', escalationCriteria:['Credential is cleared but authentication still fails','Multiple users report the same post-password-change Outlook failure'] }),
 ];
+
+/* Prove It shifts, by module key. A Prove shift opens with only its own
+ * ticket(s) and fixtures, never added to a Practice shift (hdFreshState()
+ * builds Practice from HD_TICKET_TEMPLATES only; bin/its-curriculum-check.js
+ * checks that these tickets, computers and KB articles stay out of Practice).
+ * Only what the student sees lives here: no expected values. Option lists
+ * are alphabetical and shuffled per student when the shift starts. */
+const HD_PROVE_SHIFTS = {
+  'its-01': {
+    labKey: 'lab-its-01-prove-it',
+    rubricVersion: 'hdesk-its-01-prove-v1',
+    selectedComputer: 'NS-LT-0122',
+    tickets: [{
+      id: 'HD-2125', title: 'Admin rights "just for today"',
+      requester: 'Evan Parker', requesterTitle: 'Payroll Specialist', department: 'Finance',
+      device: 'NS-LT-0122', cc: 'Ava Robinson (manager)', createdMinutesAgo: 25,
+      status: 'Assigned', assignedTechnician: 'Riley Morgan',
+      description: 'I\'ve moved to the Payroll desk on the 3rd floor and need the Finance printer. The driver install asks for admin rights, so can you make me a local admin just for today? Ava is CC\'d and says it\'s fine.',
+      conversation: [
+        { from: 'Ava Robinson', role: 'Manager, Finance · CC', text: 'Approved, give him whatever he needs.' },
+      ],
+      categoryOptions: ['Incident', 'Security Incident', 'Service Request'],
+      typeOptions: ['Access request', 'Account lockout', 'Hardware', 'Network / connectivity', 'Printer', 'Software installation'],
+      diagnosisOptions: ['Out of policy', 'Printer driver fault', 'Standard request, approved', 'Standard request, needs approval'],
+      pathPool: [
+        { id: 'p1', text: 'Add Evan to local Administrators for the day' },
+        { id: 'p2', text: 'Add the printer from \\\\NS-PRINT01 or refresh policy, no elevation needed' },
+        { id: 'p3', text: 'Check the local admin policy (KB-0058)' },
+        { id: 'p4', text: 'Confirm the printer is published on NS-PRINT01' },
+        { id: 'p5', text: 'Escalate to Tier 2 as a printer fault' },
+        { id: 'p6', text: 'Print a test page with Evan' },
+        { id: 'p7', text: 'Reinstall the driver on the print server' },
+        { id: 'p8', text: 'Type the support admin password into his prompt' },
+        { id: 'p9', text: 'Verify Evan and read the CC\'d approval' },
+      ],
+    }],
+    computers: [
+      { name:'NS-LT-0122', user:'Evan Parker', os:'Windows 11 Enterprise 24H2', ip:'10.20.20.122', ou:'OU=Finance,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy', uptimeDays:9 },
+    ],
+    // Simulated machine state the shell reads and changes.
+    machines: {
+      'NS-LT-0122': {
+        printers: ['Microsoft Print to PDF'],
+        pendingPolicyPrinters: ['\\\\NS-PRINT01\\NS-FIN-PRN01'],
+        localAdministrators: ['NORTHSTAR\\Domain Admins', 'NS-LT-0122\\MNT-Support'],
+        spooler: 'Running',
+      },
+    },
+    kbArticles: [
+      { id:'KB-0058', title:'Local administrator rights on managed devices', category:'Endpoint policy', updated:'2026-10-28', audience:'All Support', summary:'Local admin rights are never granted to standard users. Exceptions need a Cybersecurity exception request, and a manager can\'t approve one.' },
+    ],
+    serverOverrides: {
+      'NS-PRINT01': { status:'Online', service:'Print Spooler running · queues published' },
+    },
+    // Event Viewer entries from these computers belong to other tickets' stories.
+    hideEventsFrom: ['NS-PRINT01'],
+  },
+};

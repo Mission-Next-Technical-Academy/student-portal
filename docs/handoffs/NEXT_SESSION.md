@@ -1,5 +1,262 @@
+**2026-10-30 (Megan; PR #93 (draft) "Official faculty grades, Help Desk Module 1 Prove It first (L-003)"; shared new `supabase/` migration and tests, `portal/app.js`, `portal/index.html`, `bin/ci-check.sh` and `tests/portal-vm.js`, plus Help Desk `portal/it-support-shared.js`, `portal/it-support-module-01.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests — please review the shared ones):**
+**Hold (updated 2026-10-30): PR #90, PR #91, PR #92 and the faculty-gate PR roll out together, and none reaches production alone. Staging goes together once Megan has the production impact numbers. Before the production push Megan sends Randy a heads-up on four points: L-003 stays open for other labs, the records change, Module 2 waits on review, and the hours and transcript gap (L-005). The push doesn't wait for his answer; any change he asks for is handled afterwards. Production order: run the read-only impact query, apply the migrations by hand, then merge straight away.**
+**Production impact, read-only query, run 2026-10-30 before any of PR #90–#93 (Megan). Rerun 2026-10-31, unchanged: AIENG 0 and 0, HDESK 1 flip and 11 later modules locked, SOCAN 0 and 0, every other column identical. Staging is verified (transcript 83.0, Pass, on 10/31). Production dry run 2026-10-31 passed, nothing saved: verified modules AIENG 0 to 0, HDESK 13 to 12, SOCAN 33 to 33; official-grade labs `lab-its-01-prove-it`; Module 1 rows demoted 2. One is the flip above, a synthetic test account. The other's progress said complete but it was never verified (one of the 11 Help Desk rows in the last column), so it changes no verified count.**
+
+| Track | Students | Complete modules | Flip from PR #90 (Module 1) | Other complete modules then behind the lock | If every lab needed `score` ≥ 70 | If every lab needed an official score | Admin override | Marked complete but not verified |
+|---|---|---|---|---|---|---|---|---|
+| AIENG | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| HDESK | 3 | 13 | 1 | 11 | 12 (2 students) | 13 (2 students) | 0 | 11 |
+| SOCAN | 8 | 33 | 0 | 0 | 0 | 32 (5 students) | 1 | 9 |
+
+Instructor notes on unreviewed attempts: 0 across all tracks, so hiding them from students changes nothing today.
+
+As built, SOC and AI/ML don't change. The one Help Desk student whose Module 1 flips is a synthetic test account (Megan, 2026-10-30), not a real student. Its 11 other complete modules will sit behind the lock, and it keeps its hours.
+
+For later, not in this rollout: the "`score` ≥ 70" column is 0 for SOC, so an "empty score never passes" rule could extend to SOC without flipping anyone today. The last column (11 Help Desk, 9 SOC) is an existing mismatch and belongs with the hours, completion and transcript gap (L-005).
+Built on PR #92. A lab with `course_module_labs.requires_official_score = true` now
+passes only when its newest attempt holds an approved official faculty grade of
+at least the pass mark. Today that is one lab, `lab-its-01-prove-it`; each new
+Prove It turns on its own flag. A failing attempt is returned, never approved, so
+there's no "final fail" state. Unflagged labs of every track compute what they
+did, including approved attempts with an empty score; a database test compares
+them against the previous view's formula. Local Docker and Node only so far.
+- **Migration** `20261030221555_faculty_official_lab_grades.sql`: writes no
+  student data and refuses to run if the flagged lab already has a reviewed
+  attempt. The rollback note is in its header.
+  - `public.lab_pass_mark()` is the database's one pass mark. The instructor
+    sheet reads it through `lab_attempts.pass_threshold`, and the critical-error
+    cap is the mark minus 1. SOC's own hard-coded 70s in module files are unchanged.
+  - `public.lab_attempt_grades`: one row per decision, never edited, the newest
+    row is the grade. A table, not columns on `lab_attempts`, because row-level
+    security can't hide a column and students and instructors share one database
+    role. Nobody writes it directly; students read rows of their own reviewed
+    attempts, course staff their course's.
+  - `public.record_lab_grade()`: the only way to decide a flagged lab. It saves
+    the grade, notes and decision in one transaction and checks course access,
+    newest attempt, points, justifications, critical-error reason and the note a
+    return needs. The browser sends each competency's points; the server checks
+    they are whole and in range, adds up the total, and works out the cap and
+    whether Approve is allowed. Competency names and maximums stay in the rubric
+    file; the server requires the maximums to total 100, but doesn't check them
+    against the rubric. That waits for the server-side scoring work.
+  - `guard_lab_attempt_write()`: refuses direct review writes on flagged labs
+    (`current_user` is `authenticated` only on a direct API write) and blanks a
+    student-sent score on them, which closes the forged-score pill in PR #92's
+    entry. Staff still write unflagged labs directly.
+  - `lab_attempt_feedback_student_read`, **all tracks:** a student reads notes
+    only once the attempt is reviewed. Every portal reader of student notes already
+    asks only for reviewed attempts, so no student sees a change.
+  - `student_verified_module_progress`: flagged labs only change. An earlier pass
+    no longer counts once a newer attempt exists.
+  - `record_completion_reporting_snapshot()`: flagged labs report the official
+    score and decision. The rest of the function is unchanged.
+- **Records (one of the four points in Randy's heads-up):** `applyOfficialLabGrades()` in
+  `portal/app.js` gives the transcript and evidence bundle, and the student detail
+  view, the official score for flagged labs, so Module 1's grade appears. Other
+  labs keep `lab_attempts.score`.
+- **Instructor view:** a flagged lab's review card is the new sheet: writing,
+  choices and actions, rubric with a score and justification per competency,
+  Efficiency feedback, critical error and reason, automatic total, notes, Approve
+  and Return. Approve is unavailable below the pass mark or with a critical error.
+  A decided, approved attempt has a "Return for another attempt" action, which
+  needs a correction reason and a note; the full correction screen is later work.
+  "Approve without resubmission" is hidden for flagged labs. SOC and other Help
+  Desk cards are unchanged, and `labTakesOfficialGrade()` keeps other labs from
+  making any extra read.
+- **Student view:** no score while waiting. A return shows the instructor's score
+  if one was entered, plus notes, with no pass/fail. A pass shows the score,
+  competency points and feedback, read from the server after signing back in.
+  After a correction the student sees only the newest decision's notes
+  (`latestDecisionNotes()`). The earlier notes stay in the record.
+- **Instructor's attempt panel:** shows every decision on every attempt, newest
+  first (date, decision, official score, competency points, critical error and
+  reason, correction reason), with all the notes saved with it, including overall
+  and correction notes (`applyOfficialGradeHistory()`, `itsProveDecisionsHtml()`).
+  Older decisions start collapsed, labelled like "Approved 70%, Oct 30, replaced
+  by a correction". Only official-grade labs make these reads. No migration.
+- **Lab Attempts instructions:** a tab listing an official-grade lab says the
+  instructor's grade on the grading sheet is the official score and when Approve
+  is available, and keeps the old sentence for "every other lab". A tab with no
+  official-grade lab, including SOC, keeps its wording exactly (tested).
+- **Resubmit prefill:** a returned Prove It reopens with the student's own last
+  submitted choices and writing, so "make your changes" holds after sign-out
+  (which clears browser drafts) or on another device. The portal reads the
+  signed-in student's newest attempt and sends the simulator a field-by-field
+  copy (`itsProvePrefillWork()`), never scores or notes. A browser draft edited
+  after that attempt stays (`prove.editedAt`). No migration.
+- **Walked back, 2026-10-31 (Megan):** a wider status model for official-grade labs (status map, name with the ticket ID, per-attempt details, letter grades) was built and reverted before reaching staging's database, because it went beyond this rollout. See Code Issues Log ISSUE-100 to ISSUE-106.
+- **Records use the newest standing decision, official-grade labs only:** the transcript, completion snapshot, evidence bundle and student detail read the newest attempt's newest decision. An approval at or above the pass mark shows that official score, "Pass" and the approval date. Waiting, returned or grade changed shows Score "—", "In progress" and no completion date. They never reach back to an older attempt's score, or a practice lab in the same module, and never show "Fail" or a withdrawn grade. Other labs are unchanged (tested). No letter grades (ISSUE-102).
+  - A module with no attempt keeps its existing line. In the student detail table and evidence bundle, an earlier attempt's row also reads "In progress" with no score, because only the newest decision stands.
+  - Credited hours and the raw `module_progress` row are unchanged, so a returned module can show no completion date while its hours stay credited.
+  - **Migration** `20261031120000_official_lab_snapshot_newest_decision.sql`: writes no student data. Adds `lab_standing_decision()`, which no API role can call. Rollback in its header.
+  - Production applies three migrations in order: `20261030175603`, `20261030221555`, `20261031120000`.
+- **Hosted staging, 2026-10-30 (Megan):** the checklist ran on `cdf36d8`; steps 5,
+  6 and 10 rerun after the two changes above.
+  - SOC review card left as it is: staging has no SOC attempts to review, so the
+    hosted card wasn't seen. A database test covers unflagged labs' completion.
+  - After a correction `module_progress` still says complete at 100% while the
+    verified view says not complete. Left to the hours, completion and transcript
+    gap (L-005).
+  - Follow-up, not now: earlier attempts' feedback is saved and readable, but the
+    student's marked-lab link opens only the newest attempt.
+  - Known, not fixed (adversarial review, both rated medium, 2026-10-30): the
+    prefill compares the browser's edit time with the attempt's completed time,
+    so a device with a wrong clock could overwrite a newer draft in that browser;
+    and if the student's grade read fails but the notes read works, the student
+    can see a replaced decision's notes until the next load.
+  - PDFs to be checked manually by Megan before production: the agent run didn't download them, because
+    each download writes an audit row.
+- **Not closed here:**
+  - L-003 stays open for every other lab, where Approve still counts as a pass.
+  - A student can still write `module_progress` complete directly, which reaches
+    hours, the transcript and the dashboard (L-005). Megan's decision: not in this
+    rollout; fix before the Dec 4 freeze.
+  - Returning a passed attempt leaves its `module_progress` row and hours as they
+    are, as today; only the verified view changes.
+  - Students can still read `lab_attempts.score` and `result` on browser-scored
+    labs before review. That needs server-side scoring.
+  - Module 2 stays locked while Module 1 waits or is returned, which conflicts
+    with the "students keep moving unless they fail" rule. Randy hears this.
+  - Attempt limits and the required next step aren't enforced here.
+- **Tests:** `supabase/tests/hdesk_faculty_gate.sql` (new, 63 checks),
+  `hdesk_prove_submit.sql` and `course_module_labs_gates_completion.sql` (updated
+  to the new rule), `tests/hdesk-faculty-grading.test.js` (new, in CI),
+  `tests/portal-vm.js` (the stub now records `rpc` calls). No answer key in any of
+  them. `supabase/tests/student_write_lockdown.sql` still fails at its first write,
+  as PR #90's entry says.
+
+**2026-10-30 (Megan; PR #92 (draft) "Help Desk Module 1 Prove It Submit: faculty review, no score (L-003)"; shared `portal/app.js`, `portal/index.html`, `bin/ci-check.sh` and a new `supabase/tests/` file, plus Help Desk `ui/helpdesk.js`, `ui/index.html`, `portal/it-support-module-01.js`, `portal/it-support-shared.js`, `portal/data.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests — please review the shared ones):**
+**Hold (updated 2026-10-30): PR #90, PR #91, PR #92 and the faculty-gate PR roll out together, and none reaches production alone. Staging goes together once Megan has the production impact numbers. Before the production push Megan sends Randy a heads-up on four points: L-003 stays open for other labs, the records change, Module 2 waits on review, and the hours and transcript gap (L-005). The push doesn't wait for his answer; any change he asks for is handled afterwards. Production order: run the read-only impact query, apply the migrations by hand, then merge straight away.**
+Built on PR #91, which is built on PR #90; none of them merges or reaches
+production on its own. Module 1's Prove It can now be submitted. The course
+page has a launch card ("Complete Practice It (Labs 1.1 and 1.2) first: it
+prepares you for this.", no lock) that opens the simulator as a popup. Submit
+turns on once category, type, priority, diagnosis, decision, resolution note
+and reply are filled in: a completeness check that looks at no value. The
+package goes to the portal tab by `postMessage`, and the portal replies
+`saved: true` only after the server confirms one `lab_attempts` row for
+`lab-its-01-prove-it`. The simulator then locks with "Submitted for faculty
+review", with no score and no answers. Every failure keeps the work, leaves
+Submit available and says what happened. A returned attempt reopens for one
+resubmission; the earlier row and the instructor's notes are kept.
+- **No migration.** PR #90's lab row, the insert policy, the one-waiting rule
+  and the redo rule already do this. The rollout order in PR #90's entry stands;
+  the dry run lists that migration and the faculty-gate PR's.
+- **The row:** `state: 'complete'`, `score: null`, rubric version
+  `hdesk-its-01-prove-v1`, engine `instructor-review-v1`, the package in
+  `result`. It must be `complete`: `student_verified_module_progress` counts
+  only `complete`, so `submitted` could never finish Module 1 once approved.
+  It doesn't call `markModuleLabComplete`, so the browser never records it as
+  done before review.
+- **Approve and Return:** on this PR alone, Approve would count as a pass with
+  no score. The faculty-gate PR above replaces that: `record_lab_grade()`, the
+  grading sheet and the changed test expectation.
+- **Known gap for the server-side scoring work:** the portal's checks run in
+  the student's own browser, so a student can skip them and insert a row
+  directly (RLS allows their own row), including a made-up `score` of 70 or
+  more. It still can't count without an instructor's approval. This applies to
+  every lab today. A row without a valid package shows "No readable Prove It
+  package" in the panel, but a forged score still shows in the card's pill.
+- **Messages** (same opener channel as the coach's Finish; new type names so no
+  coach handler reads a package): `mnt-prove-status` and `mnt-prove-submit`
+  from the simulator, `mnt-prove-received` from the portal. As in PR #69, the
+  simulator makes the nonce, the portal requires a well-formed one and echoes
+  it, and the simulator accepts only a reply with its own nonce, from its
+  opener and the portal's origin. The portal also requires the simulator's
+  origin, the signed-in student's anonymous id (this closes the shared-browser
+  limit in PR #91's entry) and the `HDESK` track.
+- `portal/it-support-shared.js` (Help Desk): `itsProveReceiveMessage`,
+  `itsCleanProveWork` (known fields only; writing that doesn't fit is refused,
+  never cut; recorded actions can be trimmed), `itsProveRefreshAttempt` (reads
+  the newest attempt and a returned attempt's notes from the server first, since
+  the sign-in copy can be out of date), `itsProveReviewPanel`.
+- `ui/helpdesk.js` (Help Desk): whether an attempt is locked now comes only from
+  the portal's server read (`hdProveServer`); PR #91's browser `submittedAt` is
+  gone. On each load the simulator asks for the status. If the portal tab is
+  closed it can't check, so it stays editable, says so, and Submit fails
+  honestly. `hdProvePackage()` adds `stepTexts`, because the portal doesn't load
+  the simulator's data. A work note typed but not added goes with the Submit.
+- `portal/it-support-module-01.js` (Help Desk): the launch card. Its rail row is
+  titled "Assessment Lab", which removes Module 1's generic Assessment Lab box
+  and its rail entry through the existing `normalizeModuleStages` rule. Attempts
+  already in that box stay in Lab Attempts. The hero counter now reads "3 labs".
+- `portal/app.js` (shared): `moduleNavStatuses` honours a new `neverLocked` row
+  flag, used only here, so the Prove It isn't locked behind Practice It but still
+  counts in the rail's percent. No other module sets it, so SOC is unchanged. The
+  waiting and graded review cards call `itsProveReviewPanel`, which renders only
+  for labs in `HDESK_PROVE_RUBRICS`.
+- `portal/index.html` (shared): loads `admin-sheets/hdesk-prove-rubrics.js`, and
+  new cache versions. `bin/ci-check.sh` (shared): runs the new test.
+- Instructor view: the attempt shows in Lab Attempts under Module 1 as PROVE IT
+  on the existing card, with the student's writing first, then choices, evidence
+  opened, commands, the laptop's end state and the rubric. The full grading sheet
+  is separate work and replaces this panel. "See your marked lab" stays: it only
+  appears when there are notes, and with no sheet it lists those notes.
+- Tests: `tests/hdesk-prove-submit.test.js` joins the real simulator and portal
+  code over a stand-in database. `supabase/tests/hdesk_prove_submit.sql` ran
+  against local Docker with PR #90's migration and passes. Neither is a browser
+  test: `bin/dev.sh` can't target local Docker, so the real two-tab flow waits
+  for the staging rollout of PR #90, PR #91 and this work together.
+
+**2026-10-30 (Megan; PR #91 (draft) "Help Desk Module 1 Prove It mode in the simulator (L-003)"; shared `ui/coach.js`, `ui/index.html`, `bin/ci-check.sh` and `bin/its-curriculum-check.js`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, a new `portal/admin-sheets/hdesk-prove-rubrics.js` and a new test — please review the shared ones):**
+**Hold (updated 2026-10-30): PR #90, PR #91, PR #92 and the faculty-gate PR roll out together, and none reaches production alone. Staging goes together once Megan has the production impact numbers. Before the production push Megan sends Randy a heads-up on four points: L-003 stays open for other labs, the records change, Module 2 waits on review, and the hours and transcript gap (L-005). The push doesn't wait for his answer; any change he asks for is handled afterwards. Production order: run the read-only impact query, apply the migrations by hand, then merge straight away.**
+Built on PR #90's branch. The simulator now
+has a Prove It mode: `?prove=its-01&student=<anonymous id>` opens a fresh
+shift with only Module 1's Prove It ticket (HD-2125), no coach and no
+feedback. The student sets the category, type and priority, works the
+evidence (AD, Printer Management, Server Manager, the KB, the laptop's
+Windows screen and PowerShell), picks a diagnosis from a shuffled list and
+the steps they took from a shuffled mixed pool, chooses Resolve or Escalate,
+and writes a resolution note and a reply to the user. Nothing on the page
+says which choice is right. **Submit is disabled** ("Not available yet: your
+work is saved in this browser.") until the portal can receive the work.
+- `ui/coach.js` (shared): `boot()` returns at once when the address has
+  `prove`, so no coach starts or is restored from the tab's
+  `sessionStorage`, and the launch parameters stay for a reload. Coach labs
+  are unchanged.
+- `ui/helpdesk.js` (Help Desk): `HD_PROVE` (the launch), its own saved state
+  per student (`defender-lab.helpdesk.prove.v1.<module>.<student>`; Practice's
+  key is untouched); `hdFreshState(templates)` now takes the ticket list
+  (Practice still passes `HD_TICKET_TEMPLATES`); `hdComputers()`,
+  `hdKbArticles()`, `hdServers()`, `hdEvents()` add a Prove shift's own
+  fixtures and overrides; the Prove ticket view; `hdProvePackage()` (the work
+  the portal will receive); event recording (evidence screens opened once
+  each, commands run, diagnosis, steps, decision; typing and field changes
+  are saved, not recorded). A launch with no student id opens no ticket and
+  saves nothing. A Prove shift has no Reset / Generate new shift.
+- PowerShell: per-computer machine state (a Prove shift's `machines`) with
+  `whoami /groups`, `Get-Printer`, `gpupdate /force`, `Add-Printer`,
+  `Get-/Add-/Remove-LocalGroupMember`, and uptime in `Get-ComputerInfo`.
+  Commands change the state silently, as real ones do. Computers without
+  state answer as before; `Get-Help` lists the new commands.
+- `ui/helpdesk-data.js` (Help Desk): `HD_PROVE_SHIFTS['its-01']`: the ticket
+  as the student sees it, its option lists in alphabetical order (shuffled
+  per attempt), laptop NS-LT-0122, KB-0058, a healthy NS-PRINT01 for this
+  shift, and the laptop's machine state. No answer key: this repository is
+  public, so the key is kept outside it.
+- `portal/admin-sheets/hdesk-prove-rubrics.js` (new, not loaded yet):
+  competency names and points (22 / 11 / 11 / 28 / 28), efficiency formative,
+  70% pass, a critical error caps the attempt at 69%, faculty final.
+- `bin/its-curriculum-check.js` (shared): fails if a Prove ticket, computer
+  or KB article appears in Practice (the Practice fixtures, the coach labs or
+  the capstone), or if a Prove shift's fixtures carry answer-like field names.
+- `bin/ci-check.sh` (shared): runs the new `tests/hdesk-prove-mode.test.js`.
+- Layout: the Prove view styles its card headers, choices and the
+  unavailable Submit inline, so `ui/styles.css` is unchanged. Practice's card
+  headers still have no space before their note (for example "Troubleshooting
+  pathRecord what you actually checked."): `.card-header` has no base rule in
+  `ui/styles.css`, so its `gap: 8px` never applies.
+- Known limit, accepted for now: the `student=` id in the address chooses
+  which local attempt a browser shows, the same model as the coach labs'
+  resume. The Prove It submit work must bind Submit to the signed-in student:
+  the portal refuses a package whose student id isn't the signed-in user, and
+  only the server-side attempt counts. Browser drafts stay per-browser until
+  the server-side scoring and drafts work.
+
 **2026-10-30 (Megan; PR #90 (draft) "Help Desk Module 1 completes on its Prove It; Labs 1.1 and 1.2 become Practice It (L-003)"; shared `supabase/` migration, `portal/app.js`, `tests/module-card-state.test.js`, a new `supabase/tests/` file and `docs/operations/AI_AGENT_RULES.md`, plus Help Desk `portal/data.js` — please review the shared ones):**
-**Held: the PR stays open and the migration must not reach production until a
+Production impact numbers (2026-10-30): see the PR #93 entry above. One Help Desk student's Module 1 flips because of this PR, with 11 other complete modules then behind the lock. It is a synthetic test account, not a real student.
+**Hold (updated 2026-10-30): PR #90, PR #91, PR #92 and the faculty-gate PR roll out together, and none reaches production alone. Staging goes together once Megan has the production impact numbers. Before the production push Megan sends Randy a heads-up on four points: L-003 stays open for other labs, the records change, Module 2 waits on review, and the hours and transcript gap (L-005). The push doesn't wait for his answer; any change he asks for is handled afterwards. Production order: run the read-only impact query, apply the migrations by hand, then merge straight away.**
+**The migration must not reach production until a
 Module 1 Prove It can submit to `lab-its-01-prove-it`.** Until then no Help
 Desk student can complete Module 1, and Modules 2–12 stay locked. It is not
 on staging yet either (Megan, 2026-10-30): it waits until the Module 1 Prove
@@ -8,10 +265,10 @@ the hosted check covers the full path. Then, together with that work:
 (1) push the branch; (2) a person, never an agent, runs `cat
 supabase/.temp/project-ref` (must print `xbblgtrfwgeiyttdlbue`), then
 `supabase db push --linked --project-ref xbblgtrfwgeiyttdlbue --dry-run`
-(must list only this migration), then the same without `--dry-run` (plain
+(must list only this migration and the faculty-gate PR's), then the same without `--dry-run` (plain
 `supabase db push` also acts on the linked project but was not checked on CLI
 2.118); (3) a person runs Deploy staging
-site in `student-portal-staging` with `ref` = this branch; (4) check the
+site in `student-portal-staging` with `ref` = PR #93's branch, which holds all four PRs; (4) check the
 hosted footer shows the branch's commit SHA; (5) run the hosted checks and
 record the four synthetic students' Module 1 state before and after. Any
 merge to master reruns Staging sync and puts master's portal code back on
