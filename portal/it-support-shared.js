@@ -592,14 +592,19 @@ async function itsProveRefreshAttempt(user, moduleKey, labKey) {
     const attempts = { ...(user.latestLabAttemptByKey || {}) };
     if (latest) attempts[labKey] = { completedAt: latest.completed_at, reviewedAt: latest.reviewed_at || null, redoRequested: latest.redo_requested === true, supersededAt: latest.superseded_at || null };
     else delete attempts[labKey];
+    let grade = null;
+    if (latest && latest.reviewed_at) {
+      grade = (await fetchOfficialGrades([latest.id])).get(latest.id) || null;
+      attempts[labKey].officialScore = grade ? grade.official_score : null;
+    }
     user.latestLabAttemptByKey = attempts;
     if (latest && latest.redo_requested === true) {
       const { data: rows, error: notesError } = await mntSupabase.from('lab_attempt_feedback')
-        .select('item_label, comment')
+        .select('item_label, comment, created_at')
         .eq('lab_attempt_id', latest.id)
         .order('created_at', { ascending: true });
       if (notesError) throw notesError;
-      const feedback = (rows || []).filter((row) => String(row.comment || '').trim());
+      const feedback = latestDecisionNotes(rows || [], grade).filter((row) => String(row.comment || '').trim());
       user.openLabRedoFeedbackByLabKey = { ...(user.openLabRedoFeedbackByLabKey || {}), [labKey]: feedback };
       user.openLabRedosByModuleKey = { ...(user.openLabRedosByModuleKey || {}), [moduleKey]: { labKey, labTitle: itsLabTitle(labKey), feedback } };
     }
@@ -608,6 +613,36 @@ async function itsProveRefreshAttempt(user, moduleKey, labKey) {
     console.error('Prove It: could not read the latest attempt', labKey, err);
     return null;
   }
+}
+
+// What a returned attempt's form reopens with: the student's own choices and
+// writing from the saved package, field by field. Never the instructor's
+// scores or notes, which aren't in the package, and never anything else in it.
+function itsProvePrefillWork(row) {
+  const work = row && row.result;
+  if (!work || work.kind !== 'hdesk-prove' || !row.completed_at || !work.fields) return null;
+  const text = (value) => (typeof value === 'string' ? value : '');
+  return {
+    completedAt: row.completed_at, ticketId: text(work.ticketId),
+    fields: { category: text(work.fields.category), type: text(work.fields.type), priority: text(work.fields.priority) },
+    diagnosis: text(work.diagnosis), steps: Array.isArray(work.steps) ? work.steps.map(text) : [], decision: text(work.decision),
+    resolutionNote: text(work.resolutionNote), userReply: text(work.userReply),
+    workNotes: Array.isArray(work.workNotes) ? work.workNotes.map(text) : [],
+  };
+}
+
+// This student's own newest attempt. A failed read just means no prefill.
+async function itsProveLastWork(user, labKey) {
+  const { data, error } = await mntSupabase.from('lab_attempts')
+    .select('completed_at, result')
+    .eq('user_id', user.userId)
+    .eq('track_code', user.trackCode)
+    .eq('lab_key', labKey)
+    .not('completed_at', 'is', null)
+    .order('completed_at', { ascending: false })
+    .limit(1);
+  if (error) { console.error('Prove It: could not read the last submitted work', labKey, error); return null; }
+  return itsProvePrefillWork(data && data[0]);
 }
 
 /* Answers both messages. Every message that names this Prove It gets a reply,
@@ -629,7 +664,11 @@ async function itsProveReceiveMessage(event, { moduleKey, labKey, onChange }) {
     const status = await itsProveRefreshAttempt(user, moduleKey, labKey);
     if (!status) { answer({ reason: 'unreadable' }); return; }
     if (status !== before && onChange) onChange();
-    if (data.type === ITS_PROVE_STATUS) { answer({ status }); return; }
+    if (data.type === ITS_PROVE_STATUS) {
+      const lastWork = status === 'returned' ? await itsProveLastWork(user, labKey) : null;
+      answer(lastWork ? { status, lastWork } : { status });
+      return;
+    }
     if (status === 'waiting' || status === 'passed') { answer({ status, reason: 'already-submitted' }); return; }
     const { work, reason } = itsCleanProveWork(data.work, moduleKey, labKey);
     if (!work) { answer({ status, reason }); return; }
@@ -654,7 +693,7 @@ async function itsProveReceiveMessage(event, { moduleKey, labKey, onChange }) {
 
 /* Faculty Lab Attempts: the student's work as plain text, with the writing
  * first. Called from the shared review cards for every attempt; it renders only
- * for a Help Desk Prove It lab. The full grading sheet replaces this. */
+ * for a Help Desk Prove It lab. A decided attempt also shows its official grade. */
 function itsProveReviewPanel(row) {
   const rubric = row && typeof HDESK_PROVE_RUBRICS !== 'undefined' ? HDESK_PROVE_RUBRICS[row.lab_key] : null;
   if (!rubric) return '';
@@ -672,8 +711,7 @@ function itsProveReviewPanel(row) {
   const commands = array(work.commands).filter(Boolean).map((entry) => `${entry.command}${entry.computer ? ` (on ${entry.computer})` : ''}`);
   const machine = Object.entries(work.machine && typeof work.machine === 'object' ? work.machine : {}).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') || '(none)' : typeof value === 'object' ? JSON.stringify(value) : value}`);
   return `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" data-its-prove-panel="${esc(row.id)}">
-    <p class="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">Grade from the rubric below. <strong>Approve counts as a pass</strong>, and no score is saved. Return anything below ${esc(String(rubric.passPercent))}% or with a critical error. Put the points in your notes.</p>
-    <h3 class="mt-3 text-sm font-semibold text-[#1e3a5f]">Student's written work · ${text(work.ticketId)}</h3>
+    <h3 class="text-sm font-semibold text-[#1e3a5f]">Student's written work · ${text(work.ticketId)}</h3>
     ${writing('Resolution note', work.resolutionNote)}
     ${writing('Reply to the user', work.userReply)}
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Work notes</h4>
@@ -690,9 +728,270 @@ function itsProveReviewPanel(row) {
     ${work.logTrimmed ? '<p class="mt-1 text-xs text-gray-500">The oldest recorded actions were left out to fit. All the student\'s writing is above.</p>' : ''}
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Laptop at submit</h4>
     ${items(machine, 'Not recorded.')}
-    <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">Rubric ${text(rubric.version)}</h3>
-    <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-gray-900">${rubric.competencies.map((item) => `<li>${text(item.label)}: ${text(item.points)} points</li>`).join('')}</ul>
-    <p class="mt-1 text-sm text-gray-700">${text(rubric.criticalErrorRule)} ${text(rubric.partialCredit)}</p>
+    ${itsProveDecisionsHtml(row)}
+  </div>`;
+}
+
+/* ---------- Faculty grading sheet for a Help Desk Prove It ----------
+ * The server (record_lab_grade) enforces every rule here; the sheet only says
+ * what the instructor still has to do. The pass mark comes from the attempt's
+ * pass_threshold, which the database sets on every student insert. */
+
+// Reads what the instructor has typed so far. Pure, so it can be tested:
+// values = { points: { id: text }, why: { id: text }, critical: boolean, criticalReason: text }.
+function itsProveGradeState(rubric, passMark, values) {
+  const mark = Number(passMark || NaN);
+  const rows = rubric.competencies.map((item) => {
+    const raw = String((values.points || {})[item.id] ?? '').trim();
+    const valid = /^\d+$/.test(raw) && Number(raw) <= item.points;
+    return { ...item, raw, valid, earned: valid ? Number(raw) : null, why: String((values.why || {})[item.id] ?? '').trim() };
+  });
+  const entered = rows.some((row) => row.raw !== '');
+  const invalid = rows.some((row) => row.raw !== '' && !row.valid);
+  const allScored = rows.every((row) => row.valid);
+  const missingWhy = rows.filter((row) => row.valid && row.earned < row.points && !row.why).map((row) => row.label);
+  const critical = values.critical === true;
+  const criticalReason = String(values.criticalReason ?? '').trim();
+  const total = allScored ? rows.reduce((sum, row) => sum + row.earned, 0) : null;
+  const score = total === null ? null : critical ? Math.min(total, mark - 1) : total;
+  const blocked = invalid ? 'Points must be whole numbers from 0 to each competency\'s maximum.'
+    : !allScored ? 'Score every competency to approve.'
+    : missingWhy.length ? `Justify the points for: ${missingWhy.join(', ')}.`
+    : critical ? 'A critical error can\'t pass. Use Return.'
+    : !(score >= mark) ? `Below ${mark}%. A failing attempt is returned, never approved: use Return.`
+    : '';
+  return { rows, entered, invalid, allScored, missingWhy, critical, criticalReason, total, score, canApprove: !blocked, blocked };
+}
+
+function itsProveGradingCard(item, olderAttempt) {
+  const row = item.lead;
+  const rubric = row && typeof HDESK_PROVE_RUBRICS !== 'undefined' ? HDESK_PROVE_RUBRICS[row.lab_key] : null;
+  if (!rubric) return '';
+  const label = 'text-xs font-semibold text-gray-600';
+  const box = 'class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"';
+  return `<article class="bg-white border border-gray-200 rounded-xl p-5" data-grading-row="${esc(row.id)}" data-its-prove-grade="${esc(row.id)}" data-lab-key="${esc(row.lab_key)}" data-pass-mark="${esc(String(row.pass_threshold ?? ''))}">
+    <div class="mb-3">
+      <p class="text-sm font-semibold text-[#1e3a5f]">${esc(item.name)}${row.attempt ? ` <span class="font-normal text-gray-500">· ${esc(adminAttemptLabel(row))}</span>` : ''}</p>
+      <p class="text-xs text-gray-500 mt-0.5">${esc(item.labTitles.join(' · '))} <span class="text-gray-400">·</span> <span class="font-mono">${esc(row.student_id)}</span></p>
+      ${olderAttempt ? '<p class="mt-1 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Older attempt — a newer submission of this lab is below</p>' : ''}
+      <p class="text-xs text-gray-400 mt-0.5">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}</p>
+    </div>
+    ${itsProveReviewPanel(row)}
+    <section class="mb-3 rounded-lg border border-gray-200 bg-gray-50 p-4" aria-label="Rubric">
+      <h3 class="text-sm font-semibold text-[#1e3a5f]">Rubric ${esc(rubric.version)}</h3>
+      <p class="mt-1 text-sm text-gray-700">${esc(rubric.partialCredit)}</p>
+      <div class="mt-3 space-y-3">${rubric.competencies.map((competency) => `<div class="rounded-lg border border-gray-200 bg-white p-3">
+        <label class="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-gray-900">${esc(competency.label)}
+          <span class="font-normal text-gray-600"><input type="number" inputmode="numeric" min="0" max="${esc(String(competency.points))}" step="1" data-its-prove-points="${esc(competency.id)}" aria-label="${esc(competency.label)} points" class="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right" /> / ${esc(String(competency.points))}</span>
+        </label>
+        <label class="mt-2 block ${label}">Justification (required below full points)
+          <textarea rows="2" data-its-prove-why="${esc(competency.id)}" ${box}></textarea>
+        </label>
+      </div>`).join('')}</div>
+      ${(rubric.formative || []).map((entry) => `<label class="mt-3 block ${label}">${esc(entry.label)} feedback (earns no points)
+        <textarea rows="2" data-its-prove-efficiency ${box}></textarea>
+      </label>`).join('')}
+      <div class="mt-3 rounded-lg border border-gray-200 bg-white p-3">
+        <label class="flex items-center gap-2 text-sm font-semibold text-gray-900"><input type="checkbox" data-its-prove-critical /> Critical error</label>
+        <p class="mt-1 text-xs text-gray-600">${esc(rubric.criticalErrorRule)}</p>
+        <label class="mt-2 block ${label}" data-its-prove-critical-reason-row hidden>Reason (required)
+          <textarea rows="2" data-its-prove-critical-reason ${box}></textarea>
+        </label>
+      </div>
+      <p class="mt-3 text-base font-bold text-[#1e3a5f]" data-its-prove-total aria-live="polite">Total: not scored yet</p>
+      <label class="mt-3 block ${label}">Notes to the student (a return needs at least one note)
+        <textarea rows="3" data-its-prove-note ${box}></textarea>
+      </label>
+    </section>
+    <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
+      <button type="button" data-its-prove-decide="approved" disabled class="bg-green-50 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Approve</button>
+      <button type="button" data-its-prove-decide="returned" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Return</button>
+      <span data-its-prove-blocked class="text-xs text-gray-600"></span>
+      <span data-grading-status class="text-xs text-gray-600" role="status"></span>
+    </div>
+    <details class="mt-3 text-sm">
+      <summary class="cursor-pointer font-semibold text-[#1e3a5f]">Full raw result (for debugging)</summary>
+      <pre class="mt-2 bg-gray-50 border border-gray-100 rounded-lg p-3 text-xs text-gray-600 overflow-x-auto">${esc(JSON.stringify(row.result ?? {}, null, 2))}</pre>
+    </details>
+  </article>`;
+}
+
+function itsProveReadSheet(sheet) {
+  const pick = (attr) => Object.fromEntries(Array.from(sheet.querySelectorAll(`[${attr}]`)).map((el) => [el.getAttribute(attr), el.value]));
+  return {
+    points: pick('data-its-prove-points'),
+    why: pick('data-its-prove-why'),
+    critical: !!sheet.querySelector('[data-its-prove-critical]')?.checked,
+    criticalReason: sheet.querySelector('[data-its-prove-critical-reason]')?.value || '',
+  };
+}
+
+function itsProveRefreshSheet(sheet) {
+  const rubric = HDESK_PROVE_RUBRICS[sheet.dataset.labKey];
+  const state = itsProveGradeState(rubric, sheet.dataset.passMark, itsProveReadSheet(sheet));
+  sheet.querySelector('[data-its-prove-critical-reason-row]').hidden = !state.critical;
+  sheet.querySelector('[data-its-prove-total]').textContent = state.total === null ? 'Total: not scored yet'
+    : state.score !== state.total ? `Total: ${state.total} / 100, capped at ${state.score}% by the critical error`
+    : `Total: ${state.total} / 100`;
+  sheet.querySelector('[data-its-prove-decide="approved"]').disabled = !state.canApprove;
+  sheet.querySelector('[data-its-prove-blocked]').textContent = state.blocked;
+}
+
+async function itsProveSubmitDecision(sheet, button, onSaved) {
+  const status = sheet.querySelector('[data-grading-status]');
+  const decision = button.dataset.itsProveDecide;
+  const rubric = HDESK_PROVE_RUBRICS[sheet.dataset.labKey];
+  const state = itsProveGradeState(rubric, sheet.dataset.passMark, itsProveReadSheet(sheet));
+  if (state.invalid || (state.entered && !state.allScored)) { status.textContent = 'Score every competency, or clear them all to return with no score.'; return; }
+  if (state.missingWhy.length) { status.textContent = `Justify the points for: ${state.missingWhy.join(', ')}.`; return; }
+  const buttons = sheet.querySelectorAll('[data-its-prove-decide]');
+  buttons.forEach((b) => { b.disabled = true; });
+  status.textContent = 'Saving…';
+  const { error } = await mntSupabase.rpc('record_lab_grade', {
+    p_attempt_id: sheet.dataset.itsProveGrade,
+    p_decision: decision,
+    p_competencies: state.allScored ? state.rows.map((row) => ({ id: row.id, label: row.label, points: row.points, earned: row.earned, justification: row.why })) : [],
+    p_critical_error: state.critical,
+    p_critical_reason: state.criticalReason,
+    p_efficiency: sheet.querySelector('[data-its-prove-efficiency]')?.value || '',
+    p_note: sheet.querySelector('[data-its-prove-note]')?.value || '',
+    p_rubric_version: rubric.version,
+  });
+  if (error) {
+    console.error('record_lab_grade failed', error);
+    status.textContent = `Not saved: ${error.message}`;
+    buttons.forEach((b) => { b.disabled = false; });
+    itsProveRefreshSheet(sheet);
+    return;
+  }
+  status.textContent = 'Saved. Refreshing…';
+  await onSaved();
+}
+
+/* A decided attempt: the official grade, read-only. */
+// Lab Attempts: every decision on this attempt, newest first. Older ones start
+// collapsed. Only a correction adds a second decision (record_lab_grade), so a
+// decision that isn't the newest was replaced by one.
+function itsProveDecisionLabel(grade) {
+  const decision = grade.decision === 'approved' ? 'Approved' : 'Returned';
+  const score = grade.official_score === null || grade.official_score === undefined ? 'no score entered' : `${grade.official_score}%`;
+  const day = grade.created_at ? new Date(grade.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'date not recorded';
+  return `${decision} ${score}, ${day}`;
+}
+
+function itsProveDecisionsHtml(row) {
+  if (!row.official_grade) return '';
+  const history = Array.isArray(row.official_grade_history) ? row.official_grade_history : [];
+  if (!history.length) {
+    return `${itsProveGradeSummaryHtml(row.official_grade)}<p class="mt-2 text-sm text-amber-900" data-its-prove-history-missing>Earlier decisions and saved notes couldn't be loaded. Reload this page to try again.</p>`;
+  }
+  const [current, ...older] = history;
+  return `<div class="mt-4" data-its-prove-decisions>
+    <h3 class="text-sm font-semibold text-[#1e3a5f]">Current decision: ${esc(itsProveDecisionLabel(current))}</h3>
+    ${itsProveGradeSummaryHtml(current)}
+    ${older.map((grade) => `<details class="mt-3 rounded-lg border border-gray-200 bg-white px-3 py-2" data-its-prove-older-decision>
+      <summary class="cursor-pointer text-sm font-semibold text-[#1e3a5f]">${esc(itsProveDecisionLabel(grade))}, replaced by a correction</summary>
+      ${itsProveGradeSummaryHtml(grade)}
+    </details>`).join('')}
+  </div>`;
+}
+
+// The notes saved with a decision, leaving out the ones the summary already
+// shows beside their competency, Efficiency or the critical error.
+function itsProveDecisionNotes(grade) {
+  const scores = Array.isArray(grade.competency_scores) ? grade.competency_scores : [];
+  const shown = new Set([
+    ...scores.filter((item) => item.justification).map((item) => `${item.label || item.id}|${String(item.justification).trim()}`),
+    `Efficiency|${String(grade.efficiency_feedback || '').trim()}`,
+    `Critical error|${String(grade.critical_error_reason || '').trim()}`,
+  ]);
+  return (grade.notes || []).filter((note) => String(note.comment || '').trim() && !shown.has(`${note.item_label}|${String(note.comment).trim()}`));
+}
+
+function itsProveGradeSummaryHtml(grade) {
+  const scores = Array.isArray(grade.competency_scores) ? grade.competency_scores : [];
+  return `<div class="mt-4 rounded-lg border border-gray-200 bg-white p-3" data-its-prove-grade-summary>
+    <h3 class="text-sm font-semibold text-[#1e3a5f]">Official grade: ${grade.official_score === null || grade.official_score === undefined ? 'no score entered' : `${esc(String(grade.official_score))}%`} · ${grade.decision === 'approved' ? 'Approved' : 'Returned'}</h3>
+    ${scores.length ? `<ul class="mt-2 space-y-1 text-sm text-gray-900">${scores.map((item) => `<li><strong>${esc(String(item.label || item.id))}:</strong> ${esc(String(item.earned))} / ${esc(String(item.points))}${item.justification ? ` <span class="text-gray-600">· ${esc(String(item.justification))}</span>` : ''}</li>`).join('')}</ul>` : ''}
+    ${grade.critical_error ? `<p class="mt-2 text-sm text-red-800"><strong>Critical error:</strong> ${esc(String(grade.critical_error_reason || ''))}</p>` : ''}
+    ${grade.efficiency_feedback ? `<p class="mt-2 text-sm text-gray-800"><strong>Efficiency:</strong> ${esc(String(grade.efficiency_feedback))}</p>` : ''}
+    ${grade.correction_reason ? `<p class="mt-2 text-sm text-gray-800"><strong>Correction:</strong> ${esc(String(grade.correction_reason))}</p>` : ''}
+    ${itsProveDecisionNotes(grade).length ? `<h4 class="mt-2 text-xs font-semibold text-gray-600">Notes sent to the student</h4><ul class="mt-1 space-y-1 text-sm text-gray-900">${itsProveDecisionNotes(grade).map((note) => `<li>${note.item_label ? `<strong>${esc(String(note.item_label))}:</strong> ` : ''}${esc(String(note.comment))}</li>`).join('')}</ul>` : ''}
+    ${grade.created_at ? `<p class="mt-2 text-xs text-gray-500">Decided ${esc(new Date(grade.created_at).toLocaleString())}</p>` : ''}
+  </div>`;
+}
+
+/* An approved newest attempt can be returned for another attempt. The full
+ * correction screen comes later; the server already records corrections. */
+function itsProveReturnActionHtml(row, isNewest) {
+  if (!isNewest || !row || !row.official_grade || row.official_grade.decision !== 'approved') return '';
+  const box = 'class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"';
+  return `<details class="mt-3 rounded-lg border border-gray-200 bg-white px-3 py-2" data-its-prove-correction="${esc(row.id)}">
+    <summary class="cursor-pointer text-sm font-semibold text-[#1e3a5f]">Return for another attempt</summary>
+    <p class="mt-2 text-sm text-gray-700">Use this if the approval was a mistake. The module stops counting as complete and the student gets one new attempt. Hours already awarded don't change.</p>
+    <label class="mt-2 block text-xs font-semibold text-gray-600">Why you are correcting this decision (kept in the record)
+      <textarea rows="2" data-its-prove-correction-reason ${box}></textarea>
+    </label>
+    <label class="mt-2 block text-xs font-semibold text-gray-600">Note to the student (required)
+      <textarea rows="2" data-its-prove-correction-note ${box}></textarea>
+    </label>
+    <div class="mt-2 flex flex-wrap items-center gap-2">
+      <button type="button" data-its-prove-correction-submit class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Return</button>
+      <span data-grading-status class="text-xs text-gray-600" role="status"></span>
+    </div>
+  </details>`;
+}
+
+async function itsProveSubmitCorrection(panel, onSaved) {
+  const status = panel.querySelector('[data-grading-status]');
+  const button = panel.querySelector('[data-its-prove-correction-submit]');
+  button.disabled = true;
+  status.textContent = 'Saving…';
+  const { error } = await mntSupabase.rpc('record_lab_grade', {
+    p_attempt_id: panel.dataset.itsProveCorrection,
+    p_decision: 'returned',
+    p_note: panel.querySelector('[data-its-prove-correction-note]').value,
+    p_correction_reason: panel.querySelector('[data-its-prove-correction-reason]').value,
+  });
+  if (error) {
+    console.error('record_lab_grade correction failed', error);
+    status.textContent = `Not saved: ${error.message}`;
+    button.disabled = false;
+    return;
+  }
+  status.textContent = 'Saved. Refreshing…';
+  await onSaved();
+}
+
+// Called after every Lab Attempts render; onSaved re-renders the tab.
+function itsProveWireGrading(onSaved) {
+  document.querySelectorAll('[data-its-prove-grade]').forEach((sheet) => {
+    const refresh = () => itsProveRefreshSheet(sheet);
+    sheet.addEventListener('input', refresh);
+    sheet.addEventListener('change', refresh);
+    sheet.querySelectorAll('[data-its-prove-decide]').forEach((button) => {
+      button.addEventListener('click', () => itsProveSubmitDecision(sheet, button, onSaved));
+    });
+    refresh();
+  });
+  document.querySelectorAll('[data-its-prove-correction]').forEach((panel) => {
+    panel.querySelector('[data-its-prove-correction-submit]').addEventListener('click', () => itsProveSubmitCorrection(panel, onSaved));
+  });
+}
+
+/* The student's marked lab for a graded Prove It. A return shows the
+ * instructor's score if one was entered, with no pass/fail. */
+function itsProveMarkedLabHtml(row, grade, feedback) {
+  if (!grade) return '';
+  const passed = grade.decision === 'approved' && !row.redo_requested;
+  const scores = Array.isArray(grade.competency_scores) ? grade.competency_scores : [];
+  const notes = latestDecisionNotes(feedback || [], grade).filter((item) => String(item.comment || '').trim());
+  const hasScore = grade.official_score !== null && grade.official_score !== undefined;
+  return `<div class="mnt-marked-lab-status" data-its-prove-marked="${passed ? 'passed' : 'returned'}">
+    <p class="font-semibold text-[#1e3a5f]">${esc(itsLabTitle(row.lab_key))}: ${passed ? 'Passed' : 'Returned for revision'}</p>
+    ${hasScore ? `<p class="mt-1 text-gray-800">${passed ? 'Your score' : 'Your instructor\'s score'}: <strong>${esc(String(grade.official_score))}%</strong></p>` : ''}
+    ${scores.length ? `<ul class="mt-2 space-y-1">${scores.map((item) => `<li>${esc(String(item.label || item.id))}: ${esc(String(item.earned))} / ${esc(String(item.points))}</li>`).join('')}</ul>` : ''}
+    ${notes.length ? `<h3 class="mt-3 font-semibold text-[#1e3a5f]">Your instructor's feedback</h3><ul class="mt-1 list-disc pl-5 space-y-1">${notes.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment)}</li>`).join('')}</ul>` : '<p class="mt-2 text-gray-600">Your instructor did not leave written notes.</p>'}
   </div>`;
 }
 
@@ -753,7 +1052,8 @@ function itsLabSubmitting(user, labKey) {
  * submitted. */
 function itsLabStatusHtml(user, labKey, { label, prefix, pendingText, ready = false }) {
   const status = itsLabStatus(user, labKey);
-  const line = status === 'passed' ? { pass: true, icon: 'ri-checkbox-circle-fill', text: `${label} passed` }
+  const officialScore = (itsLabAttempt(user, labKey) || {}).officialScore;
+  const line = status === 'passed' ? { pass: true, icon: 'ri-checkbox-circle-fill', text: `${label} passed${typeof officialScore === 'number' ? ` · ${officialScore}%` : ''}` }
     : status === 'waiting' ? { icon: 'ri-send-plane-line', text: `${label} submitted ${itsSubmittedDay(user, labKey)}, waiting for instructor review` }
     : status === 'returned' ? { icon: 'ri-error-warning-line', text: `${label} returned for revision — see your instructor’s notes below.` }
     : itsLabSubmitting(user, labKey) ? { icon: 'ri-loader-4-line', text: `Submitting ${label}…` }

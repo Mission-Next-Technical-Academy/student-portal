@@ -16,7 +16,9 @@ insert into auth.users (id, instance_id, aud, role, email) values
 insert into public.students (student_id, user_id, track_code, is_enrolled, is_admin, is_instructor) values
   ('9900000021-HDESK',  'd0000000-0000-0000-0000-000000000001', 'HDESK',     true, false, false),
   ('9900000022-HDESK',  'd0000000-0000-0000-0000-000000000002', 'HDESK',     true, false, false),
-  ('9900000024-HDINST', 'd0000000-0000-0000-0000-000000000004', 'SOCANINST', true, false, true);
+  ('9900000024-HDINST', 'd0000000-0000-0000-0000-000000000004', 'HDINST',    true, false, true);
+insert into public.faculty_course_assignments (user_id, track_code) values
+  ('d0000000-0000-0000-0000-000000000004', 'HDESK');
 insert into public.site_sessions (user_id, auth_session_id) values
   ('d0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000001'),
   ('d0000000-0000-0000-0000-000000000004', 'e0000000-0000-0000-0000-000000000004');
@@ -88,9 +90,7 @@ select pg_temp.check((select reviewed_at is null from public.lab_attempts where 
 
 -- ------------------------------------------------------------ returned
 select pg_temp.act_as('d0000000-0000-0000-0000-000000000004', 'e0000000-0000-0000-0000-000000000004');
-update public.lab_attempts set reviewed_at = now(), reviewed_by = 'd0000000-0000-0000-0000-000000000004', redo_requested = true where lab_key = 'lab-its-01-prove-it';
-insert into public.lab_attempt_feedback (lab_attempt_id, item_label, comment, created_by)
-  select id, 'Overall', 'Say what the check proved.', 'd0000000-0000-0000-0000-000000000004' from public.lab_attempts where lab_key = 'lab-its-01-prove-it';
+select public.record_lab_grade((select id from public.lab_attempts where lab_key = 'lab-its-01-prove-it'), 'returned', '[]'::jsonb, false, null, null, 'Say what the check proved.');
 select set_config('request.jwt.claims', '', true);
 select pg_temp.check(not pg_temp.verified('d0000000-0000-0000-0000-000000000001'), 'a returned attempt does not complete Module 1');
 
@@ -106,13 +106,12 @@ select pg_temp.check((select count(*) = 1 from public.lab_attempt_feedback f joi
 select pg_temp.check(not pg_temp.verified('d0000000-0000-0000-0000-000000000001'), 'the resubmission alone does not complete Module 1');
 
 -- ------------------------------------------------------------ approved
--- Known gap, kept visible until the faculty-gate work: Approve with no score
--- counts as a pass. When that work lands, this expectation must change with it.
+-- The full rules are in hdesk_faculty_gate.sql.
 select pg_temp.act_as('d0000000-0000-0000-0000-000000000004', 'e0000000-0000-0000-0000-000000000004');
-update public.lab_attempts set reviewed_at = now(), reviewed_by = 'd0000000-0000-0000-0000-000000000004', redo_requested = false
-  where lab_key = 'lab-its-01-prove-it' and reviewed_at is null;
+select public.record_lab_grade((select id from public.lab_attempts where lab_key = 'lab-its-01-prove-it' and reviewed_at is null), 'approved',
+  '[{"id":"triage","label":"Triage","points":22,"earned":22},{"id":"investigation","label":"Investigation","points":11,"earned":11},{"id":"diagnosis","label":"Diagnosis","points":11,"earned":11},{"id":"action","label":"Action and decision","points":28,"earned":28},{"id":"documentation","label":"Documentation and communication","points":28,"earned":28}]'::jsonb);
 select set_config('request.jwt.claims', '', true);
-select pg_temp.check(pg_temp.verified('d0000000-0000-0000-0000-000000000001'), 'known gap: an approved attempt with no score completes Module 1');
+select pg_temp.check(pg_temp.verified('d0000000-0000-0000-0000-000000000001'), 'an approved official grade completes Module 1');
 select pg_temp.check((select state = 'complete' from public.module_progress
     where user_id = 'd0000000-0000-0000-0000-000000000001' and module_key = 'its-01'), 'and module_progress follows, which unlocks Module 2');
 select pg_temp.act_as('d0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000001');

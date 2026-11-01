@@ -163,6 +163,9 @@ function hdEvents() {
 // not_submitted, returned, waiting or passed.
 const hdProveServer = { status:'checking', notice:'', sending:false };
 function hdProveLocked() { return !!(HD_PROVE && (HD_PROVE.blocked || ['waiting','passed'].includes(hdProveServer.status))); }
+// When the student last changed their work in this browser. A returned attempt
+// prefills only over a draft older than that attempt (hdProvePrefill).
+function hdProveEdited() { if (HD_PROVE && hdState.prove) hdState.prove.editedAt = new Date().toISOString(); }
 function hdProveEvent(type, detail) {
   if (!HD_PROVE || !hdState.prove || hdProveLocked()) return;
   const events = hdState.prove.events;
@@ -240,6 +243,7 @@ function hdAddNote(id) {
   const ticket = hdTicketById(id); const input = document.getElementById('hd-note-input');
   const text = input && input.value.trim(); if (!ticket || !text) { toast('Enter a useful troubleshooting note first.'); return; }
   ticket.notes.push({ time:new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }), author:'Riley Morgan', text });
+  hdProveEdited();
   hdHistory(ticket, 'Technician work note added.'); hdRerender();
 }
 function hdContactRequester(id) {
@@ -542,6 +546,7 @@ VIEWS['helpdesk/environment'] = () => `${hdPageHeader('Enterprise Map', `${HD_OR
 function hdProveSetField(field, value) {
   if (hdProveLocked() || !['category','type','priority'].includes(field)) return;
   hdState.prove.fields[field] = String(value || '');
+  hdProveEdited();
   hdSave();
   hdProveSyncSubmit();
 }
@@ -549,6 +554,7 @@ function hdProveChoose(field, value) {
   if (hdProveLocked() || !['diagnosis','decision'].includes(field)) return;
   hdState.prove[field] = String(value || '');
   hdProveEvent(field === 'diagnosis' ? 'diagnosis_chosen' : 'decision_chosen', { value:hdState.prove[field] });
+  hdProveEdited();
   hdSave();
   hdProveSyncSubmit();
 }
@@ -559,12 +565,14 @@ function hdProveToggleStep(id, checked) {
   if (checked) steps.add(id); else steps.delete(id);
   hdState.prove.steps = hdState.prove.order.path.filter(stepId => steps.has(stepId));
   hdProveEvent(checked ? 'step_chosen' : 'step_cleared', { step:id });
+  hdProveEdited();
   hdSave();
 }
 // Typing is saved, not recorded as events.
 function hdProveText(field, value) {
   if (hdProveLocked() || !['resolutionNote','userReply'].includes(field)) return;
   hdState.prove[field] = String(value || '').slice(0, 4000);
+  hdProveEdited();
   hdSave();
   hdProveSyncSubmit();
 }
@@ -635,13 +643,40 @@ function hdProveAsk(type, extra, done) {
   timer = setTimeout(() => finish({ reason:'unconfirmed' }), HD_PROVE_REPLY_MS);
   opener.postMessage({ type, id:HD_PROVE.moduleKey, nonce, student:HD_PROVE.student, ...extra }, origin);
 }
+// A returned attempt reopens with what the student last submitted, so signing
+// out or changing device doesn't empty the form. Only over a draft older than
+// that attempt: newer work in this browser stays. Values the ticket no longer
+// offers stay empty, and Submit asks for them.
+function hdProvePrefill(work) {
+  const prove = hdState.prove;
+  const ticket = hdState.tickets[0];
+  const submitted = Date.parse(work && work.completedAt);
+  if (!prove || !ticket || work.ticketId !== ticket.id || !submitted) return false;
+  if (prove.editedAt && Date.parse(prove.editedAt) > submitted) return false;
+  const fields = work.fields || {};
+  const offered = (value, options) => (options.includes(value) ? value : '');
+  const steps = Array.isArray(work.steps) ? work.steps : [];
+  prove.fields = {
+    category:offered(fields.category, ticket.categoryOptions), type:offered(fields.type, ticket.typeOptions),
+    priority:offered(fields.priority, ['P1','P2','P3','P4']),
+  };
+  prove.diagnosis = offered(work.diagnosis, prove.order.diagnosis);
+  prove.decision = offered(work.decision, ['Resolve','Escalate']);
+  prove.steps = prove.order.path.filter(id => steps.includes(id));
+  prove.resolutionNote = String(work.resolutionNote || '').slice(0, 4000);
+  prove.userReply = String(work.userReply || '').slice(0, 4000);
+  ticket.notes = (Array.isArray(work.workNotes) ? work.workNotes : []).map(text => ({ time:'Earlier attempt', author:'Riley Morgan', text:String(text) }));
+  hdSave();
+  return true;
+}
 function hdProveApply(reply) {
   const wasLocked = hdProveLocked();
   hdProveServer.sending = false;
   if (reply.status) hdProveServer.status = reply.status;
   else if (hdProveServer.status === 'checking') hdProveServer.status = 'unknown';
   hdProveServer.notice = hdProveLocked() || !reply.reason ? '' : HD_PROVE_NOTICES[reply.reason] || HD_PROVE_NOTICES.unconfirmed;
-  if (hdProveLocked() !== wasLocked) render(); else hdProveSyncSubmit();
+  const prefilled = reply.status === 'returned' && reply.lastWork && hdProvePrefill(reply.lastWork);
+  if (prefilled || hdProveLocked() !== wasLocked) render(); else hdProveSyncSubmit();
 }
 function hdProveSubmit() {
   if (hdProveLocked() || hdProveServer.sending || hdProveServer.status === 'checking' || hdProveMissing().length) return;

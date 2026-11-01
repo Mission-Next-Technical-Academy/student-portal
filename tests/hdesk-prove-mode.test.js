@@ -264,8 +264,8 @@ function testRubricNamesNoAnswers() {
     [['triage', 22], ['investigation', 11], ['diagnosis', 11], ['action', 28], ['documentation', 28]]);
   assert.equal(rubric.competencies.reduce((n, c) => n + c.points, 0), rubric.technicalPoints);
   assert.equal(rubric.technicalPoints, 100);
-  assert.equal(rubric.passPercent, 70);
-  assert.equal(rubric.criticalErrorCapPercent, 69);
+  assert.equal(rubric.passPercent, undefined, 'the pass mark lives in the database, not here');
+  assert.equal(rubric.criticalErrorCapPercent, undefined, 'the cap follows the pass mark');
   assert.deepEqual([...rubric.formative.map((f) => f.id)], ['efficiency']);
   assert.ok(!('points' in rubric.formative[0]), 'efficiency earns no points');
   [PROVE_ID, ...PROVE_TICKET.diagnosisOptions, ...PROVE_TICKET.pathPool.map((s) => s.text), ...SHIFT.kbArticles.map((k) => k.id)]

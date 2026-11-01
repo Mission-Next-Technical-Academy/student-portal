@@ -229,6 +229,7 @@ function its01Prove() {
     </a>`}
     <div class="itss-walkthrough-notice" data-its01-prove-notice role="status" hidden></div>
     ${itsLabStatusHtml(user, ITS01_PROVE_KEY, { label: 'Prove It', prefix: 'its01', pendingText: 'Press Submit in the simulator when you finish the ticket.' })}
+    ${itsLabStatus(user, ITS01_PROVE_KEY) === 'passed' && typeof markedLabLinkHtml === 'function' ? `<p>${markedLabLinkHtml(ITS01_PROVE_KEY, 'See your score and feedback')}</p>` : ''}
     ${itsRedoNoticeHtml(user, [{ key: ITS01_PROVE_KEY, action: 'Reopen the Prove It, make your changes, then press Resubmit in the simulator. You can resubmit once for each return.' }])}
   </section>`;
 }

@@ -122,10 +122,17 @@ select pg_temp.check((select complete from old_view
 select pg_temp.check((select not complete from public.student_verified_module_progress
     where user_id = 'b0000000-0000-0000-0000-000000000002' and module_key = 'its-01'),
   'now, approved Practice It labs alone do not verify Module 1');
-select pg_temp.approve('b0000000-0000-0000-0000-000000000002', 'HDESK', 'lab-its-01-prove-it');
+-- This lab also needs an official grade (hdesk_faculty_gate.sql has the rules);
+-- the review comes last, as in record_lab_grade(), so the completion trigger sees it.
+insert into public.lab_attempts (id, user_id, track_code, lab_key, state, result, started_at, completed_at)
+  values ('b0000000-0000-0000-0000-0000000000a1', 'b0000000-0000-0000-0000-000000000002', 'HDESK', 'lab-its-01-prove-it', 'complete', '{}'::jsonb, now(), now());
+insert into public.lab_attempt_grades (lab_attempt_id, decision, official_score, created_by)
+  values ('b0000000-0000-0000-0000-0000000000a1', 'approved', 90, 'b0000000-0000-0000-0000-000000000004');
+update public.lab_attempts set reviewed_at = now(), reviewed_by = 'b0000000-0000-0000-0000-000000000004'
+  where id = 'b0000000-0000-0000-0000-0000000000a1';
 select pg_temp.check((select complete from public.student_verified_module_progress
     where user_id = 'b0000000-0000-0000-0000-000000000002' and module_key = 'its-01'),
-  'an approved Prove It verifies Module 1');
+  'a Prove It with an approved official grade verifies Module 1');
 select pg_temp.check((select state = 'complete' from public.module_progress
     where user_id = 'b0000000-0000-0000-0000-000000000002' and module_key = 'its-01'),
   'approving the Prove It completes module_progress (unlocks Module 2)');
