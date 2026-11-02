@@ -1283,6 +1283,14 @@ function moduleElevenWireConsole(root = document.getElementById('m03e-console-m1
       if (fixture === MODULE_ELEVEN_GUIDED_FIXTURE) moduleElevenUpdateGuidedProgress();
     } catch (error) { const status = form.parentElement.querySelector('[role="status"]'); if (status) status.textContent = error.message; }
   });
+  // A native constraint failure (e.g. a due date outside the case window) cancels
+  // submit, so say why in the form's status line instead of failing silently (U38).
+  root.addEventListener('invalid', (event) => {
+    const field = event.target; const form = field.closest?.('[data-m11-operation]'); if (!form) return;
+    const status = form.parentElement.querySelector('[role="status"]');
+    if (status) status.textContent = field.name === 'dueDate' && field.min && field.max
+      ? `Due date must be between ${field.min} and ${field.max}.` : (field.validationMessage || 'Complete the highlighted field.');
+  }, true);
   consoleMount?.wire(root);
 }
 

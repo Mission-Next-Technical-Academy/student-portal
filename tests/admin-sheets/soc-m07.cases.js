@@ -53,7 +53,7 @@ module.exports = ({ run, clone }) => {
     add('artifact_review', { artifactId: 'M07-URL-001', reviewed: true, note: NOTE });
     ['M07-QR-014', 'M07-DNS-001', 'M07-TLS-001', 'M07-DNS-002'].forEach((eventId) => add('network_review', { eventId, reviewed: true, note: eventId === 'M07-DNS-002' ? 'Normal payroll lookup, unrelated.' : NOTE }));
     add('pivot', { fromEventId: 'M07-QR-014', toEventId: 'M07-DNS-001', field: 'relatedEvent', value: 'M07-QR-014' });
-    ['M07-DELIVERY-001', 'M07-DELIVERY-002', 'M07-QR-014', 'M07-DNS-001', 'M07-TLS-001'].forEach((eventId) => add('evidence_change', { operation: 'add', eventId, reason: 'Part of the confirmed chain.' }));
+    ['M07-DELIVERY-001', 'M07-DELIVERY-002', 'M07-QR-014', 'M07-DNS-001', 'M07-TLS-001', 'M07-FW-001', 'M07-PROXY-001'].forEach((eventId) => add('evidence_change', { operation: 'add', eventId, reason: 'Part of the confirmed chain.' }));
     const incident = {
       operation: 'create', incidentId: 'M07-INCIDENT-0001', title: 'QR invoice phishing: acct-63',
       summary: 'acct-63 received the QR invoice, opened it and clicked; ws-517 then resolved invoice-qr.example to 203.0.113.88. Endpoint execution and credential compromise are not established.',
@@ -161,8 +161,12 @@ module.exports = ({ run, clone }) => {
         feedback: [],
         html: ['Recommend PASS', 'CASE-070731 · INC-071042', '3 lab records with identical answers', 'Tier 2 SOC — Network Intrusion', 'Confirmed malicious activity', '9 of 9 found',
           'Message-to-network chain', 'opened it and clicked the link', 'Unknown / needs investigation', 'QR invoice phishing: acct-63', 'Evidence in the tray at submit',
+          'Recipients in incident record', 'acct-63', 'Devices in incident record', 'ws-517',
+          'M07-FW-001 · 10:08:08 · firewall allow 192.0.2.57 → 203.0.113.88:443',
+          'M07-PROXY-001 · 10:08:09 · acct-63 / ws-517 web request GET https://invoice-qr.example/invoice/7f3a → 200',
           'Severity set to High', /data-sheet-narrative-text>billing@northwind-billing/, /data-sheet-narrative="incident:0"/],
-        notHtml: ['true-positive', 'tier2-soc-net', 'in-progress', 'blocked_at_gateway', 'not yet verified', 'Supported by the evidence', 'Evidence change history', 'exfiltration', 'tunnel'],
+        notHtml: ['true-positive', 'tier2-soc-net', 'in-progress', 'blocked_at_gateway', 'not yet verified', 'Supported by the evidence', 'Evidence change history', 'exfiltration', 'tunnel',
+          'Selected from assessment evidence view', 'Why M07-DELIVERY-001 was kept as evidence'],
       },
     },
     {

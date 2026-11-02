@@ -123,7 +123,7 @@ function caseRecordFields(state, spec) {
       ${entities}
       ${caseRecordSelect('disposition', 'Disposition', disposition, dispositionOptions, disabled, isCorrect('disposition', disposition))}
       ${caseRecordSelect('escalation', 'Escalation required', state.escalation, CASE_RECORD_ESCALATION_OPTIONS, disabled, isCorrect('escalation', state.escalation))}
-      ${state.escalation === 'required' ? caseRecordSelect('escalateTo', 'Route to Department', state.escalateTo, departmentOptions, disabled, isCorrect('escalateTo', state.escalateTo)) : ''}
+      ${departmentOptions.length ? `<div class="m01-ticket-routing">${caseRecordSelect('escalateTo', 'Route to Department (if escalation is required)', state.escalateTo, departmentOptions, disabled, isCorrect('escalateTo', state.escalateTo))}<small>Choose a receiving team when you set Escalation required to Required.</small></div>` : ''}
       ${(spec.findings || []).filter((field) => field.type !== 'textarea').map((field) => caseRecordSelect(`finding:${field.name}`, field.label, findings[field.name], field.options, disabled)).join('')}
     </div>
     ${(spec.findings || []).filter((field) => field.type === 'textarea').map((field) => `<label class="m01-ticket-field m01-ticket-notes"><span>${esc(field.label)}${field.minLength ? ` · at least ${field.minLength} characters` : ''}</span><textarea name="finding:${esc(field.name)}" rows="${field.rows || 4}" minlength="${field.minLength || 1}" maxlength="${field.maxLength || 5000}" ${disabled ? 'disabled' : ''}>${esc(findings[field.name] || '')}</textarea></label>`).join('')}

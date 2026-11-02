@@ -349,6 +349,10 @@
       const names = [...new Set(list.map((run) => (run.entityType === 'all' ? 'all hosts' : run.entityValue)))];
       return names.length ? ` (you searched ${names.join(', ')})` : ' (you saved no searches with results)';
     };
+    const utcDateTime = (value) => {
+      const time = Date.parse(value);
+      return Number.isFinite(time) ? `${new Date(time).toISOString().slice(0, 16).replace('T', ' ')} UTC` : 'unknown time';
+    };
     // " (you marked T1105 as Supported)": what the student marked with that status.
     const marked = (result, status) => {
       const list = workList(result, 'mappings');
@@ -395,7 +399,7 @@
         answer: (result) => {
           const list = queryRuns(result);
           if (list === null) return [['Student’s work in this section', null], ['Events credited by the scorer', credited('scope-and-comparison')(result)]];
-          return [['Searches the student ran', list.length ? list.map((run) => `${run.entityType === 'all' ? 'All hosts' : `${run.entityType} ${run.entityValue}`} · ${String(run.startTime || '').slice(11, 16)}–${String(run.endTime || '').slice(11, 16)} · ${arrayOf(run.resultEventIds).length} results${run.query ? ` · query: ${run.query}` : ''}`) : 'No searches saved']];
+          return [['Searches the student ran', list.length ? list.map((run) => `${run.entityType === 'all' ? 'All hosts' : `${run.entityType} ${run.entityValue}`} · ${utcDateTime(run.startTime)}–${utcDateTime(run.endTime)} · ${arrayOf(run.resultEventIds).length} results${run.query ? ` · query: ${run.query}` : ''}`) : 'No searches saved']];
         },
         checks: withScore([
           {

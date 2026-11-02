@@ -338,6 +338,36 @@ function moduleOneSyncDetailBeacon() {
   }
 }
 
+// Name exactly what is still missing, so the learner is never left hunting
+// for the one field (e.g. the route that appears only after Escalation =
+// Required).
+const MODULE_ONE_GUIDED_TODO_PREFIX = 'Almost there. Still to do: ';
+function moduleOneGuidedTodo() {
+  const practice = moduleOneState.practice;
+  return [
+    [!moduleOneState.reviewedEvidence.length, 'open the sign-in log'],
+    [!practice.affectedUser, 'add the affected user'],
+    [!practice.affectedDevice, 'add the affected device'],
+    [!practice.priority, 'set Severity'],
+    [!practice.verdict, 'set Disposition'],
+    [!practice.escalation, 'set Escalation required'],
+    [practice.escalation === 'required' && !practice.escalateTo, 'choose the Route to Department'],
+    [!(practice.notes || '').trim(), 'write a work note'],
+  ].filter(([isMissing]) => isMissing).map(([, label]) => label);
+}
+
+// UAT U2 (2026-11-02): the "Still to do" list from an empty Submit used to
+// stay frozen (and was saved) after the learner filled those fields, so it
+// told them to do work they had already done. Recompute it whenever the
+// ticket renders; drop it once nothing is missing. Returns the current text.
+function moduleOneRefreshGuidedTodo() {
+  const current = moduleOneState.validationError || '';
+  if (!current.startsWith(MODULE_ONE_GUIDED_TODO_PREFIX)) return current;
+  const todo = moduleOneGuidedTodo();
+  moduleOneState.validationError = todo.length ? `${MODULE_ONE_GUIDED_TODO_PREFIX}${todo.join(', ')}.` : '';
+  return moduleOneState.validationError;
+}
+
 function moduleOneSave() {
   if (moduleOneUser && moduleOneState) {
     // The final case can span days and devices.  Keep the whole fixture state
@@ -989,7 +1019,7 @@ function moduleOneCaseConsolePane() {
         </form>
         ${moduleOneState.consoleCompleted
           ? caseRecordPanel({ panelId: 'm01-practice-submission', submitted: true, practiceSubmitted: true })
-          : moduleOneState.validationError
+          : moduleOneRefreshGuidedTodo()
             ? `<div class="m01cc-feedback is-error" id="m01cc-feedback" tabindex="-1" role="alert">${esc(moduleOneState.validationError)}</div>`
             : ''}
       </section>
@@ -1487,21 +1517,9 @@ function wireModuleOneCaseConsole() {
 
     if (event.target.closest('[data-m01-practice-check]')) {
       const practice = moduleOneState.practice;
-      // Name exactly what is still missing, so the learner is never left
-      // hunting for the one field (e.g. the route that appears only after
-      // Escalation = Required).
-      const todo = [
-        [!moduleOneState.reviewedEvidence.length, 'open the sign-in log'],
-        [!practice.affectedUser, 'add the affected user'],
-        [!practice.affectedDevice, 'add the affected device'],
-        [!practice.priority, 'set Severity'],
-        [!practice.verdict, 'set Disposition'],
-        [!practice.escalation, 'set Escalation required'],
-        [practice.escalation === 'required' && !practice.escalateTo, 'choose the Route to Department'],
-        [!(practice.notes || '').trim(), 'write a work note'],
-      ].filter(([isMissing]) => isMissing).map(([, label]) => label);
+      const todo = moduleOneGuidedTodo();
       const missing = todo.length > 0;
-      moduleOneState.validationError = missing ? `Almost there. Still to do: ${todo.join(', ')}.` : '';
+      moduleOneState.validationError = missing ? `${MODULE_ONE_GUIDED_TODO_PREFIX}${todo.join(', ')}.` : '';
       if (!missing) {
         moduleOneState.completed = true;
         moduleOneState.consoleCompleted = true;
