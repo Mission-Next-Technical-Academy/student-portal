@@ -195,7 +195,7 @@ const SocConsoleTools = (() => {
                 const mode = runRuleNow.matches('[data-m04-rule-run-scheduled]') ? 'scheduled' : 'manual';
                 const execution = SocM04RulesUi.recordExecution(assessment, form.dataset.ruleId, timestamp, mode);
                 SocM04RulesUi.completePendingExecution(assessment, execution.id, ctx.fixture);
-                ctx.console().tab = 'alerts';
+                if (SocM04RulesUi.shouldNavigateToAlerts(mode)) ctx.console().tab = 'alerts';
               }
             }
           } catch (error) {

@@ -48,6 +48,8 @@ assert.strictEqual(correct.assessment.alerts[0].createdAt, fixture.scenario.end)
 
 const broad = run({ ...base, id: 'M04-RULE-0002', threshold: 2 }, 'M04-EXEC-0002');
 const api = vm.runInContext('SocM04RulesUi', context);
+assert.strictEqual(api.shouldNavigateToAlerts('manual'), true, 'manual rule runs open the resulting Alerts view');
+assert.strictEqual(api.shouldNavigateToAlerts('scheduled'), false, 'a scheduled run stays in the Rules workspace');
 assert.strictEqual(broad.assessment.alerts.length, 5, 'broad rule alerts every threshold-met group, including the Sprint 2 background candidates');
 assert.ok(broad.assessment.alerts.every((alert) => alert.executionId === broad.completed.id));
 assert.deepStrictEqual(clone(broad.assessment.alerts.map((alert) => [alert.group, alert.matchCount])), [
@@ -70,6 +72,16 @@ assert.strictEqual(secondRun.status, 'completed');
 assert.deepStrictEqual(clone(lifecycle.alerts.map((alert) => alert.executionId)), ['M04-EXEC-0001', 'M04-EXEC-0002'], 'repeated executions create distinct, linked alerts');
 assert.deepStrictEqual(clone(lifecycle.alerts.map((alert) => alert.id)), ['M04-ALERT-0001', 'M04-ALERT-0002']);
 assert.deepStrictEqual(clone(lifecycle.alerts[0]), firstAlertSnapshot, 'repeated executions do not rewrite earlier alerts');
+
+const suppressedAcrossRuns = { rules: [clone({ ...base, suppression: { enabled: true, groupField: 'SourceIp', windowMinutes: 15 } })],
+  executions: [], nextExecutionSequence: 1, alerts: [], alertIds: [], nextAlertSequence: 1, actionHistory: [], nextActionSequence: 1 };
+api.configureSchedule(suppressedAcrossRuns, base.id, { enabled: true, frequencyMinutes: 15, scheduledAt: fixture.scenario.end }, fixture.scenario.end);
+apiRun(suppressedAcrossRuns, base.id);
+const scheduledExecution = api.recordExecution(suppressedAcrossRuns, base.id, fixture.scenario.end, 'scheduled');
+api.completePendingExecution(suppressedAcrossRuns, scheduledExecution.id, fixture);
+assert.strictEqual(suppressedAcrossRuns.alerts.length, 1, 'a scheduled execution does not duplicate the same source alert inside the suppression window');
+assert.match(suppressedAcrossRuns.executions[1].reviewEvidence.suppressed[0].suppression.reason, /prior alert M04-ALERT-0001/,
+  'cross-run suppression is recorded for instructor review');
 
 const edited = lifecycle.rules[0];
 edited.name = 'Corrected password spray';

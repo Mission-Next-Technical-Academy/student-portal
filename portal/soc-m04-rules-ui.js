@@ -15,6 +15,8 @@ const SocM04RulesUi = (() => {
     if (typeof timestamp !== 'string' || Number.isNaN(Date.parse(timestamp))) throw new TypeError(label);
   }
 
+  function shouldNavigateToAlerts(mode) { return mode === 'manual'; }
+
   function findRule(assessment, ruleId) {
     const rule = (assessment.rules || []).find((item) => item.id === ruleId);
     if (!rule) throw new RangeError('Analytics rule not found.');
@@ -91,6 +93,34 @@ const SocM04RulesUi = (() => {
       execution.error = '';
       const eligible = (result.retainedCandidates || []).filter((candidate) => candidate.thresholdMet === true);
       eligible.forEach((candidate) => {
+        const suppression = rule.suppression?.enabled === true ? rule.suppression : null;
+        const valueFor = (row, field) => field === 'TimeGenerated' ? row.time
+          : field === 'EventId' ? row.id : field === 'EventType' ? row.type
+            : field === 'SourceIp' ? row.sourceIp : field === 'Account' ? row.account
+              : field === 'Result' ? row.result : field === 'DeviceClass' ? row.deviceClass : row[field];
+        const evidenceValues = new Set((fixture?.scenario?.telemetry || []).filter((row) => candidate.supportingEventIds.includes(row.id))
+          .map((row) => valueFor(row, suppression?.groupField)).filter((value) => value !== undefined && value !== null && value !== '').map(String));
+        const suppressionMs = Number(suppression?.windowMinutes) * 60000;
+        const completedMs = Date.parse(completedAt);
+        const priorAlert = suppression && Number.isSafeInteger(suppression.windowMinutes)
+          ? (assessment.alerts || []).find((alert) => {
+            if (alert.ruleId !== rule.id || !Number.isFinite(Date.parse(alert.createdAt))) return false;
+            const age = completedMs - Date.parse(alert.createdAt);
+            if (age < 0 || age > suppressionMs) return false;
+            const priorEventIds = Array.isArray(alert.eventIds) ? alert.eventIds : [];
+            const priorValues = new Set((fixture?.scenario?.telemetry || []).filter((row) => priorEventIds.includes(row.id))
+              .map((row) => valueFor(row, suppression.groupField)).filter((value) => value !== undefined && value !== null && value !== '').map(String));
+            return [...evidenceValues].some((value) => priorValues.has(value));
+          }) : null;
+        if (priorAlert) {
+          execution.reviewEvidence.suppressed.push({
+            group: candidate.group, groupingField: candidate.groupingField,
+            evidenceEventIds: candidate.supportingEventIds.slice(),
+            suppression: { groupField: suppression.groupField, windowMinutes: suppression.windowMinutes,
+              suppressedByAlertId: priorAlert.id, reason: `Suppressed within ${suppression.windowMinutes} minutes by prior alert ${priorAlert.id}.` },
+          });
+          return;
+        }
         const sequence = assessment.nextAlertSequence || 1;
         const alert = {
           id: `M04-ALERT-${String(sequence).padStart(4, '0')}`,
@@ -278,5 +308,5 @@ const SocM04RulesUi = (() => {
     return `<div class="m04-rules-workspace">${editor}<section><h4>Saved queries</h4><ul>${saved || '<li>No saved queries.</li>'}</ul></section><section><h4>Rule drafts</h4><ul>${drafts || '<li>No rule drafts.</li>'}</ul></section><section><h4>Execution history</h4><ul>${executions || '<li>No execution requests.</li>'}</ul></section>${renderRule(assessment.ruleDraft, fields)}</div>`;
   }
 
-  return Object.freeze({ tables, test, saveQuery, convertToDraft, updateDraft, updateSafeguards, configureSchedule, recordExecution, completePendingExecution, selectAlert, reviewAlert, render, renderRule, MIN_FREQUENCY_MINUTES, MAX_FREQUENCY_MINUTES });
+  return Object.freeze({ tables, test, saveQuery, convertToDraft, updateDraft, updateSafeguards, configureSchedule, recordExecution, completePendingExecution, selectAlert, reviewAlert, render, renderRule, shouldNavigateToAlerts, MIN_FREQUENCY_MINUTES, MAX_FREQUENCY_MINUTES });
 })();
