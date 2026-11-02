@@ -1141,6 +1141,10 @@ button[data-m11-submit-score]:hover, button[data-m11-submit-score]:focus-visible
 .acct-name { display: block; margin: 0; padding: 0; color: var(--mn-theme-muted, #64748b); font-size: .75em; font-weight: 400; line-height: 1.2; letter-spacing: 0; text-transform: none; }
 .acct-name--inline { display: inline; }
 .acct-name--inline::before { content: " \00b7  "; white-space: pre; }
-/* Header / module-topbar chips: never wrap, truncate long names, and drop the name below 1024px so the nav row stays one line. */
-.acct-chip-name { display: inline-block; max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
-@media (max-width: 1023px) { .acct-chip-name { display: none; } }
+/* Header / module-topbar chips: account number on top, first + last name
+   stacked under it. Visible at every width the chip is shown; only a very
+   long name (> 16rem) is ellipsed, with the full name in the title. */
+.acct-chip { display: inline-flex; flex-direction: column; justify-content: center; min-width: 0; line-height: 1.15; text-align: left; }
+.acct-chip-id { white-space: nowrap; }
+.acct-chip .acct-chip-name { display: block; max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 500; line-height: 1.2; }
+@media (max-width: 1023px) { .acct-chip-id { font-size: 12px; white-space: normal; } .acct-chip .acct-chip-name { font-size: 10.5px; max-width: 9rem; } }

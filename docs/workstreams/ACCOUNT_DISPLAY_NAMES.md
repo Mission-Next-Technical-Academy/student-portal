@@ -337,3 +337,32 @@ Files: `portal/app.js`, `portal/module-labs.css`, this doc. No cache-bust done (
    - **Production:** the CLI in the main checkout is linked to PRODUCTION (`eokvngifirjgfozzbieu`). The owner confirmed on 2026-11-02 that all prod accounts are synthetic, so the Test / Account backfill there is approved. Run `supabase db push` from the linked checkout once the PR is merged.
 2. No edge function deploy needed.
 3. After the push, sign in as admin on staging and check: names under IDs, Generate Account with names, Edit name, Diploma auto-fill, and the M360 admin pages.
+
+### S5 — 2026-11-02 (owner: "every account number needs first and last name, EVERYWHERE")
+
+Owner saw the signed-in chip as missing the name. Cause: the name ran inline
+after the ID as a tiny `· Test Acc…` ellipsis, and it was hidden below 1024px.
+
+- `accountChipHtml(id, user)`: header and module topbar chips now stack the
+  ID with the first + last name directly under it. The name is visible at
+  every width the chip shows; only a name over 16rem (9rem below 1024px) is
+  ellipsed, with the full name in `title`. The old <1024px hide is removed.
+- `accountInitials(user)`: avatar initials come from the name ("TA"), not the
+  first digit of the ID.
+- Admin/instructor message threads: the student sender label (which is the ID)
+  now carries the inline name.
+- Transcript and evidence PDF metadata title/subject include the name.
+- Cache-busts: `app.js` and `module-labs.css` are now `?v=20261102-names2`.
+
+Verified:
+- Stubbed render sweep of `viewAdmin` for admin and instructor, all tabs
+  (progress, activity, archived, cohorts, grading, messages), all-students
+  and track workspaces: every visible account ID has a name beside it.
+- Header layout at 768–1280px is identical to the original markup (the
+  "My Programs" wrap at 820–900px is pre-existing).
+- Live student tab on :8768 shows the ID with Test Account under it.
+- portal-check and ci-check are both green.
+
+Still ID-only, by design:
+- The cohort batch roster, until an admin uses Edit name.
+- An instructor viewing another instructor's or admin's ID, which RLS blocks.

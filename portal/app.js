@@ -1482,7 +1482,7 @@ function adminMessageInboxPanel(messageRows) {
   if (!list.length) return `<div class="mb-6"><h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Instructor inbox</h2><div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div></div><div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">No messages in this course workspace yet.</p></div>`;
   return `<div class="mb-6"><h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Instructor inbox</h2><div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div><p class="text-gray-500 text-sm">Messages stay inside the portal. Replying also clears the student's unread message cue for this conversation.</p></div><div class="space-y-4">${list.map(([threadId, thread]) => `<article class="bg-white border border-gray-200 rounded-xl p-5" data-faculty-message-thread="${esc(threadId)}">
     <div class="flex flex-wrap items-start justify-between gap-3 mb-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(thread.studentId)}${accountNameHtml({ student_id: thread.studentId, user_id: thread.userId })}</p><h3 class="text-sm text-gray-700 mt-1">${esc(thread.subject)}</h3></div></div>
-    <div class="space-y-2 mb-4">${thread.rows.map((message) => `<div class="rounded-lg px-3 py-2 ${message.sender_role === 'student' ? 'bg-[#f0f7ff] border border-[#bfdbfe]' : 'bg-gray-50 border border-gray-100'}"><div class="flex justify-between gap-3 text-xs mb-1"><strong class="text-[#1e3a5f]">${esc(messageSenderLabel(message, thread.studentId))}</strong><span class="text-gray-500">${esc(message.created_at ? new Date(message.created_at).toLocaleString() : '—')}</span></div><p class="text-sm text-gray-700 whitespace-pre-wrap">${esc(message.body)}</p></div>`).join('')}</div>
+    <div class="space-y-2 mb-4">${thread.rows.map((message) => `<div class="rounded-lg px-3 py-2 ${message.sender_role === 'student' ? 'bg-[#f0f7ff] border border-[#bfdbfe]' : 'bg-gray-50 border border-gray-100'}"><div class="flex justify-between gap-3 text-xs mb-1"><strong class="text-[#1e3a5f]">${esc(messageSenderLabel(message, thread.studentId))}${message.sender_role === 'student' ? accountNameHtml({ student_id: thread.studentId, user_id: thread.userId }, true) : ''}</strong><span class="text-gray-500">${esc(message.created_at ? new Date(message.created_at).toLocaleString() : '—')}</span></div><p class="text-sm text-gray-700 whitespace-pre-wrap">${esc(message.body)}</p></div>`).join('')}</div>
     <form data-faculty-message-reply data-thread-id="${esc(threadId)}" data-student-user-id="${esc(thread.userId)}" data-track-code="${esc(thread.trackCode)}" data-subject="${esc(thread.subject)}"><label class="block text-sm font-semibold text-[#1e3a5f]">Reply<textarea required rows="3" maxlength="10000" name="body" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Write a plain-text reply."></textarea></label><div class="mt-2 flex items-center gap-3"><button type="submit" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg">Send reply</button><span data-faculty-message-status class="text-xs text-gray-500" aria-live="polite"></span></div></form>
   </article>`).join('')}</div>`;
 }
@@ -2846,8 +2846,8 @@ async function renderTranscriptPdf(transcriptData, reportId) {
 
   const programTitle = transcriptData.program ? transcriptData.program.title : 'No program on file';
   applyPdfMetadata(doc, {
-    title: `Mission Next Technical Academy — Academic Transcript — ${transcriptData.studentId}`,
-    subject: `Individual academic transcript for student ${transcriptData.studentId} (${programTitle})`,
+    title: `Mission Next Technical Academy — Academic Transcript — ${transcriptData.studentId}${transcriptData.firstName && transcriptData.lastName ? ` (${transcriptData.firstName} ${transcriptData.lastName})` : ''}`,
+    subject: `Individual academic transcript for student ${transcriptData.studentId}${transcriptData.firstName && transcriptData.lastName ? ` ${transcriptData.firstName} ${transcriptData.lastName}` : ''} (${programTitle})`,
     reportId,
   });
 
@@ -3085,8 +3085,8 @@ async function renderEvidencePdf(evidenceData, reportId) {
   const marginX = 40;
 
   applyPdfMetadata(doc, {
-    title: `Mission Next Technical Academy — Supporting Evidence Record — ${evidenceData.studentId}`,
-    subject: `Lab/competency supporting-evidence record for student ${evidenceData.studentId}`,
+    title: `Mission Next Technical Academy — Supporting Evidence Record — ${evidenceData.studentId}${evidenceData.firstName && evidenceData.lastName ? ` (${evidenceData.firstName} ${evidenceData.lastName})` : ''}`,
+    subject: `Lab/competency supporting-evidence record for student ${evidenceData.studentId}${evidenceData.firstName && evidenceData.lastName ? ` ${evidenceData.firstName} ${evidenceData.lastName}` : ''}`,
     reportId,
   });
 
@@ -4634,6 +4634,21 @@ function accountNameHtml(p, inline = false) {
   return `<span class="acct-name${inline ? ' acct-name--inline' : ''}">${esc(text)}</span>`;
 }
 
+// Signed-in header/topbar chip: account number with the first + last name
+// stacked directly under it (no truncation to a stub, shown at every width
+// the chip itself is shown).
+function accountChipHtml(id, p) {
+  const name = accountNameText(p);
+  return `<span class="acct-chip"><span class="acct-chip-id">${esc(id)}</span>${name ? `<span class="acct-name acct-chip-name" title="${esc(name)}">${esc(name)}</span>` : ''}</span>`;
+}
+
+// Avatar initials: from the stored first + last name when there is one,
+// otherwise from the account label as before.
+function accountInitials(user) {
+  const label = accountNameText(user) || String((user && user.name) || '');
+  return label.split(' ').filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
+}
+
 // Plain-text label for status/confirm strings: "ID (First Last)" or just "ID".
 function accountLabelText(p) {
   const id = typeof p === 'string' ? p : (p && (p.student_id || p.studentId || p.username)) || '';
@@ -4800,9 +4815,9 @@ function header(user, options = {}) {
                  }
                  <span class="hidden md:inline-flex items-center gap-2 text-sm text-gray-500 px-3">
                    <span class="w-8 h-8 rounded-full bg-[#1e3a5f]/8 text-[#1e3a5f] font-semibold text-xs flex items-center justify-center">
-                     ${esc(user.name.split(' ').map((p) => p[0]).join(''))}
+                     ${esc(accountInitials(user))}
                    </span>
-                   ${esc(user.name)}<span class="acct-chip-name">${accountNameHtml(user, true)}</span>
+                   ${accountChipHtml(user.name, user)}
                  </span>
                  <button data-action="signout" class="bg-[#f97316] hover:bg-[#ea580c] text-white text-sm font-semibold px-5 py-2 rounded-xl transition-colors whitespace-nowrap cursor-pointer">
                    Sign Out
@@ -5096,7 +5111,7 @@ function moduleTopbar(user, program, options = {}) {
         </div>
         <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600 whitespace-nowrap" aria-label="Signed in as ${esc(user.username || user.name || 'student')}${accountNameText(user) ? ` (${esc(accountNameText(user))})` : ''}">
           <i class="ri-user-line text-sm" aria-hidden="true"></i>
-          ${esc(user.username || user.name || 'Student')}<span class="acct-chip-name">${accountNameHtml(user, true)}</span>
+          ${accountChipHtml(user.username || user.name || 'Student', user)}
         </span>
         <button data-action="signout" class="bg-[#f97316] hover:bg-[#ea580c] text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer">
           Sign Out
