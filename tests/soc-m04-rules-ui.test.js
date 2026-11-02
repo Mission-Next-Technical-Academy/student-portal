@@ -95,6 +95,7 @@ for (const invalid of [
   [{ ...ruleFields, groupingField: 'Account;drop' }, /Grouping field/],
   [{ ...ruleFields, threshold: 1.5 }, /Threshold/],
   [{ ...ruleFields, threshold: 10001 }, /Threshold/],
+  [{ ...ruleFields, windowMinutes: 19 }, /Lookback window must be a whole number from 20 to 1440 minutes/],
   [{ ...ruleFields, windowMinutes: 0 }, /Lookback/],
   [{ ...ruleFields, windowMinutes: 1441 }, /Lookback/],
   [{ ...ruleFields, description: 'x'.repeat(501) }, /Description/],
@@ -124,6 +125,12 @@ assert.match(rendered, /M04-Q-0001/);
 assert.match(rendered, /M04-RULE-0001/);
 assert.match(rendered, /data-m04-rule-preview/);
 assert.match(rendered, /Rule schedule/);
+assert.match(rendered, /name="windowMinutes" type="number" min="20"/,
+  'rule editor discloses and enforces the assessment lookback minimum');
+assert.match(rendered, /Before using the one-time Assessment Lab submission, set a lookback window of at least 20 minutes, save an enabled schedule, then run the rule with “Run next scheduled execution\.”/,
+  'rule editor tells the student to schedule and run the rule before using the single submission');
+assert.match(rendered, /data-m04-rule-run-scheduled/,
+  'the required scheduled execution control is present in the guided rule workflow');
 assert.match(rendered, /Execution history/);
 assert.match(rendered, /Success sign-in rule/);
 assert.match(rendered, /Group by Account; alert at 2 matches over 30 minutes/);
