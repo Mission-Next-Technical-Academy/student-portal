@@ -772,7 +772,7 @@ function itsProveGradingCard(item, olderAttempt) {
   return `<article class="bg-white border border-gray-200 rounded-xl p-5" data-grading-row="${esc(row.id)}" data-its-prove-grade="${esc(row.id)}" data-lab-key="${esc(row.lab_key)}" data-pass-mark="${esc(String(row.pass_threshold ?? ''))}">
     <div class="mb-3">
       <p class="text-sm font-semibold text-[#1e3a5f]">${esc(item.name)}${row.attempt ? ` <span class="font-normal text-gray-500">· ${esc(adminAttemptLabel(row))}</span>` : ''}</p>
-      <p class="text-xs text-gray-500 mt-0.5">${esc(item.labTitles.join(' · '))} <span class="text-gray-400">·</span> <span class="font-mono">${esc(row.student_id)}</span></p>
+      <p class="text-xs text-gray-500 mt-0.5">${esc(item.labTitles.join(' · '))} <span class="text-gray-400">·</span> <span class="font-mono">${esc(row.student_id)}</span>${typeof accountNameHtml === 'function' ? accountNameHtml(row, true) : ''}</p>
       ${olderAttempt ? '<p class="mt-1 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Older attempt — a newer submission of this lab is below</p>' : ''}
       <p class="text-xs text-gray-400 mt-0.5">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}</p>
     </div>
