@@ -225,3 +225,59 @@ fill → save → clear cache → hard refresh test after that rebase.
   - Megan's exact hold concern (blocks merging, not building).
   - A synthetic HDESK student login on staging for live testing. The owner
     types it into the Playwright Chrome themselves.
+
+## SOC: where PR #79's live UAT stopped (from its own checkpoint)
+
+Source: `docs/handoffs/SOC_UAT_PROGRESS_CHECKPOINT_2026-10-21.md` on
+`fix/prove-it-submit-latch`. That checkpoint says plainly it is **not** a
+completion claim. #79 hardened the save *mechanism*, but live verification
+only reached M04.
+
+| Module | State |
+|---|---|
+| M01–M04 | Passed and approved. Saved values restored after a localStorage clear (login preserved). Exhaustive per-field inventory still incomplete for each. |
+| **M05 ← stopped here** | Student `1600192140-SOCAN`: Assessment Attempt 1 is **In review at 10% (pass 70%)**. Needs faculty return, then a passing redo, then approval. M06 stays locked until then. Do not approve the 10% attempt. |
+| M06–M12 | Not reached. |
+
+Open M05 bugs:
+1. Learn It "Save applied task" throws
+   `TypeError: Cannot read properties of undefined (reading 'id')` at
+   `portal/soc-analyst-module-05.js:1449`.
+2. The optional Sysmon lab loses completion on route re-entry (it passed the
+   immediate refresh/clear check).
+3. The optional Keylogger lab stays 0/4 after selecting the expected Procmon
+   row. Likely cause: the flat observation key does not match the nested
+   validator.
+4. Assessment automation alert selectors have zero options, so ticket and
+   notification actions cannot be saved.
+
+Next actions:
+1. The owner restores the faculty session in the browser (no credentials in
+   chat).
+2. Faculty returns M05 Attempt 1 and checks the student UI shows
+   red/returned.
+3. The student does the M05 redo with the full per-field test (fill, save,
+   reopen, clear localStorage keeping login, refresh, recheck), then submits
+   a passing attempt.
+4. Faculty approves; verify M05 green and M06 unlocked.
+5. Repeat through M12. Update `STUDENT_LIFECYCLE_RUN_2026-10-21.md` after
+   each surface.
+
+These M05 bugs and the M06–M12 UAT are **in scope for today's fix sprints**,
+alongside Help Desk and the other tracks.
+
+## How persistence is tested (not static analysis)
+
+The audit doc is a static code trace used to find suspects. A module only
+counts as fixed after a **real browser test** in Playwright on localhost
+against staging, signed in as a synthetic student:
+1. Fill every field and save.
+2. Wipe storage, then reload. Either (a) keep only the Supabase auth key and
+   clear everything else, or (b) use a fresh browser context and sign in
+   again.
+3. Compare field by field, with screenshots before and after.
+
+Run the test before the fix (to confirm the finding) and after it (as
+acceptance). This needs a synthetic student login: either the owner types
+it into the Playwright Chrome window, or an account is generated via admin
+on staging with the owner's OK.
