@@ -177,6 +177,11 @@ const SocM04RulesUi = (() => {
     return { AuthLog: fixture.scenario.telemetry.map((row) => ({ TimeGenerated: row.time, EventId: row.id, EventType: row.type, Account: row.account, SourceIp: row.sourceIp, Result: row.result, DeviceClass: row.deviceClass })) };
   }
 
+  // Name the tables a rule query may use; the console's set differs per module (U44).
+  function queryRejection(fixture, error) {
+    return `Analytics rules run over these tables only: ${Object.keys(tables(fixture)).sort().join(', ')}. ${error}`;
+  }
+
   function test(assessment, fixture, query, timestamp) {
     if (!assessment || typeof assessment !== 'object') throw new TypeError('M04 assessment state is required.');
     if (typeof timestamp !== 'string' || Number.isNaN(Date.parse(timestamp))) throw new TypeError('Pass an explicit valid timestamp.');
@@ -308,5 +313,5 @@ const SocM04RulesUi = (() => {
     return `<div class="m04-rules-workspace">${editor}<section><h4>Saved queries</h4><ul>${saved || '<li>No saved queries.</li>'}</ul></section><section><h4>Rule drafts</h4><ul>${drafts || '<li>No rule drafts.</li>'}</ul></section><section><h4>Execution history</h4><ul>${executions || '<li>No execution requests.</li>'}</ul></section>${renderRule(assessment.ruleDraft, fields)}</div>`;
   }
 
-  return Object.freeze({ tables, test, saveQuery, convertToDraft, updateDraft, updateSafeguards, configureSchedule, recordExecution, completePendingExecution, selectAlert, reviewAlert, render, renderRule, shouldNavigateToAlerts, MIN_FREQUENCY_MINUTES, MAX_FREQUENCY_MINUTES });
+  return Object.freeze({ tables, queryRejection, test, saveQuery, convertToDraft, updateDraft, updateSafeguards, configureSchedule, recordExecution, completePendingExecution, selectAlert, reviewAlert, render, renderRule, shouldNavigateToAlerts, MIN_FREQUENCY_MINUTES, MAX_FREQUENCY_MINUTES });
 })();

@@ -25,7 +25,7 @@ const SocConsoleTools = (() => {
   // engines expect: rules run over the same tables as Log Search, and
   // enrichment/preservation match the case's own records.
   function m04Fixture({ id, caseId, end, reports = [], iocs = [], data }) {
-    const eventTables = Object.fromEntries(Object.entries(data.tables).filter(([name, rows]) => name !== 'UnifiedEvents' && rows.length && rows[0].TimeGenerated && rows[0].EventId));
+    const eventTables = Object.fromEntries(Object.entries(data.tables).filter(([, rows]) => rows.length && rows[0].TimeGenerated && rows[0].EventId));
     const telemetry = Object.values(data.records).map((row) => ({
       ...row, id: row.EventId, time: row.TimeGenerated, type: row.EventType, account: row.Account,
       sourceIp: row.SourceIp, result: row.Result, device: row.Host,
@@ -98,7 +98,7 @@ const SocConsoleTools = (() => {
           if (nameField) assessment.queryName = nameField.value;
           try {
             const test = SocM04RulesUi.test(assessment, ctx.fixture, query, timestamp);
-            if (!test.succeeded) throw new Error(`Analytics rules run over the AuthLog table: ${test.error}`);
+            if (!test.succeeded) throw new Error(SocM04RulesUi.queryRejection(ctx.fixture, test.error));
             SocM04RulesUi.saveQuery(assessment, query, timestamp, assessment.queryName || 'Learner query');
             assessment.queryActionError = '';
             ctx.console().tab = 'rules';

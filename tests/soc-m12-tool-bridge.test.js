@@ -49,6 +49,12 @@ tools.m04=get('SocM04AssessmentState').normalize({},fx.m04).assessment;
 // Real Analytics Rules actions, including generated IDs and a recurring schedule.
 const query='union EmailEvents, DeviceProcessEvents, DeviceRegistryEvents, IdentityLogonEvents, NetworkSessionEvents | where EventId in ("EM-212", "EP-301", "EP-303", "ID-402", "NW-501")';
 assert.equal(m04.test(tools.m04,fx.m04,query,time()).succeeded,true);save();
+const unifiedQuery='UnifiedEvents | where EventId in ("EM-212", "EP-301", "EP-303", "ID-402", "NW-501")';
+assert.equal(m04.test(tools.m04,fx.m04,unifiedQuery,time()).succeeded,true,
+  'M12 Analytics Rules accepts the UnifiedEvents table exposed by the other case consoles');
+assert.ok(fx.m04.consoleTables.UnifiedEvents?.length, 'the M12 M04 tool fixture retains UnifiedEvents for rules');
+save();
+assert.equal(m04.test(tools.m04,fx.m04,query,time()).succeeded,true);save();
 const saved=m04.saveQuery(tools.m04,query,time(),'Correlated case events');save();
 const rule=m04.convertToDraft(tools.m04,saved.id,time());save();
 m04.updateDraft(tools.m04,rule.id,{name:rule.name,description:'Correlate evidence within the shift',severity:'High',groupingField:'Account',threshold:1,windowMinutes:1440},time());save();

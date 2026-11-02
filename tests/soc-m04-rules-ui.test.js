@@ -17,6 +17,7 @@ let state = stateApi.normalize({ assessment: {} }, fixture).assessment;
 const bad = api.test(state, fixture, 'MissingTable | take 5', '2026-09-24T09:30:00Z');
 assert.strictEqual(bad.succeeded, false);
 assert.match(bad.error, /Unknown table/);
+assert.match(api.queryRejection({ consoleTables: { AuthLog: [], DeviceProcessEvents: [] }, scenario: {} }, bad.error), /these tables only: AuthLog, DeviceProcessEvents\. Unknown table/, 'rejection names the allowed tables (U44)');
 assert.strictEqual(state.actionHistory.at(-1).type, 'query_test');
 assert.strictEqual(state.actionHistory.at(-1).timestamp, '2026-09-24T09:30:00Z');
 assert.throws(() => api.saveQuery(state, 'MissingTable | take 5', '2026-09-24T09:31:00Z'), /Test this exact query successfully/);
