@@ -200,3 +200,28 @@ module):**
 and `portal/admin-submission-sheet.js`. Whichever
 merges second needs a rebase. Re-run `bin/ci-check.sh` and the
 fill → save → clear cache → hard refresh test after that rebase.
+
+## Live progress (2026-11-02, same session, later)
+
+- The owner wants everything done today: names shipped, plus persistence
+  fixes found AND implemented on all tracks.
+- PR #79 was 10 commits behind master and conflicted in `portal/app.js`,
+  `portal/index.html` and `docs/handoffs/NEXT_SESSION.md`, against #89
+  ("save honestly") and #90 (Help Desk M1).
+  - The classifier blocked a rebase plus force-push (Git Destructive).
+  - An agent is instead **merging origin/master into #79** in worktree
+    `~/mnt-pr79-update` (branch `update/pr79`), with a normal push to
+    `fix/prove-it-submit-latch`.
+- A read-only **persistence audit** of every module on every track is being
+  written to `docs/workstreams/PERSISTENCE_AUDIT_ALL_TRACKS.md` (in this
+  worktree, uncommitted). It uses the throwaway worktree
+  `~/mnt-persist-audit`, which is removed when done.
+- Planned merge order (the owner merges):
+  1. **#95** (clean now)
+  2. **#79** (after the update)
+  3. **#94**, rebased by merging master in after #79
+- Then implementation sprints from the audit, built on #79's pattern.
+- Waiting on the owner:
+  - Megan's exact hold concern (blocks merging, not building).
+  - A synthetic HDESK student login on staging for live testing. The owner
+    types it into the Playwright Chrome themselves.
