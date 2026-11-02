@@ -873,7 +873,8 @@ function wireModuleThreeLessons() {
     }
     const taskButton = event.target.closest('[data-m03-lesson-task-submit]');
     if (!taskButton) return;
-    const lesson = MODULE_THREE_LESSON_LOOPS.find((item) => item.id === taskButton.dataset.m03LessonTask);
+    const lesson = MODULE_THREE_LESSON_LOOPS.find((item) => item.id === taskButton.dataset.m03LessonTaskSubmit);
+    if (!lesson) return;
     const work = moduleThreeState.lessonWork[lesson.id] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
     work.taskComplete = work.checked && (work.task || '').trim().length >= 20;
     work.feedback = work.taskComplete ? ['Applied task saved.'] : ['Complete the knowledge check and write at least 20 characters before saving the task.'];

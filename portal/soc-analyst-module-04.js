@@ -1993,7 +1993,8 @@ function wireModuleFourLessons() {
     }
     const button = event.target.closest('[data-m04-lesson-task-submit]');
     if (!button) return;
-    const lesson = MODULE_FOUR_LESSON_LOOPS.find((item) => item.id === button.dataset.m04LessonTask);
+    const lesson = MODULE_FOUR_LESSON_LOOPS.find((item) => item.id === button.dataset.m04LessonTaskSubmit);
+    if (!lesson) return;
     const work = moduleFourState.lessonWork[lesson.id] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
     work.taskComplete = work.checked && (work.task || '').trim().length >= 20;
     work.feedback = work.taskComplete ? ['Applied task saved.'] : ['Complete the knowledge check and write at least 20 characters before saving the task.'];
