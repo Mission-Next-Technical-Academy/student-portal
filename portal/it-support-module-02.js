@@ -16,7 +16,7 @@ const ITS02_SOURCES = [
 const ITS02_LESSONS = [
   {
     id: 'its-02-lesson-01', number: '2.1', icon: 'ri-cpu-line',
-    title: 'Virtualization Fundamentals & Building Your First VM', minutes: 150,
+    title: 'Virtualization Fundamentals & Building Your First VM', minutes: 240,
     learn: [
       'What virtualization is, and why IT support teams rely on it constantly',
       'The difference between the host machine and a guest VM, and what resources a VM actually uses',
@@ -41,7 +41,7 @@ const ITS02_LESSONS = [
   },
   {
     id: 'its-02-lesson-02', number: '2.2', icon: 'ri-history-line',
-    title: 'VM Snapshots, Recovery & Building a Server Environment', minutes: 150,
+    title: 'VM Snapshots, Recovery & Building a Server Environment', minutes: 240,
     learn: [
       'How to take and restore a VirtualBox snapshot',
       'Why snapshots are one of the most important habits in any hands-on IT lab',
@@ -67,7 +67,7 @@ const ITS02_LESSONS = [
   },
   {
     id: 'its-02-lesson-03', number: '2.3', icon: 'ri-hard-drive-2-line',
-    title: 'Windows Device & Storage Management', minutes: 60,
+    title: 'Windows Device & Storage Management', minutes: 90,
     learn: [
       'How to open Device Manager and read what it\'s telling you',
       'How to fix a device by updating, rolling back, or reinstalling its driver',
@@ -88,7 +88,7 @@ const ITS02_LESSONS = [
   },
   {
     id: 'its-02-lesson-04', number: '2.4', icon: 'ri-printer-line',
-    title: 'Printer & Peripheral Triage', minutes: 60,
+    title: 'Printer & Peripheral Triage', minutes: 90,
     learn: [
       'How to clear a print job that\'s stuck in the queue',
       'How to diagnose and fix a printer showing as "offline"',
@@ -141,7 +141,9 @@ let its02User = null;
 
 function its02Load(user) {
   its02User = user;
-  its02State = LabRuntime.load(ITS02_LAB_ID, user, ITS02_DEFAULT_STATE);
+  // Saved to the student's account (module_progress.case_state), so added-file
+  // names come back in any browser after sign-in.
+  its02State = LabRuntime.loadCaseState(ITS02_LAB_ID, 'its-02', user, ITS02_DEFAULT_STATE);
   // The simulator's popup message is the only way a walkthrough is recorded;
   // a return by link only shows that it wasn't (see itsNoteCoachReturn).
   itsNoteCoachReturn(user, 'hd-m02', ITS02_WALKTHROUGH_LAB_KEYS);
@@ -149,6 +151,13 @@ function its02Load(user) {
   const returnedEvidence = Object.keys(ITS02_EVIDENCE_LABS)
     .filter((labKey) => itsEvidenceRedo(user, its02State, labKey, ITS02_EVIDENCE_LABS[labKey].fields).returned);
   if (returnedEvidence.length) its02Save();
+  // Files added before a reload come back from this browser's copies.
+  itswRestoreDraftFiles(user, its02State, Object.keys(ITS02_EVIDENCE_LABS).map((labKey) => ({ labKey, fields: ITS02_EVIDENCE_LABS[labKey].fields })))
+    .then((changed) => {
+      if (!changed || its02User !== user) return;
+      Object.keys(ITS02_EVIDENCE_LABS).forEach(its02RenderEvidenceLab);
+      its02RenderHeroStatus();
+    });
   if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'it-support', 'its-02');
   return its02State;
 }
@@ -168,7 +177,7 @@ function its02EvidenceRedoHtml(labKey) {
 }
 
 function its02Save() {
-  if (its02User && its02State) LabRuntime.save(ITS02_LAB_ID, its02User, its02State);
+  if (its02User && its02State) LabRuntime.saveCaseState(ITS02_LAB_ID, 'its-02', its02User, its02State);
 }
 
 function its02LessonCard(lesson) {
@@ -246,7 +255,7 @@ function its02AddEvidence(inputId, picked) {
   if (!field || !picked || !its02State) return;
   const labKey = Object.keys(ITS02_EVIDENCE_LABS).find((key) => ITS02_EVIDENCE_LABS[key].fields.includes(field));
   // A refused pick empties the field (see itswTakeEvidence).
-  its02State[field] = itswTakeEvidence(its02User, field, picked, its02State[field]);
+  its02State[field] = itswTakeEvidence(its02User, field, picked, its02State[field], labKey);
   its02Save();
   its02RenderEvidenceLab(labKey);
 }
@@ -298,7 +307,7 @@ function its02Lab34() {
   return `<section class="its02-section its02-lab-section" id="its02-lab-2-3" aria-labelledby="its02-lab-2-3-title">
     <div class="its02-section-heading"><span>3</span><div><p class="its02-kicker">Labs 2.3 &amp; 2.4 · guided walkthrough</p><h2 id="its02-lab-2-3-title">The Misbehaving Peripheral &amp; The Stuck Queue</h2></div></div>
     <p class="its02-instruction">Work two real print-driver tickets end to end in the IT Service Desk simulator — a stuck label queue (HD-2106) and a crashing Print Spooler service (HD-2112) — tracing both back to the same driver crash and resolving them under change control. A coach spotlights each step for you.</p>
-    <a class="itsw-evidence-button" data-its02-console-launch href="${esc(SIM_ORIGIN)}?coach=hd-m02&amp;restart=1#/helpdesk/tickets" target="_blank" rel="opener">
+    <a class="itsw-evidence-button" data-its02-console-launch href="${esc(itsCoachLaunchHref('hd-m02', its02User))}" target="_blank" rel="opener">
       <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: esc(ITS02_WALKTHROUGH_START) }[button.mode]}
     </a>
     ${itsWalkthroughNoticeHtml(its02User, 'hd-m02', ITS02_WALKTHROUGH_LAB_KEYS, ITS02_WALKTHROUGH_START)}
@@ -379,20 +388,26 @@ async function its02ReceiveCoachCompletion(event) {
   if (!event.data || event.data.type !== 'mnt-coach-complete' || event.data.id !== 'hd-m02') return;
   if (event.origin !== new URL(SIM_ORIGIN).origin) return;
   const user = await currentUser();
-  if (!user) return;
+  if (!user) { itsConfirmCoachReceipt(event, false); return; }
+  const wrongStudent = itsCoachStudentMismatch(event, user);
+  if (wrongStudent) { itsConfirmCoachReceipt(event, false, wrongStudent); return; }
 
-  const saved = LabRuntime.load(ITS02_LAB_ID, user, ITS02_DEFAULT_STATE);
-  saved.consoleStarted = true;
-  saved.consoleCompleted = true;
-  LabRuntime.save(ITS02_LAB_ID, user, saved);
-  its02State = saved;
+  // Submit first: Labs 2.3 and 2.4 count as complete only once the portal
+  // has their attempts (saved now, or already waiting or approved).
+  const received = await itsSubmitWalkthroughLabs(user, 'its-02', ITS02_WALKTHROUGH_LAB_KEYS, itsCleanCoachWork(event.data.work));
   its02User = user;
-
-  if (typeof markModuleLabComplete === 'function') {
-    markModuleLabComplete(user, 'it-support', 'its-02', ITS02_LAB23_KEY);
-    markModuleLabComplete(user, 'it-support', 'its-02', ITS02_LAB24_KEY);
+  if (received) {
+    const saved = LabRuntime.load(ITS02_LAB_ID, user, ITS02_DEFAULT_STATE);
+    saved.consoleStarted = true;
+    saved.consoleCompleted = true;
+    LabRuntime.save(ITS02_LAB_ID, user, saved);
+    its02State = saved;
+    if (typeof markModuleLabComplete === 'function') {
+      markModuleLabComplete(user, 'it-support', 'its-02', ITS02_LAB23_KEY);
+      markModuleLabComplete(user, 'it-support', 'its-02', ITS02_LAB24_KEY);
+    }
   }
-  await itsSubmitWalkthroughLabs(user, 'its-02', ITS02_WALKTHROUGH_LAB_KEYS, itsCleanCoachWork(event.data.work));
+  itsConfirmCoachReceipt(event, received);
 
   const mounted = Boolean(document.querySelector('.its02-shell'));
   if (!mounted) return;

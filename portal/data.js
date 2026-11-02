@@ -159,7 +159,7 @@ const PROGRAMS = [
     cardTitle: 'IT Help Desk & Career Accelerator',
     title: 'IT Help Desk & Career Accelerator',
     description:
-      'Enterprise Windows Server 2022 networks, Active Directory management, and enterprise ticket lifecycle training for real-world IT environments.',
+      'Enterprise Windows Server networks, Active Directory management, and enterprise ticket lifecycle training for real-world IT environments.',
     badge: 'Launch into IT Support in 6 weeks',
     weeks: 6,
     moduleCount: 12,
@@ -187,6 +187,9 @@ const PROGRAMS = [
       careerHours: 12,
       totalHours: 72,
       theoryHours: 37,
+      // Help Desk theoryHours is technical only (M360 is counted separately),
+      // so the program page must not subtract careerHours from it.
+      technicalTheoryHours: 37,
       labHours: 23,
       passingPercent: 70,
       attendancePercent: 80,
@@ -202,7 +205,7 @@ const PROGRAMS = [
       { code: 'ITHD-101.2', title: 'IT Ticket Lifecycle, Help Desk Workflow, Documentation, Escalation Procedures', hours: 7, theoryMinutes: 270, labMinutes: 150, reviewStatus: 'developer-mapped' },
       { code: 'ITHD-101.3', title: 'Virtualization Fundamentals & Lab Setup (Oracle VirtualBox)', hours: 8, theoryMinutes: 300, labMinutes: 180, reviewStatus: 'developer-mapped' },
       { code: 'ITHD-101.4', title: 'Windows Client OS Support & Endpoint Troubleshooting', hours: 8, theoryMinutes: 330, labMinutes: 150, reviewStatus: 'developer-mapped' },
-      { code: 'ITHD-101.5', title: 'Windows Server 2022 Administration Fundamentals', hours: 8, theoryMinutes: 315, labMinutes: 165, reviewStatus: 'developer-mapped' },
+      { code: 'ITHD-101.5', title: 'Windows Server Administration Fundamentals', hours: 8, theoryMinutes: 315, labMinutes: 165, reviewStatus: 'developer-mapped' },
       { code: 'ITHD-101.6', title: 'Active Directory Users, Groups, Permissions, Identity Management', hours: 10, theoryMinutes: 375, labMinutes: 225, reviewStatus: 'developer-mapped' },
       { code: 'ITHD-101.7', title: 'Networking Fundamentals, DNS, DHCP, Connectivity Testing, Domain Joining', hours: 8, theoryMinutes: 300, labMinutes: 180, reviewStatus: 'developer-mapped' },
       { code: 'ITHD-101.8', title: 'Remote Support Tools, Security Awareness, Troubleshooting Methodology', hours: 4, theoryMinutes: 180, labMinutes: 60, reviewStatus: 'developer-mapped' },
@@ -243,7 +246,7 @@ const PROGRAMS = [
       'Networking Fundamentals', 'Virtualization', 'Ticketing & SLAs', 'Customer Communication',
     ],
     capstone: {
-      intro: 'A realistic multi-category L1 ticket queue worked end to end — prioritize, resolve or escalate, communicate, and document, then produce a knowledge-base article and an honest after-action review. This is the only Prove assessment and integrates the competencies taught in Modules 01–11.',
+      intro: 'A realistic multi-category L1 ticket queue worked end to end — prioritize, resolve or escalate, communicate, and document, then produce a knowledge-base article and an honest after-action review. This is the program\'s final, integrated Prove It, drawing on the competencies taught in Modules 01–11.',
       capabilities: [
         'Ticket triage', 'Priority sequencing', 'Endpoint troubleshooting', 'Identity & access',
         'Network diagnostics', 'Peripheral support', 'Security judgment', 'Escalation judgment',
@@ -2242,14 +2245,21 @@ const LABS = [
   /* IT Help Desk lab catalogue. Only Modules 1, 2, and 12 have a built,
    * scored lab — see the compliance.sourceNotes on the it-support program
    * entry above for why Modules 3–11 don't have LABS rows yet. */
-  itsLab({ key: 'lab-its-01-lms-validation', module: 'its-01', title: 'LMS & Environment Validation', difficulty: 'Foundational', minutes: 30,
-    parentAllocations: [allocation('ITHD-101.1', 30)], objective: 'Confirm LMS and lab-environment access, submit a test file through the evidence workflow, and acknowledge the Acceptable Use Policy.',
+  itsLab({ key: 'lab-its-01-lms-validation', module: 'its-01', title: 'LMS & Environment Validation', difficulty: 'Foundational', minutes: 15, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.1', 15)], objective: 'Confirm LMS and lab-environment access, submit a test file through the evidence workflow, and acknowledge the Acceptable Use Policy.',
     description: 'Log into both the LMS and the separate lab-sandbox environment, upload a test file as evidence, and formally acknowledge the Acceptable Use Policy.',
     skills: ['LMS Navigation', 'Credential Discipline', 'Policy Acknowledgment'], portalEntry: '#/program/it-support/module/1' }),
-  itsLab({ key: 'lab-its-01-ticket-triage', module: 'its-01', title: 'A Day in the Life of an L1 Technician', difficulty: 'Foundational', minutes: 30,
-    parentAllocations: [allocation('ITHD-101.1', 30)], objective: 'Resolve a real account-lockout ticket end to end: read the evidence, work the troubleshooting path, diagnose against the log, document it, and resolve it.',
+  itsLab({ key: 'lab-its-01-ticket-triage', module: 'its-01', title: 'A Day in the Life of an L1 Technician', difficulty: 'Foundational', minutes: 25, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.1', 25)], objective: 'Resolve a real account-lockout ticket end to end: read the evidence, work the troubleshooting path, diagnose against the log, document it, and resolve it.',
     description: 'A coach-guided walkthrough of ticket HD-2101 (an account lockout) in the IT Service Desk simulator, applying the five-step troubleshooting mindset to a real ticket rather than a written scenario.',
     skills: ['Ticket Triage', 'Troubleshooting Mindset', 'Resolve/Escalate Judgment'], portalEntry: '#/program/it-support/module/1' }),
+  // Module 1's Prove It, the only lab that gates its completion
+  // (course_module_labs.gates_completion). The simulator's Submit saves it
+  // (itsProveReceiveMessage, it-support-shared.js).
+  itsLab({ key: 'lab-its-01-prove-it', module: 'its-01', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 20,
+    parentAllocations: [allocation('ITHD-101.1', 20)], objective: 'Independently work a new service desk ticket end to end: categorize and prioritize it, decide and act within policy, document the work, and explain the outcome to the user.',
+    description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
+    skills: ['Ticket Triage', 'Policy Judgment', 'Documentation'], portalEntry: '#/program/it-support/module/1' }),
   itsLab({ key: 'lab-its-02-vm-build', module: 'its-02', title: 'Build Your Windows Client VM', difficulty: 'Foundational', minutes: 90,
     parentAllocations: [allocation('ITHD-101.3', 90)], objective: 'Install VirtualBox and build a working Windows 11 client VM meeting the program\'s minimum resource spec.',
     description: 'Physical, evidence-based lab performed on the student\'s own device: install VirtualBox, build a Windows 11 client VM, and submit evidence of the finished build.',

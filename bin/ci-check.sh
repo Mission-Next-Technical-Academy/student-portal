@@ -19,6 +19,22 @@ node tests/hdesk-returned-lab-resubmit.test.js
 node tests/hdesk-module-page-states.test.js
 node tests/hdesk-capstone-review.test.js
 
+echo '== Generic Assessment Lab box saves honestly and locks while waiting =='
+node tests/module-assessment-submit.test.js
+
+echo '== Coach labs survive reload and relaunch (Help Desk + SOC Module 1) =='
+node tests/coach-reload-resume.test.js
+
+echo '== Help Desk Prove It mode: no coach, no answers, machine state =='
+node tests/hdesk-prove-mode.test.js
+
+echo '== Help Desk Prove It Submit: honest save, faculty review, no score =='
+node tests/hdesk-prove-submit.test.js
+node tests/hdesk-faculty-grading.test.js
+
+echo '== Help Desk curriculum minutes =='
+node bin/its-curriculum-check.js
+
 echo "== M03 normalization lab re-wire =="
 node tests/m03-normalization-lab-rewire.test.js
 node tests/m03-incident-unlink.test.js

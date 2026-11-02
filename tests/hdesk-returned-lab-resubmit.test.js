@@ -27,7 +27,8 @@ const LabRuntime = run('LabRuntime');
 const moduleLab = (n) => run(`MODULE_LABS['it-support/${n}']`);
 // Saved lab state only loads back with LabRuntime's own labId/student stamp.
 const seed = (labId, user, state) => LabRuntime.save(labId, user, { ...LabRuntime.load(labId, user, {}), ...state });
-const coachDone = (id) => ({ data: { type: 'mnt-coach-complete', id }, origin: SIM });
+// Sent with the signed-in student's launch id, as the simulator sends it.
+const coachDone = (id) => ({ data: { type: 'mnt-coach-complete', id, student: vm.runInContext('LabRuntime', ctx).anonymousStudentId(signedIn) }, origin: SIM });
 
 const SUBMITTED = '2026-10-01T10:00:00Z';
 const REVIEWED = '2026-10-02T10:00:00Z';

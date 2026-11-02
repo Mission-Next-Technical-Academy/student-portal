@@ -63,6 +63,10 @@
 .its12-submit:hover, .its12-submit:focus-visible { background: var(--its-accent-hover); }
 .its12-reset { color: var(--its-navy); background: #fff; border: 1px solid #cbd5e1; }
 .its12-reset:hover, .its12-reset:focus-visible { background: #f8fafc; border-color: var(--its-navy); }
+/* Submitting or waiting on the instructor: same disabled look as the portal's other submit buttons, and locked answer fields. */
+.its12-worksheet-actions button:disabled { color: #94a3b8; background: #e2e8f0; border-color: #e2e8f0; cursor: not-allowed; }
+.its12-shell .itsw-ticket-form :is(select, textarea):disabled, .its12-extra textarea:disabled { color: #475569; background: #f1f5f9; border-color: #e2e8f0; cursor: not-allowed; }
+.its12-shell .itsw-ticket-decision label:has(input:disabled) { color: #64748b; background: #f1f5f9; cursor: not-allowed; }
 .its12-reset-confirm { margin-top: 14px; padding: 15px; color: var(--its-navy); background: var(--its-accent-wash); border: 1px solid var(--its-accent-border); border-radius: 11px; }
 .its12-reset-confirm p { margin: 0; font: 12px/1.55 Inter, sans-serif; }
 .its12-reset-confirm > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

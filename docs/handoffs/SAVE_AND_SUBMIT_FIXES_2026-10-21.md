@@ -125,6 +125,15 @@ Found while reviewing shared logic on 2026-10-21. Line numbers are from master `
 
 ---
 
+## 4A. Merge of master into #79 (2026-11-02)
+
+master was merged in (no rebase) after #81–#90. Decisions:
+
+- **#89 (generic Assessment Lab box) and #79 are both kept, unchanged.** They guard different submits. #89's `submitModuleAssessment()` covers the platform box (`<module>-assessment-module` key): it re-reads the newest attempt, saves the artifact first and locks from the server row. #79's `recordProveItAttempt()` / `proveItLatchIsStale()` cover the SOC module Prove Its (their `case_state` "submitted" flag). They share only `recordLabAttempt()`. Its `labAttemptSaves` entries for the box's key are never read, because `proveItLatchIsStale()` is only called with SOC keys. Neither guard replaces the other, so nothing was merged into one.
+- **#90 official grades and #79's "Approved below pass" return box.** Both are kept. They never show for the same row. On an official-grade lab the database blanks `lab_attempts.score`, and an approval needs an official score at or above the pass mark. So #79's `belowPass` and `approvedBelowPass` stay false there, and #90's `itsProveReturnActionHtml()` is that lab's only return control.
+- `adminLabAttemptsPanel` keeps #79's `legacyRows` and #90's `adminLabAttemptsGuidance()`. The student detail table keeps #90's `adminModuleStatusHtml()` and #79's blank-safe percent.
+- `index.html`: `data.js` and `app.js` changed on both sides, so they get a new `?v=`. `lab-runtime.js`, `module-registry.js` and `case-record.js` keep #79's `?v=`.
+
 ## 5. Merge checklist (owner)
 
 1. Review and merge PR #79 (squash). CI is green on the rebased branch.
