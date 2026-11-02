@@ -296,7 +296,23 @@ const SocConsoleTools = (() => {
         if (verdictForm) {
           event.preventDefault();
           try {
-            SocM04IntelligenceUi.recordVerdict(ctx.assessment(), ctx.fixture, verdictForm.dataset.indicatorId, verdictForm.elements.decision.value, verdictForm.elements.rationale.value, new Date().toISOString());
+            const assessment = ctx.assessment();
+            const indicatorId = verdictForm.dataset.indicatorId;
+            const drafts = { ...(assessment.intelVerdictDrafts || {}) };
+            [...(root.querySelectorAll('[data-m04-verdict-form]') || [])].forEach((form) => {
+              const draftId = form.dataset.indicatorId;
+              if (draftId === indicatorId) return;
+              const decision = String(form.elements.decision.value || '');
+              const rationale = String(form.elements.rationale.value || '');
+              const recorded = assessment.intelVerdicts?.[draftId];
+              if (decision !== (recorded?.decision || '') || rationale !== (recorded?.rationale || '')) {
+                if (decision || rationale) drafts[draftId] = { decision, rationale };
+                else delete drafts[draftId];
+              } else delete drafts[draftId];
+            });
+            SocM04IntelligenceUi.recordVerdict(assessment, ctx.fixture, indicatorId, verdictForm.elements.decision.value, verdictForm.elements.rationale.value, new Date().toISOString());
+            delete drafts[indicatorId];
+            assessment.intelVerdictDrafts = drafts;
             ctx.save();
             ctx.rerender();
           } catch (error) {
