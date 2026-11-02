@@ -238,6 +238,7 @@ const SocConsoleTools = (() => {
               form.elements.summary.value = record.summary;
             } else {
               ['type', 'value', 'confidence', 'firstSeen', 'lastSeen', 'campaign', 'status', 'sourceReportId', 'context'].forEach((key) => { form.elements[key].value = record[key] ?? ''; });
+              form.elements.campaign.value = SocM04IntelligenceUi.campaignForEdit(record, ctx.assessment().reports);
             }
           }
           form.querySelector('[data-m04-form-title]').textContent = `${record ? 'Edit' : 'New'} ${kind === 'ioc' ? 'IOC' : 'report'}`;
@@ -943,7 +944,7 @@ const SocConsoleTools = (() => {
             ctx.fixture,
           );
           ctx.store(ctx.box.state);
-          ctx.rerender();
+          rerender();
           return;
         }
       });

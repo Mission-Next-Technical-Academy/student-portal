@@ -31,6 +31,11 @@ const SocM04IntelligenceUi = (() => {
     return false;
   }
 
+  function campaignForEdit(ioc, reports) {
+    if (String(ioc?.campaign || '').trim()) return ioc.campaign;
+    return reports?.find((report) => report.id === ioc?.sourceReportId)?.campaign || '';
+  }
+
   function log(assessment, timestamp, operation, record, type = 'ioc_edit') {
     const wrapper = SocM04AssessmentActions.record({ assessment }, type, timestamp, type === 'ioc_edit' ? {
       entityType: record.kind, operation, recordId: record.id,
@@ -166,5 +171,5 @@ const SocM04IntelligenceUi = (() => {
   }
 
   function formData(form) { return Object.fromEntries(new FormData(form).entries()); }
-  return Object.freeze({ IOC_TYPES, IOC_STATUSES, VERDICTS, MIN_RATIONALE, seed, validValue, mutate, render, renderVerdicts, recordVerdict, revealHint, verdictFeedback, formData });
+  return Object.freeze({ IOC_TYPES, IOC_STATUSES, VERDICTS, MIN_RATIONALE, seed, validValue, campaignForEdit, mutate, render, renderVerdicts, recordVerdict, revealHint, verdictFeedback, formData });
 })();
