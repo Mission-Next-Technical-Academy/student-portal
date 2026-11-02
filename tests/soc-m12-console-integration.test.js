@@ -26,6 +26,8 @@ assert.equal(vm.runInContext('SocM12AssessmentConsole.dataset().caseId', context
 const observed = vm.runInContext('SocM12AssessmentConsole.evaluateQuery("DeviceProcessEvents | where EventId == \\\"EP-301\\\"")', context);
 assert.equal(observed.outcome, 'narrow');
 assert.deepEqual(Array.from(observed.matchedEvidence), ['EP-301'], 'query outcome and evidence come from MnKql rows');
+const evidenceRows = vm.runInContext('SocM12AssessmentConsole.dataset().events.filter((row) => ["EM-212", "EP-301", "EP-303"].includes(row.EventId))', context);
+assert.ok(evidenceRows.every((row) => row.SourceIp === '—'), 'M12 evidence without a source address displays an em dash instead of undefined');
 vm.runInContext(read('portal/attack-catalog.js'), context, { filename: 'portal/attack-catalog.js' });
 vm.runInContext(read('portal/case-record.js'), context, { filename: 'portal/case-record.js' });
 vm.runInContext(read('portal/soc-analyst-module-12.js'), context, { filename: 'portal/soc-analyst-module-12.js' });

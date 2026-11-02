@@ -1193,12 +1193,14 @@ const SocConsoleTools = (() => {
     const workflow = state.incidentWorkflows[m09Incident(ctx)];
     const memberships = new Set(state.incidentMemberships || []);
     const inScope = (entity) => memberships.has(entity.id) || memberships.has(entity.linkedEntityId) || memberships.has(entity.accountId);
-    const targets = s.entities.filter((entity) => Object.values(M09_ACTION_TARGETS).includes(entity.type) && inScope(entity));
+    const targetTypes = new Set(actionTypes.map((type) => M09_ACTION_TARGETS[type]));
+    const initialTargetType = M09_ACTION_TARGETS[actionTypes[0]];
+    const targets = s.entities.filter((entity) => targetTypes.has(entity.type) && inScope(entity));
     const approvalOpen = workflow.approvalStatus === 'pending';
     const approved = workflow.approvalStatus === 'approved' && actionTypes.includes(workflow.approvalActionType);
     return `<section class="m09-approval"><h5>Approval gate · ${esc(workflow.approvalStatus)}${workflow.approvalActionType ? ` · ${esc(M09_ACTION_LABELS[workflow.approvalActionType] || workflow.approvalActionType)} → ${esc(workflow.approvalTargetId)}` : ''}</h5>
-      <form data-m09-approval-request><label>Action<select name="actionType">${actionTypes.map((type) => `<option value="${esc(type)}">${esc(M09_ACTION_LABELS[type])}</option>`).join('')}</select></label>
-        <label>Target<select name="targetId">${targets.map((entity) => `<option value="${esc(entity.id)}">${esc(entity.id)} · ${esc(entity.type)}</option>`).join('')}</select></label>
+      <form data-m09-approval-request><label>Action<select name="actionType" data-m09-approval-action>${actionTypes.map((type) => `<option value="${esc(type)}">${esc(M09_ACTION_LABELS[type])}</option>`).join('')}</select></label>
+        <label>Target<select name="targetId" data-m09-approval-target>${targets.map((entity) => `<option value="${esc(entity.id)}" data-target-type="${esc(entity.type)}"${entity.type === initialTargetType ? '' : ' disabled'}>${esc(entity.id)} · ${esc(entity.type)}</option>`).join('')}</select></label>
         <label>Justification<input name="reason" maxlength="500" required></label><button type="submit"${approvalOpen ? ' disabled' : ''}>Request approval</button></form>
       ${approvalOpen ? `<form data-m09-approval-decision><label>Approver ID<input name="approver" maxlength="64" required placeholder="ir-lead-morgan" pattern="ir-(lead|analyst)-(?:[a-z0-9]|-)+" title="Incident-response ID: ir-lead-… or ir-analyst-… (lowercase)"><small>Incident lead or analyst ID, e.g. ir-lead-morgan</small></label><label>Decision reason<input name="reason" maxlength="500" required></label><button type="submit" name="decision" value="approved">Approve</button><button type="submit" name="decision" value="rejected">Reject</button></form>` : ''}
       ${approved && workflow.approvalActionType !== 'restore_backup' ? `<button type="button" data-m09-execute>Execute approved action</button>` : ''}
@@ -1288,8 +1290,8 @@ const SocConsoleTools = (() => {
     }) : '';
     const attempts = (state.unsafeAttempts || []).slice().reverse().map((attempt) => `<li><strong>${esc(M09_ACTION_LABELS[attempt.actionType] || attempt.actionType)}</strong> → ${esc(attempt.targetId)} · <b>${esc(attempt.outcome)}</b> · ${esc({ no_approval: 'no matching approval recorded', out_of_scope: 'target outside the incident scope', wrong_target_type: 'wrong target type for this action' }[attempt.reason] || attempt.reason)} · ${esc(attempt.timestamp.slice(11, 19))}</li>`).join('');
     const attemptForm = ctx.attemptForm ? `<section class="m09-attempt" data-m09-attempt><h5>Attempt a response action</h5>
-      <form data-m09-attempt-form><label>Action<select name="actionType" required><option value="">Choose…</option>${Object.keys(M09_ACTION_TARGETS).map((type) => `<option value="${esc(type)}">${esc(M09_ACTION_LABELS[type])}</option>`).join('')}</select></label>
-        <label>Target<select name="targetId" required><option value="">Choose…</option>${s.entities.map((entity) => `<option value="${esc(entity.id)}">${esc(entity.id)} · ${esc(entity.type)}</option>`).join('')}</select></label>
+      <form data-m09-attempt-form><label>Action<select name="actionType" required data-m09-attempt-action><option value="">Choose…</option>${Object.keys(M09_ACTION_TARGETS).map((type) => `<option value="${esc(type)}">${esc(M09_ACTION_LABELS[type])}</option>`).join('')}</select></label>
+        <label>Target<select name="targetId" required data-m09-attempt-target><option value="">Choose an action first…</option>${s.entities.map((entity) => `<option value="${esc(entity.id)}" data-target-type="${esc(entity.type)}" disabled>${esc(entity.id)} · ${esc(entity.type)}</option>`).join('')}</select></label>
         <button type="submit">Attempt response action</button></form>
       <p class="m03e-muted">The range records every attempt and checks scope and recorded approval.</p>
       ${ctx.practice ? m09AttemptCoach(state) : ''}
@@ -1339,6 +1341,21 @@ const SocConsoleTools = (() => {
       };
       const workflow = (changes) => run((state, at) => SocM09AssessmentState.updateIncidentWorkflow(state, incidentId(), changes, at, ctx.fixture));
       root.addEventListener('change', (event) => {
+        const action = event.target.closest('[data-m09-attempt-action], [data-m09-approval-action]');
+        if (action) {
+          const isApproval = action.matches('[data-m09-approval-action]');
+          const form = action.closest(isApproval ? '[data-m09-approval-request]' : '[data-m09-attempt-form]');
+          const targets = form?.querySelector(isApproval ? '[data-m09-approval-target]' : '[data-m09-attempt-target]');
+          if (!targets) return;
+          let selectedTargetIsValid = false;
+          Array.from(targets.options).forEach((option) => {
+            if (!option.value) return;
+            option.disabled = option.dataset.targetType !== M09_ACTION_TARGETS[action.value];
+            if (!option.disabled && option.value === targets.value) selectedTargetIsValid = true;
+          });
+          if (!selectedTargetIsValid) targets.value = '';
+          return;
+        }
         const box = event.target.closest('[data-m09-review-evidence]');
         if (!box) return;
         run((state) => {
