@@ -132,11 +132,70 @@ Screenshots: `/tmp/claude-1000/-home-alex/bdcd3bcb-7fe2-4dfe-a500-59f2b1e8693c/s
    - The main checkout's `git pull` fails on its dirty `portal/index.html`.
      Ask the owner whether to keep or drop that 10-17 WIP.
 
-## Side threads raised this session (not started)
+## Owner's binding requirements (apply to ALL work in this handoff)
 
-- The owner asked about "session persistence / saved coursework state". They
-  fixed it in SOC (PR #79 Prove It latch; may need `bin/dev.sh start
-  --production` to finish, owner's call) and want the same for **Help Desk**.
-  Symptom details were not yet given. Note that localhost now runs latest
-  master, including #90 (Help Desk M1 Prove It rework), which the old
-  checkout lacked.
+- **Zero side effects.** Changes must not disturb the existing user
+  experience on any track.
+- **Unobtrusive code fixes.** Solve the problem with the smallest change
+  that fully works. No redesigns or UX churn.
+- Focus on finding the solution. The owner does not see the
+  session-persistence problem on their own SOC track; it is solved there.
+
+## Next workstream: Help Desk saved-state / persistence (port PR #79's approach)
+
+**Goal:** give Help Desk (and then every other track) the same "nothing a
+student types is ever lost" guarantee SOC got from **PR #79**. The owner says
+#79 "fool-proofed everything".
+
+**PR #79:**
+- Branch `fix/prove-it-submit-latch`, title "SOC: keep every edit and never
+  fake a submit (lost edits B9 + Prove It submit latch, M01–M12)".
+- **Still OPEN, not merged.** It needs the owner's merge (classifier blocks
+  `gh pr merge`).
+- The owner may need `bin/dev.sh start --production` to finish verifying
+  it. That is the owner's call; only start production when they ask in the
+  session.
+
+Read first, on that branch:
+- `docs/handoffs/SAVE_AND_SUBMIT_FIXES_2026-10-21.md`
+- `docs/handoffs/BUG_2026-10-17_PROVE_IT_BELOW_PASS_SILENTLY_DROPPED.md`
+- `docs/handoffs/SOC_UAT_PROGRESS_CHECKPOINT_2026-10-21.md`
+- the shared helpers `recordProveItAttempt` / `proveItLatchIsStale` in
+  `portal/app.js`
+- `portal/lab-runtime.js`
+- `portal/module-registry.js`
+
+**The owner's proven test method (use it as the acceptance test for EVERY
+module):**
+1. Fill **every** input field in the module (Learn It, Practice It, Prove It,
+   notes, tickets, free text).
+2. Save.
+3. **Clear local cache/storage, then hard refresh** (and ideally sign in from
+   a fresh browser profile).
+4. Check what stuck. Anything that only lived in localStorage and vanished
+   is a bug.
+5. Repeat for ALL modules on the track.
+
+**Likely work:**
+- Any Help Desk field that only persists in browser storage needs a durable
+  Supabase home. Expect **new columns or tables, or new keys in an existing
+  jsonb payload**.
+- Prefer extending existing progress/attempt payloads over new tables (least
+  obtrusive).
+- Ship any migration as a local file; the owner runs `supabase db push`
+  (staging first).
+- Help Desk modules: `portal/it-support-module-*.js` and
+  `portal/it-support-shared.js`.
+- Note the earlier finding: HDESK M03–M11 save only
+  `{source:'mnt-coach-complete'}`, and M12 writing goes to
+  `portfolio_artifacts` (`docs/workstreams/HDESK_SUBMISSION_SHEET_HANDOFF.md`).
+- Localhost now runs latest master, including #90 (Help Desk M1 Prove It
+  rework).
+- Help Desk is not Alex's track (other devs, incl. Megan, own parts of it).
+  Keep changes minimal and flag them for those owners.
+
+**Merge-order warning:** #79 and #94 both touch `portal/app.js`,
+`portal/index.html`, `portal/module-labs.css`,
+and `portal/admin-submission-sheet.js`. Whichever
+merges second needs a rebase. Re-run `bin/ci-check.sh` and the
+fill → save → clear cache → hard refresh test after that rebase.
