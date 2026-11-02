@@ -1445,7 +1445,7 @@ function wireModuleFiveLessons() {
     }
     const taskButton = event.target.closest('[data-m05-lesson-task-submit]');
     if (!taskButton) return;
-    const lesson = MODULE_FIVE_LESSON_LOOPS.find((item) => item.id === taskButton.dataset.m05LessonTask);
+    const lesson = MODULE_FIVE_LESSON_LOOPS.find((item) => item.id === taskButton.dataset.m05LessonTaskSubmit);
     const work = moduleFiveState.lessonWork[lesson.id] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
     work.taskComplete = work.checked && (work.task || '').trim().length >= 20;
     work.feedback = work.taskComplete ? ['Applied task saved.'] : ['Complete the knowledge check and write at least 20 characters before saving the task.'];
