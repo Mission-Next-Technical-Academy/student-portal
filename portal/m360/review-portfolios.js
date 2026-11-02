@@ -24,7 +24,7 @@
       const courseStatus=progress&&progress.course_complete?'M360 Complete':'In progress';
       const target=encodeURIComponent(student.user_id);
       return `<article class="course-state-card" data-portfolio-user="${esc(student.user_id)}">
-        <div class="course-state-student"><strong>${esc(id)}</strong>${M360Data.nameHtml(student)}<span>${esc(student.track_code)} · Read-only showcase access</span></div>
+        <div class="course-state-student"><strong>${esc(id)}</strong><span>${esc(student.track_code)} · Read-only showcase access</span></div>
         <div class="course-state-current ${ready===6?'complete':''}"><strong>${ready} / 6 Portfolio Ready</strong><span>Reviewer-approved artifacts only</span></div>
         <div class="course-state-current ${progress&&progress.course_complete?'complete':''}"><strong>${esc(courseStatus)}</strong><span>Final grade: ${esc(grade)}</span></div>
         <div class="course-state-actions">
@@ -56,7 +56,6 @@
       if(activeTrack)studentQuery=studentQuery.eq('track_code',activeTrack);
       const {data:students,error:studentError}=await studentQuery.order('student_id',{ascending:true});
       if(studentError)throw studentError;
-      await M360Data.loadNames();
 
       const userIds=(students||[]).map(student=>student.user_id).filter(Boolean);
       let weekRows=[];

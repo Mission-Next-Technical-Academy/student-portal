@@ -162,7 +162,6 @@
 
       let metaY = cardY - 38;
       if (this.model.studentId) { this.text(MARGIN, metaY, `Student ID: ${this.model.studentId}`, 9.5, 'F1', COLORS.steel); metaY -= 16; }
-      if (this.model.studentName) { this.text(MARGIN, metaY, `Student name: ${this.model.studentName}`, 9.5, 'F1', COLORS.steel); metaY -= 16; }
       if (this.model.trackLabel) { this.text(MARGIN, metaY, `Technical pathway: ${this.model.trackLabel}`, 9.5, 'F1', COLORS.steel); metaY -= 16; }
       this.text(MARGIN, metaY, `Generated: ${this.model.generatedDate || new Date().toLocaleDateString()}`, 9.5, 'F1', COLORS.steel);
 
