@@ -92,11 +92,7 @@ async function buildCoreUserFromSession(session) {
   // roster below is the authority for its course scope.  Do not infer either
   // from a track code: student accounts have track codes too.
   const [studentResult, assignmentResult] = await Promise.all([
-    mntSupabase
-      .from('students')
-      .select('student_id, track_code, is_admin, is_instructor, is_enrolled, academy_orientation_completed_at')
-      .eq('user_id', userId)
-      .single(),
+    selectOwnStudentRow(userId),
     mntSupabase
       .from('faculty_course_assignments')
       .select('track_code')
@@ -105,6 +101,9 @@ async function buildCoreUserFromSession(session) {
   ]);
   const studentRow = studentResult.data;
   if (studentResult.error) console.error('Could not load account profile', studentResult.error);
+  // Warm the roster-wide name directory in the background; it never blocks
+  // sign-in and quietly stays empty against a database without the columns.
+  if (studentRow) loadAccountNames();
   if (assignmentResult.error) console.error('Could not load instructor course assignments', assignmentResult.error);
   const instructorTrackCodes = (assignmentResult.data || []).map((row) => row.track_code).filter((code) => !!adminTrackMeta(code));
 
@@ -134,6 +133,10 @@ async function buildCoreUserFromSession(session) {
     // see AcademyOrientation in orientation.js and the
     // 20260920100000_academy_orientation_state.sql migration.
     academyOrientationCompletedAt: studentRow ? studentRow.academy_orientation_completed_at : null,
+    // Display name beside the account number; null until the account-names
+    // migration is live and an admin has set one (see accountNameText()).
+    firstName: studentRow ? studentRow.first_name || null : null,
+    lastName: studentRow ? studentRow.last_name || null : null,
     enrollments,
     // userId/trackCode: added for the module_progress write path (docs/specs/architecture.md
     // §3 Sprint 2). Both come from the studentRow query above, already run for
@@ -586,6 +589,9 @@ async function signOut(reason = 'user_signed_out') {
   await mntSupabase.auth.signOut();
   _cachedUser = null;
   _cachedUserPromise = null;
+  ACCOUNT_NAMES.byStudentId.clear();
+  ACCOUNT_NAMES.byUserId.clear();
+  ACCOUNT_NAMES.ready = null;
   // Purge defender-lab.* keys, or the next student on this browser inherits
   // the previous one's lab environment. PLATFORM_ARCHITECTURE.md §7.2.
   Object.keys(localStorage)
@@ -1147,7 +1153,7 @@ function adminAttemptReviewCard(item, olderAttempt) {
     <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
       <div class="min-w-0">
         <p class="text-sm font-semibold text-[#1e3a5f]">${esc(item.name)}${row.attempt ? ` <span class="font-normal text-gray-500">· ${esc(adminAttemptLabel(row))}</span>` : ''}</p>
-        <p class="text-xs text-gray-500 mt-0.5">${esc(item.labTitles.join(' · '))} <span class="text-gray-400">·</span> <span class="font-mono">${esc(row.student_id)}</span></p>
+        <p class="text-xs text-gray-500 mt-0.5">${esc(item.labTitles.join(' · '))} <span class="text-gray-400">·</span> <span class="font-mono">${esc(row.student_id)}</span>${accountNameHtml(row, true)}</p>
         ${olderAttempt ? '<p class="mt-1 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Older attempt — a newer submission of this lab is below</p>' : ''}
         <p class="text-xs text-gray-400 mt-0.5">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}</p>
       </div>
@@ -1186,7 +1192,7 @@ function adminAttemptReviewCard(item, olderAttempt) {
 }
 
 function adminOpenRedoRequestsHtml(redoRows) {
-  return redoRows.length ? `<section class="mt-8 border-t border-gray-200 pt-6"><h3 class="text-lg font-bold text-[#1e3a5f]">Open redo requests</h3><p class="mt-1 mb-3 text-sm text-gray-500">These are the live redo notices learners can currently see. Use this only to reverse a faculty decision made in error; otherwise the learner must submit a new attempt.</p><div class="space-y-3">${redoRows.map((row) => `<article class="bg-amber-50 border border-amber-200 rounded-xl p-4" data-grading-row="${esc(row.id)}"><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p><p class="mt-0.5 text-sm text-gray-700">${esc(adminGradingLabMeta(row).moduleLabel)} <span class="text-gray-400">·</span> ${esc(adminGradingLabMeta(row).labTitle)} <span class="text-gray-400">·</span> sent back ${row.reviewed_at ? new Date(row.reviewed_at).toLocaleString() : '—'}</p><div class="mt-3 flex flex-wrap items-center gap-2">${labTakesOfficialGrade(row.lab_key) ? '<span class="text-xs text-gray-600">Waiting for the student\'s new attempt. This lab needs an official grade, so it can\'t be approved here.</span>' : `<button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(row.id)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Approve without resubmission</button>`}<span data-grading-status class="text-xs text-gray-600"></span></div></article>`).join('')}</div></section>` : '';
+  return redoRows.length ? `<section class="mt-8 border-t border-gray-200 pt-6"><h3 class="text-lg font-bold text-[#1e3a5f]">Open redo requests</h3><p class="mt-1 mb-3 text-sm text-gray-500">These are the live redo notices learners can currently see. Use this only to reverse a faculty decision made in error; otherwise the learner must submit a new attempt.</p><div class="space-y-3">${redoRows.map((row) => `<article class="bg-amber-50 border border-amber-200 rounded-xl p-4" data-grading-row="${esc(row.id)}"><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}${accountNameHtml(row)}</p><p class="mt-0.5 text-sm text-gray-700">${esc(adminGradingLabMeta(row).moduleLabel)} <span class="text-gray-400">·</span> ${esc(adminGradingLabMeta(row).labTitle)} <span class="text-gray-400">·</span> sent back ${row.reviewed_at ? new Date(row.reviewed_at).toLocaleString() : '—'}</p><div class="mt-3 flex flex-wrap items-center gap-2">${labTakesOfficialGrade(row.lab_key) ? '<span class="text-xs text-gray-600">Waiting for the student\'s new attempt. This lab needs an official grade, so it can\'t be approved here.</span>' : `<button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(row.id)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Approve without resubmission</button>`}<span data-grading-status class="text-xs text-gray-600"></span></div></article>`).join('')}</div></section>` : '';
 }
 
 /* Lab Attempts tab (owner, 2026-10-05): replaces the Grading/Graded split.
@@ -1285,7 +1291,7 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
 
   const studentCard = (student) => `<section class="bg-white border ${student.pendingItems ? 'border-amber-200' : 'border-gray-200'} rounded-xl px-5 py-4" data-grading-student="${esc(student.studentId)}">
       <div class="flex flex-wrap items-baseline justify-between gap-2">
-        <p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(student.studentId)}</p>
+        <p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(student.studentId)}${accountNameHtml(student.studentId)}</p>
         <p class="text-xs text-gray-500">${student.pendingItems ? `<span class="font-semibold text-amber-700">${student.pendingItems} under review</span> · ` : ''}${student.items.length - student.pendingItems} graded</p>
       </div>
       <div class="mt-3 grid gap-1.5" style="grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));">${student.phases.map((phase) => {
@@ -1475,7 +1481,7 @@ function adminMessageInboxPanel(messageRows) {
   const list = Array.from(threads.entries()).sort(([, a], [, b]) => (b.rows[b.rows.length - 1]?.created_at || '').localeCompare(a.rows[a.rows.length - 1]?.created_at || ''));
   if (!list.length) return `<div class="mb-6"><h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Instructor inbox</h2><div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div></div><div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">No messages in this course workspace yet.</p></div>`;
   return `<div class="mb-6"><h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Instructor inbox</h2><div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div><p class="text-gray-500 text-sm">Messages stay inside the portal. Replying also clears the student's unread message cue for this conversation.</p></div><div class="space-y-4">${list.map(([threadId, thread]) => `<article class="bg-white border border-gray-200 rounded-xl p-5" data-faculty-message-thread="${esc(threadId)}">
-    <div class="flex flex-wrap items-start justify-between gap-3 mb-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(thread.studentId)}</p><h3 class="text-sm text-gray-700 mt-1">${esc(thread.subject)}</h3></div></div>
+    <div class="flex flex-wrap items-start justify-between gap-3 mb-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(thread.studentId)}${accountNameHtml({ student_id: thread.studentId, user_id: thread.userId })}</p><h3 class="text-sm text-gray-700 mt-1">${esc(thread.subject)}</h3></div></div>
     <div class="space-y-2 mb-4">${thread.rows.map((message) => `<div class="rounded-lg px-3 py-2 ${message.sender_role === 'student' ? 'bg-[#f0f7ff] border border-[#bfdbfe]' : 'bg-gray-50 border border-gray-100'}"><div class="flex justify-between gap-3 text-xs mb-1"><strong class="text-[#1e3a5f]">${esc(messageSenderLabel(message, thread.studentId))}</strong><span class="text-gray-500">${esc(message.created_at ? new Date(message.created_at).toLocaleString() : '—')}</span></div><p class="text-sm text-gray-700 whitespace-pre-wrap">${esc(message.body)}</p></div>`).join('')}</div>
     <form data-faculty-message-reply data-thread-id="${esc(threadId)}" data-student-user-id="${esc(thread.userId)}" data-track-code="${esc(thread.trackCode)}" data-subject="${esc(thread.subject)}"><label class="block text-sm font-semibold text-[#1e3a5f]">Reply<textarea required rows="3" maxlength="10000" name="body" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Write a plain-text reply."></textarea></label><div class="mt-2 flex items-center gap-3"><button type="submit" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg">Send reply</button><span data-faculty-message-status class="text-xs text-gray-500" aria-live="polite"></span></div></form>
   </article>`).join('')}</div>`;
@@ -1516,7 +1522,7 @@ function adminProgramRoster(rows) {
     // first-glance data. renderStudentDetail() below presents the readiness
     // fields inside the expanded record.
     const detailId = `admin-inline-detail-${row.student_id}`;
-    return `<article class="bg-white border border-gray-200 rounded-xl p-5 ${row.enrolled === false ? 'opacity-70' : ''}"><div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p><p class="text-sm text-gray-500 mt-1">${esc((adminTrackMeta(row.track_code) || {}).eyebrow || row.track_code)} · ${esc(academicStatusLabel(deriveAcademicStatus(row)))}</p></div><button type="button" data-admin-progress-detail="${esc(row.student_id)}" aria-controls="${esc(detailId)}" aria-expanded="false" class="inline-flex items-center gap-1 text-sm font-semibold text-[#1e3a5f] hover:underline">View details <i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div><div class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full rounded-full bg-[#f97316]" style="width:${percent}%"></div></div><div class="flex flex-wrap items-center justify-between gap-2 mt-2"><span class="text-sm font-semibold text-[#1e3a5f]">Coursework ${completed} / ${required}</span><span class="text-xs font-semibold rounded-full px-2.5 py-1 bg-[#eef4fa] text-[#1e3a5f]">${esc(m360ProgressStatus(row))}</span></div><div class="mt-3 flex flex-wrap gap-1.5">${technicalChip}${m360Chip}</div><div id="${esc(detailId)}" data-admin-inline-detail="${esc(row.student_id)}" class="grid transition-all duration-300 ease-out" style="grid-template-rows:0fr"><div class="overflow-hidden"><div class="pt-5"></div></div></div></article>`;
+    return `<article class="bg-white border border-gray-200 rounded-xl p-5 ${row.enrolled === false ? 'opacity-70' : ''}"><div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}${accountNameHtml(row)}</p><p class="text-sm text-gray-500 mt-1">${esc((adminTrackMeta(row.track_code) || {}).eyebrow || row.track_code)} · ${esc(academicStatusLabel(deriveAcademicStatus(row)))}</p></div><button type="button" data-admin-progress-detail="${esc(row.student_id)}" aria-controls="${esc(detailId)}" aria-expanded="false" class="inline-flex items-center gap-1 text-sm font-semibold text-[#1e3a5f] hover:underline">View details <i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div><div class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full rounded-full bg-[#f97316]" style="width:${percent}%"></div></div><div class="flex flex-wrap items-center justify-between gap-2 mt-2"><span class="text-sm font-semibold text-[#1e3a5f]">Coursework ${completed} / ${required}</span><span class="text-xs font-semibold rounded-full px-2.5 py-1 bg-[#eef4fa] text-[#1e3a5f]">${esc(m360ProgressStatus(row))}</span></div><div class="mt-3 flex flex-wrap gap-1.5">${technicalChip}${m360Chip}</div><div id="${esc(detailId)}" data-admin-inline-detail="${esc(row.student_id)}" class="grid transition-all duration-300 ease-out" style="grid-template-rows:0fr"><div class="overflow-hidden"><div class="pt-5"></div></div></div></article>`;
   }).join('')}</div></section>`;
 }
 
@@ -1625,6 +1631,7 @@ function evaluateReportingCompliance(rows, context) {
       requiredFields: ['student_id', 'program', 'credential', 'enrollment_date', 'scheduled_start_date', 'completion_date', 'academic_status', 'student name or documented lawful substitute'],
       dynamicallyPresent: [
         { field: 'Student ID', get: (r) => r.student_id },
+        { field: 'Student name (stored first and last name)', get: (r) => r.firstName && r.lastName ? `${r.firstName} ${r.lastName}` : accountNameText(r) },
         { field: 'Program', get: (r) => r.program_slug },
         { field: 'Credential', get: (r) => r.credentialName || r.credential_name },
         { field: 'Enrollment date', get: (r) => r.enrollmentDate },
@@ -1632,9 +1639,9 @@ function evaluateReportingCompliance(rows, context) {
         { field: 'Completion date', get: (r) => r.completionDate },
         { field: 'Academic status', get: (r) => r.status },
       ],
-      staticallyMissing: ['Student name (or an approved documented substitute) — students are currently tracked by an anonymized ID only, and a verified identity record has not been integrated yet'],
+      staticallyMissing: [],
       sourceTables: ['students', 'enrollment_periods', 'program_versions', 'admin_student_progress (view)'],
-      note: 'Credential, planned start date, and program-version data are now available from the academy\'s enrollment records. This report does not substitute a student ID for a verified identity record.',
+      note: 'Credential, planned start date, and program-version data are now available from the academy\'s enrollment records. Student name is the first and last name an administrator entered on the account (account display names); it is not a verified identity record, and an account with no stored name is reported as missing the field.',
     }),
     req({
       id: 'clock_hours_attendance',
@@ -1891,6 +1898,8 @@ function buildCohortReportData(rows, options) {
       const status = deriveAcademicStatus(row);
       return {
         studentId: row.student_id,
+        firstName: (accountNameParts(row) || {}).first_name || null,
+        lastName: (accountNameParts(row) || {}).last_name || null,
         track: row.track_code,
         program: row.program_slug || '—',
         enrolled: row.enrolled !== false,
@@ -2501,9 +2510,10 @@ async function renderCohortPdf(cohortData, reportId) {
     doc.autoTable({
       startY: cursorY + 6,
       margin: { left: marginX, right: marginX, bottom: 60 },
-      head: [['Student ID', 'Track', 'Program', 'Academic Status', 'Enrolled', 'Modules', '% Complete', 'Capstone Score', 'Last Active']],
+      head: [['Student ID', 'Name', 'Track', 'Program', 'Academic Status', 'Enrolled', 'Modules', '% Complete', 'Capstone Score', 'Last Active']],
       body: cohortData.students.map((st) => [
         st.studentId,
+        st.firstName && st.lastName ? `${st.firstName} ${st.lastName}` : '—',
         st.track || '—',
         st.program,
         st.progressState,
@@ -2549,9 +2559,11 @@ async function renderCohortPdf(cohortData, reportId) {
     doc.autoTable({
       startY: cursorY,
       margin: { left: marginX, right: marginX, bottom: 60 },
-      head: [['Student ID', 'Credential', 'Enrollment Date', 'Scheduled Start Date', 'Completion Date']],
+      head: [['Student ID', 'First Name', 'Last Name', 'Credential', 'Enrollment Date', 'Scheduled Start Date', 'Completion Date']],
       body: cohortData.students.map((st) => [
         st.studentId,
+        st.firstName || '—',
+        st.lastName || '—',
         st.credential || '—',
         st.enrollmentDate ? new Date(st.enrollmentDate).toLocaleDateString() : '—',
         st.scheduledStartDate ? new Date(st.scheduledStartDate).toLocaleDateString() : '—',
@@ -2635,9 +2647,11 @@ async function renderProgressSnapshotPdf(scopedRows, options, reportId) {
     doc.autoTable({
       startY: cursorY,
       margin: { left: marginX, right: marginX, bottom: 60 },
-      head: [['Student ID', 'Track', 'Program', 'Enrollment', '% Complete', 'Modules', 'Capstone Score', 'Last Active']],
+      head: [['Student ID', 'First Name', 'Last Name', 'Track', 'Program', 'Enrollment', '% Complete', 'Modules', 'Capstone Score', 'Last Active']],
       body: scopedRows.map((row) => [
         row.student_id,
+        (accountNameParts(row) || {}).first_name || '—',
+        (accountNameParts(row) || {}).last_name || '—',
         row.track_code || '—',
         row.program_slug || '—',
         row.adminStateLabel || (row.enrolled !== false ? 'Enrolled' : 'Disenrolled'),
@@ -2877,7 +2891,7 @@ async function renderTranscriptPdf(transcriptData, reportId) {
 
   const leftPairs = [
     ['Student Identifier', transcriptData.studentId],
-    ['Student Name', 'Not available — this system identifies students by anonymized ID only'],
+    ['Student Name', transcriptData.firstName && transcriptData.lastName ? `${transcriptData.firstName} ${transcriptData.lastName}` : 'Not on file — no first and last name has been entered for this account'],
     ['Track / Program', `${fmtVal(transcriptData.track)} — ${programTitle}`],
     ['Credential', transcriptData.program ? fmtVal(transcriptData.program.credential, 'Not recorded') : 'Not recorded'],
   ];
@@ -3082,6 +3096,7 @@ async function renderEvidencePdf(evidenceData, reportId) {
     metaLines: [
       `Record ID: ${reportId}`,
       `Student ID: ${evidenceData.studentId}`,
+      ...(evidenceData.firstName && evidenceData.lastName ? [`Student Name: ${evidenceData.firstName} ${evidenceData.lastName}`] : []),
       `Track: ${fmtVal(evidenceData.track)}`,
       `Generated: ${formatGeneratedTimestamp(evidenceData.generatedAt)}`,
     ],
@@ -3717,6 +3732,8 @@ async function buildTranscriptData(studentId, identity) {
     asOf: generatedAt,
     institution: { name: 'Mission Next Technical Academy' },
     studentId,
+    firstName: (accountNameParts(studentId) || {}).first_name || null,
+    lastName: (accountNameParts(studentId) || {}).last_name || null,
     track: trackCode || null,
     program: program ? {
       slug: program.slug,
@@ -3818,6 +3835,8 @@ async function buildEvidencePacketData(studentId, identity) {
     generatedAt,
     asOf: generatedAt,
     studentId,
+    firstName: (accountNameParts(studentId) || {}).first_name || null,
+    lastName: (accountNameParts(studentId) || {}).last_name || null,
     track: trackCode || null,
     labs,
     capstone: {
@@ -3863,6 +3882,8 @@ async function exportStudentRecord(user, program) {
     _label: 'Machine-readable data export — NOT the official transcript. See transcript.reportType for the individual academic transcript data, and evidence.reportType for the supporting-evidence record.',
     exportedAt: new Date().toISOString(),
     studentId: user.username,
+    firstName: user.firstName || null,
+    lastName: user.lastName || null,
     email: user.email,
     track: user.trackCode,
     program: program.slug,
@@ -3919,6 +3940,8 @@ async function buildStudentSnapshotRecord(studentId, identity) {
     _label: 'Admin-captured recoverable progress snapshot — paste into docs/ADMIN_RESET_FLOW.md\'s agent prompt to restore this student if a disenrollment was a mistake.',
     capturedAt: new Date().toISOString(),
     studentId,
+    firstName: (accountNameParts(studentId) || {}).first_name || null,
+    lastName: (accountNameParts(studentId) || {}).last_name || null,
     track: identity ? identity.trackCode : null,
     transcript,
     evidence,
@@ -4497,6 +4520,151 @@ function isBuilt(program) {
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/* ------------------------------------------------------ account display names
+ * First + last name shown beside an account number (docs/workstreams/
+ * ACCOUNT_DISPLAY_NAMES.md). Names live in public.students.first_name /
+ * last_name (migration 20261102120000). The students table is already
+ * RLS-scoped to exactly who may see an account number (admin: all, instructor:
+ * their course's students, student: self), so one directory query gives every
+ * render site the names it is allowed to show, keyed by student_id and user_id.
+ *
+ * Graceful before the migration is pushed: if the columns or RPC are missing
+ * the old query runs instead and no name renders. That verdict is cached for
+ * the page session (ACCOUNT_NAMES.available === false) so it is never retried
+ * on every call.
+ */
+const ACCOUNT_NAMES = {
+  available: null, // null = unknown, true = columns exist, false = DB lacks them
+  rpcAvailable: null,
+  byStudentId: new Map(),
+  byUserId: new Map(),
+  ready: null, // in-flight/finished loadAccountNames() promise
+};
+const ACCOUNT_NAMES_PAGE = 1000;
+
+// PostgREST/Postgres signals for "the column or function is not there yet":
+// 42703 undefined column, 42883 undefined function, PGRST204 column missing in
+// the schema cache, PGRST202 function missing in the schema cache.
+function isMissingAccountNameSchema(error) {
+  if (!error) return false;
+  if (['42703', '42883', 'PGRST204', 'PGRST202'].includes(error.code)) return true;
+  return /first_name|last_name|admin_set_account_name/i.test(`${error.message || ''} ${error.details || ''}`)
+    && /does not exist|schema cache|could not find/i.test(`${error.message || ''} ${error.details || ''}`);
+}
+
+function rememberAccountName(row) {
+  if (!row || !(row.first_name && row.last_name)) return;
+  const entry = { first_name: row.first_name, last_name: row.last_name };
+  if (row.student_id) ACCOUNT_NAMES.byStudentId.set(row.student_id, entry);
+  if (row.user_id) ACCOUNT_NAMES.byUserId.set(row.user_id, entry);
+}
+
+// The signed-in user's own students row, with names when the DB has them.
+async function selectOwnStudentRow(userId) {
+  const base = 'student_id, track_code, is_admin, is_instructor, is_enrolled, academy_orientation_completed_at';
+  const query = (cols) => mntSupabase.from('students').select(cols).eq('user_id', userId).single();
+  if (ACCOUNT_NAMES.available !== false) {
+    const result = await query(`${base}, first_name, last_name`);
+    if (!result.error) {
+      ACCOUNT_NAMES.available = true;
+      rememberAccountName({ ...result.data, user_id: userId });
+      return result;
+    }
+    if (!isMissingAccountNameSchema(result.error)) return result;
+    ACCOUNT_NAMES.available = false;
+  }
+  return query(base);
+}
+
+// Loads (once; pass force to refresh) the name directory for every account the
+// viewer may see. Resolves to true when names are available. Never throws.
+function loadAccountNames(force = false) {
+  if (ACCOUNT_NAMES.available === false) return Promise.resolve(false);
+  if (ACCOUNT_NAMES.ready && !force) return ACCOUNT_NAMES.ready;
+  ACCOUNT_NAMES.ready = (async () => {
+    try {
+      for (let from = 0; ; from += ACCOUNT_NAMES_PAGE) {
+        const { data, error } = await mntSupabase
+          .from('students')
+          .select('student_id, user_id, first_name, last_name')
+          .order('student_id')
+          .range(from, from + ACCOUNT_NAMES_PAGE - 1);
+        if (error) {
+          if (isMissingAccountNameSchema(error)) ACCOUNT_NAMES.available = false;
+          else ACCOUNT_NAMES.ready = null; // transient: allow a later retry
+          return false;
+        }
+        (data || []).forEach(rememberAccountName);
+        if (!data || data.length < ACCOUNT_NAMES_PAGE) break;
+      }
+      ACCOUNT_NAMES.available = true;
+      window.dispatchEvent(new CustomEvent('mnt:account-names-loaded'));
+      return true;
+    } catch (err) {
+      console.error('Could not load account names', err);
+      ACCOUNT_NAMES.ready = null;
+      return false;
+    }
+  })();
+  return ACCOUNT_NAMES.ready;
+}
+
+// Resolves a name from a profile-like row ({first_name,last_name}), a row with
+// student_id / user_id / username, or a bare account number string.
+function accountNameParts(p) {
+  if (!p) return null;
+  if (typeof p === 'object' && p.first_name && p.last_name) return p;
+  if (typeof p === 'object' && p.firstName && p.lastName) return { first_name: p.firstName, last_name: p.lastName };
+  const sid = typeof p === 'string' ? p : (p.student_id || p.studentId || p.username);
+  const uid = typeof p === 'object' ? (p.user_id || p.userId) : null;
+  return (sid && ACCOUNT_NAMES.byStudentId.get(sid)) || (uid && ACCOUNT_NAMES.byUserId.get(uid)) || null;
+}
+
+// "First Last", or "" when there is no name (pre-migration DB, or not loaded).
+function accountNameText(p) {
+  const n = accountNameParts(p);
+  return n ? `${n.first_name} ${n.last_name}`.trim() : '';
+}
+
+// <span class="acct-name">First Last</span> (escaped), or "" when no name.
+// Pass inline = true for run-in text: renders " · First Last" on one line.
+function accountNameHtml(p, inline = false) {
+  const text = accountNameText(p);
+  if (!text) return '';
+  return `<span class="acct-name${inline ? ' acct-name--inline' : ''}">${esc(text)}</span>`;
+}
+
+// Plain-text label for status/confirm strings: "ID (First Last)" or just "ID".
+function accountLabelText(p) {
+  const id = typeof p === 'string' ? p : (p && (p.student_id || p.studentId || p.username)) || '';
+  const name = accountNameText(p);
+  return name ? `${id} (${name})` : id;
+}
+
+// Admin-only. Resolves { ok, unavailable, error }; unavailable = the RPC is not
+// deployed yet (non-blocking for callers, who show a warning).
+async function setAccountName(userId, firstName, lastName) {
+  if (ACCOUNT_NAMES.rpcAvailable === false) return { ok: false, unavailable: true };
+  const { error } = await mntSupabase.rpc('admin_set_account_name', {
+    p_user_id: userId,
+    p_first_name: firstName,
+    p_last_name: lastName,
+  });
+  if (error) {
+    if (isMissingAccountNameSchema(error)) {
+      ACCOUNT_NAMES.rpcAvailable = false;
+      return { ok: false, unavailable: true, error };
+    }
+    return { ok: false, unavailable: false, error };
+  }
+  ACCOUNT_NAMES.rpcAvailable = true;
+  ACCOUNT_NAMES.available = true;
+  await loadAccountNames(true);
+  return { ok: true };
+}
+
+Object.assign(window, { accountNameText, accountNameHtml, accountLabelText, loadAccountNames, setAccountName });
+
 window.addEventListener('mnt:lab-attempt-save-failed', () => {
   if (document.getElementById('mnt-lab-attempt-save-failed')) return;
   document.body.insertAdjacentHTML('afterbegin', `<div id="mnt-lab-attempt-save-failed" role="alert" style="z-index:1000" class="fixed top-0 inset-x-0 bg-red-50 border-b border-red-200 text-red-900 px-4 py-3 shadow-sm"><div class="max-w-7xl mx-auto flex items-start justify-between gap-4"><p class="text-sm font-medium">${esc('Your submission did not reach your instructor. Nothing was lost on this page: check your connection and submit again. If it keeps happening, use Message Instructor.')}</p><button type="button" data-dismiss-lab-save-failed aria-label="Dismiss submission error" class="shrink-0 rounded px-2 py-1 text-red-800 hover:bg-red-100">Dismiss</button></div></div>`);
@@ -4634,7 +4802,7 @@ function header(user, options = {}) {
                    <span class="w-8 h-8 rounded-full bg-[#1e3a5f]/8 text-[#1e3a5f] font-semibold text-xs flex items-center justify-center">
                      ${esc(user.name.split(' ').map((p) => p[0]).join(''))}
                    </span>
-                   ${esc(user.name)}
+                   ${esc(user.name)}<span class="acct-chip-name">${accountNameHtml(user, true)}</span>
                  </span>
                  <button data-action="signout" class="bg-[#f97316] hover:bg-[#ea580c] text-white text-sm font-semibold px-5 py-2 rounded-xl transition-colors whitespace-nowrap cursor-pointer">
                    Sign Out
@@ -4926,9 +5094,9 @@ function moduleTopbar(user, program, options = {}) {
           </div>
           <span class="text-xs font-semibold text-gray-500 whitespace-nowrap">${progress.percent}%</span>
         </div>
-        <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600 whitespace-nowrap" aria-label="Signed in as ${esc(user.username || user.name || 'student')}">
+        <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600 whitespace-nowrap" aria-label="Signed in as ${esc(user.username || user.name || 'student')}${accountNameText(user) ? ` (${esc(accountNameText(user))})` : ''}">
           <i class="ri-user-line text-sm" aria-hidden="true"></i>
-          ${esc(user.username || user.name || 'Student')}
+          ${esc(user.username || user.name || 'Student')}<span class="acct-chip-name">${accountNameHtml(user, true)}</span>
         </span>
         <button data-action="signout" class="bg-[#f97316] hover:bg-[#ea580c] text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer">
           Sign Out
@@ -6571,7 +6739,7 @@ async function toggleCredentialsPanel(studentId, btn, trackCode) {
       inner.innerHTML = `
         <p class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-2">Login Credentials</p>
         <div class="flex items-center gap-6">
-        <pre data-select-all tabindex="0" class="inline-block bg-white border border-gray-200 rounded-lg p-3 text-sm font-mono text-gray-900 cursor-text overflow-x-auto" title="Click to select all">Student ID: ${esc(studentId)}
+        <pre data-select-all tabindex="0" class="inline-block bg-white border border-gray-200 rounded-lg p-3 text-sm font-mono text-gray-900 cursor-text overflow-x-auto" title="Click to select all">Student ID: ${esc(studentId)}${accountNameText(studentId) ? `\nName:       ${esc(accountNameText(studentId))}` : ''}
 Password:   ${esc(data.password)}</pre>
         ${rotateButton}
         </div>
@@ -6588,7 +6756,7 @@ Password:   ${esc(data.password)}</pre>
       const deleteButton = offboard.querySelector('[data-delete-instructor]');
       const deleteStatus = offboard.querySelector('[data-delete-instructor-status]');
       deleteButton.addEventListener('click', async () => {
-        if (!window.confirm(`Permanently delete ${studentId}? This cannot be undone.`)) return;
+        if (!window.confirm(`Permanently delete ${accountLabelText(studentId)}? This cannot be undone.`)) return;
         deleteButton.disabled = true;
         deleteStatus.textContent = 'Deleting instructor account…';
         try {
@@ -6665,7 +6833,7 @@ async function rotateAccountPassword(rotateBtn) {
   }
   btn.title = note;
   const status = document.getElementById('admin-report-status');
-  if (status) status.textContent = `${studentId}: ${note}`;
+  if (status) status.textContent = `${accountLabelText(studentId)}: ${note}`;
 }
 
 /* Readable "3h 20m" formatting for a single admin_site_sessions row's own
@@ -6899,6 +7067,14 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                     <div><div class="bg-white border border-gray-200 rounded-xl p-4 mb-3">
                      <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate Account</h3>
                      <p class="text-xs text-gray-500 mb-3">Create a student account or an instructor account. Student accounts begin unassigned and not enrolled. An instructor is assigned to exactly the course selected below and can only open that course dashboard. The password is shown once — copy it now.</p>
+                     <div class="grid sm:grid-cols-2 gap-3 mb-3">
+                       <label class="text-xs font-semibold text-gray-600">First name
+                         <input id="gen-user-first-name" type="text" required maxlength="80" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                       </label>
+                       <label class="text-xs font-semibold text-gray-600">Last name
+                         <input id="gen-user-last-name" type="text" required maxlength="80" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                       </label>
+                     </div>
                      <div class="grid sm:grid-cols-4 gap-3 items-end">
                        <label class="text-xs font-semibold text-gray-600">Account type
                          <select id="gen-user-role" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
@@ -6973,23 +7149,14 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                    <div id="admin-generate-diploma-panel" class="acc-body">
                     <div><div class="bg-white border border-gray-200 rounded-xl p-4 mb-3">
                      <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate Diploma</h3>
-                     <p class="text-xs text-gray-500 mb-3">Renders a printable diploma for one student, titled to match their track. Only enrolled students who have completed every technical module (including the module 12 capstone) and, on M360-required tracks, every M360 requirement are eligible. The name below is used only to render this one diploma — it is never saved to the student's account or any database.</p>
+                     <p class="text-xs text-gray-500 mb-3">Renders a printable diploma for one student, titled to match their track. Only enrolled students who have completed every technical module (including the module 12 capstone) and, on M360-required tracks, every M360 requirement are eligible. The name printed on the diploma is the student's stored first and last name (use Edit name in the student detail panel to set or correct it).</p>
                      <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 items-end mb-3">
                        <label class="text-xs font-semibold text-gray-600 xl:col-span-2">Student
                          <select id="diploma-student-select" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
                            <option value="">Select a student…</option>
-                           ${rows.filter((r) => r.enrolled !== false && r.program_requirements_complete).map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)}</option>`).join('')}
+                           ${rows.filter((r) => r.enrolled !== false && r.program_requirements_complete).map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${accountNameText(r) ? `${esc(accountNameText(r))} — ` : ''}${esc(r.program_slug || r.track_code)}</option>`).join('')}
                          </select>
                          ${rows.filter((r) => r.enrolled !== false && r.program_requirements_complete).length === 0 ? '<span class="block mt-1 text-xs text-gray-400">No enrolled student has completed every technical module and M360 requirement yet.</span>' : ''}
-                       </label>
-                       <label class="text-xs font-semibold text-gray-600">First name
-                         <input id="diploma-first-name" type="text" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
-                       </label>
-                       <label class="text-xs font-semibold text-gray-600">Middle name (optional)
-                         <input id="diploma-middle-name" type="text" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
-                       </label>
-                       <label class="text-xs font-semibold text-gray-600">Last name
-                         <input id="diploma-last-name" type="text" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
                        </label>
                        <button type="button" data-action="admin-generate-diploma-submit" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Generate Diploma</button>
                      </div>
@@ -7005,7 +7172,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                        <label class="text-xs font-semibold text-gray-600">Student
                          <select id="admin-planning-student" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
                            <option value="">Select an active student…</option>
-                           ${rows.filter((r) => r.enrolled !== false).map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)}</option>`).join('')}
+                           ${rows.filter((r) => r.enrolled !== false).map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)}${accountNameText(r) ? ` — ${esc(accountNameText(r))}` : ''} — ${esc(r.program_slug || r.track_code)}</option>`).join('')}
                          </select>
                        </label>
                        <label class="text-xs font-semibold text-gray-600">Scheduled start
@@ -7082,6 +7249,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                                ${esc(row.student_id)}
                              </button>
                              ${cheatingFlagsByStudentId.has(row.student_id) ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 cursor-help" title="${esc(cheatingFlagsByStudentId.get(row.student_id).join(' · '))}">Review</span>` : ''}
+                             ${accountNameHtml(row)}
                            </td>
                            <td class="px-6 py-4 text-sm text-gray-600">${esc(row.track_code)}</td>
                            <td class="px-6 py-4 text-sm text-gray-600">${esc(row.program_slug || '—')}</td>
@@ -7148,7 +7316,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                             <option value="">Choose a student…</option>
                             ${detailStudents.map((r) => {
                               const programmeProgress = programWorkItemProgress(r);
-                              return `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)} (${programmeProgress.completed}/${programmeProgress.required} coursework${programmeProgress.completed === 0 && (r.modules_in_progress || 0) > 0 ? ', in progress' : ''})</option>`;
+                              return `<option value="${esc(r.student_id)}">${esc(r.student_id)}${accountNameText(r) ? ` — ${esc(accountNameText(r))}` : ''} — ${esc(r.program_slug || r.track_code)} (${programmeProgress.completed}/${programmeProgress.required} coursework${programmeProgress.completed === 0 && (r.modules_in_progress || 0) > 0 ? ', in progress' : ''})</option>`;
                             }).join('')}
                           </select>
                         </div>
@@ -7218,6 +7386,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                            <td class="px-6 py-3 text-sm text-gray-900 font-mono">
                              ${esc(ev.student_id || '—')}
                              ${cheatingFlagsByStudentId.has(ev.student_id) ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 cursor-help" title="${esc(cheatingFlagsByStudentId.get(ev.student_id).join(' · '))}">Review</span>` : ''}
+                             ${accountNameHtml(ev)}
                            </td>
                            <td class="px-6 py-3 text-sm text-gray-600">${esc(ev.track_code || '—')}</td>
                            <td class="px-6 py-3 text-sm text-gray-600" ${ev.ip_address ? `title="${esc(ev.ip_address)}"` : ''}>${esc(formatLoginLocation(ev))}</td>
@@ -7225,7 +7394,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                            <td class="px-6 py-3 text-sm text-gray-600">${siteSession ? (siteSession.ended_at ? new Date(siteSession.ended_at).toLocaleString() : '<span class="text-green-600 font-semibold">Still signed in</span>') : '—'}</td>
                            <td class="px-6 py-3 text-sm text-gray-600">${siteSession ? esc(formatSiteMinutes(siteSession.duration_minutes)) : '—'}</td>
                            <td class="px-6 py-3 text-sm whitespace-nowrap">
-                             ${canForceSignOut ? `<button type="button" data-force-signout="${esc(ev.user_id)}" data-force-signout-student="${esc(ev.student_id || 'this student')}" class="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Sign out</button>` : ''}
+                             ${canForceSignOut ? `<button type="button" data-force-signout="${esc(ev.user_id)}" data-force-signout-student="${esc(ev.student_id ? accountLabelText(ev) : 'this student')}" class="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Sign out</button>` : ''}
                            </td>
                          </tr>`;
                        }).join('')}
@@ -7301,7 +7470,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
               ? `<div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">No archived students yet.</p></div>`
               : `<div>
                    <label for="archived-student-search" class="block text-xs font-semibold uppercase tracking-widest text-gray-600 mb-1.5">Search archived records</label>
-                   <input id="archived-student-search" type="search" autocomplete="off" placeholder="Student ID, cohort, track, program, or status…" class="w-full sm:max-w-xl border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 mb-4" />
+                   <input id="archived-student-search" type="search" autocomplete="off" placeholder="Student ID, name, cohort, track, program, or status…" class="w-full sm:max-w-xl border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 mb-4" />
                    <p id="archived-student-search-status" class="text-xs text-gray-500 mb-3">${archivedStudents.length} archived record${archivedStudents.length === 1 ? '' : 's'}</p>
                    <div class="overflow-x-auto">
                    <table class="w-full border-collapse">
@@ -7320,8 +7489,8 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                      </thead>
                      <tbody>
                        ${archivedStudents.map((r) => `
-                         <tr data-archived-student-row data-archive-search="${esc([r.student_id, r.cohort_name, r.track_code, r.program_slug, r.status_at_archive].filter(Boolean).join(' ').toLowerCase())}" class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                           <td class="px-6 py-3 text-sm text-gray-900 font-mono">${esc(r.student_id)}</td>
+                         <tr data-archived-student-row data-archive-search="${esc([r.student_id, accountNameText(r), r.cohort_name, r.track_code, r.program_slug, r.status_at_archive].filter(Boolean).join(' ').toLowerCase())}" class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                           <td class="px-6 py-3 text-sm text-gray-900 font-mono">${esc(r.student_id)}${accountNameHtml(r)}</td>
                            <td class="px-6 py-3 text-sm text-gray-600">${esc(r.cohort_name || '—')}</td>
                            <td class="px-6 py-3 text-sm text-gray-600">${esc(r.track_code || '—')}</td>
                            <td class="px-6 py-3 text-sm text-gray-600">${esc(r.program_slug || '—')}</td>
@@ -7691,6 +7860,10 @@ async function render(options = {}) {
     startLiveRefreshForRoute(null, hash);
     return;
   }
+  // Names beside account numbers: wait briefly (never fail) so the first
+  // paint already carries them; an unavailable/slow directory just means none.
+  await Promise.race([loadAccountNames(), new Promise((resolve) => setTimeout(resolve, 2500))]);
+  if (!isCurrentRouteRender(renderGeneration)) return;
   // Signed in but sitting on the login route: replace the entry rather than
   // pushing a new one, so Back never lands on a login screen that just bounces
   // the student forward again.
@@ -9012,26 +9185,18 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
 
   /* "Generate Diploma": looks up the selected student's track_code (already
    * in dashboardRows — no extra fetch) to pick the matching diploma title,
-   * then hands the typed name straight to openDiplomaCertificate() and
-   * clears the fields immediately after. Nothing here is written to
-   * Supabase or browser storage. */
+   * then hands the student's stored first/last name (account display names)
+   * to openDiplomaCertificate(). Nothing here is written to Supabase or
+   * browser storage. */
   const generateDiplomaSubmitBtn = document.querySelector('[data-action="admin-generate-diploma-submit"]');
   if (generateDiplomaSubmitBtn) {
     generateDiplomaSubmitBtn.addEventListener('click', () => {
       const studentSelect = document.getElementById('diploma-student-select');
-      const firstInput = document.getElementById('diploma-first-name');
-      const middleInput = document.getElementById('diploma-middle-name');
-      const lastInput = document.getElementById('diploma-last-name');
       const statusEl = document.getElementById('admin-generate-diploma-status');
-      if (!studentSelect || !firstInput || !lastInput) return;
+      if (!studentSelect) return;
 
       const studentId = studentSelect.value;
-      const first = firstInput.value.trim();
-      const middle = middleInput ? middleInput.value.trim() : '';
-      const last = lastInput.value.trim();
-
       if (!studentId) { if (statusEl) statusEl.textContent = 'Select a student first.'; return; }
-      if (!first || !last) { if (statusEl) statusEl.textContent = 'First and last name are required.'; return; }
 
       const row = dashboardRows.find((r) => r.student_id === studentId);
       // Re-check eligibility against the live dashboard rows, not just the
@@ -9046,13 +9211,16 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
         return;
       }
       const diplomaTitle = (row && DIPLOMA_TITLES_BY_TRACK[row.track_code]) || 'Diploma of Completion';
-      const fullName = [first, middle, last].filter(Boolean).join(' ');
+      const fullName = accountNameText(studentId);
+      if (!fullName) {
+        if (statusEl) statusEl.textContent = ACCOUNT_NAMES.available === false
+          ? 'Student names are not available yet (the account-name database update has not been applied), so a diploma cannot be generated.'
+          : `${studentId} has no stored first and last name. Open the student's detail panel and use Edit name, then generate the diploma.`;
+        return;
+      }
 
       openDiplomaCertificate({ fullName, diplomaTitle, studentId });
       if (statusEl) statusEl.textContent = '';
-      firstInput.value = '';
-      if (middleInput) middleInput.value = '';
-      lastInput.value = '';
     });
   }
 
@@ -9086,7 +9254,16 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
       const cohortSelect = document.getElementById('gen-user-cohort');
       const resultEl = document.getElementById('admin-generate-user-result');
       const statusEl = document.getElementById('admin-generate-user-status');
+      const firstNameInput = document.getElementById('gen-user-first-name');
+      const lastNameInput = document.getElementById('gen-user-last-name');
       if (!trackSelect || !resultEl) return;
+      const firstName = firstNameInput ? firstNameInput.value.trim() : '';
+      const lastName = lastNameInput ? lastNameInput.value.trim() : '';
+      if (!firstName || !lastName) {
+        if (statusEl) statusEl.textContent = 'First name and last name are required.';
+        (firstName ? lastNameInput : firstNameInput)?.focus();
+        return;
+      }
       generateUserSubmitBtn.disabled = true;
       if (statusEl) statusEl.textContent = 'Creating account…';
       resultEl.innerHTML = '';
@@ -9100,15 +9277,34 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
             track_code: trackSelect.value,
             cohort_id: cohortSelect && cohortSelect.value ? cohortSelect.value : null,
           });
+        // admin-provision does not return the new user's uuid (and is not
+        // redeployed by this feature), so resolve it from the students row.
+        // Any failure here is a non-blocking warning: the account exists.
+        let nameWarning = '';
+        let savedName = '';
+        try {
+          const { data: created, error: lookupError } = await mntSupabase
+            .from('students').select('user_id').eq('student_id', account.student_id).single();
+          if (lookupError || !created) throw lookupError || new Error('lookup failed');
+          const nameResult = await setAccountName(created.user_id, firstName, lastName);
+          if (nameResult.ok) savedName = `${firstName} ${lastName}`;
+          else if (nameResult.unavailable) nameWarning = 'The name could not be saved: account names are not available on this database yet. Set it later with Edit name once the update is applied.';
+          else nameWarning = `The account was created but the name could not be saved (${nameResult.error && nameResult.error.message ? nameResult.error.message : 'unknown error'}). Use Edit name on the student detail panel.`;
+        } catch (nameErr) {
+          nameWarning = 'The account was created but the name could not be saved. Use Edit name on the student detail panel.';
+        }
         if (statusEl) statusEl.textContent = '';
         resultEl.innerHTML = `
           <div class="bg-green-50 border border-green-200 rounded-lg p-4">
             <p class="text-xs font-semibold text-green-800 mb-2">${instructor ? 'Instructor account created — it opens only its assigned course dashboard.' : 'Account created'} Copy this now; it is not shown again.</p>
-            <pre data-select-all tabindex="0" class="bg-white border border-green-200 rounded-lg p-3 text-sm font-mono text-gray-900 cursor-text overflow-x-auto" title="Click to select all">Student ID: ${esc(account.student_id)}
+            <pre data-select-all tabindex="0" class="bg-white border border-green-200 rounded-lg p-3 text-sm font-mono text-gray-900 cursor-text overflow-x-auto" title="Click to select all">Student ID: ${esc(account.student_id)}${savedName ? `\nName:       ${esc(savedName)}` : ''}
 Password:   ${esc(account.password)}
 Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackSelect.options[trackSelect.selectedIndex].text)}` : ''}</pre>
+            ${nameWarning ? `<p class="mt-2 text-xs font-semibold text-amber-700" role="status">${esc(nameWarning)}</p>` : ''}
           </div>`;
         wireSelectAllBlocks(resultEl);
+        if (firstNameInput) firstNameInput.value = '';
+        if (lastNameInput) lastNameInput.value = '';
       } catch (err) {
         if (statusEl) statusEl.textContent = '';
         resultEl.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">${esc(err && err.message ? err.message : String(err))}</div>`;
@@ -9557,7 +9753,7 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       return;
     }
     savePlanningButton.disabled = true;
-    if (status) status.textContent = `Saving the current enrollment planning record for ${studentId}...`;
+    if (status) status.textContent = `Saving the current enrollment planning record for ${accountLabelText(studentId)}...`;
     const error = await updateAdminEnrollmentPlanRemote(studentId, {
       scheduledStartDate: planningStart && planningStart.value,
       scheduledCompletionDate: planningCompletion && planningCompletion.value,
@@ -9571,7 +9767,7 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
     }
     await render();
     const nextStatus = document.getElementById('admin-report-status');
-    if (nextStatus) nextStatus.textContent = `Saved the current enrollment planning record for ${studentId}.`;
+    if (nextStatus) nextStatus.textContent = `Saved the current enrollment planning record for ${accountLabelText(studentId)}.`;
   });
 
   function identityForRow(row) {
@@ -9603,13 +9799,13 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       const message = document.getElementById('admin-report-status');
       if (!row) return;
       snapshotBtn.disabled = true;
-      if (message) message.textContent = `Saving progress file for ${studentId}...`;
+      if (message) message.textContent = `Saving progress file for ${accountLabelText(studentId)}...`;
       try {
         await downloadStudentSnapshot(studentId, identityForRow(row));
-        if (message) message.textContent = `Progress file saved for ${studentId}.`;
+        if (message) message.textContent = `Progress file saved for ${accountLabelText(studentId)}.`;
       } catch (err) {
         console.error('downloadStudentSnapshot failed', err);
-        if (message) message.textContent = `Could not save the progress file for ${studentId} — see console for details.`;
+        if (message) message.textContent = `Could not save the progress file for ${accountLabelText(studentId)} — see console for details.`;
       } finally {
         snapshotBtn.disabled = false;
       }
@@ -9634,25 +9830,25 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       // snapshot can't be captured, the disenroll does not proceed.
       if (!desired) {
         toggle.disabled = true;
-        if (message) message.textContent = `Saving progress file for ${studentId} before disenrolling...`;
+        if (message) message.textContent = `Saving progress file for ${accountLabelText(studentId)} before disenrolling...`;
         try {
           await downloadStudentSnapshot(studentId, identityForRow(row));
         } catch (err) {
           console.error('Pre-disenroll snapshot failed', err);
           toggle.disabled = false;
           toggle.checked = true;
-          if (message) message.textContent = `Could not save a progress file for ${studentId} — disenrollment cancelled. See console for details.`;
+          if (message) message.textContent = `Could not save a progress file for ${accountLabelText(studentId)} — disenrollment cancelled. See console for details.`;
           return;
         }
       }
 
       toggle.disabled = true;
-      if (message) message.textContent = `Saving enrollment for ${studentId}...`;
+      if (message) message.textContent = `Saving enrollment for ${accountLabelText(studentId)}...`;
       const error = await updateAdminEnrollmentRemote(studentId, desired);
       toggle.disabled = false;
       if (error) {
         toggle.checked = !desired;
-        if (message) message.textContent = `Could not save enrollment for ${studentId}: ${error.message || 'Supabase rejected the update.'}`;
+        if (message) message.textContent = `Could not save enrollment for ${accountLabelText(studentId)}: ${error.message || 'Supabase rejected the update.'}`;
         return;
       }
 
@@ -9662,8 +9858,8 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       render();
       const nextMessage = document.getElementById('admin-report-status');
       if (nextMessage) nextMessage.textContent = desired
-        ? `${studentId} is now enrolled.`
-        : `${studentId} is now disenrolled. Progress file saved.`;
+        ? `${accountLabelText(studentId)} is now enrolled.`
+        : `${accountLabelText(studentId)} is now disenrolled. Progress file saved.`;
     });
   }
 
@@ -9808,7 +10004,7 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
         const snapshots = [];
         for (let i = 0; i < scopedRows.length; i++) {
           const row = scopedRows[i];
-          if (status) status.textContent = `Preparing progress files for ${i + 1} of ${scopedRows.length}: ${row.student_id}…`;
+          if (status) status.textContent = `Preparing progress files for ${i + 1} of ${scopedRows.length}: ${accountLabelText(row)}…`;
           snapshots.push(await buildStudentSnapshotRecord(row.student_id, identityForRow(row)));
         }
         const capturedAt = new Date().toISOString();
@@ -9849,7 +10045,11 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
     ]);
     await applyOfficialLabGrades(labRes.data || []);
     if (panel.dataset.studentId !== studentId) return;
-    panel.innerHTML = renderStudentDetail(row, moduleRes.data || [], labRes.data || [], capstoneRes.data || [], scorecardRes.data || null, artifactRes.data || [], reviewRes.data || [], cheatingFlagsByUserId.get(row.user_id) || []);
+    // Edit name is admin-only (admin_set_account_name enforces it server-side
+    // too) and hidden while the DB has no account-name columns/RPC.
+    const detailViewer = await currentUser();
+    const canEditName = !!(detailViewer && detailViewer.isAdmin) && ACCOUNT_NAMES.available !== false && ACCOUNT_NAMES.rpcAvailable !== false;
+    panel.innerHTML = renderStudentDetail(row, moduleRes.data || [], labRes.data || [], capstoneRes.data || [], scorecardRes.data || null, artifactRes.data || [], reviewRes.data || [], cheatingFlagsByUserId.get(row.user_id) || [], canEditName);
   }
 
   const archivedSearch = document.getElementById('archived-student-search');
@@ -9888,6 +10088,48 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       detailSelect.dispatchEvent(new Event('change'));
     });
   });
+  // Admin "Edit name" in the student detail panel (account display names).
+  // Delegated per panel, outside the detailSelect block, so inline track-card
+  // panels work too. setAccountName() refreshes the directory; a full render
+  // then redraws every place the name shows.
+  [document.getElementById('student-detail-panel'), ...document.querySelectorAll('[data-admin-inline-detail]')].filter(Boolean).forEach((namePanel) => {
+    namePanel.addEventListener('click', (event) => {
+      const editBtn = event.target.closest('[data-edit-name]');
+      const cancelBtn = event.target.closest('[data-edit-name-cancel]');
+      if (!editBtn && !cancelBtn) return;
+      const wrap = (editBtn || cancelBtn).closest('div');
+      const form = wrap.querySelector('[data-edit-name-form]');
+      const toggle = wrap.querySelector('[data-edit-name]');
+      if (!form) return;
+      form.hidden = !editBtn;
+      if (toggle) toggle.setAttribute('aria-expanded', String(!!editBtn));
+      if (editBtn) { const first = form.querySelector('input[name="first"]'); if (first) first.focus(); }
+    });
+    namePanel.addEventListener('submit', async (event) => {
+      const form = event.target.closest('[data-edit-name-form]');
+      if (!form) return;
+      event.preventDefault();
+      const studentId = form.getAttribute('data-edit-name-form');
+      const target = activeStudents.find((r) => r.student_id === studentId);
+      const statusEl = form.querySelector('[data-edit-name-status]');
+      const submit = form.querySelector('button[type="submit"]');
+      const first = form.elements.first.value.trim();
+      const last = form.elements.last.value.trim();
+      if (!target) return;
+      if (!first || !last) { if (statusEl) statusEl.textContent = 'First name and last name are required.'; return; }
+      if (submit) submit.disabled = true;
+      if (statusEl) statusEl.textContent = 'Saving…';
+      const result = await setAccountName(target.user_id, first, last);
+      if (result.ok) { await render({ reuseAdminRoster: true }); return; }
+      if (submit) submit.disabled = false;
+      if (statusEl) {
+        statusEl.textContent = result.unavailable
+          ? 'Account names are not available on this database yet.'
+          : `Could not save the name: ${result.error && result.error.message ? result.error.message : 'unknown error'}`;
+      }
+    });
+  });
+
   if (detailSelect) {
     detailSelect.addEventListener('change', async () => {
       const panel = document.getElementById('student-detail-panel');
@@ -9913,8 +10155,8 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
           const moduleKey = overrideBtn.getAttribute('data-module-key');
           const label = adminModuleLabel(overrideBtn.getAttribute('data-track-code'), moduleKey);
           const confirmed = confirm(overrideValue
-            ? `Mark ${label} complete for ${studentId} regardless of lab/quiz status? This shows green everywhere for this student immediately and survives future grading-rule changes.`
-            : `Remove the admin override on ${label} for ${studentId}? The module's status will go back to whatever the real lab/quiz records support.`);
+            ? `Mark ${label} complete for ${accountLabelText(studentId)} regardless of lab/quiz status? This shows green everywhere for this student immediately and survives future grading-rule changes.`
+            : `Remove the admin override on ${label} for ${accountLabelText(studentId)}? The module's status will go back to whatever the real lab/quiz records support.`);
           if (!confirmed) return;
           overrideBtn.disabled = true;
           const originalText = overrideBtn.textContent;
@@ -10158,7 +10400,7 @@ function adminDate(value) {
   return value ? new Date(value).toLocaleDateString() : '—';
 }
 
-function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRow, artifactRows = [], reviewRows = [], reviewFlagReasons = []) {
+function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRow, artifactRows = [], reviewRows = [], reviewFlagReasons = [], canEditName = false) {
   const m360Detail = row.m360_required
     ? `<section class="mt-8"><h3 class="text-base font-semibold text-[#1e3a5f] mb-3">M360 Career Readiness</h3><div class="grid grid-cols-2 md:grid-cols-3 gap-3"><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Accepted weeks</p><p class="text-lg font-semibold text-[#1e3a5f]">${Number(row.m360_accepted_weeks || 0)} / ${Number(row.m360_required_weeks || 6)}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Final grade</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_final_grade == null ? '—' : esc(Number(row.m360_final_grade).toFixed(1))}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Start Here</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_start_here_complete ? 'Complete' : 'Not started'}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Networking confidence</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.networking_comfort == null ? '— / 5' : `${Number(row.networking_comfort)} / 5`}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Interview readiness</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.interview_readiness == null ? '— / 5' : `${Number(row.interview_readiness)} / 5`}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Course status</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_course_complete ? 'Complete' : 'In progress'}</p></div></div><p class="text-xs text-gray-500 mt-3">M360 is a separate career-readiness course record. It appears on the student transcript but is not technical-module credit.</p></section>`
     : '';
@@ -10320,7 +10562,19 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
       ${reviewFlagSection}
       <div class="mb-6 pb-4 border-b border-gray-100 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p class="font-mono text-sm text-gray-900">${esc(row.student_id)}</p>
+          <p class="font-mono text-sm text-gray-900">${esc(row.student_id)}${accountNameHtml(row)}</p>
+          ${canEditName ? `<button type="button" data-edit-name="${esc(row.student_id)}" aria-expanded="false" class="mt-1 text-xs font-semibold text-[#1e3a5f] hover:underline cursor-pointer">Edit name</button>
+          <form data-edit-name-form="${esc(row.student_id)}" hidden class="mt-2 flex flex-wrap items-end gap-2">
+            <label class="text-xs font-semibold text-gray-600">First name
+              <input type="text" name="first" required maxlength="80" autocomplete="off" value="${esc((accountNameParts(row) || {}).first_name || '')}" class="block mt-1 w-40 border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-normal text-gray-900" />
+            </label>
+            <label class="text-xs font-semibold text-gray-600">Last name
+              <input type="text" name="last" required maxlength="80" autocomplete="off" value="${esc((accountNameParts(row) || {}).last_name || '')}" class="block mt-1 w-40 border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-normal text-gray-900" />
+            </label>
+            <button type="submit" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-3 py-1.5 rounded-lg text-xs cursor-pointer">Save</button>
+            <button type="button" data-edit-name-cancel class="text-xs font-semibold text-gray-600 hover:underline cursor-pointer">Cancel</button>
+            <span data-edit-name-status class="basis-full text-xs text-gray-500" role="status"></span>
+          </form>` : ''}
           <p class="text-xs text-gray-500 mt-1">${esc(row.program_slug || row.track_code)} · ${row.modules_complete}/${row.modules_total} modules · ${row.percent_complete}% complete</p>
         </div>
         <div class="flex flex-wrap gap-2">

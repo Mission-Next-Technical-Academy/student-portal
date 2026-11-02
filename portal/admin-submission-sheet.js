@@ -687,12 +687,19 @@ const AdminSubmissionSheet = (() => {
     </div>`;
   }
 
+  // "ID · First Last" when app.js has loaded names, else the bare ID.
+  function studentLabel(row) {
+    const id = row.student_id || '—';
+    const name = typeof window.accountNameText === 'function' ? window.accountNameText(row) : '';
+    return name ? `${id} · ${name}` : id;
+  }
+
   function headerHtml(sheet, options) {
     const { row } = sheet.ctx;
     const attempt = row.attempt && row.attempt.number ? `Attempt ${row.attempt.number} of ${row.attempt.of}` : '';
     const when = (value) => (value ? new Date(value).toLocaleString() : '—');
     const facts = [
-      ['Student', row.student_id || '—'],
+      ['Student', studentLabel(row)],
       ['Case', sheet.caseId || '—'],
       ['Attempt', attempt || '—'],
       ['Submitted', when(row.completed_at)],

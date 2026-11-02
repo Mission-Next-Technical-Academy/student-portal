@@ -128,6 +128,7 @@
     }
     return {
       studentId:identity.studentId||'',
+      studentName:String(M360Data.nameText(identity.studentId)||'').replace(/[^\x20-\xFF]/g,'?'),
       trackLabel:TRACK_LABELS[identity.trackCode]||identity.trackCode||'',
       direction:week1Artifact.direction||week1Artifact.targetDirection||'Direction to Proof',
       brandStatement:week1Artifact.brandStatement||'',
@@ -147,9 +148,10 @@
   }
 
   function setAdminNavigation(studentId){
-    document.title=`Student ${studentId} M360 Portfolio | Mission Next Technical Academy`;
+    const who=M360Data.nameText(studentId);
+    document.title=`Student ${studentId}${who?` · ${who}`:''} M360 Portfolio | Mission Next Technical Academy`;
     const kicker=document.querySelector('.portfolio-hero .mini-kicker');
-    if(kicker)kicker.textContent=`Admin read-only portfolio · Student ${studentId}`;
+    if(kicker)kicker.textContent=`Admin read-only portfolio · Student ${studentId}${who?` · ${who}`:''}`;
     const brand=document.querySelector('.portfolio-home-brand');
     if(brand){brand.href='review.html';brand.setAttribute('aria-label','M360 Administration');brand.title='M360 Administration';}
     document.querySelectorAll('a[href="index.html"]').forEach(anchor=>{
@@ -181,7 +183,7 @@
       $('portfolioNotice').textContent='Authenticated portfolio loaded from reviewer-approved M360 records. Download Portfolio PDF creates a branded professional PDF from accepted portfolio evidence only. Private working data, instructor feedback, staff verification fields, raw networking details, and technical-course data are excluded.';
     }else{
       setAdminNavigation(studentId);
-      $('portfolioNotice').textContent=`Admin read-only showcase view for Student ${studentId}. Download Portfolio PDF uses the same accepted-artifact-only professional renderer. Private working data, instructor feedback, staff verification fields, raw networking details, and technical-course data are excluded.`;
+      $('portfolioNotice').textContent=`Admin read-only showcase view for Student ${studentId}${M360Data.nameText(studentId)?` · ${M360Data.nameText(studentId)}`:''}. Download Portfolio PDF uses the same accepted-artifact-only professional renderer. Private working data, instructor feedback, staff verification fields, raw networking details, and technical-course data are excluded.`;
     }
   }
 
@@ -206,6 +208,7 @@
     ]);
     if(rowsError)throw rowsError;
     if(progressError)throw progressError;
+    await M360Data.loadNames();
     renderPortfolio(rows||[],progress||null,{adminMode:true,studentId:student.student_id||targetUserId,trackCode:student.track_code||''});
   }
 
@@ -234,6 +237,7 @@
         if(targetUserId){$('portfolioNotice').textContent='Student portfolio selection is available to administrators only.';return;}
         if(!ctx.eligible){location.replace('../index.html#/portal');return;}
         const [rows,progress,identity]=await Promise.all([M360Data.loadOwnWeekRecords(),M360Data.loadOwnCourseProgress(),loadOwnIdentity(ctx)]);
+        await M360Data.loadNames();
         renderPortfolio(rows,progress,{adminMode:false,studentId:identity.studentId,trackCode:identity.trackCode});
       }
       if(params.get('download')==='1')setTimeout(downloadPortfolioPdf,0);

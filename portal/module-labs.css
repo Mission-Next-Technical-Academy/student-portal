@@ -1132,3 +1132,15 @@ button.m01-reset[data-m10-guided-restart], button.m01-reset[data-m11-guided-rest
 /* M11 shift-assessment submit sits outside a ticket, so it had no button shape. */
 button[data-m11-submit-score] { min-height: 42px; display: inline-flex; align-items: center; padding: 10px 16px; color: #fff; background: #f97316; border: 1px solid #f97316; border-radius: 10px; font: 700 13px 'Space Grotesk', sans-serif; cursor: pointer; }
 button[data-m11-submit-score]:hover, button[data-m11-submit-score]:focus-visible { background: #ea580c; }
+
+/* ---------- Account display names ----------------------------------------
+   First + last name beside an account number (accountNameHtml() in app.js).
+   Block form sits under the ID inside its existing cell; the inline modifier
+   follows the ID on one line. Small, muted, no margin or padding, so row
+   heights and layouts stay as they were. ------------------------------- */
+.acct-name { display: block; margin: 0; padding: 0; color: var(--mn-theme-muted, #64748b); font-size: .75em; font-weight: 400; line-height: 1.2; letter-spacing: 0; text-transform: none; }
+.acct-name--inline { display: inline; }
+.acct-name--inline::before { content: " \00b7  "; white-space: pre; }
+/* Header / module-topbar chips: never wrap, truncate long names, and drop the name below 1024px so the nav row stays one line. */
+.acct-chip-name { display: inline-block; max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+@media (max-width: 1023px) { .acct-chip-name { display: none; } }
