@@ -5189,6 +5189,12 @@ const ACADEMY_PROVE_IT_KEYS_BY_MODULE = {
   'soc-12': ['lab-capstone'],
 };
 
+// The durable-review rail and summary are SOC-only. Other tracks (Help Desk
+// sets its own reviewState in itsLabRail) keep their existing rail.
+function academyProveItReviewApplies(moduleKey) {
+  return Object.prototype.hasOwnProperty.call(ACADEMY_PROVE_IT_KEYS_BY_MODULE, moduleKey);
+}
+
 function academyProveItReviewState(user, program, moduleKey) {
   const registeredKeys = user?.requiredLabsByModuleKey?.[moduleKey];
   const labKeys = ACADEMY_PROVE_IT_KEYS_BY_MODULE[moduleKey]
@@ -5208,7 +5214,7 @@ function academyProveItReviewState(user, program, moduleKey) {
 function applyAcademyProveItReviewState(sections, state = {}) {
   const context = typeof activeModuleRenderContext === 'function' ? activeModuleRenderContext() : null;
   const moduleKey = context?.def?.moduleKey || state.stageKey || state.moduleKey;
-  if (!moduleKey || !context?.user) return sections;
+  if (!moduleKey || !context?.user || !academyProveItReviewApplies(moduleKey)) return sections;
   const review = academyProveItReviewState(context.user, context.program, moduleKey);
   const applyRow = (section) => {
     const isProveItRow = section.phase === 'prove'
@@ -5222,6 +5228,7 @@ function applyAcademyProveItReviewState(sections, state = {}) {
 }
 
 function academyProveItReviewSummaryHtml(html, user, program, moduleKey) {
+  if (!academyProveItReviewApplies(moduleKey)) return html;
   const review = academyProveItReviewState(user, program, moduleKey);
   if (!review.state) return html;
   const label = review.label || (review.complete ? 'Approved' : 'In review');
@@ -5455,9 +5462,10 @@ function moduleNavStatuses(rows, titleOf = (row) => row.title) {
   const blocker = rows[blockerIndex];
   return rows.map((row, index) => {
     if (!gated(row)) return { statusClass: 'munified-row-ungated', locked: false };
-    if (row.reviewState === 'review') return { statusClass: 'mnav-chip-review', locked: false };
-    if (row.reviewState === 'returned') return { statusClass: 'mnav-chip-returned', locked: false };
-    if (row.reviewState === 'approved-below-pass') return { statusClass: 'mnav-chip-review', locked: false };
+    // Only rows labelled by applyAcademyProveItReviewState (SOC) take these.
+    if (row.reviewLabel && row.reviewState === 'review') return { statusClass: 'mnav-chip-review', locked: false };
+    if (row.reviewLabel && row.reviewState === 'returned') return { statusClass: 'mnav-chip-returned', locked: false };
+    if (row.reviewLabel && row.reviewState === 'approved-below-pass') return { statusClass: 'mnav-chip-review', locked: false };
     if (row.isComplete) return { statusClass: 'mnav-chip-complete', locked: false };
     if (blockerIndex >= 0 && blockerIndex < index) {
       // Help Desk Module 1's Prove It: recommended after Practice It, never
@@ -5569,7 +5577,7 @@ function moduleUnifiedNav(sections, state = {}) {
       <i class="${esc(typeIcon[section.type] || 'ri-file-line')}" aria-hidden="true"></i>
       <span class="munified-row-label">${esc(navTitle)}</span>
       ${hasChildren ? `<span class="munified-row-sub">${childComplete}/${items.length}</span>` : ''}
-      ${!hasChildren && section.reviewLabel ? `<span class="munified-row-sub">${esc(section.reviewLabel)}</span>` : ''}
+      ${!hasChildren && (section.reviewLabel || (!section.isComplete && section.reviewState)) ? `<span class="munified-row-sub">${esc(section.reviewLabel || (section.reviewState === 'returned' ? 'Returned' : 'In review'))}</span>` : ''}
       ${nav.locked ? '<i class="ri-lock-line mnav-lock-icon" aria-hidden="true"></i>' : ''}
       ${isGated && section.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
     </a>`;
