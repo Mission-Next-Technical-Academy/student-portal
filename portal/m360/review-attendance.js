@@ -27,7 +27,9 @@
   }
 
   function studentLabel(card) {
-    return card.dataset.studentId || card.dataset.attendanceUser || 'student';
+    const label = card.dataset.studentId || card.dataset.attendanceUser || 'student';
+    const name = window.M360Data && M360Data.nameText ? M360Data.nameText(label) : '';
+    return name ? `${label} (${name})` : label;
   }
 
   function isDirty(card) {
@@ -92,6 +94,7 @@
         .in('track_code', ELIGIBLE);
       if (activeTrack) studentQuery = studentQuery.eq('track_code', activeTrack);
       const { data: students, error: studentError } = await studentQuery.order('student_id', { ascending: true });
+      if (window.M360Data && M360Data.loadNames) await M360Data.loadNames();
       if (studentError) throw studentError;
 
       const userIds = (students || []).map(student => student.user_id).filter(Boolean);
@@ -120,6 +123,7 @@
         return `<article class="attendance-roster-card" data-attendance-user="${escapeHtml(student.user_id)}" data-student-id="${escapeHtml(id)}" data-initial-status="${status}" data-initial-reference="${escapeHtml(reference)}">
           <div class="attendance-student">
             <strong>${escapeHtml(id)}</strong>
+            ${M360Data.nameHtml(student)}
             <span>${escapeHtml(student.track_code)} · Attendance record for this student only</span>
             <small data-attendance-dirty-label></small>
           </div>
