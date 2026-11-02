@@ -305,3 +305,41 @@ on staging with the owner's OK.
   - **Do not** `git pull` or reset inside `~/mnt-pr79-rebase` before the
     patch is safely applied elsewhere.
   - The M05 fix sprint starts from this patch.
+
+## Persistence audit result + owner decisions (2026-11-02)
+
+The audit is in `docs/workstreams/PERSISTENCE_AUDIT_ALL_TRACKS.md`. It is a
+static trace; every finding must be confirmed in the browser.
+
+**FAIL counts:**
+- SOC 0/12. Residuals: `ui/` simulator `defender-lab.*` keys, the B1
+  sign-out leak, and the case_state merge race.
+- Help Desk 12/12.
+- AI/ML 12/12.
+- Electrical 12/12 (generic Assessment Lab box only).
+- M360: Week 1 checkboxes fail outright, plus the B9-style quick-reload loss
+  on weeks 1–6.
+
+**No new tables or columns.** Use new jsonb keys in
+`module_progress.case_state` plus the existing `lab-evidence` bucket. Two
+optional migrations: an atomic `save_case_state_key` RPC and a case_state
+size guard.
+
+**Owner decisions (binding):**
+1. **Drafts are hidden from the staff UI.** They are saved durably, but
+   instructor and admin screens show only submitted work, exactly as today.
+2. **Keep local, upload once.** If the browser holds newer work than
+   Supabase, keep it on screen and save it up. Never blank a field a student
+   can currently see.
+
+**Sprint order:**
+1. S0: update #79 (running) and apply the Oct-21 patch.
+2. S1: generic Assessment Lab box (fixes 33+ pages).
+3. S2: Help Desk portal modules.
+4. S3a: simulator progress.
+5. S3b: evidence draft upload.
+6. S4/S5: AI/ML.
+7. S6: M360 (keep the M360 gate boundary: separate PR).
+8. S7: SOC residuals plus the M05 bugs.
+9. S8: acceptance harness (fill → save → clear storage keeping auth →
+   reload → compare, for every module).
