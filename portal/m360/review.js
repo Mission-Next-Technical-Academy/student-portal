@@ -113,7 +113,7 @@
             <div>
               <div class="mini-kicker">Week ${Number(row.week_number)} · Revision ${Number(row.revision_number || 1)}</div>
               <h3>${escapeHtml(weekTitle(row.week_number))}</h3>
-              <div class="review-meta">Student ${escapeHtml(studentId)} · ${escapeHtml(track || 'Track unavailable')} · Submitted ${row.submitted_at ? escapeHtml(new Date(row.submitted_at).toLocaleString()) : 'time unavailable'}</div>
+              <div class="review-meta">Student ${escapeHtml(studentId)}${M360Data.nameHtml(row.student || row.user_id, true)} · ${escapeHtml(track || 'Track unavailable')} · Submitted ${row.submitted_at ? escapeHtml(new Date(row.submitted_at).toLocaleString()) : 'time unavailable'}</div>
             </div>
             <span class="review-status">Submitted</span>
           </div>
@@ -228,6 +228,7 @@
         return;
       }
       const rows = await M360Data.loadSubmittedForReview(reviewTrack.trackCode);
+      await M360Data.loadNames();
       renderQueue(rows);
     } catch (error) {
       console.error('M360 review queue failed', error);
