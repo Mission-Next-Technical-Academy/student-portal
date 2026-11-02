@@ -577,7 +577,7 @@ function moduleSixProveItRedoFeedback() {
 // The Independent Assessment Lab ticket (m06-independent-form) has its own
 // redo/review tracking under the second catalog key.
 function moduleSixIndependentRedoRequested() {
-  return moduleSixUser?.openLabRedosByModuleKey?.['soc-06-independent']?.labKey === MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY;
+  return moduleSixUser?.openLabRedosByModuleKey?.['soc-06']?.labKey === MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY;
 }
 
 function moduleSixIndependentReviewStatus() {
@@ -588,7 +588,7 @@ function moduleSixIndependentReviewStatus() {
 
 function moduleSixIndependentRedoFeedback() {
   if (!moduleSixIndependentRedoRequested()) return '';
-  const items = moduleSixUser.openLabRedosByModuleKey['soc-06-independent'].feedback || [];
+  const items = moduleSixUser.openLabRedosByModuleKey['soc-06'].feedback || [];
   return `<div class="m01-redo-feedback" role="note">
     <strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong>
     ${items.length
@@ -1873,7 +1873,7 @@ function wireModuleSixAssessmentLab() {
         }, () => {
           moduleSixReopenUnsavedAssessment();
           moduleSixRenderAssessment();
-        }).then((saved) => { if (saved && moduleSixIndependentRedoRequested()) delete moduleSixUser.openLabRedosByModuleKey['soc-06-independent']; });
+        }).then((saved) => { if (saved && moduleSixIndependentRedoRequested()) delete moduleSixUser.openLabRedosByModuleKey['soc-06']; });
       }
       if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleSixUser, 'soc-analyst', 'soc-06', MODULE_SIX_INDEPENDENT_CATALOG_LAB_KEY);
       moduleSixRenderAssessment();
