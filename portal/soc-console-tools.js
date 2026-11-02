@@ -327,7 +327,7 @@ const SocConsoleTools = (() => {
 
   // Adapt a later module's console dataset into the M05 endpoint fixture
   // shape: devices plus the case's device-linked records.
-  function m05Fixture({ id, stateKey, devices = [], data, expectedTruth = null }) {
+  function m05Fixture({ id, stateKey, devices = [], data, expectedTruth = null, start = null, end = null }) {
     const telemetry = Object.values(data.records).filter((row) => row.DeviceId).map((row) => ({
       id: row.EventId, time: row.TimeGenerated, eventType: row.EndpointEventType || row.EventType, deviceId: row.DeviceId,
       host: row.Host, user: row.Account, processId: row.ProcessId || null, parentProcessId: row.ParentProcessId || null,
@@ -335,7 +335,12 @@ const SocConsoleTools = (() => {
       registryPath: row.RegistryPath || null, action: row.Action || row.EventType, result: row.Result, source: row.EventSource,
       url: row.Url || null, signer: row.Signer, prevalence: row.Prevalence, reputation: row.Reputation,
     })).sort((a, b) => a.time.localeCompare(b.time));
-    return { schemaVersion: 1, scenario: { id, stateKey, devices, telemetry, expectedTruth } };
+    // The Endpoint view only lists events inside scenario.start..end (SocM05AssessmentDeviceUi.timelineEvents);
+    // without a window every device showed "No telemetry events available" (UAT U33). Default to the telemetry span.
+    const times = telemetry.map((event) => Date.parse(event.time)).filter(Number.isFinite);
+    const windowStart = start || (times.length ? new Date(Math.min(...times)).toISOString() : null);
+    const windowEnd = end || (times.length ? new Date(Math.max(...times)).toISOString() : null);
+    return { schemaVersion: 1, scenario: { id, stateKey, start: windowStart, end: windowEnd, devices, telemetry, expectedTruth } };
   }
 
   const m05SelectedDevice = (ctx, state) => {
