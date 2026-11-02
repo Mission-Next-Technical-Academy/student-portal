@@ -131,3 +131,29 @@ assert.ok(!html.includes('<img src=x'));
 assert.ok(html.includes('&lt;img src=x onerror=alert(1)&gt;'));
 
 console.log('M08 assessment findings UI: all checks passed');
+
+// The Guided ticket must offer the same domain-specific disposition that its
+// debrief expects. Render the shared ticket fields with the options wired into
+// the Guided case view so this catches a missing caseView prop as well as a
+// missing option.
+const moduleEightSource = fs.readFileSync(path.join(root, 'soc-analyst-module-08.js'), 'utf8');
+assert.match(moduleEightSource, /caseView:\s*\(\)\s*=>\s*\{\s*const html = caseRecordPane\(moduleEightGuidedState\.caseRecord,\s*\{[\s\S]*?dispositionOptions:\s*MODULE_EIGHT_DISPOSITION_OPTIONS/,
+  'M08 Guided case view passes its domain dispositions to the ticket renderer');
+context.esc = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+context.PRACTICE_PASS_PERCENT = 70;
+vm.runInContext(fs.readFileSync(path.join(root, 'case-record.js'), 'utf8'), context);
+const dispositionsDeclaration = moduleEightSource.match(/const MODULE_EIGHT_DISPOSITION_OPTIONS = \[[\s\S]*?\];/);
+assert.ok(dispositionsDeclaration, 'M08 disposition options are defined');
+vm.runInContext(dispositionsDeclaration[0], context);
+const guidedTicket = vm.runInContext(`caseRecordPane({ status: 'in-progress', severity: 'critical', affectedUser: 'n.owens',
+  affectedDevice: 'api-edge-31', disposition: '', escalation: 'required', escalateTo: '', notes: '', findings: {}, actionHistory: [] }, {
+  caseId: 'CASE-080849', ticketType: 'Exposure prioritization · Vulnerability Response',
+  userOptions: [{ id: 'n.owens', text: 'n.owens · API service owner' }],
+  deviceOptions: [{ id: 'api-edge-31', text: 'api-edge-31 · public API edge' }],
+  dispositionOptions: MODULE_EIGHT_DISPOSITION_OPTIONS,
+  departmentOptions: [{ id: 'vulnerability-response', text: 'Vulnerability Response' }],
+  formId: 'm08-guided-case-form', submitAttr: 'data-m08-guided-submit-case', panelId: 'm08-guided-case-panel', practiceSubmitted: true
+})`, context);
+assert.match(guidedTicket, /<option value="validated-exploitable"[^>]*>Validated — exploitable, confirmed internet-reachable finding<\/option>/,
+  'rendered M08 Guided ticket offers the debrief-supported exploitable disposition');
+console.log('M08 Guided ticket disposition regression: passed');
