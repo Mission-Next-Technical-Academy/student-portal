@@ -324,13 +324,16 @@ function moduleTwelveSyncTicket() {
     if (last && Object.keys(details).every((key) => JSON.stringify(last.details[key]) === JSON.stringify(details[key]))) return;
     state = SocM12AssessmentState.record(state, fixture, type, { ...details, ticketField: key });
   };
+  // The ticket only fills a report/closure the student has not written on the Reporting tab; it never
+  // overwrites one (UAT U40: Update Ticket replaced the technical/executive reports and cost evidence points).
+  const authoredElsewhere = (entry) => Boolean(entry && !entry.ticketField);
   const fields = moduleTwelveState.findings;
   const ticketCore = Object.fromEntries(['status','severity','affectedUser','affectedDevice','disposition','escalation','escalateTo'].map((key) => [key, moduleTwelveState[key]]));
   ticketCore.priorityRationale = fields.priorityRationale || '';
   if (fields.scopeStatement?.trim()) record('investigation', 'scopeStatement', { domain: 'scope', finding: fields.scopeStatement.trim(), ticketCore, evidenceIds: citations(fields.scopeStatement), entityIds: [moduleTwelveState.affectedUser, moduleTwelveState.affectedDevice].filter(Boolean) });
-  if (moduleTwelveState.notes.trim()) record('report', 'notes', { kind: 'technical', text: moduleTwelveState.notes.trim(), ticketCore, evidenceIds: citations(moduleTwelveState.notes) });
-  if (fields.executiveSummary?.trim()) record('report', 'executiveSummary', { kind: 'executive', text: fields.executiveSummary.trim(), ticketCore, evidenceIds: citations(fields.executiveSummary) });
-  if (fields.closureNote?.trim() && moduleTwelveState.status) record('closure', 'closureNote', { decision: moduleTwelveState.status === 'resolved' ? 'close' : 'retain', rationale: fields.closureNote.trim(), ticketCore });
+  if (moduleTwelveState.notes.trim() && !authoredElsewhere(state.reports?.technical)) record('report', 'notes', { kind: 'technical', text: moduleTwelveState.notes.trim(), ticketCore, evidenceIds: citations(moduleTwelveState.notes) });
+  if (fields.executiveSummary?.trim() && !authoredElsewhere(state.reports?.executive)) record('report', 'executiveSummary', { kind: 'executive', text: fields.executiveSummary.trim(), ticketCore, evidenceIds: citations(fields.executiveSummary) });
+  if (fields.closureNote?.trim() && moduleTwelveState.status && !authoredElsewhere(state.closure)) record('closure', 'closureNote', { decision: moduleTwelveState.status === 'resolved' ? 'close' : 'retain', rationale: fields.closureNote.trim(), ticketCore });
   moduleTwelveState.assessmentState = state;
 }
 

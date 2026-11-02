@@ -23,6 +23,11 @@ const local = (value) => JSON.parse(JSON.stringify(value));
 const truth = fixture.scenario.truth;
 const stamp = '2026-09-24T09:30:00Z';
 
+assert.strictEqual(ui.campaignForEdit({ sourceReportId: 'M04-R-002', campaign: '' }, fixture.scenario.reports),
+  'Northstar Spray Cluster (reported)', 'editing an IOC inherits the campaign displayed from its linked report');
+assert.strictEqual(ui.campaignForEdit({ sourceReportId: 'M04-R-002', campaign: 'Analyst campaign' }, fixture.scenario.reports),
+  'Analyst campaign', 'an IOC-specific campaign remains the editable value');
+
 const RATIONALE = {
   'M04-I-001': 'Five accounts failed from this address within five minutes and acct-44 then signed in (M04-A-006).',
   'M04-C-001': 'acct-17 retries follow the CR-204 credential rotation and succeeded later (M04-A-121).',

@@ -188,7 +188,8 @@ const AdminSubmissionSheet = (() => {
       if (/^i(['’](m|ve|ll|d))?$/.test(core)) note('lowercase-i', core);
       if (TEXT_SPEAK.has(lower)) note('text-speak', core);
       if (previous && lower === previous && /^[a-z]+$/.test(lower)) note('repeated-word', `${core} ${core}`);
-      previous = /^[a-z'’]+$/i.test(core) ? lower : '';
+      // Punctuation after the word ("session; session") ends the run: not a stutter.
+      previous = /^[a-z'’]+$/i.test(core) && core === token.replace(/^[("'“‘[\]*•]+/, '') ? lower : '';
       if (/^[A-Z]{2,}$/.test(core) && !ACRONYMS.has(core)) shout.push(core);
       else flushShout();
     });

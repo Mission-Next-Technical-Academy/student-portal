@@ -826,10 +826,11 @@ function moduleFiveReview() {
   </section>`;
 }
 
-function moduleFiveLessonLoop(lesson, index) {
+function moduleFiveLessonLoop(lesson, index, preserveOpen = null) {
   const work = moduleFiveState.lessonWork[lesson.id] || { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
   const feedback = work.feedback?.length ? `<p class="m05-lesson-feedback ${work.checked ? 'is-pass' : 'is-hint'}" role="status">${esc(work.feedback.join(' '))}</p>` : '';
-  return `<details class="m05-lesson-loop mf-lesson" ${work.taskComplete ? '' : (index === 0 ? 'open' : '')}>
+  const open = preserveOpen === null ? (!work.taskComplete && index === 0) : preserveOpen;
+  return `<details class="m05-lesson-loop mf-lesson" ${open ? 'open' : ''}>
     <summary><span class="m05-lesson-number mf-lesson-number">${String(index + 1).padStart(2, '0')}</span><span class="mf-lesson-icon"><i class="${esc(lesson.icon || 'ri-book-2-line')}" aria-hidden="true"></i></span><span class="mf-lesson-title"><strong>${esc(lesson.title)}</strong><small>${work.taskComplete ? 'Complete — reopen to review' : 'Scenario → theory → check → applied task'}</small></span>${work.taskComplete ? '<span class="mf-lesson-done" aria-label="Lesson complete"><i class="ri-check-line" aria-hidden="true"></i></span>' : ''}<i class="ri-arrow-down-s-line mf-chevron" aria-hidden="true"></i></summary>
     <div class="m05-lesson-loop-body mf-lesson-body"><section><p class="m05-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></section><section><p class="m05-kicker">Theory</p><p>${esc(lesson.theory)}</p></section><section><p class="m05-kicker">Knowledge check</p>${lesson.questions.map((question, qIndex) => `<fieldset class="m05-lesson-question"><legend>${qIndex + 1}. ${esc(question.prompt)}</legend>${question.options.map((option, optionIndex) => `<label><input type="radio" name="m05-loop-${esc(lesson.id)}-${qIndex}" value="${optionIndex}" data-m05-lesson-answer data-lesson-id="${esc(lesson.id)}" data-question-index="${qIndex}" ${Number(work.answers?.[qIndex]) === optionIndex ? 'checked' : ''}><span>${esc(option.text)}</span></label>`).join('')}</fieldset>`).join('')}<button type="button" class="m05-lesson-check" data-m05-lesson-check="${esc(lesson.id)}">Check this lesson</button>${feedback}</section><section><p class="m05-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea rows="3" maxlength="500" data-m05-lesson-task="${esc(lesson.id)}" placeholder="Write a short analyst response…">${esc(work.task || '')}</textarea><button type="button" class="m05-lesson-task-button" data-m05-lesson-task-submit="${esc(lesson.id)}">${work.taskComplete ? 'Task saved' : 'Save applied task'}</button></section></div>
   </details>`;
@@ -1425,18 +1426,19 @@ function wireModuleFiveLessons() {
       }
       moduleFiveSave();
       const details = lessonCheck.closest('details');
-      if (details) details.outerHTML = moduleFiveLessonLoop(lesson, MODULE_FIVE_LESSON_LOOPS.indexOf(lesson));
+      if (details) details.outerHTML = moduleFiveLessonLoop(lesson, MODULE_FIVE_LESSON_LOOPS.indexOf(lesson), details.open);
       return;
     }
     const taskButton = event.target.closest('[data-m05-lesson-task-submit]');
     if (!taskButton) return;
-    const lesson = MODULE_FIVE_LESSON_LOOPS.find((item) => item.id === taskButton.dataset.m05LessonTask);
+    const lesson = MODULE_FIVE_LESSON_LOOPS.find((item) => item.id === taskButton.dataset.m05LessonTaskSubmit);
+    if (!lesson) return;
     const work = moduleFiveState.lessonWork[lesson.id] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
     work.taskComplete = work.checked && (work.task || '').trim().length >= 20;
     work.feedback = work.taskComplete ? ['Applied task saved.'] : ['Complete the knowledge check and write at least 20 characters before saving the task.'];
     moduleFiveSave();
     const details = taskButton.closest('details');
-    if (details) details.outerHTML = moduleFiveLessonLoop(lesson, MODULE_FIVE_LESSON_LOOPS.indexOf(lesson));
+    if (details) details.outerHTML = moduleFiveLessonLoop(lesson, MODULE_FIVE_LESSON_LOOPS.indexOf(lesson), details.open);
   });
 }
 

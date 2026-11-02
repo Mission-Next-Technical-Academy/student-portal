@@ -46,6 +46,21 @@
     if (cardBox.left < trackBox.left) track.scrollBy({ left: cardBox.left - trackBox.left - 8, behavior });
     else if (cardBox.right > trackBox.right) track.scrollBy({ left: cardBox.right - trackBox.right + 8, behavior });
   }
+  // UAT U1 (2026-11-02): focus() alone scrolled only far enough to show the
+  // idea chip, leaving the card's heading under the sticky module header.
+  // When the whole card fits below that header, bring its top into view.
+  const STICKY_HEADER_OFFSET = 148; // matches .m01-section scroll-margin-top
+  function focusCard(card) {
+    const callout = card.closest('.learn-it');
+    const box = callout?.getBoundingClientRect();
+    const fits = box && box.height <= (global.innerHeight || 0) - STICKY_HEADER_OFFSET;
+    if (!fits) { card.focus(); return; }
+    card.focus({ preventScroll: true });
+    if (box.top < STICKY_HEADER_OFFSET || box.bottom > global.innerHeight) {
+      const behavior = global.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+      global.scrollBy({ top: box.top - STICKY_HEADER_OFFSET, behavior });
+    }
+  }
   function wire(root, { prefix = 'learn', onStep = () => {}, onView = () => {}, onDecode = () => {} } = {}) {
     const prefixes = wiredRoots.get(root) || new Set();
     if (prefixes.has(prefix)) return;
@@ -67,7 +82,7 @@
           if (root.isConnected) root.querySelectorAll('.learn-it-line.is-new [data-' + prefix + '-decode-text]').forEach(onDecode);
           requestAnimationFrame(() => {
             const active = root.querySelector('.learn-it-card.is-active');
-            if (active) { revealInCarousel(active); active.focus(); }
+            if (active) { revealInCarousel(active); focusCard(active); }
           });
         }
       } else if (restart) onStep(0, 'restart');
@@ -76,7 +91,7 @@
         onView(index);
         requestAnimationFrame(() => {
           const selected = document.querySelector(`[data-${prefix}-learn-view="${index}"]`);
-          if (selected) { revealInCarousel(selected); selected.focus(); }
+          if (selected) { revealInCarousel(selected); focusCard(selected); }
         });
       }
     });

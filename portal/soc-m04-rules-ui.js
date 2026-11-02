@@ -6,6 +6,7 @@ const SocM04RulesUi = (() => {
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
   const TELEMETRY_FIELDS = Object.freeze(['TimeGenerated', 'EventId', 'EventType', 'Account', 'SourceIp', 'Result', 'DeviceClass']);
   const EXCLUSION_OPERATORS = Object.freeze(['==', '!=', 'contains', 'startswith']);
+  const MIN_ASSESSMENT_LOOKBACK_MINUTES = 20;
   const MIN_FREQUENCY_MINUTES = 5;
   const MAX_FREQUENCY_MINUTES = 10080;
   const MAX_SCHEDULE_AHEAD_MS = 90 * 24 * 60 * 60 * 1000;
@@ -13,6 +14,8 @@ const SocM04RulesUi = (() => {
   function validTimestamp(timestamp, label = 'Pass an explicit valid timestamp.') {
     if (typeof timestamp !== 'string' || Number.isNaN(Date.parse(timestamp))) throw new TypeError(label);
   }
+
+  function shouldNavigateToAlerts(mode) { return mode === 'manual'; }
 
   function findRule(assessment, ruleId) {
     const rule = (assessment.rules || []).find((item) => item.id === ruleId);
@@ -90,6 +93,34 @@ const SocM04RulesUi = (() => {
       execution.error = '';
       const eligible = (result.retainedCandidates || []).filter((candidate) => candidate.thresholdMet === true);
       eligible.forEach((candidate) => {
+        const suppression = rule.suppression?.enabled === true ? rule.suppression : null;
+        const valueFor = (row, field) => field === 'TimeGenerated' ? row.time
+          : field === 'EventId' ? row.id : field === 'EventType' ? row.type
+            : field === 'SourceIp' ? row.sourceIp : field === 'Account' ? row.account
+              : field === 'Result' ? row.result : field === 'DeviceClass' ? row.deviceClass : row[field];
+        const evidenceValues = new Set((fixture?.scenario?.telemetry || []).filter((row) => candidate.supportingEventIds.includes(row.id))
+          .map((row) => valueFor(row, suppression?.groupField)).filter((value) => value !== undefined && value !== null && value !== '').map(String));
+        const suppressionMs = Number(suppression?.windowMinutes) * 60000;
+        const completedMs = Date.parse(completedAt);
+        const priorAlert = suppression && Number.isSafeInteger(suppression.windowMinutes)
+          ? (assessment.alerts || []).find((alert) => {
+            if (alert.ruleId !== rule.id || !Number.isFinite(Date.parse(alert.createdAt))) return false;
+            const age = completedMs - Date.parse(alert.createdAt);
+            if (age < 0 || age > suppressionMs) return false;
+            const priorEventIds = Array.isArray(alert.eventIds) ? alert.eventIds : [];
+            const priorValues = new Set((fixture?.scenario?.telemetry || []).filter((row) => priorEventIds.includes(row.id))
+              .map((row) => valueFor(row, suppression.groupField)).filter((value) => value !== undefined && value !== null && value !== '').map(String));
+            return [...evidenceValues].some((value) => priorValues.has(value));
+          }) : null;
+        if (priorAlert) {
+          execution.reviewEvidence.suppressed.push({
+            group: candidate.group, groupingField: candidate.groupingField,
+            evidenceEventIds: candidate.supportingEventIds.slice(),
+            suppression: { groupField: suppression.groupField, windowMinutes: suppression.windowMinutes,
+              suppressedByAlertId: priorAlert.id, reason: `Suppressed within ${suppression.windowMinutes} minutes by prior alert ${priorAlert.id}.` },
+          });
+          return;
+        }
         const sequence = assessment.nextAlertSequence || 1;
         const alert = {
           id: `M04-ALERT-${String(sequence).padStart(4, '0')}`,
@@ -144,6 +175,11 @@ const SocM04RulesUi = (() => {
   function tables(fixture) {
     if (fixture.consoleTables) return fixture.consoleTables;
     return { AuthLog: fixture.scenario.telemetry.map((row) => ({ TimeGenerated: row.time, EventId: row.id, EventType: row.type, Account: row.account, SourceIp: row.sourceIp, Result: row.result, DeviceClass: row.deviceClass })) };
+  }
+
+  // Name the tables a rule query may use; the console's set differs per module (U44).
+  function queryRejection(fixture, error) {
+    return `Analytics rules run over these tables only: ${Object.keys(tables(fixture)).sort().join(', ')}. ${error}`;
   }
 
   function test(assessment, fixture, query, timestamp) {
@@ -205,7 +241,7 @@ const SocM04RulesUi = (() => {
     if (!['Informational', 'Low', 'Medium', 'High', 'Critical'].includes(severity)) throw new TypeError('Choose a supported severity.');
     if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(groupingField)) throw new TypeError('Grouping field must be a valid column name.');
     if (!Number.isSafeInteger(threshold) || threshold < 1 || threshold > 10000) throw new TypeError('Threshold must be a whole number from 1 to 10000.');
-    if (!Number.isSafeInteger(windowMinutes) || windowMinutes < 1 || windowMinutes > 1440) throw new TypeError('Lookback window must be a whole number from 1 to 1440 minutes.');
+    if (!Number.isSafeInteger(windowMinutes) || windowMinutes < MIN_ASSESSMENT_LOOKBACK_MINUTES || windowMinutes > 1440) throw new TypeError(`Lookback window must be a whole number from ${MIN_ASSESSMENT_LOOKBACK_MINUTES} to 1440 minutes.`);
     const updated = { ...draft, name, description, severity, groupingField, threshold, windowMinutes };
     Object.assign(draft, updated);
     assessment.ruleDraft = clone(updated);
@@ -260,7 +296,7 @@ const SocM04RulesUi = (() => {
     const exclusionSummary = exclusion.enabled ? `Exclude ${exclusion.field} ${exclusion.operator} ${exclusion.value} (${exclusion.reason})` : 'No exclusion configured.';
     const suppressionSummary = suppression.enabled ? `Suppression enabled by ${suppression.groupField} for ${suppression.windowMinutes} minutes.` : 'Suppression disabled.';
     const schedule = draft.schedule || { frequencyMinutes: 60, scheduledAt: '' };
-    return `<form data-m04-rule-form data-rule-id="${escapeHtml(draft.id)}"><h4>Edit analytics rule</h4><p role="alert" aria-live="polite" data-m04-rule-error></p><label for="m04-rule-name">Name</label><input id="m04-rule-name" name="name" maxlength="100" required value="${escapeHtml(draft.name)}"><label for="m04-rule-description">Description</label><textarea id="m04-rule-description" name="description" maxlength="500" rows="3">${escapeHtml(draft.description || '')}</textarea><label for="m04-rule-severity">Severity</label><select id="m04-rule-severity" name="severity">${['Informational', 'Low', 'Medium', 'High', 'Critical'].map((value) => `<option${draft.severity === value ? ' selected' : ''}>${value}</option>`).join('')}</select><label for="m04-rule-grouping">Grouping field</label><input id="m04-rule-grouping" name="groupingField" required pattern="[A-Za-z_][A-Za-z0-9_]{0,63}" value="${escapeHtml(draft.groupingField)}"><label for="m04-rule-threshold">Threshold (matches)</label><input id="m04-rule-threshold" name="threshold" type="number" min="1" max="10000" step="1" required value="${escapeHtml(draft.threshold)}"><label for="m04-rule-window">Lookback window (minutes)</label><input id="m04-rule-window" name="windowMinutes" type="number" min="1" max="1440" step="1" required value="${escapeHtml(draft.windowMinutes)}"><button type="button" data-m04-rule-save>Save rule fields</button><fieldset data-m04-rule-safeguards><legend>Exclusions</legend><label class="m04-checkbox-label"><input type="checkbox" name="exclusionEnabled"${exclusion.enabled ? ' checked' : ''}> Enable exclusion</label><label>Field<select name="exclusionField">${fields(exclusion.field)}</select></label><label>Operator<select name="exclusionOperator">${operators}</select></label><label>Value<input name="exclusionValue" maxlength="256" value="${escapeHtml(exclusion.value)}"></label><label>Reason<input name="exclusionReason" maxlength="300" value="${escapeHtml(exclusion.reason)}"></label><legend>Suppression</legend><label class="m04-checkbox-label"><input type="checkbox" name="suppressionEnabled"${suppression.enabled ? ' checked' : ''}> Enable suppression</label><label>Group by<select name="suppressionGroupField">${fields(suppression.groupField)}</select></label><label>Window (minutes)<input name="suppressionWindowMinutes" type="number" min="1" max="1440" step="1" required value="${escapeHtml(suppression.windowMinutes)}"></label><button type="button" data-m04-rule-safeguards-save>Save exclusions and suppression</button></fieldset><section data-m04-scheduling><h5>Rule schedule</h5><label class="m04-checkbox-label"><input type="checkbox" name="ruleEnabled"${draft.enabled ? ' checked' : ''}> Enable rule</label><label>Frequency (minutes)<input name="frequencyMinutes" type="number" min="${MIN_FREQUENCY_MINUTES}" max="${MAX_FREQUENCY_MINUTES}" step="1" value="${escapeHtml(schedule.frequencyMinutes)}"></label><label>Next scheduled time (UTC)<input name="scheduledAt" type="datetime-local" value="${escapeHtml(schedule.scheduledAt ? schedule.scheduledAt.slice(0, 16) : '')}"></label><button type="button" data-m04-rule-schedule-save>Save schedule</button><button type="button" data-m04-rule-run-now>Run now</button><button type="button" data-m04-rule-run-scheduled${draft.enabled && schedule.scheduledAt ? '' : ' disabled'}>Run next scheduled execution</button></section><section aria-label="Rule preview" data-m04-rule-preview><h5>Rule preview</h5><p><strong>${escapeHtml(draft.name)}</strong> · ${escapeHtml(draft.severity)}</p><p>${escapeHtml(draft.description || 'No description.')}</p><p>Group by ${escapeHtml(draft.groupingField)}; alert at ${escapeHtml(draft.threshold)} matches over ${escapeHtml(draft.windowMinutes)} minutes.</p><p data-m04-exclusion-preview>${escapeHtml(exclusionSummary)}</p><p data-m04-suppression-preview>${escapeHtml(suppressionSummary)}</p><pre>${escapeHtml(draft.query)}</pre></section></form>`;
+    return `<form data-m04-rule-form data-rule-id="${escapeHtml(draft.id)}"><h4>Edit analytics rule</h4><p role="alert" aria-live="polite" data-m04-rule-error></p><label for="m04-rule-name">Name</label><input id="m04-rule-name" name="name" maxlength="100" required value="${escapeHtml(draft.name)}"><label for="m04-rule-description">Description</label><textarea id="m04-rule-description" name="description" maxlength="500" rows="3">${escapeHtml(draft.description || '')}</textarea><label for="m04-rule-severity">Severity</label><select id="m04-rule-severity" name="severity">${['Informational', 'Low', 'Medium', 'High', 'Critical'].map((value) => `<option${draft.severity === value ? ' selected' : ''}>${value}</option>`).join('')}</select><label for="m04-rule-grouping">Grouping field</label><input id="m04-rule-grouping" name="groupingField" required pattern="[A-Za-z_][A-Za-z0-9_]{0,63}" value="${escapeHtml(draft.groupingField)}"><label for="m04-rule-threshold">Threshold (matches)</label><input id="m04-rule-threshold" name="threshold" type="number" min="1" max="10000" step="1" required value="${escapeHtml(draft.threshold)}"><label for="m04-rule-window">Lookback window (minutes)</label><input id="m04-rule-window" name="windowMinutes" type="number" min="${MIN_ASSESSMENT_LOOKBACK_MINUTES}" max="1440" step="1" required value="${escapeHtml(draft.windowMinutes)}"><p data-m04-assessment-rule-requirements>Before using the one-time Assessment Lab submission, set a lookback window of at least 20 minutes, save an enabled schedule, then run the rule with “Run next scheduled execution.”</p><button type="button" data-m04-rule-save>Save rule fields</button><fieldset data-m04-rule-safeguards><legend>Exclusions</legend><label class="m04-checkbox-label"><input type="checkbox" name="exclusionEnabled"${exclusion.enabled ? ' checked' : ''}> Enable exclusion</label><label>Field<select name="exclusionField">${fields(exclusion.field)}</select></label><label>Operator<select name="exclusionOperator">${operators}</select></label><label>Value<input name="exclusionValue" maxlength="256" value="${escapeHtml(exclusion.value)}"></label><label>Reason<input name="exclusionReason" maxlength="300" value="${escapeHtml(exclusion.reason)}"></label><legend>Suppression</legend><label class="m04-checkbox-label"><input type="checkbox" name="suppressionEnabled"${suppression.enabled ? ' checked' : ''}> Enable suppression</label><label>Group by<select name="suppressionGroupField">${fields(suppression.groupField)}</select></label><label>Window (minutes)<input name="suppressionWindowMinutes" type="number" min="1" max="1440" step="1" required value="${escapeHtml(suppression.windowMinutes)}"></label><button type="button" data-m04-rule-safeguards-save>Save exclusions and suppression</button></fieldset><section data-m04-scheduling><h5>Rule schedule</h5><label class="m04-checkbox-label"><input type="checkbox" name="ruleEnabled"${draft.enabled ? ' checked' : ''}> Enable rule</label><label>Frequency (minutes)<input name="frequencyMinutes" type="number" min="${MIN_FREQUENCY_MINUTES}" max="${MAX_FREQUENCY_MINUTES}" step="1" value="${escapeHtml(schedule.frequencyMinutes)}"></label><label>Next scheduled time (UTC)<input name="scheduledAt" type="datetime-local" value="${escapeHtml(schedule.scheduledAt ? schedule.scheduledAt.slice(0, 16) : '')}"></label><button type="button" data-m04-rule-schedule-save>Save schedule</button><button type="button" data-m04-rule-run-now>Run now</button><button type="button" data-m04-rule-run-scheduled${draft.enabled && schedule.scheduledAt ? '' : ' disabled'}>Run next scheduled execution</button></section><section aria-label="Rule preview" data-m04-rule-preview><h5>Rule preview</h5><p><strong>${escapeHtml(draft.name)}</strong> · ${escapeHtml(draft.severity)}</p><p>${escapeHtml(draft.description || 'No description.')}</p><p>Group by ${escapeHtml(draft.groupingField)}; alert at ${escapeHtml(draft.threshold)} matches over ${escapeHtml(draft.windowMinutes)} minutes.</p><p data-m04-exclusion-preview>${escapeHtml(exclusionSummary)}</p><p data-m04-suppression-preview>${escapeHtml(suppressionSummary)}</p><pre>${escapeHtml(draft.query)}</pre></section></form>`;
   }
 
   // In the Assessment Lab the query is written in the console's Log Search, so
@@ -277,5 +313,5 @@ const SocM04RulesUi = (() => {
     return `<div class="m04-rules-workspace">${editor}<section><h4>Saved queries</h4><ul>${saved || '<li>No saved queries.</li>'}</ul></section><section><h4>Rule drafts</h4><ul>${drafts || '<li>No rule drafts.</li>'}</ul></section><section><h4>Execution history</h4><ul>${executions || '<li>No execution requests.</li>'}</ul></section>${renderRule(assessment.ruleDraft, fields)}</div>`;
   }
 
-  return Object.freeze({ tables, test, saveQuery, convertToDraft, updateDraft, updateSafeguards, configureSchedule, recordExecution, completePendingExecution, selectAlert, reviewAlert, render, renderRule, MIN_FREQUENCY_MINUTES, MAX_FREQUENCY_MINUTES });
+  return Object.freeze({ tables, queryRejection, test, saveQuery, convertToDraft, updateDraft, updateSafeguards, configureSchedule, recordExecution, completePendingExecution, selectAlert, reviewAlert, render, renderRule, shouldNavigateToAlerts, MIN_FREQUENCY_MINUTES, MAX_FREQUENCY_MINUTES });
 })();

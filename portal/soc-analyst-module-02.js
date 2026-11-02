@@ -1138,12 +1138,12 @@ function wireModuleTwoLessons() {
     }
     const taskButton = event.target.closest('[data-m02-lesson-task-submit]');
     if (taskButton) {
-      const lesson = moduleTwoState.lessonWork[taskButton.dataset.m02LessonTask] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
+      const lesson = moduleTwoState.lessonWork[taskButton.dataset.m02LessonTaskSubmit] ||= { answers: {}, task: '', checked: false, taskComplete: false, feedback: [] };
       lesson.taskComplete = lesson.checked && (lesson.task || '').trim().length >= 20;
       lesson.feedback = lesson.taskComplete ? ['Applied task saved.'] : ['Complete the knowledge check and write at least 20 characters before saving the task.'];
       moduleTwoSave();
       const details = taskButton.closest('details');
-      const lessonDef = MODULE_TWO_LESSON_LOOPS.find((item) => item.id === taskButton.dataset.m02LessonTask);
+      const lessonDef = MODULE_TWO_LESSON_LOOPS.find((item) => item.id === taskButton.dataset.m02LessonTaskSubmit);
       if (details) details.outerHTML = moduleTwoLessonLoop(lessonDef, MODULE_TWO_LESSON_LOOPS.indexOf(lessonDef));
     }
   });

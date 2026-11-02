@@ -1109,6 +1109,7 @@ const MODULE_EIGHT_GUIDED_CONSOLE = (() => {
       caseId: MODULE_EIGHT_GUIDED_CASE_ID, ticketType: 'Exposure prioritization · Vulnerability Response',
       userOptions: [{ id: 'n.owens', text: 'n.owens · API service owner' }, { id: 's.ivanov', text: 's.ivanov · backend owner' }],
       deviceOptions: [{ id: 'api-edge-31', text: 'api-edge-31 · public API edge' }, { id: 'pay-api-09', text: 'pay-api-09 · restricted backend' }],
+      dispositionOptions: MODULE_EIGHT_DISPOSITION_OPTIONS,
       departmentOptions: [{ id: 'vulnerability-response', text: 'Vulnerability Response' }, { id: 'service-owner-remediation', text: 'Service Owner Remediation' }, { id: 'security-lead-review', text: 'Security Lead Review' }],
       formId: 'm08-guided-case-form', saveAttr: 'data-m08-guided-save-case', submitAttr: 'data-m08-guided-submit-case', panelId: 'm08-guided-case-panel',
       notesPlaceholder: 'Explain finding validity, exposure and business context, remediation priority, owner, and the limit of any risk exception.',
@@ -1212,6 +1213,8 @@ function moduleEightHandleLabProgressChange() {
 }
 
 function moduleEightRender(focusId) {
+  const lessonsRoot = document.getElementById('m08-lessons');
+  if (lessonsRoot) lessonsRoot.outerHTML = moduleEightLessonLoopsView();
   const guidedRoot = document.getElementById('m08-guided-lab-dynamic');
   if (guidedRoot) {
     guidedRoot.innerHTML = moduleEightGuidedLabPanel();

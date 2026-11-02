@@ -45,6 +45,27 @@ assert.deepEqual(JSON.parse(JSON.stringify(saved.evidencePackage)), {
 assert.match(tools.PACKS.m05.views({ ...ctx, load: () => saved }).endpoint(), /data-m05-preserved-package/,
   'the saved package is visibly verifiable before moving on');
 
+// UAT U30: the M09 case itself (not only the M05 fixture) must give the Endpoint pack a preservable
+// event + hash on the impacted host, and the guided checks must follow the cloned guided ids.
+const m09 = vm.runInContext('SocM09AssessmentData', context);
+const m09Hash = m09.scenario.telemetry.find((row) => row.fields.DeviceId === 'ws-173' && row.fields.Sha256
+  && ['process_start', 'file_hash'].includes(row.fields.EventType));
+assert.ok(m09Hash, 'M09 telemetry has a ws-173 process/file event with a SHA-256 for the preservation step');
+for (const literal of ["pkg?.deviceId === 'ws-173'", "recoveryPointId === 'RP-WS-173-0918'", "entityId === 'DEV-173'", "targetId === 'DEV-173'"]) {
+  assert.ok(!guided.includes(literal), `guided check must not hard-code the Prove It id: ${literal}`);
+}
+assert.match(guided, /pkg\?\.deviceId === moduleNineGuidedId\('ws-173'\)/, 'preservation check uses the guided device id');
+assert.match(guided, /function moduleNineGuidedSteps\(\) \{\n  return moduleNineGuidedClone\(\[/, 'guide text and targets follow the guided ids');
+
+// UAT U33: m05Fixture must give the Endpoint view a time window, or timelineEvents() returns nothing.
+const m05FromM09 = tools.m05Fixture({ id: 'u33', stateKey: 'u33', devices: [{ id: 'ws-173', hostname: 'ws-173' }],
+  data: { records: Object.fromEntries(m09.scenario.telemetry.filter((row) => row.fields.DeviceId).map((row) => [row.id,
+    { EventId: row.id, TimeGenerated: row.time, DeviceId: row.fields.DeviceId, Host: row.fields.Host, ...row.fields }])) } });
+assert.ok(Number.isFinite(Date.parse(m05FromM09.scenario.start)) && Number.isFinite(Date.parse(m05FromM09.scenario.end)),
+  'm05Fixture sets a default start/end window from its telemetry');
+const u33Panel = tools.PACKS.m05.views({ fixture: m05FromM09, load: () => stateApi.normalize({ selectedDeviceIds: ['ws-173'] }, m05FromM09) }).endpoint();
+assert.match(u33Panel, /data-m05-evidence-hash/, 'the M09 endpoint view offers a file hash to preserve');
+
 assert.match(guided, /type === 'remove_persistence'[\s\S]*moduleNineGuidedPersistencePreserved\(\)/,
   'Practice It gates persistence removal on the preserved endpoint package');
 assert.match(guided, /type === 'restore_backup'[\s\S]*moduleNineGuidedPersistenceRemoved\(\)/,

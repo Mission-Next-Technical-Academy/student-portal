@@ -72,14 +72,15 @@ assert.match(probe, /href="#elsewhere"/, 'links outside the console are left alo
 // attribute values the console rendered, exactly as the browser would.
 function packHarness(scope) {
   const listeners = {};
-  const root = { addEventListener: (type, fn) => { (listeners[type] ||= []).push(fn); }, querySelector: () => null };
+  const root = { verdictForms: [], addEventListener: (type, fn) => { (listeners[type] ||= []).push(fn); }, querySelector: () => null,
+    querySelectorAll: (selector) => selector === '[data-m04-verdict-form]' ? root.verdictForms : [] };
   const getA = () => run(scope === 'm04' ? 'moduleFourState.assessment' : 'moduleFourGuidedAssessment()');
   const fixture = run(scope === 'm04' ? 'SocM04AssessmentData' : 'MODULE_FOUR_GUIDED_FIXTURE');
   let rerenders = 0;
   run('SocConsoleTools').PACKS.m04.wire(root, { scope, guided: scope !== 'm04', assessment: getA, fixture, save() {}, rerender() { rerenders += 1; }, console: () => run(`m03eState('${scope}')`) });
   const fire = (type, target) => { const event = { target, preventDefault() {}, stopPropagation() {} }; (listeners[type] || []).forEach((fn) => fn(event)); };
   const el = (attrs, extra = {}) => ({ matches: (sel) => sel.split(',').some((s) => attrs.includes(s.trim())), closest: (sel) => (sel.split(',').some((s) => attrs.includes(s.trim())) ? extra.self : (extra.closest || {})[sel] || null), ...extra.props });
-  return { fire, el, getA, fixture, rerenders: () => rerenders };
+  return { fire, el, getA, fixture, setVerdictForms: (forms) => { root.verdictForms = forms; }, rerenders: () => rerenders };
 }
 
 for (const scope of ['m04-guided', 'm04']) {
@@ -131,10 +132,23 @@ for (const scope of ['m04-guided', 'm04']) {
   assert.equal(h.getA().alerts[0].reviewNote, 'One source, three accounts.', `${scope}: alert review saved`);
 
   run(`m03eState('${scope}').tab = 'intelligence'`);
-  const indicatorId = attr(run(`moduleThreeConsoleHtml('${scope}')`), 'data-indicator-id')[0];
+  const indicatorIds = h.fixture.scenario.verdictIndicators.map((indicator) => indicator.id);
+  const indicatorId = indicatorIds[0];
+  const draftId = indicatorIds[1];
   const verdictForm = { dataset: { indicatorId }, elements: { decision: { value: 'malicious' }, rationale: { value: 'Failed sign-ins against three accounts and a success from the same address match the feed.' } }, querySelector: () => ({ textContent: '' }) };
+  const draftForm = { dataset: { indicatorId: draftId }, elements: { decision: { value: 'benign' }, rationale: { value: 'Pending analysis: the available case records do not establish malicious activity.' } } };
+  h.setVerdictForms([verdictForm, draftForm]);
   h.fire('submit', { closest: (sel) => (sel === '[data-m04-verdict-form]' ? verdictForm : null) });
   assert.equal(h.getA().intelVerdicts[indicatorId]?.decision, 'malicious', `${scope}: verdict saved for ${indicatorId}`);
+  assert.deepEqual({ ...h.getA().intelVerdictDrafts[draftId] }, {
+    decision: 'benign', rationale: 'Pending analysis: the available case records do not establish malicious activity.',
+  }, `${scope}: the sibling verdict remains a draft after the selected verdict is recorded`);
+  assert.equal(h.getA().intelVerdicts[draftId], undefined, `${scope}: the sibling draft is not treated as a recorded verdict`);
+  const normalized = run('SocM04AssessmentState').normalize({ assessment: h.getA() }, h.fixture).assessment;
+  const rerendered = run('SocM04IntelligenceUi').renderVerdicts(normalized, h.fixture, { guided: scope !== 'm04' });
+  const siblingCard = rerendered.match(new RegExp(`<article class="m04-ti-verdict" data-m04-verdict-card="${draftId}">([\\s\\S]*?)</article>`))?.[1] || '';
+  assert.match(siblingCard, /<option value="benign" selected>benign<\/option>/, `${scope}: draft decision restores into the form`);
+  assert.match(siblingCard, /Pending analysis: the available case records do not establish malicious activity\./, `${scope}: draft rationale restores into the form`);
 }
 
 function cleanStart(scope) {
