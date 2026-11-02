@@ -78,3 +78,14 @@ assert.match(lockedHtml,/Submitted for faculty review/);
 assert.doesNotMatch(lockedHtml,/data-m12-submit-case|data-m12-save-case/);
 assert.match(lockedHtml,/<textarea[^>]*disabled/);
 console.log('M12 ticket tab contract, action-only requirements, narratives, immutable saves and faculty core review: passed');
+
+// UAT U40: Update Ticket must never overwrite a report or closure the student wrote on the Reporting tab.
+{
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'portal', 'soc-analyst-module-12.js'), 'utf8');
+  const assertU40 = require('assert');
+  assertU40.match(src, /const authoredElsewhere = \(entry\) => Boolean\(entry && !entry\.ticketField\);/);
+  assertU40.match(src, /record\('report', 'notes'/);
+  assertU40.match(src, /moduleTwelveState\.notes\.trim\(\) && !authoredElsewhere\(state\.reports\?\.technical\)\) record\('report', 'notes'/);
+  assertU40.match(src, /fields\.executiveSummary\?\.trim\(\) && !authoredElsewhere\(state\.reports\?\.executive\)\) record\('report', 'executiveSummary'/);
+  assertU40.match(src, /!authoredElsewhere\(state\.closure\)\) record\('closure'/);
+}
