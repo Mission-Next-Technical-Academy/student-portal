@@ -157,3 +157,28 @@ const guidedTicket = vm.runInContext(`caseRecordPane({ status: 'in-progress', se
 assert.match(guidedTicket, /<option value="validated-exploitable"[^>]*>Validated — exploitable, confirmed internet-reachable finding<\/option>/,
   'rendered M08 Guided ticket offers the debrief-supported exploitable disposition');
 console.log('M08 Guided ticket disposition regression: passed');
+
+// Check and Save update lesson state then call moduleEightRender. Verify that
+// the render path replaces the lesson panel from that state immediately.
+const renderStart = moduleEightSource.indexOf('function moduleEightRender(focusId) {');
+assert.notStrictEqual(renderStart, -1, 'M08 renderer exists');
+let renderEnd = renderStart + moduleEightSource.slice(renderStart).indexOf('{') + 1;
+let braceDepth = 1;
+while (braceDepth && renderEnd < moduleEightSource.length) {
+  if (moduleEightSource[renderEnd] === '{') braceDepth += 1;
+  else if (moduleEightSource[renderEnd] === '}') braceDepth -= 1;
+  renderEnd += 1;
+}
+assert.strictEqual(braceDepth, 0, 'M08 renderer body is complete');
+const renderedLessons = { outerHTML: '<section>old lesson markup</section>' };
+context.document = { getElementById: (id) => id === 'm08-lessons' ? renderedLessons : null };
+context.moduleEightGuidedComplete = () => false;
+context.moduleEightRenderAssessment = () => {};
+context.moduleEightLessonLoopsView = () => '<section id="m08-lessons"><p role="status">Lesson complete.</p><span>Complete — reopen to review</span></section>';
+vm.runInContext(moduleEightSource.slice(renderStart, renderEnd), context);
+vm.runInContext('moduleEightRender()', context);
+assert.ok(renderedLessons.outerHTML.includes('Lesson complete.'),
+  'rerendered lesson panel shows saved feedback immediately');
+assert.ok(renderedLessons.outerHTML.includes('Complete — reopen to review'),
+  'rerendered lesson panel shows the completed state immediately');
+console.log('M08 lesson Check and Save rerender regression: passed');

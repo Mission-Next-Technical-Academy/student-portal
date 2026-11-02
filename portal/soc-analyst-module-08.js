@@ -1213,6 +1213,8 @@ function moduleEightHandleLabProgressChange() {
 }
 
 function moduleEightRender(focusId) {
+  const lessonsRoot = document.getElementById('m08-lessons');
+  if (lessonsRoot) lessonsRoot.outerHTML = moduleEightLessonLoopsView();
   const guidedRoot = document.getElementById('m08-guided-lab-dynamic');
   if (guidedRoot) {
     guidedRoot.innerHTML = moduleEightGuidedLabPanel();
