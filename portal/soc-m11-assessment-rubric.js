@@ -26,6 +26,11 @@ const SocM11AssessmentRubric = (() => {
   const lower = (value) => String(value || '').toLowerCase();
   const CAUSAL = /\b(caused|causes|because of|due to|resulted in|led to|drove|driven by)\b/i;
   const OVERCLAIM = /\b(fully recovered|no (?:residual|remaining) risk|no risk remains|risk[- ]free|incident (?:is )?(?:closed|resolved)|completely (?:recovered|remediated))\b/i;
+  // A negated phrase ("not fully recovered", "cannot say no residual risk") is the honest answer, not an
+  // overclaim (UAT U37: "...so the case is not fully recovered" lost the residual-risk points).
+  const NEGATED_BEFORE = /\b(?:not|never|cannot|can't|isn't|aren't|wasn't|nor|no longer|yet to be|until)\s+(?:\w+\s+){0,2}$/i;
+  const overclaims = (text) => Array.from(String(text || '').matchAll(new RegExp(OVERCLAIM.source, 'gi')))
+    .some((match) => !NEGATED_BEFORE.test(text.slice(Math.max(0, match.index - 40), match.index)));
   const TECHNICAL = /\b[a-f0-9]{32,}\b|\b\d{1,3}(?:\.\d{1,3}){3}\b|\bsha-?256\b|\bpowershell\b|\bT1\d{3}\b|\bkql\b|\bregistry\b/i;
 
   function extract(state, fixture) {
@@ -108,7 +113,7 @@ const SocM11AssessmentRubric = (() => {
     const riskText = lower([closureReport?.residualRisk, closureReport?.recoveryStatus, closureReport?.containmentStatus].join(' '));
     const risksNamed = truth.residualRisks.filter((risk) => risk.keywords.some((keyword) => riskText.includes(keyword)));
     add('residual-risk', !closureReport ? 'unknown'
-      : OVERCLAIM.test(riskText) ? false
+      : overclaims(riskText) ? false
         : risksNamed.length === truth.residualRisks.length && closureReport.containmentStatus ? true : risksNamed.length ? 'partial' : false,
       risksNamed.map((risk) => risk.evidenceId), idsOf('report'));
 
