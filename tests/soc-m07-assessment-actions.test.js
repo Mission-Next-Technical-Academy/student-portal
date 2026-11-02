@@ -86,6 +86,10 @@ assert.strictEqual(api.validDetails('incident_link', { ...incident, recipientIds
   'linked network evidence must fit the selected entity scope');
 assert.strictEqual(api.validDetails('incident_link', { ...incident, eventIds: ['M07-URL-001'] }, fixture), true,
   'fixture URL artifacts are valid linked records');
+assert.throws(() => api.append(stateApi.normalize({}, fixture), 'incident_link', at, {
+  ...incident, eventIds: ['M07-DELIVERY-002'],
+}, fixture), /M07-DELIVERY-002 belongs to recipient acct-82, which is outside the selected recipient scope/,
+  'the incident form identifies the blocked-delivery record and recipient that must be added to scope');
 assert.throws(() => api.append(state, 'incident_link', at, { ...updatedIncident,
   incidentId: 'M07-INCIDENT-0099' }, fixture), /Cannot update/, 'update must target an existing incident');
 assert.throws(() => api.append(state, 'message_review', '2026-09-27T10:15:00Z', { messageId: 'M07-MSG-001', reviewed: true }, fixture), /canonical UTC/);
