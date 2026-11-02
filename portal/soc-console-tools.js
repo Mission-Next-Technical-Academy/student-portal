@@ -668,7 +668,7 @@ const SocConsoleTools = (() => {
           event.preventDefault();
           run('[data-m06-related-search] [role=status]', (state, fixture) => {
             const values = data();
-            return SocM06AssessmentRelatedSearch.search(state, fixture, { startTime: values.get('startTime'), endTime: values.get('endTime'), entityType: values.get('entityType'), entityValue: values.get('entityType') === 'all' ? 'all' : values.get('entityValue') }, String(values.get('query') || ''), now()).state;
+            return SocM06AssessmentRelatedSearch.search(state, fixture, SocM06AssessmentRelatedSearch.scopeFromForm(values), String(values.get('query') || ''), now()).state;
           });
           return;
         }
@@ -752,7 +752,7 @@ const SocConsoleTools = (() => {
         const runSaved = event.target.closest('[data-m06-run-saved-query]');
         if (runSaved) {
           const values = new FormData(root.querySelector('[data-m06-save-query-form]'));
-          const scope = { startTime: values.get('startTime'), endTime: values.get('endTime'), entityType: values.get('entityType'), entityValue: values.get('entityValue') };
+          const scope = SocM06AssessmentRelatedSearch.scopeFromForm(values);
           run('[data-m06-query-feedback]', (state, fixture) => SocM06AssessmentRelatedSearch.runSavedQuery(state, fixture, scope, runSaved.dataset.m06RunSavedQuery, now()).state);
           return;
         }
