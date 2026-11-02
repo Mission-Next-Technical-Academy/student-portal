@@ -1121,6 +1121,7 @@ function moduleFourArtifact() {
   const missing = caseRecordMissing(cr, spec);
   return `<section class="m04-artifact" aria-labelledby="m04-artifact-title">
     <div class="m04-panel-heading"><div>${moduleFourKicker('Scored artifact · one submission, faculty reviewed')}<h3 id="m04-artifact-title">Complete the detection package</h3></div>${!cr.submitted ? `<button type="button" class="m04-secondary" data-m04-reset><i class="ri-restart-line" aria-hidden="true"></i> Reset only this lab</button>` : ''}</div>
+    <div class="m04-instruction" role="note" aria-label="Assessment requirements"><strong>Before your one submission, complete the full investigation:</strong> record indicator verdicts, maintain the threat report and IOC, build and test a tuned rule, schedule and run it, review the resulting alerts, record bounded automation, and document the case. These areas are part of the assessment even when the ticket is complete.</div>
     ${caseRecordPane(cr, {
       ...spec,
       missing,
