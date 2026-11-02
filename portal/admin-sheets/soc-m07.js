@@ -97,7 +97,7 @@
     if (!e) return String(id);
     const time = String(e.timestamp || '').slice(11, 19);
     const who = [e.recipientId, e.deviceId].filter(Boolean).join(' / ');
-    const what = e.status ? `message ${String(e.status).replace(/_/g, ' ')} for ${e.recipientId}`
+    const what = ['delivered', 'blocked_at_gateway'].includes(e.status) ? `message ${String(e.status).replace(/_/g, ' ')} for ${e.recipientId}`
       : e.type === 'open_and_link_click' ? `${who} opened the message and clicked the link`
         : e.type === 'dns_query' ? `${who} looked up ${e.domain} → ${list(e.answers).join(', ')}`
           : e.type === 'tls_session' ? `${who} opened an encrypted session to ${e.destinationIp} (${e.sni})`
@@ -437,11 +437,11 @@
         answer: (result) => {
           const w = work(result);
           if (!w) return [['Student’s work in this section', null], ['Events credited by the scorer', credited('delivery-scope')(result)]];
-          const scope = w.scope || {};
+          const found = incident(result);
           const delivery = (id) => ['delivered', 'blocked_at_gateway'].includes((eventById(id) || {}).status);
           return [
-            ['Recipients the student scoped in', list(scope.recipientIds).length ? list(scope.recipientIds) : 'None'],
-            ['Devices the student scoped in', list(scope.deviceIds).length ? list(scope.deviceIds) : 'None'],
+            ['Recipients in incident record', found && list(found.recipientIds).length ? list(found.recipientIds) : 'None'],
+            ['Devices in incident record', found && list(found.deviceIds).length ? list(found.deviceIds) : 'None'],
             ['Delivery records in the evidence tray', describeAll(finalIds(result).filter(delivery))],
             ...(removedLater(result).filter(delivery).length ? [['Delivery records added, then removed', describeAll(removedLater(result).filter(delivery))]] : []),
           ];
@@ -463,8 +463,10 @@
             ...evidenceRows(result),
           ];
         },
-        response: (result) => (finalEvidence(result) || []).filter((item) => item.reason)
-          .map((item) => ({ label: `Why ${item.eventId} was kept as evidence · student response`, text: item.reason })),
+        // The console records a fixed audit reason when evidence is selected;
+        // it has no student-authored reason field, so do not present that text
+        // as a response or send it through proofreading.
+        response: () => [],
         // One line per distinct confirmed-step record (message delivery and recipient
         // open share one record). Slots are fixed so the sheet does not depend on
         // load order; unused slots are skipped with `when`.
