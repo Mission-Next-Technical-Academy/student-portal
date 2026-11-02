@@ -281,3 +281,27 @@ Run the test before the fix (to confirm the finding) and after it (as
 acceptance). This needs a synthetic student login: either the owner types
 it into the Playwright Chrome window, or an account is generated via admin
 on staging with the owner's OK.
+
+### ⚠ Uncommitted #79 fixes found in `~/mnt-pr79-rebase` (2026-10-21, never committed)
+
+- The worktree `~/mnt-pr79-rebase` (branch `fix/prove-it-submit-latch`,
+  HEAD `d333e6d`) has **8 modified, uncommitted files**: +134/−34.
+  - `portal/soc-analyst-module-05.js`: a fix for **M05 bug 1** (the Learn It
+    TypeError; dataset key `m05LessonTask` → `m05LessonTaskSubmit`).
+  - `portal/imported-labs/mission-next-labs/src/systems/validator.js`: a fix
+    for **M05 bug 3** (Keylogger 0/4; it reads the flat `observed[key]`
+    before `getByPath`).
+  - Also edited: `soc-analyst-module-06.js`, `soc-analyst-module-09.js`,
+    `soc-console-tools.js`, `soc-m04-assessment-console.js`,
+    `soc-m07-assessment-email-ui.js`, and a +66-line update to
+    `STUDENT_LIFECYCLE_RUN_2026-10-21.md`.
+- **Backup:** `~/mnt-wip-backups/pr79-uncommitted-2026-10-21.patch`
+  (339 lines). The worktree itself was left untouched.
+- The #79 update agent is pushing a merge of master to
+  `fix/prove-it-submit-latch` from a different worktree
+  (`~/mnt-pr79-update`). After that push, apply this patch on top of the
+  updated branch (`git apply --3way`), review it, run
+  `bin/ci-check.sh` and the browser test, then commit and push.
+  - **Do not** `git pull` or reset inside `~/mnt-pr79-rebase` before the
+    patch is safely applied elsewhere.
+  - The M05 fix sprint starts from this patch.
