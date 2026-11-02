@@ -925,16 +925,20 @@ function moduleSixLessonComplete(lesson) {
   return Boolean(work.taskDone && lesson.questions.every((question) => work.answers?.[question.id] === question.correct));
 }
 
-function moduleSixLessonLoops() {
+function moduleSixLessonLoops(activeLesson = 1) {
   return `<div class="m06-lesson-grid mf-lesson-grid" id="m06-lessons">${MODULE_SIX_LESSONS.map((lesson) => {
     const work = moduleSixLessonWork(lesson.number);
     const complete = moduleSixLessonComplete(lesson);
-    return `<details class="m06-lesson mf-lesson" ${lesson.number === 1 ? 'open' : ''} data-m06-lesson="${lesson.number}">
+    return `<details class="m06-lesson mf-lesson" ${lesson.number === Number(activeLesson) ? 'open' : ''} data-m06-lesson="${lesson.number}">
       <summary><span class="m06-lesson-number mf-lesson-number">${String(lesson.number).padStart(2, '0')}</span><span class="mf-lesson-icon"><i class="${esc(lesson.icon || 'ri-book-2-line')}" aria-hidden="true"></i></span><span class="mf-lesson-title"><strong>${esc(lesson.title)}</strong><small>${complete ? 'Complete' : 'Scenario → theory → check → applied task'}</small></span>${complete ? '<span class="mf-lesson-done" aria-label="Lesson complete"><i class="ri-check-line" aria-hidden="true"></i></span>' : ''}<i class="ri-arrow-down-s-line mf-chevron" aria-hidden="true"></i></summary>
       <div class="m06-lesson-body mf-lesson-body"><div class="m06-lesson-scenario"><p class="m06-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></div><div class="m06-lesson-theory"><p class="m06-kicker">Theory</p><p>${esc(lesson.theory)}</p></div>
       <div class="m06-lesson-check"><h4>Knowledge check</h4>${lesson.questions.map((question) => { const selected = work.answers?.[question.id]; const answered = selected !== undefined; return `<fieldset><legend>${esc(question.prompt)}</legend>${question.options.map((option, index) => `<label><input type="radio" name="m06-lesson-${lesson.number}-${question.id}" data-m06-lesson-answer data-lesson="${lesson.number}" data-question="${esc(question.id)}" value="${index}" ${selected === index ? 'checked' : ''} /><span>${esc(option)}</span></label>`).join('')}${answered ? `<p class="m06-lesson-feedback ${selected === question.correct ? 'is-pass' : 'is-remediate'}" role="status">${esc(selected === question.correct ? question.good : question.bad)}</p>` : ''}</fieldset>`; }).join('')}</div>
       <div class="m06-lesson-task"><p class="m06-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea data-m06-lesson-task="${lesson.number}" rows="3" maxlength="600" placeholder="Apply the idea to this hunt…">${esc(work.taskText || '')}</textarea><button type="button" data-m06-lesson-submit="${lesson.number}">${complete ? 'Completed' : 'Mark task complete'}</button></div></div></details>`;
   }).join('')}</div>`;
+}
+
+function moduleSixReplaceLessonLoops(list, activeLesson) {
+  if (list) list.outerHTML = moduleSixLessonLoops(activeLesson);
 }
 
 function moduleSixQuizQuestion(selected, index) {
@@ -1960,8 +1964,7 @@ function wireModuleSix() {
       const work = moduleSixState.lessonWork[number] || (moduleSixState.lessonWork[number] = { answers: {}, taskText: '', taskDone: false });
       work.answers = { ...(work.answers || {}), [answer.dataset.question]: Number(answer.value) };
       moduleSixSave();
-      const list = shell.querySelector('#m06-lessons');
-      if (list) list.outerHTML = moduleSixLessonLoops();
+      moduleSixReplaceLessonLoops(shell.querySelector('#m06-lessons'), number);
     }
   });
   shell.addEventListener('input', (event) => {
@@ -1984,8 +1987,7 @@ function wireModuleSix() {
       }
       work.taskDone = true;
       moduleSixSave();
-      const list = shell.querySelector('#m06-lessons');
-      if (list) list.outerHTML = moduleSixLessonLoops();
+      moduleSixReplaceLessonLoops(shell.querySelector('#m06-lessons'), number);
     }
   });
 }

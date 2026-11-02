@@ -801,6 +801,18 @@ const SocConsoleTools = (() => {
       network: () => `<section class="m04-console-extra m07-console-extra" data-m07-console-workspace="network">${SocM07AssessmentNetworkUi.render(ctx.fixture, ctx.box.state, ctx.ui.networkFilters || {})}</section>`,
     }),
     wire(root, ctx) {
+      const rerender = () => {
+        const openEmailSections = [...root.querySelectorAll('[data-m07-message-id]')].flatMap((article) =>
+          [...article.querySelectorAll('details')].flatMap((detail, index) => detail.open
+            ? [{ messageId: article.dataset.m07MessageId, index }] : []));
+        ctx.rerender();
+        openEmailSections.forEach(({ messageId, index }) => {
+          const article = [...root.querySelectorAll('[data-m07-message-id]')]
+            .find((item) => item.dataset.m07MessageId === messageId);
+          const detail = article?.querySelectorAll('details')[index];
+          if (detail) detail.open = true;
+        });
+      };
       root.addEventListener('submit', (event) => {
         const incidentForm = event.target.closest('[data-m07-incident-form]');
         if (incidentForm && ctx.box.state) {
@@ -825,7 +837,7 @@ const SocConsoleTools = (() => {
               'incident_link', new Date(ctx.fixture.scenario.fixedAt).toISOString(), details,
               ctx.fixture);
             ctx.store(ctx.box.state);
-            ctx.rerender();
+            rerender();
           } catch (error) {
             const status = incidentForm.querySelector('[data-m07-incident-status]');
             if (status) status.textContent = error.message;
@@ -837,7 +849,7 @@ const SocConsoleTools = (() => {
           event.preventDefault();
           const eventId = String(packetForm.elements.eventId?.value || '').slice(0, 40);
           ctx.ui.networkFilters = { ...(ctx.ui.networkFilters || {}), pcapEventId: eventId };
-          ctx.rerender();
+          rerender();
           return;
         }
         const networkForm = event.target.closest('[data-m07-network-search]');
@@ -848,7 +860,7 @@ const SocConsoleTools = (() => {
             type: networkForm.elements.type?.value || 'all',
             device: String(networkForm.elements.device?.value || '').slice(0, 40),
           };
-          ctx.rerender();
+          rerender();
           return;
         }
         const form = event.target.closest('[data-m07-recipient-search]');
@@ -867,7 +879,7 @@ const SocConsoleTools = (() => {
           'recipient_search', new Date(ctx.fixture.scenario.fixedAt).toISOString(), details,
           ctx.fixture);
         ctx.store(ctx.box.state);
-        ctx.rerender();
+        rerender();
       });
       root.addEventListener('click', (event) => {
         const evidenceButton = event.target.closest('[data-m07-evidence-toggle]');
@@ -879,7 +891,7 @@ const SocConsoleTools = (() => {
               operation: selected ? 'remove' : 'add', eventId, reason: selected ? 'Removed from learner evidence tray' : 'Selected from assessment evidence view',
             }, ctx.fixture);
           ctx.store(ctx.box.state);
-          ctx.rerender();
+          rerender();
           return;
         }
         const networkReview = event.target.closest('[data-m07-review-network]');
@@ -889,7 +901,7 @@ const SocConsoleTools = (() => {
           ctx.box.state = SocM07AssessmentActions.append(ctx.box.state,
             'network_review', new Date(ctx.fixture.scenario.fixedAt).toISOString(), { eventId, reviewed }, ctx.fixture);
           ctx.store(ctx.box.state);
-          ctx.rerender();
+          rerender();
           return;
         }
         const networkPivot = event.target.closest('[data-m07-network-pivot-from]');
@@ -900,7 +912,7 @@ const SocConsoleTools = (() => {
             ctx.box.state = SocM07AssessmentActions.append(ctx.box.state,
               'pivot', new Date(ctx.fixture.scenario.fixedAt).toISOString(), details, ctx.fixture);
             ctx.store(ctx.box.state);
-            ctx.rerender();
+            rerender();
           }
           return;
         }
@@ -916,7 +928,7 @@ const SocConsoleTools = (() => {
             ctx.fixture,
           );
           ctx.store(ctx.box.state);
-          ctx.rerender();
+          rerender();
           return;
         }
         const reviewButton = event.target.closest('[data-m07-review-message]');
