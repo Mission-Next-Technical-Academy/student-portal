@@ -77,7 +77,15 @@ const LabRuntime = (() => {
   }
 
   function stateMatchesFreshDefault(labId, user, state, defaults) {
-    return JSON.stringify(state) === JSON.stringify(freshState(labId, user, defaults));
+    const { savedAt, ...rest } = state || {};
+    return JSON.stringify(rest) === JSON.stringify(freshState(labId, user, defaults));
+  }
+
+  // Set when a case-state save is queued and cleared once the server confirms
+  // it, so a reload can tell "this browser's last save never landed" apart
+  // from "another device saved something newer".
+  function unsyncedKey(labId, user) {
+    return `${storageKey(labId, user)}.unsynced`;
   }
 
   function loadCaseState(labId, moduleKey, user, defaults = {}) {
@@ -93,6 +101,15 @@ const LabRuntime = (() => {
     // newer saved copy always hydrates. The cache remains useful for fast
     // synchronous rendering while the authenticated profile is loading.
     if (remoteHasState) {
+      // Except when the tab reloaded or closed before the debounced write
+      // landed: then this cache holds the newest work and the row is behind,
+      // so keep it and send it again rather than discarding it.
+      const unsyncedAt = localStorage.getItem(unsyncedKey(labId, user));
+      if (unsyncedAt && localState.savedAt === unsyncedAt
+        && (!remoteState.savedAt || unsyncedAt > remoteState.savedAt)) {
+        return saveCaseState(labId, moduleKey, user, localState, { debounceMs: 1 });
+      }
+      localStorage.removeItem(unsyncedKey(labId, user));
       const hydratedState = { ...localState, ...remoteState };
       save(labId, user, hydratedState);
       return hydratedState;
@@ -109,16 +126,47 @@ const LabRuntime = (() => {
     return `${storageKey(labId, user)}.${moduleKey}`;
   }
 
+  // Server writes started by flushCaseStateWrite() and not yet settled, so
+  // sign-out can wait for them (and their unsynced-marker cleanup).
+  const inFlightCaseStateWrites = new Set();
+
   function flushCaseStateWrite(key) {
     const pending = pendingCaseStateWrites.get(key);
     if (!pending) return;
     if (pending.timer) clearTimeout(pending.timer);
     pendingCaseStateWrites.delete(key);
-    persistModuleCaseState(pending.user, pending.moduleKey, pending.labId, pending.state);
+    const { savedAt } = pending.state;
+    const write = Promise.resolve(persistModuleCaseState(pending.user, pending.moduleKey, pending.labId, pending.state))
+      .then((saved) => {
+        const marker = unsyncedKey(pending.labId, pending.user);
+        if (saved === true && localStorage.getItem(marker) === savedAt) localStorage.removeItem(marker);
+      })
+      .catch(() => {})
+      .then(() => { inFlightCaseStateWrites.delete(write); });
+    inFlightCaseStateWrites.add(write);
   }
 
+  // Resolves once every started write has settled and its marker is updated.
   function flushAllCaseStateWrites() {
     Array.from(pendingCaseStateWrites.keys()).forEach(flushCaseStateWrite);
+    return Promise.all(Array.from(inFlightCaseStateWrites)).then(() => {});
+  }
+
+  // Sign-out: drop this student's cached lab answers so the next person on a
+  // shared PC cannot read them. A lab whose unsynced marker is still set holds
+  // work the server never received, so it and its marker are kept.
+  function clearStudentLocalState(user) {
+    const suffix = `.${anonymousStudentId(user)}`;
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i += 1) keys.push(localStorage.key(i));
+    // Only state routed through saveCaseState() carries savedAt; browser-only
+    // labs (load/save) have no server copy, so they are left alone.
+    const hasSavedAt = (k) => {
+      try { const v = JSON.parse(localStorage.getItem(k)); return !!(v && typeof v === 'object' && v.savedAt); } catch (e) { return false; }
+    };
+    keys.filter((k) => k && k.startsWith(`${PREFIX}.`) && k.endsWith(suffix)
+      && localStorage.getItem(`${k}.unsynced`) === null && hasSavedAt(k))
+      .forEach((k) => localStorage.removeItem(k));
   }
 
   function registerCaseStateFlushListeners() {
@@ -131,7 +179,9 @@ const LabRuntime = (() => {
   }
 
   function saveCaseState(labId, moduleKey, user, state, options = {}) {
+    state.savedAt = new Date().toISOString();
     save(labId, user, state);
+    localStorage.setItem(unsyncedKey(labId, user), state.savedAt);
     // loadCaseState() lets the server copy win. Keep this session's copy of
     // that row current now, or a reload before the debounced write lands
     // hands back the pre-save snapshot and silently discards the learner's
@@ -157,7 +207,7 @@ const LabRuntime = (() => {
     return saveCaseState(labId, moduleKey, user, fresh, { debounceMs: 1 });
   }
 
-  return { anonymousStudentId, load, save, reset, storageKey, loadCaseState, saveCaseState, resetCaseState, flushAllCaseStateWrites, isFreshState: stateMatchesFreshDefault };
+  return { anonymousStudentId, load, save, reset, storageKey, loadCaseState, saveCaseState, resetCaseState, flushAllCaseStateWrites, clearStudentLocalState, isFreshState: stateMatchesFreshDefault };
 })();
 
 /* Shared mechanics for the knowledge checks used by SOC modules. Question

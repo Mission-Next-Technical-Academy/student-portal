@@ -502,6 +502,16 @@ function moduleNineFreshDefaults() {
   };
 }
 
+// A Prove It submit whose lab_attempts row never saved (recordProveItAttempt
+// rollback, or proveItLatchIsStale on load): unlock the ticket so the student
+// can send it again.
+function moduleNineReopenUnsavedAssessment() {
+  moduleNineState.caseRecord.submitted = false;
+  moduleNineState.caseRecord.submittedAt = '';
+  moduleNineState.completed = false;
+  moduleNineSave();
+}
+
 function moduleNineLoad(user) {
   if (moduleNineUser?.email !== user?.email) { moduleNineQuizForceRetake = false; moduleNineLearnViewed = null; }
   moduleNineUser = user;
@@ -552,6 +562,8 @@ function moduleNineLoad(user) {
     moduleNineState.caseRecord.submitted = false;
     moduleNineState.caseRecord.submittedAt = '';
     moduleNineSave();
+  } else if (moduleNineState.caseRecord.submitted === true && (typeof proveItLatchIsStale === 'function' && proveItLatchIsStale(moduleNineUser, MODULE_NINE_CATALOG_LAB_KEY))) {
+    moduleNineReopenUnsavedAssessment();
   }
 
   // Initialize quiz state
@@ -825,7 +837,7 @@ function moduleNineProveItRedoRequested() {
 function moduleNineProveItReviewStatus() {
   if (!moduleNineState?.caseRecord?.submitted) return '';
   const attempt = moduleNineUser?.latestLabAttemptByKey?.[MODULE_NINE_CATALOG_LAB_KEY];
-  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  return caseRecordAttemptStatus(attempt);
 }
 
 function moduleNineProveItRedoFeedback() {
@@ -1604,6 +1616,7 @@ function wireModuleNineLab() {
     if (field.tagName === 'TEXTAREA' && field.name === 'notes' && field.closest('#m09-form') && !moduleNineState.caseRecord.submitted) {
       moduleNineState.caseRecord.notes = field.value;
       moduleNineSave();
+      caseRecordRefreshPanel(moduleNineArtifact());
     }
   });
 
@@ -1694,10 +1707,11 @@ function moduleNineFinalizeProveIt() {
   moduleNineState.notes = moduleNineState.caseRecord.notes;
   if (!moduleNineState.flags.includes(MODULE_NINE_FLAG)) moduleNineState.flags.push(MODULE_NINE_FLAG);
   moduleNineSave();
-  if (typeof recordLabAttempt === 'function') {
+  if (typeof recordProveItAttempt === 'function') {
     const caseSpec = moduleNineProveItSpec();
-    recordLabAttempt(moduleNineUser, MODULE_NINE_CATALOG_LAB_KEY, {
+    recordProveItAttempt(moduleNineUser, MODULE_NINE_CATALOG_LAB_KEY, {
       state: 'complete',
+      submittedAt: now,
       score: performance.score,
       result: {
         rubric_version: scored.rubricVersion,
@@ -1713,6 +1727,11 @@ function moduleNineFinalizeProveIt() {
         // Never read by scoring.
         assessment_work: moduleNineAssessmentWork(huntState),
       },
+    }, () => {
+      moduleNineReopenUnsavedAssessment();
+      const status = document.getElementById('m09-status');
+      if (status) status.textContent = 'In progress';
+      moduleNineRender();
     });
   }
   if (typeof markModuleLabComplete === 'function') markModuleLabComplete(moduleNineUser, 'soc-analyst', 'soc-09', MODULE_NINE_CATALOG_LAB_KEY);

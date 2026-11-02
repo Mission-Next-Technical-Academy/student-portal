@@ -48,7 +48,10 @@ function registerModuleLab(def) {
     ...def,
     view(user, program) {
       activeModuleRender = { user, program, def: registeredDef };
-      const authoredHtml = authoredView(user, program);
+      let authoredHtml = authoredView(user, program);
+      if (typeof academyProveItReviewSummaryHtml === 'function') {
+        authoredHtml = academyProveItReviewSummaryHtml(authoredHtml, user, program, registeredDef.moduleKey);
+      }
       if (typeof moduleAssessmentModule !== 'function') return authoredHtml;
       // Respect a module's prerequisite gate.  A locked capstone does not
       // expose any learning stage, including its assessment, until its own
@@ -86,6 +89,7 @@ function moduleLabFor(programSlug, moduleNumber) {
     moduleNumber: Number(moduleNumber),
     moduleKey: module.key,
     view(user, currentProgram) {
+      activeModuleRender = { user, program: currentProgram, def: { moduleKey: module.key } };
       const shell = `<div class="min-h-screen bg-slate-50">
         ${moduleTopbar(user, currentProgram)}
         ${moduleProgressShell([{ id: 'coursework', title: 'Foundations', type: 'lecture', isComplete: false, scrollId: `fallback-${module.key}-coursework`, gated: false }], { moduleKey: module.key })}
