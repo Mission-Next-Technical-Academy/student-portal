@@ -28,10 +28,23 @@ Commits `b7f1236` and `5c80395` make Prove It status follow durable instructor r
 
 ## Known defects / gaps
 
-- M05 Learn It “Save applied task” previously threw `TypeError: Cannot read properties of undefined (reading 'id')` at `portal/soc-analyst-module-05.js:1449`.
-- M05 Optional Sysmon lab lost completion on route re-entry after passing its immediate refresh/storage-clear check.
-- M05 Optional Keylogger lab remained at 0/4 after selecting the expected Procmon row; read-only inspection suggests a flat observation-key versus nested-validator mismatch.
-- M05 assessment Automation alert selectors have zero options, so simulated ticket/notification actions cannot be saved.
+- M05 Learn It “Save applied task” previously threw `TypeError: Cannot read properties of undefined (reading 'id')` at `portal/soc-analyst-module-05.js:1449`. **Fixed in code 2026-11-02 (548b3c1), not UAT-verified.**
+- M05 Optional Sysmon lab lost completion on route re-entry after passing its immediate refresh/storage-clear check. **Not fixed; diagnosed 2026-11-02** (see below).
+- M05 Optional Keylogger lab remained at 0/4 after selecting the expected Procmon row; read-only inspection suggests a flat observation-key versus nested-validator mismatch. **Fixed in code 2026-11-02 (548b3c1), not UAT-verified.**
+- M05 assessment Automation alert selectors have zero options, so simulated ticket/notification actions cannot be saved. **Explained in code 2026-11-02 (3ae7449), not UAT-verified** (see below).
+
+### Status as of 2026-11-02 (code only, not UAT-verified)
+
+Committed on `fix/prove-it-submit-latch` from the owner's uncommitted Oct-21 patch:
+
+- **Learn It "Save applied task" TypeError (548b3c1).** The button handler read `dataset.m05LessonTask`, which only the textarea carries. It now reads the button's `data-m05-lesson-task-submit`.
+- **Keylogger (ma-4) stuck at 0 (548b3c1).** The malware-analysis shells log flat keys (`observed['ma4.keylogFile']`), while the validator's `observationLogged` read nested paths. It now reads the flat key first, then the nested path.
+- **Automation alert selects empty (3ae7449).** Not a data bug. The shared M04 automation panel lists only alerts the learner's own analytics rules have generated (`assessment.alerts`). A rule run on the M05 fixture does generate alerts (checked: 5 alerts from one rule). Before any rule runs, both selects now show a disabled "Run an analytics rule first" placeholder. The submitted value stays empty, as before.
+- **Sysmon optional lab (lap-5) completion: diagnosed, not fixed.** lap-5 is a legacy-shape project lab rendered by the imported app's `ModulePage`. Its task completion is written only to the browser's `mission_next_progress` (`markTaskComplete`). Only new-shape `LabPlayer` labs sync to `case_state['imported-lab-progress:<lab>']`. The M05 optional card is a manual "Mark complete" toggle in `moduleFiveState.labProgress` and never reads the lab's own completion (`missionNextImportedLabCompleted()` has no callers). A fix needs the legacy shell to sync through `MISSION_NEXT_PROGRESS_EXT`, which is shared imported-lab code, so it is not a small fix. The exact route re-entry trigger was not reproduced in a browser.
+- Also committed: the M06 independent Prove It redo key (`soc-06`) (c54bef2).
+- **Deferred** to `/home/alex/mnt-wip-backups/pr79-deferred-hunks.patch`:
+  - M07 incident-draft persistence: Module 11's m07 pack has no `console()`/`save()`, so its Email tab would throw.
+  - M09 guided `ws-294` IDs: `tests/m09-guided-preservation.test.js` still pins `ws-173`, and the guided submit was never re-verified end to end.
 - All modules still require the global exhaustive inventory: every quiz, editor, query and name, schedule, rule, pin, verdict/rationale, note, ticket field, checkbox/toggle, automation body, guide state, response, attempt, and review field. A generic state-restored statement is insufficient.
 
 ## Next actions

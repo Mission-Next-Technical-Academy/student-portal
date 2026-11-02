@@ -214,3 +214,71 @@ is `http://127.0.0.1:8768/#/admin/track/SOCAN`. Both sessions are active again.
 - The attached student tab is at `#/program/soc-analyst/module/3`, signed in as `1600192140-SOCAN`. The page shows M03 Guided Lab Complete, Assessment Lab Approved, Module Review Approved, and 100% M03 progress; program progress remains 4/12 (33%). No student data was changed.
 - The current DOM exposes **105 controls**: 57 inputs, 15 textareas, 33 selects; 53 enabled and 45 currently non-empty. This is a point-in-time count across mounted surfaces, not a full field-by-field inventory. Previously recorded M03 submission: Attempt 1 of 1, 87%, approved; its earlier localStorage-clear field checks remain in the M03 assessment section above. Continue the detailed inventory before marking M03 persistence-complete.
 - Latest browser server recovery and the faculty-session loss are in the checkpoint file `SOC_UAT_PROGRESS_CHECKPOINT_2026-10-21.md`. The current faculty origin redirects to login with no session; no review action was made.
+
+## Session 2026-10-21 (evening) — M05 completed
+
+Servers: `bin/dev.sh start --production` from this worktree (`fix/prove-it-submit-latch` @ d333e6d + uncommitted UAT fixes), owner-confirmed. Tabs: localhost:8768 = student `1600192140-SOCAN`, 127.0.0.1:8768 = faculty `1989457660-SOCANINST` (origins swapped vs earlier sessions). Owner signed both in.
+
+M05 lifecycle:
+- 19:08Z faculty returned Attempt 1 (10%) with overall note. Student UI: Assessment Lab "Returned"; DB `redo_requested: true`.
+- 19:10Z **tester error:** a JS click on the console's "Submit Lab" button (mistaken for a tab) submitted the unchanged case as Attempt 2 (10%, `099e8549`). Faculty returned it with a note naming the error. Not a product defect.
+- After the return: `moduleFiveProveItRedoRequested()` true, `caseRecord.submitted` false, Update Ticket/Submit Lab enabled, instructor feedback rendered in the ticket panel. ✅
+- Partial (ticket fields changed to in-progress/medium + new notes, device ws-assess-27 selected): server had it within 1.5 s. **E** localStorage/caches/IDB wipe + reload: every ticket field, device selection, console tab, and Learn It task restored. ✅
+- **H** quick reload after a severity change: UI, memory and server all `high`. ✅ (B9 fix holds on M05.)
+- Analyst note, evidence package (EVT-001..007 + sha), and EDR handoff recorded; a second wipe + reload restored all 4 actions; local scorer 100.
+- **J** forced `lab_attempts` POST failure: case stays unsubmitted, no row, Submit re-enabled, clear "did not reach your instructor" message. ✅
+- **I** double-click real submit: exactly one row (`e16c6eb2`, 100, complete). ✅
+- Faculty sheet parity matched (Recommend PASS, all rubric sections full); approved 19:17Z. Student: Assessment Lab "Approved"; verified soc-01..soc-05; M06 unlocked. ✅
+
+New findings (M05):
+- B16 (minor): unsent analyst-note / evidence / handoff drafts are DOM-only; a reload loses typed text (confirmed for the analyst note: 511 chars lost).
+- B17 (minor): a submit that failed to reach the DB still appends "Submitted case for faculty review" to the ticket action history.
+- B18 (P2): Optional Lab 1 (Sysmon, lap-5) completion is written only to localStorage `mission_next_progress` (legacy shell `markTaskComplete`), never to `case_state['imported-lab-progress:lap-5']`; `missionNextImportedLabCompleted()` in app.js has no callers. Lost on wipe/another device. Not fixed (shared code).
+
+Fixed during the run (uncommitted in this worktree, haiku-agent diagnosed, reviewed):
+- `portal/soc-analyst-module-05.js`: Learn It "Save applied task" read `dataset.m05LessonTask` instead of `m05LessonTaskSubmit` → TypeError. Verified: all 10 tasks saved to memory/localStorage/server, no errors.
+- `portal/soc-m04-assessment-console.js`: Automation alert select (shared M04 panel, reused by M05) rendered zero options before any rule ran; now shows a disabled "Run an analytics rule first" placeholder.
+- `portal/imported-labs/mission-next-labs/src/systems/validator.js`: `observationLogged` read nested `observed.ma4.x` paths while shells store flat `observed['ma4.x']` keys → Keylogger (ma-4) and other ma-* labs stuck at 0. Browser verification pending.
+
+## M06 completed (2026-10-21 ~19:33Z)
+
+- Learn It: 4 lessons. Lesson 1 with 2 wrong answers was blocked ("Complete the check and task first"). The partial (answers + task text) survived a localStorage wipe and reload. All 4 completed → taskDone 1111 on the server. The 8-card deck was finished. ✅ The module quiz is never rendered (dead code, MODULE_SIX_QUIZ_BANKS).
+- Guided Lab: an empty submit listed every missing ticket item. The partial (hypothesis, 4 searches, 5 bookmarks, user/device/severity/notes) was restored in full after a wipe. Mappings and conclusion were added, then a double-click submit → "Practice scored 100 (pass)", Prove It opened. Still Complete after another wipe. ✅
+- Prove It: the partial (hypothesis, search, ticket fields) was restored after a wipe. **J** forced failure → not submitted, 0 rows, clear message. ✅ A weak real submit (double click) → 1 row, 22%. Faculty returned it with a note.
+- **B2 (P1) found and fixed:** M06 read `openLabRedosByModuleKey['soc-06-independent']`, but app.js keys by catalog module `soc-06`, so a returned Prove It stayed locked with no feedback. Fixed in 3 places in soc-analyst-module-06.js. Verified live: after the return, redo=true, submitted=false, Submit enabled, feedback rendered, chip "Returned". ✅
+- Redo at full credit (saved query + run, pivot EVT-014→013, 4 bookmarks, collection, T1059.001 supported / T1105 unsupported, handoff, bounded conclusion). **H** quick reload (status) → UI/mem/server all match. A wipe and reload restored all 9 artefact types. Double-click resubmit → exactly 1 row at 100. Faculty sheet: Recommend PASS. Approved → verified soc-01..06, chip "Approved". ✅
+
+New findings (M06):
+- B19 (minor): the Assessment Lab chip stays "Not started" right after the first submit until a reload (then "In review").
+- B20 (minor): running a saved query copies its structured text into the free-text Search box; the next Search then returns "No matching events" until the box is cleared.
+- B21 (minor UX, also M05/M07): "Route to Department" only appears after Update Ticket re-renders; the Escalation change handler doesn't re-render.
+- B22 (minor): the Guided ticket status defaults to 'New', which is not an option, so the select shows blank.
+- B23 (minor parity): the faculty sheet doesn't show the evidence collection name ("Core chain").
+- Crib-agent claim "Prove It has no Status control" was FALSE (the status select renders in the ticket header). Agent claims are verified live before acting.
+
+## M07 completed (2026-10-21 ~19:40Z)
+
+- Learn It: 7-card deck done. Evidence desk: a wrong call (all / proof / disable-all / short note) got "Revise the call…" feedback. The wrong state persisted through a wipe. The corrected call (acct-63 / corroborated / scope / 40+ char note) was saved complete on the server. ✅ The module knowledge check is never rendered (dead MODULE_SEVEN_QUIZ_BANKS).
+- Guided: the partial (message review, recipient search, DNS-321 evidence, ticket user/device/escalation/notes) was restored in full after a wipe. Completed → "Practice scored 100 (pass)". ✅
+- Prove It: the partial (DELIVERY-001 and QR-014 evidence, ticket status/user/device/notes) was restored after a wipe. **J** ✅. A weak submit → 3 rows (lab-email-triage, lab-network-investigation, lab-network-email-independent) at 22%. Faculty returned → all 3 rows redo_requested. Student: redo open, feedback shown, Submit enabled, chip "Returned". ✅ Full redo → local 100; **H** (notes) ✅; wipe ✅; double-click resubmit → exactly 3 new rows at 100. Sheet parity ✅ (Recommend PASS). Approved → verified soc-01..07. ✅
+- **Fixed (uncommitted):** an incident-record draft was wiped by any console action (confirmed live: typed summary → "" after Add to evidence). soc-console-tools.js PACKS.m07 now keeps `incidentDraft` in the per-scope console state (`m03eState('m07' | 'm07-guided')`), and soc-m07-assessment-email-ui.js renders the draft as defaults; it's cleared after a successful Save incident. Verified live: the draft survives a tab re-render and a full reload.
+- Confirmed live: Practice "Route to Department" only appears after Update Ticket (B21). The Prove It ticket re-renders on change, so the route shows immediately there.
+
+**Owner question (provisional grade while "under review"):** the UI shows no Prove It score while in review (chip "In review", "Submitted for faculty review", next module locked); only the Practice It score is shown, by design. **But the score is visible to the student via data:** `case_state[...].caseRecord.reviewPayload` (score + full rubric awards) and `lab_attempts.score` are both readable from the student session (RLS allows own rows). Hiding it would need a server-side change (column-level grant/view hiding `score` until `reviewed_at`, and not storing reviewPayload in student-writable case_state). Owner decision.
+
+Redo-key sweep (haiku, read-only): M01–M06, M10–M12 keys match the catalog. Latent: M07/M08/M09 redo checks have no labKey comparison (`!= null`); M09 catalog has lab-independent-response not in course_module_labs; app.js keeps one redo slot per module (a second returned lab overwrites the first); M07–M09 don't clear the in-session redo after resubmit (fixed by reload).
+
+## M08 completed (2026-10-21 ~19:47Z)
+
+- Learn It: lesson 1 with 2 wrong answers → "1/3 correct. Review the feedback…". The partial (answers + task) survived a wipe. All 4 lessons were saved (server 1111), deck 7/7, no console errors. ✅ **Content finding B24:** all 12 lesson-check questions have correct = option index 0 and options render unshuffled, so the right answer is always the first choice. The module quiz is not rendered.
+- Guided: 2 finding reviews survived a wipe; decision + escalation + ticket → "Practice scored 100 (pass)". ✅ Tester note: the Exposure-tab date inputs have min = scenario start (guided 2026-10-01); an earlier date silently blocks the form via native validation (a real user sees the browser popup).
+- Prove It: partial (F-001 reviewed, F-002 needs-validation, ticket fields) restored after a wipe. **J** ✅. Weak submit → 2 rows (lab-vuln-prioritization, lab-vuln-queue) at 5%. Returned → redo open, feedback, Submit enabled, chip "Returned". ✅ Full redo (F-003 not-applicable, incident link, risk acceptance, escalation, critical decision with 4 asset-evidence kinds) → 100 on all 8 criteria; **H** ✅; wipe ✅; double-click resubmit → exactly 2 rows at 100; parity ✅; approved → verified soc-01..08. ✅
+- Crib findings not yet verified live (from read-only review): guided disposition options lack `validated-exploitable` (debrief keys on it); scorer drops 'partial' credit (scorer.js:42 maps only 'incomplete'); guide steps never point to the Exposure tab; ticket answers unscored.
+
+## M09–M12 continuation checkpoint (2026-10-21)
+
+- M08 is complete and approved as detailed above. Work had moved to M09 Guided Lab: the guided fixture renames the confirmed host/device/recovery-point IDs (`ws-173`/`DEV-173`/`RP-WS-173`) to `ws-294`/`DEV-294`/`RP-WS-294`, while the persistence entity ID `persist-runkey-173` intentionally remains unchanged. The pending source diff updates the guided-only evidence, recovery, guide, and scoring checks to the cloned IDs. `node --check portal/soc-analyst-module-09.js` and `git diff --check` pass; the end-to-end submit has not been reverified.
+- Playwright's prior browser target had closed. A new tab to the existing portal redirected to `#/login`; no credentials were entered and no student or faculty data was changed. The attached browser currently has no reusable authenticated student session. Resume the M09 clickthrough only after Alex restores that existing synthetic pre-launch session; do not substitute credentials or restart `bin/dev.sh` for this run.
+- M10–M12 crib-agent requests terminated at the API rate limit, so no crib sheets were produced. Their live browser passes remain outstanding. The current worktree includes unrelated uncommitted UAT fixes; preserve them while continuing.
+
+**2026-11-02 commit note:** The M05 Learn It task, Keylogger validator, automation alert placeholder and M06 redo-key fixes above are now committed on `fix/prove-it-submit-latch`. The M07 incident-draft fix and the M09 guided ID update are not committed. They are kept in `/home/alex/mnt-wip-backups/pr79-deferred-hunks.patch`, and that file's header gives the reason for each. See `SOC_UAT_PROGRESS_CHECKPOINT_2026-10-21.md` for the M05 status.
