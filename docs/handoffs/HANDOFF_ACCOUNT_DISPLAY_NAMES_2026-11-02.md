@@ -145,7 +145,8 @@ Screenshots: `/tmp/claude-1000/-home-alex/bdcd3bcb-7fe2-4dfe-a500-59f2b1e8693c/s
 
 **Goal:** give Help Desk (and then every other track) the same "nothing a
 student types is ever lost" guarantee SOC got from **PR #79**. The owner says
-#79 "fool-proofed everything".
+#79 "fool-proofed everything". **Owner directive: find AND implement all
+of these fixes. This is not just an investigation.**
 
 **PR #79:**
 - Branch `fix/prove-it-submit-latch`, title "SOC: keep every edit and never
