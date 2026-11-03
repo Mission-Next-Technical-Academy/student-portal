@@ -202,7 +202,7 @@ function its01Lab2() {
   const button = itsWalkthroughButton(its01User, [ITS01_LAB2_KEY]);
   return `<section class="its01-section its01-lab-section" id="its01-lab-1-2" aria-labelledby="its01-lab-1-2-title">
     <div class="its01-section-heading"><span>2</span><div><p class="its01-kicker">Lab 1.2 · guided walkthrough</p><h2 id="its01-lab-1-2-title">A Day in the Life of an L1 Technician</h2></div></div>
-    <p class="its01-instruction">Work Jordan Bell’s account-lockout ticket (HD-2101) end to end in the IT Service Desk simulator: read the evidence, work the troubleshooting path, diagnose against the log rather than the obvious guess, document it, and resolve it. A coach spotlights each step for you.</p>
+    <p class="its01-instruction">Work Jordan Bell’s repeating account lockout (HD-2101) on the simulated machines in the IT Service Desk simulator: verify the caller, find the lockout source in Event Viewer or Active Directory, inspect the caller computer in PowerShell, fix the cause the approved way, unlock once, prove it stays unlocked, and document it. A coach guides you and hints are there if you need them.</p>
     <a class="itsw-evidence-button" data-its01-console-launch href="${esc(itsCoachLaunchHref('hd-m01', its01User))}" target="_blank" rel="opener">
       <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: ITS01_LAB2_START }[button.mode]}
     </a>
@@ -417,6 +417,15 @@ function wireItsModuleOneLab() {
   });
 }
 
+// Lab 1.2's finished work: the HD-2101 ticket closed, with every outcome of
+// the investigation the simulator recorded.
+function its01PracticeComplete(work) {
+  const ticket = work && Array.isArray(work.tickets) ? work.tickets.find((entry) => entry.id === 'HD-2101') : null;
+  const investigation = work && work.investigation;
+  return Boolean(ticket && ['Resolved', 'Escalated'].includes(ticket.status) && investigation
+    && ITS_INVESTIGATION_OUTCOMES.every((key) => investigation.outcomes[key] === true));
+}
+
 async function its01ReceiveCoachCompletion(event) {
   if (!event.data || event.data.type !== 'mnt-coach-complete' || event.data.id !== 'hd-m01') return;
   if (event.origin !== new URL(SIM_ORIGIN).origin) return;
@@ -425,9 +434,22 @@ async function its01ReceiveCoachCompletion(event) {
   const wrongStudent = itsCoachStudentMismatch(event, user);
   if (wrongStudent) { itsConfirmCoachReceipt(event, false, wrongStudent); return; }
 
+  // Lab 1.2 saves only finished work: HD-2101 resolved or escalated, with
+  // every investigation outcome met. The coach shows Finish only after the
+  // ticket closes, but a reopened ticket or an old tab could still send one.
+  const work = itsCleanCoachWork(event.data.work);
+  const coachKey = `${user.userId}|hd-m01`;
+  if (!its01PracticeComplete(work)) {
+    itsIncompleteWalkthroughs.add(coachKey);
+    itsRefreshWalkthroughNotice(user, 'hd-m01', [ITS01_LAB2_KEY], ITS01_LAB2_START);
+    itsConfirmCoachReceipt(event, false, 'incomplete');
+    return;
+  }
+  itsIncompleteWalkthroughs.delete(coachKey);
+
   // Submit first: Lab 1.2 counts as complete only once the portal has its
   // attempt (saved now, or already waiting or approved).
-  const received = await itsSubmitWalkthroughLabs(user, 'its-01', [ITS01_LAB2_KEY], itsCleanCoachWork(event.data.work));
+  const received = await itsSubmitWalkthroughLabs(user, 'its-01', [ITS01_LAB2_KEY], work);
   its01User = user;
   if (received) {
     const saved = LabRuntime.load(ITS01_LAB1_ID, user, ITS01_DEFAULT_STATE);

@@ -52,8 +52,11 @@
     const tickets = hdState.tickets.filter((ticket) => ids
       ? ids.includes(ticket.id)
       : coach && coach.id === 'hd-m10' && ticket.priority === 'P1');
+    // HD-2101's investigation: outcomes, typed commands and key results.
+    const investigation = ids && ids.includes('HD-2101') && typeof hdM01Investigation === 'function' ? hdM01Investigation() : null;
     return {
       version: 1,
+      ...(investigation ? { investigation } : {}),
       selectedTicketId: hdState.selectedTicketId || '',
       tickets: tickets.map((ticket) => ({
         id: ticket.id,
@@ -95,28 +98,40 @@
 
   const HD1_TICKETS = ['HD-2101', 'SR-2102', 'SR-2103', 'SR-2116'];
 
+  // A fresh lab: Module 1's tickets and a fresh HD-2101 scenario (the account,
+  // NS-LT-0117's task, the 4740 events, the shell and the Practice log).
   function hd1Reset() {
     if (typeof hdState === 'undefined' || typeof window.hdFreshState !== 'function') return;
     const fresh = window.hdFreshState();
     hdState.tickets = fresh.tickets.filter((t) => HD1_TICKETS.includes(t.id));
-    if (hdState.tickets.length && !hdState.tickets.find((t) => t.id === hdState.selectedTicketId)) {
-      hdState.selectedTicketId = hdState.tickets[0].id;
-    }
+    ['machines', 'scenarios', 'practiceLog', 'eventFilter', 'userOverrides', 'computerOverrides', 'selectedComputer', 'selectedUserId', 'powershell']
+      .forEach((key) => { hdState[key] = fresh[key]; });
+    hdState.queueFilter = 'Open';
+    hdState.priorityFilter = 'All';
+    hdState.selectedTicketId = null;
     if (typeof hdSave === 'function') hdSave();
     // The page was drawn from the old tickets before the coach booted.
     if (typeof render === 'function') render();
   }
+
+  // The steps read the scenario's real state (ui/helpdesk.js hdM01Outcomes),
+  // not checkboxes. Investigation steps don't lock the page or force a route:
+  // the student goes to whichever tool they choose, in any order, and a step
+  // already done when it comes up completes itself.
+  const hd1Outcome = (key) => () => typeof hdM01Outcomes === 'function' && Boolean((hdM01Outcomes() || {})[key]);
+  const hd1Ticket = () => (typeof hdTicketById === 'function' ? hdTicketById('HD-2101') : null);
 
   MODULE_COACHES.push({
     id: 'hd-m01',
     module: 1,
     name: 'Your First Help Desk Ticket',
     role: 'Tier 1 Help Desk Technician',
-    summary: 'Work Jordan Bell’s account-lockout ticket end to end: read the evidence, work the troubleshooting path, diagnose against the log rather than the obvious guess, document it, and resolve it.',
+    summary: 'Work Jordan Bell’s repeating account lockout on the simulated machines: verify the caller, find what is locking the account, fix it the approved way, unlock once, prove it stays unlocked and document it.',
     completionToken: 'hd-m01',
     home: '#/helpdesk/tickets',
     resetState: hd1Reset,
-    allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket'],
+    allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket', '#/helpdesk/event-viewer', '#/helpdesk/active-directory',
+      '#/helpdesk/powershell', '#/helpdesk/knowledge-base', '#/helpdesk/directory', '#/helpdesk/windows'],
     steps: [
       {
         route: '#/helpdesk/tickets',
@@ -124,7 +139,7 @@
         require: true,
         title: 'Open your first ticket',
         instruction: 'Next Step: open <strong>HD-2101</strong>, Jordan Bell’s account lockout ticket.',
-        body: 'Every shift starts in the queue. This one is a good first case: the account keeps locking itself again a few minutes after it’s unlocked — which is a clue the real cause probably isn’t the obvious one.',
+        body: 'Every shift starts in the queue. Jordan’s account locks again a few minutes after it’s unlocked, which is a clue that something other than Jordan is causing it.',
         waitLabel: 'Next Step: Opened the ticket',
         nudge: 'Click the HD-2101 row to open it.',
         check: () => typeof hdState !== 'undefined' && hdState.selectedTicketId === 'HD-2101',
@@ -132,57 +147,84 @@
       {
         route: '#/helpdesk/ticket',
         target: '.hd-field-grid',
-        title: 'Read before you diagnose',
-        instruction: 'Read the requester statement and the ticket details before doing anything else.',
-        body: 'Business impact, SLA, and the requester’s own words all shape how you’ll prioritize and what you’ll say back to them — gather this before you touch the evidence.',
+        title: 'Read the ticket',
+        instruction: 'Read what Jordan reported, the business impact and the SLA. The ticket has no logs: you’ll find the evidence yourself.',
+        body: 'The ticket tells you what the user sees. The cause is on the systems: Event Viewer, Active Directory and the computers themselves. Knowledge Base article KB-0024 is the runbook for this kind of ticket.',
         continueLabel: 'I’ve read it',
       },
       {
-        target: '.hd-evidence',
-        title: 'Check the evidence, not the assumption',
-        instruction: 'Look closely at the log line about the scheduled task.',
-        body: '“User typing an old password” is the tempting first guess — but the second log line (a scheduled task that last ran right around the lockout) is the actual clue. Evidence first, guess second.',
-        continueLabel: 'Got it',
+        // Not locked: looking at evidence first is fine. Account actions
+        // (unlock, the credential prompt) refuse until the caller is verified.
+        route: '#/helpdesk/ticket',
+        target: '.hd-identity',
+        title: 'Verify the caller',
+        instruction: 'Before any account action, verify it’s really Jordan. Answer “Verify the caller” the way KB-0024 says.',
+        body: 'Unlocking an account for the wrong person hands them the account. KB-0024 says how to verify a caller, and one of these choices is something the help desk never does.',
+        waitLabel: 'Next Step: Caller verified',
+        check: hd1Outcome('identityVerified'),
       },
       {
-        target: '.hd-path',
-        require: true,
-        title: 'Work the troubleshooting path',
-        instruction: 'Check off each step as you work through it.',
-        body: 'This isn’t busywork — it’s what a real technician’s documentation looks like while investigating. Check at least the first step to continue.',
-        waitLabel: 'Next Step: Checked a troubleshooting step',
-        nudge: 'Check at least one box in the troubleshooting path.',
-        check: () => document.querySelectorAll('.hd-path input:checked').length > 0,
+        title: 'Find the lockout source',
+        instruction: 'Find which computer keeps locking Jordan’s account. Use <strong>Event Viewer</strong> (filter to event 4740 for jbell) or jbell’s <strong>Lockout details</strong> in Active Directory.',
+        body: 'Every lockout is logged on a domain controller as event 4740, and it names the caller computer: the machine that sent the bad password. That’s where the cause lives.',
+        waitLabel: 'Next Step: Found the lockout source',
+        check: hd1Outcome('sourceFound'),
       },
       {
-        target: '.hd-diagnosis-row',
-        require: true,
-        title: 'Choose your diagnosis',
-        instruction: 'Select the cause the evidence actually supports, then click Check diagnosis.',
-        body: 'Two of the three options are plausible-sounding distractors. The log line about the scheduled task is what should drive your answer, not which one sounds most familiar.',
-        waitLabel: 'Next Step: Diagnosis confirmed',
-        nudge: 'Pick a cause and click Check diagnosis — if it’s not supported by the evidence, you’ll be told to recheck.',
-        check: () => typeof hdCurrentTicket === 'function' && hdCurrentTicket() && hdCurrentTicket().diagnosisCorrect === true,
+        title: 'Inspect the caller computer',
+        instruction: 'Find what on that computer is still using Jordan’s old password. In <strong>PowerShell</strong>, connect to it (Enter-PSSession &lt;computer&gt;) and look at its scheduled tasks (Get-ScheduledTask). Type Get-Help for the commands.',
+        body: 'Jordan changed their password 3 days ago. Anything that stored the old one (a scheduled task, a mapped drive, a phone) keeps trying it, and enough bad tries lock the account again.',
+        waitLabel: 'Next Step: Found what uses the old password',
+        check: hd1Outcome('taskInspected'),
       },
       {
+        title: 'Fix the stored credential',
+        instruction: 'Update the task’s stored credential the approved way (KB-0024). Jordan types the password at a secure prompt; you never see, type or record it.',
+        body: 'Unlocking first doesn’t fix anything: the task tries the old password on its next run and the account locks again. Fix the cause first, or alongside the unlock.',
+        waitLabel: 'Next Step: Stored credential updated',
+        check: hd1Outcome('credentialFixed'),
+      },
+      {
+        title: 'Unlock once',
+        instruction: 'Unlock Jordan’s account once: in Active Directory, or with Unlock-ADAccount.',
+        body: 'One unlock, after the cause is fixed. Repeated unlocks without a fix are what Jordan has already been through this morning.',
+        waitLabel: 'Next Step: Account unlocked',
+        check: hd1Outcome('unlockedAfterFix'),
+      },
+      {
+        title: 'Prove it stays unlocked',
+        instruction: 'After the task’s next run (wait for it, or Start-ScheduledTask), confirm there’s no new 4740 and the account is still unlocked: Event Viewer, Lockout details or Get-ADUser jbell -Properties LockedOut.',
+        body: 'A fix isn’t done until you’ve seen it hold. The task runs every 2 minutes on the shift clock; one clean run with no new lockout is your proof.',
+        waitLabel: 'Next Step: Verified no new lockout',
+        check: hd1Outcome('verified'),
+      },
+      {
+        route: '#/helpdesk/ticket',
         target: '#hd-note-input, #hd-note-input ~ button',
         require: true,
-        title: 'Document what you found',
-        instruction: 'Write a work note: what you checked, what you found, what you’re about to do.',
-        body: '“Fixed it” is not a note. A useful one tells the next technician exactly what happened without them having to redo your work.',
+        title: 'Document it',
+        instruction: 'Add a work note in three parts: <strong>Reported:</strong> what Jordan reported, <strong>Tried:</strong> what you checked and changed, <strong>Result:</strong> the outcome and how you confirmed it.',
+        body: 'The next technician should understand the whole ticket from your note alone: the 4740 caller, the task, the approved fix and the clean run. Your note becomes the ticket’s resolution.',
         waitLabel: 'Next Step: Note added',
-        nudge: 'Type a note and click Add work note.',
-        check: () => typeof hdCurrentTicket === 'function' && hdCurrentTicket() && hdCurrentTicket().notes.length > 0,
+        nudge: 'Type a Reported / Tried / Result note and click Add work note.',
+        check: hd1Outcome('noteComplete'),
       },
       {
         target: '.hd-control-stack .btn-primary',
         require: true,
         title: 'Close the loop',
         instruction: 'Resolve the ticket.',
-        body: 'Resolving is gated on your diagnosis actually being correct — if you jumped to the wrong cause earlier, this button will tell you to recheck the evidence instead of letting you close it anyway.',
+        body: 'Resolve checks the work itself: the caller verified, the cause fixed, the account unlocked and staying unlocked, and your note. If anything is missing, it tells you what.',
         waitLabel: 'Next Step: Ticket resolved',
         nudge: 'Click Resolve / escalate to close this ticket out.',
-        check: () => typeof hdCurrentTicket === 'function' && hdCurrentTicket() && hdCurrentTicket().status === 'Resolved',
+        check: () => Boolean(hd1Ticket()) && ['Resolved', 'Escalated'].includes(hd1Ticket().status),
+      },
+      {
+        // Reached only after the ticket is resolved or escalated, so Finish
+        // never shows before then (ui/coach.js shows Finish on the last step).
+        title: 'Finish the lab',
+        instruction: 'Ticket closed. Press <strong>Finish</strong> to send your work to your instructor.',
+        body: 'Your work counts once your course page confirms it saved it: the commands you ran, what they showed and your note.',
         finish: { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/1', 'hd-m01') },
       },
     ],

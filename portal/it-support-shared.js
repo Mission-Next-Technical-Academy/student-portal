@@ -466,6 +466,43 @@ function itsCoachLaunchHref(coachId, user) {
   return `${SIM_ORIGIN}?coach=${encodeURIComponent(coachId)}&restart=1&student=${encodeURIComponent(student)}#/helpdesk/tickets`;
 }
 
+// HD-2101's investigation (Module 1 Practice It, ui/helpdesk.js
+// hdM01Investigation): outcomes, how they were reached and the command/action
+// log in the Prove It event shape. Known fields only, every value bounded.
+const ITS_INVESTIGATION_OUTCOMES = ['identityVerified', 'sourceFound', 'taskInspected', 'credentialFixed', 'unlockedAfterFix', 'verified', 'noteComplete'];
+const ITS_INVESTIGATION_EVENTS = ['command_run', 'evidence_opened', 'identity_checked', 'account_unlocked', 'task_run', 'task_credential_updated', 'verified', 'hint_shown', 'event_filter'];
+const ITS_INVESTIGATION_EVENT_TEXT = { at: 40, command: 200, computer: 24, result: 200, source: 40, label: 120, choice: 20, via: 60, trigger: 40, task: 60, clock: 12, credential: 12, outcome: 30 };
+function itsCleanInvestigation(input) {
+  if (!input || typeof input !== 'object' || input.version !== 1 || input.ticketId !== 'HD-2101') return null;
+  const text = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
+  const list = (value, max, size) => Array.isArray(value) ? value.slice(0, max).map((item) => text(item, size)).filter(Boolean) : [];
+  const count = (value) => Number.isInteger(value) && value >= 0 ? Math.min(value, 999) : 0;
+  const outcomes = {};
+  ITS_INVESTIGATION_OUTCOMES.forEach((key) => { outcomes[key] = input.outcomes && input.outcomes[key] === true; });
+  const identity = input.identity && typeof input.identity === 'object' ? input.identity : {};
+  const end = input.end && typeof input.end === 'object' ? input.end : {};
+  const events = Array.isArray(input.events) ? input.events.slice(-80).filter((event) => event && ITS_INVESTIGATION_EVENTS.includes(event.type)).map((event) => {
+    const clean = { type: event.type };
+    Object.entries(ITS_INVESTIGATION_EVENT_TEXT).forEach(([key, max]) => { if (typeof event[key] === 'string') clean[key] = event[key].slice(0, max); });
+    if (typeof event.relocked === 'boolean') clean.relocked = event.relocked;
+    if (Number.isInteger(event.level)) clean.level = Math.min(Math.max(event.level, 0), 9);
+    return clean;
+  }) : [];
+  return {
+    version: 1, ticketId: 'HD-2101', outcomes,
+    sourceFoundVia: list(input.sourceFoundVia, 4, 80),
+    identity: { choice: text(identity.choice, 20), tries: list(identity.tries, 10, 20) },
+    credentialFixedBy: text(input.credentialFixedBy, 40), credentialFixedAt: text(input.credentialFixedAt, 12),
+    unlocks: Array.isArray(input.unlocks) ? input.unlocks.slice(0, 20).map((unlock) => ({
+      at: text(unlock && unlock.at, 12), credentialCurrent: Boolean(unlock && unlock.credentialCurrent === true), via: text(unlock && unlock.via, 40),
+    })) : [],
+    relocks: count(input.relocks), verifiedBy: text(input.verifiedBy, 80), verifiedAt: text(input.verifiedAt, 12),
+    passwordTyped: input.passwordTyped === true, hintsUsed: count(input.hintsUsed),
+    end: { accountLocked: end.accountLocked === true, taskCredential: ['current', 'old'].includes(end.taskCredential) ? end.taskCredential : '', taskLastResult: text(end.taskLastResult, 16) },
+    events,
+  };
+}
+
 // postMessage data is student-controlled. Store only the small, known work
 // fields needed by the instructor sheet; never persist simulator fixture keys.
 function itsCleanCoachWork(input) {
@@ -499,7 +536,11 @@ function itsCleanCoachWork(input) {
   }));
   if (!tickets.length) return null;
   const work = { version: 1, selectedTicketId: text(input.selectedTicketId, 16), tickets };
+  const investigation = itsCleanInvestigation(input.investigation);
+  if (investigation) work.investigation = investigation;
   // Keep attempts comfortably below PostgREST's practical JSON payload limits.
+  // The investigation's oldest events go first, then history and notes.
+  while (JSON.stringify(work).length > 48 * 1024 && work.investigation && work.investigation.events.length) work.investigation.events.shift();
   while (JSON.stringify(work).length > 48 * 1024) {
     const ticket = work.tickets.find((entry) => entry.statusHistory.length || entry.notes.length);
     if (!ticket) break;
@@ -1104,6 +1145,9 @@ function itsWalkthroughButton(user, labKeys) {
  * `${userId}|${coachId}` and last until the next page load. */
 const itsUnrecordedWalkthroughs = new Set();
 const itsBlockedWalkthroughs = new Set();
+// A Finish that arrived before the walkthrough's ticket was done (Module 1:
+// HD-2101 resolved or escalated with every investigation outcome met).
+const itsIncompleteWalkthroughs = new Set();
 
 function itsNoteCoachReturn(user, coachId, labKeys) {
   if (new URLSearchParams(location.search).get('coachComplete') !== coachId) return;
@@ -1122,6 +1166,7 @@ function itsLaunchWalkthrough(event, link, user, coachId) {
   }
   itsBlockedWalkthroughs.delete(id);
   itsUnrecordedWalkthroughs.delete(id);
+  itsIncompleteWalkthroughs.delete(id);
   return true;
 }
 
@@ -1134,9 +1179,11 @@ function itsWalkthroughNoticeHtml(user, coachId, labKeys, startLabel) {
   const id = `${user ? user.userId : ''}|${coachId}`;
   const text = itsBlockedWalkthroughs.has(id)
     ? 'Your browser blocked the walkthrough window. Allow pop-ups for this site, then try again.'
-    : itsUnrecordedWalkthroughs.has(id) && labKeys.some((key) => itsLabAcceptsAttempt(user, key))
-      ? `Your walkthrough finished but wasn’t recorded. Allow pop-ups for this site, then press ${startLabel} again from this page.`
-      : '';
+    : itsIncompleteWalkthroughs.has(id)
+      ? 'Your walkthrough wasn’t saved: its ticket isn’t finished yet. Your work is still in the simulator. Finish every part of the ticket there, resolve it, then press Finish again.'
+      : itsUnrecordedWalkthroughs.has(id) && labKeys.some((key) => itsLabAcceptsAttempt(user, key))
+        ? `Your walkthrough finished but wasn’t recorded. Allow pop-ups for this site, then press ${startLabel} again from this page.`
+        : '';
   return `<div class="itss-walkthrough-notice" data-its-walkthrough-notice="${esc(coachId)}" role="status"${text ? '' : ' hidden'}>${esc(text)}</div>`;
 }
 

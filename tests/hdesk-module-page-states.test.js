@@ -61,7 +61,7 @@ function fresh(user) {
   ctx.supabaseCalls.length = 0;
   ctx.supabaseResponder = () => ({ data: null, error: null });
   ctx.localStorage.clear();
-  run('itsUnrecordedWalkthroughs.clear(); itsBlockedWalkthroughs.clear()');
+  run('itsUnrecordedWalkthroughs.clear(); itsBlockedWalkthroughs.clear(); itsIncompleteWalkthroughs.clear()');
   signedIn = user;
 }
 
@@ -320,7 +320,11 @@ function replyCatcher() {
   return { replies, source: { postMessage: (data, origin) => replies.push({ data, origin }) } };
 }
 // `student` defaults to the signed-in student's launch id, as the simulator sends it.
-const finishMessage = (id, source, student = signedIn ? studentOf(signedIn) : '') => ({ data: { type: 'mnt-coach-complete', id, nonce: 'n-1', student, work: { version: 1, tickets: [{ id: 'HD-2109' }] } }, origin: SIM, source });
+// Module 1 saves only a finished HD-2101 (resolved, every investigation
+// outcome met; tests/hdesk-m01-practice.test.js covers that rule).
+const M01_FINISHED_WORK = { version: 1, tickets: [{ id: 'HD-2101', status: 'Resolved' }], investigation: { version: 1, ticketId: 'HD-2101',
+  outcomes: { identityVerified: true, sourceFound: true, taskInspected: true, credentialFixed: true, unlockedAfterFix: true, verified: true, noteComplete: true } } };
+const finishMessage = (id, source, student = signedIn ? studentOf(signedIn) : '') => ({ data: { type: 'mnt-coach-complete', id, nonce: 'n-1', student, work: id === 'hd-m01' ? M01_FINISHED_WORK : { version: 1, tickets: [{ id: 'HD-2109' }] } }, origin: SIM, source });
 
 async function testReceiptSavedAfterSubmit() {
   const user = hdUser();
