@@ -360,8 +360,14 @@
       if (dots[state.step]) dots[state.step].className = 'done';
       const waitingLabel = panelEl().querySelector('.coach-bar-waiting');
       if (waitingLabel) waitingLabel.innerHTML = '<i class="coach-bar-tick" aria-hidden="true">✓</i>Done';
+      // A redraw during the wait starts another watcher for this same step,
+      // and it sees the check pass too. Advance only from the step that
+      // completed, in the same coach session (a stop or restart replaces
+      // `state`), so a second watcher or an old session never skips a step.
+      const doneState = state;
+      const doneStep = state.step;
       setTimeout(() => {
-        if (!state) return;
+        if (!state || state !== doneState || state.step !== doneStep) return;
         if (state.step >= activeCoach().steps.length - 1) { renderPanel(); return; }
         goToStep(state.step + 1);
       }, 650);
