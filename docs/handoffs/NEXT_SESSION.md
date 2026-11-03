@@ -1,3 +1,29 @@
+**2026-11-03 (Megan; PR #99 "Coach: a redraw while a step completes never skips the next step"; shared `ui/coach.js`, `ui/index.html`, `bin/ci-check.sh` and new `tests/coach-step-advance-race.test.js` — please review the shared ones):**
+`watchForStepCompletion()` in `ui/coach.js` advanced a coach once for every
+watcher that saw a step's check pass. A redraw during the 650 ms wait started a
+second watcher for the same step, so the coach skipped a step, one more for each
+extra redraw. Now each delayed advance remembers the step that completed and
+the coach session (`state`) it belongs to. It advances only if both still match,
+so a duplicate watcher, or a session that was stopped or restarted during the
+wait, does nothing. A step that completes normally advances exactly as before.
+This affects every coach, SOC and Help Desk.
+- **Shared:** `ui/coach.js` (the guard), `ui/index.html` (`coach.js` version
+  bump), `bin/ci-check.sh` (one line for the new test).
+- **Test:** `tests/coach-step-advance-race.test.js` (3 tests):
+  - a redraw during the wait doesn't skip a step;
+  - a single watcher still advances;
+  - a restart during the wait doesn't move the new session.
+- **Checked on local staging:** the SOC Module 1 (`m01`) and Help Desk `hd-m02`
+  coaches, end to end, each step advancing exactly once with forced redraws.
+  Codex review: PASS.
+- **Status:** hosted staging not yet tested; Megan deploys the branch and the
+  staging check follows.
+- **Merge:** Megan will merge after the hosted staging check.
+- **For your code or agent:** if you add a path that replaces `state` (start,
+  stop, resume), keep it a new object. The guard relies on that to tell sessions
+  apart.
+- **Migration:** none.
+
 **2026-10-30 (Megan; PR #93 (draft) "Official faculty grades, Help Desk Module 1 Prove It first (L-003)"; shared new `supabase/` migration and tests, `portal/app.js`, `portal/index.html`, `bin/ci-check.sh` and `tests/portal-vm.js`, plus Help Desk `portal/it-support-shared.js`, `portal/it-support-module-01.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests — please review the shared ones):**
 **Hold (updated 2026-10-30): PR #90, PR #91, PR #92 and the faculty-gate PR roll out together, and none reaches production alone. Staging goes together once Megan has the production impact numbers. Before the production push Megan sends Randy a heads-up on four points: L-003 stays open for other labs, the records change, Module 2 waits on review, and the hours and transcript gap (L-005). The push doesn't wait for his answer; any change he asks for is handled afterwards. Production order: run the read-only impact query, apply the migrations by hand, then merge straight away.**
 **Production impact, read-only query, run 2026-10-30 before any of PR #90–#93 (Megan). Rerun 2026-10-31, unchanged: AIENG 0 and 0, HDESK 1 flip and 11 later modules locked, SOCAN 0 and 0, every other column identical. Staging is verified (transcript 83.0, Pass, on 10/31). Production dry run 2026-10-31 passed, nothing saved: verified modules AIENG 0 to 0, HDESK 13 to 12, SOCAN 33 to 33; official-grade labs `lab-its-01-prove-it`; Module 1 rows demoted 2. One is the flip above, a synthetic test account. The other's progress said complete but it was never verified (one of the 11 Help Desk rows in the last column), so it changes no verified count.**
