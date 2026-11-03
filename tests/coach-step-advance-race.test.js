@@ -109,7 +109,20 @@ function testOneWatcherStillAdvances() {
   assert.equal(tab.step(), 1, 'the normal path advances as before');
 }
 
-const tests = [testRedrawDuringTheWaitDoesNotSkipAStep, testOneWatcherStillAdvances];
+// A restart during the wait starts a new coach session on the same step
+// number; the old session's delayed advance must not move it.
+function testRestartDuringTheWaitDoesNotAdvanceTheNewSession() {
+  const tab = sim();
+  tab.clearPending();
+  tab.run("hdState.selectedTicketId = 'HD-2109'");
+  tab.pollOnce();                 // the old session schedules its advance
+  tab.run("hdState.selectedTicketId = null; startModuleCoach('hd-m03', 'student-race0001')");
+  assert.equal(tab.step(), 0, 'the restarted coach is on step 1');
+  tab.flushTimeouts();
+  assert.equal(tab.step(), 0, 'the old session\'s advance does not move the new one');
+}
+
+const tests = [testRedrawDuringTheWaitDoesNotSkipAStep, testOneWatcherStillAdvances, testRestartDuringTheWaitDoesNotAdvanceTheNewSession];
 let failed = 0;
 for (const test of tests) {
   try { test(); console.log(`ok   ${test.name}`); } catch (error) { failed += 1; console.log(`FAIL ${test.name}\n     ${error.message}`); }
