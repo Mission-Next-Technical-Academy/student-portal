@@ -604,7 +604,7 @@ function itsCleanProveWork(input, moduleKey, labKey) {
     fields: { category: fields.category, type: fields.type, priority: fields.priority },
     diagnosis: input.diagnosis, steps: input.steps.slice(), stepTexts: input.stepTexts.slice(), decision: input.decision,
     resolutionNote: input.resolutionNote, userReply: input.userReply, workNotes: input.workNotes.slice(),
-    commands, events, machine, logTrimmed: false,
+    commands, events, machine, logTrimmed: false, passwordTyped: input.passwordTyped === true,
   };
   while (JSON.stringify(work).length > ITS_PROVE_MAX_BYTES && (work.events.length || work.commands.length)) {
     work.logTrimmed = true;
@@ -766,6 +766,7 @@ function itsProveReviewPanel(row) {
     ${items(opened, 'None recorded.')}
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Commands run</h4>
     ${items(commands, 'None recorded.')}
+    ${work.passwordTyped === true ? '<p class="mt-1 text-sm font-semibold text-amber-900" data-its-prove-password>The student typed a password into the shell. The command was refused and the password was not saved.</p>' : ''}
     ${work.logTrimmed ? '<p class="mt-1 text-xs text-gray-500">The oldest recorded actions were left out to fit. All the student\'s writing is above.</p>' : ''}
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Laptop at submit</h4>
     ${items(machine, 'Not recorded.')}

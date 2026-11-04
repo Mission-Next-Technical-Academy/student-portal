@@ -590,6 +590,28 @@ async function testInstructorReadsPlainText() {
   assert.equal(prun('itsProveReviewPanel')({ ...savedRow({ kind: 'hdesk-prove' }), lab_key: 'lab-its-02-vm-build' }), '', 'other labs are untouched');
 }
 
+// A password typed into the Prove shell reaches the instructor only as a flag:
+// the saved attempt never holds it, and the panel says what happened.
+async function testTypedPasswordReachesTheInstructorAsAFlag() {
+  resetWorld();
+  const tab = await openTab();
+  fill(tab);
+  tab.byId.set('hd-ps-input', { value: 'Get-ADUser eparker -Password:Spring2026x' });
+  tab.run('hdRunPowerShell({ preventDefault() {} })');
+  tab.run('hdProveSubmit()');
+  await flush();
+  assert.equal(db.attempts.length, 1, 'the attempt still saves; scoring is the instructor\'s');
+  const saved = db.attempts[0].result;
+  assert.equal(saved.passwordTyped, true);
+  assert.ok(!/Spring2026x/.test(JSON.stringify(db.attempts[0])), 'no password in the saved row');
+  const panel = prun('itsProveReviewPanel')(savedRow(saved));
+  assert.match(panel, /The student typed a password into the shell\. The command was refused and the password was not saved\./);
+  assert.ok(panel.includes('Get-ADUser eparker -Password:********'), 'the command is shown masked');
+  // Only a real true counts; without it the panel says nothing.
+  assert.doesNotMatch(prun('itsProveReviewPanel')(savedRow({ ...saved, passwordTyped: 'yes' })), /data-its-prove-password/);
+  assert.doesNotMatch(prun('itsProveReviewPanel')(savedRow({ ...saved, passwordTyped: false })), /typed a password/);
+}
+
 function moduleOneHtml(user) {
   return moduleLab(1).view(user, HD);
 }
@@ -757,7 +779,7 @@ const tests = [
   testReloadTakesTheLockFromTheServer, testFailuresKeepWorkAndShowNoSuccess, testSimulatorOnlyAcceptsItsOwnReply, testPortalRefusals,
   testOneWaitingAttempt, testReturnedReopensForOneResubmission, testReturnedPrefillsFromTheLastAttemptOnAnotherBrowser, testPrefillCarriesOnlyTheStudentsOwnWork,
   testNewerBrowserDraftIsKept, testDraftOlderThanTheAttemptIsReplaced, testNoPrefillUnlessReturnedOrForAnotherStudent, testPrefillDropsValuesTheTicketNoLongerOffers,
-  testInstructorReadsPlainText, testModuleOnePage,
+  testInstructorReadsPlainText, testTypedPasswordReachesTheInstructorAsAFlag, testModuleOnePage,
 ];
 (async () => {
   let failed = 0;

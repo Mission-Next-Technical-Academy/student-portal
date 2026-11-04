@@ -200,7 +200,7 @@ function hdFreshProveState() {
       },
       fields:{ category:'', type:'', priority:'' },
       diagnosis:'', steps:[], decision:'', resolutionNote:'', userReply:'',
-      events:[], opened:[],
+      events:[], opened:[], passwordTyped:false,
     },
   };
 }
@@ -912,6 +912,12 @@ function hdRefusePassword() {
   hdLastCommandResult = 'refused: a password was typed into the shell';
   return 'Stopped: never type a user\'s password, not in the shell and not anywhere else.\nKB-0024: run the command without a password. A secure prompt opens on the user\'s own screen and the user types it there. You never see, type or record it.';
 }
+// Prove: the same refusal without the Practice guidance; the instructor sees
+// the flag.
+function hdProveRefusePassword() {
+  if (hdState.prove) hdState.prove.passwordTyped = true;
+  return 'Stopped: this command includes a password, so it was not run or saved.';
+}
 // Practice-only shell commands: sessions, scheduled tasks and the HD-2101
 // lockout evidence. Returns null for anything else.
 function hdPracticeCommand(command, normalized, computer) {
@@ -1069,14 +1075,16 @@ Events: Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4740}`}`;
 function hdRunPowerShell(event) {
   event.preventDefault(); const input=document.getElementById('hd-ps-input'); const command=input.value.trim(); if(!command)return;
   if(hdProveLocked()) return;
-  hdProveEvent('command_run', { command:command.slice(0, 200), computer:hdState.selectedComputer });
+  // A password typed by mistake is never run, shown or recorded, in Practice
+  // or Prove. Any other command is shown and recorded exactly as typed.
+  const passwordTyped = hdHasPasswordArg(command);
+  const shown = hdRedactCommand(command);
+  hdProveEvent('command_run', { command:shown.slice(0, 200), computer:hdState.selectedComputer });
   hdM01Tick();
-  // Practice: a password typed by mistake is never shown or recorded.
-  const shown = HD_PROVE ? command : hdRedactCommand(command);
   const computer = hdState.selectedComputer;
   if(command.toLowerCase()==='clear-host'){hdState.powershell=[];} else {
     hdLastCommandResult = '';
-    const output = !HD_PROVE && hdHasPasswordArg(command) ? hdRefusePassword() : hdPowerShellOutput(command);
+    const output = passwordTyped ? (HD_PROVE ? hdProveRefusePassword() : hdRefusePassword()) : hdPowerShellOutput(command);
     hdState.powershell.push({type:'command',text:`PS C:\\Support> ${shown}`},{type:'output',text:output});
     hdPracticeEvent('command_run', { command:shown.slice(0, 200), computer, result:(hdLastCommandResult || hdFirstLine(output)).slice(0, 200) });
   }
@@ -1154,6 +1162,7 @@ function hdProvePackage() {
     commands:prove.events.filter(event => event.type === 'command_run').map(event => ({ command:event.command, computer:event.computer, at:event.at })),
     events:prove.events.slice(),
     machine:hdClone(hdMachine(shift.selectedComputer) || {}),
+    passwordTyped:prove.passwordTyped === true,
   };
 }
 
