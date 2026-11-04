@@ -904,6 +904,14 @@ function hdTaskDetail(task, scenario, style) {
   const width = Math.max(...rows.map(([key]) => key.length));
   return rows.map(([key, value]) => `${key.padEnd(width)} : ${value}`).join('\n');
 }
+// Practice: any command with a password argument is refused before it runs,
+// so neither its output nor the practice log ever repeats the password.
+function hdRefusePassword() {
+  const scenario = hdM01();
+  if (scenario) scenario.passwordTyped = true;
+  hdLastCommandResult = 'refused: a password was typed into the shell';
+  return 'Stopped: never type a user\'s password, not in the shell and not anywhere else.\nKB-0024: run the command without a password. A secure prompt opens on the user\'s own screen and the user types it there. You never see, type or record it.';
+}
 // Practice-only shell commands: sessions, scheduled tasks and the HD-2101
 // lockout evidence. Returns null for anything else.
 function hdPracticeCommand(command, normalized, computer) {
@@ -913,11 +921,7 @@ function hdPracticeCommand(command, normalized, computer) {
   const onSource = computer.name === spec.computer;
   const notFound = (verb, name) => `${verb} : No MSFT_ScheduledTask objects found with property 'TaskName' equal to '${name}'. (This shell is connected to ${computer.name}.)`;
   const findTask = name => hdPracticeTasks(computer).find(task => task.name.toLowerCase() === hdTaskLeaf(name).toLowerCase());
-  const refusePassword = () => {
-    if (scenario) scenario.passwordTyped = true;
-    hdLastCommandResult = 'refused: a password was typed into the shell';
-    return 'Stopped: never type a user\'s password, not in the shell and not anywhere else.\nKB-0024: run the command without a password. A secure prompt opens on the user\'s own screen and the user types it there. You never see, type or record it.';
-  };
+  const refusePassword = hdRefusePassword;
   const fixed = (lines) => [...lines, '', HD_M01_TIP].join('\n');
 
   let match = /^enter-pssession(?:\s+-computername)?\s+("?)([a-z0-9-]+)\1$/i.exec(command.trim());
@@ -1072,7 +1076,7 @@ function hdRunPowerShell(event) {
   const computer = hdState.selectedComputer;
   if(command.toLowerCase()==='clear-host'){hdState.powershell=[];} else {
     hdLastCommandResult = '';
-    const output = hdPowerShellOutput(command);
+    const output = !HD_PROVE && hdHasPasswordArg(command) ? hdRefusePassword() : hdPowerShellOutput(command);
     hdState.powershell.push({type:'command',text:`PS C:\\Support> ${shown}`},{type:'output',text:output});
     hdPracticeEvent('command_run', { command:shown.slice(0, 200), computer, result:(hdLastCommandResult || hdFirstLine(output)).slice(0, 200) });
   }

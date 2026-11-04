@@ -269,12 +269,23 @@ function testFixThenUnlockStaysUnlocked() {
     'Set-ScheduledTask -TaskName FinanceReportSync -User NORTHSTAR\\jbell -Pass Autumn2026c',
     'schtasks /Change /TN FinanceReportSync /RU NORTHSTAR\\jbell /RP:Autumn2026d',
     'schtasks /Change /TN FinanceReportSync /RU NORTHSTAR\\jbell /rp Autumn2026e',
+    // Commands the shell doesn't support repeat what was typed; refused first.
+    'Get-Service -Password Autumn2026f',
+    'Get-ChildItem -Path C:\\Temp -Password:Autumn2026g',
   ]) {
     assert.match(tab.ps(typed), /never type a user's password/, typed);
     assert.equal(tab.outcomes().credentialFixed, false, typed);
   }
   assert.ok(!/Autumn2026/.test(JSON.stringify(tab.hd())), 'no form of a typed password is in the saved state');
-  assert.equal(tab.run("hdRedactCommand('Get-ChildItem -Path C:\\\\Temp')"), 'Get-ChildItem -Path C:\\Temp', '-Path is not a password');
+  // -Path, -TaskPath and /RU are not passwords: neither refused nor masked.
+  for (const allowed of [
+    'Get-ChildItem -Path C:\\Temp',
+    'Set-ScheduledTask -TaskName FinanceReportSync -TaskPath \\Northstar\\Finance\\ -User NORTHSTAR\\jbell',
+    'schtasks /Change /TN FinanceReportSync /RU NORTHSTAR\\jbell',
+  ]) {
+    assert.equal(tab.run(`hdHasPasswordArg(${JSON.stringify(allowed)})`), false, allowed);
+    assert.equal(tab.run(`hdRedactCommand(${JSON.stringify(allowed)})`), allowed, allowed);
+  }
 
   const fixed = tab.ps('schtasks /Change /TN FinanceReportSync /RU NORTHSTAR\\jbell');
   assert.match(fixed, /SUCCESS: The parameters of scheduled task "FinanceReportSync" have been changed\./);
@@ -282,6 +293,7 @@ function testFixThenUnlockStaysUnlocked() {
   assert.match(fixed, /should really run under a service account.*Tier 2 change/s, 'the Practice tip');
   assert.equal(tab.outcomes().credentialFixed, true);
   assert.equal(tab.scenario().fixedBy, 'schtasks /Change');
+  assert.ok(tab.hd().practiceLog.some((e) => e.command === 'schtasks /Change /TN FinanceReportSync /RU NORTHSTAR\\jbell'), '/RU is recorded as typed');
 
   tab.run("hdState.selectedUserId = 'u-1005'; hdAdAction('unlock')");
   assert.equal(tab.outcomes().unlockedAfterFix, true);
