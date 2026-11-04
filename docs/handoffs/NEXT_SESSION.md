@@ -1,3 +1,63 @@
+**2026-11-03 (Megan; PR #100 "Help Desk Module 1 Practice It: work HD-2101 on the simulated machines"; shared `ui/index.html`, `portal/index.html`, `portal/data.js` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `ui/helpdesk-coaches.js`, `portal/it-support-shared.js`, `portal/it-support-module-01.js`, `portal/admin-sheets/hdesk.js` and tests — please review the shared ones):**
+Help Desk Lab 1.2 (Practice It, coach `hd-m01`) is now worked on the simulated
+machines. HD-2101 no longer shows the logs, caller computer or diagnosis; the
+student finds the lockout source (event 4740), the scheduled task on the caller
+computer with the old stored password, fixes it the approved way (the user types
+the password at a secure prompt) and proves the account stays unlocked. Unlocking
+before the fix re-locks the account on the task's next run. The coach has 11
+steps, checks outcomes rather than one fixed path, and shows Finish only after
+the ticket is Resolved or Escalated. The Module 1 Prove It (HD-2125) changes in
+one way only: a password typed into its shell is refused (see below). Its
+scoring, rubric and steps checklist are unchanged. SOC and AI/ML are unchanged.
+- **Shared:** `ui/index.html` and `portal/index.html` (script version bumps for
+  the changed files only), `portal/data.js` (Lab 1.2's description string only),
+  `bin/ci-check.sh` (one line for the new test).
+- **Not touched:** `ui/coach.js`, `portal/app.js`, `supabase/`. The coach
+  step-skip fix it relies on came in with PR #99.
+- **Tests:** new `tests/hdesk-m01-practice.test.js` (12 tests); new password
+  tests in `hdesk-prove-mode` and `hdesk-prove-submit`. Updated for the
+  new `hd-m01`: `coach-reload-resume` (Finish is now step 11),
+  `hdesk-module-page-states` and `hdesk-returned-lab-resubmit` (they send a
+  finished HD-2101 package).
+- **For your code or agent:**
+  - `itsCleanCoachWork()` keeps a new `investigation` block (HD-2101 only, known
+    fields, bounded). Over the 48 KB limit its events are trimmed first.
+  - Lab 1.2 saves only when HD-2101 is Resolved or Escalated with every outcome
+    met. Otherwise the portal replies `saved: false` with reason `incomplete`
+    and shows a notice on the course page. `coach.js` has no message for that
+    reason, so the simulator shows its generic "didn't confirm" message.
+  - `coach.js` shows Finish on a coach's last step without running that step's
+    check, so a student who reopens the ticket after reaching Finish still sees
+    the button (the portal still refuses the save). Running the last step's
+    check before showing Finish would close this for every coach. Suggested
+    follow-up after Nov 6, not built here.
+  - Lab 1.2's completion is reported by the browser, like every coach lab, so a
+    hand-made completion message would be saved and reach instructor review.
+    Relevant to the server-side scoring work.
+  - Typed commands are recorded as `command_run` events (`at`, `command`,
+    `computer`, plus `result`), the same shape as the Prove It's, so the Prove
+    It can reuse them.
+  - A password typed into the shell, in Practice or Prove and in any form
+    (`-Password`, `-Pass`, `-Password:value`, `/RP`), is refused before the
+    command runs. Everything from the password argument on is masked in the
+    echo and the record, and it is never saved. A draft saved in the browser
+    before this change is masked when it loads, and the Prove It package masks
+    its commands again when it is built. The Prove It package and its
+    saved attempt carry a new `passwordTyped` boolean (kept by
+    `itsCleanProveWork()` only when it is `true`), and the instructor's review
+    panel shows one line when it is set. It doesn't change the score.
+- **Status:** `bin/ci-check.sh` passes on the branch. Codex review: six passes.
+  The first also raised the browser-reported completion above (not fixed).
+  Every password-handling gap found was fixed with a test, until the last
+  pass (`b783adf`): one medium finding not fixed. It says the load-time write-back
+  of a masked draft could overwrite a newer draft saved in a second tab. The
+  read, mask and write happen in one synchronous run, so no other tab's save
+  can land in between, and every simulator save already writes the whole
+  draft (last tab wins). Hosted staging not yet tested; Megan deploys the
+  branch and the staging check follows.
+- **Merge:** Megan will merge after the hosted staging check.
+- **Migration:** none.
+
 **2026-11-03 (Megan; PR #99 "Coach: a redraw while a step completes never skips the next step"; shared `ui/coach.js`, `ui/index.html`, `bin/ci-check.sh` and new `tests/coach-step-advance-race.test.js` — please review the shared ones):**
 `watchForStepCompletion()` in `ui/coach.js` advanced a coach once for every
 watcher that saw a step's check pass. A redraw during the 650 ms wait started a
