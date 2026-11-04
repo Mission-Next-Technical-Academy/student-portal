@@ -206,6 +206,23 @@ function testTypedPasswordIsRefusedInProve() {
   assert.equal(tab.hd().prove.events.slice(-1)[0].command, 'Get-Printer');
 }
 
+// A draft saved by an earlier version can hold a raw password command. Loading
+// masks it and flags it, so Submit never carries it to the instructor.
+function testOldDraftWithAPasswordIsMaskedOnLoad() {
+  const local = store();
+  const first = sim(proveUrl('student-legacy01'), { local });
+  first.run(`hdState.prove.events.push({ type:'command_run', at:'2026-11-01T10:00:00Z', command:'Get-ADUser eparker -Password Legacy2026z', computer:'NS-LT-0131' });
+    hdState.powershell.push({ type:'command', text:'PS C:\\\\Support> Get-ADUser eparker -Password Legacy2026z' }); hdSave()`);
+  assert.match(local.getItem(first.run('hdStateKey()')), /Legacy2026z/, 'the old draft holds the password');
+  const reloaded = sim(first.location.origin + first.location.pathname + first.location.search + first.location.hash, { local, session: first.session });
+  assert.ok(!/Legacy2026z/.test(JSON.stringify(reloaded.hd())), 'masked on load');
+  assert.equal(reloaded.hd().prove.passwordTyped, true, 'and flagged for the instructor');
+  assert.ok(!/Legacy2026z/.test(JSON.stringify(reloaded.run('hdProvePackage()'))), 'never in the package');
+  // Building the package masks again, whatever the draft holds.
+  reloaded.run("hdState.prove.events.push({ type:'command_run', at:'x', command:'whoami /RP:Late2026y', computer:'NS-LT-0131' })");
+  assert.ok(!/Late2026y/.test(JSON.stringify(reloaded.run('hdProvePackage()'))));
+}
+
 function testPracticeShellUnchanged() {
   const tab = sim(`${SIM_URL}#/helpdesk/powershell`);
   assert.match(tab.ps('Get-Service'), /Stopped\s+Spooler/);
@@ -344,7 +361,7 @@ const tests = [
   testSelectedChoiceIsNeutral,
   testLaunchWithoutStudentOpensNothing,
   testPracticeNeverGetsProveMaterial, testProveLaunchOpensOnlyItsTicketWithNoCoach, testProveTicketViewRevealsNothing,
-  testShellMachineState, testTypedPasswordIsRefusedInProve, testPracticeShellUnchanged, testOnlyMeaningfulEventsAndThePackage,
+  testShellMachineState, testTypedPasswordIsRefusedInProve, testOldDraftWithAPasswordIsMaskedOnLoad, testPracticeShellUnchanged, testOnlyMeaningfulEventsAndThePackage,
   testReloadKeepsTheAttemptPerStudent, testSubmittedAttemptIsLocked, testRubricNamesNoAnswers,
 ];
 let failed = 0;

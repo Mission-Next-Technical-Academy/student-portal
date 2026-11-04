@@ -204,12 +204,39 @@ function hdFreshProveState() {
     },
   };
 }
+// A password argument in any form the shells accept: -Password and the
+// shortened names PowerShell allows (-Pa, -Pass, ...), or schtasks /RP, then a
+// space, a colon or both (-Password secret, -Password:secret, /RP:secret).
+// -Path and /RU don't match.
+const HD_PASSWORD_ARG = '(^|\\s)(-pa(?:s(?:s(?:w(?:o(?:r(?:d)?)?)?)?)?)?|\\/rp)(\\s*:\\s*|\\s+)("[^"]*"|\'[^\']*\'|\\S+)';
+function hdHasPasswordArg(command) { return new RegExp(HD_PASSWORD_ARG, 'i').test(String(command)); }
+// A password typed on the command line is never echoed or recorded. Everything
+// from the first password argument to the end is masked, so no quoting or
+// escaping (`" or '') can leave part of it behind. Such a command never runs.
+function hdRedactCommand(command) {
+  const text = String(command);
+  const match = new RegExp(HD_PASSWORD_ARG, 'i').exec(text);
+  return match ? `${text.slice(0, match.index)}${match[1]}${match[2]}${match[3]}********` : text;
+}
+// A draft saved before passwords were masked can still hold one: mask every
+// saved command on load. A Prove draft that had one gets the flag too.
+function hdScrubSavedCommands(state) {
+  const scrub = (text) => (typeof text === 'string' && hdHasPasswordArg(text) ? hdRedactCommand(text) : text);
+  (Array.isArray(state.powershell) ? state.powershell : []).forEach(row => { if (row && row.type === 'command') row.text = scrub(row.text); });
+  (Array.isArray(state.practiceLog) ? state.practiceLog : []).forEach(entry => { if (entry) entry.command = scrub(entry.command); });
+  if (state.prove && Array.isArray(state.prove.events)) {
+    state.prove.events.forEach(entry => {
+      if (entry && typeof entry.command === 'string' && hdHasPasswordArg(entry.command)) { entry.command = hdRedactCommand(entry.command); state.prove.passwordTyped = true; }
+    });
+  }
+  return state;
+}
 function hdLoadState() {
   if (HD_PROVE && HD_PROVE.blocked) return { ...hdFreshProveState(), tickets:[], selectedTicketId:null };
   try {
     const saved = JSON.parse(localStorage.getItem(hdStateKey()) || 'null');
     const fits = HD_PROVE ? saved && saved.mode === 'prove' && saved.moduleKey === HD_PROVE.moduleKey && saved.prove : saved && saved.mode !== 'prove';
-    if (fits && saved.version === 1 && Array.isArray(saved.tickets)) return HD_PROVE ? saved : hdEnsurePractice(saved);
+    if (fits && saved.version === 1 && Array.isArray(saved.tickets)) return hdScrubSavedCommands(HD_PROVE ? saved : hdEnsurePractice(saved));
   } catch (_) {}
   const fresh = HD_PROVE ? hdFreshProveState() : hdFreshState();
   localStorage.setItem(hdStateKey(), JSON.stringify(fresh));
@@ -878,20 +905,6 @@ function hdSchtasksArg(command, flag) {
   const match = new RegExp(`/${flag}\\s+("[^"]*"|'[^']*'|\\S+)`, 'i').exec(command);
   return match ? match[1].replace(/^["']|["']$/g, '') : '';
 }
-// A password argument in any form the shells accept: -Password and the
-// shortened names PowerShell allows (-Pa, -Pass, ...), or schtasks /RP, then a
-// space, a colon or both (-Password secret, -Password:secret, /RP:secret).
-// -Path and /RU don't match.
-const HD_PASSWORD_ARG = '(^|\\s)(-pa(?:s(?:s(?:w(?:o(?:r(?:d)?)?)?)?)?)?|\\/rp)(\\s*:\\s*|\\s+)("[^"]*"|\'[^\']*\'|\\S+)';
-function hdHasPasswordArg(command) { return new RegExp(HD_PASSWORD_ARG, 'i').test(String(command)); }
-// A password typed on the command line is never echoed or recorded. Everything
-// from the first password argument to the end is masked, so no quoting or
-// escaping (`" or '') can leave part of it behind. Such a command never runs.
-function hdRedactCommand(command) {
-  const text = String(command);
-  const match = new RegExp(HD_PASSWORD_ARG, 'i').exec(text);
-  return match ? `${text.slice(0, match.index)}${match[1]}${match[2]}${match[3]}********` : text;
-}
 function hdTaskLeaf(name) { return String(name || '').split('\\').filter(Boolean).pop() || ''; }
 function hdPracticeTasks(computer) {
   const machine = hdMachine(computer.name);
@@ -1163,8 +1176,8 @@ function hdProvePackage() {
     stepTexts:prove.steps.map(id => (ticket.pathPool.find(step => step.id === id) || {}).text || ''), decision:prove.decision,
     resolutionNote:prove.resolutionNote, userReply:prove.userReply,
     workNotes:ticket.notes.map(note => note.text),
-    commands:prove.events.filter(event => event.type === 'command_run').map(event => ({ command:event.command, computer:event.computer, at:event.at })),
-    events:prove.events.slice(),
+    commands:prove.events.filter(event => event.type === 'command_run').map(event => ({ command:hdRedactCommand(event.command || ''), computer:event.computer, at:event.at })),
+    events:prove.events.map(event => (typeof event.command === 'string' ? { ...event, command:hdRedactCommand(event.command) } : event)),
     machine:hdClone(hdMachine(shift.selectedComputer) || {}),
     passwordTyped:prove.passwordTyped === true,
   };
