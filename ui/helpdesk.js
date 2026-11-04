@@ -884,9 +884,13 @@ function hdSchtasksArg(command, flag) {
 // -Path and /RU don't match.
 const HD_PASSWORD_ARG = '(^|\\s)(-pa(?:s(?:s(?:w(?:o(?:r(?:d)?)?)?)?)?)?|\\/rp)(\\s*:\\s*|\\s+)("[^"]*"|\'[^\']*\'|\\S+)';
 function hdHasPasswordArg(command) { return new RegExp(HD_PASSWORD_ARG, 'i').test(String(command)); }
-// A password typed on the command line is never echoed or recorded.
+// A password typed on the command line is never echoed or recorded. Everything
+// from the first password argument to the end is masked, so no quoting or
+// escaping (`" or '') can leave part of it behind. Such a command never runs.
 function hdRedactCommand(command) {
-  return String(command).replace(new RegExp(HD_PASSWORD_ARG, 'ig'), '$1$2$3********');
+  const text = String(command);
+  const match = new RegExp(HD_PASSWORD_ARG, 'i').exec(text);
+  return match ? `${text.slice(0, match.index)}${match[1]}${match[2]}${match[3]}********` : text;
 }
 function hdTaskLeaf(name) { return String(name || '').split('\\').filter(Boolean).pop() || ''; }
 function hdPracticeTasks(computer) {

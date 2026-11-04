@@ -186,20 +186,21 @@ function testShellMachineState() {
 // instructor. The refusal is plain: no Practice guidance.
 function testTypedPasswordIsRefusedInProve() {
   const tab = sim(proveUrl('student-pw000001'));
-  for (const typed of ['Get-ADUser eparker -Password Winter2026a', 'Add-Printer -ConnectionName \\\\NS-PRINT01\\NS-FIN-PRN01 -Password:Winter2026b', 'whoami /RP Winter2026c']) {
+  for (const typed of ['Get-ADUser eparker -Password Winter2026a', 'Add-Printer -ConnectionName \\\\NS-PRINT01\\NS-FIN-PRN01 -Password:Winter2026b', 'whoami /RP Winter2026c',
+    'Get-Service -Password "Winter`"TailC3"', "Get-Service -Password 'Winter''TailD4'"]) {
     const reply = tab.ps(typed);
     assert.equal(reply, 'Stopped: this command includes a password, so it was not run or saved.', typed);
   }
   assert.doesNotMatch(tab.ps('Get-Printer'), /NS-FIN-PRN01/, 'the refused Add-Printer did not run');
   const prove = tab.hd().prove;
   assert.equal(prove.passwordTyped, true);
-  assert.ok(!/Winter2026/.test(JSON.stringify(tab.hd())), 'the password is nowhere in the saved attempt');
+  assert.ok(!/Winter|Tail[CD]/.test(JSON.stringify(tab.hd())), 'no part of the password is in the saved attempt');
   const recorded = prove.events.filter((e) => e.type === 'command_run').map((e) => e.command);
   assert.equal(recorded[0], 'Get-ADUser eparker -Password ********', 'recorded with the password masked');
   assert.deepEqual([...prove.steps], [], 'the steps you took are untouched');
   const pkg = tab.run('hdProvePackage()');
   assert.equal(pkg.passwordTyped, true);
-  assert.ok(!/Winter2026/.test(JSON.stringify(pkg)));
+  assert.ok(!/Winter|Tail[CD]/.test(JSON.stringify(pkg)));
   // Any other command is shown and recorded exactly as typed.
   assert.equal(tab.hd().powershell.slice(-2)[0].text, 'PS C:\\Support> Get-Printer');
   assert.equal(tab.hd().prove.events.slice(-1)[0].command, 'Get-Printer');

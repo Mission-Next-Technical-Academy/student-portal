@@ -272,11 +272,14 @@ function testFixThenUnlockStaysUnlocked() {
     // Commands the shell doesn't support repeat what was typed; refused first.
     'Get-Service -Password Autumn2026f',
     'Get-ChildItem -Path C:\\Temp -Password:Autumn2026g',
+    // Escaped quotes inside the value: nothing after the quote survives.
+    'Get-Service -Password "Autumn`"TailA1"',
+    "Get-Service -Password 'Autumn''TailB2'",
   ]) {
     assert.match(tab.ps(typed), /never type a user's password/, typed);
     assert.equal(tab.outcomes().credentialFixed, false, typed);
   }
-  assert.ok(!/Autumn2026/.test(JSON.stringify(tab.hd())), 'no form of a typed password is in the saved state');
+  assert.ok(!/Autumn|Tail[AB]/.test(JSON.stringify(tab.hd())), 'no form or part of a typed password is in the saved state');
   // -Path, -TaskPath and /RU are not passwords: neither refused nor masked.
   for (const allowed of [
     'Get-ChildItem -Path C:\\Temp',
