@@ -53,9 +53,11 @@ scoring, rubric and steps checklist are unchanged. SOC and AI/ML are unchanged.
   of a masked draft could overwrite a newer draft saved in a second tab. The
   read, mask and write happen in one synchronous run, so no other tab's save
   can land in between, and every simulator save already writes the whole
-  draft (last tab wins). Hosted staging not yet tested; Megan deploys the
-  branch and the staging check follows.
-- **Merge:** Megan will merge after the hosted staging check.
+  draft (last tab wins). Hosted staging tested Nov 4
+  (`v1.643-staging.84db484`): Lab 1.2 end to end, the Practice and Prove It
+  password refusals, and the instructor sheet and panel. Read-only password
+  scans of staging and production found nothing to clean up.
+- **Merge:** Hosted staging check done Nov 4.
 - **Migration:** none.
 
 **2026-11-03 (Megan; PR #99 "Coach: a redraw while a step completes never skips the next step"; shared `ui/coach.js`, `ui/index.html`, `bin/ci-check.sh` and new `tests/coach-step-advance-race.test.js` — please review the shared ones):**
