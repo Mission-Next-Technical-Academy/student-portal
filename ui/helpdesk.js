@@ -878,11 +878,15 @@ function hdSchtasksArg(command, flag) {
   const match = new RegExp(`/${flag}\\s+("[^"]*"|'[^']*'|\\S+)`, 'i').exec(command);
   return match ? match[1].replace(/^["']|["']$/g, '') : '';
 }
+// A password argument in any form the shells accept: -Password and the
+// shortened names PowerShell allows (-Pa, -Pass, ...), or schtasks /RP, then a
+// space, a colon or both (-Password secret, -Password:secret, /RP:secret).
+// -Path and /RU don't match.
+const HD_PASSWORD_ARG = '(^|\\s)(-pa(?:s(?:s(?:w(?:o(?:r(?:d)?)?)?)?)?)?|\\/rp)(\\s*:\\s*|\\s+)("[^"]*"|\'[^\']*\'|\\S+)';
+function hdHasPasswordArg(command) { return new RegExp(HD_PASSWORD_ARG, 'i').test(String(command)); }
 // A password typed on the command line is never echoed or recorded.
 function hdRedactCommand(command) {
-  return String(command)
-    .replace(/(-password\s+)("[^"]*"|'[^']*'|\S+)/ig, '$1********')
-    .replace(/(\/rp\s+)("[^"]*"|'[^']*'|\S+)/ig, '$1********');
+  return String(command).replace(new RegExp(HD_PASSWORD_ARG, 'ig'), '$1$2$3********');
 }
 function hdTaskLeaf(name) { return String(name || '').split('\\').filter(Boolean).pop() || ''; }
 function hdPracticeTasks(computer) {
@@ -965,7 +969,7 @@ function hdPracticeCommand(command, normalized, computer) {
   const isChange = /^schtasks(\.exe)?\s+\/change\b/.test(normalized);
   if (isSet || isChange) {
     const verb = isSet ? 'Set-ScheduledTask' : 'ERROR:';
-    if (isSet ? hdParam(command, 'password') : hdSchtasksArg(command, 'rp')) return refusePassword();
+    if (hdHasPasswordArg(command)) return refusePassword();
     const name = isSet ? hdCommandArg(command, 'taskname') : hdSchtasksArg(command, 'tn');
     const user = isSet ? hdParam(command, 'user') : hdSchtasksArg(command, 'ru');
     const task = name && findTask(name);

@@ -262,6 +262,19 @@ function testFixThenUnlockStaysUnlocked() {
   assert.equal(tab.outcomes().credentialFixed, false);
   assert.equal(tab.scenario().passwordTyped, true);
   assert.ok(!JSON.stringify(tab.hd()).includes('Summer2026'), 'the typed password is nowhere in the saved state');
+  // Every other way the shells take a password is refused the same way.
+  for (const typed of [
+    'Set-ScheduledTask -TaskName FinanceReportSync -User NORTHSTAR\\jbell -Password:Autumn2026a',
+    'Set-ScheduledTask -TaskName FinanceReportSync -User NORTHSTAR\\jbell -Password: "Autumn2026b"',
+    'Set-ScheduledTask -TaskName FinanceReportSync -User NORTHSTAR\\jbell -Pass Autumn2026c',
+    'schtasks /Change /TN FinanceReportSync /RU NORTHSTAR\\jbell /RP:Autumn2026d',
+    'schtasks /Change /TN FinanceReportSync /RU NORTHSTAR\\jbell /rp Autumn2026e',
+  ]) {
+    assert.match(tab.ps(typed), /never type a user's password/, typed);
+    assert.equal(tab.outcomes().credentialFixed, false, typed);
+  }
+  assert.ok(!/Autumn2026/.test(JSON.stringify(tab.hd())), 'no form of a typed password is in the saved state');
+  assert.equal(tab.run("hdRedactCommand('Get-ChildItem -Path C:\\\\Temp')"), 'Get-ChildItem -Path C:\\Temp', '-Path is not a password');
 
   const fixed = tab.ps('schtasks /Change /TN FinanceReportSync /RU NORTHSTAR\\jbell');
   assert.match(fixed, /SUCCESS: The parameters of scheduled task "FinanceReportSync" have been changed\./);
