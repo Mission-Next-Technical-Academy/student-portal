@@ -219,16 +219,20 @@ function hdRedactCommand(command) {
   return match ? `${text.slice(0, match.index)}${match[1]}${match[2]}${match[3]}********` : text;
 }
 // A draft saved before passwords were masked can still hold one: mask every
-// saved command on load. A Prove draft that had one gets the flag too.
+// saved command on load and, if any changed, write the masked draft back so
+// the raw copy is gone from storage. A Prove draft that had one gets the flag.
 function hdScrubSavedCommands(state) {
-  const scrub = (text) => (typeof text === 'string' && hdHasPasswordArg(text) ? hdRedactCommand(text) : text);
-  (Array.isArray(state.powershell) ? state.powershell : []).forEach(row => { if (row && row.type === 'command') row.text = scrub(row.text); });
-  (Array.isArray(state.practiceLog) ? state.practiceLog : []).forEach(entry => { if (entry) entry.command = scrub(entry.command); });
+  let changed = false;
+  const scrub = (holder, field) => {
+    if (holder && typeof holder[field] === 'string' && hdHasPasswordArg(holder[field])) { holder[field] = hdRedactCommand(holder[field]); changed = true; return true; }
+    return false;
+  };
+  (Array.isArray(state.powershell) ? state.powershell : []).forEach(row => { if (row && row.type === 'command') scrub(row, 'text'); });
+  (Array.isArray(state.practiceLog) ? state.practiceLog : []).forEach(entry => scrub(entry, 'command'));
   if (state.prove && Array.isArray(state.prove.events)) {
-    state.prove.events.forEach(entry => {
-      if (entry && typeof entry.command === 'string' && hdHasPasswordArg(entry.command)) { entry.command = hdRedactCommand(entry.command); state.prove.passwordTyped = true; }
-    });
+    state.prove.events.forEach(entry => { if (scrub(entry, 'command')) state.prove.passwordTyped = true; });
   }
+  if (changed) { try { localStorage.setItem(hdStateKey(), JSON.stringify(state)); } catch (_) {} }
   return state;
 }
 function hdLoadState() {

@@ -216,6 +216,7 @@ function testOldDraftWithAPasswordIsMaskedOnLoad() {
   assert.match(local.getItem(first.run('hdStateKey()')), /Legacy2026z/, 'the old draft holds the password');
   const reloaded = sim(first.location.origin + first.location.pathname + first.location.search + first.location.hash, { local, session: first.session });
   assert.ok(!/Legacy2026z/.test(JSON.stringify(reloaded.hd())), 'masked on load');
+  assert.doesNotMatch(local.getItem(first.run('hdStateKey()')), /Legacy2026z/, 'and the stored draft is rewritten, with nothing else done');
   assert.equal(reloaded.hd().prove.passwordTyped, true, 'and flagged for the instructor');
   assert.ok(!/Legacy2026z/.test(JSON.stringify(reloaded.run('hdProvePackage()'))), 'never in the package');
   // Building the package masks again, whatever the draft holds.
