@@ -181,6 +181,49 @@ function testShellMachineState() {
   assert.ok(commands.every((e) => e.computer === SHIFT.selectedComputer && e.command && e.at));
 }
 
+// A password typed into the Prove shell is refused before the command runs,
+// masked in the echo and the record, never saved, and flagged for the
+// instructor. The refusal is plain: no Practice guidance.
+function testTypedPasswordIsRefusedInProve() {
+  const tab = sim(proveUrl('student-pw000001'));
+  for (const typed of ['Get-ADUser eparker -Password Winter2026a', 'Add-Printer -ConnectionName \\\\NS-PRINT01\\NS-FIN-PRN01 -Password:Winter2026b', 'whoami /RP Winter2026c',
+    'Get-Service -Password "Winter`"TailC3"', "Get-Service -Password 'Winter''TailD4'"]) {
+    const reply = tab.ps(typed);
+    assert.equal(reply, 'Stopped: this command includes a password, so it was not run or saved.', typed);
+  }
+  assert.doesNotMatch(tab.ps('Get-Printer'), /NS-FIN-PRN01/, 'the refused Add-Printer did not run');
+  const prove = tab.hd().prove;
+  assert.equal(prove.passwordTyped, true);
+  assert.ok(!/Winter|Tail[CD]/.test(JSON.stringify(tab.hd())), 'no part of the password is in the saved attempt');
+  const recorded = prove.events.filter((e) => e.type === 'command_run').map((e) => e.command);
+  assert.equal(recorded[0], 'Get-ADUser eparker -Password ********', 'recorded with the password masked');
+  assert.deepEqual([...prove.steps], [], 'the steps you took are untouched');
+  const pkg = tab.run('hdProvePackage()');
+  assert.equal(pkg.passwordTyped, true);
+  assert.ok(!/Winter|Tail[CD]/.test(JSON.stringify(pkg)));
+  // Any other command is shown and recorded exactly as typed.
+  assert.equal(tab.hd().powershell.slice(-2)[0].text, 'PS C:\\Support> Get-Printer');
+  assert.equal(tab.hd().prove.events.slice(-1)[0].command, 'Get-Printer');
+}
+
+// A draft saved by an earlier version can hold a raw password command. Loading
+// masks it and flags it, so Submit never carries it to the instructor.
+function testOldDraftWithAPasswordIsMaskedOnLoad() {
+  const local = store();
+  const first = sim(proveUrl('student-legacy01'), { local });
+  first.run(`hdState.prove.events.push({ type:'command_run', at:'2026-11-01T10:00:00Z', command:'Get-ADUser eparker -Password Legacy2026z', computer:'NS-LT-0131' });
+    hdState.powershell.push({ type:'command', text:'PS C:\\\\Support> Get-ADUser eparker -Password Legacy2026z' }); hdSave()`);
+  assert.match(local.getItem(first.run('hdStateKey()')), /Legacy2026z/, 'the old draft holds the password');
+  const reloaded = sim(first.location.origin + first.location.pathname + first.location.search + first.location.hash, { local, session: first.session });
+  assert.ok(!/Legacy2026z/.test(JSON.stringify(reloaded.hd())), 'masked on load');
+  assert.doesNotMatch(local.getItem(first.run('hdStateKey()')), /Legacy2026z/, 'and the stored draft is rewritten, with nothing else done');
+  assert.equal(reloaded.hd().prove.passwordTyped, true, 'and flagged for the instructor');
+  assert.ok(!/Legacy2026z/.test(JSON.stringify(reloaded.run('hdProvePackage()'))), 'never in the package');
+  // Building the package masks again, whatever the draft holds.
+  reloaded.run("hdState.prove.events.push({ type:'command_run', at:'x', command:'whoami /RP:Late2026y', computer:'NS-LT-0131' })");
+  assert.ok(!/Late2026y/.test(JSON.stringify(reloaded.run('hdProvePackage()'))));
+}
+
 function testPracticeShellUnchanged() {
   const tab = sim(`${SIM_URL}#/helpdesk/powershell`);
   assert.match(tab.ps('Get-Service'), /Stopped\s+Spooler/);
@@ -211,7 +254,8 @@ function testOnlyMeaningfulEventsAndThePackage() {
 
   const pkg = tab.run('hdProvePackage()');
   assert.deepEqual([...Object.keys(pkg)], ['version', 'kind', 'moduleKey', 'labKey', 'rubricVersion', 'ticketId', 'startedAt', 'fields', 'diagnosis',
-    'steps', 'stepTexts', 'decision', 'resolutionNote', 'userReply', 'workNotes', 'commands', 'events', 'machine']);
+    'steps', 'stepTexts', 'decision', 'resolutionNote', 'userReply', 'workNotes', 'commands', 'events', 'machine', 'passwordTyped']);
+  assert.equal(pkg.passwordTyped, false);
   assert.equal(pkg.labKey, 'lab-its-01-prove-it');
   assert.deepEqual([...pkg.stepTexts], [PROVE_TICKET.pathPool.find((step) => step.id === stepB).text], 'the portal has no simulator data, so the steps travel as text');
   assert.equal(pkg.ticketId, PROVE_ID);
@@ -318,7 +362,7 @@ const tests = [
   testSelectedChoiceIsNeutral,
   testLaunchWithoutStudentOpensNothing,
   testPracticeNeverGetsProveMaterial, testProveLaunchOpensOnlyItsTicketWithNoCoach, testProveTicketViewRevealsNothing,
-  testShellMachineState, testPracticeShellUnchanged, testOnlyMeaningfulEventsAndThePackage,
+  testShellMachineState, testTypedPasswordIsRefusedInProve, testOldDraftWithAPasswordIsMaskedOnLoad, testPracticeShellUnchanged, testOnlyMeaningfulEventsAndThePackage,
   testReloadKeepsTheAttemptPerStudent, testSubmittedAttemptIsLocked, testRubricNamesNoAnswers,
 ];
 let failed = 0;

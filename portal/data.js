@@ -2251,7 +2251,7 @@ const LABS = [
     skills: ['LMS Navigation', 'Credential Discipline', 'Policy Acknowledgment'], portalEntry: '#/program/it-support/module/1' }),
   itsLab({ key: 'lab-its-01-ticket-triage', module: 'its-01', title: 'A Day in the Life of an L1 Technician', difficulty: 'Foundational', minutes: 25, phase: 'practice',
     parentAllocations: [allocation('ITHD-101.1', 25)], objective: 'Resolve a real account-lockout ticket end to end: read the evidence, work the troubleshooting path, diagnose against the log, document it, and resolve it.',
-    description: 'A coach-guided walkthrough of ticket HD-2101 (an account lockout) in the IT Service Desk simulator, applying the five-step troubleshooting mindset to a real ticket rather than a written scenario.',
+    description: 'A coach-guided investigation of ticket HD-2101 (a repeating account lockout) on the IT Service Desk simulator’s machines: verify the caller, trace the lockout to its source with Event Viewer, Active Directory and PowerShell, fix it the approved way and prove the fix holds.',
     skills: ['Ticket Triage', 'Troubleshooting Mindset', 'Resolve/Escalate Judgment'], portalEntry: '#/program/it-support/module/1' }),
   // Module 1's Prove It, the only lab that gates its completion
   // (course_module_labs.gates_completion). The simulator's Submit saves it

@@ -44,7 +44,10 @@
   const workTickets = (result) => result.work && Array.isArray(result.work.tickets) ? result.work.tickets : [];
   const text = (value) => value === undefined || value === null || value === '' ? null : String(value);
   const savedNotes = (ticket) => Array.isArray(ticket && ticket.notes) ? ticket.notes.filter((note) => note && note.text) : [];
-  const noteResponses = (notes) => notes.map((note) => ({ label: `${note.author || 'Student note'} · ${note.time || ''}`, text: note.text }));
+  // Riley Morgan is the simulator's technician: the student. Other authors
+  // (a recorded requester contact) keep their own label.
+  const noteLabel = (note) => `${!note.author || note.author === 'Riley Morgan' ? 'Student work note' : note.author} · ${note.time || ''}`;
+  const noteResponses = (notes) => notes.map((note) => ({ label: noteLabel(note), text: note.text }));
   const help = {
     priorityPrompt: 'Ask which business impact and SLA clues support the priority the learner selected.',
     diagnosis: 'Revisit the log or system evidence and explain how it supports your chosen diagnosis.',
@@ -93,6 +96,62 @@
     return graded.concat(tickets.filter((ticket) => !worked.includes(ticket)).map(contextSection));
   }
 
+  // HD-2101 (Lab 1.2) is worked on the simulated machines: the sheet reads its
+  // investigation (outcomes, typed commands and key results) instead of the
+  // step checklist and diagnosis dropdown, which that ticket doesn't show.
+  const INVESTIGATION_CHECKS = [
+    ['identityVerified', 'Caller verified per KB-0024', 'Callback on the User Directory number', 'Verify every caller the KB-0024 way before any account action: call back on the number in the User Directory, never ask for a password.'],
+    ['sourceFound', 'Lockout source found', 'Caller computer from event 4740 or lockout details', 'Find the computer named as the caller in event 4740 (Event Viewer or Lockout details) before changing anything.'],
+    ['taskInspected', 'Cause found on the caller computer', 'FinanceReportSync stores the old password', 'Connect to the caller computer and check what runs with the user’s account (Get-ScheduledTask), then name it in your note.'],
+    ['credentialFixed', 'Stored credential updated the approved way', 'Set-ScheduledTask or schtasks /Change, user types the password', 'Fix the cause before unlocking: update the stored credential through the approved workflow, so the user types the password.'],
+    ['unlockedAfterFix', 'Unlocked once, after the fix', 'Account unlocked with the credential current', 'Unlock once, after the cause is fixed; unlocking first only buys a few minutes.'],
+    ['verified', 'Verified no new 4740 after the next run', 'A clean task run, then a lockout check', 'Prove the fix holds: after the task runs again, show there is no new 4740 and the account is still unlocked.'],
+    ['noteComplete', 'Reported / Tried / Result note', 'All three parts', 'Write the note in three parts so the next technician can follow it: Reported, Tried, Result.'],
+  ];
+  const IDENTITY_TEXT = { callback: 'Callback on the User Directory number', name: 'Accepted the caller’s own details', password: 'Asked for the password' };
+  function investigationSections(ticket) {
+    const work = ticket ? ticket.investigation : null;
+    const has = Boolean(work);
+    const yes = (value) => (value ? 'Yes' : 'No');
+    const tries = has ? work.identity.tries : [];
+    const commands = has ? work.events.filter((event) => event.type === 'command_run') : [];
+    return [
+      {
+        id: 'investigation-hd-2101', title: 'Investigation · HD-2101', recordedSince: '2026-11-03',
+        instructorPrompt: 'Read how the learner reached each outcome. Any order is valid; what counts is the cause found, the credential fixed before or alongside the final unlock, the fix verified and the work documented. Re-locks the learner caused by unlocking first are part of Practice, not a penalty.',
+        answer: [
+          ['Caller verification', has ? (tries.length ? tries.map((choice) => IDENTITY_TEXT[choice] || choice).join(' → ') : 'Not answered') : null],
+          ['Lockout source found with', has ? (work.sourceFoundVia.length ? work.sourceFoundVia : 'Not found') : null],
+          ['Stored credential updated', has ? (work.credentialFixedBy ? `${work.credentialFixedBy} at ${work.credentialFixedAt}` : 'Not updated') : null],
+          ['Unlocks', has ? (work.unlocks.length ? work.unlocks.map((unlock) => `${unlock.at} · ${unlock.via} · ${unlock.credentialCurrent ? 'after the fix' : 'before the fix'}`) : 'None') : null],
+          ['Re-locks the learner caused', has ? String(work.relocks) : null],
+          ['Verified with', has ? (work.verifiedBy ? `${work.verifiedBy} at ${work.verifiedAt}` : 'Not verified') : null],
+          ['End state', has ? `Account ${work.end.accountLocked ? 'locked' : 'unlocked'} · stored credential ${work.end.taskCredential || 'unknown'} · last task result ${work.end.taskLastResult || 'unknown'}` : null],
+          ['Hints used', has ? String(work.hintsUsed) : null],
+        ],
+        checks: INVESTIGATION_CHECKS.map(([key, label, expected, fix]) => ({
+          label, expected, test: () => (has ? work.outcomes[key] === true : null),
+          given: () => (has ? yes(work.outcomes[key] === true) : null), fix,
+        })).concat([{
+          label: 'Never asked the caller for a password', expected: 'The help desk never asks for a password',
+          test: () => (has ? !tries.includes('password') : null),
+          given: () => (has ? (tries.includes('password') ? 'Chose “ask for the password” before correcting it' : 'Did not ask') : null),
+          fix: 'The help desk never asks for a password, for any reason. Verify by calling back on the number in the User Directory (KB-0024).',
+        }, {
+          label: 'Never typed a password into the shell', expected: 'The user types it at the secure prompt',
+          test: () => (has ? !work.passwordTyped : null),
+          given: () => (has ? (work.passwordTyped ? 'Typed a password into a command (refused, not recorded)' : 'Did not') : null),
+          fix: 'Never type a user’s password yourself. Run the approved command without one; the user types it at the secure prompt on their own screen.',
+        }]),
+      },
+      {
+        id: 'commands-hd-2101', title: 'Commands and key results · HD-2101', required: false, recordedSince: '2026-11-03',
+        instructorPrompt: 'The commands the learner typed, in order, with what each one showed. Use them to ask what the learner concluded from a result, or which command they would run first next time.',
+        answer: [['Commands typed', has ? (commands.length ? commands.map((event) => `[${event.computer || '?'}] ${event.command}${event.result ? ` → ${event.result}` : ''}`) : 'No commands typed') : null]],
+      },
+    ];
+  }
+
   function coachSections(result, ctx) {
     const key = ctx.row.lab_key;
     // Every saved ticket, from this attempt first, then from any other attempt
@@ -117,6 +176,7 @@
       };
       const notes = saved ? (ticket.notes || []).filter((note) => note && note.text) : [];
       const history = saved ? (ticket.statusHistory || []).map((entry) => `${entry.time}: ${entry.action}`) : null;
+      const worked = id === 'HD-2101' ? investigationSections(saved ? { ...ticket, investigation: result.work && result.work.investigation } : null) : null;
       return [
         {
           id: `scenario-${id.toLowerCase()}`, title: `Ticket and evidence · ${id}`, required: false, recordedSince: '2026-10-17',
@@ -133,7 +193,7 @@
           answer: [['Priority', saved ? text(ticket.priority) : null], ['Assigned technician', saved ? text(ticket.assignedTechnician) : null], ['Current state', saved ? text(ticket.status) : null], ['Linked problem', saved ? text(ticket.linkedProblem) : null]],
           checks: [{ label: 'Ticket details were recorded', test: () => saved ? Boolean(ticket.status) : null, given: () => saved ? `${ticket.priority || 'Priority not changed'} · ${ticket.status || 'No state recorded'}` : null, fix: help.status }],
         },
-        {
+        ...(worked || [{
           id: `troubleshooting-${id.toLowerCase()}`, title: `Troubleshooting path · ${id}`, recordedSince: '2026-10-17',
           instructorPrompt: 'Ask which step produced the most useful evidence and whether any safety or approval check was needed.',
           answer: [['Steps the student checked', saved ? ticket.checkedSteps : null], ['Scenario reference: expected path', saved ? ticket.expectedPath : null]],
@@ -144,11 +204,11 @@
           instructorPrompt: 'Compare the diagnosis and the student-visible checkpoint result. If it was incorrect, direct the learner back to the evidence they should reconsider.',
           answer: [['Diagnosis entered', saved ? text(ticket.diagnosis) : null], ['Scenario reference: expected cause', saved ? text(ticket.expectedDiagnosis) : null]],
           checks: [diagnosisCheck],
-        },
+        }]),
         {
           id: `work-notes-${id.toLowerCase()}`, title: `Work notes · ${id}`, recordedSince: '2026-10-17',
           instructorPrompt: 'Look for the fact, what it proves, and the next action. Give one specific example of how to make the note more useful to the next technician.',
-          response: saved ? notes.map((note) => ({ label: `${note.author || 'Student note'} · ${note.time || ''}`, text: note.text })) : [{ label: 'Student work notes', text: null }],
+          response: saved ? noteResponses(notes) : [{ label: 'Student work notes', text: null }],
           checks: [{ label: 'A work note was recorded', expected: 'At least one useful work note', test: () => saved ? notes.length > 0 : null, given: () => saved ? `${notes.length} note(s)` : null, fix: help.note }],
         },
         {

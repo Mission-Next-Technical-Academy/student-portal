@@ -26,6 +26,9 @@ echo '== Coach labs survive reload and relaunch (Help Desk + SOC Module 1) =='
 node tests/coach-reload-resume.test.js
 node tests/coach-step-advance-race.test.js
 
+echo '== Help Desk Module 1 Practice It: HD-2101 on the simulated machines =='
+node tests/hdesk-m01-practice.test.js
+
 echo '== Help Desk Prove It mode: no coach, no answers, machine state =='
 node tests/hdesk-prove-mode.test.js
 
