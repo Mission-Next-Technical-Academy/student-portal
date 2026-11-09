@@ -172,6 +172,14 @@ function testVerificationGatesUnlock() {
   assert.equal(tab.user('u-1001').locked, true);
   tab.run("hdState.selectedUserId = 'u-1001'; hdAdAction('unlock')");
   assert.equal(tab.user('u-1001').locked, true, 'Active Directory waits too');
+  // Resolving the ticket first doesn't skip the check, on either control.
+  tab.run("hdSetResolutionCode('HD-9150', 'Solution provided'); hdTransitionTicket('HD-9150', 'Assigned'); hdTransitionTicket('HD-9150', 'In Progress'); hdTransitionTicket('HD-9150', 'Resolved')");
+  assert.equal(tab.ticket().status, 'Resolved');
+  tab.run("hdState.selectedUserId = 'u-1001'; hdAdAction('unlock')");
+  assert.equal(tab.user('u-1001').locked, true, 'Active Directory still waits for a passing check');
+  tab.run("hdConsoleUnlock('HD-9150')");
+  assert.equal(tab.user('u-1001').locked, true, 'so does the account card');
+  tab.run("hdTransitionTicket('HD-9150', 'In Progress')");
   // A critical choice: recorded and flagged.
   tab.run("hdVerify('HD-9150', 'name')");
   html = tab.open();
@@ -308,13 +316,13 @@ function testPasswordRefusalsInEveryTextField() {
   const has = (text) => tab.run(`hdPasswordInText(${JSON.stringify(text)})`);
   // A password value: a label, then ":", "=" or "is", then a value.
   for (const text of ['New password: Summer2026!', 'password=Hunter22', 'PW: letmein', 'pwd = Tr0ub4dor', 'the passcode is 4471', 'Temp password is "Winter#5"',
-    'Her password is Autumn2026', 'Reported: x\nTried: reset it, password: Spring2026a', 'Password: "Spring 2026!"', 'pw: \u201cBlue Sky 7\u201d', 'Password was: Spring2026!', 'password is: Hunter22', 'Password \u2014 Spring2026!', 'new pw \u2013 Tr0ub4dor', 'Ran Set-ScheduledTask -User NORTHSTAR\\jbell -Password Summer2026!']) {
+    'Her password is Autumn2026', 'Reported: x\nTried: reset it, password: Spring2026a', 'Password: "Spring 2026!"', 'pw: \u201cBlue Sky 7\u201d', 'Password was: Spring2026!', 'password is: Hunter22', 'Password \u2014 Spring2026!', 'new pw \u2013 Tr0ub4dor', 'password - Summer2026!', 'pw- Hunter22', 'Ran Set-ScheduledTask -User NORTHSTAR\\jbell -Password Summer2026!']) {
     assert.equal(has(text), true, text);
   }
   // The words alone, or a state word after the label, are not a password.
   for (const text of ['Explained we can\'t view or set passwords.', 'Guided the user through the self-service password reset.', 'User forgot her password after two weeks off.',
     'Password: reset by the user at the self-service page.', 'The password is expired.', 'password is not something IT can see', 'Password: ********', 'Password:\nResult: signed in.',
-    'Caller wanted the password texted to 407-555-0199.', 'Get-ChildItem -Path C:\\Temp', 'Password: it\'s never shared.', 'password: ""', 'The password was causing the lockouts.', 'Password \u2014 reset by the user.', 'password-protected file']) {
+    'Caller wanted the password texted to 407-555-0199.', 'Get-ChildItem -Path C:\\Temp', 'Password: it\'s never shared.', 'password: ""', 'The password was causing the lockouts.', 'Password \u2014 reset by the user.', 'password-protected file', 'password - reset by the user.']) {
     assert.equal(has(text), false, text);
   }
   // Practice: a work note on any ticket, HD-2101 included, is refused with the shell's coaching.

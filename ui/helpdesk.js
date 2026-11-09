@@ -227,15 +227,15 @@ function hdRedactCommand(command) {
 }
 // A password written into a ticket field (work note, customer comment, Prove
 // resolution note or reply): a label (password, passwd, pwd, pw, passcode)
-// followed by ":", "=", "is" or a dash (also "was:", "is:", "now:") and a
-// value, or a shell password argument pasted in. Plain "was" isn't enough
+// followed by ":", "=", "is" or a dash (a hyphen only with a space after it,
+// so "password-protected" is fine; also "was:", "is:", "now:") and a value, or a shell password argument pasted in. Plain "was" isn't enough
 // ("the password was causing lockouts"). The word alone is not a password: "explained we can't view or
 // set passwords" and "the self-service password reset" are fine, and so is a
 // state word after the label ("password is expired", "password: reset").
 // Same line only: a label ending one line never reads the next line as its
 // value. A quoted value is the whole quote, spaces included ("Spring 2026!").
 // Groups: 1 the label and connector, 2-5 a quoted value, 6 an unquoted one.
-const HD_PASSWORD_LABEL = '(\\b(?:password|passwd|pwd|pw|passcode)(?:[ \\t]+(?:was|is|now))?[ \\t]*(?::|=|[—–]|\\bis\\b)[ \\t]*)(?:"([^"\\n]*)"|\'([^\'\\n]*)\'|“([^”\\n]*)”|‘([^’\\n]*)’|([^\\s"\'“”‘’]\\S*))';
+const HD_PASSWORD_LABEL = '(\\b(?:password|passwd|pwd|pw|passcode)(?:[ \\t]+(?:was|is|now))?[ \\t]*(?::|=|[—–]|-(?=[ \\t])|\\bis\\b)[ \\t]*)(?:"([^"\\n]*)"|\'([^\'\\n]*)\'|“([^”\\n]*)”|‘([^’\\n]*)’|([^\\s"\'“”‘’]\\S*))';
 function hdPasswordMatchValue(match) { return [2, 3, 4, 5, 6].map(index => match[index]).find(value => value !== undefined) || ''; }
 const HD_PASSWORD_NOT_A_VALUE = new Set(('not never no none n/a na nil null unknown unchanged changed change reset resets expired expiring locked unlocked '
   + 'correct incorrect wrong right required needed forgotten forgot set updated current old new same different the a an his her their its my your our '
@@ -814,12 +814,12 @@ function hdVerify(id, optionId) {
   hdPracticeEvent('identity_checked', { ticket:ticket.id, choice:option.id, pass:option.pass === true, critical:option.critical === true });
   hdRerender();
 }
-// Why an unlock of this user must wait, or '' when it can go ahead.
+// Why an unlock of this user must wait, or '' when it can go ahead. Whatever
+// state the ticket is in: resolving it first doesn't skip the caller check.
 function hdConsoleUnlockBlock(userId) {
   const waiting = hdState.tickets.find(ticket => {
     const config = hdConsole(ticket);
-    return config.account && config.account.userId === userId && config.verification && !hdConsoleState(ticket).verification.passed
-      && !['Resolved', 'Closed'].includes(ticket.status);
+    return config.account && config.account.userId === userId && config.verification && !hdConsoleState(ticket).verification.passed;
   });
   return waiting ? `Verify the caller on ${waiting.id} before you unlock this account.` : '';
 }
@@ -958,7 +958,7 @@ function hdAdAction(action) {
   if (action === 'unlock') {
     const blocked = hdConsoleUnlockBlock(user.id);
     if (blocked) { toast(blocked); return; }
-    const owner = hdState.tickets.find(ticket => (hdConsole(ticket).account || {}).userId === user.id && !['Resolved', 'Closed'].includes(ticket.status));
+    const owner = hdState.tickets.find(ticket => (hdConsole(ticket).account || {}).userId === user.id);
     if (owner) { hdConsoleUnlock(owner.id, 'Active Directory'); return; }
   }
   const patch = hdState.userOverrides[user.id] || {};
