@@ -612,6 +612,42 @@ async function testTypedPasswordReachesTheInstructorAsAFlag() {
   assert.doesNotMatch(prun('itsProveReviewPanel')(savedRow({ ...saved, passwordTyped: false })), /typed a password/);
 }
 
+// A password written in a Prove ticket field is never saved: the box keeps its
+// last text without one, Submit waits until it's removed, a work note with one
+// isn't added, and the instructor sees only the flag (not a score change).
+async function testWrittenPasswordReachesTheInstructorAsAFlag() {
+  resetWorld();
+  const tab = await openTab();
+  fill(tab);
+  tab.run("hdProveText('resolutionNote', 'Reset done. New password: Spring2026x')");
+  assert.equal(tab.run('hdState.prove.resolutionNote'), 'Line one.\n\nLine <two>.', 'the box keeps its last text without a password');
+  assert.equal(tab.submitState().enabled, false, 'Submit waits while a box holds a password');
+  assert.match(tab.submitState().note, /Stopped: this resolution note includes a password, so it was not saved\. Remove it to submit\./);
+  assert.doesNotMatch(tab.submitState().note, /KB-0024|secure prompt/, 'no Practice coaching in Prove');
+  tab.run('hdProveSubmit()');
+  await flush();
+  assert.equal(db.attempts.length, 0, 'nothing is sent while a box holds a password');
+  tab.byId.set('hd-note-input', { value: 'pw = Autumn2026y' });
+  assert.equal(tab.run(`hdAddNote(${JSON.stringify(tab.run('hdState.tickets[0].id'))})`), false);
+  assert.equal(tab.run('hdState.tickets[0].notes.length'), 0, 'a note with a password is not added');
+  // The words alone are fine.
+  tab.run(`hdProveText('resolutionNote', ${JSON.stringify('Explained we can\'t view or set passwords; guided Evan through the self-service password reset.')})`);
+  assert.equal(tab.submitState().enabled, true);
+  tab.byId.set('hd-note-input', { value: '' });
+  tab.run('hdProveSubmit()');
+  await flush();
+  assert.equal(db.attempts.length, 1);
+  const saved = db.attempts[0].result;
+  assert.equal(saved.passwordWritten, true);
+  assert.equal(saved.passwordTyped, false, 'the shell flag is separate');
+  assert.ok(!/Spring2026x|Autumn2026y/.test(JSON.stringify(db.attempts[0])), 'no password in the saved row');
+  assert.ok(!/Spring2026x|Autumn2026y/.test(JSON.stringify(tab.run('hdState'))), 'no password in the simulator\'s saved state');
+  const panel = prun('itsProveReviewPanel')(savedRow(saved));
+  assert.match(panel, /The student wrote a password in a ticket field\. It was refused and not saved\./);
+  assert.doesNotMatch(panel, /typed a password into the shell/);
+  assert.doesNotMatch(prun('itsProveReviewPanel')(savedRow({ ...saved, passwordWritten: 'yes' })), /data-its-prove-password-written/, 'only a real true counts');
+}
+
 function moduleOneHtml(user) {
   return moduleLab(1).view(user, HD);
 }
@@ -779,7 +815,7 @@ const tests = [
   testReloadTakesTheLockFromTheServer, testFailuresKeepWorkAndShowNoSuccess, testSimulatorOnlyAcceptsItsOwnReply, testPortalRefusals,
   testOneWaitingAttempt, testReturnedReopensForOneResubmission, testReturnedPrefillsFromTheLastAttemptOnAnotherBrowser, testPrefillCarriesOnlyTheStudentsOwnWork,
   testNewerBrowserDraftIsKept, testDraftOlderThanTheAttemptIsReplaced, testNoPrefillUnlessReturnedOrForAnotherStudent, testPrefillDropsValuesTheTicketNoLongerOffers,
-  testInstructorReadsPlainText, testTypedPasswordReachesTheInstructorAsAFlag, testModuleOnePage,
+  testInstructorReadsPlainText, testTypedPasswordReachesTheInstructorAsAFlag, testWrittenPasswordReachesTheInstructorAsAFlag, testModuleOnePage,
 ];
 (async () => {
   let failed = 0;

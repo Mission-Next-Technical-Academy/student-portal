@@ -254,8 +254,9 @@ function testOnlyMeaningfulEventsAndThePackage() {
 
   const pkg = tab.run('hdProvePackage()');
   assert.deepEqual([...Object.keys(pkg)], ['version', 'kind', 'moduleKey', 'labKey', 'rubricVersion', 'ticketId', 'startedAt', 'fields', 'diagnosis',
-    'steps', 'stepTexts', 'decision', 'resolutionNote', 'userReply', 'workNotes', 'commands', 'events', 'machine', 'passwordTyped']);
+    'steps', 'stepTexts', 'decision', 'resolutionNote', 'userReply', 'workNotes', 'commands', 'events', 'machine', 'passwordTyped', 'passwordWritten']);
   assert.equal(pkg.passwordTyped, false);
+  assert.equal(pkg.passwordWritten, false);
   assert.equal(pkg.labKey, 'lab-its-01-prove-it');
   assert.deepEqual([...pkg.stepTexts], [PROVE_TICKET.pathPool.find((step) => step.id === stepB).text], 'the portal has no simulator data, so the steps travel as text');
   assert.equal(pkg.ticketId, PROVE_ID);

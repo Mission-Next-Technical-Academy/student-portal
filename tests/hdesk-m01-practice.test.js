@@ -461,7 +461,8 @@ function testProveItUnchanged() {
   assert.match(tab.ps('Get-ScheduledTask'), /outside this training shell/);
   assert.ok(tab.run("hdEvents().some((e) => e.id === '4740' && e.message.includes('NS-LT-0117'))"), 'the shared event list as before');
   assert.doesNotMatch(tab.view('helpdesk/event-viewer'), /hd-ev-id/, 'no filter bar');
-  assert.doesNotMatch(tab.view('helpdesk/directory'), /<th>Phone<\/th>/);
+  // The directory shows the caller-check details in Prove too (phone on file and employee ID).
+  assert.match(tab.view('helpdesk/directory'), /<th>Employee ID<\/th><th>Department<\/th><th>Phone<\/th>/);
   assert.match(tab.ps('Get-Printer'), /Microsoft Print to PDF/, 'the Prove machine still answers');
   assert.ok(!tab.run('hdState.practiceLog'), 'no Practice log');
 }
@@ -576,6 +577,13 @@ function testInstructorSheetShowsTheInvestigation() {
   const check = sheet.evaluate(roughRow).sections.find((s) => s.id === 'investigation-hd-2101');
   assert.notEqual(check.status, 'pass', 'asking for the password is flagged');
   assert.match(sheet.render(roughRow), /Asked for the password → Callback on the User Directory number/);
+  // A password written in a ticket field: a flag beside the shell row, never a verdict change.
+  assert.match(html, /Password in a ticket field[\s\S]{0,200}Did not/);
+  const wrote = JSON.parse(JSON.stringify(work));
+  wrote.investigation.passwordWritten = true;
+  const wroteRow = { ...row, id: 'm01p-3', result: { ...row.result, work: prun('itsCleanCoachWork')(wrote) } };
+  assert.equal(sheet.evaluate(wroteRow).sections.find((s) => s.id === 'investigation-hd-2101').status, 'pass', 'flag only: the verdict is unchanged');
+  assert.match(sheet.render(wroteRow), /Wrote a password in a ticket field \(refused, not recorded\)/);
 }
 
 /* -------------------------------------------------------------------- run */

@@ -176,6 +176,13 @@ function hdFreshState(templates = HD_TICKET_TEMPLATES) {
     userOverrides:{}, computerOverrides:{}, printerOverrides:{},
     powershell:[{ type:'system', text:'Northstar Enterprise Support Shell · training subset\nType Get-Help to list supported commands.' }],
   };
+  // A console ticket's account starts in the state its ticket describes.
+  if (templates === HD_TICKET_TEMPLATES) {
+    templates.forEach(template => {
+      const account = template.console && template.console.account;
+      if (account && account.locked) state.userOverrides[account.userId] = { ...(state.userOverrides[account.userId] || {}), locked:true };
+    });
+  }
   // Only a Practice shift (the shared templates) gets the Practice scenarios.
   return templates === HD_TICKET_TEMPLATES ? hdEnsurePractice(state) : state;
 }
@@ -218,20 +225,91 @@ function hdRedactCommand(command) {
   const match = new RegExp(HD_PASSWORD_ARG, 'i').exec(text);
   return match ? `${text.slice(0, match.index)}${match[1]}${match[2]}${match[3]}********` : text;
 }
+// A password written into a ticket field (work note, customer comment, Prove
+// resolution note or reply): a label (password, passwd, pwd, pw, passcode)
+// followed by ":", "=", "is" or a dash (also "was:", "is:", "now:") and a
+// value, or a shell password argument pasted in. Plain "was" isn't enough
+// ("the password was causing lockouts"). The word alone is not a password: "explained we can't view or
+// set passwords" and "the self-service password reset" are fine, and so is a
+// state word after the label ("password is expired", "password: reset").
+// Same line only: a label ending one line never reads the next line as its
+// value. A quoted value is the whole quote, spaces included ("Spring 2026!").
+// Groups: 1 the label and connector, 2-5 a quoted value, 6 an unquoted one.
+const HD_PASSWORD_LABEL = '(\\b(?:password|passwd|pwd|pw|passcode)(?:[ \\t]+(?:was|is|now))?[ \\t]*(?::|=|[—–]|\\bis\\b)[ \\t]*)(?:"([^"\\n]*)"|\'([^\'\\n]*)\'|“([^”\\n]*)”|‘([^’\\n]*)’|([^\\s"\'“”‘’]\\S*))';
+function hdPasswordMatchValue(match) { return [2, 3, 4, 5, 6].map(index => match[index]).find(value => value !== undefined) || ''; }
+const HD_PASSWORD_NOT_A_VALUE = new Set(('not never no none n/a na nil null unknown unchanged changed change reset resets expired expiring locked unlocked '
+  + 'correct incorrect wrong right required needed forgotten forgot set updated current old new same different the a an his her their its my your our '
+  + 'still now being been ok okay fine valid invalid working accepted rejected blank empty hidden private secret managed self-service via per through '
+  + 'by case-sensitive too very also only cleared entered typed verified confirmed stored saved cached stale synced mismatched sent shared emailed '
+  + 'texted given provided protected masked redacted withheld it it\'s don\'t can\'t isn\'t won\'t').split(' '));
+function hdIsPasswordValue(value) {
+  const word = String(value || '').toLowerCase().replace(/[.,;:!?)\]]+$/, '');
+  if (!word || HD_PASSWORD_NOT_A_VALUE.has(word)) return false;
+  // Already masked, or a placeholder: nothing to hide.
+  return !/^(\*+|x{3,}|•+|\[[^\]]*\]|<[^>]*>|\.{3,})$/i.test(word);
+}
+function hdPasswordInText(text) {
+  const value = String(text || '');
+  if (hdHasPasswordArg(value)) return true;
+  const pattern = new RegExp(HD_PASSWORD_LABEL, 'gi');
+  let match;
+  while ((match = pattern.exec(value))) { if (hdIsPasswordValue(hdPasswordMatchValue(match))) return true; }
+  return false;
+}
+// Masks each password value, the whole of a quoted one (for drafts saved
+// before this check existed). What comes back never holds a password value.
+function hdMaskPasswordText(text) {
+  const masked = String(text || '').replace(new RegExp(HD_PASSWORD_LABEL, 'gi'), (...match) => {
+    if (!hdIsPasswordValue(hdPasswordMatchValue(match))) return match[0];
+    const quote = [['"', '"'], ['\'', '\''], ['“', '”'], ['‘', '’']][[2, 3, 4, 5].findIndex(index => match[index] !== undefined)] || ['', ''];
+    return `${match[1]}${quote[0]}********${quote[1]}`;
+  });
+  return hdHasPasswordArg(masked) ? hdRedactCommand(masked) : masked;
+}
+// The refusal, shared by every free-text ticket field. Practice coaches with
+// the shell refusal's message; Prove only says it wasn't saved and flags it
+// for the instructor (passwordWritten, separate from the shell's
+// passwordTyped). Never a scoring rule: the instructor decides.
+const HD_PASSWORD_STOP = 'Stopped: never type a user\'s password, not in the shell and not anywhere else.';
+function hdRefusePasswordText(ticket, field) {
+  if (HD_PROVE) {
+    if (hdState.prove) hdState.prove.passwordWritten = true;
+    hdSave();
+    return `Stopped: this ${field} includes a password, so it was not saved.`;
+  }
+  if (ticket) ticket.passwordWritten = true;
+  hdPracticeEvent('password_refused', { field });
+  hdSave();
+  return `${HD_PASSWORD_STOP} Remove it from the ${field}, then add it again. KB-0024: you never see, type or record a user's password.`;
+}
 // A draft saved before passwords were masked can still hold one: mask every
-// saved command on load and, if any changed, write the masked draft back so
-// the raw copy is gone from storage. A Prove draft that had one gets the flag.
+// saved command, note and comment on load and, if any changed, write the
+// masked draft back so the raw copy is gone from storage. A Prove draft that
+// had one gets the flag (passwordTyped for a command, passwordWritten for
+// writing).
 function hdScrubSavedCommands(state) {
   let changed = false;
   const scrub = (holder, field) => {
     if (holder && typeof holder[field] === 'string' && hdHasPasswordArg(holder[field])) { holder[field] = hdRedactCommand(holder[field]); changed = true; return true; }
     return false;
   };
+  const scrubText = (holder, field, owner) => {
+    if (!holder || typeof holder[field] !== 'string' || !hdPasswordInText(holder[field])) return;
+    holder[field] = hdMaskPasswordText(holder[field]); changed = true;
+    if (owner) owner.passwordWritten = true;
+  };
   (Array.isArray(state.powershell) ? state.powershell : []).forEach(row => { if (row && row.type === 'command') scrub(row, 'text'); });
   (Array.isArray(state.practiceLog) ? state.practiceLog : []).forEach(entry => scrub(entry, 'command'));
   if (state.prove && Array.isArray(state.prove.events)) {
     state.prove.events.forEach(entry => { if (scrub(entry, 'command')) state.prove.passwordTyped = true; });
   }
+  (Array.isArray(state.tickets) ? state.tickets : []).forEach(ticket => {
+    if (!ticket) return;
+    const owner = state.prove || ticket;
+    (Array.isArray(ticket.notes) ? ticket.notes : []).forEach(note => scrubText(note, 'text', owner));
+    (Array.isArray(ticket.customerComments) ? ticket.customerComments : []).forEach(comment => scrubText(comment, 'text', owner));
+  });
+  if (state.prove) ['resolutionNote', 'userReply'].forEach(field => scrubText(state.prove, field, state.prove));
   if (changed) { try { localStorage.setItem(hdStateKey(), JSON.stringify(state)); } catch (_) {} }
   return state;
 }
@@ -345,16 +423,22 @@ function hdTransitionTicket(id, status) {
   const ticket = hdTicketById(id); if (!ticket || !HD_STATUS_NEXT[ticket.status].includes(status)) {
     toast('That state transition is not valid from the current ticket state.'); return;
   }
+  // A required resolution code can't be skipped through the state list either.
+  const codeConfig = hdConsole(ticket).resolutionCode;
+  if (status === 'Resolved' && codeConfig && codeConfig.required && !hdConsoleState(ticket).resolutionCode) { toast('Choose a resolution code before you resolve this ticket.'); hdRerender(); return; }
   ticket.status = status; hdHistory(ticket, `Status changed to ${status}.`); hdRerender();
 }
 function hdSetTicketPriority(id, priority) {
   const ticket = hdTicketById(id); if (!ticket) return;
+  if (hdConsole(ticket).priorityReason) { toast('This ticket\'s priority is pre-set.'); return; }
   ticket.priority = priority; hdHistory(ticket, `Priority set to ${priority} after impact and urgency review.`); hdRerender();
 }
 function hdAddNote(id) {
   if (hdProveLocked()) return;
   const ticket = hdTicketById(id); const input = document.getElementById('hd-note-input');
-  const text = input && input.value.trim(); if (!ticket || !text) { toast('Enter a useful troubleshooting note first.'); return; }
+  const text = input && input.value.trim(); if (!ticket || !text) { toast('Enter a useful troubleshooting note first.'); return false; }
+  // A password is never saved in a note, on any ticket.
+  if (hdPasswordInText(text)) { toast(hdRefusePasswordText(ticket, 'work note')); return false; }
   ticket.notes.push({ time:new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }), author:'Riley Morgan', text });
   hdProveEdited();
   hdHistory(ticket, 'Technician work note added.');
@@ -362,8 +446,9 @@ function hdAddNote(id) {
   if (ticket.id === HD_M01 && hdM01()) {
     const missing = hdNoteMissingParts(text);
     toast(missing.length ? `Note added. A complete note for this ticket has three parts: Reported, Tried and Result. Still missing: ${missing.join(', ')}.` : 'Note added: Reported, Tried and Result are all there.');
-  }
+  } else if (hdConsole(ticket).notes) toast(hdConsoleNoteFeedback(ticket, text));
   hdRerender();
+  return true;
 }
 function hdContactRequester(id) {
   const ticket = hdTicketById(id); if (!ticket) return;
@@ -400,8 +485,12 @@ function hdResolveTicket(id) {
     const missing = hdM01Missing();
     if (missing) { toast(missing); return; }
   } else if (!ticket.diagnosisCorrect && !['Service Request'].includes(ticket.category)) { toast('Validate the root cause before resolving this ticket.'); return; }
+  // A ticket that turns the resolution code on and requires it: no code, no resolve.
+  const codeConfig = hdConsole(ticket).resolutionCode;
+  const code = codeConfig ? hdConsoleState(ticket).resolutionCode : '';
+  if (codeConfig && codeConfig.required && !code) { toast('Choose a resolution code before you resolve this ticket.'); return; }
   ticket.resolution = scenario ? hdM01CompleteNote(ticket).text : ticket.expectedResolution;
-  ticket.closureCode = ticket.category === 'Service Request' ? 'Request fulfilled' : ticket.category === 'Security Incident' ? 'Escalated to Security' : 'Resolved by support';
+  ticket.closureCode = code || (ticket.category === 'Service Request' ? 'Request fulfilled' : ticket.category === 'Security Incident' ? 'Escalated to Security' : 'Resolved by support');
   if (ticket.category === 'Security Incident' || ticket.escalationCriteria.some(x => x.startsWith('Always'))) {
     ticket.status = 'Escalated'; ticket.assignedTechnician = ticket.category === 'Security Incident' ? 'Cybersecurity Operations' : 'Enterprise Infrastructure';
     hdHistory(ticket, `Warm escalation accepted by ${ticket.assignedTechnician}.`);
@@ -491,14 +580,14 @@ VIEWS['helpdesk/ticket'] = () => {
     ${related.length > 1 ? `<div class="callout warning hd-related"><strong>${related.length} related reports detected.</strong> Same application, symptom, and time window. ${ticket.linkedProblem ? `Linked to ${hdEsc(ticket.linkedProblem)}.` : `<button class="btn btn-sm btn-secondary" onclick="hdLinkProblem('${ticket.id}')">Link to problem record</button>`}</div>` : ''}
     <div class="hd-ticket-layout">
       <div class="hd-ticket-main">
-        <div class="card"><div class="card-header"><strong>Requester statement</strong>${hdBadge(ticket.priority,ticket.priority.toLowerCase())}${hdBadge(ticket.status)}${hdBadge(sla.label,sla.cls)}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid"><div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Business impact</span><strong>${hdEsc(ticket.businessImpact)}</strong></div><div><span>SLA target</span><strong>${hdEsc(ticket.sla)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div></div></div></div>
+        <div class="card"><div class="card-header"><strong>Requester statement</strong>${hdBadge(ticket.priority,ticket.priority.toLowerCase())}${hdBadge(ticket.status)}${hdBadge(sla.label,sla.cls)}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid"><div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Business impact</span><strong>${hdEsc(ticket.businessImpact)}</strong></div><div><span>SLA target</span><strong>${hdEsc(ticket.sla)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div></div></div></div>${hdConsoleChatCard(ticket)}${hdConsoleKbCard(ticket)}${hdConsoleVerifyCard(ticket)}${hdConsoleAccountCard(ticket)}
         <div class="two-col"><div class="card"><div class="card-header"><strong>Observable symptoms</strong></div><div class="card-body">${hdList(ticket.symptoms)}</div></div><div class="card"><div class="card-header"><strong>Relevant system state</strong></div><div class="card-body">${hdList(ticket.systemState)}</div></div></div>
         <div class="card"><div class="card-header"><strong>Available logs and evidence</strong><span class="muted">Investigate; do not infer beyond the evidence.</span></div><div class="card-body">${evidence}</div></div>
         ${pathAndDiagnosis}
-        <div class="card"><div class="card-header"><strong>Work notes</strong><span class="muted">Facts, commands, results, interpretation, next action.</span></div><div class="card-body"><div class="hd-note-list">${ticket.notes.length ? ticket.notes.map(note => `<div><strong>${hdEsc(note.author)} · ${hdEsc(note.time)}</strong><p>${hdEsc(note.text)}</p></div>`).join('') : '<p class="muted">No technician notes yet.</p>'}</div><textarea id="hd-note-input" class="ipt hd-note-input" rows="7" placeholder="${scenario ? 'Reported: what Jordan reported&#10;Tried: what you checked and changed, and what each step showed&#10;Result: the outcome and how you confirmed it' : 'Document the action you took and what the result proved…'}"></textarea><button class="btn btn-secondary" onclick="hdAddNote('${ticket.id}')">Add work note</button></div></div>
+        <div class="card"><div class="card-header"><strong>Work notes</strong><span class="muted">Facts, commands, results, interpretation, next action.</span></div><div class="card-body"><div class="hd-note-list">${ticket.notes.length ? ticket.notes.map(note => `<div><strong>${hdEsc(note.author)} · ${hdEsc(note.time)}</strong><p>${hdEsc(note.text)}</p></div>`).join('') : '<p class="muted">No technician notes yet.</p>'}</div><textarea id="hd-note-input" class="ipt hd-note-input" rows="7" placeholder="${scenario ? 'Reported: what Jordan reported&#10;Tried: what you checked and changed, and what each step showed&#10;Result: the outcome and how you confirmed it' : hdConsole(ticket).notes ? hdConsoleNotePlaceholder(ticket) : 'Document the action you took and what the result proved…'}"></textarea><button class="btn btn-secondary" onclick="hdAddNote('${ticket.id}')">Add work note</button></div></div>${hdConsoleCommentsCard(ticket)}
       </div>
       <aside class="hd-ticket-side">
-        <div class="card"><div class="card-header"><strong>Ticket controls</strong></div><div class="card-body hd-control-stack"><label>Priority<select class="select" onchange="hdSetTicketPriority('${ticket.id}',this.value)">${['P1','P2','P3','P4'].map(v=>`<option ${ticket.priority===v?'selected':''}>${v}</option>`).join('')}</select></label>${nextStates.length?`<label>Next state<select class="select" onchange="if(this.value)hdTransitionTicket('${ticket.id}',this.value)"><option value="">Choose…</option>${nextStates.map(v=>`<option>${v}</option>`).join('')}</select></label>`:''}<button class="btn btn-secondary" onclick="hdContactRequester('${ticket.id}')">Contact requester</button><button class="btn btn-primary" onclick="hdResolveTicket('${ticket.id}')">${ticket.category==='Security Incident'?'Warm escalate':'Resolve / escalate'}</button></div></div>
+        <div class="card"><div class="card-header"><strong>Ticket controls</strong></div><div class="card-body hd-control-stack">${hdConsolePriorityControl(ticket)}${nextStates.length?`<label>Next state<select class="select" onchange="if(this.value)hdTransitionTicket('${ticket.id}',this.value)"><option value="">Choose…</option>${nextStates.map(v=>`<option>${v}</option>`).join('')}</select></label>`:''}<button class="btn btn-secondary" onclick="hdContactRequester('${ticket.id}')">Contact requester</button>${hdConsoleResolutionControl(ticket)}<button class="btn btn-primary" onclick="hdResolveTicket('${ticket.id}')">${ticket.category==='Security Incident'?'Warm escalate':'Resolve / escalate'}</button></div></div>
         <div class="card"><div class="card-header"><strong>Escalation criteria</strong></div><div class="card-body">${hdList(ticket.escalationCriteria)}</div></div>
         <div class="card"><div class="card-header"><strong>History</strong></div><div class="card-body hd-history">${ticket.troubleshootingHistory.slice().reverse().map(row=>`<div><time>${hdEsc(row.time)}</time><p>${hdEsc(row.action)}</p></div>`).join('')}</div></div>
         ${ticket.resolution ? `<div class="card"><div class="card-header"><strong>Resolution</strong>${hdBadge(ticket.closureCode,'ok')}</div><div class="card-body"><p>${hdEsc(ticket.resolution)}</p></div></div>` : ''}
@@ -530,10 +619,331 @@ function hdM01InvestigationCard(scenario) {
   const relocks = scenario.relocks ? `<p class="muted">The account has locked again ${scenario.relocks} time${scenario.relocks === 1 ? '' : 's'} since you unlocked it.</p>` : '';
   return `<div class="card hd-investigation"><div class="card-header" style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px"><strong>Your investigation</strong><span class="muted">Practice: any order works. Find the evidence on the tool screens.</span></div><div class="card-body"><ul class="hd-list hd-outcomes">${HD_M01_OUTCOMES.map(([key, label]) => `<li data-outcome="${key}" data-done="${outcomes[key] ? 'yes' : 'no'}">${outcomes[key] ? '✓' : '○'} ${hdEsc(label)}</li>`).join('')}</ul>${schedule}${relocks}${hint}${next ? `<button type="button" class="btn btn-ghost btn-sm" onclick="hdM01Hint()">${level ? (level < 2 ? 'Another hint' : 'Hint shown') : 'Need a hint?'}</button>` : '<p><strong>Every part is done.</strong> Resolve the ticket.</p>'}</div></div>`;
 }
+/* ---------- Console features, switched on per ticket ----------
+ * A Practice ticket template may carry `console: { ... }`; each key turns one
+ * feature on for that ticket, and a ticket without it looks and behaves as
+ * before. The settings are read from the template (never from the saved
+ * shift), so a later fixture change reaches existing shifts. Prove shifts
+ * never get these (their tickets aren't templates). Keys:
+ *   kb: true                       Knowledge Base search box on the ticket
+ *   caller: { name, questions:[{ id, text, reply, replyLocked?, asksPassword? }] }
+ *                                  question buttons and scripted replies
+ *   account: { userId, locked? }   account card; Unlock account
+ *   verification: { prompt, options:[{ id, text, pass?, critical?, feedback, history? }] }
+ *                                  caller check; Unlock works only after a pass
+ *   comments: true                 Additional comments (customer-visible)
+ *   resolutionCode: { options?, required? }  resolving needs a code when required
+ *   priorityReason: '...'          ticket.priority is pre-set; shown read-only
+ *   notes: { parts?, nextAction?, jargon? }  work note parts (HD_NOTE_PARTS
+ *                                  keys), a Next action part while the ticket
+ *                                  stays open, words a customer comment
+ *                                  mustn't use
+ * The student's work on these lives in ticket.consoleState and
+ * ticket.customerComments, created only for a ticket that has the feature. */
+function hdConsole(ticket) {
+  if (HD_PROVE || !ticket) return {};
+  const template = HD_TICKET_TEMPLATES.find(item => item.id === ticket.id);
+  return (template && template.console) || {};
+}
+function hdConsoleState(ticket) {
+  const state = ticket.consoleState = ticket.consoleState || {};
+  state.chat = Array.isArray(state.chat) ? state.chat : [];
+  state.kbQuery = typeof state.kbQuery === 'string' ? state.kbQuery : '';
+  state.kbOpen = typeof state.kbOpen === 'string' ? state.kbOpen : '';
+  state.kbSearches = Array.isArray(state.kbSearches) ? state.kbSearches : [];
+  state.kbOpened = Array.isArray(state.kbOpened) ? state.kbOpened : [];
+  const verification = state.verification = state.verification || {};
+  verification.choice = verification.choice || '';
+  verification.tries = Array.isArray(verification.tries) ? verification.tries : [];
+  verification.passed = verification.passed === true;
+  verification.criticalErrors = Array.isArray(verification.criticalErrors) ? verification.criticalErrors : [];
+  state.unlocks = Array.isArray(state.unlocks) ? state.unlocks : [];
+  state.resolutionCode = typeof state.resolutionCode === 'string' ? state.resolutionCode : '';
+  return state;
+}
+function hdComments(ticket) {
+  if (!Array.isArray(ticket.customerComments)) ticket.customerComments = [];
+  return ticket.customerComments;
+}
+function hdConsoleTime() { return new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }); }
+// Escalated or waiting tickets stay open: their note needs a Next action.
+function hdTicketStaysOpen(ticket) {
+  return ['Escalated', 'Pending User', 'Pending Vendor'].includes(ticket.status) || ticket.category === 'Security Incident'
+    || (ticket.escalationCriteria || []).some(item => item.startsWith('Always'));
+}
+
+// Work note parts, in one place. hdNoteMissingParts(text) with no list is the
+// Reported / Tried / Result check HD-2101 has always used; a ticket can ask
+// for other parts (e.g. Reported / Checked / Done / Result). Only the parts
+// asked for split the note, so a word like "Done:" inside "Tried:" still
+// counts as Tried text there.
+const HD_NOTE_PARTS = { reported:'Reported', tried:'Tried', checked:'Checked', done:'Done', result:'Result', next:'Next action' };
+const HD_NOTE_DEFAULT_PARTS = ['reported', 'tried', 'result'];
+function hdNotePartPattern(key) { return HD_NOTE_PARTS[key].replace(/ /g, '\\s+'); }
+function hdNoteMissingParts(text, parts = HD_NOTE_DEFAULT_PARTS) {
+  const keys = parts.filter(key => HD_NOTE_PARTS[key]);
+  if (!keys.length) return [];
+  const pieces = String(text || '').split(new RegExp(`\\b(${keys.map(hdNotePartPattern).join('|')})\\s*:`, 'i'));
+  const found = {};
+  for (let i = 1; i < pieces.length; i += 2) {
+    const key = keys.find(item => new RegExp(`^${hdNotePartPattern(item)}$`, 'i').test(pieces[i]));
+    found[key] = (found[key] || '') + pieces[i + 1];
+  }
+  return keys.filter(key => (found[key] || '').replace(/\s+/g, '').length < 8).map(key => HD_NOTE_PARTS[key]);
+}
+function hdConsoleNoteParts(ticket) {
+  const config = hdConsole(ticket).notes || {};
+  const parts = Array.isArray(config.parts) && config.parts.length ? config.parts.filter(key => HD_NOTE_PARTS[key] && key !== 'next') : HD_NOTE_DEFAULT_PARTS;
+  return config.nextAction && hdTicketStaysOpen(ticket) ? [...parts, 'next'] : parts;
+}
+function hdJoinWords(words) { return words.length < 2 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`; }
+function hdConsoleNoteFeedback(ticket, text) {
+  const labels = hdConsoleNoteParts(ticket).map(key => HD_NOTE_PARTS[key]);
+  const missing = hdNoteMissingParts(text, hdConsoleNoteParts(ticket));
+  return missing.length ? `Note added. A complete note for this ticket has ${labels.length} parts: ${hdJoinWords(labels)}. Still missing: ${missing.join(', ')}.` : `Note added: ${hdJoinWords(labels)} are all there.`;
+}
+// Internal words a customer comment shouldn't use (a ticket's own list:
+// e.g. badPwdCount, KB step numbers, server names). Whole words, any case.
+function hdJargonFound(text, words) {
+  const value = String(text || '');
+  return (Array.isArray(words) ? words : []).filter(word => {
+    const escaped = String(word).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+    return word && new RegExp(`(^|[^A-Za-z0-9])${escaped}(?=[^A-Za-z0-9]|$)`, 'i').test(value);
+  });
+}
+
+// Knowledge Base search: symptom words and error codes against each
+// article's ID, title and text. A word matches the start of an article word
+// once a plural or -ed/-ing ending is dropped ("locked" finds "lockout"); a
+// word with a digit (an error code, a KB number) must match a whole article
+// word. Most words matched first, then by ID.
+const HD_KB_FILLER = new Set('a an the my me i is it to of and or in on for with this that be was am are do does how what why can cant'.split(' '));
+function hdKbWords(text) { return String(text || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean); }
+function hdKbStem(word) {
+  if (/\d/.test(word) || word.length <= 4) return word;
+  const stem = word.replace(/(ing|ed|es|s)$/, '');
+  return stem.length >= 3 ? stem : word;
+}
+function hdKbSearchArticles(query, articles) {
+  const terms = [...new Set(hdKbWords(query).filter(word => !HD_KB_FILLER.has(word)))];
+  if (!terms.length) return [];
+  return (articles || []).map(article => {
+    const words = hdKbWords(`${article.id} ${article.title} ${article.summary}`);
+    const matched = terms.filter(term => (/\d/.test(term) ? words.includes(term) : words.some(word => word.startsWith(hdKbStem(term)))));
+    return { article, score:matched.length };
+  }).filter(row => row.score > 0).sort((a, b) => b.score - a.score || a.article.id.localeCompare(b.article.id)).map(row => row.article);
+}
+function hdKbSearch(event, id) {
+  if (event && event.preventDefault) event.preventDefault();
+  const ticket = hdTicketById(id); if (!ticket || !hdConsole(ticket).kb) return;
+  const input = document.getElementById('hd-kb-input');
+  const query = String(input ? input.value : '').trim().slice(0, 80);
+  const state = hdConsoleState(ticket);
+  state.kbQuery = query; state.kbOpen = '';
+  if (query) {
+    const results = hdKbSearchArticles(query, hdKbArticles()).map(article => article.id);
+    state.kbSearches.push({ query, results, at:new Date().toISOString() });
+    if (state.kbSearches.length > 30) state.kbSearches.splice(0, state.kbSearches.length - 30);
+    hdPracticeEvent('kb_search', { ticket:ticket.id, query, results:results.join(', ') });
+  }
+  hdRerender();
+}
+function hdKbOpen(id, articleId) {
+  const ticket = hdTicketById(id); if (!ticket || !hdConsole(ticket).kb) return;
+  const article = hdKbArticles().find(item => item.id === articleId); if (!article) return;
+  const state = hdConsoleState(ticket);
+  state.kbOpen = state.kbOpen === articleId ? '' : articleId;
+  if (state.kbOpen && !state.kbOpened.includes(articleId)) {
+    state.kbOpened.push(articleId);
+    hdPracticeEvent('evidence_opened', { ticket:ticket.id, source:`kb:${articleId}`, label:`${articleId} · ${article.title}` });
+  }
+  hdRerender();
+}
+
+// Caller chat: the ticket's question buttons and the caller's scripted
+// replies. A reply can differ while the account card's user is still locked
+// (replyLocked); that question comes back once the account is unlocked. A
+// question that asks for a password is refused, as PR #100's shell does: the
+// caller never hears it, and the ticket is flagged.
+function hdConsoleAccountLocked(ticket) {
+  const account = hdConsole(ticket).account;
+  const user = account && hdUserById(account.userId);
+  return !!(user && user.locked);
+}
+function hdChatQuestionOpen(ticket, question) {
+  const asked = hdConsoleState(ticket).chat.filter(entry => entry.id === question.id);
+  if (!asked.length) return true;
+  const last = asked[asked.length - 1];
+  return !question.asksPassword && last.whileLocked === true && !hdConsoleAccountLocked(ticket);
+}
+function hdChatAsk(id, questionId) {
+  const ticket = hdTicketById(id); const caller = ticket && hdConsole(ticket).caller;
+  const question = caller && (caller.questions || []).find(item => item.id === questionId);
+  if (!question || !hdChatQuestionOpen(ticket, question)) return;
+  const state = hdConsoleState(ticket);
+  if (question.asksPassword) {
+    ticket.passwordAsked = true;
+    state.chat.push({ id:question.id, question:question.text, refused:true, time:hdConsoleTime() });
+    hdPracticeEvent('password_refused', { ticket:ticket.id, field:'chat' });
+    toast(`${HD_PASSWORD_STOP} The help desk never asks for a password, for any reason (KB-0024).`);
+    hdRerender(); return;
+  }
+  const whileLocked = !!question.replyLocked && hdConsoleAccountLocked(ticket);
+  const reply = whileLocked ? question.replyLocked : question.reply;
+  state.chat.push({ id:question.id, question:question.text, reply, whileLocked, time:hdConsoleTime() });
+  hdPracticeEvent('caller_question', { ticket:ticket.id, question:question.id });
+  hdRerender();
+}
+
+// Verification: the ticket's choices and feedback. Every try is kept; a
+// choice marked critical is recorded as a critical error. Unlock account
+// works only after a passing choice.
+function hdVerify(id, optionId) {
+  const ticket = hdTicketById(id); const config = ticket && hdConsole(ticket).verification;
+  const option = config && (config.options || []).find(item => item.id === optionId);
+  if (!option) return;
+  const verification = hdConsoleState(ticket).verification;
+  if (verification.passed) return;
+  verification.tries.push(option.id);
+  verification.choice = option.id;
+  if (option.critical && !verification.criticalErrors.includes(option.id)) verification.criticalErrors.push(option.id);
+  if (option.pass) {
+    verification.passed = true;
+    hdHistory(ticket, option.history || `Caller verified: ${option.text}`);
+  }
+  hdPracticeEvent('identity_checked', { ticket:ticket.id, choice:option.id, pass:option.pass === true, critical:option.critical === true });
+  hdRerender();
+}
+// Why an unlock of this user must wait, or '' when it can go ahead.
+function hdConsoleUnlockBlock(userId) {
+  const waiting = hdState.tickets.find(ticket => {
+    const config = hdConsole(ticket);
+    return config.account && config.account.userId === userId && config.verification && !hdConsoleState(ticket).verification.passed
+      && !['Resolved', 'Closed'].includes(ticket.status);
+  });
+  return waiting ? `Verify the caller on ${waiting.id} before you unlock this account.` : '';
+}
+function hdConsoleUnlock(id, via = 'Account card') {
+  const ticket = hdTicketById(id); const account = ticket && hdConsole(ticket).account;
+  const user = account && hdUserById(account.userId);
+  if (!user) return;
+  const blocked = hdConsoleUnlockBlock(user.id);
+  if (blocked) { hdPracticeEvent('unlock_blocked', { ticket:ticket.id, via }); toast(blocked); hdRerender(); return; }
+  if (!user.locked) { toast(`${user.username} is not locked out.`); return; }
+  hdState.userOverrides[user.id] = { ...(hdState.userOverrides[user.id] || {}), locked:false };
+  hdConsoleState(ticket).unlocks.push({ via, time:hdConsoleTime() });
+  hdHistory(ticket, `Account ${user.username} unlocked (${via}).`);
+  hdPracticeEvent('account_unlocked', { ticket:ticket.id, via });
+  toast(`Account ${user.username} unlocked.`);
+  hdRerender();
+}
+
+// Additional comments (customer-visible): kept apart from Work notes.
+function hdAddComment(id) {
+  const ticket = hdTicketById(id); if (!ticket || !hdConsole(ticket).comments) return false;
+  const input = document.getElementById('hd-comment-input');
+  const text = input && input.value.trim();
+  if (!text) { toast('Write the comment the customer will read first.'); return false; }
+  if (hdPasswordInText(text)) { toast(hdRefusePasswordText(ticket, 'customer comment')); return false; }
+  hdComments(ticket).push({ time:hdConsoleTime(), author:'Riley Morgan', text:text.slice(0, 2000) });
+  hdHistory(ticket, 'Additional comment (customer-visible) added.');
+  const jargon = hdJargonFound(text, (hdConsole(ticket).notes || {}).jargon);
+  hdPracticeEvent('customer_comment', { ticket:ticket.id, jargon:jargon.join(', ') });
+  toast(jargon.length ? `Comment added. The customer won't know these words: ${jargon.join(', ')}. Say it in plain words.` : 'Customer comment added.');
+  hdRerender();
+  return true;
+}
+const HD_RESOLUTION_CODES = ['Solution provided', 'Workaround provided', 'Escalated', 'Routed to Security Operations', 'User cancelled', 'Duplicate'];
+function hdResolutionCodes(ticket) {
+  const config = hdConsole(ticket).resolutionCode;
+  return config && Array.isArray(config.options) && config.options.length ? config.options : HD_RESOLUTION_CODES;
+}
+function hdSetResolutionCode(id, value) {
+  const ticket = hdTicketById(id); if (!ticket || !hdConsole(ticket).resolutionCode) return;
+  const code = hdResolutionCodes(ticket).includes(value) ? value : '';
+  hdConsoleState(ticket).resolutionCode = code;
+  if (code) hdHistory(ticket, `Resolution code set to ${code}.`);
+  hdRerender();
+}
+// What a coach or a later package reads about one ticket's console work.
+function hdConsoleProgress(id) {
+  const ticket = hdTicketById(id); if (!ticket) return null;
+  const config = hdConsole(ticket);
+  if (!Object.keys(config).length) return null;
+  const state = hdConsoleState(ticket);
+  const comments = hdComments(ticket);
+  const lastComment = comments[comments.length - 1];
+  const note = (ticket.notes || []).filter(item => item.author === 'Riley Morgan').pop();
+  return {
+    kbSearches:state.kbSearches.map(row => row.query), kbOpened:state.kbOpened.slice(),
+    chatAsked:state.chat.filter(entry => !entry.refused).map(entry => entry.id),
+    verification:{ choice:state.verification.choice, tries:state.verification.tries.slice(), passed:state.verification.passed, criticalErrors:state.verification.criticalErrors.slice() },
+    accountUnlocked:!!config.account && !hdConsoleAccountLocked(ticket), unlocks:state.unlocks.length,
+    comments:comments.length, lastCommentJargon:lastComment ? hdJargonFound(lastComment.text, (config.notes || {}).jargon) : [],
+    noteMissing:note ? hdNoteMissingParts(note.text, hdConsoleNoteParts(ticket)) : hdConsoleNoteParts(ticket).map(key => HD_NOTE_PARTS[key]),
+    resolutionCode:state.resolutionCode,
+    passwordWritten:ticket.passwordWritten === true, passwordAsked:ticket.passwordAsked === true,
+  };
+}
+
+// The cards. Each is '' for a ticket without its feature.
+const HD_CONSOLE_HEADER = 'style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px"';
+const HD_CONSOLE_CHOICE = 'style="text-align:left;white-space:normal;height:auto;padding:10px 12px"';
+function hdConsoleChatCard(ticket) {
+  const caller = hdConsole(ticket).caller; if (!caller) return '';
+  const state = hdConsoleState(ticket);
+  const log = state.chat.length ? state.chat.map(entry => entry.refused
+    ? `<div><strong>You (not asked)</strong><p>${hdEsc(entry.question)}</p><p class="muted">The help desk never asks for a password.</p></div>`
+    : `<div><strong>You · ${hdEsc(entry.time)}</strong><p>${hdEsc(entry.question)}</p><strong>${hdEsc(caller.name)}</strong><p>${hdEsc(entry.reply)}</p></div>`).join('') : '<p class="muted">No questions asked yet.</p>';
+  const open = (caller.questions || []).filter(question => hdChatQuestionOpen(ticket, question));
+  const buttons = open.length ? `<div class="hd-chat-questions" style="display:grid;gap:8px">${open.map(question => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} onclick="hdChatAsk('${ticket.id}','${hdEsc(question.id)}')">${hdEsc(question.text)}</button>`).join('')}</div>` : '';
+  return `<div class="card hd-chat"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Caller chat</strong><span class="muted">${hdEsc(caller.name)} · on the line</span></div><div class="card-body"><div class="hd-note-list">${log}</div>${buttons}</div></div>`;
+}
+function hdConsoleKbCard(ticket) {
+  if (!hdConsole(ticket).kb) return '';
+  const state = hdConsoleState(ticket);
+  const results = state.kbQuery ? hdKbSearchArticles(state.kbQuery, hdKbArticles()) : [];
+  const list = !state.kbQuery ? '' : results.length ? `<div class="hd-note-list hd-kb-results">${results.map(article => `<div data-kb="${hdEsc(article.id)}"><strong>${hdEsc(article.id)} · ${hdEsc(article.title)}</strong><small class="muted"> ${hdEsc(article.audience)}</small> <button type="button" class="btn btn-ghost btn-sm" onclick="hdKbOpen('${ticket.id}','${hdEsc(article.id)}')">${state.kbOpen === article.id ? 'Close' : 'Open'}</button>${state.kbOpen === article.id ? `<p>${hdEsc(article.summary)}</p>` : ''}</div>`).join('')}</div>` : `<p class="muted">No articles match “${hdEsc(state.kbQuery)}”. Try the symptom words or the exact error code.</p>`;
+  return `<div class="card hd-kb-search"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Knowledge Base</strong><span class="muted">Search by symptom words or the error code.</span></div><div class="card-body"><form class="filterbar" onsubmit="hdKbSearch(event,'${ticket.id}')"><input id="hd-kb-input" class="ipt" maxlength="80" value="${hdEsc(state.kbQuery)}" placeholder="e.g. locked out, 0x80070005"><button class="btn btn-primary btn-sm" type="submit">Search</button></form>${list}</div></div>`;
+}
+function hdConsoleVerifyCard(ticket) {
+  const config = hdConsole(ticket).verification; if (!config) return '';
+  const verification = hdConsoleState(ticket).verification;
+  const options = config.options || [];
+  const shown = options.find(option => option.id === verification.choice);
+  const tone = shown ? (shown.pass ? 'success' : shown.critical ? 'bad' : 'warn') : '';
+  const feedback = shown ? `<div class="callout ${tone}" role="${shown.critical ? 'alert' : 'status'}">${hdEsc(shown.feedback || '')}</div>` : '';
+  const choices = verification.passed ? '' : `<div class="hd-identity-options" style="display:grid;gap:8px">${options.map(option => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} onclick="hdVerify('${ticket.id}','${hdEsc(option.id)}')">${hdEsc(option.text)}</button>`).join('')}</div>`;
+  return `<div class="card hd-verify"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Verify caller</strong>${verification.passed ? hdBadge('Verified', 'ok') : hdBadge('Not verified', 'warn')}</div><div class="card-body">${config.prompt ? `<p>${hdEsc(config.prompt)}</p>` : ''}${choices}${feedback}</div></div>`;
+}
+function hdConsoleAccountCard(ticket) {
+  const account = hdConsole(ticket).account; if (!account) return '';
+  const user = hdUserById(account.userId); if (!user) return '';
+  return `<div class="card hd-account"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Account · ${hdEsc(user.name)}</strong>${user.locked ? hdBadge('Locked', 'bad') : hdBadge('Unlocked', 'ok')}</div><div class="card-body"><dl class="hd-dl"><dt>Username</dt><dd>${hdEsc(`${HD_ORG.netbios}\\${user.username}`)}</dd><dt>Employee ID</dt><dd>${hdEsc(user.employeeId || '')}</dd><dt>Department</dt><dd>${hdEsc(user.department)}</dd><dt>Directory phone</dt><dd>${hdEsc(user.phone || '')}</dd></dl><button type="button" class="btn btn-secondary" onclick="hdConsoleUnlock('${ticket.id}')">Unlock account</button></div></div>`;
+}
+function hdConsoleCommentsCard(ticket) {
+  if (!hdConsole(ticket).comments) return '';
+  const comments = hdComments(ticket);
+  return `<div class="card hd-comments"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Additional comments (customer-visible)</strong><span class="muted">${hdEsc(ticket.requester)} reads these. Plain words, no internal terms.</span></div><div class="card-body"><div class="hd-note-list">${comments.length ? comments.map(comment => `<div><strong>${hdEsc(comment.author)} · ${hdEsc(comment.time)}</strong><p>${hdEsc(comment.text)}</p></div>`).join('') : '<p class="muted">No customer comments yet.</p>'}</div><textarea id="hd-comment-input" class="ipt hd-note-input" rows="6" maxlength="2000" placeholder="Hi ${hdEsc(String(ticket.requester).split(' ')[0])}, …"></textarea><button class="btn btn-secondary" onclick="hdAddComment('${ticket.id}')">Add customer comment</button></div></div>`;
+}
+function hdConsolePriorityControl(ticket) {
+  const reason = hdConsole(ticket).priorityReason;
+  if (!reason) return `<label>Priority<select class="select" onchange="hdSetTicketPriority('${ticket.id}',this.value)">${['P1','P2','P3','P4'].map(v=>`<option ${ticket.priority===v?'selected':''}>${v}</option>`).join('')}</select></label>`;
+  return `<div class="hd-priority-preset"><span>Priority</span> ${hdBadge(ticket.priority, ticket.priority.toLowerCase())}<p class="muted" style="margin:4px 0 0">Pre-set: ${hdEsc(reason)}</p></div>`;
+}
+function hdConsoleResolutionControl(ticket) {
+  const config = hdConsole(ticket).resolutionCode; if (!config) return '';
+  const code = hdConsoleState(ticket).resolutionCode;
+  return `<label>Resolution code${config.required ? ' (required to resolve)' : ''}<select id="hd-resolution-code" class="select" onchange="hdSetResolutionCode('${ticket.id}',this.value)"><option value="">Choose…</option>${hdResolutionCodes(ticket).map(value => `<option ${code === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></label>`;
+}
+function hdConsoleNotePlaceholder(ticket) {
+  return hdConsoleNoteParts(ticket).map(key => `${HD_NOTE_PARTS[key]}: …`).join('&#10;');
+}
+
 function hdDirectoryTable(users) {
-  // Practice shows the phone number on file (KB-0024's callback check).
-  const phone = !HD_PROVE;
-  return `<div class="table-wrap"><table><thead><tr><th>User</th><th>Department</th>${phone ? '<th>Phone</th>' : ''}<th>Account</th><th>MFA</th><th>OU</th><th></th></tr></thead><tbody>${users.map(user=>`<tr><td><strong>${hdEsc(user.name)}</strong><small>${hdEsc(user.email)}</small></td><td>${hdEsc(user.department)}</td>${phone ? `<td>${hdEsc(user.phone || '')}</td>` : ''}<td>${user.enabled?hdBadge(user.locked?'Locked':'Enabled',user.locked?'bad':'ok'):hdBadge('Disabled','bad')}</td><td>${hdBadge(user.mfa,user.mfa==='Registered'?'ok':'warn')}</td><td><code>${hdEsc(user.ou)}</code></td><td><button class="btn btn-sm btn-secondary" onclick="hdOpenUser('${user.id}')">Open</button></td></tr>`).join('')}</tbody></table></div>`;
+  // The details KB-0024's caller check uses: the phone number on file and the
+  // employee ID. Practice and Prove alike.
+  return `<div class="table-wrap"><table><thead><tr><th>User</th><th>Employee ID</th><th>Department</th><th>Phone</th><th>Account</th><th>MFA</th><th>OU</th><th></th></tr></thead><tbody>${users.map(user=>`<tr><td><strong>${hdEsc(user.name)}</strong><small>${hdEsc(user.email)}</small></td><td>${hdEsc(user.employeeId || '')}</td><td>${hdEsc(user.department)}</td><td>${hdEsc(user.phone || '')}</td><td>${user.enabled?hdBadge(user.locked?'Locked':'Enabled',user.locked?'bad':'ok'):hdBadge('Disabled','bad')}</td><td>${hdBadge(user.mfa,user.mfa==='Registered'?'ok':'warn')}</td><td><code>${hdEsc(user.ou)}</code></td><td><button class="btn btn-sm btn-secondary" onclick="hdOpenUser('${user.id}')">Open</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 function hdOpenUser(id) { hdState.selectedUserId=id; hdState.adTab='users'; const user=hdUserById(id); hdProveOpened(`ad-user:${id}`, `Active Directory · ${user ? user.name : id}`); hdSave(); navigate('#/helpdesk/active-directory'); }
 function hdSetAdTab(tab) { hdState.adTab=tab; hdRerender(); }
@@ -543,6 +953,13 @@ function hdAdAction(action) {
   if (action === 'unlock' && hdM01() && user.id === hdM01Spec().userId) {
     const result = hdM01Unlock('Active Directory');
     toast(result.message); hdRerender(); return;
+  }
+  // A console ticket's account: Unlock waits for a passing verification.
+  if (action === 'unlock') {
+    const blocked = hdConsoleUnlockBlock(user.id);
+    if (blocked) { toast(blocked); return; }
+    const owner = hdState.tickets.find(ticket => (hdConsole(ticket).account || {}).userId === user.id && !['Resolved', 'Closed'].includes(ticket.status));
+    if (owner) { hdConsoleUnlock(owner.id, 'Active Directory'); return; }
   }
   const patch = hdState.userOverrides[user.id] || {};
   if (action === 'unlock') patch.locked=false;
@@ -821,13 +1238,8 @@ function hdM01InspectTask() {
   hdPracticeEvent('evidence_opened', { source:'scheduled-task', label:`${hdM01Spec().task} on ${hdM01Spec().computer}` });
 }
 
-// A Reported / Tried / Result note: each part present with some substance.
-function hdNoteMissingParts(text) {
-  const parts = String(text || '').split(/\b(reported|tried|result)\s*:/i);
-  const found = {};
-  for (let i = 1; i < parts.length; i += 2) found[parts[i].toLowerCase()] = (found[parts[i].toLowerCase()] || '') + parts[i + 1];
-  return ['Reported', 'Tried', 'Result'].filter(label => (found[label.toLowerCase()] || '').replace(/\s+/g, '').length < 8);
-}
+// hdNoteMissingParts (the note parts, with HD_NOTE_PARTS) is with the console
+// features above; with no list it is this ticket's Reported / Tried / Result.
 function hdM01CompleteNote(ticket) {
   return ((ticket && ticket.notes) || []).filter(note => note.author === 'Riley Morgan' && !hdNoteMissingParts(note.text).length).pop() || null;
 }
@@ -863,7 +1275,7 @@ function hdM01Investigation() {
     credentialFixedBy:scenario.fixedBy, credentialFixedAt:scenario.fixedAt,
     unlocks:scenario.unlocks.map(unlock => ({ at:unlock.at, credentialCurrent:unlock.credentialCurrent, via:unlock.via })),
     relocks:scenario.relocks, verifiedBy:scenario.verifiedBy, verifiedAt:scenario.verifiedAt,
-    passwordTyped:scenario.passwordTyped === true, hintsUsed:scenario.hintsUsed,
+    passwordTyped:scenario.passwordTyped === true, passwordWritten:!!(hdM01Ticket() && hdM01Ticket().passwordWritten === true), hintsUsed:scenario.hintsUsed,
     end:{ accountLocked:scenario.locked, taskCredential:task && task.credentialCurrent ? 'current' : 'old', taskLastResult:task ? task.lastResult : '' },
     events:(hdState.practiceLog || []).slice(-80),
   };
@@ -1157,10 +1569,21 @@ function hdProveToggleStep(id, checked) {
   hdProveEdited();
   hdSave();
 }
-// Typing is saved, not recorded as events.
+// Typing is saved, not recorded as events. While a box holds a password it
+// isn't saved (the last text without one stays) and Submit waits until the
+// student removes it. Not kept across reloads: a reload shows the saved text.
+const HD_PROVE_TEXT_LABELS = { resolutionNote:'resolution note', userReply:'reply to the user' };
+const hdProveRefused = {};
 function hdProveText(field, value) {
   if (hdProveLocked() || !['resolutionNote','userReply'].includes(field)) return;
-  hdState.prove[field] = String(value || '').slice(0, 4000);
+  const text = String(value || '').slice(0, 4000);
+  if (hdPasswordInText(text)) {
+    if (!hdProveRefused[field]) hdProveRefused[field] = `${hdRefusePasswordText(null, HD_PROVE_TEXT_LABELS[field])} Remove it to submit.`;
+    hdProveSyncSubmit();
+    return;
+  }
+  delete hdProveRefused[field];
+  hdState.prove[field] = text;
   hdProveEdited();
   hdSave();
   hdProveSyncSubmit();
@@ -1183,7 +1606,7 @@ function hdProvePackage() {
     commands:prove.events.filter(event => event.type === 'command_run').map(event => ({ command:hdRedactCommand(event.command || ''), computer:event.computer, at:event.at })),
     events:prove.events.map(event => (typeof event.command === 'string' ? { ...event, command:hdRedactCommand(event.command) } : event)),
     machine:hdClone(hdMachine(shift.selectedComputer) || {}),
-    passwordTyped:prove.passwordTyped === true,
+    passwordTyped:prove.passwordTyped === true, passwordWritten:prove.passwordWritten === true,
   };
 }
 
@@ -1253,9 +1676,10 @@ function hdProvePrefill(work) {
   prove.diagnosis = offered(work.diagnosis, prove.order.diagnosis);
   prove.decision = offered(work.decision, ['Resolve','Escalate']);
   prove.steps = prove.order.path.filter(id => steps.includes(id));
-  prove.resolutionNote = String(work.resolutionNote || '').slice(0, 4000);
-  prove.userReply = String(work.userReply || '').slice(0, 4000);
-  ticket.notes = (Array.isArray(work.workNotes) ? work.workNotes : []).map(text => ({ time:'Earlier attempt', author:'Riley Morgan', text:String(text) }));
+  // Writing from an attempt sent before passwords were refused is masked.
+  prove.resolutionNote = hdMaskPasswordText(String(work.resolutionNote || '').slice(0, 4000));
+  prove.userReply = hdMaskPasswordText(String(work.userReply || '').slice(0, 4000));
+  ticket.notes = (Array.isArray(work.workNotes) ? work.workNotes : []).map(text => ({ time:'Earlier attempt', author:'Riley Morgan', text:hdMaskPasswordText(String(text)) }));
   hdSave();
   return true;
 }
@@ -1269,10 +1693,10 @@ function hdProveApply(reply) {
   if (prefilled || hdProveLocked() !== wasLocked) render(); else hdProveSyncSubmit();
 }
 function hdProveSubmit() {
-  if (hdProveLocked() || hdProveServer.sending || hdProveServer.status === 'checking' || hdProveMissing().length) return;
+  if (hdProveLocked() || hdProveServer.sending || hdProveServer.status === 'checking' || hdProveMissing().length || Object.keys(hdProveRefused).length) return;
   // A note typed but not yet added is part of the work.
   const note = document.getElementById('hd-note-input');
-  if (note && note.value.trim()) hdAddNote(hdState.tickets[0].id);
+  if (note && note.value.trim() && !hdAddNote(hdState.tickets[0].id)) return;
   hdProveServer.sending = true;
   hdProveServer.notice = '';
   hdProveSyncSubmit();
@@ -1285,12 +1709,14 @@ function hdProveSubmitState() {
   if (hdProveServer.status === 'checking') return { enabled:false, label, note:'Checking your attempt…' };
   if (hdProveServer.sending) return { enabled:false, label, note:'Sending your work…' };
   const missing = hdProveMissing();
+  const refused = Object.values(hdProveRefused);
   const parts = [
     hdProveServer.status === 'returned' ? 'Your instructor returned this Prove It. Their notes are on your course page.' : '',
     hdProveServer.notice,
+    ...refused,
     missing.length ? `Still needed: ${missing.join(', ')}.` : '',
   ];
-  return { enabled:!missing.length, label, note:parts.filter(Boolean).join(' ') };
+  return { enabled:!missing.length && !refused.length, label, note:parts.filter(Boolean).join(' ') };
 }
 function hdProveSyncSubmit() {
   const button = document.getElementById('hd-prove-submit');
@@ -1380,6 +1806,8 @@ window.hdSetAdTab=hdSetAdTab; window.hdAdAction=hdAdAction; window.hdSelectCompu
 window.hdRunPowerShell=hdRunPowerShell; window.hdPrinterAction=hdPrinterAction;
 window.hdSetEventFilter=hdSetEventFilter; window.hdClearEventFilter=hdClearEventFilter; window.hdM01Identity=hdM01Identity;
 window.hdM01Hint=hdM01Hint; window.hdM01AdLockoutDetails=hdM01AdLockoutDetails;
+window.hdKbSearch=hdKbSearch; window.hdKbOpen=hdKbOpen; window.hdChatAsk=hdChatAsk; window.hdVerify=hdVerify;
+window.hdConsoleUnlock=hdConsoleUnlock; window.hdAddComment=hdAddComment; window.hdSetResolutionCode=hdSetResolutionCode;
 
 // HD-2101 Practice: FinanceReportSync runs on its schedule while the page is
 // open. A re-render would wipe text the student is typing, so a run then only
