@@ -85,7 +85,7 @@ const ITS01_LESSONS = [
       { p: 'From the School Catalog v1.2. The full policies are in the catalog (see Sources & Further Reading).' },
       { ul: [
         'Attendance and identity: attend at least 80% of live sessions, with your video on during live sessions. Your LMS login is how the school verifies it’s you, so it’s yours alone.',
-        'Academic integrity: your work must be your own. Plagiarism and cheating are grounds for dismissal under the Student Conduct & Dismissal Policy. [[policy on using AI tools in coursework]]',
+        'Academic integrity: your work must be your own. Plagiarism and cheating are grounds for dismissal under the Student Conduct & Dismissal Policy. [[policy on using AI tools in coursework]].',
         'Grades and progress: A 90–100, B 80–89, C 70–79 (the minimum passing grade), F below 70. Keep a cumulative grade of 70% or more to stay in good standing; below 70% you’re on academic probation for one week, and you may be dismissed if it doesn’t improve. Each Prove It allows 3 attempts; after a second fail, you meet with your instructor before trying again.',
         'Records, privacy, withdrawal and refunds: see the School Catalog’s Student Records & Privacy section and its refund and withdrawal policy.',
         'Career Readiness Core (M360-101): a separate 12-hour course that runs alongside this one, with its own lessons and grades.',
@@ -392,7 +392,7 @@ function its01Diagram(key) {
 
 // Escaped text; [[...]] becomes a marked "to be confirmed" placeholder.
 function its01Text(text) {
-  return esc(text).replace(/\[\[(.+?)\]\]/g, (_, what) => `<span class="its01-placeholder-inline" data-its01-placeholder>To be confirmed: ${what}.</span>`);
+  return esc(text).replace(/\[\[(.+?)\]\]/g, (_, what) => `<span class="its01-placeholder-inline" data-its01-placeholder>To be confirmed: ${what}</span>`);
 }
 
 function its01Blocks(blocks) {

@@ -109,8 +109,9 @@ function testOrientationComesFirst() {
 
   // Clearly marked placeholders: technical support, the AI-tools policy, the
   // course calendar and the catalog link.
-  assert.ok(orientation.includes('To be confirmed: support channel and hours.'));
-  assert.ok(orientation.includes('To be confirmed: policy on using AI tools in coursework.'));
+  assert.match(orientation, /To be confirmed: support channel and hours ?\. Tell them/);
+  assert.match(orientation, /To be confirmed: policy on using AI tools in coursework ?\./);
+  assert.doesNotMatch(orientation, /\.\s*\./, 'no doubled full stop after a placeholder');
   assert.match(orientation, /To be confirmed Cohort start and end dates, live session days and times, and weekly due dates/);
   const sources = text(section(html, 'its01-sources'));
   assert.ok(sources.includes('School Catalog v1.2 (effective 2026-08-25)'));
