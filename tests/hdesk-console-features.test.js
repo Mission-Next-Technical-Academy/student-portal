@@ -99,7 +99,9 @@ function testExistingTicketsTurnNothingOn() {
   const tab = sim({ withTest: false });
   const ids = tab.run('HD_TICKET_TEMPLATES.map((t) => t.id)');
   assert.ok(ids.includes('HD-2101') && ids.length >= 20);
-  for (const id of ids) {
+  // HD-2150 (Module 1 Guided Lab 1) is the one ticket that turns them on; it
+  // has its own tests in tests/hdesk-m01-guided-lab.test.js.
+  for (const id of ids.filter((item) => item !== 'HD-2150')) {
     assert.equal(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === ${JSON.stringify(id)}).console`), undefined, `${id} has no console settings`);
     const html = tab.open(id);
     assert.doesNotMatch(html, NEW_MARKERS, `${id} shows no new feature`);
@@ -143,11 +145,11 @@ function testKnowledgeBaseSearch() {
   tab.run("hdKbSearch({ preventDefault() {} }, 'HD-9150')");
   html = tab.open();
   assert.match(html, /data-kb="KB-0024"/);
-  assert.doesNotMatch(html, /1\. Verify identity before any account action/, 'closed until opened');
+  assert.doesNotMatch(html, /<li>Verify the caller before any account action/, 'closed until opened');
   tab.run("hdKbOpen('HD-9150', 'KB-0024')");
-  assert.match(tab.open(), /1\. Verify identity before any account action/);
+  assert.match(tab.open(), /<li>Verify the caller before any account action/);
   tab.run("hdKbOpen('HD-9150', 'KB-0024')");
-  assert.doesNotMatch(tab.open(), /1\. Verify identity before any account action/);
+  assert.doesNotMatch(tab.open(), /<li>Verify the caller before any account action/);
   const progress = tab.run("hdConsoleProgress('HD-9150')");
   assert.deepEqual([...progress.kbSearches], ['locked out']);
   assert.deepEqual([...progress.kbOpened], ['KB-0024'], 'opened once, recorded once');

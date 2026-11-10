@@ -58,7 +58,7 @@ const ITS01_LESSONS = [
       '“It says my account is locked out, too many failed attempts.” Name the category, write your first question, and decide: resolve or escalate?',
       '“My laptop has no internet, but my phone on Wi-Fi works fine.” Name the category, write your first question, and decide: resolve or escalate?',
     ],
-    comingUp: 'Work Jordan Bell’s account-lockout ticket end to end in the IT Service Desk simulator, applying everything from this lesson for real.',
+    comingUp: 'Work Sam Rivera’s account-lockout ticket end to end in the IT Service Desk simulator, applying everything from this lesson for real.',
   },
 ];
 
@@ -202,7 +202,7 @@ function its01Lab2() {
   const button = itsWalkthroughButton(its01User, [ITS01_LAB2_KEY]);
   return `<section class="its01-section its01-lab-section" id="its01-lab-1-2" aria-labelledby="its01-lab-1-2-title">
     <div class="its01-section-heading"><span>2</span><div><p class="its01-kicker">Lab 1.2 · guided walkthrough</p><h2 id="its01-lab-1-2-title">A Day in the Life of an L1 Technician</h2></div></div>
-    <p class="its01-instruction">Work Jordan Bell’s repeating account lockout (HD-2101) on the simulated machines in the IT Service Desk simulator: verify the caller, find the lockout source in Event Viewer or Active Directory, inspect the caller computer in PowerShell, fix the cause the approved way, unlock once, prove it stays unlocked, and document it. A coach guides you and hints are there if you need them.</p>
+    <p class="its01-instruction">Work your first ticket end to end in the IT Service Desk simulator: INC0010150, Sam Rivera’s account lockout. Take the ticket, find out what changed, follow KB-0024 to verify Sam and unlock the account, confirm Sam can sign in, tell Sam what to do if it happens again, and write the work note. A coach walks you through every step. No commands needed.</p>
     <a class="itsw-evidence-button" data-its01-console-launch href="${esc(itsCoachLaunchHref('hd-m01', its01User))}" target="_blank" rel="opener">
       <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: ITS01_LAB2_START }[button.mode]}
     </a>
@@ -417,13 +417,16 @@ function wireItsModuleOneLab() {
   });
 }
 
-// Lab 1.2's finished work: the HD-2101 ticket closed, with every outcome of
-// the investigation the simulator recorded.
+// Lab 1.2's finished work: INC0010150 (HD-2150) resolved, with every outcome
+// the simulator recorded for it (ui/helpdesk.js hdConsoleOutcomes): caller
+// verified, account unlocked, sign-in confirmed, the "if it happens again"
+// comment, a complete note and a resolution code. A critical verification
+// choice is shown to the instructor but never blocks the save.
+const ITS01_PRACTICE_TICKET = 'HD-2150';
 function its01PracticeComplete(work) {
-  const ticket = work && Array.isArray(work.tickets) ? work.tickets.find((entry) => entry.id === 'HD-2101') : null;
-  const investigation = work && work.investigation;
-  return Boolean(ticket && ['Resolved', 'Escalated'].includes(ticket.status) && investigation
-    && ITS_INVESTIGATION_OUTCOMES.every((key) => investigation.outcomes[key] === true));
+  const ticket = work && Array.isArray(work.tickets) ? work.tickets.find((entry) => entry.id === ITS01_PRACTICE_TICKET) : null;
+  const outcomes = ticket && ticket.console && ticket.console.outcomes;
+  return Boolean(ticket && ticket.status === 'Resolved' && outcomes && ITS_CONSOLE_OUTCOMES.every((key) => outcomes[key] === true));
 }
 
 async function its01ReceiveCoachCompletion(event) {
@@ -434,9 +437,9 @@ async function its01ReceiveCoachCompletion(event) {
   const wrongStudent = itsCoachStudentMismatch(event, user);
   if (wrongStudent) { itsConfirmCoachReceipt(event, false, wrongStudent); return; }
 
-  // Lab 1.2 saves only finished work: HD-2101 resolved or escalated, with
-  // every investigation outcome met. The coach shows Finish only after the
-  // ticket closes, but a reopened ticket or an old tab could still send one.
+  // Lab 1.2 saves only finished work: HD-2150 resolved with every outcome
+  // met. The coach shows Finish only after the ticket is resolved, but a
+  // reopened ticket or an old tab could still send one.
   const work = itsCleanCoachWork(event.data.work);
   const coachKey = `${user.userId}|hd-m01`;
   if (!its01PracticeComplete(work)) {

@@ -28,9 +28,9 @@ const moduleLab = (n) => run(`MODULE_LABS['it-support/${n}']`);
 // Saved lab state only loads back with LabRuntime's own labId/student stamp.
 const seed = (labId, user, state) => LabRuntime.save(labId, user, { ...LabRuntime.load(labId, user, {}), ...state });
 // Sent with the signed-in student's launch id, as the simulator sends it.
-// Module 1 saves only a finished HD-2101 (tests/hdesk-m01-practice.test.js).
-const M01_FINISHED_WORK = { version: 1, tickets: [{ id: 'HD-2101', status: 'Resolved' }], investigation: { version: 1, ticketId: 'HD-2101',
-  outcomes: { identityVerified: true, sourceFound: true, taskInspected: true, credentialFixed: true, unlockedAfterFix: true, verified: true, noteComplete: true } } };
+// Module 1 saves only a finished HD-2150 (tests/hdesk-m01-guided-lab.test.js).
+const M01_FINISHED_WORK = { version: 1, tickets: [{ id: 'HD-2150', status: 'Resolved', console: {
+  outcomes: { verified: true, unlocked: true, confirmed: true, comment: true, note: true, code: true } } }] };
 const coachDone = (id) => ({ data: { type: 'mnt-coach-complete', id, student: vm.runInContext('LabRuntime', ctx).anonymousStudentId(signedIn), ...(id === 'hd-m01' ? { work: M01_FINISHED_WORK } : {}) }, origin: SIM });
 
 const SUBMITTED = '2026-10-01T10:00:00Z';

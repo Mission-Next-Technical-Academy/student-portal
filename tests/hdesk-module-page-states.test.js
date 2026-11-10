@@ -320,10 +320,10 @@ function replyCatcher() {
   return { replies, source: { postMessage: (data, origin) => replies.push({ data, origin }) } };
 }
 // `student` defaults to the signed-in student's launch id, as the simulator sends it.
-// Module 1 saves only a finished HD-2101 (resolved, every investigation
-// outcome met; tests/hdesk-m01-practice.test.js covers that rule).
-const M01_FINISHED_WORK = { version: 1, tickets: [{ id: 'HD-2101', status: 'Resolved' }], investigation: { version: 1, ticketId: 'HD-2101',
-  outcomes: { identityVerified: true, sourceFound: true, taskInspected: true, credentialFixed: true, unlockedAfterFix: true, verified: true, noteComplete: true } } };
+// Module 1 saves only a finished HD-2150 (resolved, every outcome met;
+// tests/hdesk-m01-guided-lab.test.js covers that rule).
+const M01_FINISHED_WORK = { version: 1, tickets: [{ id: 'HD-2150', status: 'Resolved', console: {
+  outcomes: { verified: true, unlocked: true, confirmed: true, comment: true, note: true, code: true } } }] };
 const finishMessage = (id, source, student = signedIn ? studentOf(signedIn) : '') => ({ data: { type: 'mnt-coach-complete', id, nonce: 'n-1', student, work: id === 'hd-m01' ? M01_FINISHED_WORK : { version: 1, tickets: [{ id: 'HD-2109' }] } }, origin: SIM, source });
 
 async function testReceiptSavedAfterSubmit() {
