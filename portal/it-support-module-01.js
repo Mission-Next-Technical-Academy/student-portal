@@ -454,6 +454,13 @@ let its01State = null;
 let its01User = null;
 
 function its01Load(user) {
+  // Check answers live in page memory: a different student signing in
+  // without a reload starts every check fresh.
+  const userId = user && user.userId;
+  if (userId !== its01CheckAnswersUser) {
+    its01CheckAnswersUser = userId;
+    Object.keys(its01CheckAnswers).forEach((key) => { its01CheckAnswers[key] = {}; });
+  }
   its01User = user;
   // Saved to the student's account (module_progress.case_state), so the
   // policy acknowledgement and the orientation check come back in any
@@ -576,6 +583,7 @@ const ITS01_LETTERS = ['A', 'B', 'C', 'D'];
 // This page's answers, by check: { questionIndex: choiceIndex }. Kept in page
 // memory only; a reload starts every check again.
 const its01CheckAnswers = { orientation: {}, learn: {}, aplus: {} };
+let its01CheckAnswersUser = null;
 
 function its01CheckDone(key) {
   const check = ITS01_CHECKS[key];

@@ -311,6 +311,25 @@ async function testPracticeChecksExplainAndSaveNothing() {
   assert.equal(Object.keys(state).filter((k) => /learn|aplus/i.test(k)).length, 0);
 }
 
+// A second student signing in on the same page (no reload) never sees the
+// first student's answers.
+function testAnswersClearedForAnotherStudent() {
+  fresh();
+  const first = hdUser();
+  page().view(first, HD);
+  run('its01Answer')('orientation', 0, 0);
+  run('its01Answer')('learn', 0, 1);
+  assert.equal(run('its01CheckAnswers.orientation[0]'), 0);
+  // The same student re-rendering keeps them.
+  page().view(first, HD);
+  assert.equal(run('its01CheckAnswers.orientation[0]'), 0, 'kept for the same student');
+
+  const second = hdUser({ userId: '8e2f3a4b-2222-4333-8444-a55566667777', email: 'hdesk-m01b@test.invalid' });
+  const html = page().view(second, HD);
+  assert.deepEqual(plain(run('its01CheckAnswers')), { orientation: {}, learn: {}, aplus: {} });
+  assert.doesNotMatch(checkHtml(html, 'orientation'), /disabled|Not quite/, "no answers from the first student");
+}
+
 /* ---------------------------------------------------------------- rail */
 
 function testRail() {
@@ -339,6 +358,7 @@ function testRail() {
     testEarlierAcknowledgementAsksAgain,
     testOrientationCheckRetake,
     testPracticeChecksExplainAndSaveNothing,
+    testAnswersClearedForAnotherStudent,
     testRail,
   ];
   let failed = 0;
