@@ -40,8 +40,9 @@ tickets (not graded)"; the keys don't change.
     for the guided lab today.
   - **Not touched:** `supabase/` (the old Lab 1.1's `course_module_labs` row
     and every attempt stay), `ui/coach.js`, shared CSS, SOC files.
-- **Status:** `bin/ci-check.sh` passes. Codex: one finding fixed (two tabs
-  could save twice); one left (the lock can expire during a save slower than
+- **Status:** `bin/ci-check.sh` passes. Codex: two findings fixed (two tabs
+  could save twice; a superseded or returned Lab 1.2 record counted as
+  already saved); one left (the lock can expire during a save slower than
   15 seconds; closing it fully needs a migration). Hosted staging not yet
   checked. Migration: none.
 

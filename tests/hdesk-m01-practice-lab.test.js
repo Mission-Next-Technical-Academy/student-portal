@@ -227,6 +227,18 @@ async function testCompletionNeverSavedTwiceAcrossTabs() {
   assert.deepEqual(catcher.replies.map((r) => [r.data.saved, r.data.reason]), [[true, undefined]]);
   assert.match(statusLine(moduleOne().view(user, HD), PRACTICE), /^Lab 1\.2: Practice complete \(not graded\)/);
 
+  // Only a superseded (set aside, e.g. by a reset) or returned record: it
+  // doesn't count, so the new work gets its own record.
+  for (const old of [{ superseded_at: '2026-11-10T16:00:00Z' }, { redo_requested: true, reviewed_at: '2026-11-10T16:00:00Z' }]) {
+    user = hdUser();
+    fresh(user);
+    ctx.supabaseResponder = (call) => (isRead(call) ? { data: [{ completed_at: '2026-11-10T15:00:00Z', reviewed_at: null, redo_requested: false, superseded_at: null, ...old }], error: null } : { data: null, error: null });
+    catcher = replyCatcher();
+    await moduleOne().onMessage(completion(catcher.source));
+    assert.equal(inserts().length, 1, `a new record over ${JSON.stringify(old)}`);
+    assert.deepEqual(catcher.replies.map((r) => r.data.saved), [true]);
+  }
+
   // Being saved by another tab right now: busy, no insert; the simulator
   // offers a retry. A lock older than 15 seconds no longer holds.
   const lock = `mnt.practice-save.user-m01p.${PRACTICE}`;

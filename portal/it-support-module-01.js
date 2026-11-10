@@ -1072,7 +1072,8 @@ function its01StorageRemove(key) { try { localStorage.removeItem(key); } catch (
 
 // The student's saved Lab 1.2 record, read from the database: the attempt
 // (in the shape latestLabAttemptByKey holds), false when there is none, or
-// null when the read failed.
+// null when the read failed. A superseded record (the academy set it aside,
+// e.g. a progress reset) doesn't count: the new work gets its own record.
 async function its01SavedPracticeAttempt(user) {
   if (typeof mntSupabase === 'undefined') return null;
   try {
@@ -1080,9 +1081,9 @@ async function its01SavedPracticeAttempt(user) {
       .select('completed_at, reviewed_at, redo_requested, superseded_at')
       .eq('user_id', user.userId).eq('lab_key', ITS01_PRACTICE_KEY)
       .not('completed_at', 'is', null)
-      .order('completed_at', { ascending: false }).limit(1);
+      .order('completed_at', { ascending: false });
     if (error) { console.error('Lab 1.2 completion read failed', error); return null; }
-    const row = Array.isArray(data) ? data[0] : null;
+    const row = Array.isArray(data) ? data.find((entry) => entry && !entry.superseded_at && entry.redo_requested !== true) : null;
     return row ? { completedAt: row.completed_at, reviewedAt: row.reviewed_at || null, redoRequested: row.redo_requested === true, supersededAt: row.superseded_at || null } : false;
   } catch (error) {
     console.error('Lab 1.2 completion read threw', error);
