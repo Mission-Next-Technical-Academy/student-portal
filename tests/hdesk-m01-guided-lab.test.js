@@ -195,6 +195,20 @@ function testShiftTicketAndKb() {
   assert.match(kb, /comes back within a day, escalate to Tier 2/);
   assert.match(kb, /Tier 2 only: find the lockout source\. Event 4740/);
   assert.match(kb, /Category Security › Suspicious request, set Caller to Unverified, and assign it to Security Operations \(SOC\) with the caller's exact words, number and time/);
+  // Shown as a numbered list, escaped, on the ticket and on the KB page;
+  // an article without numbered steps stays one paragraph (staging, 2026-11-09).
+  tab.input('hd-kb-input', 'locked out'); tab.run("hdKbSearch({ preventDefault() {} }, 'HD-2150')"); tab.run("hdKbOpen('HD-2150', 'KB-0024')");
+  const opened = tab.open();
+  assert.equal((opened.match(/<ol class="hd-kb-steps"[\s\S]*?<\/ol>/)[0].match(/<li>/g) || []).length, 7, 'seven steps');
+  assert.match(opened, /<li>Never ask for, type or write down a user&#39;s password|<li>Never ask for, type or write down a user's password/);
+  const page = tab.view('helpdesk/knowledge-base');
+  assert.match(page, /-TaskName &lt;task&gt; -User &lt;DOMAIN\\user&gt;/, 'placeholders are shown, not swallowed as tags');
+  assert.equal((page.match(/<ol class="hd-kb-steps"/g) || []).length, 1, 'only KB-0024 has numbered steps');
+  assert.match(page, /<p>Validate link state, DHCP reachability/, 'other articles stay one paragraph');
+  const body = (text) => tab.run(`hdKbBody(${JSON.stringify(text)})`);
+  assert.equal(body('Restart it. Open port 3389. Done.'), '<p>Restart it. Open port 3389. Done.</p>', 'a lone number is not a list');
+  assert.match(body('Before you start: 1. Check A. 2. Check B.'), /^<p>Before you start:<\/p><ol[^>]*><li>Check A\.<\/li><li>Check B\.<\/li><\/ol>$/);
+  assert.equal(body('2. Out of order. 3. Still.'), '<p>2. Out of order. 3. Still.</p>', 'steps must start at 1');
   // Sam is in the directory, with the details the callback uses.
   const dir = tab.view('helpdesk/directory');
   assert.match(dir, /Sam Rivera[\s\S]*E-42856[\s\S]*Customer Service[\s\S]*ext\. 4391/);
@@ -265,7 +279,7 @@ function testWalkthroughEndToEnd() {
 function testUnlockDisabledUntilAPassingChoice() {
   const tab = sim(launchUrl());
   tab.run("hdSelectTicket('HD-2150')");
-  const disabled = /<button type="button" class="btn btn-secondary" disabled aria-describedby="hd-unlock-why">Unlock account<\/button><p id="hd-unlock-why" class="muted">Verify the caller first \(KB-0024\)\.<\/p>/;
+  const disabled = /<button type="button" class="btn btn-secondary" disabled aria-describedby="hd-unlock-why" style="opacity:\.55;cursor:not-allowed">Unlock account<\/button><p id="hd-unlock-why" class="muted">Verify the caller first \(KB-0024\)\.<\/p>/;
   assert.match(tab.open(), disabled, 'disabled before any choice');
   // Even called directly, or from Active Directory, the unlock is refused.
   tab.run("hdConsoleUnlock('HD-2150')");

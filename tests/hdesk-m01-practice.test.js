@@ -188,7 +188,7 @@ function testCallerVerification() {
   const kb = tab.view('helpdesk/knowledge-base');
   assert.match(kb, /call them back on the phone number in the User Directory/);
   assert.match(kb, /Never ask for, type or write down a user/);
-  assert.match(kb, /6\. Tier 2 only: find the lockout source/, 'the 4740 and task steps stay, for Tier 2');
+  assert.match(kb, /<li>Tier 2 only: find the lockout source/, 'the 4740 and task steps stay, for Tier 2');
   assert.match(tab.view('helpdesk/directory'), /<th>Phone<\/th>/);
   assert.match(tab.view('helpdesk/directory'), /ext\. 4417/);
 }

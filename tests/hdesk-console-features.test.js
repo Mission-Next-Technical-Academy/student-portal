@@ -145,11 +145,11 @@ function testKnowledgeBaseSearch() {
   tab.run("hdKbSearch({ preventDefault() {} }, 'HD-9150')");
   html = tab.open();
   assert.match(html, /data-kb="KB-0024"/);
-  assert.doesNotMatch(html, /1\. Verify the caller before any account action/, 'closed until opened');
+  assert.doesNotMatch(html, /<li>Verify the caller before any account action/, 'closed until opened');
   tab.run("hdKbOpen('HD-9150', 'KB-0024')");
-  assert.match(tab.open(), /1\. Verify the caller before any account action/);
+  assert.match(tab.open(), /<li>Verify the caller before any account action/);
   tab.run("hdKbOpen('HD-9150', 'KB-0024')");
-  assert.doesNotMatch(tab.open(), /1\. Verify the caller before any account action/);
+  assert.doesNotMatch(tab.open(), /<li>Verify the caller before any account action/);
   const progress = tab.run("hdConsoleProgress('HD-9150')");
   assert.deepEqual([...progress.kbSearches], ['locked out']);
   assert.deepEqual([...progress.kbOpened], ['KB-0024'], 'opened once, recorded once');
