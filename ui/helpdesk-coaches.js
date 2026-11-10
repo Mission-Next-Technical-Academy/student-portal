@@ -138,6 +138,9 @@
   // ticket this shift no longer has, and would wait forever. Forget it, so the
   // next launch starts the new lab fresh (ui/coach.js reads these keys).
   (function hd1ForgetOldWalkthrough() {
+    // Only the shift the coached lab uses counts: a practice set or a Prove It
+    // has its own shift, without HD-2150, and must leave the walkthrough alone.
+    if ((typeof HD_PRACTICE_SET !== 'undefined' && HD_PRACTICE_SET) || (typeof HD_PROVE !== 'undefined' && HD_PROVE)) return;
     if (typeof hdState === 'undefined' || !Array.isArray(hdState.tickets) || hdState.tickets.some((t) => t.id === HD1_ID)) return;
     const stale = (raw) => { try { const saved = JSON.parse(raw || 'null'); return Boolean(saved && saved.id === 'hd-m01'); } catch { return false; } };
     try { if (stale(localStorage.getItem('mnt.coach.resume'))) localStorage.removeItem('mnt.coach.resume'); } catch { /* storage blocked */ }

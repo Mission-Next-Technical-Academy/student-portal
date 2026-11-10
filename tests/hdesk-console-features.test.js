@@ -99,9 +99,11 @@ function testExistingTicketsTurnNothingOn() {
   const tab = sim({ withTest: false });
   const ids = tab.run('HD_TICKET_TEMPLATES.map((t) => t.id)');
   assert.ok(ids.includes('HD-2101') && ids.length >= 20);
-  // HD-2150 (Module 1 Guided Lab 1) is the one ticket that turns them on; it
-  // has its own tests in tests/hdesk-m01-guided-lab.test.js.
-  for (const id of ids.filter((item) => item !== 'HD-2150')) {
+  // Module 1's tickets turn them on: HD-2150 (Guided Lab 1,
+  // tests/hdesk-m01-guided-lab.test.js) and the practice tickets
+  // (tests/hdesk-m01-practice-tickets.test.js).
+  const MODULE_1 = ['HD-2150', 'HD-2151', 'HD-2152', 'SEC-2153'];
+  for (const id of ids.filter((item) => !MODULE_1.includes(item))) {
     assert.equal(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === ${JSON.stringify(id)}).console`), undefined, `${id} has no console settings`);
     const html = tab.open(id);
     assert.doesNotMatch(html, NEW_MARKERS, `${id} shows no new feature`);

@@ -209,7 +209,26 @@ function its01Lab2() {
     ${itsWalkthroughNoticeHtml(its01User, 'hd-m01', [ITS01_LAB2_KEY], ITS01_LAB2_START)}
     ${its01Lab2Status()}
     ${itsRedoNoticeHtml(its01User, [{ key: ITS01_LAB2_KEY, action: 'Run the walkthrough again to resubmit this lab.' }])}
+    ${its01PracticeTickets()}
   </section>`;
+}
+
+// Module 1's unguided practice tickets (1-A to 1-C), not graded: the
+// simulator opens just these tickets in their own saved shift
+// (?practice=its-01, ui/helpdesk.js), with feedback but no score, and sends
+// nothing back to this page.
+function its01PracticeTicketsHref(user) {
+  const student = typeof LabRuntime !== 'undefined' ? LabRuntime.anonymousStudentId(user) : '';
+  return `${SIM_ORIGIN}?practice=its-01&student=${encodeURIComponent(student)}#/helpdesk/tickets`;
+}
+function its01PracticeTickets() {
+  return `<div class="its01-practice-tickets" id="its01-practice-tickets">
+    <h3>Practice tickets (not graded)</h3>
+    <p class="its01-instruction">Three more tickets to work on your own: Leah Brooks has forgotten her password, Ravi Shah has cracked his laptop screen, and a caller wants an executive's password reset in a hurry. Use the method, search the knowledge base and verify callers with KB-0024. Press Check my work on a ticket for feedback. Nothing is graded or sent to your instructor.</p>
+    <a class="itsw-evidence-button" data-its01-practice-launch href="${esc(its01PracticeTicketsHref(its01User))}" target="_blank" rel="noopener">
+      <i class="ri-play-list-line" aria-hidden="true"></i> Open the practice tickets
+    </a>
+  </div>`;
 }
 
 // Module 1's Prove It: one independent ticket in the simulator, reviewed by the

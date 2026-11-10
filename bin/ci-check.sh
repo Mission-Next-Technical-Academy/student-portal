@@ -32,6 +32,7 @@ node tests/hdesk-m01-practice.test.js
 echo '== Help Desk console features: off by default, each one on per ticket =='
 node tests/hdesk-console-features.test.js
 node tests/hdesk-m01-guided-lab.test.js
+node tests/hdesk-m01-practice-tickets.test.js
 
 echo '== Help Desk Prove It mode: no coach, no answers, machine state =='
 node tests/hdesk-prove-mode.test.js
