@@ -78,6 +78,12 @@
 .its01-lesson-body ol { margin: 0 0 10px; padding-left: 20px; color: #475569; font: 13px/1.7 Inter, sans-serif; }
 .its01-lesson-body ul { margin-bottom: 10px; }
 .its01-lesson-body li { margin-bottom: 4px; }
+/* The portal's base styles remove list markers; the readings, the chain of
+   command and the checks need their bullets and numbers. */
+.its01-lesson-body ul, .its01-tasks > ul { list-style: disc; }
+.its01-lesson-body ol, .its01-practice ol, .its01-check-list { list-style: decimal; }
+.its01-lesson-body li::marker, .its01-practice li::marker, .its01-tasks > ul li::marker { color: #64748b; }
+.its01-check-list > li::marker { color: var(--its-navy); font-weight: 700; }
 .its01-note { margin: 12px 0; padding: 12px 14px; background: #f8fafc; border-left: 3px solid var(--its-navy); border-radius: 0 10px 10px 0; }
 .its01-note strong { display: block; margin-bottom: 4px; color: var(--its-navy); font-size: 12.5px; }
 .its01-note p { margin: 0; }
@@ -158,5 +164,7 @@ p.its01-placeholder-inline { display: inline-block; margin: 6px 0 0; font: 600 1
   .its01-hero, .its01-section { border-radius: 16px; }
   .its01-progress { grid-template-columns: 1fr; }
   .its01-lesson-body { margin-left: 17px; }
-  .its01-dg { padding: 10px; }
+  /* Phone: give the diagrams the column's full width so their text stays readable. */
+  .its01-lesson-body { margin: 0 10px 14px; }
+  .its01-dg { margin-inline: -4px; padding: 6px 0; background: transparent; border: 0; }
 }

@@ -114,7 +114,7 @@ function testOrientationComesFirst() {
   assert.match(orientation, /To be confirmed Cohort start and end dates, live session days and times, and weekly due dates/);
   const sources = text(section(html, 'its01-sources'));
   assert.ok(sources.includes('School Catalog v1.2 (effective 2026-08-25)'));
-  assert.ok(sources.includes('To be confirmed: Link to the published catalog to be confirmed.'));
+  assert.ok(sources.includes('To be confirmed: link to the published catalog.'));
   assert.match(section(html, 'its01-sources'), /href="https:\/\/www\.comptia\.org\/certifications\/a"/);
   assert.doesNotMatch(section(html, 'its01-sources'), /href=""/, 'a placeholder source has no empty link');
 
@@ -173,7 +173,7 @@ function testReadingsAndDiagrams() {
       const drawn = (svg.match(/<text[^>]*>([^<]*)<\/text>/g) || []).map((t) => t.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/^\s*•\s*/, '').trim()).join(' ').replace(/\s+/g, ' ');
       for (const word of spec.words) assert.ok(drawn.includes(word), `${key}: "${word}" in the drawing`);
     }
-    assert.match(svgs[1], /viewBox="0 0 360 /, `${key}: the phone layout is 360 wide`);
+    assert.match(svgs[1], /viewBox="0 0 320 /, `${key}: the phone layout is 320 wide`);
     const desc = (new RegExp(`id="its01-dg-${key}-desc">([^<]*)<`).exec(fig) || [null, ''])[1].replace(/&amp;/g, '&');
     for (const word of spec.words) assert.ok(desc.includes(word), `${key}: "${word}" in the screen-reader description`);
     assert.ok(fig.includes(`<p class="its01-dg-heading">${spec.title}</p>`), `${key}: the title shows above the drawing`);

@@ -20,7 +20,7 @@
  */
 
 const ITS01_SOURCES = [
-  { title: 'School Catalog v1.2 (effective 2026-08-25)', org: 'Mission Next Technical Academy', url: '', placeholder: 'Link to the published catalog to be confirmed.', note: 'Policies, grading, attendance, grievances, records, withdrawal and refunds.' },
+  { title: 'School Catalog v1.2 (effective 2026-08-25)', org: 'Mission Next Technical Academy', url: '', placeholder: 'link to the published catalog.', note: 'Policies, grading, attendance, grievances, records, withdrawal and refunds.' },
   { title: 'CompTIA A+ Certification', org: 'CompTIA', url: 'https://www.comptia.org/certifications/a', note: 'A public reference for the certification this course’s content lines up with. No certification exam is required to finish the program.' },
 ];
 
@@ -271,7 +271,7 @@ function its01TiersSvg(layout) {
     body += band.map((line, i) => `<text class="its01-dg-text" x="${bandX + bandW / 2}" y="${bandY + 23 + i * ITS01_DG.lh}" text-anchor="middle">${esc(line)}</text>`).join('');
     return its01Svg('tiers', layout, width, bandY + bandH + 4, body);
   }
-  const width = 360, x = 20, w = 320, gap = 46;
+  const width = 320, x = 10, w = 300, gap = 46;
   let y = 4;
   let body = its01Markers(id);
   d.boxes.forEach((b, i) => {
@@ -296,9 +296,9 @@ function its01MethodSvg(layout) {
   const d = ITS01_DIAGRAMS.method;
   const id = `its01-dg-method-${layout}-arrow`;
   const wide = layout === 'wide';
-  const width = wide ? 700 : 360;
-  const w = wide ? 470 : 240;
-  const channel = w + (wide ? 50 : 26);
+  const width = wide ? 700 : 320;
+  const w = wide ? 470 : 212;
+  const channel = w + (wide ? 50 : 22);
   const gap = 30;
   let y = 4;
   const tops = [];
@@ -319,7 +319,7 @@ function its01MethodSvg(layout) {
   const from = tops[2] + heights[2] / 2;
   const to = tops[1] + heights[1] / 2;
   body += `<path class="its01-dg-line its01-dg-line-hl" d="M${w + 3},${from} H${channel} V${to} H${w + 5}" marker-end="url(#${id}-hl)"/>`;
-  const labelMax = wide ? 21 : 11;
+  const labelMax = wide ? 21 : 10;
   const labelLines = its01Wrap(d.loop, labelMax).length;
   body += its01Label(d.loop, channel + 10, (from + to) / 2 - ((labelLines - 1) * 16) / 2 + 4, 'start', true, labelMax);
   return its01Svg('method', layout, width, y + 4, body);
@@ -329,10 +329,10 @@ function its01VerifySvg(layout) {
   const d = ITS01_DIAGRAMS.verify;
   const id = `its01-dg-verify-${layout}-arrow`;
   const wide = layout === 'wide';
-  const width = wide ? 760 : 360;
+  const width = wide ? 760 : 320;
   const gap = 34;
   let body = its01Markers(id);
-  const cw = wide ? 440 : 320;
+  const cw = wide ? 440 : 300;
   const cx = width / 2;
   let y = 4;
   [d.ask, d.check].forEach((box, i) => {
@@ -343,7 +343,7 @@ function its01VerifySvg(layout) {
   });
   body += its01Arrow(cx, y + 3, cx, y + gap - 3, id);
   y += gap;
-  const dw = wide ? 200 : 160, dh = wide ? 84 : 76;
+  const dw = wide ? 200 : 150, dh = wide ? 84 : 76;
   body += `<polygon class="its01-dg-box" points="${cx},${y} ${cx + dw / 2},${y + dh / 2} ${cx},${y + dh} ${cx - dw / 2},${y + dh / 2}"/>`;
   body += `<text class="its01-dg-title" x="${cx}" y="${y + dh / 2 + 5}" text-anchor="middle">${esc(d.decision)}</text>`;
   const mid = y + dh / 2;
@@ -359,14 +359,14 @@ function its01VerifySvg(layout) {
     body += its01Box(d.no, noX, by, bw, hy);
     return its01Svg('verify', layout, width, by + hy + 4, body);
   }
-  const bw = 300, bx = 20;
+  const bw = 276, bx = 10;
   let by = y + dh + gap;
   body += its01Arrow(cx, y + dh + 3, cx, by - 3, id);
   body += its01Label('Yes', cx + 10, y + dh + gap / 2 + 5, 'start');
   const yh = its01BoxHeight(d.yes, bw);
   body += its01Box(d.yes, bx, by, bw, yh);
   const noY = by + yh + gap;
-  const rail = width - 12;
+  const rail = width - 10;
   body += `<path class="its01-dg-line its01-dg-line-hl" d="M${cx + dw / 2},${mid} H${rail} V${noY + 24} H${bx + bw + 3}" marker-end="url(#${id}-hl)"/>`;
   body += its01Label('No', cx + dw / 2 + 12, mid - 8, 'start', true);
   const nh = its01BoxHeight(d.no, bw);
