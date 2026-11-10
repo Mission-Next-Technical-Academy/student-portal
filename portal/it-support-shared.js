@@ -503,6 +503,28 @@ function itsCleanInvestigation(input) {
   };
 }
 
+// A console ticket's work (Module 1 Guided Lab 1, HD-2150; ui/helpdesk.js
+// hdConsoleProgress): how the caller was verified, the unlock, the chat, the
+// KB searches and what the ticket still lacked. Known fields only, bounded.
+const ITS_CONSOLE_OUTCOMES = ['verified', 'unlocked', 'confirmed', 'comment', 'note', 'code'];
+function itsCleanConsoleWork(input) {
+  if (!input || typeof input !== 'object') return null;
+  const text = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
+  const list = (value, max, size) => Array.isArray(value) ? value.slice(-max).map((item) => text(item, size)).filter(Boolean) : [];
+  const count = (value) => Number.isInteger(value) && value >= 0 ? Math.min(value, 999) : 0;
+  const verification = input.verification && typeof input.verification === 'object' ? input.verification : {};
+  const outcomes = input.outcomes && typeof input.outcomes === 'object' ? input.outcomes : null;
+  return {
+    kbSearches: list(input.kbSearches, 10, 80), kbOpened: list(input.kbOpened, 10, 16), chatAsked: list(input.chatAsked, 12, 24),
+    verification: { choice: text(verification.choice, 24), tries: list(verification.tries, 10, 24), passed: verification.passed === true, criticalErrors: list(verification.criticalErrors, 5, 24) },
+    accountUnlocked: input.accountUnlocked === true, unlocks: count(input.unlocks),
+    comments: count(input.comments), lastCommentJargon: list(input.lastCommentJargon, 10, 40), commentRepeatLine: input.commentRepeatLine === true,
+    noteMissing: list(input.noteMissing, 6, 24), resolutionCode: text(input.resolutionCode, 60),
+    passwordWritten: input.passwordWritten === true, passwordAsked: input.passwordAsked === true,
+    outcomes: outcomes ? Object.fromEntries(ITS_CONSOLE_OUTCOMES.map((key) => [key, outcomes[key] === true])) : null,
+  };
+}
+
 // postMessage data is student-controlled. Store only the small, known work
 // fields needed by the instructor sheet; never persist simulator fixture keys.
 function itsCleanCoachWork(input) {
@@ -533,6 +555,12 @@ function itsCleanCoachWork(input) {
     })).filter((entry) => entry.action) : [],
     resolution: text(ticket.resolution, 1200),
     closureCode: text(ticket.closureCode, 120),
+    ...(ticket.console && typeof ticket.console === 'object' ? {
+      console: itsCleanConsoleWork(ticket.console),
+      customerComments: Array.isArray(ticket.customerComments) ? ticket.customerComments.slice(-8).map((comment) => ({
+        author: text(comment && comment.author, 80), time: text(comment && comment.time, 40), text: text(comment && comment.text, 2000),
+      })).filter((comment) => comment.text) : [],
+    } : {}),
   }));
   if (!tickets.length) return null;
   const work = { version: 1, selectedTicketId: text(input.selectedTicketId, 16), tickets };
@@ -542,10 +570,11 @@ function itsCleanCoachWork(input) {
   // The investigation's oldest events go first, then history and notes.
   while (JSON.stringify(work).length > 48 * 1024 && work.investigation && work.investigation.events.length) work.investigation.events.shift();
   while (JSON.stringify(work).length > 48 * 1024) {
-    const ticket = work.tickets.find((entry) => entry.statusHistory.length || entry.notes.length);
+    const ticket = work.tickets.find((entry) => entry.statusHistory.length || entry.notes.length || (entry.customerComments || []).length);
     if (!ticket) break;
     if (ticket.statusHistory.length) ticket.statusHistory.shift();
-    else ticket.notes.shift();
+    else if (ticket.notes.length) ticket.notes.shift();
+    else ticket.customerComments.shift();
   }
   return work;
 }
@@ -1148,7 +1177,7 @@ function itsWalkthroughButton(user, labKeys) {
 const itsUnrecordedWalkthroughs = new Set();
 const itsBlockedWalkthroughs = new Set();
 // A Finish that arrived before the walkthrough's ticket was done (Module 1:
-// HD-2101 resolved or escalated with every investigation outcome met).
+// HD-2150 resolved with every outcome met).
 const itsIncompleteWalkthroughs = new Set();
 
 function itsNoteCoachReturn(user, coachId, labKeys) {

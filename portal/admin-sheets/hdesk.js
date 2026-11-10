@@ -11,7 +11,7 @@
   // (hdTicketFlowSteps in ui/helpdesk-coaches.js). Other saved queue tickets
   // show as ungraded context.
   const TICKETS_BY_LAB = {
-    'lab-its-01-ticket-triage': ['HD-2101'],
+    'lab-its-01-ticket-triage': ['HD-2150'],
     'lab-its-02-device-manager': ['HD-2106'],
     'lab-its-02-print-spooler': ['HD-2112'],
     'lab-its-03-blank-desktop': ['HD-2109'],
@@ -23,6 +23,9 @@
     'lab-its-09-security-incidents': ['SEC-2114', 'SEC-2115'],
     'lab-its-11-handoff-documentation': ['HD-2113', 'HD-2124'],
   };
+  // Lab 1.2 used HD-2101 until 2026-11-09: an attempt saved before then holds
+  // HD-2101 and no HD-2150, and keeps the sheet it was worked against.
+  const EARLIER_TICKETS_BY_LAB = { 'lab-its-01-ticket-triage': ['HD-2101'] };
   const TITLES = {
     'lab-its-01-lms-validation': 'Module 01 · LMS & Environment Validation',
     'lab-its-01-ticket-triage': 'Module 01 · Guided Ticket Triage',
@@ -154,6 +157,58 @@
     ];
   }
 
+  // HD-2150 (Lab 1.2 from 2026-11-09) is worked through the console alone:
+  // the sheet reads its console work (how the caller was verified, the
+  // unlock, the chat, the customer comment) instead of the step checklist and
+  // diagnosis dropdown, which that ticket doesn't show. Practice It: a failing
+  // row here never blocks the save or module progress.
+  const VERIFY_TEXT = { callback: 'Callback on the directory number + employee ID', name: 'Accepted the name and department', password: 'Asked for the password' };
+  function consoleSections(ticket) {
+    const work = ticket && ticket.console ? ticket.console : null;
+    const has = Boolean(work);
+    const outcome = (key) => (has && work.outcomes ? work.outcomes[key] === true : null);
+    const critical = (choice) => (has ? work.verification.criticalErrors.includes(choice) : null);
+    const comments = has && Array.isArray(ticket.customerComments) ? ticket.customerComments.filter((comment) => comment && comment.text) : [];
+    const id = ticket ? ticket.id : 'HD-2150';
+    return [
+      {
+        id: `verification-${id.toLowerCase()}`, title: `Caller verification and unlock · ${id}`, recordedSince: '2026-11-09',
+        instructorPrompt: 'KB-0024: verify before any account action. Every choice the learner made is listed in order. A critical error is shown even when the learner corrected it, so it can be discussed; in Practice It it never blocks the lab.',
+        answer: [
+          ['Verification choices, in order', has ? (work.verification.tries.length ? work.verification.tries.map((choice) => VERIFY_TEXT[choice] || choice).join(' → ') : 'Not answered') : null],
+          ['Unlocks', has ? String(work.unlocks) : null],
+          ['Account at the end', has ? (work.accountUnlocked ? 'Unlocked' : 'Locked') : null],
+          ['Knowledge Base searches', has ? (work.kbSearches.length ? work.kbSearches : 'None') : null],
+          ['Articles opened', has ? (work.kbOpened.length ? work.kbOpened : 'None') : null],
+          ['Questions asked in the chat', has ? (work.chatAsked.length ? work.chatAsked : 'None') : null],
+          // Flags for the instructor, not checks: they never change the verdict.
+          ['Asked for a password in the chat', has ? (work.passwordAsked ? 'Yes (refused, never sent to the caller)' : 'Did not') : null],
+          ['Password in a ticket field', has ? (work.passwordWritten ? 'Wrote a password in a ticket field (refused, not recorded)' : 'Did not') : null],
+        ],
+        checks: [
+          { label: 'Caller verified per KB-0024', expected: 'Callback on the User Directory number and the employee ID', test: () => (has ? work.verification.passed : null), given: () => (has ? (work.verification.passed ? 'Yes' : 'No') : null), fix: 'Verify every caller the KB-0024 way before any account action: call back on the number in the User Directory and confirm the employee ID.' },
+          { label: 'Critical error: accepted a name and department as verification', expected: 'Never', test: () => (has ? !critical('name') : null), given: () => (has ? (critical('name') ? 'Chose it' : 'Did not') : null), fix: 'A name and department are not verification: anyone can learn them. Call back on the directory number and confirm the employee ID (KB-0024).' },
+          { label: 'Critical error: asked the caller for their password', expected: 'Never', test: () => (has ? !critical('password') : null), given: () => (has ? (critical('password') ? 'Chose it' : 'Did not') : null), fix: 'The help desk never asks for a password, for any reason (KB-0024).' },
+          { label: 'Account unlocked after verifying', expected: 'Unlocked once, after a passing verification', test: () => outcome('unlocked'), given: () => (has ? (outcome('unlocked') ? 'Yes' : 'No') : null), fix: 'Once the caller is verified, unlock the account on the account card (KB-0024).' },
+          { label: 'User confirmed they can sign in', expected: 'The user signs in while you are still on the call', test: () => outcome('confirmed'), given: () => (has ? (outcome('confirmed') ? 'Yes' : 'No') : null), fix: 'Ask the user to sign in again slowly with Caps Lock off, and confirm it works from their side.' },
+        ],
+      },
+      {
+        id: `customer-comment-${id.toLowerCase()}`, title: `Customer comment · ${id}`, recordedSince: '2026-11-09',
+        // The shared proofreading reads a sign-off ("– Riley, Northstar
+        // Service Desk") as a sentence with no end punctuation, so it would
+        // flag every signed comment, the spec's model one included.
+        mechanics: false,
+        instructorPrompt: 'The customer reads this comment. Look for plain words, what was done, and what to do if the lockout comes back (KB-0024: a lockout that returns within a day goes to Tier 2).',
+        response: has ? (comments.length ? comments.map((comment) => ({ label: `Customer comment · ${comment.time || ''}`, text: comment.text })) : [{ label: 'Customer comment', text: 'No customer comment' }]) : [{ label: 'Customer comment', text: null }],
+        answer: [['Internal terms in the last comment', has ? (work.lastCommentJargon.length ? work.lastCommentJargon : 'None') : null]],
+        checks: [
+          { label: 'Says what to do if it happens again', expected: 'A line telling the user what to do if the lockout comes back', test: () => (has ? work.commentRepeatLine : null), given: () => (has ? (work.commentRepeatLine ? 'Yes' : 'No') : null), fix: 'Tell the user what to do if it locks again (reply or call back), and that the next-level team will then find out why.' },
+        ],
+      },
+    ];
+  }
+
   function coachSections(result, ctx) {
     const key = ctx.row.lab_key;
     // Every saved ticket, from this attempt first, then from any other attempt
@@ -165,7 +220,13 @@
     if (key === PRIORITY_KEY) return prioritySections(tickets);
     // A card holding Lab 2.3 and Lab 2.4 grades both labs' tickets, in course order.
     const cardKeys = new Set([key].concat(ctx.rows.map((row) => row && row.lab_key)));
-    const ids = Array.from(new Set(Object.keys(TICKETS_BY_LAB).filter((labKey) => cardKeys.has(labKey)).flatMap((labKey) => TICKETS_BY_LAB[labKey])));
+    const ticketsFor = (labKey) => {
+      const current = TICKETS_BY_LAB[labKey];
+      const earlier = EARLIER_TICKETS_BY_LAB[labKey];
+      const saved = (list) => list.some((id) => tickets.some((ticket) => ticket.id === id));
+      return earlier && !saved(current) && saved(earlier) ? earlier : current;
+    };
+    const ids = Array.from(new Set(Object.keys(TICKETS_BY_LAB).filter((labKey) => cardKeys.has(labKey)).flatMap(ticketsFor)));
     return ids.flatMap((id) => {
       const ticket = tickets.find((entry) => entry.id === id) || null;
       const saved = Boolean(ticket);
@@ -178,7 +239,14 @@
       };
       const notes = saved ? (ticket.notes || []).filter((note) => note && note.text) : [];
       const history = saved ? (ticket.statusHistory || []).map((entry) => `${entry.time}: ${entry.action}`) : null;
-      const worked = id === 'HD-2101' ? investigationSections(saved ? { ...ticket, investigation: result.work && result.work.investigation } : null) : null;
+      const worked = id === 'HD-2101' ? investigationSections(saved ? { ...ticket, investigation: result.work && result.work.investigation } : null)
+        : id === 'HD-2150' ? consoleSections(saved ? ticket : null) : null;
+      // HD-2150's note has three parts (Reported / Tried / Result).
+      const noteParts = id === 'HD-2150' ? [{
+        label: 'Reported / Tried / Result note', expected: 'All three parts', test: () => (saved && ticket.console && ticket.console.outcomes ? ticket.console.outcomes.note === true : null),
+        given: () => (saved && ticket.console ? (ticket.console.outcomes && ticket.console.outcomes.note ? 'All three parts' : `Missing: ${(ticket.console.noteMissing || []).join(', ') || 'a complete note'}`) : null),
+        fix: 'Write the note in three parts so the next technician can follow it: Reported, Tried, Result.',
+      }] : [];
       return [
         {
           id: `scenario-${id.toLowerCase()}`, title: `Ticket and evidence · ${id}`, required: false, recordedSince: '2026-10-17',
@@ -211,7 +279,7 @@
           id: `work-notes-${id.toLowerCase()}`, title: `Work notes · ${id}`, recordedSince: '2026-10-17',
           instructorPrompt: 'Look for the fact, what it proves, and the next action. Give one specific example of how to make the note more useful to the next technician.',
           response: saved ? noteResponses(notes) : [{ label: 'Student work notes', text: null }],
-          checks: [{ label: 'A work note was recorded', expected: 'At least one useful work note', test: () => saved ? notes.length > 0 : null, given: () => saved ? `${notes.length} note(s)` : null, fix: help.note }],
+          checks: [{ label: 'A work note was recorded', expected: 'At least one useful work note', test: () => saved ? notes.length > 0 : null, given: () => saved ? `${notes.length} note(s)` : null, fix: help.note }].concat(noteParts),
         },
         {
           id: `resolution-${id.toLowerCase()}`, title: `Resolution and history · ${id}`, recordedSince: '2026-10-17',

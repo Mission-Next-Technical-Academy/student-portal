@@ -423,7 +423,11 @@ function hdTransitionTicket(id, status) {
   const ticket = hdTicketById(id); if (!ticket || !HD_STATUS_NEXT[ticket.status].includes(status)) {
     toast('That state transition is not valid from the current ticket state.'); return;
   }
-  // A required resolution code can't be skipped through the state list either.
+  // A console-only ticket's outcomes can't be skipped through the state list:
+  // it resolves exactly as the Resolve button does (same checks, same
+  // message, and its note becomes the resolution).
+  if (status === 'Resolved' && hdConsoleOutcomes(ticket)) { hdResolveTicket(id); return; }
+  // Nor can a required resolution code.
   const codeConfig = hdConsole(ticket).resolutionCode;
   if (status === 'Resolved' && codeConfig && codeConfig.required && !hdConsoleState(ticket).resolutionCode) { toast('Choose a resolution code before you resolve this ticket.'); hdRerender(); return; }
   ticket.status = status; hdHistory(ticket, `Status changed to ${status}.`); hdRerender();
@@ -480,16 +484,22 @@ function hdResolveTicket(id) {
   // HD-2101 Practice: resolving needs the investigation's outcomes, and the
   // resolution is the student's own Reported / Tried / Result note.
   const scenario = ticket.id === HD_M01 && hdM01();
+  // A console-only ticket (resolveByOutcomes) has no diagnosis: it needs its
+  // outcomes, and the resolution is the student's own complete note.
+  const byOutcomes = !scenario && !!hdConsoleOutcomes(ticket);
   if (scenario) {
     hdM01Tick();
     const missing = hdM01Missing();
     if (missing) { toast(missing); return; }
+  } else if (byOutcomes) {
+    const blocked = hdConsoleResolveBlock(ticket);
+    if (blocked) { toast(blocked); hdRerender(); return; }
   } else if (!ticket.diagnosisCorrect && !['Service Request'].includes(ticket.category)) { toast('Validate the root cause before resolving this ticket.'); return; }
   // A ticket that turns the resolution code on and requires it: no code, no resolve.
   const codeConfig = hdConsole(ticket).resolutionCode;
   const code = codeConfig ? hdConsoleState(ticket).resolutionCode : '';
   if (codeConfig && codeConfig.required && !code) { toast('Choose a resolution code before you resolve this ticket.'); return; }
-  ticket.resolution = scenario ? hdM01CompleteNote(ticket).text : ticket.expectedResolution;
+  ticket.resolution = scenario ? hdM01CompleteNote(ticket).text : byOutcomes ? hdConsoleCompleteNote(ticket).text : ticket.expectedResolution;
   ticket.closureCode = code || (ticket.category === 'Service Request' ? 'Request fulfilled' : ticket.category === 'Security Incident' ? 'Escalated to Security' : 'Resolved by support');
   if (ticket.category === 'Security Incident' || ticket.escalationCriteria.some(x => x.startsWith('Always'))) {
     ticket.status = 'Escalated'; ticket.assignedTechnician = ticket.category === 'Security Incident' ? 'Cybersecurity Operations' : 'Enterprise Infrastructure';
@@ -515,6 +525,9 @@ function hdResetShift() {
   hdRerender();
 }
 
+// The number a student sees: a ticket's own INC number when it has one
+// (HD-2150 shows as INC0010150), else its ID. Code and saved work use the ID.
+function hdTicketLabel(ticket) { return ticket.number || ticket.id; }
 function hdQueueRows(tickets) {
   return tickets.map(ticket => {
     const sla = hdSlaState(ticket);
@@ -522,7 +535,7 @@ function hdQueueRows(tickets) {
     const fields = HD_PROVE && hdState.prove ? hdState.prove.fields : null;
     const priority = fields ? fields.priority : ticket.priority;
     return `<tr class="hd-ticket-row" tabindex="0" onclick="hdSelectTicket('${ticket.id}')" onkeydown="if(event.key==='Enter')hdSelectTicket('${ticket.id}')">
-      <td><strong>${hdEsc(ticket.id)}</strong>${ticket.linkedProblem ? `<small>${hdEsc(ticket.linkedProblem)}</small>` : ''}</td>
+      <td><strong>${hdEsc(hdTicketLabel(ticket))}</strong>${ticket.linkedProblem ? `<small>${hdEsc(ticket.linkedProblem)}</small>` : ''}</td>
       <td>${priority ? hdBadge(priority, priority.toLowerCase()) : '<span class="muted">Not set</span>'}</td>
       <td><strong>${hdEsc(ticket.requester)}</strong><small>${hdEsc(ticket.department)}</small></td>
       <td><strong>${hdEsc(fields ? ticket.title : ticket.subcategory)}</strong><small>${hdEsc(ticket.description)}</small></td>
@@ -574,15 +587,19 @@ VIEWS['helpdesk/ticket'] = () => {
   const evidence = ticket.logs.length
     ? `<pre class="hd-evidence">${ticket.logs.map(hdEsc).join('\n')}</pre>`
     : '<p class="muted hd-evidence-empty">No logs are attached to this ticket. Gather the evidence yourself with the tools: Event Viewer, Active Directory and PowerShell.</p>';
-  const pathAndDiagnosis = scenario ? hdM01IdentityCard(scenario) + hdM01InvestigationCard(scenario) : `<div class="card"><div class="card-header"><strong>Troubleshooting path</strong><span class="muted">Record what you actually checked.</span></div><div class="card-body"><div class="hd-path">${ticket.correctPath.map((step,index) => `<label><input type="checkbox" onchange="hdTogglePathStep('${ticket.id}',${index},this.checked)" ${(ticket.checkedSteps || []).includes(step)?'checked':''}> <span>${index+1}</span>${hdEsc(step)}</label>`).join('')}</div></div></div>
+  // A console-only ticket shows its progress instead of the path checklist,
+  // the diagnosis dropdown and the "find the evidence with the tools" card.
+  const byOutcomes = !scenario && !!hdConsoleOutcomes(ticket);
+  const evidenceCard = byOutcomes && !ticket.logs.length ? '' : `<div class="card"><div class="card-header"><strong>Available logs and evidence</strong><span class="muted">Investigate; do not infer beyond the evidence.</span></div><div class="card-body">${evidence}</div></div>`;
+  const pathAndDiagnosis = scenario ? hdM01IdentityCard(scenario) + hdM01InvestigationCard(scenario) : byOutcomes ? hdConsoleOutcomesCard(ticket) : `<div class="card"><div class="card-header"><strong>Troubleshooting path</strong><span class="muted">Record what you actually checked.</span></div><div class="card-body"><div class="hd-path">${ticket.correctPath.map((step,index) => `<label><input type="checkbox" onchange="hdTogglePathStep('${ticket.id}',${index},this.checked)" ${(ticket.checkedSteps || []).includes(step)?'checked':''}> <span>${index+1}</span>${hdEsc(step)}</label>`).join('')}</div></div></div>
         <div class="card"><div class="card-header"><strong>Diagnosis checkpoint</strong></div><div class="card-body"><div class="hd-diagnosis-row"><select id="hd-diagnosis" class="select"><option value="">Choose the most likely cause…</option>${diagnosisOptions.map(value => `<option ${ticket.diagnosis===value?'selected':''}>${hdEsc(value)}</option>`).join('')}</select><button class="btn btn-primary" onclick="hdSubmitDiagnosis('${ticket.id}')">Check diagnosis</button></div>${ticket.diagnosis ? `<div class="callout ${ticket.diagnosisCorrect?'success':'warning'}">${ticket.diagnosisCorrect ? `<strong>Supported by the evidence.</strong> ${hdEsc(ticket.hiddenRootCause)}` : '<strong>Not sufficiently supported.</strong> Recheck the evidence and test a different hypothesis.'}</div>` : ''}${ticket.diagnosisCorrect ? `<div class="hd-resolution"><strong>Expected resolution</strong><p>${hdEsc(ticket.expectedResolution)}</p></div>` : ''}</div></div>`;
-  return `${hdPageHeader(ticket.id, `${ticket.category} · ${ticket.subcategory}`, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/tickets')">← Queue</button>${ticket.assignedTechnician==='Unassigned'?`<button class="btn btn-primary" onclick="hdAssignTicket('${ticket.id}')">Assign to me</button>`:''}`)}
+  return `${hdPageHeader(hdTicketLabel(ticket), `${ticket.category} · ${ticket.subcategory}`, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/tickets')">← Queue</button>${ticket.assignedTechnician==='Unassigned'?`<button class="btn btn-primary" onclick="hdAssignTicket('${ticket.id}')">Assign to me</button>`:''}`)}
     ${related.length > 1 ? `<div class="callout warning hd-related"><strong>${related.length} related reports detected.</strong> Same application, symptom, and time window. ${ticket.linkedProblem ? `Linked to ${hdEsc(ticket.linkedProblem)}.` : `<button class="btn btn-sm btn-secondary" onclick="hdLinkProblem('${ticket.id}')">Link to problem record</button>`}</div>` : ''}
     <div class="hd-ticket-layout">
       <div class="hd-ticket-main">
         <div class="card"><div class="card-header"><strong>Requester statement</strong>${hdBadge(ticket.priority,ticket.priority.toLowerCase())}${hdBadge(ticket.status)}${hdBadge(sla.label,sla.cls)}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid"><div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Business impact</span><strong>${hdEsc(ticket.businessImpact)}</strong></div><div><span>SLA target</span><strong>${hdEsc(ticket.sla)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div></div></div></div>${hdConsoleChatCard(ticket)}${hdConsoleKbCard(ticket)}${hdConsoleVerifyCard(ticket)}${hdConsoleAccountCard(ticket)}
         <div class="two-col"><div class="card"><div class="card-header"><strong>Observable symptoms</strong></div><div class="card-body">${hdList(ticket.symptoms)}</div></div><div class="card"><div class="card-header"><strong>Relevant system state</strong></div><div class="card-body">${hdList(ticket.systemState)}</div></div></div>
-        <div class="card"><div class="card-header"><strong>Available logs and evidence</strong><span class="muted">Investigate; do not infer beyond the evidence.</span></div><div class="card-body">${evidence}</div></div>
+        ${evidenceCard}
         ${pathAndDiagnosis}
         <div class="card"><div class="card-header"><strong>Work notes</strong><span class="muted">Facts, commands, results, interpretation, next action.</span></div><div class="card-body"><div class="hd-note-list">${ticket.notes.length ? ticket.notes.map(note => `<div><strong>${hdEsc(note.author)} · ${hdEsc(note.time)}</strong><p>${hdEsc(note.text)}</p></div>`).join('') : '<p class="muted">No technician notes yet.</p>'}</div><textarea id="hd-note-input" class="ipt hd-note-input" rows="7" placeholder="${scenario ? 'Reported: what Jordan reported&#10;Tried: what you checked and changed, and what each step showed&#10;Result: the outcome and how you confirmed it' : hdConsole(ticket).notes ? hdConsoleNotePlaceholder(ticket) : 'Document the action you took and what the result proved…'}"></textarea><button class="btn btn-secondary" onclick="hdAddNote('${ticket.id}')">Add work note</button></div></div>${hdConsoleCommentsCard(ticket)}
       </div>
@@ -626,18 +643,25 @@ function hdM01InvestigationCard(scenario) {
  * shift), so a later fixture change reaches existing shifts. Prove shifts
  * never get these (their tickets aren't templates). Keys:
  *   kb: true                       Knowledge Base search box on the ticket
- *   caller: { name, questions:[{ id, text, reply, replyLocked?, asksPassword? }] }
+ *   caller: { name, questions:[{ id, text, reply, replyLocked?, asksPassword?, confirms? }] }
  *                                  question buttons and scripted replies
+ *                                  (confirms: the user's answer confirms the fix)
  *   account: { userId, locked? }   account card; Unlock account
  *   verification: { prompt, options:[{ id, text, pass?, critical?, feedback, history? }] }
  *                                  caller check; Unlock works only after a pass
- *   comments: true                 Additional comments (customer-visible)
+ *   comments: true | { repeatLine:{ label, pattern } }
+ *                                  Additional comments (customer-visible);
+ *                                  repeatLine: a comment must say what to do
+ *                                  if the problem comes back (regex source)
  *   resolutionCode: { options?, required? }  resolving needs a code when required
  *   priorityReason: '...'          ticket.priority is pre-set; shown read-only
  *   notes: { parts?, nextAction?, jargon? }  work note parts (HD_NOTE_PARTS
  *                                  keys), a Next action part while the ticket
  *                                  stays open, words a customer comment
  *                                  mustn't use
+ *   resolveByOutcomes: true        worked through these features alone: no
+ *                                  diagnosis or path checklist; Resolved needs
+ *                                  every outcome (HD_CONSOLE_OUTCOMES)
  * The student's work on these lives in ticket.consoleState and
  * ticket.customerComments, created only for a ticket that has the feature. */
 function hdConsole(ticket) {
@@ -849,7 +873,10 @@ function hdAddComment(id) {
   hdHistory(ticket, 'Additional comment (customer-visible) added.');
   const jargon = hdJargonFound(text, (hdConsole(ticket).notes || {}).jargon);
   hdPracticeEvent('customer_comment', { ticket:ticket.id, jargon:jargon.join(', ') });
-  toast(jargon.length ? `Comment added. The customer won't know these words: ${jargon.join(', ')}. Say it in plain words.` : 'Customer comment added.');
+  const config = hdConsole(ticket).comments;
+  const repeat = config && typeof config === 'object' ? config.repeatLine : null;
+  const repeatTip = repeat && !hdCommentHasRepeatLine(ticket, text) ? ` It doesn't say ${repeat.label} yet.` : '';
+  toast(jargon.length ? `Comment added. The customer won't know these words: ${jargon.join(', ')}. Say it in plain words.${repeatTip}` : repeatTip ? `Customer comment added.${repeatTip}` : 'Customer comment added.');
   hdRerender();
   return true;
 }
@@ -865,6 +892,66 @@ function hdSetResolutionCode(id, value) {
   if (code) hdHistory(ticket, `Resolution code set to ${code}.`);
   hdRerender();
 }
+// A customer comment that tells the user what to do if the problem comes
+// back: one sentence with the ticket's condition (pattern, "if it locks
+// again") and, when the ticket sets one, an action for the user (action,
+// "reply", "call us"). "If it happens again, I'll look into it" names no
+// action, so it doesn't count.
+function hdCommentHasRepeatLine(ticket, text) {
+  const config = hdConsole(ticket).comments;
+  const line = config && typeof config === 'object' ? config.repeatLine : null;
+  if (!line || !line.pattern) return false;
+  try {
+    const condition = new RegExp(line.pattern, 'i');
+    const action = line.action ? new RegExp(line.action, 'i') : null;
+    return String(text || '').split(/[.!?]+\s+|\n+/).some(sentence => condition.test(sentence) && (!action || action.test(sentence)));
+  } catch { return false; }
+}
+
+// A ticket worked through the console alone (resolveByOutcomes): no
+// diagnosis dropdown or path checklist. Resolving needs every outcome its
+// features ask for, and the resolution is the student's own complete note.
+// Each outcome reads the ticket's real state, never a checkbox.
+const HD_CONSOLE_OUTCOMES = [
+  ['verified', 'Caller verified (KB-0024)', 'verify the caller the way KB-0024 says'],
+  ['unlocked', 'Account unlocked after verifying', 'unlock the account on the account card'],
+  ['confirmed', 'User confirmed they can sign in', 'ask the user to sign in again and confirm it works'],
+  ['comment', 'Customer comment says what to do if it happens again', 'add a customer comment that tells the user what to do if it happens again'],
+  ['note', 'Work note: Reported / Tried / Result', 'add a work note with every part'],
+  ['code', 'Resolution code chosen', 'choose a resolution code'],
+];
+function hdConsoleCompleteNote(ticket) {
+  const parts = hdConsoleNoteParts(ticket);
+  return (ticket.notes || []).filter(note => note.author === 'Riley Morgan' && !hdNoteMissingParts(note.text, parts).length).pop() || null;
+}
+function hdConsoleOutcomes(ticket) {
+  const config = ticket ? hdConsole(ticket) : {};
+  if (!config.resolveByOutcomes) return null;
+  const state = hdConsoleState(ticket);
+  const confirmIds = ((config.caller || {}).questions || []).filter(question => question.confirms).map(question => question.id);
+  const comments = hdComments(ticket);
+  const repeat = config.comments && typeof config.comments === 'object' && config.comments.repeatLine;
+  return {
+    verified:!config.verification || state.verification.passed,
+    unlocked:!config.account || (!hdConsoleAccountLocked(ticket) && state.unlocks.length > 0),
+    confirmed:!confirmIds.length || state.chat.some(entry => confirmIds.includes(entry.id) && !entry.refused && entry.whileLocked === false),
+    comment:!config.comments || (repeat ? comments.some(comment => hdCommentHasRepeatLine(ticket, comment.text)) : comments.length > 0),
+    note:!config.notes || !!hdConsoleCompleteNote(ticket),
+    code:!(config.resolutionCode && config.resolutionCode.required) || !!state.resolutionCode,
+  };
+}
+// What still stands between this ticket and Resolved, or '' when nothing does.
+function hdConsoleResolveBlock(ticket) {
+  const outcomes = hdConsoleOutcomes(ticket);
+  const missing = outcomes && HD_CONSOLE_OUTCOMES.find(([key]) => !outcomes[key]);
+  return missing ? `Before you resolve this ticket, ${missing[2]}.` : '';
+}
+function hdConsoleOutcomesCard(ticket) {
+  const outcomes = hdConsoleOutcomes(ticket); if (!outcomes) return '';
+  const done = HD_CONSOLE_OUTCOMES.every(([key]) => outcomes[key]);
+  return `<div class="card hd-console-outcomes"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Your progress</strong><span class="muted">Practice: the ticket resolves once every part is done.</span></div><div class="card-body"><ul class="hd-list hd-outcomes">${HD_CONSOLE_OUTCOMES.map(([key, label]) => `<li data-outcome="${key}" data-done="${outcomes[key] ? 'yes' : 'no'}">${outcomes[key] ? '✓' : '○'} ${hdEsc(label)}</li>`).join('')}</ul>${done ? '<p><strong>Every part is done.</strong> Resolve the ticket.</p>' : ''}</div></div>`;
+}
+
 // What a coach or a later package reads about one ticket's console work.
 function hdConsoleProgress(id) {
   const ticket = hdTicketById(id); if (!ticket) return null;
@@ -883,6 +970,8 @@ function hdConsoleProgress(id) {
     noteMissing:note ? hdNoteMissingParts(note.text, hdConsoleNoteParts(ticket)) : hdConsoleNoteParts(ticket).map(key => HD_NOTE_PARTS[key]),
     resolutionCode:state.resolutionCode,
     passwordWritten:ticket.passwordWritten === true, passwordAsked:ticket.passwordAsked === true,
+    commentRepeatLine:comments.some(comment => hdCommentHasRepeatLine(ticket, comment.text)),
+    outcomes:hdConsoleOutcomes(ticket),
   };
 }
 
@@ -919,7 +1008,7 @@ function hdConsoleVerifyCard(ticket) {
 function hdConsoleAccountCard(ticket) {
   const account = hdConsole(ticket).account; if (!account) return '';
   const user = hdUserById(account.userId); if (!user) return '';
-  return `<div class="card hd-account"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Account · ${hdEsc(user.name)}</strong>${user.locked ? hdBadge('Locked', 'bad') : hdBadge('Unlocked', 'ok')}</div><div class="card-body"><dl class="hd-dl"><dt>Username</dt><dd>${hdEsc(`${HD_ORG.netbios}\\${user.username}`)}</dd><dt>Employee ID</dt><dd>${hdEsc(user.employeeId || '')}</dd><dt>Department</dt><dd>${hdEsc(user.department)}</dd><dt>Directory phone</dt><dd>${hdEsc(user.phone || '')}</dd></dl><button type="button" class="btn btn-secondary" onclick="hdConsoleUnlock('${ticket.id}')">Unlock account</button></div></div>`;
+  return `<div class="card hd-account"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Account · ${hdEsc(user.name)}</strong>${user.locked ? hdBadge('Locked', 'bad') : hdBadge('Unlocked', 'ok')}</div><div class="card-body"><dl class="hd-dl"><dt>Username</dt><dd>${hdEsc(`${HD_ORG.netbios}\\${user.username}`)}</dd><dt>Employee ID</dt><dd>${hdEsc(user.employeeId || '')}</dd><dt>Department</dt><dd>${hdEsc(user.department)}</dd><dt>Directory phone</dt><dd>${hdEsc(user.phone || '')}</dd></dl>${hdConsoleUnlockBlock(user.id) ? '<button type="button" class="btn btn-secondary" disabled aria-describedby="hd-unlock-why">Unlock account</button><p id="hd-unlock-why" class="muted">Verify the caller first (KB-0024).</p>' : `<button type="button" class="btn btn-secondary" onclick="hdConsoleUnlock('${ticket.id}')">Unlock account</button>`}</div></div>`;
 }
 function hdConsoleCommentsCard(ticket) {
   if (!hdConsole(ticket).comments) return '';

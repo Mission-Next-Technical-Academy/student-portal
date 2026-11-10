@@ -376,8 +376,8 @@ function testOlderCoursePageResumesAfterReload() {
 // The message names no button: a returned lab's button says "Redo".
 function testPortalClosedMessageFitsEveryModule() {
   const local = store();
-  // hd-m01's last step (index 10) is its Finish step.
-  local.setItem('mnt.coach.resume', JSON.stringify({ id: 'hd-m01', step: 10, student: STUDENT_A }));
+  // hd-m01's last step (index 9) is its Finish step.
+  local.setItem('mnt.coach.resume', JSON.stringify({ id: 'hd-m01', step: 9, student: STUDENT_A }));
   const tab = sim(launchUrl('hd-m01'), { local });
   tab.finish();
   assert.ok(tab.panelHtml().includes(PORTAL_CLOSED));

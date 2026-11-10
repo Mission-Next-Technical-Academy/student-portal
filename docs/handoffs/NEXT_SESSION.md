@@ -1,3 +1,47 @@
+**2026-11-09 (Megan; Help Desk Module 1 Guided Lab 1 becomes HD-2150, PR to come; shared `ui/index.html`, `portal/index.html`, `portal/data.js` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `ui/helpdesk-coaches.js`, `portal/it-support-shared.js`, `portal/it-support-module-01.js`, `portal/admin-sheets/hdesk.js` and tests — please review the shared ones):**
+Help Desk Lab 1.2 (Practice It, coach `hd-m01`, lab key
+`lab-its-01-ticket-triage`) is now INC0010150 (ticket HD-2150): Sam Rivera
+is locked out after wrong password tries. The student takes the ticket, asks
+what changed, finds KB-0024 in the ticket's KB search, verifies Sam (callback
+on the directory number and the employee ID), unlocks the account on the
+account card, confirms Sam can sign in, adds a customer comment that says
+what to do if it happens again, writes a Reported / Tried / Result note,
+chooses a resolution code and resolves. No commands. It uses the console
+features from PR #101. HD-2101 (Jordan Bell's repeating lockout) leaves
+Module 1; its scenario code stays, unused, for Module 8. KB-0024 is rewritten
+(employee ID instead of manager, self-service reset, repeat lockout to Tier 2,
+the unverified-caller route to the SOC; the 4740 / scheduled-task steps are
+kept, marked "Tier 2 only"). Sam Rivera (Customer Service) is a new user.
+Module 1's minutes, lab keys and the Prove It (HD-2125) are unchanged.
+- **Shared:** `ui/index.html` and `portal/index.html` (version bumps for the
+  changed Help Desk files only), `portal/data.js` (Lab 1.2's description
+  and objective strings only), `bin/ci-check.sh` (one line for the new test,
+  and the HD-2101 test's label now says it's a regression test kept for
+  Module 8).
+- **Not touched:** `ui/coach.js`, `portal/app.js`, `supabase/`, shared CSS.
+  SOC and AI/ML are unchanged.
+- **For your code or agent:**
+  - Lab 1.2's saved work changes shape. The ticket is `HD-2150`, and its entry
+    in `result.work.tickets` carries two new blocks: `console` (verification
+    choice, tries and critical errors, unlock, chat questions, KB searches,
+    outcomes, password flags) and `customerComments` (the student's text).
+    `itsCleanCoachWork()` keeps them, known fields only and bounded. There is
+    no `investigation` block for HD-2150.
+  - The portal saves Lab 1.2 only when HD-2150 is Resolved with every outcome
+    met (`its01PracticeComplete`). A critical verification choice (accepting a
+    name and department, or asking for the password) is shown to the
+    instructor as a red check row but never blocks the save or module
+    progress. A finished HD-2101 from an old tab is now refused as
+    `incomplete`.
+  - The Lab 1.2 sheet reads HD-2150's console work. An attempt saved before
+    this change (HD-2101, no HD-2150) keeps its old sheet.
+  - A browser halfway through the old HD-2101 walkthrough has its `hd-m01`
+    resume record cleared on load (`mnt.coach.resume`, `mnt.coach.state`), so
+    the next launch starts HD-2150 fresh. `coach.js` itself is unchanged.
+  - New optional console keys: `caller.questions[].confirms`,
+    `comments.repeatLine`, `resolveByOutcomes` (no diagnosis; resolving needs
+    every outcome; the student's note becomes the resolution).
+
 **2026-11-09 (Megan; PR #101 "Help Desk simulator: add console features, off by default"; shared `ui/index.html`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `portal/it-support-shared.js`, `portal/admin-sheets/hdesk.js` and tests — please review the shared ones):**
 The Help Desk simulator gains reusable console features that a ticket turns
 on with an optional `console: { ... }` block in `ui/helpdesk-data.js`: a
