@@ -447,6 +447,9 @@ async function buildUserFromSession(session) {
   // Faculty never load learner-only progress or their own inbox as if they
   // were a student. Their course dashboard performs its own scoped reads.
   if (core.isInstructor && !core.isAdmin) return core;
+  // Before anything reads browser-held progress: an admin may have reset
+  // this test account since this browser last saw it.
+  await applyPendingProgressReset(core);
   const details = await fetchUserDetails(core.userId, core.trackCode);
   return { ...core, ...details };
 }
@@ -3967,6 +3970,358 @@ async function downloadStudentSnapshot(studentId, identity) {
   return record;
 }
 
+/* ------------------------------------------- test-account progress reset */
+/* Admin-only (never instructors). An admin marks an account as a TEST
+ * account with the roster's "Test account" checkbox, then "Reset Progress"
+ * erases either all of its coursework or only the selected modules.
+ * Every rule that matters (admin only, test accounts only, never an admin or
+ * instructor identity) is enforced in SQL by admin_set_test_account() /
+ * admin_reset_test_progress(),
+ * supabase/migrations/20261110120000_test_account_progress_reset.sql. This
+ * UI always downloads a "Save Progress File" snapshot first and cancels the
+ * reset if that download fails. Against a database without the migration,
+ * the roster quietly shows no test-account controls (TEST_ACCOUNTS.available). */
+const TEST_ACCOUNTS = { available: null };
+
+function isMissingTestAccountSchema(error) {
+  if (!error) return false;
+  const text = `${error.message || ''} ${error.details || ''}`;
+  if (['42703', '42883', 'PGRST204', 'PGRST202'].includes(error.code)) return true;
+  return /is_test_account|progress_reset|admin_set_test_account|admin_reset_test_progress/i.test(text)
+    && /does not exist|schema cache|could not find/i.test(text);
+}
+
+// Adds is_test_account to each roster row (admin roster only).
+async function mergeTestAccountFlags(rows) {
+  if (!rows || !rows.length || TEST_ACCOUNTS.available === false) return;
+  const { data, error } = await mntSupabase.from('students').select('student_id, is_test_account');
+  if (error) {
+    if (isMissingTestAccountSchema(error)) TEST_ACCOUNTS.available = false;
+    else console.error('Could not load test-account flags', error);
+    return;
+  }
+  TEST_ACCOUNTS.available = true;
+  const flags = new Map((data || []).map((r) => [r.student_id, r.is_test_account === true]));
+  rows.forEach((row) => { row.is_test_account = flags.get(row.student_id) === true; });
+}
+
+async function setTestAccountRemote(studentId, isTest) {
+  const { error } = await mntSupabase.rpc('admin_set_test_account', { p_student_id: studentId, p_is_test: isTest });
+  return error || null;
+}
+
+// The modules of a roster row's program, in course order.
+function testResetModulesForRow(row) {
+  const slug = row.program_slug || TRACK_CODE_TO_PROGRAM_SLUG[row.track_code];
+  const program = PROGRAMS.find((p) => p.slug === slug);
+  if (!program || !program.modules) return { program: null, modules: [] };
+  const modules = Object.values(program.modules).sort((a, b) => a.number - b.number);
+  return { program, modules };
+}
+
+// Every lab key the portal knows belongs to these modules (portal/data.js
+// LABS[].module). The SQL function also matches course_module_labs and the
+// lab-<module>- naming convention, so this list only needs to add to those.
+function testResetLabKeysForModules(moduleKeys) {
+  const wanted = new Set(moduleKeys);
+  return (typeof LABS !== 'undefined' ? LABS : [])
+    .filter((lab) => lab && lab.key && wanted.has(lab.module))
+    .map((lab) => lab.key);
+}
+
+async function resetTestProgressRemote(row, moduleKeys) {
+  const { modules } = testResetModulesForRow(row);
+  const includeCapstone = !!moduleKeys && modules.some((m) => m.isCapstone && moduleKeys.includes(m.key));
+  const { data, error } = await mntSupabase.rpc('admin_reset_test_progress', {
+    p_student_id: row.student_id,
+    p_module_keys: moduleKeys || null,
+    p_lab_keys: moduleKeys ? testResetLabKeysForModules(moduleKeys) : null,
+    p_include_capstone: includeCapstone,
+  });
+  return { data, error };
+}
+
+// Deletes the test account's uploaded evidence files (bucket lab-evidence)
+// through the Storage API: all of them, or only the selected modules'
+// folders. Storage refuses direct SQL deletes, so this runs after the reset
+// RPC. Storage policies allow it only inside a test account's own folder.
+async function removeTestEvidenceFiles(row, moduleKeys) {
+  const { data, error } = await mntSupabase.rpc('admin_test_evidence_paths', {
+    p_student_id: row.student_id,
+    p_module_keys: moduleKeys || null,
+  });
+  if (error) return { found: 0, removed: 0, error };
+  const paths = (data || []).map((item) => (typeof item === 'string' ? item : item && item.admin_test_evidence_paths)).filter(Boolean);
+  const bucket = mntSupabase.storage.from(typeof ITS_EVIDENCE_BUCKET !== 'undefined' ? ITS_EVIDENCE_BUCKET : 'lab-evidence');
+  let removed = 0;
+  for (let i = 0; i < paths.length; i += 100) {
+    const batch = paths.slice(i, i + 100);
+    const result = await bucket.remove(batch);
+    if (result.error) return { found: paths.length, removed, error: result.error };
+    removed += Array.isArray(result.data) ? result.data.length : batch.length;
+  }
+  return { found: paths.length, removed, error: null };
+}
+
+function testResetSummaryText(result) {
+  const deleted = (result && result.deleted) || {};
+  const labels = {
+    module_progress: 'module records',
+    lab_attempts: 'lab attempts',
+    module_completion_evidence: 'completion evidence items',
+    portfolio_artifacts: 'portfolio items',
+    capstone_reviews: 'capstone reviews',
+    capstone_submissions: 'capstone submissions',
+    student_course_hour_awards: 'hour awards',
+    sim_state: 'saved lab environments',
+  };
+  const parts = Object.entries(labels)
+    .filter(([key]) => Number(deleted[key]) > 0)
+    .map(([key, label]) => `${deleted[key]} ${label}`);
+  const evidence = result && result.evidence;
+  if (evidence && evidence.removed > 0) parts.push(`${evidence.removed} evidence file${evidence.removed === 1 ? '' : 's'}`);
+  let text = parts.length ? `Erased ${parts.join(', ')}.` : 'There was no saved progress to erase.';
+  if (evidence && evidence.error) {
+    const left = Math.max((evidence.found || 0) - (evidence.removed || 0), 0);
+    text += ` Could not delete ${left ? `${left} ` : ''}uploaded evidence file${left === 1 ? '' : 's'} (${evidence.error.message || 'Storage refused'}); run Reset Progress again to retry.`;
+  }
+  return text;
+}
+
+// The reset dialog. onDone runs after a successful reset (re-renders the roster).
+async function openTestResetModal(row, trigger, onDone) {
+  document.getElementById('test-reset-modal')?.remove();
+  const { modules } = testResetModulesForRow(row);
+  const label = accountLabelText(row.student_id);
+
+  // Current state per module, so the admin can see what each one holds.
+  const stateByModule = new Map();
+  const progressResult = await mntSupabase
+    .from('module_progress')
+    .select('module_key, state')
+    .eq('user_id', row.user_id);
+  if (progressResult.error) console.error('test reset: module_progress read failed', progressResult.error);
+  (progressResult.data || []).forEach((r) => stateByModule.set(r.module_key, r.state));
+  const stateLabel = (key) => {
+    const state = stateByModule.get(key);
+    if (state === 'complete') return '<span class="text-[#15803d]">Complete</span>';
+    if (state) return '<span class="text-[#c2410c]">In progress</span>';
+    return '<span class="text-gray-400">Not started</span>';
+  };
+
+  const pane = document.createElement('div');
+  pane.id = 'test-reset-modal';
+  pane.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/50';
+  pane.innerHTML = `
+    <section role="dialog" aria-modal="true" aria-labelledby="test-reset-title" class="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
+      <div class="flex items-center justify-between gap-4 border-b border-gray-200 px-6 py-4">
+        <div>
+          <h2 id="test-reset-title" class="text-xl font-bold text-[#1e3a5f]">Reset test account progress</h2>
+          <p class="mt-0.5 text-sm text-gray-600"><span class="font-mono">${esc(row.student_id)}</span>${accountNameText(row) ? ` · ${esc(accountNameText(row))}` : ''} <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-50 text-violet-700 border border-violet-200">TEST</span></p>
+        </div>
+        <button type="button" data-test-reset-close aria-label="Close" class="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-[#1e3a5f]"><i class="ri-close-line text-xl" aria-hidden="true"></i></button>
+      </div>
+      <form data-test-reset-form class="space-y-4 px-6 py-5">
+        <fieldset class="space-y-2">
+          <legend class="text-sm font-semibold text-[#1e3a5f] mb-1">What should be erased?</legend>
+          <label class="flex items-start gap-3 rounded-lg border border-gray-200 px-3 py-2.5 cursor-pointer" data-test-reset-option>
+            <input type="radio" name="scope" value="all" class="mt-1" checked />
+            <span><span class="block text-sm font-semibold text-gray-900">Erase all progress</span>
+            <span class="block text-xs text-gray-600">Every module, lab attempt, grade, uploaded evidence file, portfolio item and capstone submission for this student.</span></span>
+          </label>
+          <label class="flex items-start gap-3 rounded-lg border border-gray-200 px-3 py-2.5 cursor-pointer" data-test-reset-option>
+            <input type="radio" name="scope" value="modules" class="mt-1" />
+            <span><span class="block text-sm font-semibold text-gray-900">Erase selected modules only</span>
+            <span class="block text-xs text-gray-600">Only the modules you tick below. Other modules, including later ones, stay as they are.</span></span>
+          </label>
+        </fieldset>
+        <div data-test-reset-modules hidden class="rounded-lg border border-gray-200">
+          <div class="flex items-center justify-between border-b border-gray-100 px-3 py-2">
+            <span class="text-xs font-semibold text-gray-600">Modules</span>
+            <button type="button" data-test-reset-select-started class="text-xs font-semibold text-[#1e3a5f] hover:underline">Tick all with progress</button>
+          </div>
+          <ul class="max-h-60 overflow-y-auto divide-y divide-gray-100">
+            ${modules.map((m) => `
+              <li><label class="flex items-center gap-3 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+                <input type="checkbox" name="module" value="${esc(m.key)}" />
+                <span class="flex-1 text-gray-900">Module ${m.number}: ${esc(m.title || m.key)}${m.isCapstone ? ' <span class="text-xs text-gray-500">(capstone)</span>' : ''}</span>
+                <span class="text-xs whitespace-nowrap">${stateLabel(m.key)}</span>
+              </label></li>`).join('') || '<li class="px-3 py-2 text-sm text-gray-500">No modules found for this program.</li>'}
+          </ul>
+        </div>
+        <p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">This can't be undone here. A progress file for this student downloads first; keep it if you may need to restore. Uploaded evidence screenshots are deleted too and are not in that file. Progress saved in the student's own browser is cleared the next time they open the portal.</p>
+        <label class="block text-sm font-semibold text-[#1e3a5f]">Type <span class="font-mono">${esc(row.student_id)}</span> to confirm
+          <input name="confirm" autocomplete="off" spellcheck="false" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono" />
+        </label>
+        <div class="flex items-center justify-between gap-3">
+          <p data-test-reset-status class="text-sm text-gray-700" aria-live="polite"></p>
+          <button type="submit" disabled class="shrink-0 bg-[#b91c1c] hover:bg-[#991b1b] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold text-sm px-4 py-2 rounded-lg">Erase progress</button>
+        </div>
+      </form>
+    </section>`;
+
+  const form = pane.querySelector('[data-test-reset-form]');
+  const statusEl = pane.querySelector('[data-test-reset-status]');
+  const modulesBox = pane.querySelector('[data-test-reset-modules]');
+  const submit = form.querySelector('button[type="submit"]');
+  let busy = false;
+  const close = () => {
+    if (busy) return;
+    pane.remove();
+    trigger?.focus();
+  };
+  const scope = () => form.querySelector('input[name="scope"]:checked').value;
+  const selectedModules = () => [...form.querySelectorAll('input[name="module"]:checked')].map((el) => el.value);
+  const refresh = () => {
+    modulesBox.hidden = scope() !== 'modules';
+    // Highlight the chosen option (the bundled Tailwind 3.0 has no has-[] variant).
+    pane.querySelectorAll('[data-test-reset-option]').forEach((option) => {
+      const on = option.querySelector('input').checked;
+      option.style.borderColor = on ? '#f97316' : '';
+      option.style.backgroundColor = on ? '#fff7ed' : '';
+    });
+    const confirmed = form.elements.confirm.value.trim() === row.student_id;
+    const hasTarget = scope() === 'all' || selectedModules().length > 0;
+    submit.disabled = busy || !confirmed || !hasTarget;
+    submit.textContent = scope() === 'all'
+      ? 'Erase all progress'
+      : `Erase ${selectedModules().length || ''} module${selectedModules().length === 1 ? '' : 's'}`.replace('  ', ' ');
+  };
+
+  pane.querySelector('[data-test-reset-close]').addEventListener('click', close);
+  pane.addEventListener('click', (event) => { if (event.target === pane) close(); });
+  pane.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
+  form.addEventListener('input', refresh);
+  form.addEventListener('change', refresh);
+  pane.querySelector('[data-test-reset-select-started]').addEventListener('click', () => {
+    form.querySelectorAll('input[name="module"]').forEach((el) => { el.checked = stateByModule.has(el.value); });
+    refresh();
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (submit.disabled) return;
+    const moduleKeys = scope() === 'all' ? null : selectedModules();
+    busy = true;
+    refresh();
+    try {
+      statusEl.textContent = `Saving progress file for ${label}…`;
+      try {
+        await downloadStudentSnapshot(row.student_id, {
+          userId: row.user_id,
+          trackCode: row.track_code,
+          program: testResetModulesForRow(row).program,
+        });
+      } catch (err) {
+        console.error('Pre-reset snapshot failed', err);
+        throw new Error('Could not save a progress file first, so nothing was erased.');
+      }
+      statusEl.textContent = 'Erasing progress…';
+      const { data, error } = await resetTestProgressRemote(row, moduleKeys);
+      if (error) throw new Error(error.message || 'Supabase rejected the reset.');
+      statusEl.textContent = 'Deleting uploaded evidence files…';
+      let evidence;
+      try {
+        evidence = await removeTestEvidenceFiles(row, moduleKeys);
+      } catch (err) {
+        evidence = { found: 0, removed: 0, error: err };
+      }
+      if (evidence.error) console.error('test reset: evidence file removal failed', evidence.error);
+      busy = false;
+      pane.remove();
+      if (typeof onDone === 'function') await onDone(`${label}: ${testResetSummaryText({ ...(data || {}), evidence })}`);
+    } catch (err) {
+      busy = false;
+      statusEl.textContent = err && err.message ? err.message : String(err);
+      statusEl.className = 'text-sm text-[#b91c1c]';
+      refresh();
+    }
+  });
+
+  document.body.appendChild(pane);
+  refresh();
+  requestAnimationFrame(() => form.querySelector('input[name="scope"]').focus());
+}
+
+/* Student side: Module 1 and several labs keep progress in the student's own
+ * browser, which the admin reset cannot reach. The reset stamps
+ * students.progress_reset_at (+ progress_reset_modules, null = all); on the
+ * next sign-in or reload this compares it with a per-account local marker
+ * and clears the matching browser state once. Never throws; does nothing
+ * against a database without the columns. */
+const PROGRESS_RESET_SEEN_PREFIX = 'mnt-portal.progress-reset-seen.v1';
+const LAB_STATE_PREFIX = 'mnt-portal.lab-state.v1.';
+
+function clearLocalProgressForReset(user, moduleKeys) {
+  const anon = LabRuntime.anonymousStudentId(user);
+  const programSlug = TRACK_CODE_TO_PROGRAM_SLUG[user.trackCode];
+  const all = !Array.isArray(moduleKeys);
+  const mods = all ? [] : moduleKeys;
+  const compact = mods.map((mk) => mk.replace('-', ''));
+  const remove = (store, test) => Object.keys(store).filter(test).forEach((k) => store.removeItem(k));
+
+  // Per-lab runtime state: mnt-portal.lab-state.v1.<labId>.<anon>; labIds
+  // look like 'aim01-cli-utility-v1' (module key without its hyphen).
+  remove(localStorage, (k) => k.startsWith(LAB_STATE_PREFIX) && k.endsWith(`.${anon}`)
+    && (all || compact.some((c) => k.slice(LAB_STATE_PREFIX.length).startsWith(c))));
+
+  // Simulator state (defender-lab.*). Help Desk Prove It keys carry the
+  // module key: defender-lab.helpdesk.prove.v1.<module>.<student>.
+  [localStorage, sessionStorage].forEach((store) => remove(store, (k) => k.startsWith('defender-lab.')
+    && (all || mods.some((mk) => k.includes(`.${mk}.`)))));
+
+  // Opened modules / completed labs engagement list.
+  const engagementKey = moduleEngagementKey(user);
+  if (all) {
+    localStorage.removeItem(engagementKey);
+  } else {
+    const engagement = loadModuleEngagement(user);
+    const prefixes = mods.map((mk) => moduleEngagementId(programSlug, mk));
+    const keep = (id) => !prefixes.some((p) => id === p || String(id).startsWith(`${p}:`));
+    saveModuleEngagement(user, {
+      openedModules: engagement.openedModules.filter(keep),
+      completedLabs: engagement.completedLabs.filter(keep),
+    });
+  }
+
+  // Imported Mission Next lab player progress, bucketed per module.
+  try {
+    if (all) {
+      localStorage.removeItem('mission_next_progress_ext');
+    } else {
+      const ext = JSON.parse(localStorage.getItem('mission_next_progress_ext') || 'null');
+      if (ext && typeof ext === 'object') {
+        mods.forEach((mk) => { delete ext[`guest_learner_${mk}`]; });
+        localStorage.setItem('mission_next_progress_ext', JSON.stringify(ext));
+      }
+    }
+  } catch (_) { /* unreadable: leave it */ }
+
+  if (all) localStorage.removeItem('mnt.coach.resume');
+}
+
+async function applyPendingProgressReset(core) {
+  if (!core || !core.userId || core.isAdmin || core.isInstructor) return;
+  try {
+    const { data, error } = await mntSupabase
+      .from('students')
+      .select('progress_reset_at, progress_reset_modules')
+      .eq('user_id', core.userId)
+      .maybeSingle();
+    if (error) {
+      if (!isMissingTestAccountSchema(error)) console.error('Could not check for a progress reset', error);
+      return;
+    }
+    if (!data || !data.progress_reset_at) return;
+    const seenKey = `${PROGRESS_RESET_SEEN_PREFIX}.${core.userId}`;
+    if (localStorage.getItem(seenKey) === data.progress_reset_at) return;
+    clearLocalProgressForReset(core, data.progress_reset_modules);
+    localStorage.setItem(seenKey, data.progress_reset_at);
+  } catch (err) {
+    console.error('Could not apply a progress reset to this browser', err);
+  }
+}
+
 /* ---------------------------------------------- module_progress (Supabase) */
 /* Additive write path alongside the localStorage engagement tracking above
  * (docs/specs/architecture.md §3 Sprint 2). localStorage stays the source of truth the
@@ -7263,6 +7618,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                                <i class="ri-arrow-right-s-line text-gray-400 group-hover:text-[#f97316] transition-transform" data-cred-chevron="${esc(row.student_id)}"></i>
                                ${esc(row.student_id)}
                              </button>
+                             ${!instructorDashboard && row.is_test_account ? '<span data-test-badge class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-50 text-violet-700 border border-violet-200">TEST</span>' : ''}
                              ${cheatingFlagsByStudentId.has(row.student_id) ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 cursor-help" title="${esc(cheatingFlagsByStudentId.get(row.student_id).join(' · '))}">Review</span>` : ''}
                              ${accountNameHtml(row)}
                            </td>
@@ -7293,6 +7649,14 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                            </td>
                            <td class="px-6 py-4 text-sm whitespace-nowrap">
                              <button type="button" data-admin-snapshot="${esc(row.student_id)}" class="text-xs font-semibold text-[#1e3a5f] hover:underline" title="Download a recoverable progress snapshot for this student">Save Progress File</button>
+                             ${!instructorDashboard && TEST_ACCOUNTS.available ? `
+                             <div class="mt-2 flex items-center gap-3">
+                               <label class="inline-flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer" title="Only test accounts can have their progress reset">
+                                 <input type="checkbox" data-admin-test-account="${esc(row.student_id)}" ${row.is_test_account ? 'checked' : ''} aria-label="Test account: ${esc(row.student_id)}" />
+                                 Test account
+                               </label>
+                               <button type="button" data-admin-reset-progress="${esc(row.student_id)}" ${row.is_test_account ? '' : 'hidden'} class="text-xs font-semibold text-[#b91c1c] hover:underline" title="Erase this test account's progress">Reset Progress</button>
+                             </div>` : ''}
                            </td>
                          </tr>
                          <tr class="admin-cred-row" data-cred-row="${esc(row.student_id)}">
@@ -7993,6 +8357,8 @@ async function render(options = {}) {
           return bActive - aActive;
         });
         dashboardRows = normalizeAdminProgramProgressRows(sorted);
+        // Admin only: faculty never see or set test-account flags.
+        if (user.isAdmin) await mergeTestAccountFlags(dashboardRows);
         adminRosterSnapshot = { route: hash, dashboardRows };
       }
 
@@ -9807,6 +10173,22 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
         await rotateAccountPassword(rotateBtn);
         return;
       }
+      const resetBtn = event.target.closest('[data-admin-reset-progress]');
+      if (resetBtn) {
+        const resetRow = dashboardRows.find((item) => item.student_id === resetBtn.getAttribute('data-admin-reset-progress'));
+        if (!resetRow || !resetRow.is_test_account) return;
+        resetBtn.disabled = true;
+        try {
+          await openTestResetModal(resetRow, resetBtn, async (summary) => {
+            await render({ reuseAdminRoster: false });
+            const status = document.getElementById('admin-report-status');
+            if (status) status.textContent = summary;
+          });
+        } finally {
+          resetBtn.disabled = false;
+        }
+        return;
+      }
       const snapshotBtn = event.target.closest('[data-admin-snapshot]');
       if (!snapshotBtn) return;
       const studentId = snapshotBtn.getAttribute('data-admin-snapshot');
@@ -9824,6 +10206,37 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       } finally {
         snapshotBtn.disabled = false;
       }
+    });
+
+    tableBody.addEventListener('change', async (event) => {
+      const testToggle = event.target.closest('[data-admin-test-account]');
+      if (!testToggle) return;
+      const studentId = testToggle.getAttribute('data-admin-test-account');
+      const row = dashboardRows.find((item) => item.student_id === studentId);
+      const message = document.getElementById('admin-report-status');
+      if (!row) return;
+      const desired = testToggle.checked;
+      testToggle.disabled = true;
+      const error = await setTestAccountRemote(studentId, desired);
+      testToggle.disabled = false;
+      if (error) {
+        testToggle.checked = !desired;
+        if (message) message.textContent = `Could not update the test-account flag for ${accountLabelText(studentId)}: ${error.message || 'Supabase rejected the update.'}`;
+        return;
+      }
+      row.is_test_account = desired;
+      const resetBtn = tableBody.querySelector(`[data-admin-reset-progress="${CSS.escape(studentId)}"]`);
+      if (resetBtn) resetBtn.hidden = !desired;
+      const idCell = testToggle.closest('tr')?.querySelector('td');
+      const badge = idCell?.querySelector('[data-test-badge]');
+      if (desired && idCell && !badge) {
+        idCell.querySelector('[data-view-credentials]')?.insertAdjacentHTML('afterend', '<span data-test-badge class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-50 text-violet-700 border border-violet-200">TEST</span>');
+      } else if (!desired && badge) {
+        badge.remove();
+      }
+      if (message) message.textContent = desired
+        ? `${accountLabelText(studentId)} is now a test account. Its progress can be reset.`
+        : `${accountLabelText(studentId)} is no longer a test account.`;
     });
 
     tableBody.addEventListener('change', async (event) => {
