@@ -433,6 +433,37 @@ function testKarenCriticalErrors() {
   assert.match(fb.areas[0].text, /route the ticket to Security Operations \(KB-0024\)/);
 }
 
+// Closing a ticket opens "Check my work" by itself, so missing Investigation
+// or Diagnosis shows at once; it never blocks the close (by design, reviewed
+// after Codex on 0115826) and never scores.
+function testClosingOpensTheFeedback() {
+  const tab = sim(practiceUrl());
+  const id = 'SEC-2153';
+  // The record work only: callback offered, declined, note and comment. No
+  // identify questions, no KB search, no diagnosis.
+  tab.verify(id, 'callback');
+  tab.act(id, 'decline');
+  tab.note(id, KAREN_NOTE);
+  tab.comment(id, ALVAREZ_COMMENT);
+  const shown = () => tab.run("hdConsoleState(hdTicketById('SEC-2153')).feedbackShown");
+  assert.equal(shown(), false, 'not open before closing');
+  assert.doesNotMatch(tab.open(id), /data-area="Investigation"/);
+  tab.own(id, 'soc');
+  assert.equal(tab.ticket(id).status, 'Escalated', 'closing is never blocked by Investigation or Diagnosis');
+  assert.equal(shown(), true, 'closing opened it');
+  const html = tab.open(id);
+  assert.match(html, /<li data-area="Investigation" data-ok="no">○ <strong>Investigation:<\/strong> Ask whose account it is/);
+  assert.match(html, /<li data-area="Diagnosis" data-ok="no">○ <strong>Diagnosis:<\/strong>/);
+  assert.match(html, /<li data-area="Action" data-ok="yes">/);
+  const card = html.match(/<div class="card hd-practice-feedback">[\s\S]*?Check again<\/button>/)[0];
+  assert.match(card, /Practice: not graded/);
+  assert.doesNotMatch(card, /\bpoints?\b|\bscore\b|\/ ?100/i);
+  // A blocked choice doesn't open it.
+  const other = sim(practiceUrl('student-m01t0005'));
+  other.own('HD-2151', 'servicedesk');
+  assert.doesNotMatch(other.open('HD-2151'), /data-area="Investigation"/, 'not closed, so not opened');
+}
+
 /* -------------------------------- feedback never judges category or priority */
 
 function testFeedbackNeverScoresCategoryOrPriority() {
@@ -481,7 +512,7 @@ function testModuleOnePageLinksTheSet() {
 (async () => {
   const tests = [
     testPracticeSetShift, testGuidedLabProgressUntouched,
-    testLeahCorrect, testLeahCriticalErrors, testRaviCorrect, testRaviCriticalErrors, testOwnerChoiceWaitsAndRestoresFields,
+    testLeahCorrect, testLeahCriticalErrors, testRaviCorrect, testRaviCriticalErrors, testOwnerChoiceWaitsAndRestoresFields, testClosingOpensTheFeedback,
     testKarenCorrect, testKarenCriticalErrors, testFeedbackNeverScoresCategoryOrPriority,
     testNothingSentToThePortal, testModuleOnePageLinksTheSet,
   ];

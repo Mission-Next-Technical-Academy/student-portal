@@ -1040,6 +1040,9 @@ function hdConsoleOwner(id, optionId) {
   const note = hdConsoleCompleteNote(ticket);
   ticket.resolution = note ? note.text : '';
   hdHistory(ticket, option.status === 'Resolved' ? `Resolved by the Service Desk (${option.code}).` : `Assigned to ${option.group}; state ${option.status}.`);
+  // Closing opens "Check my work", so anything still missing (Investigation,
+  // Diagnosis) shows at once. Feedback only: it never blocks and never scores.
+  if (hdConsole(ticket).feedback) hdConsoleState(ticket).feedbackShown = true;
   hdRerender();
 }
 
