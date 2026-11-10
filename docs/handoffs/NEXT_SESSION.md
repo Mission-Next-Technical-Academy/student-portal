@@ -1,3 +1,35 @@
+**2026-11-09 (Megan; PR #101 "Help Desk simulator: add console features, off by default"; shared `ui/index.html`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `portal/it-support-shared.js`, `portal/admin-sheets/hdesk.js` and tests — please review the shared ones):**
+The Help Desk simulator gains reusable console features that a ticket turns
+on with an optional `console: { ... }` block in `ui/helpdesk-data.js`: a
+Knowledge Base search box, caller chat, a verification card that gates Unlock
+account (and the Active Directory Unlock for that user), customer-visible
+comments kept apart from Work notes, a resolution code (required when the
+ticket says so), a read-only pre-set priority, and note checks (parts, an
+optional Next action, a per-ticket jargon list). No ticket turns them on yet,
+so every existing ticket looks and behaves as before. Two things do change for
+students on every Help Desk ticket:
+- **Passwords in ticket text are refused.** A work note, customer comment or
+  Prove It resolution note / reply that contains a password value (a label
+  such as password, pwd, pw or passcode followed by ":", "=", "is" or a dash,
+  then a value) isn't saved. Practice coaches with the shell refusal's message.
+  Prove It says only that it wasn't saved, holds Submit until the student
+  removes it, and sends `passwordWritten: true` (separate from the shell's
+  `passwordTyped`). It's a flag, not a scoring rule. Old drafts are masked on
+  load.
+- **The User Directory shows Employee ID and Phone** in Practice and Prove It
+  (Phone used to be Practice-only). This also shows on Active Directory › Users.
+- **Shared:** `ui/index.html` (version bumps for `helpdesk-data.js` and
+  `helpdesk.js` only), `portal/index.html` (version bump for
+  `it-support-shared.js` only), `bin/ci-check.sh` (one line for the new test).
+- **Not touched:** `ui/coach.js`, `ui/styles.css`, `portal/app.js`,
+  `portal/data.js`, `supabase/`. SOC and AI/ML are unchanged.
+- **For your code or agent:** `itsCleanCoachWork()` and the Prove It cleaner
+  keep a new boolean `passwordWritten`. The Prove It review panel shows "The
+  student wrote a password in a ticket field. It was refused and not saved."
+  The HD-2101 sheet shows it as an answer row ("Password in a ticket field"),
+  not a check, so it never changes a verdict. `hdNoteMissingParts(text)` with
+  no list is unchanged (Reported / Tried / Result).
+
 **2026-11-03 (Megan; PR #100 "Help Desk Module 1 Practice It: work HD-2101 on the simulated machines"; shared `ui/index.html`, `portal/index.html`, `portal/data.js` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `ui/helpdesk-coaches.js`, `portal/it-support-shared.js`, `portal/it-support-module-01.js`, `portal/admin-sheets/hdesk.js` and tests — please review the shared ones):**
 Help Desk Lab 1.2 (Practice It, coach `hd-m01`) is now worked on the simulated
 machines. HD-2101 no longer shows the logs, caller computer or diagnosis; the

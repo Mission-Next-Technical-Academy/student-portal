@@ -497,7 +497,7 @@ function itsCleanInvestigation(input) {
       at: text(unlock && unlock.at, 12), credentialCurrent: Boolean(unlock && unlock.credentialCurrent === true), via: text(unlock && unlock.via, 40),
     })) : [],
     relocks: count(input.relocks), verifiedBy: text(input.verifiedBy, 80), verifiedAt: text(input.verifiedAt, 12),
-    passwordTyped: input.passwordTyped === true, hintsUsed: count(input.hintsUsed),
+    passwordTyped: input.passwordTyped === true, passwordWritten: input.passwordWritten === true, hintsUsed: count(input.hintsUsed),
     end: { accountLocked: end.accountLocked === true, taskCredential: ['current', 'old'].includes(end.taskCredential) ? end.taskCredential : '', taskLastResult: text(end.taskLastResult, 16) },
     events,
   };
@@ -604,7 +604,7 @@ function itsCleanProveWork(input, moduleKey, labKey) {
     fields: { category: fields.category, type: fields.type, priority: fields.priority },
     diagnosis: input.diagnosis, steps: input.steps.slice(), stepTexts: input.stepTexts.slice(), decision: input.decision,
     resolutionNote: input.resolutionNote, userReply: input.userReply, workNotes: input.workNotes.slice(),
-    commands, events, machine, logTrimmed: false, passwordTyped: input.passwordTyped === true,
+    commands, events, machine, logTrimmed: false, passwordTyped: input.passwordTyped === true, passwordWritten: input.passwordWritten === true,
   };
   while (JSON.stringify(work).length > ITS_PROVE_MAX_BYTES && (work.events.length || work.commands.length)) {
     work.logTrimmed = true;
@@ -767,6 +767,7 @@ function itsProveReviewPanel(row) {
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Commands run</h4>
     ${items(commands, 'None recorded.')}
     ${work.passwordTyped === true ? '<p class="mt-1 text-sm font-semibold text-amber-900" data-its-prove-password>The student typed a password into the shell. The command was refused and the password was not saved.</p>' : ''}
+    ${work.passwordWritten === true ? '<p class="mt-1 text-sm font-semibold text-amber-900" data-its-prove-password-written>The student wrote a password in a ticket field. It was refused and not saved.</p>' : ''}
     ${work.logTrimmed ? '<p class="mt-1 text-xs text-gray-500">The oldest recorded actions were left out to fit. All the student\'s writing is above.</p>' : ''}
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Laptop at submit</h4>
     ${items(machine, 'Not recorded.')}

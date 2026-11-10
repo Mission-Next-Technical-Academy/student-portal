@@ -128,6 +128,8 @@
           ['Verified with', has ? (work.verifiedBy ? `${work.verifiedBy} at ${work.verifiedAt}` : 'Not verified') : null],
           ['End state', has ? `Account ${work.end.accountLocked ? 'locked' : 'unlocked'} · stored credential ${work.end.taskCredential || 'unknown'} · last task result ${work.end.taskLastResult || 'unknown'}` : null],
           ['Hints used', has ? String(work.hintsUsed) : null],
+          // A flag for the instructor, not a check: it never changes the sheet's verdict.
+          ['Password in a ticket field', has ? (work.passwordWritten === true ? 'Wrote a password in a ticket field (refused, not recorded)' : 'Did not') : null],
         ],
         checks: INVESTIGATION_CHECKS.map(([key, label, expected, fix]) => ({
           label, expected, test: () => (has ? work.outcomes[key] === true : null),
