@@ -428,6 +428,12 @@ async function testPortalRefusals() {
   await refused(submit({ student: undefined }), 'other-student', 'no student id');
   await refused(submit({}, { rubricVersion: 'hdesk-its-01-prove-v0' }), 'invalid', 'unknown rubric version');
   await refused(submit({}, { rubricVersion: 'hdesk-its-01-prove-v1' }), 'invalid', 'a simulator tab from before v2');
+  // The pre-set fields are saved as the rubric sets them, whatever the message says.
+  resetWorld();
+  const forged = await send({ data: submit({}, { fields: { category: 'Incident', type: 'Printer', priority: 'P1' } }) });
+  assert.equal(forged[0].saved, true);
+  assert.deepEqual({ ...db.attempts[0].result.fields }, PRESET, 'pre-set fields can\'t be changed by a crafted message');
+  resetWorld();
   await refused(submit({}, { kind: 'other' }), 'invalid', 'wrong kind');
   await refused(submit({}, { version: 2 }), 'invalid', 'wrong version');
   await refused(submit({}, { labKey: 'lab-its-01-ticket-triage' }), 'invalid', 'another lab');

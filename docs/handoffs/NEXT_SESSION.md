@@ -10,6 +10,10 @@ unchanged).
     `action_taken` (`label`, `computer`: an action done on a screen, here
     adding the printer). The instructor's Prove It panel shows them as
     "Knowledge base searches" and "Actions in the simulator".
+  - **Pre-set fields:** a rubric in `hdesk-prove-rubrics.js` can carry
+    `presetFields`; `itsCleanProveWork` then saves those, whatever category,
+    type and priority the submit message carries. Only Module 1's Prove It
+    has them (Service Request, Access request, P3).
   - **Rubric version:** the course page refuses a Submit whose version isn't
     `hdesk-its-01-prove-v2`, so a simulator tab opened before the deploy gets
     the existing "reload your course page" notice. A v1 attempt graded after
@@ -20,8 +24,9 @@ unchanged).
     feature. Practice tickets in a Prove shift still get none.
   - **Not touched:** `portal/app.js`, `portal/data.js`, `supabase/`, shared
     CSS, `ui/coach.js`. SOC and AI/ML are unchanged.
-- **Status:** `bin/ci-check.sh` passes. Codex review approved (no findings).
-  Hosted staging not yet checked. Migration: none.
+- **Status:** `bin/ci-check.sh` passes. Codex: one finding fixed (the course
+  page accepted other values for the pre-set fields). Hosted staging not yet
+  checked. Migration: none.
 
 **2026-11-10 (Megan; PR #105 "Help Desk Module 1: the practice tickets become Lab 1.2 with a completion record; the old Lab 1.1 is retired"; shared `portal/data.js`, `portal/app.js`, `portal/admin-sheets/hdesk.js`, `portal/index.html`, `ui/index.html`, `bin/ci-check.sh` and `bin/its-curriculum-check.js`, plus Help Desk `portal/it-support-module-01.js`, `portal/it-support-shared.js`, `ui/helpdesk.js` and tests — please review the shared ones):**
 Module 1's practice tickets (HD-2151, HD-2152, SEC-2153) are now a Practice It

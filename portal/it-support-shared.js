@@ -632,7 +632,8 @@ function itsCleanProveWork(input, moduleKey, labKey) {
   } catch (_) { machine = {}; }
   const work = {
     version: 1, kind: 'hdesk-prove', moduleKey, labKey, rubricVersion: rubric.version, ticketId: input.ticketId, startedAt: input.startedAt,
-    fields: { category: fields.category, type: fields.type, priority: fields.priority },
+    // Pre-set fields (Module 1) are the rubric's, never the message's.
+    fields: rubric.presetFields ? { ...rubric.presetFields } : { category: fields.category, type: fields.type, priority: fields.priority },
     diagnosis: input.diagnosis, steps: input.steps.slice(), stepTexts: input.stepTexts.slice(), decision: input.decision,
     resolutionNote: input.resolutionNote, userReply: input.userReply, workNotes: input.workNotes.slice(),
     commands, events, machine, logTrimmed: false, passwordTyped: input.passwordTyped === true, passwordWritten: input.passwordWritten === true,

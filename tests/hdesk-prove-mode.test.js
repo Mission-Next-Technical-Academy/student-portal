@@ -322,6 +322,7 @@ function testRubricNamesNoAnswers() {
   const rubric = HDESK_PROVE_RUBRICS[SHIFT.labKey];
   assert.ok(rubric, 'a rubric for the Prove shift lab key');
   assert.equal(rubric.version, SHIFT.rubricVersion, 'the simulator sends the rubric version this file defines');
+  assert.deepEqual({ ...rubric.presetFields }, { ...PROVE_TICKET.preset }, 'the course page saves the same pre-set fields the simulator shows');
   assert.deepEqual(rubric.competencies.map((c) => [c.id, c.points]),
     [['triage', 22], ['investigation', 11], ['diagnosis', 11], ['action', 28], ['documentation', 28]]);
   assert.equal(rubric.competencies.reduce((n, c) => n + c.points, 0), rubric.technicalPoints);

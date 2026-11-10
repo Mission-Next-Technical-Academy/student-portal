@@ -11,6 +11,10 @@
     'lab-its-01-prove-it': {
       version: 'hdesk-its-01-prove-v2',
       moduleKey: 'its-01',
+      // Ticket fields set for the student in Module 1 (read-only in the
+      // simulator, never scored). The course page saves these, whatever a
+      // submit message says (itsCleanProveWork).
+      presetFields: { category: 'Service Request', type: 'Access request', priority: 'P3' },
       technicalPoints: 100,
       competencies: [
         { id: 'triage', label: 'Triage', points: 22 },
