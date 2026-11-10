@@ -57,7 +57,6 @@
 
 .its01-lab-section { border-top: 4px solid var(--its-accent); }
 
-.its01-evidence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .its01-aup { margin-top: 16px; padding: 16px; background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; }
 .its01-aup strong { display: block; margin-bottom: 8px; color: var(--its-navy); font-size: 13px; }
 .its01-aup-text { max-height: 180px; padding: 12px 14px; overflow-y: auto; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; font: 12.5px/1.7 Inter, sans-serif; }
@@ -73,11 +72,87 @@
 .its01-lab-status.its01-status-pending { color: #64748b; background: #fff; border: 1px dashed #cbd5e1; }
 .its01-lab-status i { flex: 0 0 auto; font-size: 18px; }
 
-.its01-shell :focus-visible { outline: 3px solid var(--its-accent-border); outline-offset: 2px; }
+.its01-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
-@media (max-width: 940px) {
-  .its01-evidence-grid { grid-template-columns: 1fr; }
+/* Lesson text blocks */
+.its01-lesson-body ol { margin: 0 0 10px; padding-left: 20px; color: #475569; font: 13px/1.7 Inter, sans-serif; }
+.its01-lesson-body ul { margin-bottom: 10px; }
+.its01-lesson-body li { margin-bottom: 4px; }
+/* The portal's base styles remove list markers; the readings, the chain of
+   command and the checks need their bullets and numbers. */
+.its01-lesson-body ul, .its01-tasks > ul { list-style: disc; }
+.its01-lesson-body ol, .its01-practice ol, .its01-check-list { list-style: decimal; }
+.its01-lesson-body li::marker, .its01-practice li::marker, .its01-tasks > ul li::marker { color: #64748b; }
+.its01-check-list > li::marker { color: var(--its-navy); font-weight: 700; }
+.its01-note { margin: 12px 0; padding: 12px 14px; background: #f8fafc; border-left: 3px solid var(--its-navy); border-radius: 0 10px 10px 0; }
+.its01-note strong { display: block; margin-bottom: 4px; color: var(--its-navy); font-size: 12.5px; }
+.its01-note p { margin: 0; }
+.its01-placeholder { margin: 8px 0 12px; padding: 11px 13px; color: #7c4a03; background: #fffbeb; border: 1px dashed #d97706; border-radius: 10px; }
+.its01-placeholder strong { display: block; margin-bottom: 3px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.its01-lesson-body .its01-placeholder p { margin: 0; color: #7c4a03; }
+.its01-placeholder-inline { display: inline; padding: 1px 6px; color: #7c4a03; background: #fffbeb; border: 1px dashed #d97706; border-radius: 6px; font-weight: 600; }
+p.its01-placeholder-inline { display: inline-block; margin: 6px 0 0; font: 600 12px/1.5 Inter, sans-serif; }
+
+/* Orientation tasks */
+.its01-tasks { margin-top: 20px; }
+.its01-tasks > h3, .its01-check h3 { margin: 0 0 8px; color: var(--its-navy); font-size: 17px; }
+.its01-tasks > ul { margin: 0 0 4px; padding-left: 18px; color: #475569; font: 13.5px/1.7 Inter, sans-serif; }
+.its01-aup-changed { margin: 12px 0 0; padding: 10px 12px; color: #7c4a03; background: #fffbeb; border: 1px solid #f59e0b; border-radius: 9px; font: 12.5px/1.55 Inter, sans-serif; }
+.its01-aup-ack input:disabled + label { color: #334155; }
+
+/* Checks */
+.its01-check { margin-top: 22px; padding-top: 18px; border-top: 1px solid #e2e8f0; }
+.its01-tasks .its01-check { margin-top: 18px; }
+.its01-check .its01-instruction { margin: 0 0 14px; }
+.its01-check-list { margin: 0; padding-left: 22px; }
+.its01-check-q { margin-bottom: 16px; color: #334155; }
+.its01-check-prompt { margin: 0 0 8px; color: #1f2937; font: 600 14px/1.55 Inter, sans-serif; }
+.its01-choices { display: grid; gap: 6px; }
+.its01-choice { display: flex; align-items: flex-start; gap: 9px; width: 100%; padding: 9px 12px; color: #334155; text-align: left; background: #fff; border: 1px solid #cbd5e1; border-radius: 9px; font: 13.5px/1.5 Inter, sans-serif; cursor: pointer; }
+.its01-choice span { flex: 0 0 auto; min-width: 18px; color: var(--its-navy); font-weight: 800; }
+.its01-choice:hover:not(:disabled) { border-color: var(--its-accent); background: var(--its-accent-wash); }
+.its01-choice:disabled { cursor: default; }
+.its01-choice.is-answer { color: #14532d; background: #f0fdf4; border-color: #16a34a; }
+.its01-choice.is-wrong { color: #7f1d1d; background: #fef2f2; border-color: #dc2626; }
+.its01-check-feedback:focus { outline: none; }
+.its01-check-result { margin: 8px 0 0; font: 13px/1.55 Inter, sans-serif; }
+.its01-check-result.is-right { color: #166534; }
+.its01-check-result.is-wrong { color: #991b1b; }
+.its01-check-why { margin: 4px 0 0; color: #475569; font: 13px/1.6 Inter, sans-serif; }
+.its01-check-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; }
+.its01-check-status { margin: 0; color: #334155; font: 13px/1.55 Inter, sans-serif; }
+.its01-check-status:empty { display: none; }
+.its01-check-reset { display: inline-flex; align-items: center; gap: 6px; padding: 8px 13px; color: var(--its-navy); background: #fff; border: 1px solid #cbd5e1; border-radius: 999px; font: 600 13px Inter, sans-serif; cursor: pointer; }
+.its01-check-reset:hover { border-color: var(--its-accent); }
+
+/* Diagrams: a wide and a narrow drawing of the same data; the container
+   width picks one (the column beside the rail can be narrow too). */
+.its01-dg { container-type: inline-size; margin: 16px 0; padding: 14px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; }
+.its01-dg-heading { margin: 0 0 10px !important; color: var(--its-navy) !important; font: 700 14px/1.4 Inter, sans-serif !important; }
+.its01-dg svg { display: block; width: 100%; height: auto; overflow: visible; }
+.its01-dg svg.its01-dg-wide { max-width: 780px; margin: 0 auto; }
+.its01-dg svg.its01-dg-narrow { display: none; max-width: 420px; margin: 0 auto; }
+@container (max-width: 560px) {
+  .its01-dg svg.its01-dg-wide { display: none; }
+  .its01-dg svg.its01-dg-narrow { display: block; }
 }
+.its01-dg figcaption { margin-top: 10px; color: #475569; font: 13px/1.6 Inter, sans-serif; }
+.its01-dg-box { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.5; }
+.its01-dg-box.its01-dg-hl { fill: var(--its-accent-wash); stroke: var(--its-accent); stroke-width: 2.5; }
+.its01-dg-band { fill: #fff; stroke: #94a3b8; stroke-width: 1.25; stroke-dasharray: 5 4; }
+.its01-dg-title { fill: var(--its-navy); font: 700 15px Inter, sans-serif; }
+.its01-dg-sub { fill: var(--its-navy); font: 600 13px Inter, sans-serif; }
+.its01-dg-text { fill: #334155; font: 13px Inter, sans-serif; }
+.its01-dg-num { fill: var(--its-navy); }
+.its01-dg-num-text { fill: #fff; font: 700 13px Inter, sans-serif; }
+.its01-dg-line { fill: none; stroke: #475569; stroke-width: 1.75; }
+.its01-dg-line.its01-dg-line-hl { stroke: var(--its-accent-hover); stroke-width: 2.5; }
+.its01-dg-head { fill: #475569; }
+.its01-dg-head.its01-dg-head-hl { fill: var(--its-accent-hover); }
+.its01-dg-label { fill: #334155; font: 600 12px Inter, sans-serif; }
+.its01-dg-label.its01-dg-label-hl { fill: var(--its-accent-hover); }
+
+.its01-shell :focus-visible { outline: 3px solid var(--its-accent-border); outline-offset: 2px; }
 
 @media (max-width: 640px) {
   .its01-main { width: min(100% - 24px, 1180px); padding-top: 22px; }
@@ -89,4 +164,7 @@
   .its01-hero, .its01-section { border-radius: 16px; }
   .its01-progress { grid-template-columns: 1fr; }
   .its01-lesson-body { margin-left: 17px; }
+  /* Phone: give the diagrams the column's full width so their text stays readable. */
+  .its01-lesson-body { margin: 0 10px 14px; }
+  .its01-dg { margin-inline: -4px; padding: 6px 0; background: transparent; border: 0; }
 }

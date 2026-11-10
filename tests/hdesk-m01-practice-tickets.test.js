@@ -509,7 +509,7 @@ function testModuleOnePageLinksTheSet() {
     remoteModuleProgress: {}, remoteVerifiedModuleProgress: {}, remoteModuleDetail: {}, latestLabAttemptByKey: {}, openLabRedoFeedbackByLabKey: {}, openLabRedosByModuleKey: {} };
   const html = prun("MODULE_LABS['it-support/1']").view(user, HD);
   const student = prun('LabRuntime').anonymousStudentId(user);
-  assert.match(html, /<h3>Practice tickets \(not graded\)<\/h3>/);
+  assert.match(html, /<h2 id="its01-practice-tickets-title">Unguided tickets \(not graded\)<\/h2>/);
   assert.ok(html.includes(`?practice=its-01&amp;student=${student}#/helpdesk/tickets`) || html.includes(`?practice=its-01&student=${student}#/helpdesk/tickets`));
   assert.match(html, /data-its01-practice-launch[^>]*rel="noopener"/);
   assert.match(html, /Nothing is graded or sent to your instructor\./);

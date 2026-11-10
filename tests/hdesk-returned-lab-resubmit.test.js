@@ -232,31 +232,17 @@ async function testModuleOne() {
   const LAB2 = 'lab-its-01-ticket-triage';
   const user = hdUser({ attempts: { [LAB1]: returned(), [LAB2]: returned() }, feedback: { [LAB1]: note('Upload the sandbox screenshot, not the LMS one.'), [LAB2]: note('Unlock the account before resetting.') } });
   fresh(user);
-  seed('its01-lms-validation-v1', user, {
-    evidence1: file('lms.png', SUBMITTED), evidence2: file('tile.png', SUBMITTED), aupScrolled: true, aupAcknowledged: true, lab1Complete: true,
-    consoleStarted: true, consoleCompleted: true,
-  });
-  let html = moduleLab(1).view(user, HD);
-  assert.match(html, /Upload the sandbox screenshot, not the LMS one\./);
+  seed('its01-lms-validation-v1', user, { aupAcknowledged: true, consoleStarted: true, consoleCompleted: true });
+  const html = moduleLab(1).view(user, HD);
   assert.match(html, /Unlock the account before resetting\./);
-  assert.match(resubmitButton(html, LAB1), /disabled/);
-
-  await run('its01ResubmitLab')(LAB1);
-  assert.equal(inserts().length, 0, 'Lab 1.1: no new file -> no save');
-  run('its01AddEvidence')('its01-evidence-1', file('sandbox.png', '2026-10-03T09:00:00Z'));
-  await settle();
-  assert.equal(inserts().length, 0, 'Lab 1.1: upload alone does not resubmit');
-  html = moduleLab(1).view(user, HD);
-  assert.match(resubmitButton(html, LAB1), /disabled/, 'Lab 1.1: disabled until both files are chosen on this page');
-  run('its01AddEvidence')('its01-evidence-2', file('lms.png', '2026-10-03T09:00:00Z'));
-  html = moduleLab(1).view(user, HD);
-  assert.doesNotMatch(resubmitButton(html, LAB1), /disabled/);
-  await Promise.all([run('its01ResubmitLab')(LAB1), run('its01ResubmitLab')(LAB1)]);
-  assert.equal(inserts(LAB1).length, 1, 'Lab 1.1: exactly one new attempt');
+  // Lab 1.1 is off the page: an old returned attempt shows no notice and no Resubmit.
+  assert.doesNotMatch(html, /Upload the sandbox screenshot/);
+  assert.equal(resubmitButton(html, LAB1), null);
 
   await moduleLab(1).onMessage(coachDone('hd-m01'));
   await moduleLab(1).onMessage(coachDone('hd-m01'));
   assert.equal(inserts(LAB2).length, 1, 'Lab 1.2: exactly one new attempt');
+  assert.equal(inserts(LAB1).length, 0, 'nothing is ever saved for Lab 1.1');
 }
 
 /* ------------------------------------------------------------------ Module 12 */

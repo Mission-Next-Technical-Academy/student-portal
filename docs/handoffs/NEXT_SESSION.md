@@ -1,3 +1,48 @@
+**2026-11-10 (Megan; PR #104 "Help Desk Module 1: rebuild the page with orientation, readings and diagrams, checks and unguided tickets; Lab 1.1 off the page"; shared `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `portal/it-support-module-01.js`, `portal/it-support-module-01.css` and tests — please review the shared ones):**
+The Module 1 page is rebuilt from the Week 1 plan. Orientation comes first
+(Lesson 1.1: the program, the LMS, technology setup, the Acceptable Use
+Policy, getting help and the chain of command, policies, the course calendar),
+then the orientation tasks: acknowledge the policy and take a 6-question
+orientation check. Lesson 1.2 is now the three readings, with three inline SVG
+diagrams. A Learn It check (8 questions) and an A+ check (4) follow, practice
+only. The unguided tickets (PR #103) have their own section. Lab 1.1 (LMS &
+Environment Validation) is gone from the page: no evidence upload, no Submit
+or Resubmit, no rail row, and it's out of the hero's lab count. Lesson titles
+and minutes, the lab keys, Guided Lab 1 and the Prove It are unchanged.
+- **Shared:** `portal/index.html` (version bumps for `it-support-module-01.js`
+  and `it-support-module-01.css` only), `bin/ci-check.sh` (one line for the
+  new test).
+- **Not touched:** `portal/app.js`, `portal/data.js`, `portal/admin-sheets/`,
+  `supabase/`, `ui/`, shared CSS. SOC and AI/ML are unchanged.
+- **For your code or agent:**
+  - Lab 1.1 still exists everywhere except this page: its `portal/data.js`
+    entry (15 min under ITHD-101.1, so the filed hours don't change), its
+    `course_module_labs` row (it never gated completion), Lab Attempts and its
+    instructor sheet, so past attempts still open. Students can no longer
+    submit or resubmit it. A Lab 1.1 attempt waiting for review or returned
+    stays as it is in Lab Attempts; the student sees no notice for it.
+  - The policy acknowledgement and the orientation check are orientation
+    tasks, not labs: no lab key, no `lab_attempts` row, no score. They're
+    saved in Module 1's `module_progress.case_state` under the id Lab 1.1 used
+    (`its01-lms-validation-v1`), with new fields `aupReadVersion`,
+    `aupVersion`, `aupAcknowledgedAt`, `orientationCheckCompleted` and
+    `orientationCheckCompletedAt`. The policy text changed, so an
+    acknowledgement saved before this (no `aupVersion`) asks the student to
+    acknowledge again.
+  - Module 1's rail has new rows. Orientation and the orientation check count
+    toward the rail's percent, and Guided Lab 1 shows locked in the rail until
+    both are done (as it did behind Lab 1.1 before); the orientation check's
+    row shows locked until the policy is acknowledged. Rail locks only
+    explain the order: nothing on the page is blocked. The knowledge checks and
+    the unguided tickets don't count. Module completion is unchanged (still
+    Lab 1.2 and the Prove It).
+- **Status:** `bin/ci-check.sh` passes. Codex: one finding left by design:
+  the page shows the policy acknowledgement and the orientation check as
+  saved before the account write finishes, the same as the old Lab 1.1
+  checkbox. Hosted staging checked Nov 10 at 1,280 and 1,512 px, plus
+  390 px (`1.640-staging.b2d77dc`, then `1.641-staging.8a7d11b`).
+  Migration: none.
+
 **2026-11-10 (Megan; PR #103 "Help Desk Module 1: add practice tickets 1-A to 1-C and KB-0071, feedback only"; shared `ui/index.html`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `ui/helpdesk-coaches.js`, `portal/it-support-module-01.js` and tests — please review the shared ones):**
 Module 1 gains three unguided practice tickets, not graded: HD-2151 (Leah
 Brooks, forgotten password: verify, then self-service reset), HD-2152 (Ravi
