@@ -414,7 +414,8 @@ async function fetchUserDetails(userId, trackCode) {
       openAttempts.forEach((row) => {
         openLabRedoFeedbackByLabKey[row.lab_key] = feedbackByAttemptId.get(row.id) || [];
         const lab = LABS.find((l) => l.key === row.lab_key);
-        if (!lab) return; // stale/renamed lab key — nothing to point the student at
+        // Stale/renamed or retired lab key: nothing the student can redo.
+        if (!lab || lab.retired === true) return;
         openLabRedosByModuleKey[lab.module] = {
           labKey: row.lab_key,
           labTitle: lab.title,
@@ -4409,8 +4410,8 @@ function moduleRequiredLabKeys(program, moduleKey, user) {
 }
 
 // Practice labs are only those a lab record explicitly marks
-// `phase: 'practice'`. Since 2026-10-30 Help Desk Module 1's Labs 1.1 and 1.2
-// are, so Module 1 can show Practice Submitted.
+// `phase: 'practice'` and not retired. Help Desk Module 1's guided lab and
+// practice tickets are, so Module 1 can show Practice Submitted.
 function modulePracticeLabKeys(program, moduleKey) {
   return programLabs(program)
     .filter((lab) => lab.module === moduleKey && lab.optional !== true && lab.phase === 'practice')
@@ -4440,8 +4441,10 @@ function moduleCardState(program, moduleKey, user, unlocked) {
   const summary = { labs, required: labs.length, submitted, waiting };
   const practiceKeys = modulePracticeLabKeys(program, moduleKey);
   const hasAttempt = (key) => !!(attempts[key] && attempts[key].completedAt);
+  // Started: any attempt on any of the module's labs, retired ones included,
+  // so an older attempt still counts as activity.
   const moduleLabKeys = [...labs.map((lab) => lab.key), ...practiceKeys,
-    ...programLabs(program).filter((lab) => lab.module === moduleKey).map((lab) => lab.key),
+    ...LABS.filter((lab) => lab.module === moduleKey).map((lab) => lab.key),
     `${moduleKey}-knowledge-check`];
   const state = !unlocked ? 'locked'
     : module.status === 'draft' ? 'draft'
@@ -4693,9 +4696,12 @@ function chip(text, compact) {
   return `<span class="bg-gray-50 border border-gray-200 text-gray-600 font-medium ${size}">${esc(text)}</span>`;
 }
 
+// A program's live labs. A lab record marked `retired: true` (Help Desk
+// Module 1's old LMS & Environment Validation) is left out: it stays in LABS
+// only so past attempts keep their title and module.
 function programLabs(program) {
   const moduleKeys = new Set(Object.keys((program && program.modules) || {}));
-  return LABS.filter((lab) => moduleKeys.has(lab.module));
+  return LABS.filter((lab) => moduleKeys.has(lab.module) && lab.retired !== true);
 }
 
 function formatInstructionalMinutes(minutes) {
@@ -5538,8 +5544,10 @@ function moduleUnifiedNav(sections, state = {}) {
   const hasGeneratedAssessment = sections.some((section) => section.standardStage === 'assessment');
   const reviewMode = state.reviewMode || false;
 
-  // Display title for a row; also what a locked row's message names.
-  const navTitleFor = (section) => section.standardStage === 'assessment'
+  // Display title for a row; also what a locked row's message names. A row's
+  // own `navTitle` wins (Help Desk Module 1 numbers its two Practice It labs).
+  const navTitleFor = (section) => section.navTitle ? section.navTitle
+    : section.standardStage === 'assessment'
     ? 'Assessment Lab'
     : section.standardStage === 'guided'
       ? 'Guided Lab'

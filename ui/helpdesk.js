@@ -71,7 +71,8 @@ const HD_PROVE = (() => {
 // A practice set (?practice=<key>&student=<id>, HD_PRACTICE_SETS): a module's
 // unguided practice tickets, not graded. Only its tickets, no coach, and its
 // own saved state per student, so it never replaces the shift a coached lab
-// is using in the same browser. Nothing is sent to the portal.
+// is using in the same browser. The only thing sent to the portal is that
+// every ticket is closed (hdPracticeReport): no answers, no score.
 const HD_PRACTICE_SET = (() => {
   if (HD_PROVE || typeof HD_PRACTICE_SETS === 'undefined') return null;
   const params = new URLSearchParams(location.search);
@@ -91,10 +92,66 @@ function hdStateKey() {
   if (HD_PRACTICE_SET) return `defender-lab.helpdesk.practice.v1.${HD_PRACTICE_SET.key}${HD_PRACTICE_SET.student ? `.${HD_PRACTICE_SET.student}` : ''}`;
   return HD_PROVE ? `defender-lab.helpdesk.prove.v1.${HD_PROVE.moduleKey}.${HD_PROVE.student}` : HD_STATE_KEY;
 }
+// Also carries the practice set's completion notice (hdPracticeNotice).
 function hdProveBlockedNotice() {
   return HD_PROVE && HD_PROVE.blocked
     ? '<div class="callout warning" role="alert"><strong>This Prove It wasn\'t opened from your course page, so it can\'t be saved.</strong> Open it from your course page.</div>'
-    : '';
+    : hdPracticeNotice();
+}
+
+// A practice set reports to the course page that opened it once every one of
+// its tickets is closed (Resolved or Escalated): the ticket ids only, no
+// answers and no score. The course page saves a completion record and always
+// answers (mnt-practice-received). Once it confirms, the shift remembers it
+// (practiceSaved) and never sends again; until then the notice offers a retry.
+const HD_PRACTICE_REPLY_MS = 10000;
+const HD_PRACTICE_RETRY = 'Your completion wasn\'t saved. Make sure your course page is open and you\'re signed in, then press Save my completion.';
+const HD_PRACTICE_REASONS = {
+  closed: 'Your course page isn\'t open, so your completion wasn\'t saved. Open the practice tickets again from your course page, then press Save my completion.',
+  'signed-out': 'You\'re signed out on your course page, so your completion wasn\'t saved. Sign in there, then press Save my completion.',
+  'no-student': 'These tickets weren\'t opened from your course page, so your completion can\'t be saved. Open them from your course page.',
+  'other-student': 'These tickets were opened for a different student, so your completion wasn\'t saved. Open them from your own course page.',
+};
+let hdPracticeSending = false;
+function hdPracticeClosed() {
+  if (!HD_PRACTICE_SET || !hdState || !Array.isArray(hdState.tickets)) return false;
+  return HD_PRACTICE_SET.set.tickets.every(id => {
+    const ticket = hdState.tickets.find(item => item.id === id);
+    return Boolean(ticket && ['Resolved', 'Escalated'].includes(ticket.status));
+  });
+}
+function hdPracticeReport() {
+  if (!hdPracticeClosed() || hdState.practiceSaved === true || hdPracticeSending) return;
+  const done = reply => {
+    hdPracticeSending = false;
+    if (reply && reply.saved === true) { hdState.practiceSaved = true; hdState.practiceReason = ''; }
+    else hdState.practiceReason = (reply && reply.reason) || 'unconfirmed';
+    hdSave(); render();
+  };
+  const opener = window.opener && !window.opener.closed ? window.opener : null;
+  if (!opener) { done({ reason:'closed' }); return; }
+  const origin = hdPortalOrigin();
+  const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  let timer = 0;
+  function onReply(event) {
+    const data = event.data;
+    if (event.source !== opener || event.origin !== origin) return;
+    if (!data || data.type !== 'mnt-practice-received' || data.id !== HD_PRACTICE_SET.key || data.nonce !== nonce) return;
+    clearTimeout(timer); window.removeEventListener('message', onReply); done(data);
+  }
+  window.addEventListener('message', onReply);
+  timer = setTimeout(() => { window.removeEventListener('message', onReply); done({ reason:'unconfirmed' }); }, HD_PRACTICE_REPLY_MS);
+  hdPracticeSending = true;
+  render();
+  opener.postMessage({ type:'mnt-practice-complete', id:HD_PRACTICE_SET.key, nonce, student:HD_PRACTICE_SET.student, tickets:HD_PRACTICE_SET.set.tickets.slice() }, origin);
+}
+function hdPracticeNotice() {
+  if (!HD_PRACTICE_SET || !hdState) return '';
+  if (hdState.practiceSaved === true) return '<div class="callout success" role="status" data-hd-practice-notice="saved"><strong>Practice complete (not graded).</strong> Your course page saved that you finished every ticket in this set. No score and no answers were sent.</div>';
+  if (!hdPracticeClosed()) return '';
+  if (hdPracticeSending) return '<div class="callout info" role="status" data-hd-practice-notice="sending">You’ve finished every ticket. Saving your completion to your course page…</div>';
+  const reason = HD_PRACTICE_REASONS[hdState.practiceReason] || HD_PRACTICE_RETRY;
+  return `<div class="callout warning" role="alert" data-hd-practice-notice="unsaved"><strong>You’ve finished every ticket, but your completion isn’t saved yet.</strong> ${hdEsc(reason)} <button type="button" class="btn btn-primary btn-sm" onclick="hdPracticeReport()">Save my completion</button></div>`;
 }
 
 function hdClone(value) { return JSON.parse(JSON.stringify(value)); }
@@ -358,6 +415,9 @@ function hdLoadState() {
   return fresh;
 }
 let hdState = hdLoadState();
+// Closed earlier but not confirmed (the course page was closed, or the save
+// failed): try once more when the practice set opens.
+if (HD_PRACTICE_SET) setTimeout(() => { if (!hdState.practiceSaved && hdPracticeClosed()) hdPracticeReport(); }, 0);
 function hdSave() { if (HD_PROVE && HD_PROVE.blocked) return; localStorage.setItem(hdStateKey(), JSON.stringify(hdState)); }
 
 // The fixture lists a page shows: Practice sees the shared fixtures only; a
@@ -402,7 +462,7 @@ function hdProveOpened(source, label) {
   hdProveEvent('evidence_opened', { source, label });
   hdSave();
 }
-function hdRerender() { hdSave(); render(); }
+function hdRerender() { hdSave(); render(); hdPracticeReport(); }
 function hdEsc(value) { return escHtml(String(value == null ? '' : value)); }
 function hdTicketById(id) { return hdState.tickets.find(ticket => ticket.id === id); }
 function hdCurrentTicket() { return hdTicketById(hdState.selectedTicketId) || hdState.tickets[0]; }
@@ -2136,7 +2196,7 @@ if (HD_PROVE) {
 window.hdSelectTicket=hdSelectTicket; window.hdSetQueueFilter=hdSetQueueFilter; window.hdSetPriorityFilter=hdSetPriorityFilter;
 window.hdAssignTicket=hdAssignTicket; window.hdTransitionTicket=hdTransitionTicket; window.hdSetTicketPriority=hdSetTicketPriority;
 window.hdAddNote=hdAddNote; window.hdContactRequester=hdContactRequester; window.hdSubmitDiagnosis=hdSubmitDiagnosis; window.hdResolveTicket=hdResolveTicket;
-window.hdLinkProblem=hdLinkProblem; window.hdResetShift=hdResetShift; window.hdOpenUser=hdOpenUser;
+window.hdLinkProblem=hdLinkProblem; window.hdResetShift=hdResetShift; window.hdPracticeReport=hdPracticeReport; window.hdOpenUser=hdOpenUser;
 window.hdSetAdTab=hdSetAdTab; window.hdAdAction=hdAdAction; window.hdSelectComputer=hdSelectComputer;
 window.hdRunPowerShell=hdRunPowerShell; window.hdPrinterAction=hdPrinterAction;
 window.hdSetEventFilter=hdSetEventFilter; window.hdClearEventFilter=hdClearEventFilter; window.hdM01Identity=hdM01Identity;

@@ -12,7 +12,10 @@
 //   - Each ticket's critical errors: recorded, shown at once and listed first.
 //   - Right owner: Tier 1, Desktop Support per KB-0071, or the SOC route
 //     (Category Security › Suspicious request, Caller Unverified).
-//   - Nothing is sent to the portal; the Module 1 page links the set.
+//   - Lab 1.2's completion: once all three are closed, one message to the
+//     course page (ticket ids only, no answers, no score), answered and then
+//     never sent again; a retry when it wasn't saved. The Module 1 page links
+//     the set (tests/hdesk-m01-practice-lab.test.js covers the page's save).
 //
 // The simulator runs in a Node vm with a small fake DOM; the portal runs in
 // tests/portal-vm.js. Synthetic data only.
@@ -491,13 +494,84 @@ function testFeedbackNeverScoresCategoryOrPriority() {
   assert.match(JSON.stringify(tab.feedback('HD-2151').flags), /Wrote a password in a ticket field/);
 }
 
-/* -------------------------------------------- nothing reaches the portal */
+/* ------------------------------- Lab 1.2's completion reaches the portal */
 
-function testNothingSentToThePortal() {
+const notice = (tab) => (/data-hd-practice-notice="([a-z]+)"[^>]*>([\s\S]*?)<\/div>/.exec(tab.view('helpdesk/tickets')) || [null, '', '']).slice(1);
+
+// Nothing until every ticket is closed; then one message with the ticket ids
+// only. Once the course page confirms, nothing is ever sent again.
+function testCompletionSentOnceAllClosed() {
   const opener = fakeOpener();
   const tab = sim(practiceUrl(), { opener });
+  workLeah(tab); workRavi(tab);
+  assert.deepEqual(opener.sent, [], 'two of three closed: nothing sent');
+  assert.equal(notice(tab)[0], '', 'no notice yet');
+  workKaren(tab);
+  assert.equal(opener.sent.length, 1, 'all three closed: one message');
+  const [{ data, origin }] = opener.sent;
+  assert.equal(origin, PORTAL);
+  assert.deepEqual(Object.keys(data).sort(), ['id', 'nonce', 'student', 'tickets', 'type']);
+  assert.deepEqual([data.type, data.id, data.student, data.tickets], ['mnt-practice-complete', 'its-01', STUDENT, SET]);
+  assert.equal(notice(tab)[0], 'sending');
+  assert.match(notice(tab)[1], /You’ve finished every ticket\. Saving your completion/);
+  // A reply for another nonce, or from another origin, changes nothing.
+  tab.reply({ type: 'mnt-practice-received', id: 'its-01', nonce: 'other', saved: true });
+  tab.reply({ type: 'mnt-practice-received', id: 'its-01', nonce: data.nonce, saved: true }, 'https://elsewhere.test');
+  assert.equal(notice(tab)[0], 'sending');
+  tab.reply({ type: 'mnt-practice-received', id: 'its-01', nonce: data.nonce, saved: true });
+  assert.equal(tab.hd().practiceSaved, true);
+  const [kind, text] = notice(tab);
+  assert.equal(kind, 'saved');
+  assert.match(text, /Practice complete \(not graded\)\./);
+  assert.match(text, /saved that you finished every ticket in this set/);
+  assert.match(text, /No score and no answers were sent\./);
+  assert.doesNotMatch(text, /points?|\d+ ?%/i);
+  // More work and a reload send nothing.
+  tab.feedback('HD-2151');
+  tab.run('hdRerender()');
+  const again = tab.reload();
+  again.run('hdRerender()');
+  assert.equal(opener.sent.length, 1, 'never sent again once saved');
+  assert.equal(notice(again)[0], 'saved');
+}
+
+// Not saved (no course page, signed out there, the save failed, no answer):
+// the notice says why and offers a retry; the retry sends again.
+function testCompletionRetry() {
+  const alone = sim(practiceUrl('student-m01t0007'));
+  workLeah(alone); workRavi(alone); workKaren(alone);
+  assert.deepEqual(notice(alone).slice(0, 1), ['unsaved']);
+  assert.match(notice(alone)[1], /You’ve finished every ticket, but your completion isn’t saved yet\./);
+  assert.doesNotMatch(notice(alone)[1], /closed/i);
+  assert.match(notice(alone)[1], /Your course page isn.t open/);
+  assert.match(notice(alone)[1], /Save my completion/);
+
+  const opener = fakeOpener();
+  const tab = sim(practiceUrl('student-m01t0008'), { opener });
   workLeah(tab); workRavi(tab); workKaren(tab);
-  assert.deepEqual(opener.sent, [], 'no message to the course page');
+  tab.reply({ type: 'mnt-practice-received', id: 'its-01', nonce: opener.sent[0].data.nonce, saved: false, reason: 'signed-out' });
+  assert.equal(notice(tab)[0], 'unsaved');
+  assert.match(notice(tab)[1], /signed out on your course page/);
+  tab.run('hdPracticeReport()');
+  assert.equal(opener.sent.length, 2, 'the retry sends again');
+  tab.reply({ type: 'mnt-practice-received', id: 'its-01', nonce: opener.sent[1].data.nonce, saved: true });
+  assert.equal(notice(tab)[0], 'saved');
+
+  // Reset shift starts the tickets again; the saved completion stays on the
+  // account, so closing them again only asks once more (the page answers
+  // "saved" without a second record).
+  tab.run('hdResetShift()');
+  assert.equal(tab.hd().practiceSaved, undefined);
+  assert.equal(opener.sent.length, 2, 'reset sends nothing');
+}
+
+// A coached-lab shift or a Prove shift never sends a practice message.
+function testOnlyThePracticeSetReports() {
+  const opener = fakeOpener();
+  const tab = sim(launchUrl(), { opener });
+  tab.run('hdRerender()');
+  assert.ok(!opener.sent.some((entry) => entry.data.type === 'mnt-practice-complete'));
+  assert.equal(tab.run('hdPracticeNotice()'), '');
 }
 
 const portal = loadPortal();
@@ -509,10 +583,10 @@ function testModuleOnePageLinksTheSet() {
     remoteModuleProgress: {}, remoteVerifiedModuleProgress: {}, remoteModuleDetail: {}, latestLabAttemptByKey: {}, openLabRedoFeedbackByLabKey: {}, openLabRedosByModuleKey: {} };
   const html = prun("MODULE_LABS['it-support/1']").view(user, HD);
   const student = prun('LabRuntime').anonymousStudentId(user);
-  assert.match(html, /<h2 id="its01-practice-tickets-title">Unguided tickets \(not graded\)<\/h2>/);
+  assert.match(html, /<h2 id="its01-practice-tickets-title">Lab 1\.2 · Practice tickets \(not graded\)<\/h2>/);
   assert.ok(html.includes(`?practice=its-01&amp;student=${student}#/helpdesk/tickets`) || html.includes(`?practice=its-01&student=${student}#/helpdesk/tickets`));
-  assert.match(html, /data-its01-practice-launch[^>]*rel="noopener"/);
-  assert.match(html, /Nothing is graded or sent to your instructor\./);
+  assert.match(html, /data-its01-practice-launch[^>]*rel="opener"/);
+  assert.match(html, /Nothing is graded and your answers aren’t sent\./);
 }
 
 /* -------------------------------------------------------------------- run */
@@ -522,7 +596,7 @@ function testModuleOnePageLinksTheSet() {
     testPracticeSetShift, testGuidedLabProgressUntouched,
     testLeahCorrect, testLeahCriticalErrors, testRaviCorrect, testRaviCriticalErrors, testOwnerChoiceWaitsAndRestoresFields, testClosingOpensTheFeedback,
     testKarenCorrect, testKarenCriticalErrors, testFeedbackNeverScoresCategoryOrPriority,
-    testNothingSentToThePortal, testModuleOnePageLinksTheSet,
+    testCompletionSentOnceAllClosed, testCompletionRetry, testOnlyThePracticeSetReports, testModuleOnePageLinksTheSet,
   ];
   for (const test of tests) await test();
   console.log(`hdesk-m01-practice-tickets: ${tests.length} tests passed`);

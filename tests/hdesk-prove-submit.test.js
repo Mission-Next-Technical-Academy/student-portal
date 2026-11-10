@@ -664,7 +664,7 @@ async function testModuleOnePage() {
   let html = moduleOneHtml(user);
   const card = proveSection(html);
   assert.match(card, /Prove It · Assessment Lab/);
-  assert.match(card, /Complete Guided Lab 1 first: it prepares you for this\./);
+  assert.match(card, /Complete Lab 1\.1, the guided lab, first: it prepares you for this\./);
   const link = /data-its01-prove-launch href="([^"]+)"/.exec(card);
   assert.ok(link, 'a launch link with no Practice It submitted: no lock');
   assert.ok(link[1].replace(/&amp;/g, '&').includes(`?prove=its-01&student=${studentOf(user)}#/helpdesk/tickets`));
@@ -677,7 +677,7 @@ async function testModuleOnePage() {
   assert.doesNotMatch(html, /data-module-assessment-form|Assessment Lab submission/i);
   assert.equal((html.match(/<span class="munified-row-label">Assessment Lab<\/span>/g) || []).length, 1);
   assert.equal(railRow(html).locked, false, 'not locked behind Practice It');
-  assert.match(html, /id="its01-status">2 labs · 0 passed</);
+  assert.match(html, /id="its01-status">3 labs · 0 practice complete · 0 passed</);
   // The rail doesn't call the module done with only Practice It passed.
   user = resetWorld(hdUser({ latestLabAttemptByKey: { 'lab-its-01-ticket-triage': { ...WAITING, reviewedAt: 'x' } } }));
   assert.doesNotMatch(moduleOneHtml(user), /100%/);

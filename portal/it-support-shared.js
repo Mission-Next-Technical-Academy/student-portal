@@ -1093,17 +1093,27 @@ function itsEvidenceRedo(user, state, labKey, fileFields) {
  * A lab's status, the hero counter and the rail come only from the database:
  * the newest attempt loaded at sign-in, read with requiredLabStatus() (the
  * module cards' rule): 'not_submitted', 'waiting', 'passed' or 'returned'.
+ * A Practice It lab (`phase: 'practice'`, Module 1) is never reviewed, so a
+ * saved attempt reads 'practice' instead of 'waiting' (or 'passed', for an
+ * attempt an instructor approved before Practice It stopped being reviewed).
+ * A Return made before then still reads 'returned', with its notes.
  * The lab's saved state (module_progress.case_state) and this browser's file
  * copies hold only work not yet sent (files added, the policy checkbox), so
  * clearing site data never changes what a lab shows. */
 
+function itsLabIsPractice(labKey) {
+  const lab = typeof LABS !== 'undefined' ? LABS.find((item) => item.key === labKey) : null;
+  return Boolean(lab && lab.phase === 'practice');
+}
+
 function itsLabStatus(user, labKey) {
-  return requiredLabStatus(itsLabAttempt(user, labKey));
+  const status = requiredLabStatus(itsLabAttempt(user, labKey));
+  return (status === 'waiting' || status === 'passed') && itsLabIsPractice(labKey) ? 'practice' : status;
 }
 
 function itsLabSubmitted(user, labKey) {
   const status = itsLabStatus(user, labKey);
-  return status === 'waiting' || status === 'passed';
+  return status === 'waiting' || status === 'passed' || status === 'practice';
 }
 
 function itsSubmittedDay(user, labKey) {
@@ -1125,7 +1135,8 @@ function itsLabSubmitting(user, labKey) {
 function itsLabStatusHtml(user, labKey, { label, prefix, pendingText, ready = false }) {
   const status = itsLabStatus(user, labKey);
   const officialScore = (itsLabAttempt(user, labKey) || {}).officialScore;
-  const line = status === 'passed' ? { pass: true, icon: 'ri-checkbox-circle-fill', text: `${label} passed${typeof officialScore === 'number' ? ` · ${officialScore}%` : ''}` }
+  const line = status === 'practice' ? { pass: true, icon: 'ri-checkbox-circle-fill', text: `${label}: Practice complete (not graded) · ${itsSubmittedDay(user, labKey)}` }
+    : status === 'passed' ? { pass: true, icon: 'ri-checkbox-circle-fill', text: `${label} passed${typeof officialScore === 'number' ? ` · ${officialScore}%` : ''}` }
     : status === 'waiting' ? { icon: 'ri-send-plane-line', text: `${label} submitted ${itsSubmittedDay(user, labKey)}, waiting for instructor review` }
     : status === 'returned' ? { icon: 'ri-error-warning-line', text: `${label} returned for revision — see your instructor’s notes below.` }
     : itsLabSubmitting(user, labKey) ? { icon: 'ri-loader-4-line', text: `Submitting ${label}…` }
@@ -1136,27 +1147,32 @@ function itsLabStatusHtml(user, labKey, { label, prefix, pendingText, ready = fa
 }
 
 // Hero counter: "4 labs · 1 waiting for review · 1 passed · 1 returned";
-// the waiting and returned parts appear only when non-zero.
+// the waiting and returned parts appear only when non-zero. A page with
+// Practice It labs always shows "N practice complete" ("3 labs · 1 practice
+// complete · 0 passed").
 function itsLabCounterText(user, labKeys) {
   const statuses = labKeys.map((key) => itsLabStatus(user, key));
   const count = (status) => statuses.filter((s) => s === status).length;
   const waitingCount = count('waiting');
   const returnedCount = count('returned');
+  const hasPractice = labKeys.some(itsLabIsPractice);
   return [
     `${labKeys.length} lab${labKeys.length === 1 ? '' : 's'}`,
+    hasPractice ? `${count('practice')} practice complete` : '',
     waitingCount ? `${waitingCount} waiting for review` : '',
     `${count('passed')} passed`,
     returnedCount ? `${returnedCount} returned` : '',
   ].filter(Boolean).join(' · ');
 }
 
-// Rail fields for a row covering labKeys: ticked only when every lab passed;
-// "Returned" or "In review" (moduleUnifiedNav's reviewState) otherwise.
+// Rail fields for a row covering labKeys: ticked only when every lab passed
+// (or, for Practice It, is practice complete); "Returned" or "In review"
+// (moduleUnifiedNav's reviewState) otherwise.
 function itsLabRail(user, labKeys) {
   const statuses = labKeys.map((key) => itsLabStatus(user, key));
-  const isComplete = statuses.every((status) => status === 'passed');
+  const isComplete = statuses.every((status) => status === 'passed' || status === 'practice');
   const reviewState = statuses.includes('returned') ? 'returned'
-    : !isComplete && statuses.every((status) => status === 'waiting' || status === 'passed') ? 'review'
+    : !isComplete && statuses.every((status) => status === 'waiting' || status === 'passed' || status === 'practice') ? 'review'
     : undefined;
   return { isComplete, reviewState };
 }

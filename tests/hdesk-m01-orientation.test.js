@@ -94,7 +94,7 @@ function testOrientationComesFirst() {
   const html = page().view(hdUser(), HD);
   const order = ['its01-orientation', 'its01-lessons', 'its01-checks', 'its01-lab-1-2', 'its01-practice-tickets', 'its01-prove-it', 'its01-sources']
     .map((id) => html.indexOf(`id="${id}"`));
-  assert.ok(order.every((at, i) => at > 0 && (i === 0 || at > order[i - 1])), 'orientation, readings, checks, Guided Lab 1, unguided tickets, Prove It, Sources');
+  assert.ok(order.every((at, i) => at > 0 && (i === 0 || at > order[i - 1])), 'orientation, readings, checks, Lab 1.1 (guided), Lab 1.2 (practice tickets), Prove It, Sources');
 
   const orientation = text(section(html, 'its01-orientation'));
   for (const heading of ['Program orientation: how this program runs', 'LMS navigation', 'Technology setup', 'Acceptable Use Policy', 'Getting help and the chain of command', 'Policies you need to know', 'Course calendar', 'Orientation tasks (not graded)', 'Orientation check']) {
@@ -124,7 +124,9 @@ function testOrientationComesFirst() {
   const all = text(html);
   assert.equal(all.split(NO_VM_SENTENCE).length - 1, 1, 'technology setup says there is no virtual machine to build');
   assert.doesNotMatch(all.replace(NO_VM_SENTENCE, ''), /Two Logins|sandbox|virtual machine|\bVM\b|lab login|lab-environment|five-step/i);
-  assert.doesNotMatch(all, /Lab 1\.1|LMS & Environment Validation/);
+  // "Lab 1.1" is now the guided lab; the old Lab 1.1 is retired.
+  assert.doesNotMatch(all, /LMS & Environment Validation/);
+  assert.doesNotMatch(html, /lab-its-01-lms-validation/);
   assert.doesNotMatch(html, /data-itsw-evidence-input|data-its-submit=/);
   // Internal plan codes and names stay out of the page.
   assert.doesNotMatch(all, /\bB\d+ rubric|Randy/);
@@ -133,7 +135,7 @@ function testOrientationComesFirst() {
 
   // The hero and the Prove It no longer mention Lab 1.1.
   assert.match(html, /Start with orientation/);
-  assert.match(section(html, 'its01-prove-it'), /Complete Guided Lab 1 first/);
+  assert.match(section(html, 'its01-prove-it'), /Complete Lab 1.1, the guided lab, first/);
 }
 
 function testReadingsAndDiagrams() {
@@ -212,7 +214,7 @@ async function testPolicyAcknowledgementSavesWithoutLabOne() {
   assert.match(text(html), /Acknowledged on [A-Z][a-z]{2} \d{1,2}, \d{4}\./);
   assert.doesNotMatch(text(html), /saved to your account/i, 'the page never claims the account write finished');
   assert.match(railRow(html, 'its01-orientation').cls, /mnav-chip-complete/);
-  assert.doesNotMatch(html, /Lab 1\.1/);
+  assert.doesNotMatch(html, /lab-its-01-lms-validation|LMS &amp; Environment Validation/);
 }
 
 async function testEarlierAcknowledgementAsksAgain() {
@@ -339,12 +341,15 @@ function testRail() {
   assert.equal(railRow(html, 'its01-check-orientation').text, 'Orientation check');
   // Not counted toward progress.
   assert.match(railRow(html, 'its01-checks').cls, /munified-row-ungated/);
-  assert.match(railRow(html, 'its01-practice-tickets').cls, /munified-row-ungated/);
-  assert.equal(railRow(html, 'its01-practice-tickets').text, 'Unguided tickets', 'not renamed "Guided Lab" by the rail');
-  // Counted: orientation, its check, the readings, Guided Lab 1, the Prove It.
-  assert.equal(percent(html), '20');
+  // The two Practice It labs keep their own numbered names (not "Guided Lab");
+  // the practice tickets are never locked.
+  assert.equal(railRow(html, 'its01-lab-1-2').text, 'Lab 1.1 · Guided Lab');
+  assert.equal(railRow(html, 'its01-practice-tickets').text, 'Lab 1.2 · Practice tickets');
+  assert.doesNotMatch(railRow(html, 'its01-practice-tickets').cls, /mnav-chip-locked/);
+  // Counted: orientation, its check, the readings, Lab 1.1, Lab 1.2, the Prove It.
+  assert.equal(percent(html), '17');
   const done = page().view(hdUser({ remoteCaseState: { 'its-01': { [STATE_ID]: { aupAcknowledged: true, aupVersion: '2026-11-10', aupReadVersion: '2026-11-10', orientationCheckCompleted: true } } } }), HD);
-  assert.equal(percent(done), '60');
+  assert.equal(percent(done), '50');
   assert.doesNotMatch(done, /href="#its01-lab-1-1"/);
 }
 

@@ -9,14 +9,17 @@
  *     orientation check (retake any time). Not graded, not a lab, no lab key.
  *   - Learn It (Lesson 1.2): three readings with three diagrams, then the
  *     Learn It and A+ checks (practice only: nothing saved or sent).
- *   - Practice It: Guided Lab 1 (Lab 1.2, the real 'hd-m01' coach in the IT
- *     Service Desk simulator, ui/helpdesk.js + ui/coach.js), then the
- *     unguided tickets HD-2151, HD-2152 and SEC-2153 (not graded).
+ *   - Practice It, never reviewed: Lab 1.1, the guided lab (key
+ *     lab-its-01-ticket-triage, the real 'hd-m01' coach in the IT Service
+ *     Desk simulator, ui/helpdesk.js + ui/coach.js), then Lab 1.2, the
+ *     practice tickets HD-2151, HD-2152 and SEC-2153 (key
+ *     lab-its-01-practice-tickets, not graded). Students see these numbers;
+ *     the keys are older than the numbering.
  *   - Prove It (HD-2125), reviewed by the instructor.
  *
- * Lab 1.1 (LMS & Environment Validation) is no longer on this page. Its lab
- * entry, past attempts and instructor sheet are kept elsewhere; it never
- * gated completion.
+ * The old Lab 1.1 (LMS & Environment Validation, lab-its-01-lms-validation)
+ * is retired: no longer on this page or in the lab lists. Its lab record,
+ * past attempts and instructor sheet are kept; it never gated completion.
  */
 
 const ITS01_SOURCES = [
@@ -135,7 +138,7 @@ const ITS01_LESSONS = [
       { note: { title: 'About priority in Module 1', text: 'The simulator pre-sets each ticket’s Priority, and the coach says why in one line. You’ll learn to set it yourself from Impact × Urgency in Module 2.' } },
       { note: { title: 'Triage in Module 1', text: 'Category and Priority are pre-set and are not scored until Module 2 teaches them. Triage points score who should own the ticket: resolve it at Tier 1, escalate to Tier 2 when the KB says so, or route it to Security Operations (SOC) when the caller can’t be verified (Readings 1 and 3).' } },
     ],
-    comingUp: 'Work Sam Rivera’s account-lockout ticket end to end in the IT Service Desk simulator (Guided Lab 1), applying everything from these readings.',
+    comingUp: 'Work Sam Rivera’s account-lockout ticket end to end in the IT Service Desk simulator (Lab 1.1, the guided lab), applying everything from these readings.',
   },
 ];
 
@@ -438,11 +441,14 @@ const ITS01_AUP_PARAGRAPHS = [
 
 // The case-state id Lab 1.1 used; kept so earlier acknowledgements carry over.
 const ITS01_STATE_ID = 'its01-lms-validation-v1';
+// Students see the guided lab as Lab 1.1 and the practice tickets as Lab 1.2;
+// the keys are older than that numbering.
 const ITS01_LAB2_KEY = 'lab-its-01-ticket-triage';
+const ITS01_PRACTICE_KEY = 'lab-its-01-practice-tickets';
 const ITS01_PROVE_KEY = 'lab-its-01-prove-it';
 
-const ITS01_LAB_KEYS = [ITS01_LAB2_KEY, ITS01_PROVE_KEY];
-const ITS01_LAB2_START = 'Start Lab 1.2 walkthrough';
+const ITS01_LAB_KEYS = [ITS01_LAB2_KEY, ITS01_PRACTICE_KEY, ITS01_PROVE_KEY];
+const ITS01_LAB2_START = 'Start Lab 1.1 walkthrough';
 
 const ITS01_DEFAULT_STATE = {
   aupReadVersion: null, aupAcknowledged: false, aupVersion: null, aupAcknowledgedAt: null,
@@ -672,13 +678,13 @@ function its01Checks() {
 }
 
 function its01Lab2Status() {
-  return itsLabStatusHtml(its01User, ITS01_LAB2_KEY, { label: 'Lab 1.2', prefix: 'its01', pendingText: 'Complete the guided walkthrough in the simulator to finish this lab.' });
+  return itsLabStatusHtml(its01User, ITS01_LAB2_KEY, { label: 'Lab 1.1', prefix: 'its01', pendingText: 'Complete the guided walkthrough in the simulator to finish this lab.' });
 }
 
 function its01Lab2() {
   const button = itsWalkthroughButton(its01User, [ITS01_LAB2_KEY]);
   return `<section class="its01-section its01-lab-section" id="its01-lab-1-2" aria-labelledby="its01-lab-1-2-title">
-    <div class="its01-section-heading"><span>1</span><div><p class="its01-kicker">Practice It · Guided Lab 1 (Lab 1.2) · coached</p><h2 id="its01-lab-1-2-title">A Day in the Life of an L1 Technician</h2></div></div>
+    <div class="its01-section-heading"><span>1</span><div><p class="its01-kicker">Practice It · coached · not graded</p><h2 id="its01-lab-1-2-title">${esc(itsLabTitle(ITS01_LAB2_KEY))}</h2></div></div>
     <p class="its01-instruction">Work your first ticket end to end in the IT Service Desk simulator: INC0010150, Sam Rivera’s account lockout. Take the ticket, find out what changed, follow KB-0024 to verify Sam and unlock the account, confirm Sam can sign in, tell Sam what to do if it happens again, and write the work note. A coach walks you through every step. No commands needed.</p>
     <a class="itsw-evidence-button" data-its01-console-launch href="${esc(itsCoachLaunchHref('hd-m01', its01User))}" target="_blank" rel="opener">
       <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: ITS01_LAB2_START }[button.mode]}
@@ -689,21 +695,24 @@ function its01Lab2() {
   </section>`;
 }
 
-// Module 1's unguided tickets (1-A to 1-C), not graded: the simulator opens
-// just these tickets in their own saved shift (?practice=its-01,
-// ui/helpdesk.js), with feedback but no score, and sends nothing back to
-// this page.
+// Lab 1.2, Module 1's unguided tickets (1-A to 1-C), not graded: the
+// simulator opens just these tickets in their own saved shift
+// (?practice=its-01, ui/helpdesk.js), with feedback but no score. Opened
+// with an opener, so once all three are closed the simulator can report it
+// (its01ReceivePracticeCompletion).
 function its01PracticeTicketsHref(user) {
   const student = typeof LabRuntime !== 'undefined' ? LabRuntime.anonymousStudentId(user) : '';
   return `${SIM_ORIGIN}?practice=its-01&student=${encodeURIComponent(student)}#/helpdesk/tickets`;
 }
 function its01PracticeTickets() {
-  return `<section class="its01-section" id="its01-practice-tickets" aria-labelledby="its01-practice-tickets-title">
-    <div class="its01-section-heading"><span>2</span><div><p class="its01-kicker">Practice It · on your own · not graded</p><h2 id="its01-practice-tickets-title">Unguided tickets (not graded)</h2></div></div>
-    <p class="its01-instruction">Three more tickets to work on your own: Leah Brooks has forgotten her password, Ravi Shah has cracked his laptop screen, and a caller wants an executive’s password reset in a hurry. Use the method, search the knowledge base and verify callers with KB-0024. Press Check my work on a ticket for feedback. Nothing is graded or sent to your instructor.</p>
-    <a class="itsw-evidence-button" data-its01-practice-launch href="${esc(its01PracticeTicketsHref(its01User))}" target="_blank" rel="noopener">
-      <i class="ri-play-list-line" aria-hidden="true"></i> Open the unguided tickets
+  return `<section class="its01-section its01-lab-section" id="its01-practice-tickets" aria-labelledby="its01-practice-tickets-title">
+    <div class="its01-section-heading"><span>2</span><div><p class="its01-kicker">Practice It · on your own · not graded</p><h2 id="its01-practice-tickets-title">${esc(itsLabTitle(ITS01_PRACTICE_KEY))}</h2></div></div>
+    <p class="its01-instruction">Three more tickets to work on your own: Leah Brooks has forgotten her password, Ravi Shah has cracked his laptop screen, and a caller wants an executive’s password reset in a hurry. Use the method, search the knowledge base and verify callers with KB-0024. Press Check my work on a ticket for feedback.</p>
+    <p class="its01-instruction">Nothing is graded and your answers aren’t sent. Finish all three tickets: resolve or escalate each one. The simulator then tells this page, and your account records that you completed Lab 1.2.</p>
+    <a class="itsw-evidence-button" data-its01-practice-launch href="${esc(its01PracticeTicketsHref(its01User))}" target="_blank" rel="opener">
+      <i class="ri-play-list-line" aria-hidden="true"></i> Open the practice tickets
     </a>
+    ${itsLabStatusHtml(its01User, ITS01_PRACTICE_KEY, { label: 'Lab 1.2', prefix: 'its01', pendingText: 'Finish all three tickets: resolve or escalate each one.' })}
   </section>`;
 }
 
@@ -718,7 +727,7 @@ function its01Prove() {
   return `<section class="its01-section its01-lab-section" id="its01-prove-it" aria-labelledby="its01-prove-it-title">
     <div class="its01-section-heading"><span>3</span><div><p class="its01-kicker">Prove It · Assessment Lab · instructor reviewed</p><h2 id="its01-prove-it-title">${esc(itsLabTitle(ITS01_PROVE_KEY))}</h2></div></div>
     <p class="its01-instruction">Work one new ticket on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Your instructor reviews your work.</p>
-    <p class="its01-instruction">Complete Guided Lab 1 first: it prepares you for this.</p>
+    <p class="its01-instruction">Complete Lab 1.1, the guided lab, first: it prepares you for this.</p>
     ${itsLabSubmitted(user, ITS01_PROVE_KEY) ? '' : `<a class="itsw-evidence-button" data-its01-prove-launch href="${esc(itsProveLaunchHref('its-01', user))}" target="_blank" rel="opener">
       <i class="${returned ? 'ri-restart-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${returned ? 'Reopen the Prove It' : 'Start the Prove It'}
     </a>`}
@@ -744,17 +753,19 @@ function its01Sources() {
   </div>`;
 }
 
-/* The rail. Orientation (the policy acknowledgement) and the orientation
- * check count toward the module's progress; the Learn It and A+ checks, the
- * unguided tickets and Sources don't. */
+/* The rail. Orientation (the policy acknowledgement), the orientation check
+ * and the three labs count toward the module's progress; the Learn It and A+
+ * checks and Sources don't. */
 function its01NavSections(user) {
   return [
     { id: 'orientation', title: 'Orientation', type: 'lecture', phase: 'learn', isComplete: its01AupCurrent(), scrollId: 'its01-orientation' },
     { id: 'orientation-check', title: 'Orientation check', type: 'quiz', phase: 'learn', isComplete: its01State.orientationCheckCompleted === true, scrollId: 'its01-check-orientation' },
     { id: 'lessons', title: 'Readings', type: 'lecture', phase: 'learn', isComplete: true, scrollId: 'its01-lessons' },
     { id: 'checks', title: 'Knowledge checks', type: 'quiz', phase: 'learn', isComplete: null, gated: false, scrollId: 'its01-checks' },
-    { id: 'service-desk', title: 'Service desk walkthrough', type: 'lab', ...itsLabRail(user, [ITS01_LAB2_KEY]), scrollId: 'its01-lab-1-2' },
-    { id: 'unguided', title: 'Unguided tickets', type: 'read', phase: 'practice', isComplete: null, gated: false, scrollId: 'its01-practice-tickets' },
+    { id: 'service-desk', title: 'Service desk walkthrough', navTitle: 'Lab 1.1 · Guided Lab', type: 'lab', ...itsLabRail(user, [ITS01_LAB2_KEY]), scrollId: 'its01-lab-1-2' },
+    // Counts toward the percent, but never locked: the practice tickets can
+    // be opened at any time.
+    { id: 'unguided', title: 'Lab 1.2 · Practice tickets', navTitle: 'Lab 1.2 · Practice tickets', type: 'lab', phase: 'practice', neverLocked: true, ...itsLabRail(user, [ITS01_PRACTICE_KEY]), scrollId: 'its01-practice-tickets' },
     // Named so the platform's generic Assessment Lab box isn't added
     // (normalizeModuleStages).
     { id: 'assessment', title: 'Assessment Lab', type: 'review', neverLocked: true, ...itsLabRail(user, [ITS01_PROVE_KEY]), scrollId: 'its01-prove-it' },
@@ -999,6 +1010,87 @@ async function its01ReceiveCoachCompletion(event) {
   if (section) section.scrollIntoView({ block: 'start' });
 }
 
+// Lab 1.2's completion: the simulator's practice set says all three tickets
+// are closed (ui/helpdesk.js hdPracticeReport). Saved once, as a lab attempt
+// with no score and no answers: completion, its time and the ticket ids.
+// Every message gets an answer, so the simulator can say whether it was
+// saved: signed out, another student, not every ticket, or a failed save.
+const ITS01_PRACTICE_TICKETS = ['HD-2151', 'HD-2152', 'SEC-2153'];
+async function its01ReceivePracticeCompletion(event) {
+  const data = event.data;
+  if (!data || data.type !== 'mnt-practice-complete' || data.id !== 'its-01') return;
+  if (event.origin !== new URL(SIM_ORIGIN).origin) return;
+  const reply = (saved, reason) => {
+    if (!event.source || typeof event.source.postMessage !== 'function') return;
+    event.source.postMessage({ type: 'mnt-practice-received', id: 'its-01', nonce: data.nonce, saved: saved === true, ...(reason ? { reason } : {}) }, event.origin);
+  };
+  const user = await currentUser();
+  if (!user) { reply(false, 'signed-out'); return; }
+  const wrongStudent = itsCoachStudentMismatch(event, user);
+  if (wrongStudent) { reply(false, wrongStudent); return; }
+  const tickets = Array.isArray(data.tickets) ? data.tickets : [];
+  if (tickets.length !== ITS01_PRACTICE_TICKETS.length || !ITS01_PRACTICE_TICKETS.every((id) => tickets.includes(id))) { reply(false, 'incomplete'); return; }
+  // Already recorded (as loaded at sign-in, or saved on this page).
+  if (itsLabSubmitted(user, ITS01_PRACTICE_KEY)) { reply(true); return; }
+  if (itsLabSubmitting(user, ITS01_PRACTICE_KEY)) { reply(false, 'busy'); return; }
+  // lab_attempts allows many rows per lab and this lab has no
+  // course_module_labs row, so the database won't refuse a second record.
+  // Another course page tab in this browser may be saving right now (the
+  // lock), or may already have saved (the database read): either way, no
+  // second record.
+  const lock = `mnt.practice-save.${user.userId}.${ITS01_PRACTICE_KEY}`;
+  const held = Number(its01StorageGet(lock)) || 0;
+  if (Date.now() - held < ITS01_PRACTICE_LOCK_MS) { reply(false, 'busy'); return; }
+  its01StorageSet(lock, String(Date.now()));
+  let saved = false;
+  try {
+    const existing = await its01SavedPracticeAttempt(user);
+    if (existing === null) { reply(false, 'save-failed'); return; }
+    if (existing) {
+      user.latestLabAttemptByKey = { ...(user.latestLabAttemptByKey || {}), [ITS01_PRACTICE_KEY]: existing };
+      saved = true;
+    } else {
+      saved = await itsSubmitLabAttempt(user, 'its-01', ITS01_PRACTICE_KEY, {
+        state: 'complete', result: { source: 'mnt-practice-complete', practiceSet: 'its-01', tickets: ITS01_PRACTICE_TICKETS.slice() },
+      });
+    }
+  } finally {
+    its01StorageRemove(lock);
+  }
+  if (saved && typeof markModuleLabComplete === 'function') markModuleLabComplete(user, 'it-support', 'its-01', ITS01_PRACTICE_KEY);
+  reply(saved, saved ? '' : 'save-failed');
+  its01User = user;
+  if (document.querySelector('.its01-shell')) render();
+}
+
+// How long another tab's save holds the lock (a save that never finished
+// stops holding it after this).
+const ITS01_PRACTICE_LOCK_MS = 15000;
+function its01StorageGet(key) { try { return localStorage.getItem(key); } catch (_) { return null; } }
+function its01StorageSet(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* storage blocked: no lock */ } }
+function its01StorageRemove(key) { try { localStorage.removeItem(key); } catch (_) { /* storage blocked */ } }
+
+// The student's saved Lab 1.2 record, read from the database: the attempt
+// (in the shape latestLabAttemptByKey holds), false when there is none, or
+// null when the read failed. A superseded record (the academy set it aside,
+// e.g. a progress reset) doesn't count: the new work gets its own record.
+async function its01SavedPracticeAttempt(user) {
+  if (typeof mntSupabase === 'undefined') return null;
+  try {
+    const { data, error } = await mntSupabase.from('lab_attempts')
+      .select('completed_at, reviewed_at, redo_requested, superseded_at')
+      .eq('user_id', user.userId).eq('lab_key', ITS01_PRACTICE_KEY)
+      .not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false });
+    if (error) { console.error('Lab 1.2 completion read failed', error); return null; }
+    const row = Array.isArray(data) ? data.find((entry) => entry && !entry.superseded_at && entry.redo_requested !== true) : null;
+    return row ? { completedAt: row.completed_at, reviewedAt: row.reviewed_at || null, redoRequested: row.redo_requested === true, supersededAt: row.superseded_at || null } : false;
+  } catch (error) {
+    console.error('Lab 1.2 completion read threw', error);
+    return null;
+  }
+}
+
 // A Prove It message changed the attempt: show it if this page is open.
 function its01ProveChanged() {
   if (document.querySelector('.its01-shell')) render();
@@ -1006,7 +1098,7 @@ function its01ProveChanged() {
 
 function its01OnMessage(event) {
   itsProveReceiveMessage(event, { moduleKey: 'its-01', labKey: ITS01_PROVE_KEY, onChange: its01ProveChanged });
-  return its01ReceiveCoachCompletion(event);
+  return Promise.all([its01ReceivePracticeCompletion(event), its01ReceiveCoachCompletion(event)]);
 }
 
 registerModuleLab({
