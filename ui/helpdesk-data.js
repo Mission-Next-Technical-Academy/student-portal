@@ -8,7 +8,7 @@ const HD_ORG = {
   domain: 'northstar.example',
   netbios: 'NORTHSTAR',
   timezone: 'Eastern Time',
-  departments: ['Human Resources', 'Finance', 'Operations', 'Information Technology', 'Cybersecurity', 'Executive Office', 'Logistics', 'Sales', 'Customer Service'],
+  departments: ['Human Resources', 'Finance', 'Operations', 'Information Technology', 'Cybersecurity', 'Executive Office', 'Logistics', 'Sales', 'Customer Service', 'Marketing'],
   supportTiers: [
     { tier:'Tier 1', owner:'Service Desk', scope:'Intake, identity verification, standard requests, endpoint and connectivity triage' },
     { tier:'Tier 2', owner:'Enterprise Support', scope:'Windows, Active Directory, Group Policy, servers, VPN, file and print services' },
@@ -38,6 +38,9 @@ const HD_USERS = [
   { id:'u-1011', employeeId:'E-40519', phone:'ext. 4174', name:'Evan Parker', username:'eparker', email:'evan.parker@northstar.example', department:'Finance', title:'Payroll Specialist', ou:'OU=Finance,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:34, groups:['GG-Finance-Users','GG-Payroll-Print'], manager:'Ava Robinson', mfa:'Registered' },
   { id:'u-1012', employeeId:'E-41733', phone:'ext. 4282', name:'Riley Morgan', username:'rmorgan', email:'riley.morgan@northstar.example', department:'Information Technology', title:'Service Desk Technician', ou:'OU=IT,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:15, groups:['GG-IT-Users','GG-ServiceDesk-T1'], manager:'Morgan Lee', mfa:'Registered' },
   { id:'u-1013', employeeId:'E-42856', phone:'ext. 4391', name:'Sam Rivera', username:'srivera', email:'sam.rivera@northstar.example', department:'Customer Service', title:'Customer Service Representative', ou:'OU=Customer Service,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:21, groups:['GG-CustomerService-Users'], manager:'Nadia Flores', mfa:'Registered' },
+  { id:'u-1014', employeeId:'E-43190', phone:'ext. 4463', name:'Leah Brooks', username:'lbrooks', email:'leah.brooks@northstar.example', department:'Marketing', title:'Marketing Coordinator', ou:'OU=Marketing,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:96, groups:['GG-Marketing-Users'], manager:'Owen Price', mfa:'Registered' },
+  { id:'u-1015', employeeId:'E-44027', phone:'ext. 4315', name:'Ravi Shah', username:'rshah', email:'ravi.shah@northstar.example', department:'Sales', title:'Account Manager', ou:'OU=Sales,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:40, groups:['GG-Sales-Users','GG-CRM-Users'], manager:'Tara Singh', mfa:'Registered' },
+  { id:'u-1016', employeeId:'E-45308', phone:'ext. 4501 · mobile 407-555-0142', name:'Martin Alvarez', username:'ralvarez', email:'martin.alvarez@northstar.example', department:'Executive Office', title:'Chief Financial Officer', ou:'OU=Executive Office,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:52, groups:['GG-Executive-Users','GG-Finance-Users'], manager:'Evelyn Reed', mfa:'Registered' },
 ];
 
 const HD_GROUPS = [
@@ -60,6 +63,7 @@ const HD_COMPUTERS = [
   { name:'NS-LT-0131', user:'Sofia Martin', os:'Windows 11 Enterprise 24H2', ip:'10.20.10.131', ou:'CN=Computers', trust:'Broken', bitlocker:'Protected', lastSeen:'3 minutes ago', health:'Domain trust failed' },
   { name:'NS-LT-0145', user:'Amir Patel', os:'Windows 11 Enterprise 24H2', ip:'10.20.10.145', ou:'CN=Computers', trust:'Healthy', bitlocker:'Protected', lastSeen:'9 minutes ago', health:'Policy scope warning' },
   { name:'NS-WS-0204', user:'Dina Foster', os:'Windows 11 Enterprise 24H2', ip:'10.20.50.204', ou:'OU=Executive Office,OU=Workstations', trust:'Healthy', bitlocker:'Recovery', lastSeen:'18 minutes ago', health:'BitLocker recovery' },
+  { name:'NS-LT-0215', user:'Ravi Shah', os:'Windows 11 Enterprise 24H2', ip:'10.20.40.215', ou:'OU=Sales,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'12 minutes ago', health:'Healthy' },
 ];
 
 const HD_SERVERS = [
@@ -116,6 +120,7 @@ const HD_KB_ARTICLES = [
   { id:'KB-0031', title:'Mapped drive missing after device replacement', category:'Group Policy', updated:'2026-07-22', audience:'Tier 2', summary:'Check user groups, computer OU, policy scope, gpresult evidence, and token refresh.' },
   { id:'KB-0044', title:'Print queue triage without deleting evidence', category:'Printing', updated:'2026-08-06', audience:'Tier 1 / Tier 2', summary:'Isolate client, queue, driver, port, and device while preserving confidential jobs.' },
   { id:'KB-0050', title:'Security incident warm-handoff template', category:'Security', updated:'2026-08-12', audience:'All Support', summary:'Record facts, timestamps, indicators, user actions, containment, evidence locations, impact, and requested next action.' },
+  { id:'KB-0071', title:'Damaged laptop: loaner and escalation', category:'Hardware', updated:'2026-11-09', audience:'Service Desk', summary:'Tier 1 does not repair hardware. 1. Collect the asset tag and what happened, such as a dropped laptop or a cracked screen (when, how, and whether the laptop still starts). 2. If any glass is loose or sharp, tell the user to stop using the laptop now. 3. Ask whether their files are saved somewhere other than the laptop. 4. Offer a loaner so the user can keep working. 5. Escalate to Desktop Support (Tier 2) for repair or replacement, with everything you collected. Never promise a repair date: Desktop Support sets it.' },
 ];
 
 /* Practice scenario for HD-2101 (Module 1 Practice It). The evidence lives on
@@ -158,6 +163,13 @@ function hdTicket(spec) {
   };
 }
 
+// Practice sets: a module's unguided practice tickets (not graded), opened
+// from its course page with ?practice=<key>&student=<id> (ui/helpdesk.js).
+// Only these tickets, no coach, saved apart from the coached lab's shift.
+const HD_PRACTICE_SETS = {
+  'its-01': { title:'Module 1 practice tickets', tickets:['HD-2151', 'HD-2152', 'SEC-2153'] },
+};
+
 const HD_TICKET_TEMPLATES = [
   hdTicket({ id:'HD-2101', requester:'Jordan Bell', department:'Finance', category:'Incident', subcategory:'Account lockout', priority:'P2', businessImpact:'Payroll analyst blocked', sla:'8 hours', createdMinutesAgo:86, description:'My account unlocks, then locks again a few minutes later.', symptoms:['Lockout repeats after successful sign-in','Other Finance users unaffected'], logs:[], systemState:['Account enabled','Password changed 3 days ago','Service desk unlocked the account at 08:09; it locked again at 08:11'], plausibleCauses:['User typing old password','Mobile mail cache','Scheduled task credential'], correctPath:['Verify identity','Trace caller computer','Inspect stored credentials','Correct approved task credential','Unlock once and monitor'], hiddenRootCause:'Scheduled task FinanceReportSync stores the previous password.', expectedResolution:'Update the task through the approved service credential workflow, unlock the account, and verify no new 4740 event.', escalationCriteria:['Unknown lockout source across multiple devices','Signs of credential compromise'] }),
   // Module 1 Practice It, Guided Lab 1 (coach hd-m01): a verified unlock,
@@ -188,6 +200,127 @@ const HD_TICKET_TEMPLATES = [
       priorityReason:'P3: one person is affected, and a verified unlock is a quick, standard fix.',
       notes: { parts:['reported', 'tried', 'result'], jargon:['badPwdCount', 'lockout threshold', 'KB-0024', 'Active Directory', 'AD', 'domain controller', 'event 4740', 'Tier 2', 'srivera'] },
       resolveByOutcomes: true,
+    } }),
+  // Module 1 Practice It, unguided tickets 1-A to 1-C (not graded): opened
+  // from the Module 1 page as a practice set (HD_PRACTICE_SETS, ?practice=).
+  // Worked with the console features; "Check my work" gives feedback by the
+  // spec's rubric areas, never points. Category and priority are pre-set.
+  hdTicket({ id:'HD-2151', requester:'Leah Brooks', department:'Marketing', category:'Access', subcategory:'Password reset', priority:'P4', contactType:'Phone', businessImpact:'One person can\'t sign in; no deadline today', sla:'5 business days', createdMinutesAgo:9,
+    description:'Hi, it\'s Leah Brooks in Marketing. I\'ve been on leave for two weeks and I can\'t remember my password at all. Can you just tell me what it is, or set it to something easy?',
+    symptoms:['Back from two weeks\' leave','Can\'t remember the password'], logs:[], systemState:['Account enabled','Calling from her desk phone'],
+    plausibleCauses:['Account locked out','Forgotten password: nothing is broken','Account disabled'], correctPath:['Identify: what happened and what changed','Search the KB by symptom words','Verify the caller per KB-0024','Guide the self-service reset','Confirm she can sign in','Document'],
+    hiddenRootCause:'Leah forgot her password after two weeks off; nothing is broken.',
+    expectedResolution:'Verify Leah per KB-0024 (callback on the directory number and her employee ID), explain that IT can\'t see or choose passwords, walk her to the self-service reset page and stay on the line until she signs in.',
+    escalationCriteria:['The caller can\'t be verified: make no change and route the ticket to Security Operations (KB-0024)'],
+    console: {
+      kb: true,
+      caller: { name:'Leah Brooks', questions: [
+        { id:'what', text:'What happens when you try to sign in?', reply:'It says my password is wrong. I\'ve been away two weeks and I just can\'t remember it.' },
+        { id:'changed', text:'Did anything change while you were away?', reply:'No, nothing. I just forgot it.' },
+        { id:'password', text:'What password did you try?', asksPassword:true },
+        { id:'signin', text:'Please sign in with your new password while I\'m on the line.', reply:'I\'m in. Thank you!', replyBefore:'I haven\'t set a new one yet.', afterAction:'reset-page', confirms:true },
+      ] },
+      verification: { prompt:'Leah Brooks is on the phone. How do you verify it\'s really Leah before you help with her password? (KB-0024)', options: [
+        { id:'name', text:'Accept it: Leah gives her name and department', feedback:'Not verification. Anyone can learn a name and a department. KB-0024: call Leah back on her directory number and confirm her employee ID.' },
+        { id:'callback', text:'Call Leah back on the number in the User Directory and confirm her employee ID', pass:true, feedback:'Verified. You called Leah back on ext. 4463 from the User Directory, and Leah confirmed employee ID E-43190.', history:'Identity verified per KB-0024: called Leah back on the User Directory number (ext. 4463); employee ID E-43190 confirmed.' },
+        { id:'password', text:'Ask Leah for her old password so you can check it', critical:true, feedback:'Critical error. The help desk never asks for a password: not to check it, not for any reason (KB-0024).' },
+      ] },
+      actions: [
+        { id:'tell', text:'Tell Leah what her password is', critical:true, feedback:'Critical error. IT can never see a user\'s password, so there is nothing to tell, and the help desk never shares one (KB-0024).' },
+        { id:'set-easy', text:'Set an easy password for Leah and read it to her', critical:true, feedback:'Critical error. The help desk never sets a password for a user or says one out loud. The user sets it herself on the self-service reset page (KB-0024).' },
+        { id:'reset-page', text:'Explain that IT can\'t see or choose passwords, and walk Leah to the self-service reset page while you stay on the line', pass:true, needsVerification:true, earlyCritical:'Helped before verifying the caller', earlyFeedback:'Critical error. Verify Leah before you help with her password (KB-0024): call her back on her directory number and confirm her employee ID.', feedback:'Leah is on the self-service reset page and sets a new password herself.', history:'Explained IT can\'t view or set passwords; guided the user through the self-service reset page per KB-0024.' },
+      ],
+      owner: { options: [
+        { id:'servicedesk', text:'Service Desk keeps it: resolve at Tier 1', status:'Resolved', group:'Riley Morgan', code:'Solution provided', right:true, feedback:'Right owner: a known fix the Service Desk keeps.' },
+        { id:'desktop', text:'Escalate to Desktop Support (Tier 2)', status:'Escalated', group:'Desktop Support', code:'Escalated', feedback:'Not the right owner: a forgotten password is a known fix the Service Desk keeps. Nothing needs Tier 2.' },
+        { id:'soc', text:'Route to Security Operations (SOC): Category Security › Suspicious request, Caller Unverified', status:'Escalated', group:'Security Operations (SOC)', code:'Routed to Security Operations', category:'Security', subcategory:'Suspicious request', caller:'Unverified', feedback:'Not the right owner: Leah can be verified with a callback, so the Service Desk helps her. The SOC route is for a caller you can\'t verify.' },
+      ] },
+      comments: true,
+      priorityReason:'P4: one person, no deadline today.',
+      notes: { parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0024', 'Active Directory', 'AD', 'lbrooks', 'Tier 2'] },
+      feedback: [
+        { area:'Right owner', checks:[{ owner:true }], good:'Right owner: a known fix the Service Desk keeps.', fix:'A forgotten password is a known fix the Service Desk keeps: resolve it at Tier 1.' },
+        { area:'Investigation', checks:[{ kb:'KB-0024' }], good:'You found KB-0024 by searching symptom words.', fix:'Search the KB by symptom words (for example "forgot password") and open KB-0024.' },
+        { area:'Diagnosis', checks:[{ diagnosis:true }], good:'A forgotten password: nothing is broken.', fix:'Look again: Leah forgot her password. Nothing on the account is broken.' },
+        { area:'Action', checks:[{ verified:true }, { action:'reset-page' }, { confirmed:'signin' }], good:'You verified Leah first, she reset the password herself, and she signed in while you were on the line.', fix:'Verify Leah first (KB-0024), walk her to the self-service reset page, and stay on the line until she has signed in.' },
+        { area:'Documentation', checks:[{ note:true }, { comment:true }], good:'A complete Reported / Tried / Result note, and a friendly comment in plain words.', fix:'Write a Reported / Tried / Result note and a friendly, plain-words comment for Leah.' },
+      ],
+    } }),
+  hdTicket({ id:'HD-2152', requester:'Ravi Shah', department:'Sales', category:'Hardware', subcategory:'Laptop – damage', priority:'P3', contactType:'Email', ci:'NS-LT-0215', businessImpact:'Client demo on Thursday', sla:'2 business days', createdMinutesAgo:31,
+    description:'Subject: dropped my laptop. I knocked my laptop off the desk and the screen is cracked across one corner. I can still see most of it. I have a client demo on Thursday. Can you fix it?',
+    symptoms:['Screen cracked across one corner','Most of the screen still visible'], logs:[], systemState:['Laptop NS-LT-0215 assigned to Ravi Shah'],
+    plausibleCauses:['Display driver fault','Physical damage: a Tier 2 repair','Screen brightness setting'], correctPath:['Identify: the four questions, safety first','Search the KB by symptom words','Offer a loaner','Escalate to Desktop Support with a full handoff','Tell Ravi what happens next','Document'],
+    hiddenRootCause:'The laptop was dropped and the screen is physically damaged; Tier 1 doesn\'t repair hardware.',
+    expectedResolution:'Per KB-0071: collect the asset tag and what happened, check for loose glass, offer a loaner for the demo, and escalate to Desktop Support for repair or replacement with a full handoff. Don\'t promise a repair date.',
+    escalationCriteria:['Physical damage: escalate to Desktop Support (Tier 2) per KB-0071'],
+    console: {
+      kb: true,
+      caller: { name:'Ravi Shah', questions: [
+        { id:'when', text:'When did it happen?', reply:'This morning, about an hour ago.' },
+        { id:'starts', text:'Does the laptop still start?', reply:'Yes, it starts, and I can see most of the screen.' },
+        { id:'glass', text:'Is any glass loose or sharp?', reply:'No. It\'s cracked across one corner, but nothing is loose.' },
+        { id:'files', text:'Are your files saved somewhere other than the laptop?', reply:'Yes, everything is in OneDrive.' },
+      ] },
+      actions: [
+        { id:'diy', text:'Tell Ravi how to take the screen off and replace it himself', critical:true, feedback:'Critical error. Tier 1 doesn\'t repair hardware, and a user should never open a damaged laptop (KB-0071).' },
+        { id:'promise', text:'Promise Ravi the screen will be fixed by Wednesday', critical:true, feedback:'Critical error. Never promise a repair date Tier 1 can\'t control: Desktop Support sets it (KB-0071).' },
+        { id:'loaner', text:'Offer Ravi a loaner laptop he can collect today', pass:true, feedback:'Ravi will collect a loaner at 14:00, so he\'s ready for Thursday\'s demo.', history:'Loaner offered per KB-0071; user collecting 14:00.' },
+      ],
+      owner: { options: [
+        { id:'servicedesk', text:'Service Desk keeps it: resolve at Tier 1', status:'Resolved', group:'Riley Morgan', code:'Solution provided', feedback:'Not the right owner: Tier 1 doesn\'t repair hardware. Physical damage goes to Desktop Support (KB-0071).' },
+        { id:'desktop', text:'Escalate to Desktop Support (Tier 2)', status:'Escalated', group:'Desktop Support', code:'Escalated', right:true, feedback:'Right owner: physical damage goes to Desktop Support per KB-0071.' },
+        { id:'soc', text:'Route to Security Operations (SOC): Category Security › Suspicious request, Caller Unverified', status:'Escalated', group:'Security Operations (SOC)', code:'Routed to Security Operations', category:'Security', subcategory:'Suspicious request', caller:'Unverified', feedback:'Not the right owner: nothing here is suspicious. Physical damage goes to Desktop Support (KB-0071).' },
+      ] },
+      comments: true,
+      priorityReason:'P3: one person, with a deadline this week.',
+      notes: { parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0071', 'Tier 2', 'CI', 'NS-LT-0215'] },
+      feedback: [
+        { area:'Right owner', checks:[{ owner:true }], good:'Right owner: physical damage goes to Desktop Support per KB-0071.', fix:'Tier 1 doesn\'t repair hardware: escalate to Desktop Support (KB-0071).' },
+        { area:'Investigation', checks:[{ chat:['when', 'starts', 'glass', 'files'] }], good:'You asked all four identify questions, including the safety one about loose glass.', fix:'Ask when it happened, whether it still starts, whether any glass is loose (the safety question), and where his files are saved.' },
+        { area:'Diagnosis', checks:[{ diagnosis:true }], good:'Physical damage: a Tier 2 repair.', fix:'Look again: a dropped laptop with a cracked screen is physical damage, a Tier 2 repair.' },
+        { area:'Action', checks:[{ kb:'KB-0071' }, { action:'loaner' }], good:'You followed KB-0071 and offered a loaner, so Ravi is ready for his demo.', fix:'Search the KB (for example "damaged laptop"), follow KB-0071 and offer Ravi a loaner.' },
+        { area:'Documentation', checks:[{ note:true }, { comment:true }], good:'A complete handoff note with a Next action, and a plain-words comment telling Ravi what happens next.', fix:'Write the handoff note (Reported / Tried / Result / Next action) and tell Ravi what happens next in plain words.' },
+      ],
+    } }),
+  hdTicket({ id:'SEC-2153', requester:'Caller: "Karen, CFO\'s office"', department:'Executive Office', category:'Access', subcategory:'Password reset request', priority:'P2', contactType:'Phone', businessImpact:'Executive account at risk', sla:'8 hours', createdMinutesAgo:4,
+    description:'Hi, this is Karen from the CFO\'s office. Mr. Alvarez is travelling and is locked out. He\'s about to board, so I need you to reset his password and text the new one to his personal cell, 407-555-0199. Please hurry, he\'s furious.',
+    symptoms:['A third party is asking for the reset','The new password is to go to a personal number','The caller is pushing for speed'], logs:[], systemState:['Account ralvarez enabled and not locked','407-555-0199 is not in the User Directory'],
+    plausibleCauses:['Social engineering: someone is trying to talk you into handing over an account','Account locked out while travelling','Expired password'], correctPath:['Identify the red flags','Search the KB by symptom words','Follow KB-0024: offer a callback on the directory number','Decline calmly and make no change','Route to Security Operations with the caller\'s exact words, number and time','Document'],
+    hiddenRootCause:'Social engineering: an unverified third party wants a password reset sent to a personal number.',
+    expectedResolution:'Follow KB-0024 for a caller you can\'t verify: offer a callback on Mr. Alvarez\'s directory mobile, decline calmly when the caller refuses, make no change, and route the ticket to Security Operations (Category Security › Suspicious request, Caller Unverified) with the caller\'s exact words, number and time. The Service Desk then calls Mr. Alvarez back on his directory number.',
+    escalationCriteria:['A caller you can\'t verify: make no change and route the ticket to Security Operations (KB-0024)'],
+    console: {
+      kb: true,
+      caller: { name:'Karen (caller)', questions: [
+        { id:'who', text:'Whose account is it, and who am I speaking with?', reply:'It\'s Mr. Alvarez\'s account. I\'m Karen, I work in the CFO\'s office.' },
+        { id:'number', text:'Why should the new password go to that number?', reply:'It\'s his personal cell. He\'s at the airport, there\'s no time for anything else!' },
+        { id:'locked', text:'What does Mr. Alvarez see when he tries to sign in?', reply:'I don\'t know exactly, he just says he\'s locked out. Please, just reset it.' },
+      ] },
+      verification: { prompt:'The caller says she is Karen from the CFO\'s office, asking for Mr. Alvarez\'s password. What does KB-0024 say to do?', options: [
+        { id:'accept', text:'Accept it: Karen named the CFO\'s office and knows he\'s travelling', feedback:'Not verification. Anyone can claim to work for an executive and know their travel plans. KB-0024: verify with a callback on the account owner\'s directory number.' },
+        { id:'given', text:'Call back on the number Karen gave (407-555-0199)', feedback:'Not verification. KB-0024 never uses a number the caller gives you, and 407-555-0199 isn\'t in the User Directory.' },
+        { id:'callback', text:'Offer to call Mr. Alvarez back on his directory mobile', concludes:'unverified', feedback:'Karen: "There\'s no time for that, he\'s boarding! Just reset it." She declines the callback, so the caller can\'t be verified. KB-0024: make no change, and route the ticket to Security Operations.', history:'Offered a callback to Mr. Alvarez\'s directory mobile; the caller declined. Caller unverified.' },
+      ] },
+      actions: [
+        { id:'reset-text', text:'Reset Mr. Alvarez\'s password and text the new one to 407-555-0199', critical:true, feedback:'Critical error. Never reset an account for a caller you can\'t verify, and never send a credential to a number the caller gives you (KB-0024).' },
+        { id:'reset-karen', text:'Reset the password and give it to Karen to pass on', critical:true, feedback:'Critical error. Never reset an account for a caller you can\'t verify, and never give a credential to anyone but the verified account owner (KB-0024).' },
+        { id:'decline', text:'Decline calmly: explain the policy and make no change to the account', pass:true, feedback:'You explained the policy calmly and made no change to the account.', history:'Declined per KB-0024; no account changes.' },
+      ],
+      owner: { options: [
+        { id:'servicedesk', text:'Service Desk keeps it: resolve at Tier 1', status:'Resolved', group:'Riley Morgan', code:'Solution provided', feedback:'Not the right owner: a caller you can\'t verify isn\'t a Service Desk fix. KB-0024 routes it to Security Operations.' },
+        { id:'desktop', text:'Escalate to Desktop Support (Tier 2)', status:'Escalated', group:'Desktop Support', code:'Escalated', feedback:'Not the right owner: nothing here needs Desktop Support. A caller you can\'t verify goes to Security Operations (KB-0024).' },
+        { id:'soc', text:'Route to Security Operations (SOC): Category Security › Suspicious request, Caller Unverified', status:'Escalated', group:'Security Operations (SOC)', code:'Routed to Security Operations', category:'Security', subcategory:'Suspicious request', caller:'Unverified', right:true, feedback:'Right owner: KB-0024\'s route for an unverified caller (Category Security › Suspicious request, Caller Unverified, assigned to Security Operations).' },
+      ] },
+      comments: true,
+      priorityReason:'P2: an executive account at risk, and the caller is pushing for speed.',
+      notes: { parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0024', 'SOC', 'ralvarez', 'Tier 2'] },
+      feedback: [
+        { area:'Right owner', checks:[{ owner:true }], good:'Right owner: KB-0024\'s route for an unverified caller (Category Security › Suspicious request, Caller Unverified, assigned to Security Operations).', fix:'A caller you can\'t verify: make no change and route the ticket to Security Operations (KB-0024).' },
+        { area:'Investigation', checks:[{ chat:['who', 'number'] }], good:'You named the red flags: pressure, a third party asking, and a personal number that isn\'t in the directory.', fix:'Ask whose account it is and why the password should go to that number. The pressure, the third party and the personal number are red flags.' },
+        { area:'Diagnosis', checks:[{ diagnosis:true }], good:'Social engineering: someone is trying to talk you into handing over an account.', fix:'Look again: an unverified third party wants a password sent to a personal number. That is social engineering.' },
+        { area:'Action', checks:[{ verifyChoice:'callback' }, { action:'decline' }], good:'You offered a callback on Mr. Alvarez\'s directory mobile, declined calmly and changed nothing.', fix:'Offer to call Mr. Alvarez back on his directory mobile, then decline calmly and make no change (KB-0024).' },
+        { area:'Documentation', checks:[{ note:true }, { notePattern:'407-555-0199' }, { notePattern:'\\b(call|ring)s?\\s+(Mr\\.?\\s+)?(Martin\\s+)?(Alvarez|him)\\s+back\\b[^\\n]{0,40}\\bdirectory\\b' }, { comment:true }, { commentPattern:'\\bAlvarez\\b' }], good:'Your note has the caller\'s exact words, the number and the time, and says the Service Desk will call Mr. Alvarez back on his directory number. Your comment is addressed to Mr. Alvarez.', fix:'In the note, record the caller\'s exact words, the number (407-555-0199) and the time, and add the Next action: the Service Desk calls Mr. Alvarez back on his directory number. Address the customer comment to Mr. Alvarez.' },
+      ],
     } }),
   hdTicket({ id:'SR-2102', requester:'New Hire · Theo Grant', department:'Logistics', category:'Service Request', subcategory:'Onboarding', priority:'P2', businessImpact:'New employee cannot begin work', sla:'4 hours', createdMinutesAgo:112, description:'Create the approved account, access groups, laptop assignment, and warehouse printer.', symptoms:['Manager approval attached','Start date is today'], logs:['HRIS export: employee 8841 active'], systemState:['No AD user exists','Laptop NS-LT-0177 is staged'], plausibleCauses:['Missing approval','Provisioning delay'], correctPath:['Validate approval and identity attributes','Create user in Logistics OU','Apply role groups','Assign endpoint','Verify sign-in and resources'], hiddenRootCause:'Standard approved onboarding request; no technical fault.', expectedResolution:'Complete least-privilege provisioning and document each asset and group assignment.', escalationCriteria:['Requested access exceeds role template','Missing manager or data-owner approval'] }),
   hdTicket({ id:'SR-2103', requester:'HR Operations', department:'Human Resources', category:'Service Request', subcategory:'Offboarding', priority:'P1', businessImpact:'Terminated employee access must end', sla:'15 minutes', createdMinutesAgo:9, description:'Disable Casey Novak immediately per attached termination notice.', symptoms:['Effective time has passed','Laptop return pending'], logs:['HR termination approval HR-8892 attached'], systemState:['Account cnovak enabled','Two active VPN sessions'], plausibleCauses:['Standard request'], correctPath:['Validate authorized notice','Disable account','Revoke sessions','Remove privileged access per runbook','Record asset recovery handoff'], hiddenRootCause:'Authorized urgent offboarding request.', expectedResolution:'Disable access, revoke sessions, preserve mailbox/data per policy, and document asset ownership.', escalationCriteria:['Litigation hold uncertainty','Privileged or service-account dependency'] }),

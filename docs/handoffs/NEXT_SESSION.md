@@ -1,3 +1,42 @@
+**2026-11-10 (Megan; Help Desk Module 1 practice tickets 1-A to 1-C, PR to come; shared `ui/index.html`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `ui/helpdesk-coaches.js`, `portal/it-support-module-01.js` and tests — please review the shared ones):**
+Module 1 gains three unguided practice tickets, not graded: HD-2151 (Leah
+Brooks, forgotten password: verify, then self-service reset), HD-2152 (Ravi
+Shah, cracked laptop screen: KB-0071, loaner, escalate to Desktop Support)
+and SEC-2153 (a caller who can't be verified wants an executive's password:
+offer a callback, decline, route to Security Operations). New people: Leah
+Brooks (Marketing, a new department), Ravi Shah, and Martin Alvarez (CFO,
+`ralvarez`, with a directory mobile); new laptop NS-LT-0215; new KB-0071. The
+Module 1 page links them under Lab 1.2 as "Practice tickets (not graded)".
+Module 1's minutes, lab keys, Guided Lab 1 (HD-2150) and the Prove It
+(HD-2125) are unchanged; no new lab in `portal/data.js`.
+- **Shared:** `ui/index.html` and `portal/index.html` (version bumps for the
+  changed Help Desk files only), `bin/ci-check.sh` (one line for the new
+  test).
+- **Not touched:** `ui/coach.js`, `portal/app.js`, `portal/data.js`,
+  `supabase/`, shared CSS. SOC and AI/ML are unchanged.
+- **For your code or agent:**
+  - New simulator launch mode `?practice=<key>&student=<id>`
+    (`HD_PRACTICE_SETS` in `ui/helpdesk-data.js`): only the set's tickets, no
+    coach, and its own saved state
+    (`defender-lab.helpdesk.practice.v1.<key>.<student>`), so it never
+    replaces the coached lab's shift. It sends nothing to the portal: no
+    attempt, no message.
+  - `ui/coach.js`'s `stripLaunchParams()` removes `student=` from the address
+    after load (it skips only `prove=`). So a reload of a practice tab finds
+    the student id in that tab's sessionStorage instead. If you ever make the
+    coach skip `practice=` too, that fallback simply stops being needed.
+  - Opening the practice set or pressing Reset shift in it never touches the
+    coached lab's saved shift or its `mnt.coach.resume` record (the HD-2101
+    clean-up from PR #102 now skips practice and Prove shifts).
+  - New optional console keys: `actions` (right / wrong / critical, with an
+    optional "verify first"), `owner` (who owns the ticket; it closes only once
+    the ticket's Action and Documentation work is done), `feedback` (Practice
+    "Check my work" by rubric area, never points), verification
+    `concludes:'unverified'`, and chat `afterAction` / `replyBefore`.
+  - The Prove It shift shares the directory, devices and KB with Practice, so
+    HD-2125's lists now also show the three new people, NS-LT-0215 and KB-0071
+    (context only; its ticket, scoring and rubric are unchanged).
+
 **2026-11-09 (Megan; PR #102 "Help Desk Module 1: Guided Lab 1 becomes HD-2150, a verified unlock; KB-0024 rewritten"; shared `ui/index.html`, `portal/index.html`, `portal/data.js` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `ui/helpdesk-coaches.js`, `portal/it-support-shared.js`, `portal/it-support-module-01.js`, `portal/admin-sheets/hdesk.js` and tests — please review the shared ones):**
 Help Desk Lab 1.2 (Practice It, coach `hd-m01`, lab key
 `lab-its-01-ticket-triage`) is now INC0010150 (ticket HD-2150): Sam Rivera
