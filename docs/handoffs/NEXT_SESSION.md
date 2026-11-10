@@ -1,4 +1,4 @@
-**2026-11-10 (Megan; branch `shared/m01-practice-tickets-lab-1-1`, PR not yet opened: "Help Desk Module 1: the practice tickets become Lab 1.2; the old Lab 1.1 is retired"; shared `portal/data.js`, `portal/app.js`, `portal/admin-sheets/hdesk.js`, `portal/index.html`, `ui/index.html`, `bin/ci-check.sh` and `bin/its-curriculum-check.js`, plus Help Desk `portal/it-support-module-01.js`, `portal/it-support-shared.js`, `ui/helpdesk.js` and tests — please review the shared ones):**
+**2026-11-10 (Megan; PR #105 "Help Desk Module 1: the practice tickets become Lab 1.2 with a completion record; the old Lab 1.1 is retired"; shared `portal/data.js`, `portal/app.js`, `portal/admin-sheets/hdesk.js`, `portal/index.html`, `ui/index.html`, `bin/ci-check.sh` and `bin/its-curriculum-check.js`, plus Help Desk `portal/it-support-module-01.js`, `portal/it-support-shared.js`, `ui/helpdesk.js` and tests — please review the shared ones):**
 Module 1's practice tickets (HD-2151, HD-2152, SEC-2153) are now a Practice It
 lab with a new key, `lab-its-01-practice-tickets` (15 min under ITHD-101.1,
 `phase: 'practice'`, no score, never gates completion). It takes the 15
