@@ -27,8 +27,10 @@
   // HD-2101 and no HD-2150, and keeps the sheet it was worked against.
   const EARLIER_TICKETS_BY_LAB = { 'lab-its-01-ticket-triage': ['HD-2101'] };
   const TITLES = {
+    // Retired 2026-11-10; kept so its past attempts still open.
     'lab-its-01-lms-validation': 'Module 01 · LMS & Environment Validation',
     'lab-its-01-ticket-triage': 'Module 01 · Guided Ticket Triage',
+    'lab-its-01-practice-tickets': 'Module 01 · Lab 1.2 · Practice tickets (not graded)',
     'lab-its-02-vm-build': 'Module 02 · Build Your Windows Client VM',
     'lab-its-02-vm-snapshot-server': 'Module 02 · Snapshot, Recover & Connect',
     'lab-its-02-device-manager': 'Module 02 · The Misbehaving Peripheral',
@@ -318,6 +320,18 @@
     return [section];
   }
 
+  // Lab 1.2, the practice tickets: a completion record only (no score, no
+  // answers), saved when the simulator reports all three tickets closed.
+  // Practice It is never reviewed: nothing here is a decision.
+  function practiceCompletionSections(result, ctx) {
+    const tickets = Array.isArray(result.tickets) ? result.tickets.filter((id) => typeof id === 'string') : [];
+    const completedAt = ctx && ctx.row && ctx.row.completed_at;
+    return [{
+      id: 'practice-completion', title: 'Practice completion', required: false, instructorPrompt: 'Practice only, not graded. The student closed every practice ticket; no score and no answers are saved. Nothing to grade here: use the Module 1 Prove It for review.',
+      answer: [['Completed', completedAt ? new Date(completedAt).toLocaleString() : null], ['Tickets closed', tickets.length ? tickets.join(', ') : null], ['Graded', 'No: Practice It, no score and no answers saved']],
+    }];
+  }
+
   function capstoneSections(result) {
     const tickets = typeof ITS12_TICKETS !== 'undefined' ? ITS12_TICKETS : [];
     const responses = result.ticketResponses && typeof result.ticketResponses === 'object' ? result.ticketResponses : {};
@@ -370,6 +384,12 @@
 
   ['lab-its-01-lms-validation', 'lab-its-02-vm-build', 'lab-its-02-vm-snapshot-server'].forEach((key) => {
     AdminSubmissionSheet.register(key, { title: TITLES[key], sections: evidenceSections });
+  });
+
+  AdminSubmissionSheet.register('lab-its-01-practice-tickets', {
+    title: TITLES['lab-its-01-practice-tickets'],
+    caseId: (result) => (Array.isArray(result.tickets) ? result.tickets.filter((id) => typeof id === 'string').join(', ') : '') || null,
+    sections: practiceCompletionSections,
   });
 
   AdminSubmissionSheet.register('lab-its-12-capstone', {

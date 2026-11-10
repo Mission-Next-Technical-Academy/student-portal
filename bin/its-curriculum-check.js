@@ -82,7 +82,10 @@ function loadHelpDesk() {
   const { PROGRAMS, LABS } = vm.runInContext(`${source}\n;({ PROGRAMS, LABS });`, context, { filename: DATA_FILE });
   const program = PROGRAMS.find((entry) => entry.slug === 'it-support');
   const moduleKeys = program ? Object.keys(EXPECTED_LESSON_MINUTES) : [];
-  return { program, labs: LABS.filter((lab) => moduleKeys.includes(lab.module)) };
+  const programLabs = LABS.filter((lab) => moduleKeys.includes(lab.module));
+  // A retired lab (kept only so past attempts keep their title) counts for
+  // nothing, so it must carry no minutes and no allocation.
+  return { program, labs: programLabs.filter((lab) => lab.retired !== true), retired: programLabs.filter((lab) => lab.retired === true) };
 }
 
 // Lessons on a module page are `title: '...', minutes: N` entries, in order.
@@ -133,8 +136,12 @@ try {
   process.exit(1);
 }
 
-const { program, labs } = helpDesk;
+const { program, labs, retired } = helpDesk;
 assert(Boolean(program), 'missing the it-support program in portal/data.js');
+retired.forEach((lab) => {
+  assert(!lab.instructionalMinutes, `retired lab ${lab.key} still has ${lab.instructionalMinutes} minutes; move them to a live lab`);
+  assert(!(lab.parentAllocations || []).length, `retired lab ${lab.key} still allocates to ${(lab.parentAllocations || []).map((entry) => entry.code).join(', ')}`);
+});
 
 if (program) {
   const compliance = program.compliance || {};

@@ -112,11 +112,15 @@ assert.equal(HD.truthfulModuleStates, true, 'Help Desk opts in');
 });
 assert.equal(run('STATE_STYLES').complete.label, 'Complete', 'default labels unchanged');
 
-const LAB_1 = 'lab-its-01-lms-validation';
+// Module 1's Practice It labs: the practice tickets (students see Lab 1.2)
+// and the guided lab (students see Lab 1.1). The old Lab 1.1, LMS &
+// Environment Validation, is retired: kept in LABS for its past attempts.
+const LAB_1 = 'lab-its-01-practice-tickets';
 const LAB_2 = 'lab-its-01-ticket-triage';
+const RETIRED = 'lab-its-01-lms-validation';
 const PROVE = 'lab-its-01-prove-it';
-const TITLE_1 = 'LMS & Environment Validation';
-const TITLE_2 = 'A Day in the Life of an L1 Technician';
+const TITLE_1 = 'Lab 1.2 · Practice tickets (not graded)';
+const TITLE_2 = 'Lab 1.1 · Guided Lab: A Day in the Life of an L1 Technician';
 const PROVE_TITLE = 'Prove It: Independent Ticket';
 // course_module_labs rows with gates_completion as loaded by fetchUserDetails
 // (same rows as the migrations): every catalogued lab except Practice It ones.
@@ -269,12 +273,13 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
   assert.deepEqual([...run('moduleRequiredLabKeys')(HD, 'its-02', { requiredLabsByModuleKey: null })], [...REGISTRY['its-02']]);
 }
 
-// Module 1 gates on its Prove It only. Labs 1.1 and 1.2 are Practice It
-// (gates_completion false in course_module_labs, phase 'practice' in LABS):
-// they still submit and count as activity, but never pass the module.
+// Module 1 gates on its Prove It only. Its two Practice It labs (phase
+// 'practice' in LABS; the practice tickets have no course_module_labs row, the
+// guided lab's has gates_completion false) still save and count as activity,
+// but never pass the module.
 {
   assert.deepEqual([...REGISTRY['its-01']], [PROVE]);
-  assert.deepEqual([...run('LABS').filter((l) => l.module === 'its-01' && l.phase === 'practice').map((l) => l.key)], [LAB_1, LAB_2]);
+  assert.deepEqual([...run('modulePracticeLabKeys')(HD, 'its-01')], [LAB_1, LAB_2]);
   // Both Practice It labs in, no Prove It: Practice Submitted.
   assert.deepEqual([card(hdUser({ latestLabAttemptByKey: { [LAB_1]: finished(), [LAB_2]: finished() } })).state,
     card(hdUser({ latestLabAttemptByKey: { [LAB_1]: finished(), [LAB_2]: finished() } })).label], ['practice_submitted', 'Practice Submitted']);
@@ -293,6 +298,31 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
   const passed = hdUser({ remoteVerifiedModuleProgress: { 'its-01': true }, latestLabAttemptByKey: { [PROVE]: approved() } });
   assert.equal(card(passed).state, 'complete');
   assert.equal(card(passed, 'its-02').state, 'not_started');
+}
+
+// The retired old Lab 1.1: out of the program's lab lists, but its past
+// attempts still count as Module 1 activity and still look up by key.
+{
+  const labs = run('programLabs')(HD).map((l) => l.key);
+  assert.ok(!labs.includes(RETIRED), 'a retired lab is not one of the program\'s labs');
+  assert.ok(labs.includes(LAB_1), 'the practice tickets are');
+  const record = run('LABS').find((l) => l.key === RETIRED);
+  assert.deepEqual([record.title, record.module, record.retired, record.instructionalMinutes, record.parentAllocations.length], ['LMS & Environment Validation', 'its-01', true, 0, 0]);
+  // Only an old Lab 1.1 attempt: still In Progress, not Not Started.
+  assert.equal(card(hdUser({ latestLabAttemptByKey: { [RETIRED]: finished() } })).state, 'in_progress');
+  // An old Lab 1.1 waiting (or returned) changes nothing: the two live
+  // Practice It labs alone give Practice Submitted.
+  assert.equal(card(hdUser({ latestLabAttemptByKey: { [RETIRED]: finished(), [LAB_1]: finished(), [LAB_2]: finished() } })).state, 'practice_submitted');
+  assert.equal(card(hdUser({ latestLabAttemptByKey: { [RETIRED]: finished({ reviewedAt: 'x', redoRequested: true }), [LAB_1]: finished(), [LAB_2]: finished() } })).state, 'practice_submitted');
+  // The old lab never stands in for the new one.
+  assert.equal(card(hdUser({ latestLabAttemptByKey: { [RETIRED]: finished(), [LAB_2]: finished() } })).state, 'in_progress');
+  // No other program has a retired lab: their lab lists are the whole catalogue.
+  ['soc-analyst', 'ai-ml', 'electrical'].forEach((slug) => {
+    const prog = program(slug);
+    const keys = new Set(Object.keys(prog.modules || {}));
+    assert.deepEqual([...run('programLabs')(prog).map((l) => l.key)], [...run('LABS').filter((l) => keys.has(l.module)).map((l) => l.key)], `${slug} lab list unchanged`);
+  });
+  assert.deepEqual([...run('LABS').filter((l) => l.retired === true).map((l) => l.key)], [RETIRED], 'only the old Help Desk Lab 1.1 is retired');
 }
 
 // The Passed text never claims module content was checked, even for soc-01

@@ -210,20 +210,42 @@ async function testEvidenceSubmitFailure() {
 
 /* ------------------------------------------------------------------ Module 1 */
 
+// The keys are older than the numbers students see: the old Lab 1.1 (LMS &
+// Environment Validation) is retired, the guided lab now shows as Lab 1.1 and
+// the practice tickets as Lab 1.2.
 const LAB11 = 'lab-its-01-lms-validation';
 const LAB12 = 'lab-its-01-ticket-triage';
+const PRACTICE = 'lab-its-01-practice-tickets';
 
-// Lab 1.1 is off the page: its old attempts stay in the database but show
-// nowhere on Module 1 (no section, no status line, no rail row, no counter).
+// The retired Lab 1.1 is off the page: its old attempts stay in the database
+// but show nowhere on Module 1 (no section, no status line, no rail row, no
+// counter). Practice It labs read "Practice complete (not graded)", whether
+// waiting or approved before Practice It stopped being reviewed.
 async function testModuleOneClearedStorage() {
   const user = hdUser({ [LAB11]: waiting(), [LAB12]: approved() });
   fresh(user);
   const html = moduleLab(1).view(user, HD);
-  assert.equal(statusLine(html, LAB12), 'Lab 1.2 passed');
-  assert.equal(counter(html, 'its01-status'), '2 labs · 1 passed');
+  assert.equal(statusLine(html, LAB12), `Lab 1.1: Practice complete (not graded) · ${DAY}`);
+  assert.equal(counter(html, 'its01-status'), '3 labs · 1 practice complete · 0 passed');
   assert.match(section(html, 'its01-lab-1-2'), /Review the walkthrough/);
   assert.equal(railRow(html, 'its01-lab-1-2').ticked, true);
-  assert.doesNotMatch(html, /its01-lab-1-1|data-its-lab-status="lab-its-01-lms-validation"|Lab 1\.1/);
+  assert.doesNotMatch(html, /its01-lab-1-1|data-its-lab-status="lab-its-01-lms-validation"|LMS &amp; Environment Validation/);
+
+  // A waiting guided lab and a saved practice-tickets record: both practice
+  // complete, never "waiting for instructor review" or "In review".
+  const both = hdUser({ [LAB12]: waiting(), [PRACTICE]: waiting() });
+  fresh(both);
+  const page = moduleLab(1).view(both, HD);
+  assert.equal(statusLine(page, LAB12), `Lab 1.1: Practice complete (not graded) · ${DAY}`);
+  assert.equal(statusLine(page, PRACTICE), `Lab 1.2: Practice complete (not graded) · ${DAY}`);
+  assert.equal(counter(page, 'its01-status'), '3 labs · 2 practice complete · 0 passed');
+  assert.equal(railRow(page, 'its01-practice-tickets').ticked, true);
+  assert.doesNotMatch(page, /waiting for instructor review|In review/);
+
+  // A Return from before Practice It stopped being reviewed still shows.
+  const back = hdUser({ [LAB12]: returned() });
+  fresh(back);
+  assert.equal(statusLine(moduleLab(1).view(back, HD), LAB12), 'Lab 1.1 returned for revision — see your instructor’s notes below.');
 }
 
 async function testModuleOneHasNoEvidenceLab() {
@@ -235,7 +257,7 @@ async function testModuleOneHasNoEvidenceLab() {
     // The one allowed mention: technology setup says there is no virtual machine to build.
     const words = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').replace('Every lab runs in the browser-based IT Service Desk simulator. There is nothing to install and no virtual machine to build.', '');
     assert.doesNotMatch(words, /sandbox|virtual machine|\bVM\b|lab login|lab-environment login|two logins/i, 'no other sandbox, VM or second login');
-    assert.equal(counter(html, 'its01-status'), '2 labs · 0 passed', 'the counter has Lab 1.2 and the Prove It only');
+    assert.equal(counter(html, 'its01-status'), '3 labs · 0 practice complete · 0 passed', 'the counter has the guided lab, the practice tickets and the Prove It');
   }
 }
 
@@ -491,7 +513,7 @@ const returnLink = (coachId) => run(`location.search = ${JSON.stringify(coachId 
 
 async function testReturnLinkRecordsNothing() {
   const cases = [
-    [1, 'hd-m01', 'its01-lab-1-2', 'lab-its-01-ticket-triage', 'its01-lab-1-2', 'Start Lab 1.2 walkthrough'],
+    [1, 'hd-m01', 'its01-lab-1-2', 'lab-its-01-ticket-triage', 'its01-lab-1-2', 'Start Lab 1.1 walkthrough'],
     [2, 'hd-m02', 'its02-lab-2-3', LAB23, 'its02-lab-2-3', 'Start Labs 2.3 &amp; 2.4 walkthrough'],
     [3, 'hd-m03', null, 'lab-its-03-blank-desktop', 'itss-lab-03', 'Start guided walkthrough'],
     [7, 'hd-m07', null, run('LABS').find((l) => l.module === 'its-07').key, 'itss-lab-07', 'Start guided walkthrough'],

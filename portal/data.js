@@ -2245,11 +2245,24 @@ const LABS = [
   /* IT Help Desk lab catalogue. Only Modules 1, 2, and 12 have a built,
    * scored lab — see the compliance.sourceNotes on the it-support program
    * entry above for why Modules 3–11 don't have LABS rows yet. */
-  itsLab({ key: 'lab-its-01-lms-validation', module: 'its-01', title: 'LMS & Environment Validation', difficulty: 'Foundational', minutes: 15, phase: 'practice',
-    parentAllocations: [allocation('ITHD-101.1', 15)], objective: 'Confirm LMS and lab-environment access, submit a test file through the evidence workflow, and acknowledge the Acceptable Use Policy.',
+  // Retired 2026-11-10: the Module 1 page no longer offers it. The record
+  // stays so past attempts keep their title and module (Lab Attempts, the
+  // instructor sheet, notices). Retired labs leave the program's lab lists
+  // (programLabs, portal/app.js) and carry no minutes; its 15 minutes moved
+  // to the practice tickets below.
+  itsLab({ key: 'lab-its-01-lms-validation', module: 'its-01', title: 'LMS & Environment Validation', difficulty: 'Foundational', minutes: 0, phase: 'practice', retired: true,
+    parentAllocations: [], objective: 'Confirm LMS and lab-environment access, submit a test file through the evidence workflow, and acknowledge the Acceptable Use Policy.',
     description: 'Log into both the LMS and the separate lab-sandbox environment, upload a test file as evidence, and formally acknowledge the Acceptable Use Policy.',
     skills: ['LMS Navigation', 'Credential Discipline', 'Policy Acknowledgment'], portalEntry: '#/program/it-support/module/1' }),
-  itsLab({ key: 'lab-its-01-ticket-triage', module: 'its-01', title: 'A Day in the Life of an L1 Technician', difficulty: 'Foundational', minutes: 25, phase: 'practice',
+  // Module 1's unguided practice tickets (HD-2151, HD-2152, SEC-2153): not
+  // graded, no score. The simulator reports when all three are closed and the
+  // course page saves a completion record (it-support-module-01.js). No
+  // course_module_labs row: it never gates completion.
+  itsLab({ key: 'lab-its-01-practice-tickets', module: 'its-01', title: 'Lab 1.2 · Practice tickets (not graded)', difficulty: 'Foundational', minutes: 15, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.1', 15)], objective: 'Work three tickets on your own: a forgotten password, a cracked laptop screen and a caller who can\'t be verified. Verify callers with KB-0024, choose who owns each ticket and document it.',
+    description: 'Three unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Closing all three saves a completion record to your account.',
+    skills: ['Identity Verification', 'Resolve/Escalate Judgment', 'Documentation'], portalEntry: '#/program/it-support/module/1' }),
+  itsLab({ key: 'lab-its-01-ticket-triage', module: 'its-01', title: 'Lab 1.1 · Guided Lab: A Day in the Life of an L1 Technician', difficulty: 'Foundational', minutes: 25, phase: 'practice',
     parentAllocations: [allocation('ITHD-101.1', 25)], objective: 'Work a first account-lockout ticket end to end: verify the caller with KB-0024, unlock the account, confirm the user can sign in, tell them what to do if it happens again, and document it.',
     description: 'A coach-guided first ticket in the IT Service Desk simulator: Sam Rivera is locked out. Verify the caller with KB-0024, unlock the account, confirm with Sam that it works, then write the work note and the customer comment.',
     skills: ['Ticket Triage', 'Troubleshooting Mindset', 'Resolve/Escalate Judgment'], portalEntry: '#/program/it-support/module/1' }),
