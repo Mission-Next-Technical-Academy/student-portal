@@ -590,7 +590,9 @@ const ITS_PROVE_REPLY = 'mnt-prove-received';
 const ITS_PROVE_STATUS = 'mnt-prove-status';
 const ITS_PROVE_SUBMIT = 'mnt-prove-submit';
 const ITS_PROVE_MAX_BYTES = 96 * 1024;
-const ITS_PROVE_EVENT_TYPES = ['evidence_opened', 'command_run', 'diagnosis_chosen', 'step_chosen', 'step_cleared', 'decision_chosen'];
+// kb_search: the words searched (value). action_taken: an action done on a
+// screen rather than by command, e.g. adding a printer from Settings (label).
+const ITS_PROVE_EVENT_TYPES = ['evidence_opened', 'command_run', 'diagnosis_chosen', 'step_chosen', 'step_cleared', 'decision_chosen', 'kb_search', 'action_taken'];
 
 function itsProveLaunchHref(moduleKey, user) {
   const student = typeof LabRuntime !== 'undefined' ? LabRuntime.anonymousStudentId(user) : '';
@@ -630,7 +632,8 @@ function itsCleanProveWork(input, moduleKey, labKey) {
   } catch (_) { machine = {}; }
   const work = {
     version: 1, kind: 'hdesk-prove', moduleKey, labKey, rubricVersion: rubric.version, ticketId: input.ticketId, startedAt: input.startedAt,
-    fields: { category: fields.category, type: fields.type, priority: fields.priority },
+    // Pre-set fields (Module 1) are the rubric's, never the message's.
+    fields: rubric.presetFields ? { ...rubric.presetFields } : { category: fields.category, type: fields.type, priority: fields.priority },
     diagnosis: input.diagnosis, steps: input.steps.slice(), stepTexts: input.stepTexts.slice(), decision: input.decision,
     resolutionNote: input.resolutionNote, userReply: input.userReply, workNotes: input.workNotes.slice(),
     commands, events, machine, logTrimmed: false, passwordTyped: input.passwordTyped === true, passwordWritten: input.passwordWritten === true,
@@ -778,6 +781,8 @@ function itsProveReviewPanel(row) {
   const items = (values, empty) => (values.length ? `<ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-gray-900">${values.map((value) => `<li>${text(value)}</li>`).join('')}</ul>` : `<p class="mt-1 text-sm text-gray-500">${empty}</p>`);
   const array = (value) => (Array.isArray(value) ? value : []);
   const opened = array(work.events).filter((entry) => entry && entry.type === 'evidence_opened').map((entry) => entry.label || entry.source);
+  const searches = array(work.events).filter((entry) => entry && entry.type === 'kb_search' && entry.value).map((entry) => `“${entry.value}”`);
+  const actions = array(work.events).filter((entry) => entry && entry.type === 'action_taken' && entry.label).map((entry) => `${entry.label}${entry.computer ? ` (on ${entry.computer})` : ''}`);
   const commands = array(work.commands).filter(Boolean).map((entry) => `${entry.command}${entry.computer ? ` (on ${entry.computer})` : ''}`);
   const machine = Object.entries(work.machine && typeof work.machine === 'object' ? work.machine : {}).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') || '(none)' : typeof value === 'object' ? JSON.stringify(value) : value}`);
   return `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" data-its-prove-panel="${esc(row.id)}">
@@ -793,6 +798,10 @@ function itsProveReviewPanel(row) {
     <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">What the student did in the simulator</h3>
     <h4 class="mt-2 text-xs font-semibold uppercase tracking-wide text-gray-600">Evidence opened</h4>
     ${items(opened, 'None recorded.')}
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Knowledge base searches</h4>
+    ${items(searches, 'None recorded.')}
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Actions in the simulator</h4>
+    ${items(actions, 'None recorded.')}
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Commands run</h4>
     ${items(commands, 'None recorded.')}
     ${work.passwordTyped === true ? '<p class="mt-1 text-sm font-semibold text-amber-900" data-its-prove-password>The student typed a password into the shell. The command was refused and the password was not saved.</p>' : ''}

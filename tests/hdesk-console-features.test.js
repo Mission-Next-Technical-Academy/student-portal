@@ -381,13 +381,17 @@ function testEmployeeIdsInTheDirectory() {
     assert.match(html, /<th>User<\/th><th>Employee ID<\/th><th>Department<\/th><th>Phone<\/th>/, route);
     users.forEach((u) => assert.ok(html.includes(`<td>${u.employeeId}</td>`), `${route}: ${u.name}`));
   }
-  // Prove It shows both columns too, and turns no console feature on.
+  // Prove It shows both columns too. Its HD-2125 ticket turns on the knowledge
+  // base search and no other console feature (tests/hdesk-prove-mode.test.js).
   const prove = sim({ url: 'https://academy.test/sim/?prove=its-01&student=student-prove001#/helpdesk/tickets' });
   const html = prove.view('helpdesk/directory');
   assert.match(html, /<th>Employee ID<\/th><th>Department<\/th><th>Phone<\/th>/);
   assert.ok(html.includes('<td>E-40519</td>') && html.includes('<td>ext. 4174</td>'), 'Evan Parker\'s ID and phone');
-  assert.deepEqual(JSON.parse(JSON.stringify(prove.run("hdConsole(hdTicketById('HD-9150') || { id:'HD-9150' })"))), {}, 'no console feature in Prove');
-  assert.doesNotMatch(prove.open('HD-2125'), NEW_MARKERS);
+  assert.deepEqual(JSON.parse(JSON.stringify(prove.run("hdConsole(hdTicketById('HD-9150') || { id:'HD-9150' })"))), {}, 'a Practice ticket turns nothing on in Prove');
+  assert.deepEqual(JSON.parse(JSON.stringify(prove.run("hdConsole(hdTicketById('HD-2125'))"))), { kb: true }, 'HD-2125: the knowledge base search only');
+  const ticket = prove.open('HD-2125');
+  assert.match(ticket, /hd-kb-search/);
+  assert.doesNotMatch(ticket.replace(/<div class="card hd-kb-search">[\s\S]*?<\/form>/, ''), NEW_MARKERS);
 }
 
 const tests = [

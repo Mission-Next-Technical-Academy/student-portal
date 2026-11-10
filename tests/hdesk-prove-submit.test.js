@@ -131,7 +131,10 @@ function sim({ student, opener = null, local = store() }) {
 }
 
 const hasKey = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
-// Fills every required part with arbitrary values.
+// Module 1's pre-set ticket fields (read-only, never scored).
+const PRESET = { category: 'Service Request', type: 'Access request', priority: 'P3' };
+// Fills every required part with arbitrary values. The ticket fields are
+// pre-set in Module 1, so setting them does nothing there.
 function fill(tab, skip = []) {
   const ticket = tab.run('hdState.tickets[0]');
   const parts = {
@@ -176,7 +179,7 @@ async function testSubmitTurnsOnFromCompletenessOnly() {
   assert.equal(tab.status(), 'not_submitted');
   let state = tab.submitState();
   assert.equal(state.enabled, false);
-  assert.equal(state.note, 'Still needed: category, type, priority, diagnosis, decision, resolution note, reply to the user.');
+  assert.equal(state.note, 'Still needed: diagnosis, decision, resolution note, reply to the user.', 'the ticket fields are pre-set');
   fill(tab);
   state = tab.submitState();
   assert.equal(state.enabled, true, 'steps are not required');
@@ -234,7 +237,8 @@ async function testConfirmedSaveOnlyAfterTheServerHasTheRow() {
   assert.equal(row.user_id, user.userId);
   assert.equal(row.state, 'complete', 'the completion view counts only complete');
   assert.equal(row.score, null, 'no automated score');
-  assert.equal(row.rubric_version, 'hdesk-its-01-prove-v1');
+  assert.equal(row.rubric_version, 'hdesk-its-01-prove-v2');
+  assert.deepEqual({ ...row.result.fields }, PRESET, 'the pre-set fields travel with the work');
   assert.equal(row.scoring_engine_version, 'instructor-review-v1');
   assert.equal(row.result.kind, 'hdesk-prove');
   assert.equal(row.result.userReply, 'Hello Evan.');
@@ -423,6 +427,13 @@ async function testPortalRefusals() {
   await refused(submit({ student: 'student-someone' }), 'other-student', 'another student id');
   await refused(submit({ student: undefined }), 'other-student', 'no student id');
   await refused(submit({}, { rubricVersion: 'hdesk-its-01-prove-v0' }), 'invalid', 'unknown rubric version');
+  await refused(submit({}, { rubricVersion: 'hdesk-its-01-prove-v1' }), 'invalid', 'a simulator tab from before v2');
+  // The pre-set fields are saved as the rubric sets them, whatever the message says.
+  resetWorld();
+  const forged = await send({ data: submit({}, { fields: { category: 'Incident', type: 'Printer', priority: 'P1' } }) });
+  assert.equal(forged[0].saved, true);
+  assert.deepEqual({ ...db.attempts[0].result.fields }, PRESET, 'pre-set fields can\'t be changed by a crafted message');
+  resetWorld();
   await refused(submit({}, { kind: 'other' }), 'invalid', 'wrong kind');
   await refused(submit({}, { version: 2 }), 'invalid', 'wrong version');
   await refused(submit({}, { labKey: 'lab-its-01-ticket-triage' }), 'invalid', 'another lab');
@@ -567,8 +578,8 @@ async function testInstructorReadsPlainText() {
   assert.ok(panel.includes('Line one.\n\nLine &lt;two&gt;.'), 'writing is whole and escaped');
   assert.ok(panel.includes('Hello Evan.'));
   assert.ok(panel.includes('A work note.'));
-  assert.ok(panel.includes(tab.run('hdEsc')(ticket.categoryOptions[0])));
-  assert.ok(panel.includes('P4'));
+  assert.ok(panel.includes(PRESET.category) && panel.includes(PRESET.type));
+  assert.ok(panel.includes('P3'));
   assert.ok(panel.includes('Escalate'));
   assert.ok(panel.includes(tab.run('hdEsc')(ticket.pathPool[0].text)), 'steps as text, not ids');
   assert.ok(panel.includes('Knowledge Base'), 'evidence opened');
@@ -798,6 +809,42 @@ async function testNoPrefillUnlessReturnedOrForAnotherStudent() {
   assert.notEqual(tab.status(), 'returned');
 }
 
+// A returned attempt from v1 (its own fields, v1 step ids) reopens with the
+// pre-set fields and no steps; its writing comes back.
+async function testReturnedV1AttemptReopensOnTheCurrentTicket() {
+  await submittedAndReturned();
+  db.attempts[0].result = { ...db.attempts[0].result, rubricVersion: 'hdesk-its-01-prove-v1', fields: { category: 'Incident', type: 'Printer', priority: 'P2' }, steps: ['p1', 'p3'], stepTexts: ['a', 'b'] };
+  const tab = await openTab(null, { local: store() });
+  assert.equal(tab.status(), 'returned');
+  assert.deepEqual({ ...tab.run('hdState.prove.fields') }, PRESET);
+  assert.equal(tab.run('hdState.prove.steps.length'), 0);
+  assert.notEqual(tab.run('hdState.prove.userReply'), '', 'the writing comes back');
+}
+
+// The words searched and the screen actions reach the instructor; nothing else new.
+async function testSearchesAndActionsReachTheInstructor() {
+  resetWorld();
+  const tab = await openTab();
+  fill(tab);
+  tab.byId.set('hd-kb-input', { value: 'admin rights' });
+  tab.run("hdKbSearch({ preventDefault() {} }, 'HD-2125'); hdKbOpen('HD-2125', 'KB-0058')");
+  tab.run("hdSettingsScan(); hdSettingsAddPrinter('NS-LT-0122', '\\\\\\\\NS-PRINT01\\\\NS-FIN-PRN01')");
+  tab.run('hdProveSubmit()');
+  await flush();
+  const { result } = db.attempts[0];
+  assert.deepEqual(result.events.filter((e) => e.type === 'kb_search').map((e) => e.value), ['admin rights']);
+  assert.deepEqual(result.events.filter((e) => e.type === 'action_taken').map((e) => [e.label, e.computer]), [['Added NS-FIN-PRN01 from Settings › Printers & scanners › Add device', 'NS-LT-0122']]);
+  assert.ok(result.machine.printers.includes('\\\\NS-PRINT01\\NS-FIN-PRN01'));
+  const panel = prun('itsProveReviewPanel')(savedRow(result));
+  assert.match(panel, /Knowledge base searches<\/h4>\s*<ul[^>]*><li>“admin rights”<\/li><\/ul>/);
+  assert.match(panel, /Actions in the simulator<\/h4>\s*<ul[^>]*><li>Added NS-FIN-PRN01 from Settings › Printers &amp; scanners › Add device \(on NS-LT-0122\)<\/li><\/ul>/);
+  assert.match(panel, /KB-0058 · Local administrator rights on managed devices/, 'the article opened');
+  // An attempt with neither says so.
+  const none = prun('itsProveReviewPanel')(savedRow({ ...result, events: [] }));
+  assert.match(none, /Knowledge base searches<\/h4>\s*<p[^>]*>None recorded\.<\/p>/);
+  assert.match(none, /Actions in the simulator<\/h4>\s*<p[^>]*>None recorded\.<\/p>/);
+}
+
 async function testPrefillDropsValuesTheTicketNoLongerOffers() {
   await submittedAndReturned();
   db.attempts[0].result = { ...db.attempts[0].result, diagnosis: 'A retired option', steps: ['gone'], ticketId: 'HD-2125' };
@@ -815,6 +862,7 @@ const tests = [
   testReloadTakesTheLockFromTheServer, testFailuresKeepWorkAndShowNoSuccess, testSimulatorOnlyAcceptsItsOwnReply, testPortalRefusals,
   testOneWaitingAttempt, testReturnedReopensForOneResubmission, testReturnedPrefillsFromTheLastAttemptOnAnotherBrowser, testPrefillCarriesOnlyTheStudentsOwnWork,
   testNewerBrowserDraftIsKept, testDraftOlderThanTheAttemptIsReplaced, testNoPrefillUnlessReturnedOrForAnotherStudent, testPrefillDropsValuesTheTicketNoLongerOffers,
+  testReturnedV1AttemptReopensOnTheCurrentTicket, testSearchesAndActionsReachTheInstructor,
   testInstructorReadsPlainText, testTypedPasswordReachesTheInstructorAsAFlag, testWrittenPasswordReachesTheInstructorAsAFlag, testModuleOnePage,
 ];
 (async () => {
