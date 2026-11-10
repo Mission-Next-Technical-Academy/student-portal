@@ -127,6 +127,8 @@ function testOrientationComesFirst() {
   assert.doesNotMatch(html, /data-itsw-evidence-input|data-its-submit=/);
   // Internal plan codes and names stay out of the page.
   assert.doesNotMatch(all, /\bB\d+ rubric|Randy/);
+  // Until the shared save can report success, nothing claims it finished.
+  assert.doesNotMatch(all, /saved to your account/i);
 
   // The hero and the Prove It no longer mention Lab 1.1.
   assert.match(html, /Start with orientation/);
@@ -206,7 +208,8 @@ async function testPolicyAcknowledgementSavesWithoutLabOne() {
   const again = hdUser({ remoteCaseState: { 'its-01': { [STATE_ID]: saved } } });
   html = page().view(again, HD);
   assert.match(html, /data-its01-aup-checkbox checked disabled/, 'still acknowledged');
-  assert.match(text(html), /Acknowledged on [A-Z][a-z]{2} \d{1,2}, \d{4}\. Saved to your account\./);
+  assert.match(text(html), /Acknowledged on [A-Z][a-z]{2} \d{1,2}, \d{4}\./);
+  assert.doesNotMatch(text(html), /saved to your account/i, 'the page never claims the account write finished');
   assert.match(railRow(html, 'its01-orientation').cls, /mnav-chip-complete/);
   assert.doesNotMatch(html, /Lab 1\.1/);
 }
@@ -274,7 +277,7 @@ async function testOrientationCheckRetake() {
   // After a reload, still complete, and it can be retaken.
   fresh();
   html = page().view(hdUser({ remoteCaseState: { 'its-01': { [STATE_ID]: saved } } }), HD);
-  assert.match(text(checkHtml(html, 'orientation')), /Orientation check complete \([A-Z][a-z]{2} \d{1,2}, \d{4}\)\. Saved to your account\. You can retake it any time\./);
+  assert.match(text(checkHtml(html, 'orientation')), /Orientation check complete \([A-Z][a-z]{2} \d{1,2}, \d{4}\)\. You can retake it any time\./);
   assert.match(railRow(html, 'its01-check-orientation').cls, /mnav-chip-complete/);
   assert.doesNotMatch(checkHtml(html, 'orientation'), /disabled/, 'every answer can be chosen again');
 }

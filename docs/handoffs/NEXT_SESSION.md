@@ -36,8 +36,10 @@ and minutes, the lab keys, Guided Lab 1 and the Prove It are unchanged.
     explain the order: nothing on the page is blocked. The knowledge checks and
     the unguided tickets don't count. Module completion is unchanged (still
     Lab 1.2 and the Prove It).
-- **Status:** `bin/ci-check.sh` passes; Codex review approved, no findings.
-  Hosted staging not yet checked. Migration: none.
+- **Status:** `bin/ci-check.sh` passes. Codex: one finding left by design:
+  the page shows the policy acknowledgement and the orientation check as
+  saved before the account write finishes, the same as the old Lab 1.1
+  checkbox. Hosted staging not yet checked. Migration: none.
 
 **2026-11-10 (Megan; PR #103 "Help Desk Module 1: add practice tickets 1-A to 1-C and KB-0071, feedback only"; shared `ui/index.html`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `ui/helpdesk-coaches.js`, `portal/it-support-module-01.js` and tests — please review the shared ones):**
 Module 1 gains three unguided practice tickets, not graded: HD-2151 (Leah

@@ -67,7 +67,7 @@ const ITS01_LESSONS = [
         'Before your first live session, check that your webcam and headset work in the meeting tool. Nothing to upload.',
       ] },
       { h: 'Acceptable Use Policy' },
-      { p: 'The full policy is in the orientation tasks below. Read it, then acknowledge it in the LMS: the acknowledgement is saved to your account.' },
+      { p: 'The full policy is in the orientation tasks below. Read it, then acknowledge it in the LMS.' },
       { h: 'Getting help and the chain of command' },
       { ul: [
         'Instructional support (course content, labs, tickets, grades): your instructor, through the LMS or a live session. Faculty respond to academic questions and grade self-paced lab work within 24 hours, not counting weekends and holidays.',
@@ -489,7 +489,7 @@ function its01AupAck() {
         <input type="checkbox" id="its01-aup-checkbox" data-its01-aup-checkbox checked disabled />
         <label for="its01-aup-checkbox">I have read and acknowledge the Acceptable Use Policy.</label>
       </div>
-      <p class="its01-aup-hint"><i class="ri-check-line" aria-hidden="true"></i> Acknowledged${day ? ` on ${esc(day)}` : ''}. Saved to your account.</p>
+      <p class="its01-aup-hint"><i class="ri-check-line" aria-hidden="true"></i> Acknowledged${day ? ` on ${esc(day)}` : ''}.</p>
     </div>`;
   }
   const earlier = its01State.aupAcknowledged === true;
@@ -500,7 +500,7 @@ function its01AupAck() {
       <input type="checkbox" id="its01-aup-checkbox" data-its01-aup-checkbox ${read ? '' : 'disabled'} />
       <label for="its01-aup-checkbox">I have read and acknowledge the Acceptable Use Policy.</label>
     </div>
-    <p class="its01-aup-hint">${read ? 'Your acknowledgement is saved to your account.' : 'Scroll to the end of the policy text to enable acknowledgment.'}</p>
+    <p class="its01-aup-hint">${read ? 'Tick the box to acknowledge the policy.' : 'Scroll to the end of the policy text to enable acknowledgment.'}</p>
   </div>`;
 }
 
@@ -611,7 +611,7 @@ function its01CheckFooter(key) {
     if (its01CheckDone(key) && !its01CheckAllRight(key)) status = 'Some answers weren’t right. Press Start again to retake the check.';
     else if (its01State && its01State.orientationCheckCompleted === true) {
       const day = its01Day(its01State.orientationCheckCompletedAt);
-      status = `<i class="ri-check-line" aria-hidden="true"></i> Orientation check complete${day ? ` (${esc(day)})` : ''}. Saved to your account. You can retake it any time.`;
+      status = `<i class="ri-check-line" aria-hidden="true"></i> Orientation check complete${day ? ` (${esc(day)})` : ''}. You can retake it any time.`;
     }
   } else if (its01CheckDone(key)) status = 'That’s every question. Press Start again to try them again.';
   return `<div class="its01-check-footer"><p class="its01-check-status" role="status">${status}</p>${reset}</div>`;
@@ -637,7 +637,7 @@ function its01Orientation() {
     <div class="its01-tasks" id="its01-orientation-tasks">
       <h3>Orientation tasks (not graded)</h3>
       <ul>
-        <li>Read the Acceptable Use Policy and acknowledge it. The acknowledgement is saved to your account.</li>
+        <li>Read the Acceptable Use Policy and acknowledge it.</li>
         <li>Take the orientation check below. You can retake it as often as you like.</li>
       </ul>
       ${its01Aup()}
@@ -831,7 +831,8 @@ function its01MarkAupRead() {
 }
 
 // Ticking the box saves the acknowledgement, its version and its time to the
-// account straight away. Once acknowledged, the box stays ticked.
+// account (a debounced write that only logs a failure, so the page never
+// claims it was saved). Once acknowledged, the box stays ticked.
 function its01AcknowledgeAup() {
   if (!its01State || !its01AupRead() || its01AupCurrent()) return false;
   its01State.aupAcknowledged = true;
