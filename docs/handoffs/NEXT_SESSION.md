@@ -1,4 +1,4 @@
-**2026-11-10 (Megan; Help Desk Module 1 practice tickets 1-A to 1-C, PR to come; shared `ui/index.html`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `ui/helpdesk-coaches.js`, `portal/it-support-module-01.js` and tests — please review the shared ones):**
+**2026-11-10 (Megan; PR #103 "Help Desk Module 1: add practice tickets 1-A to 1-C and KB-0071, feedback only"; shared `ui/index.html`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `ui/helpdesk-coaches.js`, `portal/it-support-module-01.js` and tests — please review the shared ones):**
 Module 1 gains three unguided practice tickets, not graded: HD-2151 (Leah
 Brooks, forgotten password: verify, then self-service reset), HD-2152 (Ravi
 Shah, cracked laptop screen: KB-0071, loaner, escalate to Desktop Support)
@@ -36,6 +36,12 @@ Module 1's minutes, lab keys, Guided Lab 1 (HD-2150) and the Prove It
   - The Prove It shift shares the directory, devices and KB with Practice, so
     HD-2125's lists now also show the three new people, NS-LT-0215 and KB-0071
     (context only; its ticket, scoring and rubric are unchanged).
+- **Status:** `bin/ci-check.sh` passes; Codex review approved (three earlier
+  findings fixed; two left by design: closing doesn't wait for Investigation
+  and Diagnosis, which "Check my work" coaches and opens when a ticket closes,
+  and the three tickets also appear in the general free-play queue). Hosted
+  staging checked Nov 10 at 1,280 and 1,512 px (`1.639-staging.d443ab6`, then
+  `6e920eb` for the feedback label). Migration: none.
 
 **2026-11-09 (Megan; PR #102 "Help Desk Module 1: Guided Lab 1 becomes HD-2150, a verified unlock; KB-0024 rewritten"; shared `ui/index.html`, `portal/index.html`, `portal/data.js` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `ui/helpdesk-coaches.js`, `portal/it-support-shared.js`, `portal/it-support-module-01.js`, `portal/admin-sheets/hdesk.js` and tests — please review the shared ones):**
 Help Desk Lab 1.2 (Practice It, coach `hd-m01`, lab key
