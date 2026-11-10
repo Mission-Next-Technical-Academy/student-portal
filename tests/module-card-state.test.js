@@ -279,7 +279,8 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
 // but never pass the module.
 {
   assert.deepEqual([...REGISTRY['its-01']], [PROVE]);
-  assert.deepEqual([...run('modulePracticeLabKeys')(HD, 'its-01')], [LAB_1, LAB_2]);
+  // In course order: the guided lab (Lab 1.1), then the practice tickets (Lab 1.2).
+  assert.deepEqual([...run('modulePracticeLabKeys')(HD, 'its-01')], [LAB_2, LAB_1]);
   // Both Practice It labs in, no Prove It: Practice Submitted.
   assert.deepEqual([card(hdUser({ latestLabAttemptByKey: { [LAB_1]: finished(), [LAB_2]: finished() } })).state,
     card(hdUser({ latestLabAttemptByKey: { [LAB_1]: finished(), [LAB_2]: finished() } })).label], ['practice_submitted', 'Practice Submitted']);

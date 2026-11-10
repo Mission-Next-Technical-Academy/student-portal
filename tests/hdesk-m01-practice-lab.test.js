@@ -79,8 +79,9 @@ const DAY = new Date().toLocaleDateString(undefined, { month: 'short', day: 'num
 function testCatalogue() {
   const labs = copy(run('programLabs')(HD).filter((lab) => lab.module === 'its-01').map((lab) => [lab.key, lab.title, lab.instructionalMinutes, lab.phase || '', lab.parentAllocations]));
   assert.deepEqual(labs, [
-    [PRACTICE, 'Lab 1.2 · Practice tickets (not graded)', 15, 'practice', [{ code: 'ITHD-101.1', minutes: 15 }]],
+    // In course order, so the program page lists Lab 1.1 before Lab 1.2.
     [GUIDED, 'Lab 1.1 · Guided Lab: A Day in the Life of an L1 Technician', 25, 'practice', [{ code: 'ITHD-101.1', minutes: 25 }]],
+    [PRACTICE, 'Lab 1.2 · Practice tickets (not graded)', 15, 'practice', [{ code: 'ITHD-101.1', minutes: 15 }]],
     [PROVE, 'Prove It: Independent Ticket', 20, '', [{ code: 'ITHD-101.1', minutes: 20 }]],
   ]);
   // Module 1's 60 lab minutes under ITHD-101.1 are unchanged.
@@ -93,6 +94,26 @@ function testCatalogue() {
   const migrations = fs.readdirSync(path.join(__dirname, '..', 'supabase', 'migrations')).map((name) => fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', name), 'utf8')).join('\n');
   assert.ok(!migrations.includes(PRACTICE), 'no migration names the practice tickets');
   assert.deepEqual([...run('moduleRequiredLabKeys')(HD, 'its-01', { requiredLabsByModuleKey: null })], [PROVE]);
+}
+
+// The program page's Module 1 card describes the module as it is now: no lab
+// environment, no five-step mindset. Lesson titles and minutes unchanged.
+function testModuleOneCardText() {
+  const module = HD.modules['its-01'];
+  assert.match(module.summary, /^Start with orientation, then learn what a Tier 1 technician does, the CompTIA troubleshooting method, how to verify a caller with KB-0024, how to search the knowledge base and how to write Reported \/ Tried \/ Result notes\. Practice in Lab 1\.1 · Guided Lab and Lab 1\.2 · Practice tickets, then work a new ticket on your own in the Prove It\.$/);
+  assert.deepEqual(copy(module.curriculumItems.map((item) => [item.key, item.title, item.durationMinutes])), [
+    ['its-01-lesson-01', 'Program Orientation, LMS Navigation & Professional Conduct', 60],
+    ['its-01-lesson-02', 'The Help Desk Role: Workflow & the Troubleshooting Mindset', 60],
+  ]);
+  assert.deepEqual([module.durationMinutes, module.creditMinutes], [180, 180]);
+  const user = hdUser();
+  fresh(user);
+  const card = run('moduleCard')(HD, 'its-01', user).replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
+  assert.match(card, /Get oriented: how the program runs/);
+  assert.match(card, /Three readings: what a Tier 1 technician does/);
+  assert.doesNotMatch(card, /lab environment|five-step|lab-environment|evidence-upload|two-login/i, 'nothing on the card describes the old Module 1');
+  // Nor anywhere else in Module 1's lesson records.
+  module.curriculumItems.forEach((item) => ['objective', 'learn', 'practice', 'prove'].forEach((field) => assert.doesNotMatch(item[field], /lab environment|five-step|evidence|two-login|sandbox/i, `${item.key} ${field}`)));
 }
 
 // A returned old Lab 1.1 attempt opens no redo notice: there is nothing on the
@@ -276,7 +297,7 @@ function testInstructorSheets() {
 /* -------------------------------------------------------------------- run */
 
 (async () => {
-  const tests = [testCatalogue, testRetiredLabOpensNoRedo, testPageBeforeCompletion, testPageAfterCompletion, testCompletionSavedOnce, testCompletionRefused, testCompletionNeverSavedTwiceAcrossTabs, testCompletionSaveFails, testInstructorSheets];
+  const tests = [testCatalogue, testModuleOneCardText, testRetiredLabOpensNoRedo, testPageBeforeCompletion, testPageAfterCompletion, testCompletionSavedOnce, testCompletionRefused, testCompletionNeverSavedTwiceAcrossTabs, testCompletionSaveFails, testInstructorSheets];
   for (const test of tests) await test();
   console.log(`hdesk-m01-practice-lab: ${tests.length} tests passed`);
 })().catch((error) => { console.error(error); process.exit(1); });

@@ -281,18 +281,18 @@ const PROGRAMS = [
       ]),
       'its-01': { number: 1, week: 1, title: 'IT Support Fundamentals & Service Desk Operations', hours: '3 Hours', durationMinutes: 180, creditMinutes: 180, lessons: 2, labs: 2,
         status: 'authored',
-        summary: 'Get set up in the LMS and your lab environment, then build the five-step troubleshooting mindset used in every module that follows.',
+        summary: 'Start with orientation, then learn what a Tier 1 technician does, the CompTIA troubleshooting method, how to verify a caller with KB-0024, how to search the knowledge base and how to write Reported / Tried / Result notes. Practice in Lab 1.1 · Guided Lab and Lab 1.2 · Practice tickets, then work a new ticket on your own in the Prove It.',
         curriculumItems: [
           itsItem({ key: 'its-01-lesson-01', title: 'Program Orientation, LMS Navigation & Professional Conduct', durationMinutes: 60, parentAllocations: [allocation('ITHD-101.1', 60)],
-            objective: 'Navigate the LMS and lab environment, submit evidence correctly, and describe the professional-conduct and credential-handling expectations for this program.',
-            learn: 'Locate LMS navigation, grading, and instructor contact; read the Acceptable Use Policy in full; understand the two-login credential model.',
-            practice: 'Complete the LMS scavenger hunt: locate Module 2, the Acceptable Use Policy, instructor contact, the gradebook, and the evidence-upload location.',
-            prove: 'Confirm both the LMS and lab-environment logins work, submit a test file through the evidence-upload workflow, and formally acknowledge the Acceptable Use Policy.' }),
+            objective: 'Get oriented: how the program runs, finding your way around the LMS, technology setup, the Acceptable Use Policy and how to get help.',
+            learn: 'How the program runs; LMS navigation; technology setup; the Acceptable Use Policy; getting help and the chain of command; policies you need to know; the course calendar.',
+            practice: 'Find it in the LMS (not graded), then take the orientation check.',
+            prove: 'Acknowledge the Acceptable Use Policy and complete the orientation check.' }),
           itsItem({ key: 'its-01-lesson-02', title: 'The Help Desk Role: Workflow & the Troubleshooting Mindset', durationMinutes: 60, parentAllocations: [allocation('ITHD-101.1', 60)],
-            objective: 'Apply the five-step troubleshooting mindset to categorize a ticket and make a supported resolve-or-escalate decision.',
-            learn: 'Distinguish Tier 1, 2, and 3 support; follow a ticket\'s journey from queue to close; learn the five-step mindset (gather, reproduce, isolate, resolve or escalate, verify and document).',
-            practice: 'Categorize three sample tickets, write a first question for each, and decide resolve or escalate.',
-            prove: 'Work a five-ticket simulated queue: categorize, state a first diagnostic step, and make a resolve-or-escalate call with reasoning for each.' }),
+            objective: 'Three readings: what a Tier 1 technician does, the CompTIA troubleshooting method, and verifying callers with KB-0024 and searching the knowledge base.',
+            learn: 'The Tier 1 role and the support tiers; the CompTIA troubleshooting method; verifying a caller with KB-0024 and searching the knowledge base; writing Reported / Tried / Result notes.',
+            practice: 'The Learn It and A+ checks, then Lab 1.1 · Guided Lab and Lab 1.2 · Practice tickets.',
+            prove: 'Work a new ticket on your own in the Prove It, reviewed by your instructor.' }),
         ],
         skills: ['Service Desk Operations', 'Ticket Triage', 'Troubleshooting Mindset', 'Professional Conduct'] },
       'its-02': { number: 2, week: 1, title: 'Building Your Lab Environment & Supporting Hardware, Devices & Peripherals', hours: '11 Hours', durationMinutes: 660, creditMinutes: 660, lessons: 4, labs: 4,
@@ -2254,6 +2254,10 @@ const LABS = [
     parentAllocations: [], objective: 'Confirm LMS and lab-environment access, submit a test file through the evidence workflow, and acknowledge the Acceptable Use Policy.',
     description: 'Log into both the LMS and the separate lab-sandbox environment, upload a test file as evidence, and formally acknowledge the Acceptable Use Policy.',
     skills: ['LMS Navigation', 'Credential Discipline', 'Policy Acknowledgment'], portalEntry: '#/program/it-support/module/1' }),
+  itsLab({ key: 'lab-its-01-ticket-triage', module: 'its-01', title: 'Lab 1.1 · Guided Lab: A Day in the Life of an L1 Technician', difficulty: 'Foundational', minutes: 25, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.1', 25)], objective: 'Work a first account-lockout ticket end to end: verify the caller with KB-0024, unlock the account, confirm the user can sign in, tell them what to do if it happens again, and document it.',
+    description: 'A coach-guided first ticket in the IT Service Desk simulator: Sam Rivera is locked out. Verify the caller with KB-0024, unlock the account, confirm with Sam that it works, then write the work note and the customer comment.',
+    skills: ['Ticket Triage', 'Troubleshooting Mindset', 'Resolve/Escalate Judgment'], portalEntry: '#/program/it-support/module/1' }),
   // Module 1's unguided practice tickets (HD-2151, HD-2152, SEC-2153): not
   // graded, no score. The simulator reports when all three are closed and the
   // course page saves a completion record (it-support-module-01.js). No
@@ -2262,10 +2266,6 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.1', 15)], objective: 'Work three tickets on your own: a forgotten password, a cracked laptop screen and a caller who can\'t be verified. Verify callers with KB-0024, choose who owns each ticket and document it.',
     description: 'Three unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Closing all three saves a completion record to your account.',
     skills: ['Identity Verification', 'Resolve/Escalate Judgment', 'Documentation'], portalEntry: '#/program/it-support/module/1' }),
-  itsLab({ key: 'lab-its-01-ticket-triage', module: 'its-01', title: 'Lab 1.1 · Guided Lab: A Day in the Life of an L1 Technician', difficulty: 'Foundational', minutes: 25, phase: 'practice',
-    parentAllocations: [allocation('ITHD-101.1', 25)], objective: 'Work a first account-lockout ticket end to end: verify the caller with KB-0024, unlock the account, confirm the user can sign in, tell them what to do if it happens again, and document it.',
-    description: 'A coach-guided first ticket in the IT Service Desk simulator: Sam Rivera is locked out. Verify the caller with KB-0024, unlock the account, confirm with Sam that it works, then write the work note and the customer comment.',
-    skills: ['Ticket Triage', 'Troubleshooting Mindset', 'Resolve/Escalate Judgment'], portalEntry: '#/program/it-support/module/1' }),
   // Module 1's Prove It, the only lab that gates its completion
   // (course_module_labs.gates_completion). The simulator's Submit saves it
   // (itsProveReceiveMessage, it-support-shared.js).
