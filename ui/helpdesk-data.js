@@ -239,7 +239,7 @@ const HD_TICKET_TEMPLATES = [
       priorityReason:'P4: one person, no deadline today.',
       notes: { parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0024', 'Active Directory', 'AD', 'lbrooks', 'Tier 2'] },
       feedback: [
-        { area:'Right owner', checks:[{ owner:true }], good:'Right owner: a known fix the Service Desk keeps.', fix:'A forgotten password is a known fix the Service Desk keeps: resolve it at Tier 1.' },
+        { area:'Right owner', checks:[{ owner:true }], good:'A known fix the Service Desk keeps.', fix:'A forgotten password is a known fix the Service Desk keeps: resolve it at Tier 1.' },
         { area:'Investigation', checks:[{ kb:'KB-0024' }], good:'You found KB-0024 by searching symptom words.', fix:'Search the KB by symptom words (for example "forgot password") and open KB-0024.' },
         { area:'Diagnosis', checks:[{ diagnosis:true }], good:'A forgotten password: nothing is broken.', fix:'Look again: Leah forgot her password. Nothing on the account is broken.' },
         { area:'Action', checks:[{ verified:true }, { action:'reset-page' }, { confirmed:'signin' }], good:'You verified Leah first, she reset the password herself, and she signed in while you were on the line.', fix:'Verify Leah first (KB-0024), walk her to the self-service reset page, and stay on the line until she has signed in.' },
@@ -275,7 +275,7 @@ const HD_TICKET_TEMPLATES = [
       priorityReason:'P3: one person, with a deadline this week.',
       notes: { parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0071', 'Tier 2', 'CI', 'NS-LT-0215'] },
       feedback: [
-        { area:'Right owner', checks:[{ owner:true }], good:'Right owner: physical damage goes to Desktop Support per KB-0071.', fix:'Tier 1 doesn\'t repair hardware: escalate to Desktop Support (KB-0071).' },
+        { area:'Right owner', checks:[{ owner:true }], good:'Physical damage goes to Desktop Support per KB-0071.', fix:'Tier 1 doesn\'t repair hardware: escalate to Desktop Support (KB-0071).' },
         { area:'Investigation', checks:[{ chat:['when', 'starts', 'glass', 'files'] }], good:'You asked all four identify questions, including the safety one about loose glass.', fix:'Ask when it happened, whether it still starts, whether any glass is loose (the safety question), and where his files are saved.' },
         { area:'Diagnosis', checks:[{ diagnosis:true }], good:'Physical damage: a Tier 2 repair.', fix:'Look again: a dropped laptop with a cracked screen is physical damage, a Tier 2 repair.' },
         { area:'Action', checks:[{ kb:'KB-0071' }, { action:'loaner' }], good:'You followed KB-0071 and offered a loaner, so Ravi is ready for his demo.', fix:'Search the KB (for example "damaged laptop"), follow KB-0071 and offer Ravi a loaner.' },
@@ -315,7 +315,7 @@ const HD_TICKET_TEMPLATES = [
       priorityReason:'P2: an executive account at risk, and the caller is pushing for speed.',
       notes: { parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0024', 'SOC', 'ralvarez', 'Tier 2'] },
       feedback: [
-        { area:'Right owner', checks:[{ owner:true }], good:'Right owner: KB-0024\'s route for an unverified caller (Category Security › Suspicious request, Caller Unverified, assigned to Security Operations).', fix:'A caller you can\'t verify: make no change and route the ticket to Security Operations (KB-0024).' },
+        { area:'Right owner', checks:[{ owner:true }], good:'KB-0024\'s route for an unverified caller (Category Security › Suspicious request, Caller Unverified, assigned to Security Operations).', fix:'A caller you can\'t verify: make no change and route the ticket to Security Operations (KB-0024).' },
         { area:'Investigation', checks:[{ chat:['who', 'number'] }], good:'You named the red flags: pressure, a third party asking, and a personal number that isn\'t in the directory.', fix:'Ask whose account it is and why the password should go to that number. The pressure, the third party and the personal number are red flags.' },
         { area:'Diagnosis', checks:[{ diagnosis:true }], good:'Social engineering: someone is trying to talk you into handing over an account.', fix:'Look again: an unverified third party wants a password sent to a personal number. That is social engineering.' },
         { area:'Action', checks:[{ verifyChoice:'callback' }, { action:'decline' }], good:'You offered a callback on Mr. Alvarez\'s directory mobile, declined calmly and changed nothing.', fix:'Offer to call Mr. Alvarez back on his directory mobile, then decline calmly and make no change (KB-0024).' },

@@ -257,7 +257,7 @@ function testLeahCorrect() {
   const fb = tab.feedback('HD-2151');
   assert.deepEqual(fb.critical, []);
   assert.deepEqual(ok(fb), { 'Right owner': true, Investigation: true, Diagnosis: true, Action: true, Documentation: true });
-  assert.equal(fb.areas[0].text, 'Right owner: a known fix the Service Desk keeps.');
+  assert.equal(fb.areas[0].text, 'A known fix the Service Desk keeps.');
   const ticket = tab.ticket('HD-2151');
   assert.equal(ticket.status, 'Resolved');
   assert.equal(ticket.closureCode, 'Solution provided');
@@ -477,6 +477,14 @@ function testFeedbackNeverScoresCategoryOrPriority() {
     assert.match(card, /Category and priority are pre-set in Module 1\./);
     assert.doesNotMatch(card, /\bpoints?\b|\bscore\b|\/ ?100/i);
     fb.areas.forEach((row) => assert.doesNotMatch(row.text, /\bpriority\b|\bP[1-4]\b/i, `${id} ${row.area}`));
+    // Each line's label is printed once (staging, 2026-11-10).
+    fb.areas.forEach((row) => assert.ok(!row.text.startsWith(`${row.area}:`), `${id}: "${row.area}:" not repeated`));
+  }
+  const done = sim(practiceUrl('student-m01t0006'));
+  workLeah(done); workRavi(done); workKaren(done);
+  for (const id of SET) {
+    assert.ok(done.feedback(id).areas.every((row) => row.ok && !row.text.startsWith(`${row.area}:`)), id);
+    assert.doesNotMatch(done.open(id), /<strong>Right owner:<\/strong> Right owner:/, id);
   }
   // A password anywhere is refused here too.
   assert.equal(tab.note('HD-2151', 'Reported: x. Tried: pw: Test2026z. Result: y.'), false);
