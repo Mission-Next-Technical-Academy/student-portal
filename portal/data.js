@@ -2264,7 +2264,7 @@ const LABS = [
   // course_module_labs row: it never gates completion.
   itsLab({ key: 'lab-its-01-practice-tickets', module: 'its-01', title: 'Lab 1.2 · Practice tickets (not graded)', difficulty: 'Foundational', minutes: 15, phase: 'practice',
     parentAllocations: [allocation('ITHD-101.1', 15)], objective: 'Work three tickets on your own: a forgotten password, a cracked laptop screen and a caller who can\'t be verified. Verify callers with KB-0024, choose who owns each ticket and document it.',
-    description: 'Three unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Closing all three saves a completion record to your account.',
+    description: 'Three unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all three (resolve or escalate each one) and a completion record is saved to your account.',
     skills: ['Identity Verification', 'Resolve/Escalate Judgment', 'Documentation'], portalEntry: '#/program/it-support/module/1' }),
   // Module 1's Prove It, the only lab that gates its completion
   // (course_module_labs.gates_completion). The simulator's Submit saves it

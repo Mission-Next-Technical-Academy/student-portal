@@ -513,6 +513,7 @@ function testCompletionSentOnceAllClosed() {
   assert.deepEqual(Object.keys(data).sort(), ['id', 'nonce', 'student', 'tickets', 'type']);
   assert.deepEqual([data.type, data.id, data.student, data.tickets], ['mnt-practice-complete', 'its-01', STUDENT, SET]);
   assert.equal(notice(tab)[0], 'sending');
+  assert.match(notice(tab)[1], /You’ve finished every ticket\. Saving your completion/);
   // A reply for another nonce, or from another origin, changes nothing.
   tab.reply({ type: 'mnt-practice-received', id: 'its-01', nonce: 'other', saved: true });
   tab.reply({ type: 'mnt-practice-received', id: 'its-01', nonce: data.nonce, saved: true }, 'https://elsewhere.test');
@@ -522,6 +523,7 @@ function testCompletionSentOnceAllClosed() {
   const [kind, text] = notice(tab);
   assert.equal(kind, 'saved');
   assert.match(text, /Practice complete \(not graded\)\./);
+  assert.match(text, /saved that you finished every ticket in this set/);
   assert.match(text, /No score and no answers were sent\./);
   assert.doesNotMatch(text, /points?|\d+ ?%/i);
   // More work and a reload send nothing.
@@ -539,6 +541,8 @@ function testCompletionRetry() {
   const alone = sim(practiceUrl('student-m01t0007'));
   workLeah(alone); workRavi(alone); workKaren(alone);
   assert.deepEqual(notice(alone).slice(0, 1), ['unsaved']);
+  assert.match(notice(alone)[1], /You’ve finished every ticket, but your completion isn’t saved yet\./);
+  assert.doesNotMatch(notice(alone)[1], /closed/i);
   assert.match(notice(alone)[1], /Your course page isn.t open/);
   assert.match(notice(alone)[1], /Save my completion/);
 

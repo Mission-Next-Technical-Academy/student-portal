@@ -327,8 +327,8 @@
     const tickets = Array.isArray(result.tickets) ? result.tickets.filter((id) => typeof id === 'string') : [];
     const completedAt = ctx && ctx.row && ctx.row.completed_at;
     return [{
-      id: 'practice-completion', title: 'Practice completion', required: false, instructorPrompt: 'Practice only, not graded. The student closed every practice ticket; no score and no answers are saved. Nothing to grade here: use the Module 1 Prove It for review.',
-      answer: [['Completed', completedAt ? new Date(completedAt).toLocaleString() : null], ['Tickets closed', tickets.length ? tickets.join(', ') : null], ['Graded', 'No: Practice It, no score and no answers saved']],
+      id: 'practice-completion', title: 'Practice completion', required: false, instructorPrompt: 'Practice only, not graded. The student finished every practice ticket (resolved or escalated each one); no score and no answers are saved. Nothing to grade here: use the Module 1 Prove It for review.',
+      answer: [['Completed', completedAt ? new Date(completedAt).toLocaleString() : null], ['Tickets finished', tickets.length ? tickets.join(', ') : null], ['Graded', 'No: Practice It, no score and no answers saved']],
     }];
   }
 

@@ -708,11 +708,11 @@ function its01PracticeTickets() {
   return `<section class="its01-section its01-lab-section" id="its01-practice-tickets" aria-labelledby="its01-practice-tickets-title">
     <div class="its01-section-heading"><span>2</span><div><p class="its01-kicker">Practice It · on your own · not graded</p><h2 id="its01-practice-tickets-title">${esc(itsLabTitle(ITS01_PRACTICE_KEY))}</h2></div></div>
     <p class="its01-instruction">Three more tickets to work on your own: Leah Brooks has forgotten her password, Ravi Shah has cracked his laptop screen, and a caller wants an executive’s password reset in a hurry. Use the method, search the knowledge base and verify callers with KB-0024. Press Check my work on a ticket for feedback.</p>
-    <p class="its01-instruction">Nothing is graded and your answers aren’t sent. When you’ve closed all three tickets, the simulator tells this page, and your account records that you completed Lab 1.2.</p>
+    <p class="its01-instruction">Nothing is graded and your answers aren’t sent. Finish all three tickets: resolve or escalate each one. The simulator then tells this page, and your account records that you completed Lab 1.2.</p>
     <a class="itsw-evidence-button" data-its01-practice-launch href="${esc(its01PracticeTicketsHref(its01User))}" target="_blank" rel="opener">
       <i class="ri-play-list-line" aria-hidden="true"></i> Open the practice tickets
     </a>
-    ${itsLabStatusHtml(its01User, ITS01_PRACTICE_KEY, { label: 'Lab 1.2', prefix: 'its01', pendingText: 'Close all three tickets in the simulator to complete this lab.' })}
+    ${itsLabStatusHtml(its01User, ITS01_PRACTICE_KEY, { label: 'Lab 1.2', prefix: 'its01', pendingText: 'Finish all three tickets: resolve or escalate each one.' })}
   </section>`;
 }
 

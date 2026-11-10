@@ -22,12 +22,18 @@ tickets (not graded)"; the keys don't change.
   - **New message** from the simulator's practice set to the course page:
     `mnt-practice-complete` `{ id, nonce, student, tickets }`, answered by
     `mnt-practice-received` `{ id, nonce, saved, reason? }`. Ticket ids only,
-    no answers. The course page saves one `lab_attempts` row (state
+    no answers. It's sent once every ticket in the set is resolved or
+    escalated (students read "Finish all three tickets: resolve or escalate
+    each one"). The course page saves one `lab_attempts` row (state
     `complete`, score null, `result: { source, practiceSet, tickets }`). The
     launch link is now `rel="opener"`.
+  - **Grading counts:** this PR adds one Practice It completion row per
+    student who finishes the practice tickets; the admin course-card badge
+    and the grading views count these, since they don't filter Practice It.
   - **Not saved twice:** the key has no `course_module_labs` row, so the
     one-pending rule doesn't apply. The page re-reads the database and holds a
-    15-second same-browser lock before inserting. A save slower than 15
+    15-second same-browser lock before inserting; a superseded or returned
+    Lab 1.2 record doesn't count as already saved. A save slower than 15
     seconds in two tabs at once, or two devices in the same moment, could
     still leave an extra no-score row; a unique index would close that but
     needs a migration (not done, by decision).
@@ -38,13 +44,21 @@ tickets (not graded)"; the keys don't change.
     complete · N passed". Instructor side unchanged ("PRACTICE IT ·
     Autograded"); the sheet banner still says "Instructor judgment needed", as
     for the guided lab today.
+  - **Module 1 card text (`portal/data.js`):** the program page lists Lab 1.1
+    before Lab 1.2, and the Module 1 summary and both lessons' objective,
+    learn, practice and prove strings now describe the rebuilt module (no lab
+    environment or five-step mindset). Lesson titles, minutes and keys are
+    unchanged.
   - **Not touched:** `supabase/` (the old Lab 1.1's `course_module_labs` row
     and every attempt stay), `ui/coach.js`, shared CSS, SOC files.
 - **Status:** `bin/ci-check.sh` passes. Codex: two findings fixed (two tabs
   could save twice; a superseded or returned Lab 1.2 record counted as
   already saved); one left (the lock can expire during a save slower than
-  15 seconds; closing it fully needs a migration). Hosted staging not yet
-  checked. Migration: none.
+  15 seconds; closing it fully needs a migration). Hosted staging checked
+  Nov 10 at 1,280 and 1,512 px (`1.640-staging.43f82cc`); the later commits
+  (lab order, card text, the superseded-record check, wording) are covered by
+  tests, with the lab order and card text rechecked after redeploy.
+  Migration: none.
 
 **2026-11-10 (Megan; PR #104 "Help Desk Module 1: rebuild the page with orientation, readings and diagrams, checks and unguided tickets; Lab 1.1 off the page"; shared `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `portal/it-support-module-01.js`, `portal/it-support-module-01.css` and tests — please review the shared ones):**
 The Module 1 page is rebuilt from the Week 1 plan. Orientation comes first

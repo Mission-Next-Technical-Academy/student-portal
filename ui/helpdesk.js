@@ -147,11 +147,11 @@ function hdPracticeReport() {
 }
 function hdPracticeNotice() {
   if (!HD_PRACTICE_SET || !hdState) return '';
-  if (hdState.practiceSaved === true) return '<div class="callout success" role="status" data-hd-practice-notice="saved"><strong>Practice complete (not graded).</strong> Your course page saved that you closed every ticket in this set. No score and no answers were sent.</div>';
+  if (hdState.practiceSaved === true) return '<div class="callout success" role="status" data-hd-practice-notice="saved"><strong>Practice complete (not graded).</strong> Your course page saved that you finished every ticket in this set. No score and no answers were sent.</div>';
   if (!hdPracticeClosed()) return '';
-  if (hdPracticeSending) return '<div class="callout info" role="status" data-hd-practice-notice="sending">Every ticket is closed. Saving your completion to your course page…</div>';
+  if (hdPracticeSending) return '<div class="callout info" role="status" data-hd-practice-notice="sending">You’ve finished every ticket. Saving your completion to your course page…</div>';
   const reason = HD_PRACTICE_REASONS[hdState.practiceReason] || HD_PRACTICE_RETRY;
-  return `<div class="callout warning" role="alert" data-hd-practice-notice="unsaved"><strong>Every ticket is closed, but your completion isn't saved yet.</strong> ${hdEsc(reason)} <button type="button" class="btn btn-primary btn-sm" onclick="hdPracticeReport()">Save my completion</button></div>`;
+  return `<div class="callout warning" role="alert" data-hd-practice-notice="unsaved"><strong>You’ve finished every ticket, but your completion isn’t saved yet.</strong> ${hdEsc(reason)} <button type="button" class="btn btn-primary btn-sm" onclick="hdPracticeReport()">Save my completion</button></div>`;
 }
 
 function hdClone(value) { return JSON.parse(JSON.stringify(value)); }

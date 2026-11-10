@@ -132,7 +132,9 @@ function testPageBeforeCompletion() {
   assert.match(html, /<h2 id="its01-practice-tickets-title">Lab 1\.2 · Practice tickets \(not graded\)<\/h2>/);
   assert.match(html, /<h2 id="its01-lab-1-2-title">Lab 1\.1 · Guided Lab: A Day in the Life of an L1 Technician<\/h2>/);
   assert.match(html, /data-its01-practice-launch[^>]*target="_blank" rel="opener"/, 'opened with an opener, so the simulator can report back');
-  assert.equal(statusLine(html, PRACTICE), 'Close all three tickets in the simulator to complete this lab.');
+  assert.equal(statusLine(html, PRACTICE), 'Finish all three tickets: resolve or escalate each one.');
+  assert.match(html, /Finish all three tickets: resolve or escalate each one\. The simulator then tells this page/);
+  assert.doesNotMatch(html.replace(/<[^>]+>/g, ' '), /closed all three|Close all three/i, 'ServiceNow\'s Closed state is taught in Module 2');
   assert.match(html, /Start Lab 1\.1 walkthrough/);
   assert.equal((/id="its01-status">([^<]*)</.exec(html) || [])[1], '3 labs · 0 practice complete · 0 passed');
   assert.equal(railRow(html, 'its01-lab-1-2').text, 'Lab 1.1 · Guided Lab');
@@ -277,7 +279,7 @@ async function testCompletionSaveFails() {
   console.error = () => {};
   try { await moduleOne().onMessage(completion(source)); } finally { console.error = logged; }
   assert.deepEqual(replies.map((r) => [r.data.saved, r.data.reason]), [[false, 'save-failed']]);
-  assert.equal(statusLine(moduleOne().view(user, HD), PRACTICE), 'Close all three tickets in the simulator to complete this lab.', 'nothing shows as complete');
+  assert.equal(statusLine(moduleOne().view(user, HD), PRACTICE), 'Finish all three tickets: resolve or escalate each one.', 'nothing shows as complete');
 }
 
 /* ------------------------------------------------------ instructor sheets */
@@ -291,6 +293,8 @@ function testInstructorSheets() {
   assert.match(html, /Practice completion/);
   assert.match(html, /HD-2151, HD-2152, SEC-2153/);
   assert.match(html, /No: Practice It, no score and no answers saved/);
+  assert.match(html, /Tickets finished/);
+  assert.doesNotMatch(html, /Tickets closed|closed every/);
   // The old Lab 1.1 sheet is unchanged: title, evidence files, policy.
   assert.ok(sheet.has({ lab_key: RETIRED }));
   const old = sheet.render({ id: 'm01-old', lab_key: RETIRED, track_code: 'HDESK', student_id: 'synthetic', score: null, pass_threshold: 70, completed_at: '2026-10-20T15:00:00Z',
