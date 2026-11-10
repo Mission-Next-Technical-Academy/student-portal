@@ -1,4 +1,4 @@
-**2026-11-10 (Megan; branch `hdesk/m01-prove-hd2125-v2`, PR not yet opened: "Help Desk Module 1: the Module 1 version of the HD-2125 Prove It"; Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `portal/it-support-shared.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests, plus `?v=` lines in `ui/index.html` and `portal/index.html` — please review the `it-support-shared.js` and `index.html` lines):**
+**2026-11-10 (Megan; PR #106 "Help Desk Module 1: the Module 1 version of the HD-2125 Prove It"; Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `portal/it-support-shared.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests, plus `?v=` lines in `ui/index.html` and `portal/index.html` — please review the `it-support-shared.js` and `index.html` lines):**
 The HD-2125 Prove It (Module 1) is reworked for Module 1 skills: no commands
 are needed, the ticket's category, type and priority are pre-set, and the
 student can add the Finance printer from Settings › Printers & scanners ›
@@ -25,8 +25,10 @@ unchanged).
   - **Not touched:** `portal/app.js`, `portal/data.js`, `supabase/`, shared
     CSS, `ui/coach.js`. SOC and AI/ML are unchanged.
 - **Status:** `bin/ci-check.sh` passes. Codex: one finding fixed (the course
-  page accepted other values for the pre-set fields). Hosted staging not yet
-  checked. Migration: none.
+  page accepted other values for the pre-set fields); one left by design (a
+  submit with missing or invalid pre-set fields is refused, not replaced).
+  Hosted staging checked Nov 10 at 1,280 and 1,512 px
+  (`1.642-staging.4b4e54c`). Migration: none.
 
 **2026-11-10 (Megan; PR #105 "Help Desk Module 1: the practice tickets become Lab 1.2 with a completion record; the old Lab 1.1 is retired"; shared `portal/data.js`, `portal/app.js`, `portal/admin-sheets/hdesk.js`, `portal/index.html`, `ui/index.html`, `bin/ci-check.sh` and `bin/its-curriculum-check.js`, plus Help Desk `portal/it-support-module-01.js`, `portal/it-support-shared.js`, `ui/helpdesk.js` and tests — please review the shared ones):**
 Module 1's practice tickets (HD-2151, HD-2152, SEC-2153) are now a Practice It
