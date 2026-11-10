@@ -12,8 +12,8 @@
 //   - Two quick presses send one set of files and one attempt.
 //   - The files show as "Uploaded" only after the attempt is saved.
 //
-// Work done before Submit (Labs 1.1, 2.1, 2.2):
-//   - The lab's state (policy flags, added-file names) is saved to the
+// Work done before Submit (Labs 2.1, 2.2):
+//   - The lab's state (added-file names) is saved to the
 //     student's account (module_progress.case_state) and comes back in another
 //     browser; work kept only in an older browser is copied up.
 //   - A picked file keeps a copy in this browser's IndexedDB, scoped to the
@@ -22,7 +22,7 @@
 //     restored for another student, for a lab already submitted, or when the
 //     file was replaced in another browser. Without a copy the tile asks for
 //     the file again.
-//   - No Help Desk status, readiness or display for Labs 1.x and 2.x reads
+//   - No Help Desk status, readiness or display for Labs 1.2 and 2.x reads
 //     consoleCompleted (the coach Finish handlers still save it in this
 //     browser only).
 const assert = require('node:assert/strict');
@@ -41,7 +41,6 @@ const LabRuntime = run('LabRuntime');
 const moduleLab = (n) => run(`MODULE_LABS['it-support/${n}']`);
 const seed = (labId, user, state) => LabRuntime.save(labId, user, { ...LabRuntime.load(labId, user, {}), ...state });
 
-const LAB11 = 'lab-its-01-lms-validation';
 const LAB21 = 'lab-its-02-vm-build';
 const BUCKET = 'storage:lab-evidence';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -298,28 +297,9 @@ async function testResubmitUploadsANewFolder() {
   assert.equal(calls(BUCKET, 'remove').length, 0, 'earlier files are never removed');
 }
 
-async function testModuleOneUploadsBothFiles() {
-  const user = hdUser();
-  fresh(user);
-  seed('its01-lms-validation-v1', user, { aupScrolled: true, aupAcknowledged: true });
-  moduleLab(1).view(user, HD);
-  choose('its01AddEvidence', 'its01-evidence-1', pick('sandbox.png'));
-  let html = moduleLab(1).view(user, HD);
-  assert.doesNotMatch(html, /data-its-submit="lab-its-01-lms-validation"/, 'no Submit with one file');
-  choose('its01AddEvidence', 'its01-evidence-2', pick('lms.webp', 'image/webp'));
-  html = moduleLab(1).view(user, HD);
-  assert.match(section(html, 'its01-lab-1-1'), /LMS sign-in screenshot/);
-
-  assert.equal(await run('its01SubmitLab')(LAB11), true);
-  const [insert] = inserts(LAB11);
-  const folder = `HDESK/${user.userId}/its-01/${LAB11}/${insert.payload.id}`;
-  assert.deepEqual(plain(calls(BUCKET, 'upload').map((c) => c.payload.path)), [`${folder}/evidence1.png`, `${folder}/evidence2.webp`]);
-  assert.deepEqual(plain({ evidence: insert.payload.result.evidence, aup: insert.payload.result.aup, score: insert.payload.score }), { evidence: 2, aup: true, score: 100 });
-}
-
 /* ---------- Work done before Submit ---------- */
 
-const LAB11_ID = 'its01-lms-validation-v1';
+const M1_STATE_ID = 'its01-lms-validation-v1';
 const LAB2_ID = 'its02-lab-state-v1';
 const fs = require('node:fs');
 const path = require('node:path');
@@ -395,28 +375,6 @@ const tile = (html, id) => {
   return html.slice(start, html.indexOf('</label>', start));
 };
 
-async function testModuleOnePolicyFlagsReachTheAccount() {
-  const user = student();
-  await newBrowser(user);
-  moduleLab(1).view(user, HD);
-  // The policy scroll and checkbox handlers set these and save.
-  run('its01State.aupScrolled = true; its01State.aupAcknowledged = true; its01Save()');
-  await settle();
-  const saved = savedCaseState('its-01', LAB11_ID);
-  assert.ok(saved, 'Lab 1.1 state is written to module_progress.case_state');
-  assert.equal(saved.aupScrolled, true);
-  assert.equal(saved.aupAcknowledged, true);
-
-  // Another browser, same student: only the account's copy exists.
-  const again = student({}, { remoteCaseState: { 'its-01': { [LAB11_ID]: saved } } });
-  await newBrowser(again);
-  const html = moduleLab(1).view(again, HD);
-  assert.match(html, /data-its01-aup-checkbox checked /, 'the acknowledgement comes back');
-  assert.doesNotMatch(html, /data-its01-aup-checkbox[^>]*disabled/, 'the checkbox is enabled');
-  assert.doesNotMatch(html, /Scroll to the end of the policy text/, 'the policy counts as read');
-  assert.equal(statusLine(html, LAB11), 'Upload both evidence files and acknowledge the Acceptable Use Policy to complete this lab.', 'not ready: files must be chosen in this browser');
-}
-
 async function testModuleTwoFileNamesReachTheAccount() {
   const user = student();
   await newBrowser(user);
@@ -440,11 +398,11 @@ async function testModuleTwoFileNamesReachTheAccount() {
 async function testBrowserOnlyWorkIsCopiedUp() {
   const user = student();
   await newBrowser(user);
-  seed(LAB11_ID, user, { aupScrolled: true, aupAcknowledged: true });
-  moduleLab(1).view(user, HD);
+  seed(LAB2_ID, user, { evDesktop: { name: 'desktop.png', sizeLabel: '1.0 KB', uploadedAt: '2026-10-01T09:00:00Z' } });
+  moduleLab(2).view(user, HD);
   await settle();
-  const saved = savedCaseState('its-01', LAB11_ID);
-  assert.ok(saved && saved.aupAcknowledged === true, 'work kept only in this browser is copied to the account');
+  const saved = savedCaseState('its-02', LAB2_ID);
+  assert.ok(saved && saved.evDesktop && saved.evDesktop.name === 'desktop.png', 'work kept only in this browser is copied to the account');
 }
 
 async function testReloadRestoresPickedFiles() {
@@ -469,30 +427,6 @@ async function testReloadRestoresPickedFiles() {
   assert.deepEqual(plain(calls(BUCKET, 'upload').map((c) => c.payload.file.name)), ['desktop.png', 'settings.jpg'], 'the restored files are the ones uploaded');
   await settle();
   assert.deepEqual(copyKeys(), [], 'the copies are deleted after a successful submit');
-}
-
-async function testModuleOneReloadRestoresPickedFiles() {
-  const user = student();
-  await newBrowser(user);
-  moduleLab(1).view(user, HD);
-  choose('its01AddEvidence', 'its01-evidence-1', pick('sandbox.png'));
-  choose('its01AddEvidence', 'its01-evidence-2', pick('lms.webp', 'image/webp'));
-  run('its01State.aupScrolled = true; its01State.aupAcknowledged = true; its01Save()');
-  await settle();
-  reload();
-  moduleLab(1).view(user, HD);
-  await settle();
-  const html = moduleLab(1).view(user, HD);
-  assert.ok(submitButton(html, LAB11), 'Lab 1.1 is ready after the reload');
-  // A failed submit keeps the copies for the next try.
-  ctx.supabaseResponder = (call) => (call.table === BUCKET ? { data: null, error: { message: 'offline' } } : { data: null, error: null });
-  assert.equal(await run('its01SubmitLab')(LAB11), false);
-  await settle();
-  assert.equal(copyKeys().length, 2, 'a failed submit keeps the copies');
-  ctx.supabaseResponder = () => ({ data: null, error: null });
-  assert.equal(await run('its01SubmitLab')(LAB11), true);
-  await settle();
-  assert.deepEqual(copyKeys(), [], 'deleted once the submit succeeds');
 }
 
 async function testRefusedPickDeletesTheCopy() {
@@ -608,32 +542,6 @@ async function testSecondStudentSeesNothingOfTheFirst() {
   assert.deepEqual(copyKeys(), [], "the first student's copies are deleted");
 }
 
-async function testReturnedLabOneResubmitsWithRestoredFiles() {
-  const returnedAttempt = { completedAt: '2026-10-01T10:00:00Z', reviewedAt: '2026-10-02T10:00:00Z', redoRequested: true, supersededAt: null };
-  const user = student({ [LAB11]: returnedAttempt });
-  await newBrowser(user);
-  seed(LAB11_ID, user, {
-    evidence1: { name: 'old1.png', sizeLabel: '1.0 KB', uploadedAt: '2026-10-01T09:00:00Z' },
-    evidence2: { name: 'old2.png', sizeLabel: '1.0 KB', uploadedAt: '2026-10-01T09:00:00Z' },
-    aupScrolled: true, aupAcknowledged: true,
-  });
-  moduleLab(1).view(user, HD);
-  choose('its01AddEvidence', 'its01-evidence-1', pick('new1.png'));
-  choose('its01AddEvidence', 'its01-evidence-2', pick('new2.png'));
-  await settle();
-  reload();
-  moduleLab(1).view(user, HD);
-  await settle();
-  const html = moduleLab(1).view(user, HD);
-  const button = (/<button[^>]*data-its-resubmit="lab-its-01-lms-validation"[^>]*>/.exec(html) || [''])[0];
-  assert.ok(button && !/disabled/.test(button), 'Resubmit is enabled with the restored files');
-  assert.equal(await run('its01ResubmitLab')(LAB11), true);
-  assert.equal(inserts(LAB11).length, 1, 'one new attempt');
-  assert.deepEqual(plain(calls(BUCKET, 'upload').map((c) => c.payload.file.name)), ['new1.png', 'new2.png']);
-  await settle();
-  assert.deepEqual(copyKeys(), [], 'copies deleted after the resubmit');
-}
-
 // The coach Finish handlers still save consoleCompleted in this browser only,
 // while the page saves the same record to the account, so the two can
 // disagree. Nothing a student or instructor sees may depend on it.
@@ -645,18 +553,17 @@ async function testConsoleCompletedChangesNothingShown() {
     {},
     { 'lab-its-01-ticket-triage': SUBMITTED, 'lab-its-02-device-manager': SUBMITTED, 'lab-its-02-print-spooler': SUBMITTED },
     { 'lab-its-01-ticket-triage': RETURNED, 'lab-its-02-device-manager': RETURNED, 'lab-its-02-print-spooler': PASSED },
-    { 'lab-its-01-ticket-triage': PASSED, [LAB11]: PASSED, 'lab-its-02-device-manager': PASSED, 'lab-its-02-print-spooler': PASSED },
+    { 'lab-its-01-ticket-triage': PASSED, 'lab-its-01-lms-validation': PASSED, 'lab-its-02-device-manager': PASSED, 'lab-its-02-print-spooler': PASSED },
   ];
   const shown = async (attempts, consoleCompleted) => {
     const flags = { consoleStarted: consoleCompleted, consoleCompleted };
-    const user = student(attempts, { remoteCaseState: { 'its-01': { [LAB11_ID]: flags }, 'its-02': { [LAB2_ID]: flags } } });
+    const user = student(attempts, { remoteCaseState: { 'its-01': { [M1_STATE_ID]: flags }, 'its-02': { [LAB2_ID]: flags } } });
     await newBrowser(user);
-    seed(LAB11_ID, user, flags);
+    seed(M1_STATE_ID, user, flags);
     seed(LAB2_ID, user, flags);
     return plain({
       m1: moduleLab(1).view(user, HD),
       m2: moduleLab(2).view(user, HD),
-      lab11Ready: run('its01Lab1Ready()'),
       cards: ['its-01', 'its-02'].map((key) => run('moduleCompletion')(HD, key, user)),
     });
   };
@@ -697,19 +604,15 @@ async function testConsoleCompletedIsOnlyWrittenNeverRead() {
     testFailedCleanupIsLogged,
     testDoubleClickSendsOneSet,
     testResubmitUploadsANewFolder,
-    testModuleOneUploadsBothFiles,
-    testModuleOnePolicyFlagsReachTheAccount,
     testModuleTwoFileNamesReachTheAccount,
     testBrowserOnlyWorkIsCopiedUp,
     testReloadRestoresPickedFiles,
-    testModuleOneReloadRestoresPickedFiles,
     testRefusedPickDeletesTheCopy,
     testClearedSiteDataAsksForTheFileAgain,
     testFileReplacedInAnotherBrowserIsNotRestored,
     testSubmittedLabCopiesAreNotRestored,
     testSignOutDeletesTheCopies,
     testSecondStudentSeesNothingOfTheFirst,
-    testReturnedLabOneResubmitsWithRestoredFiles,
     testConsoleCompletedChangesNothingShown,
     testConsoleCompletedIsOnlyWrittenNeverRead,
   ];

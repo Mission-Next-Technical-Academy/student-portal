@@ -213,47 +213,31 @@ async function testEvidenceSubmitFailure() {
 const LAB11 = 'lab-its-01-lms-validation';
 const LAB12 = 'lab-its-01-ticket-triage';
 
+// Lab 1.1 is off the page: its old attempts stay in the database but show
+// nowhere on Module 1 (no section, no status line, no rail row, no counter).
 async function testModuleOneClearedStorage() {
   const user = hdUser({ [LAB11]: waiting(), [LAB12]: approved() });
   fresh(user);
   const html = moduleLab(1).view(user, HD);
-  assert.equal(statusLine(html, LAB11), `Lab 1.1 submitted ${DAY}, waiting for instructor review`);
   assert.equal(statusLine(html, LAB12), 'Lab 1.2 passed');
-  assert.equal(counter(html, 'its01-status'), '3 labs · 1 waiting for review · 1 passed');
-  assert.doesNotMatch(section(html, 'its01-lab-1-1'), /Not uploaded yet|data-itsw-evidence-input|data-its01-aup-checkbox/);
-  assert.match(section(html, 'its01-lab-1-1'), new RegExp(`Acknowledged with your Lab 1\\.1 submission on ${DAY}`));
+  assert.equal(counter(html, 'its01-status'), '2 labs · 1 passed');
   assert.match(section(html, 'its01-lab-1-2'), /Review the walkthrough/);
-  assert.match(railRow(html, 'its01-lab-1-1').text, /In review/);
   assert.equal(railRow(html, 'its01-lab-1-2').ticked, true);
+  assert.doesNotMatch(html, /its01-lab-1-1|data-its-lab-status="lab-its-01-lms-validation"|Lab 1\.1/);
 }
 
-async function testModuleOneExplicitSubmit() {
-  const user = hdUser();
-  fresh(user);
-  seed('its01-lms-validation-v1', user, { aupScrolled: true });
-  moduleLab(1).view(user, HD);
-  run('its01AddEvidence')('its01-evidence-1', file('sandbox.png', SUBMITTED));
-  run('its01AddEvidence')('its01-evidence-2', file('tile.png', SUBMITTED));
-  let html = moduleLab(1).view(user, HD);
-  assert.equal(submitButton(html, LAB11), null, 'the policy must be acknowledged before Submit appears');
-
-  const state = LabRuntime.load('its01-lms-validation-v1', user, {});
-  LabRuntime.save('its01-lms-validation-v1', user, { ...state, aupAcknowledged: true });
-  html = moduleLab(1).view(user, HD);
-  await settle();
-  assert.equal(inserts().length, 0, 'no auto-submit');
-  assert.equal(statusLine(html, LAB11), 'Ready to submit Lab 1.1');
-  assert.ok(submitButton(html, LAB11));
-  assert.match(section(html, 'its01-lab-1-1'), /screenshot of your LMS dashboard after you sign in/, 'Lab 1.1 asks for evidence of the student’s own sign-in');
-
-  await run('its01SubmitLab')(LAB11);
-  assert.equal(inserts(LAB11).length, 1);
-  html = moduleLab(1).view(user, HD);
-  assert.match(statusLine(html, LAB11), /^Lab 1\.1 submitted .+, waiting for instructor review$/);
-  assert.equal(counter(html, 'its01-status'), '3 labs · 1 waiting for review · 0 passed');
+async function testModuleOneHasNoEvidenceLab() {
+  const returnedLab11 = hdUser({ [LAB11]: returned() });
+  for (const user of [hdUser(), returnedLab11]) {
+    fresh(user);
+    const html = moduleLab(1).view(user, HD);
+    assert.doesNotMatch(html, /data-itsw-evidence-input|data-its-submit=|data-its-resubmit=|Not uploaded yet/, 'no evidence upload, Submit or Resubmit');
+    // The one allowed mention: technology setup says there is no virtual machine to build.
+    const words = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').replace('Every lab runs in the browser-based IT Service Desk simulator. There is nothing to install and no virtual machine to build.', '');
+    assert.doesNotMatch(words, /sandbox|virtual machine|\bVM\b|lab login|lab-environment login|two logins/i, 'no other sandbox, VM or second login');
+    assert.equal(counter(html, 'its01-status'), '2 labs · 0 passed', 'the counter has Lab 1.2 and the Prove It only');
+  }
 }
-
-/* --------------------------------------------------------------- Modules 3-11 */
 
 async function testSharedWalkthroughModules() {
   for (let n = 3; n <= 11; n += 1) {
@@ -579,7 +563,7 @@ async function testBlockedPopupShowsMessage() {
     testEvidenceUploadNeverCompletes,
     testEvidenceSubmitFailure,
     testModuleOneClearedStorage,
-    testModuleOneExplicitSubmit,
+    testModuleOneHasNoEvidenceLab,
     testSharedWalkthroughModules,
     testWalkthroughCompletionShowsWaiting,
     testDuplicateCoachCompletionMessageCreatesOneAttempt,
