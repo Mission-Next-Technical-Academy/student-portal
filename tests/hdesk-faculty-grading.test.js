@@ -95,8 +95,8 @@ function testCardOrderAndContent() {
   const at = (text) => { const i = html.indexOf(text); assert.ok(i >= 0, text); return i; };
   assert.ok(at("Student's written work") < at("Student's choices"), 'writing first');
   assert.ok(at("Student's choices") < at('What the student did in the simulator'), 'then choices and actions');
-  assert.ok(at('What the student did in the simulator') < at('Rubric hdesk-its-01-prove-v1'), 'then the rubric');
-  assert.ok(at('Rubric hdesk-its-01-prove-v1') < at('Efficiency feedback (earns no points)'));
+  assert.ok(at('What the student did in the simulator') < at('Rubric hdesk-its-01-prove-v2'), 'then the rubric');
+  assert.ok(at('Rubric hdesk-its-01-prove-v2') < at('Efficiency feedback (earns no points)'));
   assert.ok(at('Efficiency feedback') < at('data-its-prove-critical'));
   assert.ok(at('data-its-prove-critical') < at('data-its-prove-total'));
   assert.ok(at('data-its-prove-total') < at('data-its-prove-decide="approved"'));
@@ -171,7 +171,7 @@ async function testSubmitSendsTheGradeOnce() {
   assert.equal(args.p_attempt_id, 'attempt-1');
   assert.equal(args.p_decision, 'approved');
   assert.equal(args.p_efficiency, 'Quick.');
-  assert.equal(args.p_rubric_version, 'hdesk-its-01-prove-v1');
+  assert.equal(args.p_rubric_version, 'hdesk-its-01-prove-v2');
   assert.deepEqual(Array.from(args.p_competencies, (c) => [c.id, c.points, c.earned]), [['triage', 22, 22], ['investigation', 11, 11], ['diagnosis', 11, 11], ['action', 28, 28], ['documentation', 28, 20]]);
   assert.equal(Object.keys(args).includes('p_total'), false, 'the server adds up the total');
   assert.equal(saved, 1);

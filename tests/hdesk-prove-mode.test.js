@@ -8,6 +8,11 @@
 //   - The shell's machine state changes with the commands the student types.
 //   - Only meaningful events are recorded; the package has the work.
 //   - The committed rubric file names no answers.
+//   - Module 1 (rubric hdesk-its-01-prove-v2): category, type and priority are
+//     pre-set and read-only; Settings › Printers & scanners › Add device adds
+//     the printer with no admin rights and is recorded; the knowledge base
+//     search is the only console feature; a v1 draft starts from the current
+//     ticket, keeping the student's writing.
 //
 // Structure only: these tests never state which choices are right.
 // Loads the simulator scripts in ui/index.html's order into a Node vm.
@@ -73,7 +78,7 @@ function sim(url, { local = store(), session = store() } = {}) {
   const run = (code) => vm.runInContext(code, ctx);
   const input = (id, value) => { const el = element(id); el.value = value; byId.set(id, el); };
   return {
-    ctx, location, toasts, local, session, run,
+    ctx, location, toasts, local, session, run, input,
     hd: () => run('hdState'),
     view: (route) => run(`VIEWS[${JSON.stringify(route)}]()`),
     ps: (command) => {
@@ -90,6 +95,8 @@ const proveUrl = (student, hash = '#/helpdesk/tickets') => `${SIM_URL}?prove=its
 const SHIFT = sim(SIM_URL).run("HD_PROVE_SHIFTS['its-01']");
 const PROVE_TICKET = SHIFT.tickets[0];
 const PROVE_ID = PROVE_TICKET.id;
+const PRESET = { category: 'Service Request', type: 'Access request', priority: 'P3' };
+const FIN_PRINTER = '\\\\NS-PRINT01\\NS-FIN-PRN01';
 
 function testPracticeNeverGetsProveMaterial() {
   const tab = sim(`${SIM_URL}#/helpdesk/tickets`);
@@ -112,7 +119,8 @@ function testProveLaunchOpensOnlyItsTicketWithNoCoach() {
   assert.deepEqual([...state.tickets.map((t) => t.id)], [PROVE_ID]);
   assert.equal(state.mode, 'prove');
   assert.equal(state.selectedComputer, SHIFT.selectedComputer);
-  assert.deepEqual(JSON.parse(JSON.stringify(state.prove.fields)), { category: '', type: '', priority: '' }, 'the student sets every ticket field');
+  assert.deepEqual(JSON.parse(JSON.stringify(state.prove.fields)), PRESET, 'Module 1 pre-sets the ticket fields');
+  assert.equal(state.prove.rubricVersion, 'hdesk-its-01-prove-v2');
   assert.equal(state.tickets[0].priority, '');
   assert.equal(tab.panelHtml(), '', 'no coach panel content');
   assert.match(tab.location.search, /student=student-aaaa1111/, 'the launch parameters stay for a reload');
@@ -147,10 +155,16 @@ function testProveTicketViewRevealsNothing() {
   const order = tab.hd().prove.order;
   assert.deepEqual([...order.diagnosis].sort(), [...PROVE_TICKET.diagnosisOptions].sort());
   assert.deepEqual([...order.path].sort(), [...PROVE_TICKET.pathPool.map((s) => s.id)].sort());
-  const shownSteps = [...html.matchAll(/hdProveToggleStep\('(p\d+)'/g)].map((m) => m[1]);
+  const shownSteps = [...html.matchAll(/hdProveToggleStep\('(m\d+)'/g)].map((m) => m[1]);
   assert.deepEqual(shownSteps, [...order.path]);
-  // No numbers or marks beside the steps.
+  // No numbers or marks beside the steps, and no label on any step: a card
+  // shows only the step's wording.
   assert.doesNotMatch(html, /<label><input type="checkbox"[^>]*>\s*<span>\d/);
+  assert.doesNotMatch(html, /unsafe|\bkept\b|\bsafe\b|distractor|critical/i);
+  const stepLabels = [...html.matchAll(/hdProveToggleStep\('m\d+',this\.checked\);hdProveMark\(this\)"[^>]*>([^<]*)<\/label>/g)].map((m) => m[1]);
+  assert.deepEqual(stepLabels, order.path.map((id) => tab.run('hdEsc')(PROVE_TICKET.pathPool.find((step) => step.id === id).text)));
+  // Module 1 skills only: no print-server, policy-refresh or command steps.
+  PROVE_TICKET.pathPool.forEach((step) => assert.doesNotMatch(step.text, /NS-PRINT01|print server|polic(y|ies) refresh|refresh policy|gpupdate|whoami|Get-Printer|driver/i, step.text));
 }
 
 function testShellMachineState() {
@@ -160,10 +174,11 @@ function testShellMachineState() {
   assert.match(tab.ps('whoami /groups'), /GG-Finance-Users/);
   assert.doesNotMatch(tab.ps('Get-Printer'), /NS-FIN-PRN01/);
   assert.match(tab.ps('gpupdate /force'), /User Policy update has completed successfully/);
-  assert.match(tab.ps('Get-Printer'), /\\\\NS-PRINT01\\NS-FIN-PRN01/, 'the policy refresh adds the published printer');
+  assert.doesNotMatch(tab.ps('Get-Printer'), /NS-FIN-PRN01/, 'Module 1: no policy-deployed printer (that route is Module 4)');
   assert.match(tab.ps('Get-ComputerInfo'), /OsUptime: 9 days/);
   assert.match(tab.ps('Get-Service'), /Running\s+Spooler/);
-  // Local group changes take effect with no warning or feedback.
+  // Local group changes take effect with no warning or feedback: typing
+  // Add-LocalGroupMember really makes Evan an admin, and it's recorded.
   const toastsBefore = tab.toasts.length;
   assert.equal(tab.ps('Add-LocalGroupMember -Group "Administrators" -Member "NORTHSTAR\\eparker"'), '');
   assert.match(tab.ps('whoami /groups'), admins);
@@ -236,6 +251,7 @@ function testPracticeShellUnchanged() {
 function testOnlyMeaningfulEventsAndThePackage() {
   const tab = sim(proveUrl('student-events01'));
   tab.run("hdProveSetField('category', 'Incident'); hdProveSetField('priority', 'P2')");
+  assert.deepEqual(JSON.parse(JSON.stringify(tab.hd().prove.fields)), PRESET, 'pre-set fields can\'t be changed');
   tab.run("hdProveText('resolutionNote', 'Did a thing.'); hdProveText('userReply', 'Hello.')");
   assert.equal(tab.hd().prove.events.length, 0, 'fields and typing are saved, not recorded as events');
   const [stepA, stepB] = tab.hd().prove.order.path;
@@ -260,7 +276,8 @@ function testOnlyMeaningfulEventsAndThePackage() {
   assert.equal(pkg.labKey, 'lab-its-01-prove-it');
   assert.deepEqual([...pkg.stepTexts], [PROVE_TICKET.pathPool.find((step) => step.id === stepB).text], 'the portal has no simulator data, so the steps travel as text');
   assert.equal(pkg.ticketId, PROVE_ID);
-  assert.deepEqual(JSON.parse(JSON.stringify(pkg.fields)), { category: 'Incident', type: '', priority: 'P2' });
+  assert.deepEqual(JSON.parse(JSON.stringify(pkg.fields)), PRESET, 'the package carries the pre-set fields');
+  assert.equal(pkg.rubricVersion, 'hdesk-its-01-prove-v2');
   assert.equal(pkg.decision, 'Escalate');
   assert.equal(pkg.resolutionNote, 'Did a thing.');
   assert.ok(Array.isArray(pkg.machine.localAdministrators));
@@ -359,7 +376,121 @@ function testSelectedChoiceIsNeutral() {
   assert.match(html, /hdProveMark\(this\)/, 'a change restyles the choice at once');
 }
 
+// Module 1: category, type and priority are set for the student, shown as
+// text with no control, never part of "Still needed".
+function testPresetFieldsAreReadOnly() {
+  const tab = sim(proveUrl('student-preset01'));
+  const html = tab.view('helpdesk/ticket');
+  const card = (/<div class="hd-field-grid" data-hd-prove-preset>[\s\S]*?<\/div><p class="muted">Set for you in Module 1\.<\/p>/.exec(html) || [''])[0];
+  assert.ok(card, 'a read-only fields card');
+  Object.entries({ Category: PRESET.category, Type: PRESET.type, Priority: PRESET.priority }).forEach(([label, value]) => assert.match(card, new RegExp(`<span>${label}</span><strong>${value}</strong>`)));
+  assert.doesNotMatch(html, /hdProveSetField/, 'no control to change them');
+  assert.doesNotMatch(tab.run('hdProveSubmitState()').note, /category|type|priority/);
+  ['category', 'type', 'priority'].forEach((field) => tab.run(`hdProveSetField('${field}', 'P1')`));
+  assert.deepEqual(JSON.parse(JSON.stringify(tab.hd().prove.fields)), PRESET);
+}
+
+// The approved printer route: Settings › Printers & scanners › Add device on
+// Evan's laptop adds NS-FIN-PRN01 with no admin rights, recorded for the
+// instructor. Practice laptops have no such button.
+function testSettingsAddDeviceAddsThePrinter() {
+  const tab = sim(proveUrl('student-addprn01'));
+  assert.match(tab.view('helpdesk/windows'), /navigate\('#\/helpdesk\/settings-printers'\)">⚙ Settings › Printers &amp; scanners/);
+  let html = tab.view('helpdesk/settings-printers');
+  assert.match(html, /Bluetooth &amp; devices › Printers &amp; scanners/);
+  assert.match(html, /<ul class="hd-list" data-hd-settings-installed><li>Microsoft Print to PDF<\/li><\/ul>/);
+  assert.doesNotMatch(html, /data-hd-settings-found/, 'nothing listed before Add device');
+  tab.run('hdSettingsScan()');
+  html = tab.view('helpdesk/settings-printers');
+  assert.match(html, /data-hd-settings-found><div><strong>NS-FIN-PRN01<\/strong><small class="muted"> Finance · 3rd floor/);
+  tab.run(`hdSettingsAddPrinter('NS-LT-0122', ${JSON.stringify(FIN_PRINTER)})`);
+  const machine = tab.hd().machines['NS-LT-0122'];
+  assert.deepEqual([...machine.printers], ['Microsoft Print to PDF', FIN_PRINTER]);
+  assert.deepEqual([...machine.localAdministrators], ['NORTHSTAR\\Domain Admins', 'NS-LT-0122\\MNT-Support'], 'no admin rights given');
+  assert.doesNotMatch(tab.ps('whoami /groups'), /BUILTIN\\Administrators/);
+  assert.match(tab.ps('Get-Printer'), /\\\\NS-PRINT01\\NS-FIN-PRN01/);
+  assert.equal(tab.toasts.slice(-1)[0], 'NS-FIN-PRN01 added. No administrator rights were needed.');
+  assert.match(tab.view('helpdesk/settings-printers'), /No new printers or scanners found\./);
+  // Adding again changes nothing and records nothing more.
+  tab.run(`hdSettingsAddPrinter('NS-LT-0122', ${JSON.stringify(FIN_PRINTER)})`);
+  const actions = tab.hd().prove.events.filter((e) => e.type === 'action_taken');
+  assert.deepEqual(JSON.parse(JSON.stringify(actions.map(({ label, computer }) => ({ label, computer })))), [{ label: 'Added NS-FIN-PRN01 from Settings › Printers & scanners › Add device', computer: 'NS-LT-0122' }]);
+  assert.ok(tab.hd().prove.opened.includes('screen:helpdesk/settings-printers'), 'opening Settings is recorded');
+  const pkg = tab.run('hdProvePackage()');
+  assert.ok(pkg.machine.printers.includes(FIN_PRINTER), 'the instructor sees it on the laptop at submit');
+  assert.ok(pkg.events.some((e) => e.type === 'action_taken'));
+  // A printer not on the laptop's list can't be added.
+  tab.run("hdSettingsAddPrinter('NS-LT-0122', '\\\\\\\\NS-PRINT01\\\\NS-HR-PRN01')");
+  assert.equal(tab.hd().machines['NS-LT-0122'].printers.length, 2);
+  // Once submitted, nothing can be added.
+  const locked = sim(proveUrl('student-addprn02'));
+  locked.run("hdProveServer.status = 'waiting'; hdSettingsScan()");
+  assert.match(locked.view('helpdesk/settings-printers'), /<button type="button" class="btn btn-secondary btn-sm" disabled/);
+  locked.run(`hdSettingsAddPrinter('NS-LT-0122', ${JSON.stringify(FIN_PRINTER)})`);
+  assert.deepEqual([...locked.hd().machines['NS-LT-0122'].printers], ['Microsoft Print to PDF']);
+  // Practice: no Settings button on any laptop.
+  const practice = sim(`${SIM_URL}#/helpdesk/windows`);
+  practice.run('hdComputers()').forEach((c) => {
+    practice.run(`hdState.selectedComputer = ${JSON.stringify(c.name)}`);
+    assert.doesNotMatch(practice.view('helpdesk/windows'), /settings-printers/, c.name);
+  });
+}
+
+// The knowledge base search is the only console feature in a Prove It: the
+// words searched and the articles opened are recorded; nothing else appears.
+function testOnlyTheKbSearchInProve() {
+  const tab = sim(proveUrl('student-kbonly01', '#/helpdesk/ticket'));
+  const ticket = `hdTicketById('${PROVE_ID}')`;
+  assert.deepEqual(JSON.parse(JSON.stringify(tab.run(`hdConsole(${ticket})`))), { kb: true });
+  const html = tab.view('helpdesk/ticket');
+  assert.match(html, /class="card hd-kb-search"/);
+  ['hd-chat', 'hd-verify', 'hd-actions', 'hd-owner', 'hd-comments', 'hd-practice-feedback', 'hd-priority-preset', 'hd-account', 'hd-console-outcomes', 'hd-resolution-code']
+    .forEach((cls) => assert.doesNotMatch(html, new RegExp(`class="card ${cls}"|class="${cls}"`), cls));
+  ['hdConsoleChatCard', 'hdConsoleVerifyCard', 'hdConsoleOutcomesCard'].forEach((fn) => assert.equal(tab.run(`${fn}(${ticket})`), '', fn));
+  tab.input('hd-kb-input', 'admin rights');
+  tab.run(`hdKbSearch({ preventDefault() {} }, '${PROVE_ID}')`);
+  assert.match(tab.view('helpdesk/ticket'), /data-kb="KB-0058"/, 'the search finds KB-0058');
+  tab.run(`hdKbOpen('${PROVE_ID}', 'KB-0058')`);
+  assert.match(tab.view('helpdesk/ticket'), /Finance printers are added from Settings › Printers &amp; scanners › Add device\. No admin rights are needed\./);
+  const events = JSON.parse(JSON.stringify(tab.hd().prove.events.map(({ type, value, source }) => ({ type, value, source }))));
+  assert.deepEqual(events, [{ type: 'kb_search', value: 'admin rights' }, { type: 'evidence_opened', source: 'kb:KB-0058' }]);
+  // Practice-only actions do nothing here.
+  const before = JSON.stringify(tab.hd());
+  tab.run(`hdChatAsk('${PROVE_ID}', 'when'); hdVerify('${PROVE_ID}', 'callback'); hdConsoleAction('${PROVE_ID}', 'x'); hdConsoleOwner('${PROVE_ID}', 'x')`);
+  assert.equal(JSON.stringify(tab.hd()), before);
+}
+
+// A draft saved before this version (no rubric version, v1 steps and fields)
+// starts from the current ticket and keeps the student's writing.
+function testV1DraftStartsFromTheCurrentTicket() {
+  const local = store();
+  const first = sim(proveUrl('student-v1draft1'), { local });
+  const key = first.run('hdStateKey()');
+  const old = JSON.parse(local.getItem(key));
+  delete old.prove.rubricVersion;
+  old.prove.fields = { category: 'Incident', type: 'Printer', priority: 'P2' };
+  old.prove.steps = ['p1', 'p3'];
+  old.prove.resolutionNote = 'Earlier note.';
+  old.prove.userReply = 'Earlier reply.';
+  old.prove.decision = 'Resolve';
+  old.tickets[0].pathPool = [{ id: 'p1', text: 'An earlier step' }, { id: 'p3', text: 'Another earlier step' }];
+  old.tickets[0].notes = [{ time: '10:00', author: 'Riley Morgan', text: 'Earlier work note.' }];
+  old.machines['NS-LT-0122'].pendingPolicyPrinters = [FIN_PRINTER];
+  local.setItem(key, JSON.stringify(old));
+  const tab = sim(proveUrl('student-v1draft1'), { local });
+  const prove = tab.hd().prove;
+  assert.equal(prove.rubricVersion, 'hdesk-its-01-prove-v2');
+  assert.deepEqual(JSON.parse(JSON.stringify(prove.fields)), PRESET);
+  assert.deepEqual([...prove.steps], [], 'earlier steps dropped');
+  assert.deepEqual([prove.resolutionNote, prove.userReply, prove.decision], ['Earlier note.', 'Earlier reply.', 'Resolve'], 'writing kept');
+  assert.deepEqual(JSON.parse(JSON.stringify(tab.hd().tickets[0].pathPool)), JSON.parse(JSON.stringify(PROVE_TICKET.pathPool)), 'the current steps');
+  assert.equal(tab.hd().tickets[0].notes[0].text, 'Earlier work note.');
+  assert.deepEqual([...tab.hd().machines['NS-LT-0122'].pendingPolicyPrinters], [], 'the laptop as the current fixture says');
+  assert.equal(JSON.parse(local.getItem(key)).prove.rubricVersion, 'hdesk-its-01-prove-v2', 'saved upgraded');
+}
+
 const tests = [
+  testPresetFieldsAreReadOnly, testSettingsAddDeviceAddsThePrinter, testOnlyTheKbSearchInProve, testV1DraftStartsFromTheCurrentTicket,
   testSelectedChoiceIsNeutral,
   testLaunchWithoutStudentOpensNothing,
   testPracticeNeverGetsProveMaterial, testProveLaunchOpensOnlyItsTicketWithNoCoach, testProveTicketViewRevealsNothing,

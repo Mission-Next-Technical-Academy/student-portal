@@ -1,3 +1,28 @@
+**2026-11-10 (Megan; branch `hdesk/m01-prove-hd2125-v2`, PR not yet opened: "Help Desk Module 1: the Module 1 version of the HD-2125 Prove It"; Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `portal/it-support-shared.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests, plus `?v=` lines in `ui/index.html` and `portal/index.html` — please review the `it-support-shared.js` and `index.html` lines):**
+The HD-2125 Prove It (Module 1) is reworked for Module 1 skills: no commands
+are needed, the ticket's category, type and priority are pre-set, and the
+student can add the Finance printer from Settings › Printers & scanners ›
+Add device. Rubric version `hdesk-its-01-prove-v2` (competencies and points
+unchanged).
+- **For your code or agent:**
+  - **Two new Prove It event types** kept by `itsCleanProveWork`
+    (`ITS_PROVE_EVENT_TYPES`): `kb_search` (`value`: the words searched) and
+    `action_taken` (`label`, `computer`: an action done on a screen, here
+    adding the printer). The instructor's Prove It panel shows them as
+    "Knowledge base searches" and "Actions in the simulator".
+  - **Rubric version:** the course page refuses a Submit whose version isn't
+    `hdesk-its-01-prove-v2`, so a simulator tab opened before the deploy gets
+    the existing "reload your course page" notice. A v1 attempt graded after
+    the deploy records `hdesk-its-01-prove-v2`. The database doesn't check the
+    version; the SQL tests in `supabase/tests/` still use v1 as test data.
+  - **Simulator, Prove only:** `hdConsole()` now turns on the knowledge base
+    search for a Prove ticket that asks for it (HD-2125), and no other console
+    feature. Practice tickets in a Prove shift still get none.
+  - **Not touched:** `portal/app.js`, `portal/data.js`, `supabase/`, shared
+    CSS, `ui/coach.js`. SOC and AI/ML are unchanged.
+- **Status:** `bin/ci-check.sh` passes. Codex review approved (no findings).
+  Hosted staging not yet checked. Migration: none.
+
 **2026-11-10 (Megan; PR #105 "Help Desk Module 1: the practice tickets become Lab 1.2 with a completion record; the old Lab 1.1 is retired"; shared `portal/data.js`, `portal/app.js`, `portal/admin-sheets/hdesk.js`, `portal/index.html`, `ui/index.html`, `bin/ci-check.sh` and `bin/its-curriculum-check.js`, plus Help Desk `portal/it-support-module-01.js`, `portal/it-support-shared.js`, `ui/helpdesk.js` and tests — please review the shared ones):**
 Module 1's practice tickets (HD-2151, HD-2152, SEC-2153) are now a Practice It
 lab with a new key, `lab-its-01-practice-tickets` (15 min under ITHD-101.1,

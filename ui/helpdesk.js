@@ -274,9 +274,16 @@ function hdFreshPracticeSetState() {
   state.practiceSet = HD_PRACTICE_SET.key;
   return state;
 }
+// A Prove ticket's pre-set fields (Module 1: set for the student, read-only,
+// never scored), or null when the student sets them.
+function hdProvePreset() {
+  const ticket = HD_PROVE && (HD_PROVE.shift.tickets || [])[0];
+  return ticket && ticket.preset ? { category:'', type:'', priority:'', ...ticket.preset } : null;
+}
 // A fresh Prove shift: the Practice shift builder with the module's own
 // tickets, fixtures and machine state. Ticket fields start empty (the student
-// sets them) and the option lists are shuffled per attempt.
+// sets them) unless the ticket pre-sets them, and the option lists are
+// shuffled per attempt.
 function hdFreshProveState() {
   const shift = HD_PROVE.shift;
   const state = hdFreshState(shift.tickets);
@@ -288,12 +295,12 @@ function hdFreshProveState() {
     selectedComputer:shift.selectedComputer, selectedUserId:requester ? requester.id : state.selectedUserId,
     machines:hdClone(shift.machines || {}),
     prove:{
-      startedAt:new Date().toISOString(),
+      rubricVersion:shift.rubricVersion, startedAt:new Date().toISOString(),
       order:{
         diagnosis:hdSeededOrder(ticket.diagnosisOptions, state.seed),
         path:hdSeededOrder(ticket.pathPool.map(step => step.id), state.seed ^ 0x5bd1e995),
       },
-      fields:{ category:'', type:'', priority:'' },
+      fields:hdProvePreset() || { category:'', type:'', priority:'' },
       diagnosis:'', steps:[], decision:'', resolutionNote:'', userReply:'',
       events:[], opened:[], passwordTyped:false,
     },
@@ -401,6 +408,30 @@ function hdScrubSavedCommands(state) {
   if (changed) { try { localStorage.setItem(hdStateKey(), JSON.stringify(state)); } catch (_) {} }
   return state;
 }
+// A Prove draft saved under an earlier version of the ticket (its rubric
+// version differs, or it has none) starts from the current ticket, keeping the
+// student's writing, notes and recorded actions. Its step choices are dropped
+// (the step ids are new) and the laptop starts as the current fixture says.
+function hdProveUpgrade(saved) {
+  if (!HD_PROVE || !saved || !saved.prove || saved.prove.rubricVersion === HD_PROVE.shift.rubricVersion) return saved;
+  const fresh = hdFreshProveState();
+  const old = saved.prove;
+  const text = value => (typeof value === 'string' ? value.slice(0, 4000) : '');
+  fresh.prove = {
+    ...fresh.prove,
+    startedAt:text(old.startedAt) || fresh.prove.startedAt, editedAt:old.editedAt,
+    diagnosis:fresh.prove.order.diagnosis.includes(old.diagnosis) ? old.diagnosis : '',
+    decision:['Resolve', 'Escalate'].includes(old.decision) ? old.decision : '',
+    resolutionNote:text(old.resolutionNote), userReply:text(old.userReply),
+    events:Array.isArray(old.events) ? old.events.slice(-400) : [], opened:Array.isArray(old.opened) ? old.opened.slice() : [],
+    passwordTyped:old.passwordTyped === true, passwordWritten:old.passwordWritten === true,
+  };
+  const oldTicket = Array.isArray(saved.tickets) ? saved.tickets[0] : null;
+  if (oldTicket && Array.isArray(oldTicket.notes)) fresh.tickets[0].notes = oldTicket.notes.slice();
+  if (Array.isArray(saved.powershell)) fresh.powershell = saved.powershell.slice();
+  try { localStorage.setItem(hdStateKey(), JSON.stringify(fresh)); } catch (_) {}
+  return fresh;
+}
 function hdLoadState() {
   if (HD_PROVE && HD_PROVE.blocked) return { ...hdFreshProveState(), tickets:[], selectedTicketId:null };
   try {
@@ -408,7 +439,7 @@ function hdLoadState() {
     const fits = HD_PROVE ? saved && saved.mode === 'prove' && saved.moduleKey === HD_PROVE.moduleKey && saved.prove
       : HD_PRACTICE_SET ? saved && saved.mode !== 'prove' && saved.practiceSet === HD_PRACTICE_SET.key
         : saved && saved.mode !== 'prove' && !saved.practiceSet;
-    if (fits && saved.version === 1 && Array.isArray(saved.tickets)) return hdScrubSavedCommands(HD_PROVE ? saved : hdEnsurePractice(saved));
+    if (fits && saved.version === 1 && Array.isArray(saved.tickets)) return hdScrubSavedCommands(HD_PROVE ? hdProveUpgrade(saved) : hdEnsurePractice(saved));
   } catch (_) {}
   const fresh = HD_PROVE ? hdFreshProveState() : HD_PRACTICE_SET ? hdFreshPracticeSetState() : hdFreshState();
   localStorage.setItem(hdStateKey(), JSON.stringify(fresh));
@@ -779,7 +810,13 @@ function hdM01InvestigationCard(scenario) {
  * The student's work on these lives in ticket.consoleState and
  * ticket.customerComments, created only for a ticket that has the feature. */
 function hdConsole(ticket) {
-  if (HD_PROVE || !ticket) return {};
+  if (!ticket) return {};
+  // A Prove ticket can turn on the knowledge base search and nothing else:
+  // no caller chat, verification, actions, owner, comments or feedback.
+  if (HD_PROVE) {
+    const proveTicket = (HD_PROVE.shift.tickets || []).find(item => item.id === ticket.id);
+    return proveTicket && proveTicket.console && proveTicket.console.kb === true ? { kb:true } : {};
+  }
   const template = HD_TICKET_TEMPLATES.find(item => item.id === ticket.id);
   return (template && template.console) || {};
 }
@@ -892,6 +929,8 @@ function hdKbSearch(event, id) {
     state.kbSearches.push({ query, results, at:new Date().toISOString() });
     if (state.kbSearches.length > 30) state.kbSearches.splice(0, state.kbSearches.length - 30);
     hdPracticeEvent('kb_search', { ticket:ticket.id, query, results:results.join(', ') });
+    // Prove It: the instructor sees the words searched (never the results).
+    hdProveEvent('kb_search', { value:query });
   }
   hdRerender();
 }
@@ -903,6 +942,7 @@ function hdKbOpen(id, articleId) {
   if (state.kbOpen && !state.kbOpened.includes(articleId)) {
     state.kbOpened.push(articleId);
     hdPracticeEvent('evidence_opened', { ticket:ticket.id, source:`kb:${articleId}`, label:`${articleId} · ${article.title}` });
+    hdProveOpened(`kb:${articleId}`, `${articleId} · ${article.title}`);
   }
   hdRerender();
 }
@@ -1384,7 +1424,54 @@ VIEWS['helpdesk/active-directory'] = () => {
 
 function hdSelectComputer(name, route) { hdState.selectedComputer=name; hdProveOpened(`computer:${name}`, `Endpoint · ${name}`); hdSave(); if(route) navigate(route); else render(); }
 function hdEndpointCards() { return hdComputers().map(base=>{const c=hdComputerByName(base.name);return `<button class="hd-device-card ${hdState.selectedComputer===c.name?'active':''}" onclick="hdSelectComputer('${c.name}')"><strong>${hdEsc(c.name)}</strong><span>${hdEsc(c.user)}</span><small>${hdEsc(c.health)} · ${hdEsc(c.lastSeen)}</small></button>`}).join(''); }
-VIEWS['helpdesk/windows'] = () => { const c=hdComputerByName(hdState.selectedComputer)||hdComputerByName('NS-LT-0042'); return `${hdPageHeader('Windows Desktop', 'Inspect a managed Windows 11 endpoint before choosing a repair.')}<div class="hd-endpoint-layout"><aside class="card"><div class="card-header"><strong>Endpoints</strong></div><div class="hd-device-list">${hdEndpointCards()}</div></aside><div class="hd-windows-screen"><div class="hd-window-bar"><span>${hdEsc(c.name)} · Remote session</span><span>— □ ×</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows 11 Enterprise</strong><span>${hdEsc(c.os)}</span></div><div class="hd-field-grid"><div><span>Signed-in user</span><strong>${hdEsc(c.user)}</strong></div><div><span>IPv4</span><strong>${hdEsc(c.ip)}</strong></div><div><span>Domain trust</span><strong>${hdEsc(c.trust)}</strong></div><div><span>BitLocker</span><strong>${hdEsc(c.bitlocker)}</strong></div><div><span>OU</span><strong>${hdEsc(c.ou)}</strong></div><div><span>Health</span><strong>${hdEsc(c.health)}</strong></div>${c.uptimeDays ? `<div><span>Uptime</span><strong>${hdEsc(c.uptimeDays)} days</strong></div>` : ''}</div><div class="hd-tool-grid"><button onclick="navigate('#/helpdesk/event-viewer')">📋 Event Viewer</button><button onclick="navigate('#/helpdesk/powershell')">&gt;_ PowerShell</button><button onclick="navigate('#/helpdesk/active-directory')">🗂 Directory</button><button onclick="navigate('#/helpdesk/remote-support')">🖥 Remote Support</button></div></div></div></div>`; };
+VIEWS['helpdesk/windows'] = () => { const c=hdComputerByName(hdState.selectedComputer)||hdComputerByName('NS-LT-0042'); return `${hdPageHeader('Windows Desktop', 'Inspect a managed Windows 11 endpoint before choosing a repair.')}<div class="hd-endpoint-layout"><aside class="card"><div class="card-header"><strong>Endpoints</strong></div><div class="hd-device-list">${hdEndpointCards()}</div></aside><div class="hd-windows-screen"><div class="hd-window-bar"><span>${hdEsc(c.name)} · Remote session</span><span>— □ ×</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows 11 Enterprise</strong><span>${hdEsc(c.os)}</span></div><div class="hd-field-grid"><div><span>Signed-in user</span><strong>${hdEsc(c.user)}</strong></div><div><span>IPv4</span><strong>${hdEsc(c.ip)}</strong></div><div><span>Domain trust</span><strong>${hdEsc(c.trust)}</strong></div><div><span>BitLocker</span><strong>${hdEsc(c.bitlocker)}</strong></div><div><span>OU</span><strong>${hdEsc(c.ou)}</strong></div><div><span>Health</span><strong>${hdEsc(c.health)}</strong></div>${c.uptimeDays ? `<div><span>Uptime</span><strong>${hdEsc(c.uptimeDays)} days</strong></div>` : ''}</div><div class="hd-tool-grid"><button onclick="navigate('#/helpdesk/event-viewer')">📋 Event Viewer</button><button onclick="navigate('#/helpdesk/powershell')">&gt;_ PowerShell</button><button onclick="navigate('#/helpdesk/active-directory')">🗂 Directory</button><button onclick="navigate('#/helpdesk/remote-support')">🖥 Remote Support</button>${hdSettingsPrinterPaths(c.name).length ? `<button onclick="navigate('#/helpdesk/settings-printers')">⚙ Settings › Printers &amp; scanners</button>` : ''}</div></div></div></div>`; };
+
+/* ---------- Settings › Printers & scanners (a Prove laptop) ----------
+ * The approved way for a standard user to add a published printer: Add
+ * device lists the printers this laptop's fixture offers (a Prove shift's
+ * settingsPrinters) that the signed-in user may use, and adds one with no
+ * admin rights. Only a laptop with such a list shows the button, so Practice
+ * is unchanged. Adding one is recorded for the instructor (action_taken). */
+function hdSettingsPrinterPaths(name) {
+  const lists = HD_PROVE ? HD_PROVE.shift.settingsPrinters || {} : {};
+  return Array.isArray(lists[name]) ? lists[name] : [];
+}
+function hdSettingsPrinterChoices(computer) {
+  const user = hdSessionUser(computer);
+  return hdSettingsPrinterPaths(computer.name).map(hdPublishedPrinter).filter(printer => printer && user && user.groups.includes(printer.group));
+}
+function hdSettingsScan() {
+  hdState.settingsScan = true;
+  hdSave(); render();
+}
+function hdSettingsAddPrinter(computerName, path) {
+  const computer = hdComputerByName(computerName);
+  const machine = computer && hdMachine(computer.name);
+  if (!computer || !machine || !Array.isArray(machine.printers) || hdProveLocked()) return;
+  const printer = hdSettingsPrinterChoices(computer).find(item => item.path === path);
+  if (!printer) return;
+  if (!machine.printers.includes(printer.path)) {
+    machine.printers.push(printer.path);
+    hdProveEvent('action_taken', { label:`Added ${printer.name} from Settings › Printers & scanners › Add device`, computer:computer.name });
+    hdProveEdited();
+  }
+  toast(`${printer.name} added. No administrator rights were needed.`);
+  hdRerender();
+}
+VIEWS['helpdesk/settings-printers'] = () => {
+  const c = hdComputerByName(hdState.selectedComputer) || hdComputers()[0];
+  const machine = hdMachine(c.name);
+  const installed = machine && Array.isArray(machine.printers) ? machine.printers : ['Microsoft Print to PDF'];
+  const found = hdSettingsPrinterChoices(c).filter(printer => !installed.includes(printer.path));
+  const locked = hdProveLocked();
+  const scan = !hdState.settingsScan ? '' : found.length
+    ? `<div class="hd-note-list" data-hd-settings-found>${found.map(printer => `<div><strong>${hdEsc(printer.name)}</strong><small class="muted"> ${hdEsc(printer.location)} · ${hdEsc(printer.path)}</small> <button type="button" class="btn btn-secondary btn-sm" ${locked ? 'disabled' : ''} onclick="hdSettingsAddPrinter('${hdEsc(c.name)}','${hdEsc(printer.path.replace(/\\/g, '\\\\'))}')">Add device</button></div>`).join('')}</div>`
+    : '<p class="muted">No new printers or scanners found.</p>';
+  return `${hdPageHeader('Settings', `${hdEsc(c.name)} · Bluetooth & devices › Printers & scanners`, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/windows')">← Windows Desktop</button>`)}
+    <div class="card"><div class="card-header"><strong>Add a printer or scanner</strong><button type="button" class="btn btn-primary btn-sm" ${locked ? 'disabled' : ''} onclick="hdSettingsScan()">Add device</button></div><div class="card-body">${scan || '<p class="muted">Press Add device to look for printers you can add.</p>'}</div></div>
+    <div class="card"><div class="card-header"><strong>Printers &amp; scanners on ${hdEsc(c.name)}</strong></div><div class="card-body"><ul class="hd-list" data-hd-settings-installed>${installed.map(name => `<li>${hdEsc(name)}</li>`).join('')}</ul></div></div>`;
+};
+window.hdSettingsScan=hdSettingsScan; window.hdSettingsAddPrinter=hdSettingsAddPrinter;
 
 const HD_EVENTS = [
   { level:'Error', time:'08:42:17', source:'NETLOGON', id:'3210', computer:'NS-LT-0131', message:'Failed to authenticate with domain controller NS-DC01.' },
@@ -1940,7 +2027,8 @@ VIEWS['helpdesk/environment'] = () => `${hdPageHeader('Enterprise Map', `${HD_OR
  * writes the resolution note and the reply to the user. Nothing here says
  * which choice is right; scoring is not in the simulator. */
 function hdProveSetField(field, value) {
-  if (hdProveLocked() || !['category','type','priority'].includes(field)) return;
+  // Pre-set fields (Module 1) can't be changed.
+  if (hdProveLocked() || hdProvePreset() || !['category','type','priority'].includes(field)) return;
   hdState.prove.fields[field] = String(value || '');
   hdProveEdited();
   hdSave();
@@ -2064,7 +2152,7 @@ function hdProvePrefill(work) {
   const fields = work.fields || {};
   const offered = (value, options) => (options.includes(value) ? value : '');
   const steps = Array.isArray(work.steps) ? work.steps : [];
-  prove.fields = {
+  prove.fields = hdProvePreset() || {
     category:offered(fields.category, ticket.categoryOptions), type:offered(fields.type, ticket.typeOptions),
     priority:offered(fields.priority, ['P1','P2','P3','P4']),
   };
@@ -2150,6 +2238,15 @@ const HD_PROVE_SUBMIT_OFF = 'background:#d0d5dd;border-color:#d0d5dd;color:#4754
 function hdProveSelect(field, label, options, value, locked) {
   return `<label>${hdEsc(label)}<select class="select" ${locked ? 'disabled' : ''} onchange="hdProveSetField('${field}',this.value)"><option value="">Choose…</option>${options.map(option => `<option ${option === value ? 'selected' : ''}>${hdEsc(option)}</option>`).join('')}</select></label>`;
 }
+// Ticket fields: the student's to set, or (Module 1) set for them and shown
+// read-only, with no control to change them.
+function hdProveFieldsCard(ticket, prove, locked) {
+  const preset = hdProvePreset();
+  const body = preset
+    ? `<div class="hd-field-grid" data-hd-prove-preset>${[['Category', preset.category], ['Type', preset.type], ['Priority', preset.priority]].map(([label, value]) => `<div><span>${label}</span><strong>${hdEsc(value)}</strong></div>`).join('')}</div><p class="muted">Set for you in Module 1.</p>`
+    : `${hdProveSelect('category', 'Category', ticket.categoryOptions, prove.fields.category, locked)}${hdProveSelect('type', 'Type', ticket.typeOptions, prove.fields.type, locked)}${hdProveSelect('priority', 'Priority', ['P1','P2','P3','P4'], prove.fields.priority, locked)}`;
+  return `<div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Ticket fields</strong></div><div class="card-body hd-control-stack">${body}</div></div>`;
+}
 function hdProveTicketView(ticket) {
   const prove = hdState.prove;
   const locked = hdProveLocked();
@@ -2161,6 +2258,7 @@ function hdProveTicketView(ticket) {
       <div class="hd-ticket-main">
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Requester statement</strong>${hdBadge(ticket.status)}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid"><div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Title</span><strong>${hdEsc(ticket.requesterTitle)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Device</span><strong>${hdEsc(ticket.device)}</strong></div><div><span>CC</span><strong>${hdEsc(ticket.cc)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div></div></div></div>
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Ticket replies</strong></div><div class="card-body hd-note-list">${ticket.conversation.map(reply => `<div><strong>${hdEsc(reply.from)} · ${hdEsc(reply.role)}</strong><p>${hdEsc(reply.text)}</p></div>`).join('')}</div></div>
+        ${hdConsoleKbCard(ticket)}
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your diagnosis</strong></div><div class="card-body"><select id="hd-prove-diagnosis" class="select" ${off} onchange="hdProveChoose('diagnosis',this.value)"><option value="">Choose what this ticket is…</option>${prove.order.diagnosis.map(value => `<option ${prove.diagnosis === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></div></div>
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Steps you took</strong><span class="muted">Select every step you actually took.</span></div><div class="card-body"><div class="hd-path">${steps.map(step => `<label style="${hdProveChoiceStyle(prove.steps.includes(step.id))}"><input type="checkbox" ${off} onchange="hdProveToggleStep('${step.id}',this.checked);hdProveMark(this)" ${prove.steps.includes(step.id) ? 'checked' : ''}>${hdEsc(step.text)}</label>`).join('')}</div></div></div>
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your decision</strong></div><div class="card-body"><div class="hd-path">${['Resolve','Escalate'].map(value => `<label style="${hdProveChoiceStyle(prove.decision === value)}"><input type="radio" name="hd-prove-decision" ${off} onchange="hdProveChoose('decision','${value}');hdProveMark(this)" ${prove.decision === value ? 'checked' : ''}>${value}</label>`).join('')}</div></div></div>
@@ -2169,7 +2267,7 @@ function hdProveTicketView(ticket) {
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Work notes</strong><span class="muted">Facts, commands, results, interpretation, next action.</span></div><div class="card-body"><div class="hd-note-list">${ticket.notes.length ? ticket.notes.map(note => `<div><strong>${hdEsc(note.author)} · ${hdEsc(note.time)}</strong><p>${hdEsc(note.text)}</p></div>`).join('') : '<p class="muted">No technician notes yet.</p>'}</div>${locked ? '' : `<textarea id="hd-note-input" class="ipt hd-note-input" rows="7" maxlength="2000" placeholder="Document the action you took and what the result proved…"></textarea><button class="btn btn-secondary" onclick="hdAddNote('${ticket.id}')">Add work note</button>`}</div></div>
       </div>
       <aside class="hd-ticket-side">
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Ticket fields</strong></div><div class="card-body hd-control-stack">${hdProveSelect('category', 'Category', ticket.categoryOptions, prove.fields.category, locked)}${hdProveSelect('type', 'Type', ticket.typeOptions, prove.fields.type, locked)}${hdProveSelect('priority', 'Priority', ['P1','P2','P3','P4'], prove.fields.priority, locked)}</div></div>
+        ${hdProveFieldsCard(ticket, prove, locked)}
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Submit</strong></div><div class="card-body hd-control-stack">${hdProveSubmitCard()}</div></div>
       </aside>
     </div>`;
@@ -2185,7 +2283,7 @@ if (HD_PROVE) {
     'helpdesk/directory':'User Directory', 'helpdesk/active-directory':'Active Directory', 'helpdesk/windows':'Windows Desktop',
     'helpdesk/event-viewer':'Event Viewer', 'helpdesk/remote-support':'Remote Support', 'helpdesk/server-manager':'Server Manager',
     'helpdesk/group-policy':'Group Policy', 'helpdesk/file-server':'File Server', 'helpdesk/printers':'Printer Management',
-    'helpdesk/knowledge-base':'Knowledge Base',
+    'helpdesk/knowledge-base':'Knowledge Base', 'helpdesk/settings-printers':'Settings · Printers & scanners',
   };
   Object.entries(HD_PROVE_EVIDENCE_ROUTES).forEach(([route, label]) => {
     const view = VIEWS[route];

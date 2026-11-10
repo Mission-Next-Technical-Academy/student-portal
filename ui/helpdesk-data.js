@@ -355,7 +355,7 @@ const HD_TICKET_TEMPLATES = [
 const HD_PROVE_SHIFTS = {
   'its-01': {
     labKey: 'lab-its-01-prove-it',
-    rubricVersion: 'hdesk-its-01-prove-v1',
+    rubricVersion: 'hdesk-its-01-prove-v2',
     selectedComputer: 'NS-LT-0122',
     tickets: [{
       id: 'HD-2125', title: 'Admin rights "just for today"',
@@ -368,17 +368,26 @@ const HD_PROVE_SHIFTS = {
       ],
       categoryOptions: ['Incident', 'Security Incident', 'Service Request'],
       typeOptions: ['Access request', 'Account lockout', 'Hardware', 'Network / connectivity', 'Printer', 'Software installation'],
+      // Module 1: set for the student, shown read-only and never scored.
+      preset: { category: 'Service Request', type: 'Access request', priority: 'P3' },
+      // The only console feature a Prove ticket can turn on (ui/helpdesk.js
+      // hdConsole): a knowledge base search, recorded for the instructor.
+      console: { kb: true },
       diagnosisOptions: ['Out of policy', 'Printer driver fault', 'Standard request, approved', 'Standard request, needs approval'],
+      // Module 1 skills only: no print-server, policy-refresh or command steps.
+      // Ids are new for this version, so an earlier attempt's steps never
+      // land on different wording.
       pathPool: [
-        { id: 'p1', text: 'Add Evan to local Administrators for the day' },
-        { id: 'p2', text: 'Add the printer from \\\\NS-PRINT01 or refresh policy, no elevation needed' },
-        { id: 'p3', text: 'Check the local admin policy (KB-0058)' },
-        { id: 'p4', text: 'Confirm the printer is published on NS-PRINT01' },
-        { id: 'p5', text: 'Escalate to Tier 2 as a printer fault' },
-        { id: 'p6', text: 'Print a test page with Evan' },
-        { id: 'p7', text: 'Reinstall the driver on the print server' },
-        { id: 'p8', text: 'Type the support admin password into his prompt' },
-        { id: 'p9', text: 'Verify Evan and read the CC\'d approval' },
+        { id: 'm1', text: 'Ask Evan what changed and what he needs to print' },
+        { id: 'm2', text: 'Search the knowledge base for the policy on admin rights' },
+        { id: 'm3', text: 'Verify Evan per KB-0024 (call back on the directory number and confirm his employee ID)' },
+        { id: 'm4', text: 'Add the printer from Settings › Printers & scanners › Add device, with no admin rights' },
+        { id: 'm5', text: 'Confirm with Evan that the printer is added and prints' },
+        { id: 'm6', text: 'Explain that only a Cybersecurity exception request can approve admin rights, not his manager' },
+        { id: 'm7', text: 'Accept Ava\'s approval and grant admin rights for the day' },
+        { id: 'm8', text: 'Add Evan to local Administrators for the day' },
+        { id: 'm9', text: 'Type the support admin password into his prompt' },
+        { id: 'm10', text: 'Escalate to Tier 2 as a printer fault' },
       ],
     }],
     computers: [
@@ -388,13 +397,18 @@ const HD_PROVE_SHIFTS = {
     machines: {
       'NS-LT-0122': {
         printers: ['Microsoft Print to PDF'],
-        pendingPolicyPrinters: ['\\\\NS-PRINT01\\NS-FIN-PRN01'],
+        pendingPolicyPrinters: [],
         localAdministrators: ['NORTHSTAR\\Domain Admins', 'NS-LT-0122\\MNT-Support'],
         spooler: 'Running',
       },
     },
+    // Printers a laptop's Settings › Printers & scanners › Add device can add
+    // without admin rights (ui/helpdesk.js), for users in the printer's group.
+    settingsPrinters: {
+      'NS-LT-0122': ['\\\\NS-PRINT01\\NS-FIN-PRN01'],
+    },
     kbArticles: [
-      { id:'KB-0058', title:'Local administrator rights on managed devices', category:'Endpoint policy', updated:'2026-10-28', audience:'All Support', summary:'Local admin rights are never granted to standard users. Exceptions need a Cybersecurity exception request, and a manager can\'t approve one.' },
+      { id:'KB-0058', title:'Local administrator rights on managed devices', category:'Endpoint policy', updated:'2026-11-10', audience:'All Support', summary:'Local admin rights are never granted to standard users. Exceptions need a Cybersecurity exception request, and a manager can\'t approve one. Finance printers are added from Settings › Printers & scanners › Add device. No admin rights are needed.' },
     ],
     serverOverrides: {
       'NS-PRINT01': { status:'Online', service:'Print Spooler running · queues published' },

@@ -9,7 +9,7 @@
   'use strict';
   const HDESK_PROVE_RUBRICS = {
     'lab-its-01-prove-it': {
-      version: 'hdesk-its-01-prove-v1',
+      version: 'hdesk-its-01-prove-v2',
       moduleKey: 'its-01',
       technicalPoints: 100,
       competencies: [
