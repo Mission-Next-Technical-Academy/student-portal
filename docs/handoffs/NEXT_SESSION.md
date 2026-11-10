@@ -1,4 +1,4 @@
-**2026-11-09 (Megan; Help Desk Module 1 Guided Lab 1 becomes HD-2150, PR to come; shared `ui/index.html`, `portal/index.html`, `portal/data.js` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `ui/helpdesk-coaches.js`, `portal/it-support-shared.js`, `portal/it-support-module-01.js`, `portal/admin-sheets/hdesk.js` and tests — please review the shared ones):**
+**2026-11-09 (Megan; PR #102 "Help Desk Module 1: Guided Lab 1 becomes HD-2150, a verified unlock; KB-0024 rewritten"; shared `ui/index.html`, `portal/index.html`, `portal/data.js` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `ui/helpdesk-coaches.js`, `portal/it-support-shared.js`, `portal/it-support-module-01.js`, `portal/admin-sheets/hdesk.js` and tests — please review the shared ones):**
 Help Desk Lab 1.2 (Practice It, coach `hd-m01`, lab key
 `lab-its-01-ticket-triage`) is now INC0010150 (ticket HD-2150): Sam Rivera
 is locked out after wrong password tries. The student takes the ticket, asks
@@ -41,6 +41,10 @@ Module 1's minutes, lab keys and the Prove It (HD-2125) are unchanged.
   - New optional console keys: `caller.questions[].confirms`,
     `comments.repeatLine`, `resolveByOutcomes` (no diagnosis; resolving needs
     every outcome; the student's note becomes the resolution).
+- **Status:** `bin/ci-check.sh` passes; Codex review approved (two earlier
+  findings fixed). Hosted staging checked Nov 9 at 1,280 and 1,512 px
+  (`1.637-staging.c0d2163`, then `1.638-staging.9c75555` for the dimmed Unlock
+  button and KB-0024's numbered list). Migration: none.
 
 **2026-11-09 (Megan; PR #101 "Help Desk simulator: add console features, off by default"; shared `ui/index.html`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `portal/it-support-shared.js`, `portal/admin-sheets/hdesk.js` and tests — please review the shared ones):**
 The Help Desk simulator gains reusable console features that a ticket turns
