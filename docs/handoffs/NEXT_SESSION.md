@@ -1,4 +1,4 @@
-**2026-11-09 (Megan; Help Desk console features, PR to come; shared `ui/index.html`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `portal/it-support-shared.js`, `portal/admin-sheets/hdesk.js` and tests — please review the shared ones):**
+**2026-11-09 (Megan; PR #101 "Help Desk simulator: add console features, off by default"; shared `ui/index.html`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `portal/it-support-shared.js`, `portal/admin-sheets/hdesk.js` and tests — please review the shared ones):**
 The Help Desk simulator gains reusable console features that a ticket turns
 on with an optional `console: { ... }` block in `ui/helpdesk-data.js`: a
 Knowledge Base search box, caller chat, a verification card that gates Unlock
