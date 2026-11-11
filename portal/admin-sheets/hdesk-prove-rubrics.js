@@ -25,7 +25,7 @@
       ],
       // Feedback only; never adds or removes points.
       formative: [{ id: 'efficiency', label: 'Efficiency' }],
-      criticalErrorRule: 'A critical error caps the attempt below the pass mark, so it cannot pass, whatever its points.',
+      criticalErrorRule: 'A critical error is an automatic zero: the attempt and every competency score 0, and it is returned, never approved.',
       partialCredit: 'Each competency can earn partial credit, justified in the feedback for that competency. Different valid ways of working the ticket earn the same credit.',
       facultyFinal: true,
     },

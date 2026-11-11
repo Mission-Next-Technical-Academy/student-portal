@@ -183,8 +183,12 @@ async function fetchOfficialGrades(attemptIds) {
 /* Records (transcript, evidence bundle, student detail), official-grade labs
  * only: the newest attempt's newest decision is the only one that stands. An
  * approval at or above the pass mark shows its score and date; anything else
- * shows no score and no date. Never an older attempt's score, a withdrawn grade
- * or a Fail. Every other lab's record is unchanged. */
+ * shows no score and no date. A newest attempt returned with a critical error
+ * reads OFFICIAL_CRITICAL_RESULT instead of "In progress" (still no score).
+ * Never an older attempt's score, a withdrawn grade or a Fail. Every other
+ * lab's record is unchanged. */
+const OFFICIAL_CRITICAL_RESULT = 'Critical Error - Not Passed';
+
 function officialLabForModule(moduleKey) {
   const lab = LABS.find((item) => item.module === moduleKey && labTakesOfficialGrade(item.key));
   return lab ? lab.key : null;
@@ -198,14 +202,17 @@ function officialLabStanding(labKey, attemptRows) {
   const mark = newest ? Number(newest.pass_threshold) : NaN;
   const passed = !!(newest && newest.reviewed_at && !newest.redo_requested && grade && grade.decision === 'approved'
     && grade.official_score !== null && grade.official_score !== undefined && (!mark || score >= mark));
-  return { newestId: newest ? newest.id : null, attempted: !!newest, passed, score: passed ? score : null, decidedAt: passed ? grade.created_at : null };
+  const critical = !!(newest && newest.reviewed_at && newest.redo_requested && grade && grade.critical_error === true);
+  return { newestId: newest ? newest.id : null, attempted: !!newest, passed, critical, score: passed ? score : null, decidedAt: passed ? grade.created_at : null };
 }
 
 // One attempt's line in the records, from the decision that stands.
 function officialAttemptRecord(row, standing) {
   return standing.passed && row.id === standing.newestId
     ? { status: 'Pass', state: 'complete', score: standing.score, date: standing.decidedAt }
-    : { status: 'In progress', state: 'in_progress', score: null, date: null };
+    : standing.critical && row.id === standing.newestId
+      ? { status: OFFICIAL_CRITICAL_RESULT, state: 'in_progress', score: null, date: null }
+      : { status: 'In progress', state: 'in_progress', score: null, date: null };
 }
 
 // A correction gives an attempt a second decision. The student sees only the
@@ -387,6 +394,7 @@ async function fetchUserDetails(userId, trackCode) {
       gradedLatest.forEach((row) => {
         const grade = grades.get(row.id);
         latestLabAttemptByKey[row.lab_key].officialScore = grade ? grade.official_score : null;
+        latestLabAttemptByKey[row.lab_key].criticalError = !!(grade && grade.critical_error);
       });
     }
     const openAttempts = Array.from(latestByLabKey.values()).filter((row) => row.redo_requested);
@@ -3638,6 +3646,7 @@ function assessProgressGradesCompletion(program, moduleScores, capstoneRecord, h
     title: m.title,
     score: m.bestLabScore,
     grade: m.official && m.official.passed ? 'Pass'
+      : m.official && m.official.critical ? OFFICIAL_CRITICAL_RESULT
       : m.official && m.official.attempted ? 'In progress'
       : m.bestLabScore === null ? 'Not attempted' : (m.bestLabScore >= passingThreshold ? 'Pass' : 'Fail'),
   }));
@@ -3649,7 +3658,9 @@ function assessProgressGradesCompletion(program, moduleScores, capstoneRecord, h
   // required-labs table) — documented as a known limitation rather than
   // inventing a stricter check this data can't actually support.
   const requiredLabsComplete = requiredModulesComplete;
-  const requiredAssessmentsPassed = moduleGrades.every((g) => g.grade !== 'Fail');
+  // A critical error on an official-grade lab never counts as passed, even if
+  // an admin override keeps its module complete.
+  const requiredAssessmentsPassed = moduleGrades.every((g) => g.grade !== 'Fail' && g.grade !== OFFICIAL_CRITICAL_RESULT);
   const capstonePassed = hasCapstone ? capstoneRecord.status === 'passed' : true;
   const zeroCriticalErrors = hasCapstone
     ? !(capstoneRecord.criticalErrorGate
@@ -3760,7 +3771,7 @@ async function buildTranscriptData(studentId, identity) {
       title: m.title,
       startedAt: m.startedAt,
       completedAt: m.official ? m.official.decidedAt || (m.official.attempted ? null : m.completedAt) : m.completedAt,
-      progressState: m.official && m.official.attempted ? (m.official.passed ? m.status : 'In progress') : m.status,
+      progressState: m.official && m.official.attempted ? (m.official.passed ? m.status : m.official.critical ? OFFICIAL_CRITICAL_RESULT : 'In progress') : m.status,
       percentComplete: m.percent,
       attemptedHours: (fixedCreditHours.modules.find((h) => h.moduleKey === m.moduleKey) || {}).attemptedHours || 0,
       attendedHours: (fixedCreditHours.modules.find((h) => h.moduleKey === m.moduleKey) || {}).creditedHours || 0,
@@ -4434,7 +4445,8 @@ function moduleCardState(program, moduleKey, user, unlocked) {
   const labs = moduleRequiredLabKeys(program, moduleKey, user).map((key) => {
     const record = LABS.find((lab) => lab.key === key);
     const status = requiredLabStatus(attempts[key]);
-    return { key, title: record ? record.title : key, status, feedback: status === 'returned' ? (notes[key] || []) : [] };
+    return { key, title: record ? record.title : key, status, feedback: status === 'returned' ? (notes[key] || []) : [],
+      criticalError: status === 'returned' && attempts[key].criticalError === true };
   });
   const submitted = labs.filter((lab) => lab.status === 'waiting' || lab.status === 'passed').length;
   const waiting = labs.filter((lab) => lab.status === 'waiting').length;
@@ -4465,6 +4477,7 @@ const TRUTHFUL_DOT_LABELS = {
 
 function truthfulLabLine(lab) {
   if (lab.status === 'passed') return `${esc(lab.title)} passed. ${markedLabLinkHtml(lab.key)}`;
+  if (lab.status === 'returned' && lab.criticalError) return `${esc(lab.title)}: ${OFFICIAL_CRITICAL_RESULT}, returned for revision. ${markedLabLinkHtml(lab.key)}`;
   if (lab.status === 'returned') return `${esc(lab.title)} returned for revision. ${markedLabLinkHtml(lab.key)}`;
   if (lab.status === 'waiting') return `${esc(lab.title)}: waiting on your instructor.`;
   return `${esc(lab.title)}: not submitted yet.`;

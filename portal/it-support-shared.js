@@ -321,6 +321,12 @@ function itsLabAttempt(user, labKey) {
   return ((user && user.latestLabAttemptByKey) || {})[labKey] || null;
 }
 
+// The newest attempt was returned with a critical error (loaded at sign-in
+// with its grade, or by itsProveRefreshAttempt).
+function itsLabCritical(user, labKey) {
+  return itsLabReturned(user, labKey) && itsLabAttempt(user, labKey).criticalError === true;
+}
+
 function itsLabReturned(user, labKey) {
   const attempt = itsLabAttempt(user, labKey);
   return !!(attempt && attempt.completedAt && !attempt.supersededAt && attempt.redoRequested === true);
@@ -669,6 +675,7 @@ async function itsProveRefreshAttempt(user, moduleKey, labKey) {
     if (latest && latest.reviewed_at) {
       grade = (await fetchOfficialGrades([latest.id])).get(latest.id) || null;
       attempts[labKey].officialScore = grade ? grade.official_score : null;
+      attempts[labKey].criticalError = !!(grade && grade.critical_error);
     }
     user.latestLabAttemptByKey = attempts;
     if (latest && latest.redo_requested === true) {
@@ -770,6 +777,7 @@ async function itsProveReceiveMessage(event, { moduleKey, labKey, onChange }) {
 function itsProveReviewPanel(row) {
   const rubric = row && typeof HDESK_PROVE_RUBRICS !== 'undefined' ? HDESK_PROVE_RUBRICS[row.lab_key] : null;
   if (!rubric) return '';
+  if (row.id) itsProvePanelRows.set(row.id, row);
   const work = row.result || {};
   if (work.kind !== 'hdesk-prove') {
     return `<div class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" data-its-prove-panel="${esc(row.id)}"><strong>No readable Prove It package.</strong> This attempt didn't come from the simulator's Submit. Return it rather than approving it.</div>`;
@@ -819,38 +827,234 @@ function itsProveReviewPanel(row) {
  * pass_threshold, which the database sets on every student insert. */
 
 // Reads what the instructor has typed so far. Pure, so it can be tested:
-// values = { points: { id: text }, why: { id: text }, critical: boolean, criticalReason: text }.
-function itsProveGradeState(rubric, passMark, values) {
+// values = { points: { id: text }, why: { id: text }, critical: boolean, criticalReason: text,
+//   parts: { partId: text }, acknowledged: boolean }.
+// rec: the system's recommendation (status 'scored'), or null. With one, a
+// pre-filled competency the instructor changed needs a reason of their own,
+// the writing (judgment parts) is entered by hand and must be acknowledged,
+// and both Approve and Return wait for that.
+// A critical error is an automatic zero: every competency is saved as 0
+// (record_lab_grade does it too), so the typed points and writing parts are
+// ignored and need no justification; a reason and, with a recommendation,
+// the writing acknowledgement are still required, and only Return is open.
+// A recommendation the system zeroed keeps the points its criteria found
+// (earned_before_critical): clearing the critical error starts from those.
+function itsProveGradeState(rubric, passMark, values, rec = null) {
   const mark = Number(passMark || NaN);
-  const rows = rubric.competencies.map((item) => {
-    const raw = String((values.points || {})[item.id] ?? '').trim();
-    const valid = /^\d+$/.test(raw) && Number(raw) <= item.points;
-    return { ...item, raw, valid, earned: valid ? Number(raw) : null, why: String((values.why || {})[item.id] ?? '').trim() };
-  });
-  const entered = rows.some((row) => row.raw !== '');
-  const invalid = rows.some((row) => row.raw !== '' && !row.valid);
-  const allScored = rows.every((row) => row.valid);
-  const missingWhy = rows.filter((row) => row.valid && row.earned < row.points && !row.why).map((row) => row.label);
   const critical = values.critical === true;
   const criticalReason = String(values.criticalReason ?? '').trim();
+  const found = (comp, field) => (Number.isInteger(comp[`${field}_before_critical`]) ? comp[`${field}_before_critical`] : comp[field]);
+  const recComps = rec && rec.status === 'scored' && Array.isArray(rec.competencies) ? rec.competencies : [];
+  const recFor = (id) => recComps.find((comp) => comp && comp.id === id) || null;
+  const partsOf = (comp) => (comp && comp.judgment && Array.isArray(comp.parts) ? comp.parts : []);
+  const partValues = values.parts || {};
+  const writing = recComps.filter((comp) => comp.judgment).map((comp) => {
+    const parts = partsOf(comp).map((part) => {
+      const raw = critical ? '0' : String(partValues[part.id] ?? '').trim();
+      const valid = /^\d+$/.test(raw) && Number(raw) <= Number(part.points);
+      return { ...part, suggested: found(part, 'suggested'), raw, valid, entered: valid ? Number(raw) : null };
+    });
+    return { id: comp.id, label: comp.label, parts, complete: parts.length > 0 && parts.every((part) => part.valid) };
+  });
+  const writingIds = new Set(writing.map((comp) => comp.id));
+  const rows = rubric.competencies.map((item) => {
+    const hand = writing.find((comp) => comp.id === item.id);
+    const raw = critical ? '0' : hand ? (hand.complete ? String(hand.parts.reduce((sum, part) => sum + part.entered, 0)) : '')
+      : String((values.points || {})[item.id] ?? '').trim();
+    const valid = /^\d+$/.test(raw) && Number(raw) <= item.points;
+    const recComp = writingIds.has(item.id) ? null : recFor(item.id);
+    const recommended = recComp && Number.isInteger(found(recComp, 'earned')) ? found(recComp, 'earned') : null;
+    return { ...item, raw, valid, earned: valid ? Number(raw) : null, why: String((values.why || {})[item.id] ?? '').trim(),
+      recommended, prefilled: recComp ? String(recComp.student_feedback || '').trim() : '' };
+  });
+  const changed = critical ? [] : rows.filter((row) => row.recommended !== null && row.valid && row.earned !== row.recommended);
+  const missingChange = changed.filter((row) => !row.why || row.why === row.prefilled).map((row) => row.label);
+  const writingMissing = critical ? [] : writing.filter((comp) => !comp.complete).map((comp) => comp.label);
+  const writingInvalid = writing.some((comp) => comp.parts.some((part) => part.raw !== '' && !part.valid));
+  const acknowledged = values.acknowledged === true;
+  const fromRecommendation = recComps.length > 0;
+  const entered = rows.some((row) => row.raw !== '');
+  const invalid = rows.some((row) => row.raw !== '' && !row.valid) || writingInvalid;
+  const allScored = rows.every((row) => row.valid);
+  const missingWhy = critical ? [] : rows.filter((row) => row.valid && row.earned < row.points && !row.why).map((row) => row.label);
   const total = allScored ? rows.reduce((sum, row) => sum + row.earned, 0) : null;
-  const score = total === null ? null : critical ? Math.min(total, mark - 1) : total;
-  const blocked = invalid ? 'Points must be whole numbers from 0 to each competency\'s maximum.'
+  const score = critical ? 0 : total;
+  // With a recommendation, nothing can be decided until the writing is read
+  // and entered and every change has its own reason.
+  const gate = !fromRecommendation ? ''
+    : writingInvalid ? 'Each writing part takes whole points from 0 to its maximum.'
+    : writingMissing.length ? `Enter the ${writing.flatMap((comp) => comp.parts.map((part) => part.label.toLowerCase())).join(' and ')} scores by hand.`
+    : writing.length && !acknowledged ? 'Tick that you have read the student\'s work note and reply to the user.'
+    : missingChange.length ? `Say why you changed: ${missingChange.join(', ')}.`
+    : '';
+  const reasonGate = critical && !criticalReason ? 'Give the reason for the critical error.' : '';
+  const blocked = gate || reasonGate || (invalid ? 'Points must be whole numbers from 0 to each competency\'s maximum.'
     : !allScored ? 'Score every competency to approve.'
     : missingWhy.length ? `Justify the points for: ${missingWhy.join(', ')}.`
     : critical ? 'A critical error can\'t pass. Use Return.'
     : !(score >= mark) ? `Below ${mark}%. A failing attempt is returned, never approved: use Return.`
-    : '';
-  return { rows, entered, invalid, allScored, missingWhy, critical, criticalReason, total, score, canApprove: !blocked, blocked };
+    : '');
+  const canReturn = !reasonGate && (!fromRecommendation || (!gate && !invalid && allScored));
+  const zero = 'Critical error: automatic zero · Final 0';
+  // Cleared on a recommendation the system zeroed: the points its criteria found.
+  const sumFound = (judgment) => recComps.filter((comp) => !!comp.judgment === judgment)
+    .reduce((sum, comp) => sum + (Number(found(comp, judgment ? 'suggested' : 'earned')) || 0), 0);
+  const totalLine = !fromRecommendation
+    ? (critical ? zero : total === null ? 'Total: not scored yet' : `Total: ${total} / 100`)
+    : [`Checked automatically: ${critical ? rec.automatic_earned : sumFound(false)} of ${rec.automatic_points}`,
+      `Writing: suggested ${critical ? rec.writing_suggested : sumFound(true)} of ${rec.writing_points}`,
+      critical ? zero : total === null ? '' : `Final ${total}`].filter(Boolean).join(' · ');
+  return { rows, entered, invalid, allScored, missingWhy, critical, criticalReason, total, score, canApprove: !blocked,
+    blocked, canReturn, changed, missingChange, writing, acknowledged, fromRecommendation, totalLine };
+}
+
+/* ---------- The system's recommendation on the grading card ----------
+ * Read from lab_attempt_recommendations, which only staff can read, after
+ * Lab Attempts draws; each Prove It card is then drawn again with it. Keyed
+ * by attempt id: undefined = not loaded yet, null = none. */
+const itsProveRecommendations = new Map();
+const itsProveReviews = new Map(); // attempt id -> lab_attempt_grade_reviews rows
+const itsProveCards = new Map(); // attempt id -> { item, olderAttempt } as last drawn
+const itsProvePanelRows = new Map(); // attempt id -> row its review panel was drawn from
+
+function itsProveDay(value) {
+  return value ? new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+}
+
+// The "System rubric" box. Staff reasons only: student lines are pre-filled
+// into the justification boxes, never shown here as the system's words.
+function itsProveRecommendationHtml(row, rec) {
+  const box = (inner) => `<section class="mb-3 rounded-lg border border-gray-200 bg-gray-50 p-4" data-its-prove-recommendation="${esc(row.id)}" aria-label="System rubric">
+    <h3 class="text-sm font-semibold text-[#1e3a5f]">System rubric <span class="font-normal text-gray-500">(recommendation, your review decides)</span></h3>${inner}</section>`;
+  // Automatic scoring isn't set up on this database yet: the card is as before.
+  if (rec && rec.status === 'not_enabled') return '';
+  if (rec === undefined) return box('<p class="mt-1 text-sm text-gray-600" data-its-prove-rec-status="loading">Loading the system\'s recommendation…</p>');
+  if (rec && rec.status === 'unavailable') return box('<p class="mt-1 text-sm text-amber-900" data-its-prove-rec-status="unavailable">The system\'s recommendation couldn\'t be loaded. Reload this page before deciding.</p>');
+  const decided = !!(row.reviewed_at || row.official_grade);
+  const canRescore = !decided && (!rec || rec.status === 'no_key' || rec.status === 'error');
+  const rescore = canRescore ? `<div class="mt-2 flex flex-wrap items-center gap-2"><button type="button" data-its-prove-rescore="${esc(row.id)}" class="bg-white border border-[#1e3a5f] text-[#1e3a5f] font-semibold text-sm px-3 py-1.5 rounded-lg">Score this attempt</button><span data-its-prove-rescore-status class="text-xs text-gray-600" role="status"></span></div>` : '';
+  if (!rec || rec.status !== 'scored') {
+    const why = !rec || rec.status === 'no_key' ? 'no answer key is loaded for this lab'
+      : rec.status === 'version_mismatch' ? `the attempt's rubric version (${rec.rubric_version || 'none'}) doesn't match the key (${rec.key_rubric_version || 'none'})`
+      : 'scoring failed';
+    return box(`<p class="mt-1 text-sm text-gray-700" data-its-prove-rec-status="${esc(rec ? rec.status : 'none')}">No recommendation: ${esc(why)}. Grade it by hand.</p>
+      ${rec && rec.status === 'error' && rec.error ? `<p class="mt-1 text-xs text-gray-500" data-its-prove-rec-error>Scoring error: ${esc(rec.error)}</p>` : ''}${rescore}`);
+  }
+  const how = rec.scored_on === 'rescore' ? `Scored by the system on rescore, ${itsProveDay(rec.rescored_at)}` : 'Scored by the system at submit';
+  const reasonList = (criteria, suggested) => `<ul class="mt-1 space-y-0.5 text-xs text-gray-700">${(criteria || []).map((c) => `<li>${suggested ? '<span class="font-semibold text-amber-800">Suggested: check this.</span> ' : ''}${c.met === 'met' ? '✓' : c.met === 'partial' ? '◐' : '✗'} ${esc(String(c.reason || ''))} <span class="text-gray-500">(${esc(String(c.earned))} / ${esc(String(c.points))})</span></li>`).join('')}</ul>`;
+  // A critical error zeroes every competency; what the criteria found stays
+  // beside it, so the instructor sees what was done.
+  const foundNote = (value) => (rec.critical_error && Number.isInteger(value) ? ` <span class="font-normal text-gray-500">(criteria found ${esc(String(value))})</span>` : '');
+  const comps = (rec.competencies || []).map((comp) => comp.judgment
+    ? `<div class="px-3 py-2" data-its-prove-rec-comp="${esc(comp.id)}"><div class="flex justify-between gap-3"><span class="text-gray-700">${esc(comp.label)}</span><span class="font-semibold text-amber-800">Suggested ${esc(String(comp.suggested))} / ${esc(String(comp.points))}${foundNote(comp.suggested_before_critical)}</span></div>
+        ${(comp.parts || []).map((part) => `<div class="mt-1 pl-3"><p class="text-xs font-semibold text-gray-700">${esc(part.label)}: suggested ${esc(String(part.suggested))} of ${esc(String(part.points))}${foundNote(part.suggested_before_critical)}</p>${reasonList(part.criteria, true)}</div>`).join('')}</div>`
+    : `<div class="px-3 py-2" data-its-prove-rec-comp="${esc(comp.id)}"><div class="flex justify-between gap-3"><span class="text-gray-700">${esc(comp.label)}</span><span class="font-semibold ${comp.earned >= comp.points ? 'text-green-700' : 'text-amber-700'}">${esc(String(comp.earned))} / ${esc(String(comp.points))}${foundNote(comp.earned_before_critical)}</span></div>${reasonList(comp.criteria, false)}</div>`).join('');
+  const critical = rec.critical_error ? `<p class="mt-2 text-sm text-red-800" data-its-prove-rec-critical><strong>Critical error: automatic zero.</strong> ${esc((rec.critical_reasons || []).map((c) => c.reason).join('; '))} Every competency is recommended as 0.</p>` : '';
+  return box(`<p class="mt-1 text-xs text-gray-500" data-its-prove-rec-how>${esc(how)} · Key ${esc(String(rec.key_rubric_version || ''))} · revision ${esc(String(rec.key_revision ?? ''))}</p>
+    <p class="mt-1 text-xs text-gray-600" data-its-prove-rec-evidence>Scored from the work and actions the student's browser recorded. Check the evidence above before approving.</p>
+    <div class="mt-2 divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white text-sm">${comps}</div>
+    <p class="mt-2 text-sm font-semibold text-gray-800" data-its-prove-rec-total>Checked automatically: ${esc(String(rec.automatic_earned))} of ${esc(String(rec.automatic_points))} · Writing: suggested ${esc(String(rec.writing_suggested))} of ${esc(String(rec.writing_points))}</p>
+    ${critical}`);
+}
+
+// What a past decision recommended and changed (staff only; reviews are
+// matched to their decision by its time, the same transaction's now()).
+function itsProveReviewLineHtml(grade, reviews) {
+  const review = (reviews || []).find((item) => item.created_at && grade.created_at && Date.parse(item.created_at) === Date.parse(grade.created_at));
+  if (!review) return '';
+  const recommended = review.recommended_score === null || review.recommended_score === undefined ? 'none'
+    : `${review.recommended_score}${review.recommended_critical ? ' (critical)' : ''}`;
+  const final = review.final_score === null || review.final_score === undefined ? 'no score' : review.final_score;
+  const changed = (review.changed || []).map((c) => c.id === 'critical' ? `Critical error (${c.recommended ? 'ticked' : 'not ticked'} → ${c.final ? 'ticked' : 'not ticked'})` : `${c.label || c.id} (${c.recommended} → ${c.final})`);
+  const writing = (review.writing_parts || []).map((p) => `${p.label} ${p.entered} (suggested ${p.suggested} of ${p.points})`);
+  return `<p class="mt-2 text-xs text-gray-600" data-its-prove-review-line>Recommended ${esc(String(recommended))} · Final ${esc(String(final))}${changed.length ? ` · changed: ${esc(changed.join(', '))}` : ' · no pre-filled score changed'}${writing.length ? ` · writing entered by hand: ${esc(writing.join(', '))}` : ''}${review.writing_acknowledged_at ? ` · writing read and acknowledged ${esc(new Date(review.writing_acknowledged_at).toLocaleString())}` : ''}</p>`;
+}
+
+// PostgREST/Postgres signals that the scoring tables aren't there yet: the
+// portal reaches production minutes after a merge, before the migration is
+// applied by hand. 42P01 undefined table, PGRST205 table missing from the
+// schema cache. Nothing can have been scored without them, so grading works
+// exactly as before.
+function itsProveScoringTablesMissing(error) {
+  if (!error) return false;
+  if (['42P01', 'PGRST205'].includes(error.code)) return true;
+  const text = `${error.message || ''} ${error.details || ''}`;
+  return /lab_attempt_recommendations|lab_attempt_grade_reviews/i.test(text) && /does not exist|schema cache|could not find/i.test(text);
+}
+
+// Loads the recommendations and decision reviews the cards don't have yet,
+// then draws those cards again. Staff policies apply: a student session gets
+// no rows.
+async function itsProveLoadRecommendations(ids) {
+  const wanted = ids.filter((id) => !itsProveRecommendations.has(id));
+  if (!wanted.length || typeof mntSupabase === 'undefined') return [];
+  const [recs, reviews] = await Promise.all([
+    mntSupabase.from('lab_attempt_recommendations').select('*').in('lab_attempt_id', wanted),
+    mntSupabase.from('lab_attempt_grade_reviews').select('*').in('lab_attempt_id', wanted),
+  ]);
+  if (itsProveScoringTablesMissing(recs.error) || itsProveScoringTablesMissing(reviews.error)) {
+    wanted.forEach((id) => { itsProveRecommendations.set(id, { status: 'not_enabled' }); itsProveReviews.set(id, []); });
+    return wanted;
+  }
+  if (recs.error || reviews.error) {
+    console.error('Prove It recommendations could not be loaded', recs.error || reviews.error);
+    // Not "no key": the card asks for a reload, and the database refuses a
+    // first decision without the recommendation anyway.
+    wanted.forEach((id) => itsProveRecommendations.set(id, { status: 'unavailable' }));
+    return wanted;
+  }
+  wanted.forEach((id) => {
+    itsProveRecommendations.set(id, (recs.data || []).find((row) => row.lab_attempt_id === id) || null);
+    itsProveReviews.set(id, (reviews.data || []).filter((row) => row.lab_attempt_id === id));
+  });
+  return wanted;
 }
 
 function itsProveGradingCard(item, olderAttempt) {
   const row = item.lead;
   const rubric = row && typeof HDESK_PROVE_RUBRICS !== 'undefined' ? HDESK_PROVE_RUBRICS[row.lab_key] : null;
   if (!rubric) return '';
+  itsProveCards.set(row.id, { item, olderAttempt });
+  const rec = itsProveRecommendations.get(row.id);
+  const scored = rec && rec.status === 'scored' ? rec : null;
+  const recComp = (id) => (scored && Array.isArray(scored.competencies) ? scored.competencies.find((comp) => comp.id === id) : null) || null;
   const label = 'text-xs font-semibold text-gray-600';
   const box = 'class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"';
-  return `<article class="bg-white border border-gray-200 rounded-xl p-5" data-grading-row="${esc(row.id)}" data-its-prove-grade="${esc(row.id)}" data-lab-key="${esc(row.lab_key)}" data-pass-mark="${esc(String(row.pass_threshold ?? ''))}">
+  const writing = scored ? scored.competencies.filter((comp) => comp.judgment) : [];
+  const suggestedParts = writing.flatMap((comp) => comp.parts || []);
+  // A recommendation the system zeroed pre-fills what its criteria found, for
+  // an instructor who clears the critical error; while it's ticked the boxes
+  // are locked and everything saves as 0.
+  const found = (item, field) => (Number.isInteger(item[`${field}_before_critical`]) ? item[`${field}_before_critical`] : item[field]);
+  const zeroed = !!(scored && scored.critical_error);
+  const suggestion = (part) => (zeroed ? `Suggested 0 of ${part.points} while the critical error stands (${found(part, 'suggested')} without it)` : `Suggested ${part.suggested} of ${part.points}`);
+  const competencyBox = (competency) => {
+    const comp = recComp(competency.id);
+    const why = comp && comp.student_feedback ? esc(String(comp.student_feedback)) : '';
+    if (comp && comp.judgment) {
+      // The writing: entered by hand, part by part, never pre-filled.
+      return `<div class="rounded-lg border border-amber-200 bg-white p-3" data-its-prove-writing="${esc(competency.id)}">
+        <p class="text-sm font-semibold text-gray-900">${esc(competency.label)} <span class="font-normal text-gray-600">/ ${esc(String(competency.points))}, entered by hand</span></p>
+        ${(comp.parts || []).map((part) => `<label class="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm text-gray-900">${esc(part.label)}
+          <span class="font-normal text-gray-600"><input type="number" inputmode="numeric" min="0" max="${esc(String(part.points))}" step="1" data-its-prove-part="${esc(part.id)}" aria-label="${esc(part.label)} points" class="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right" /> / ${esc(String(part.points))} <span class="ml-2 text-xs text-amber-800" data-its-prove-suggested="${esc(part.id)}">${esc(suggestion(part))}</span></span>
+        </label>`).join('')}
+        <label class="mt-2 block ${label}">Justification (required below full points)
+          <textarea rows="2" data-its-prove-why="${esc(competency.id)}" ${box}>${why}</textarea>
+        </label>
+      </div>`;
+    }
+    const prefill = comp && Number.isInteger(found(comp, 'earned')) ? ` value="${esc(String(found(comp, 'earned')))}"` : '';
+    return `<div class="rounded-lg border border-gray-200 bg-white p-3">
+        <label class="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-gray-900">${esc(competency.label)}
+          <span class="font-normal text-gray-600"><input type="number" inputmode="numeric" min="0" max="${esc(String(competency.points))}" step="1" data-its-prove-points="${esc(competency.id)}"${prefill} aria-label="${esc(competency.label)} points" class="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right" /> / ${esc(String(competency.points))}</span>
+        </label>
+        ${comp ? `<p class="mt-1 text-xs font-semibold text-amber-800" data-its-prove-changed="${esc(competency.id)}" hidden></p>` : ''}
+        <label class="mt-2 block ${label}">Justification (required below full points${comp ? '; a changed score needs your own reason' : ''})
+          <textarea rows="2" data-its-prove-why="${esc(competency.id)}" ${box}>${why}</textarea>
+        </label>
+      </div>`;
+  };
+  return `<article class="bg-white border border-gray-200 rounded-xl p-5" data-grading-row="${esc(row.id)}" data-its-prove-grade="${esc(row.id)}" data-lab-key="${esc(row.lab_key)}" data-pass-mark="${esc(String(row.pass_threshold ?? ''))}"${scored ? ` data-recommendation-id="${esc(scored.id)}"` : ''}>
     <div class="mb-3">
       <p class="text-sm font-semibold text-[#1e3a5f]">${esc(item.name)}${row.attempt ? ` <span class="font-normal text-gray-500">· ${esc(adminAttemptLabel(row))}</span>` : ''}</p>
       <p class="text-xs text-gray-500 mt-0.5">${esc(item.labTitles.join(' · '))} <span class="text-gray-400">·</span> <span class="font-mono">${esc(row.student_id)}</span>${typeof accountNameHtml === 'function' ? accountNameHtml(row, true) : ''}</p>
@@ -858,25 +1062,20 @@ function itsProveGradingCard(item, olderAttempt) {
       <p class="text-xs text-gray-400 mt-0.5">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}</p>
     </div>
     ${itsProveReviewPanel(row)}
+    ${itsProveRecommendationHtml(row, rec)}
     <section class="mb-3 rounded-lg border border-gray-200 bg-gray-50 p-4" aria-label="Rubric">
       <h3 class="text-sm font-semibold text-[#1e3a5f]">Rubric ${esc(rubric.version)}</h3>
       <p class="mt-1 text-sm text-gray-700">${esc(rubric.partialCredit)}</p>
-      <div class="mt-3 space-y-3">${rubric.competencies.map((competency) => `<div class="rounded-lg border border-gray-200 bg-white p-3">
-        <label class="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-gray-900">${esc(competency.label)}
-          <span class="font-normal text-gray-600"><input type="number" inputmode="numeric" min="0" max="${esc(String(competency.points))}" step="1" data-its-prove-points="${esc(competency.id)}" aria-label="${esc(competency.label)} points" class="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right" /> / ${esc(String(competency.points))}</span>
-        </label>
-        <label class="mt-2 block ${label}">Justification (required below full points)
-          <textarea rows="2" data-its-prove-why="${esc(competency.id)}" ${box}></textarea>
-        </label>
-      </div>`).join('')}</div>
+      <div class="mt-3 space-y-3">${rubric.competencies.map(competencyBox).join('')}</div>
+      ${suggestedParts.length ? `<label class="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-gray-900"><input type="checkbox" data-its-prove-writing-ack class="mt-0.5" /> I have read the student's work note and reply to the user. Suggested scores: ${esc(suggestedParts.map((part) => String(part.suggested)).join(' and '))}${zeroed ? ' (critical error: automatic zero)' : ''}.</label>` : ''}
       ${(rubric.formative || []).map((entry) => `<label class="mt-3 block ${label}">${esc(entry.label)} feedback (earns no points)
         <textarea rows="2" data-its-prove-efficiency ${box}></textarea>
       </label>`).join('')}
       <div class="mt-3 rounded-lg border border-gray-200 bg-white p-3">
-        <label class="flex items-center gap-2 text-sm font-semibold text-gray-900"><input type="checkbox" data-its-prove-critical /> Critical error</label>
+        <label class="flex items-center gap-2 text-sm font-semibold text-gray-900"><input type="checkbox" data-its-prove-critical${scored && scored.critical_error ? ' checked' : ''} /> Critical error</label>
         <p class="mt-1 text-xs text-gray-600">${esc(rubric.criticalErrorRule)}</p>
         <label class="mt-2 block ${label}" data-its-prove-critical-reason-row hidden>Reason (required)
-          <textarea rows="2" data-its-prove-critical-reason ${box}></textarea>
+          <textarea rows="2" data-its-prove-critical-reason ${box}>${scored && scored.critical_error ? esc((scored.critical_reasons || []).map((c) => c.feedback).filter(Boolean).join(' ')) : ''}</textarea>
         </label>
       </div>
       <p class="mt-3 text-base font-bold text-[#1e3a5f]" data-its-prove-total aria-live="polite">Total: not scored yet</p>
@@ -886,7 +1085,7 @@ function itsProveGradingCard(item, olderAttempt) {
     </section>
     <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
       <button type="button" data-its-prove-decide="approved" disabled class="bg-green-50 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Approve</button>
-      <button type="button" data-its-prove-decide="returned" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Return</button>
+      <button type="button" data-its-prove-decide="returned"${scored ? ' disabled' : ''} class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Return</button>
       <span data-its-prove-blocked class="text-xs text-gray-600"></span>
       <span data-grading-status class="text-xs text-gray-600" role="status"></span>
     </div>
@@ -899,30 +1098,51 @@ function itsProveGradingCard(item, olderAttempt) {
 
 function itsProveReadSheet(sheet) {
   const pick = (attr) => Object.fromEntries(Array.from(sheet.querySelectorAll(`[${attr}]`)).map((el) => [el.getAttribute(attr), el.value]));
+  const fromRecommendation = !!(sheet.dataset && sheet.dataset.recommendationId);
   return {
     points: pick('data-its-prove-points'),
     why: pick('data-its-prove-why'),
     critical: !!sheet.querySelector('[data-its-prove-critical]')?.checked,
     criticalReason: sheet.querySelector('[data-its-prove-critical-reason]')?.value || '',
+    parts: fromRecommendation ? pick('data-its-prove-part') : {},
+    acknowledged: fromRecommendation && !!sheet.querySelector('[data-its-prove-writing-ack]')?.checked,
   };
+}
+
+// The recommendation a card was drawn with (status 'scored'), or null.
+function itsProveSheetRecommendation(sheet) {
+  const rec = sheet.dataset && sheet.dataset.recommendationId ? itsProveRecommendations.get(sheet.dataset.itsProveGrade) : null;
+  return rec && rec.status === 'scored' && rec.id === sheet.dataset.recommendationId ? rec : null;
 }
 
 function itsProveRefreshSheet(sheet) {
   const rubric = HDESK_PROVE_RUBRICS[sheet.dataset.labKey];
-  const state = itsProveGradeState(rubric, sheet.dataset.passMark, itsProveReadSheet(sheet));
+  const state = itsProveGradeState(rubric, sheet.dataset.passMark, itsProveReadSheet(sheet), itsProveSheetRecommendation(sheet));
   sheet.querySelector('[data-its-prove-critical-reason-row]').hidden = !state.critical;
-  sheet.querySelector('[data-its-prove-total]').textContent = state.total === null ? 'Total: not scored yet'
-    : state.score !== state.total ? `Total: ${state.total} / 100, capped at ${state.score}% by the critical error`
-    : `Total: ${state.total} / 100`;
+  sheet.querySelector('[data-its-prove-total]').textContent = state.totalLine;
   sheet.querySelector('[data-its-prove-decide="approved"]').disabled = !state.canApprove;
+  const returnButton = sheet.querySelector('[data-its-prove-decide="returned"]');
+  if (returnButton) returnButton.disabled = !state.canReturn;
   sheet.querySelector('[data-its-prove-blocked]').textContent = state.blocked;
+  // A critical error is an automatic zero: the points aren't used.
+  sheet.querySelectorAll('[data-its-prove-points], [data-its-prove-part]').forEach((input) => { input.disabled = state.critical; });
+  const changedIds = new Set(state.changed.map((row) => row.id));
+  state.rows.filter((row) => row.recommended !== null).forEach((row) => {
+    const marker = sheet.querySelector(`[data-its-prove-changed="${row.id}"]`);
+    if (!marker) return;
+    const changed = changedIds.has(row.id);
+    marker.hidden = !changed;
+    marker.textContent = changed ? `Changed from ${row.recommended}: say why in the justification.` : '';
+  });
 }
 
 async function itsProveSubmitDecision(sheet, button, onSaved) {
   const status = sheet.querySelector('[data-grading-status]');
   const decision = button.dataset.itsProveDecide;
   const rubric = HDESK_PROVE_RUBRICS[sheet.dataset.labKey];
-  const state = itsProveGradeState(rubric, sheet.dataset.passMark, itsProveReadSheet(sheet));
+  const rec = itsProveSheetRecommendation(sheet);
+  const state = itsProveGradeState(rubric, sheet.dataset.passMark, itsProveReadSheet(sheet), rec);
+  if (state.fromRecommendation && (decision === 'approved' ? !state.canApprove : !state.canReturn)) { status.textContent = state.blocked; return; }
   if (state.invalid || (state.entered && !state.allScored)) { status.textContent = 'Score every competency, or clear them all to return with no score.'; return; }
   if (state.missingWhy.length) { status.textContent = `Justify the points for: ${state.missingWhy.join(', ')}.`; return; }
   const buttons = sheet.querySelectorAll('[data-its-prove-decide]');
@@ -937,6 +1157,11 @@ async function itsProveSubmitDecision(sheet, button, onSaved) {
     p_efficiency: sheet.querySelector('[data-its-prove-efficiency]')?.value || '',
     p_note: sheet.querySelector('[data-its-prove-note]')?.value || '',
     p_rubric_version: rubric.version,
+    ...(rec ? {
+      p_recommendation_id: rec.id,
+      p_writing_parts: state.writing.flatMap((comp) => comp.parts.map((part) => ({ competency: comp.id, id: part.id, earned: part.entered }))),
+      p_writing_acknowledged: state.acknowledged,
+    } : {}),
   });
   if (error) {
     console.error('record_lab_grade failed', error);
@@ -946,6 +1171,25 @@ async function itsProveSubmitDecision(sheet, button, onSaved) {
     return;
   }
   status.textContent = 'Saved. Refreshing…';
+  itsProveRecommendations.delete(sheet.dataset.itsProveGrade);
+  await onSaved();
+}
+
+// Staff: score an attempt that has no recommendation or whose scoring failed.
+async function itsProveRescore(button, onSaved) {
+  const id = button.dataset.itsProveRescore;
+  const status = button.parentElement && button.parentElement.querySelector('[data-its-prove-rescore-status]');
+  button.disabled = true;
+  if (status) status.textContent = 'Scoring…';
+  const { data, error } = await mntSupabase.rpc('rescore_lab_attempt', { p_attempt_id: id });
+  if (error) {
+    console.error('rescore_lab_attempt failed', error);
+    if (status) status.textContent = `Not scored: ${error.message}`;
+    button.disabled = false;
+    return;
+  }
+  if (status) status.textContent = data && data.status === 'scored' ? 'Scored. Refreshing…' : 'Still no recommendation. Refreshing…';
+  itsProveRecommendations.delete(id);
   await onSaved();
 }
 
@@ -955,7 +1199,7 @@ async function itsProveSubmitDecision(sheet, button, onSaved) {
 // decision that isn't the newest was replaced by one.
 function itsProveDecisionLabel(grade) {
   const decision = grade.decision === 'approved' ? 'Approved' : 'Returned';
-  const score = grade.official_score === null || grade.official_score === undefined ? 'no score entered' : `${grade.official_score}%`;
+  const score = grade.critical_error ? 'critical error: automatic zero' : grade.official_score === null || grade.official_score === undefined ? 'no score entered' : `${grade.official_score}%`;
   const day = grade.created_at ? new Date(grade.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'date not recorded';
   return `${decision} ${score}, ${day}`;
 }
@@ -967,12 +1211,13 @@ function itsProveDecisionsHtml(row) {
     return `${itsProveGradeSummaryHtml(row.official_grade)}<p class="mt-2 text-sm text-amber-900" data-its-prove-history-missing>Earlier decisions and saved notes couldn't be loaded. Reload this page to try again.</p>`;
   }
   const [current, ...older] = history;
+  const reviews = itsProveReviews.get(row.id) || [];
   return `<div class="mt-4" data-its-prove-decisions>
     <h3 class="text-sm font-semibold text-[#1e3a5f]">Current decision: ${esc(itsProveDecisionLabel(current))}</h3>
-    ${itsProveGradeSummaryHtml(current)}
+    ${itsProveGradeSummaryHtml(current)}${itsProveReviewLineHtml(current, reviews)}
     ${older.map((grade) => `<details class="mt-3 rounded-lg border border-gray-200 bg-white px-3 py-2" data-its-prove-older-decision>
       <summary class="cursor-pointer text-sm font-semibold text-[#1e3a5f]">${esc(itsProveDecisionLabel(grade))}, replaced by a correction</summary>
-      ${itsProveGradeSummaryHtml(grade)}
+      ${itsProveGradeSummaryHtml(grade)}${itsProveReviewLineHtml(grade, reviews)}
     </details>`).join('')}
   </div>`;
 }
@@ -992,7 +1237,7 @@ function itsProveDecisionNotes(grade) {
 function itsProveGradeSummaryHtml(grade) {
   const scores = Array.isArray(grade.competency_scores) ? grade.competency_scores : [];
   return `<div class="mt-4 rounded-lg border border-gray-200 bg-white p-3" data-its-prove-grade-summary>
-    <h3 class="text-sm font-semibold text-[#1e3a5f]">Official grade: ${grade.official_score === null || grade.official_score === undefined ? 'no score entered' : `${esc(String(grade.official_score))}%`} · ${grade.decision === 'approved' ? 'Approved' : 'Returned'}</h3>
+    <h3 class="text-sm font-semibold text-[#1e3a5f]">Official grade: ${grade.critical_error ? 'Critical error: automatic zero' : grade.official_score === null || grade.official_score === undefined ? 'no score entered' : `${esc(String(grade.official_score))}%`} · ${grade.decision === 'approved' ? 'Approved' : 'Returned'}</h3>
     ${scores.length ? `<ul class="mt-2 space-y-1 text-sm text-gray-900">${scores.map((item) => `<li><strong>${esc(String(item.label || item.id))}:</strong> ${esc(String(item.earned))} / ${esc(String(item.points))}${item.justification ? ` <span class="text-gray-600">· ${esc(String(item.justification))}</span>` : ''}</li>`).join('')}</ul>` : ''}
     ${grade.critical_error ? `<p class="mt-2 text-sm text-red-800"><strong>Critical error:</strong> ${esc(String(grade.critical_error_reason || ''))}</p>` : ''}
     ${grade.efficiency_feedback ? `<p class="mt-2 text-sm text-gray-800"><strong>Efficiency:</strong> ${esc(String(grade.efficiency_feedback))}</p>` : ''}
@@ -1045,31 +1290,65 @@ async function itsProveSubmitCorrection(panel, onSaved) {
 }
 
 // Called after every Lab Attempts render; onSaved re-renders the tab.
-function itsProveWireGrading(onSaved) {
-  document.querySelectorAll('[data-its-prove-grade]').forEach((sheet) => {
-    const refresh = () => itsProveRefreshSheet(sheet);
-    sheet.addEventListener('input', refresh);
-    sheet.addEventListener('change', refresh);
-    sheet.querySelectorAll('[data-its-prove-decide]').forEach((button) => {
-      button.addEventListener('click', () => itsProveSubmitDecision(sheet, button, onSaved));
-    });
-    refresh();
+function itsProveWireSheet(sheet, onSaved) {
+  const refresh = () => itsProveRefreshSheet(sheet);
+  // Once the instructor types, a late recommendation never redraws the card.
+  sheet.addEventListener('input', () => { sheet.dataset.touched = '1'; });
+  sheet.addEventListener('input', refresh);
+  sheet.addEventListener('change', refresh);
+  sheet.querySelectorAll('[data-its-prove-decide]').forEach((button) => {
+    button.addEventListener('click', () => itsProveSubmitDecision(sheet, button, onSaved));
   });
+  sheet.querySelectorAll('[data-its-prove-rescore]').forEach((button) => {
+    button.addEventListener('click', () => itsProveRescore(button, onSaved));
+  });
+  refresh();
+}
+
+function itsProveWireGrading(onSaved) {
+  document.querySelectorAll('[data-its-prove-grade]').forEach((sheet) => itsProveWireSheet(sheet, onSaved));
   document.querySelectorAll('[data-its-prove-correction]').forEach((panel) => {
     panel.querySelector('[data-its-prove-correction-submit]').addEventListener('click', () => itsProveSubmitCorrection(panel, onSaved));
+  });
+  // Then the recommendations: each card that gets one is drawn again. A card
+  // the instructor has started typing in is left alone.
+  const ids = Array.from(document.querySelectorAll('[data-its-prove-grade]')).map((sheet) => sheet.dataset.itsProveGrade)
+    .concat(Array.from(document.querySelectorAll('[data-its-prove-panel]')).map((panel) => panel.dataset.itsProvePanel));
+  return itsProveLoadRecommendations([...new Set(ids)]).then((loaded) => {
+    loaded.forEach((id) => {
+      const sheet = document.querySelector(`[data-its-prove-grade="${id}"]`);
+      const card = itsProveCards.get(id);
+      if (sheet && card && !sheet.dataset.touched) {
+        sheet.outerHTML = itsProveGradingCard(card.item, card.olderAttempt);
+        const fresh = document.querySelector(`[data-its-prove-grade="${id}"]`);
+        if (fresh) itsProveWireSheet(fresh, onSaved);
+        return;
+      }
+      // A decided attempt's panel: its decisions gain the review lines.
+      const panel = document.querySelector(`[data-its-prove-panel="${id}"]`);
+      const panelRow = itsProvePanelRows.get(id);
+      if (!sheet && panel && panelRow && (itsProveReviews.get(id) || []).length) panel.outerHTML = itsProveReviewPanel(panelRow);
+    });
+    return loaded;
   });
 }
 
 /* The student's marked lab for a graded Prove It. A return shows the
- * instructor's score if one was entered, with no pass/fail. */
+ * instructor's score if one was entered, with no pass/fail. A critical error
+ * shows "Critical Error - Not Passed" instead of any score or points
+ * (ITS_CRITICAL_RESULT); the notes, the critical error's among them, stay. */
+const ITS_CRITICAL_RESULT = 'Critical Error - Not Passed';
+
 function itsProveMarkedLabHtml(row, grade, feedback) {
   if (!grade) return '';
-  const passed = grade.decision === 'approved' && !row.redo_requested;
-  const scores = Array.isArray(grade.competency_scores) ? grade.competency_scores : [];
+  const critical = grade.critical_error === true;
+  const passed = !critical && grade.decision === 'approved' && !row.redo_requested;
+  const scores = critical ? [] : Array.isArray(grade.competency_scores) ? grade.competency_scores : [];
   const notes = latestDecisionNotes(feedback || [], grade).filter((item) => String(item.comment || '').trim());
-  const hasScore = grade.official_score !== null && grade.official_score !== undefined;
-  return `<div class="mnt-marked-lab-status" data-its-prove-marked="${passed ? 'passed' : 'returned'}">
-    <p class="font-semibold text-[#1e3a5f]">${esc(itsLabTitle(row.lab_key))}: ${passed ? 'Passed' : 'Returned for revision'}</p>
+  const hasScore = !critical && grade.official_score !== null && grade.official_score !== undefined;
+  return `<div class="mnt-marked-lab-status" data-its-prove-marked="${critical ? 'critical' : passed ? 'passed' : 'returned'}">
+    <p class="font-semibold text-[#1e3a5f]">${esc(itsLabTitle(row.lab_key))}: ${critical ? ITS_CRITICAL_RESULT : passed ? 'Passed' : 'Returned for revision'}</p>
+    ${critical ? '<p class="mt-1 text-gray-800">Your instructor has returned it for another attempt.</p>' : ''}
     ${hasScore ? `<p class="mt-1 text-gray-800">${passed ? 'Your score' : 'Your instructor\'s score'}: <strong>${esc(String(grade.official_score))}%</strong></p>` : ''}
     ${scores.length ? `<ul class="mt-2 space-y-1">${scores.map((item) => `<li>${esc(String(item.label || item.id))}: ${esc(String(item.earned))} / ${esc(String(item.points))}</li>`).join('')}</ul>` : ''}
     ${notes.length ? `<h3 class="mt-3 font-semibold text-[#1e3a5f]">Your instructor's feedback</h3><ul class="mt-1 list-disc pl-5 space-y-1">${notes.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment)}</li>`).join('')}</ul>` : '<p class="mt-2 text-gray-600">Your instructor did not leave written notes.</p>'}
@@ -1147,6 +1426,7 @@ function itsLabStatusHtml(user, labKey, { label, prefix, pendingText, ready = fa
   const line = status === 'practice' ? { pass: true, icon: 'ri-checkbox-circle-fill', text: `${label}: Practice complete (not graded) · ${itsSubmittedDay(user, labKey)}` }
     : status === 'passed' ? { pass: true, icon: 'ri-checkbox-circle-fill', text: `${label} passed${typeof officialScore === 'number' ? ` · ${officialScore}%` : ''}` }
     : status === 'waiting' ? { icon: 'ri-send-plane-line', text: `${label} submitted ${itsSubmittedDay(user, labKey)}, waiting for instructor review` }
+    : status === 'returned' && itsLabCritical(user, labKey) ? { icon: 'ri-error-warning-line', text: `${label}: ${ITS_CRITICAL_RESULT} — returned for revision, see your instructor’s notes below.` }
     : status === 'returned' ? { icon: 'ri-error-warning-line', text: `${label} returned for revision — see your instructor’s notes below.` }
     : itsLabSubmitting(user, labKey) ? { icon: 'ri-loader-4-line', text: `Submitting ${label}…` }
     : user && itsLabSubmitFailures.has(`${user.userId}|${labKey}`) ? { icon: 'ri-error-warning-line', text: `${label} wasn’t submitted. Check your connection, then press Submit ${label}.` }
@@ -1282,7 +1562,7 @@ function itsRedoNoticeHtml(user, labs) {
     const items = notes[lab.key] || [];
     // The marked-lab view (portal/app.js) shows each note beside its section.
     const marked = typeof markedLabLinkHtml === 'function' ? `<p>${markedLabLinkHtml(lab.key)}</p>` : '';
-    return `<div class="m01-redo-feedback" role="note" data-its-redo-notice="${esc(lab.key)}"><strong><i class="ri-feedback-line" aria-hidden="true"></i> Returned for revision: ${esc(itsLabTitle(lab.key))}</strong>${items.length
+    return `<div class="m01-redo-feedback" role="note" data-its-redo-notice="${esc(lab.key)}"><strong><i class="ri-feedback-line" aria-hidden="true"></i> ${itsLabCritical(user, lab.key) ? `${esc(itsLabTitle(lab.key))}: ${ITS_CRITICAL_RESULT}. Returned for revision` : `Returned for revision: ${esc(itsLabTitle(lab.key))}`}</strong>${items.length
       ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>${marked}`
       : '<p>Your instructor returned this lab without written notes.</p>'}<p>${esc(lab.action)}</p></div>`;
   }).join('');

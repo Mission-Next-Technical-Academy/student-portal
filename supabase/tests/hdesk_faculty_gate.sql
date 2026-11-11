@@ -161,11 +161,13 @@ select pg_temp.check((select count(*) = 0 from public.lab_attempt_grades) and (s
 select pg_temp.act_as('4');
 select public.record_lab_grade((select id from a), 'returned', pg_temp.scores(22,11,11,28,28), true, 'Reason given.', null, 'What to change.');
 select pg_temp.act_clear();
-select pg_temp.check((select official_score = 69 and uncapped_total = 100 and critical_error from public.lab_attempt_grades), 'a critical error caps the score at 69');
+select pg_temp.check((select official_score = 0 and uncapped_total = 0 and critical_error
+    and (select bool_and((c->>'earned')::int = 0) and count(*) = 5 from jsonb_array_elements(competency_scores) c)
+  from public.lab_attempt_grades), 'a critical error is an automatic zero: the score and every competency are 0');
 select pg_temp.check((select redo_requested and reviewed_by = 'f0000000-0000-0000-0000-000000000004' from public.lab_attempts la join a using (id)), 'Return reopens the attempt, signed by the instructor');
 select pg_temp.check(not pg_temp.verified('f0000000-0000-0000-0000-000000000001'), 'a return blocks completion');
 select pg_temp.act_as('1');
-select pg_temp.check((select official_score = 69 from public.lab_attempt_grades), 'the student reads the instructor''s score on a return');
+select pg_temp.check((select official_score = 0 and critical_error from public.lab_attempt_grades), 'the student reads the zero and the critical error on a return');
 select pg_temp.check((select count(*) = 2 from public.lab_attempt_feedback), 'and the notes');
 select pg_temp.submit('f0000000-0000-0000-0000-000000000001', '2026-10-30 11:00+00');
 select pg_temp.expect_error($$select pg_temp.submit('f0000000-0000-0000-0000-000000000001', '2026-10-30 11:05+00')$$, 'one_pending_submission', 'one return opens exactly one resubmission');
@@ -180,15 +182,21 @@ select pg_temp.act_clear();
 select pg_temp.act_as('4');
 savepoint no_score_critical;
 select public.record_lab_grade(pg_temp.latest('f0000000-0000-0000-0000-000000000001'), 'returned', '[]'::jsonb, true, 'A reason.');
-select pg_temp.check((select official_score is null and critical_error from public.lab_attempt_grades where lab_attempt_id = pg_temp.latest('f0000000-0000-0000-0000-000000000001')),
-  'a critical error with no scores entered stores no score, not the cap');
+select pg_temp.check((select official_score = 0 and critical_error from public.lab_attempt_grades where lab_attempt_id = pg_temp.latest('f0000000-0000-0000-0000-000000000001')),
+  'a critical error with no scores entered still saves 0');
 rollback to savepoint no_score_critical;
 select pg_temp.act_as('4');
 savepoint low_critical;
 select public.record_lab_grade(pg_temp.latest('f0000000-0000-0000-0000-000000000001'), 'returned', pg_temp.scores(10,0,0,0,0), true, 'A reason.');
-select pg_temp.check((select official_score = 10 and uncapped_total = 10 from public.lab_attempt_grades where lab_attempt_id = pg_temp.latest('f0000000-0000-0000-0000-000000000001')),
-  'the cap never raises a lower total');
+select pg_temp.check((select official_score = 0 and uncapped_total = 0 from public.lab_attempt_grades where lab_attempt_id = pg_temp.latest('f0000000-0000-0000-0000-000000000001')),
+  'a critical error zeroes a low total too');
 rollback to savepoint low_critical;
+savepoint critical_no_justification;
+select public.record_lab_grade(pg_temp.latest('f0000000-0000-0000-0000-000000000001'), 'returned',
+  (select jsonb_agg(item || '{"justification":""}'::jsonb) from jsonb_array_elements(pg_temp.scores(10,0,0,0,0)) item), true, 'A reason.');
+select pg_temp.check((select official_score = 0 from public.lab_attempt_grades where lab_attempt_id = pg_temp.latest('f0000000-0000-0000-0000-000000000001')),
+  'under a critical error the zeroed competencies need no justification of their own');
+rollback to savepoint critical_no_justification;
 select pg_temp.act_clear();
 select pg_temp.act_as('4');
 select public.record_lab_grade(pg_temp.latest('f0000000-0000-0000-0000-000000000001'), 'returned', '[]'::jsonb, false, null, null, 'Please redo the reply.');
