@@ -352,6 +352,15 @@ async function testCriticalErrorRecords() {
   const newest = evidence.labs.filter((lab) => lab.labKey === LAB).pop();
   assert.equal(newest.completionStatus, CRITICAL);
   assert.equal(newest.score, null);
+  // Never "assessments passed", even if an admin override keeps the module complete.
+  const gate = prun('assessProgressGradesCompletion');
+  const program = prun(`PROGRAMS.find((p) => p.slug === 'it-support')`);
+  const capstone = { status: 'not_applicable' };
+  const modules = [{ moduleKey: 'its-01', title: 'M1', completed: true, bestLabScore: null, official: { attempted: true, passed: false, critical: true } }];
+  assert.equal(gate(program, modules, capstone, null).programCompletionAssessment.conditions.requiredAssessmentsPassed, false);
+  modules[0].official = { attempted: true, passed: true, critical: false };
+  modules[0].bestLabScore = 82;
+  assert.equal(gate(program, modules, capstone, null).programCompletionAssessment.conditions.requiredAssessmentsPassed, true);
   // A resubmission after the critical error is in progress again.
   const resubmitted = await transcriptFor('it-support', 'HDESK', [
     recordRow({ id: 'old', redo_requested: true, official_grade: graded('returned', 0, '2026-10-30T12:00:00Z', { critical_error: true }) }),

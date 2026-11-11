@@ -96,9 +96,12 @@ of a score.
     writes without a registered session); this branch doesn't change it.
 - **Status:** `bin/ci-check.sh` passes; the local SQL tests pass (except the
   existing write-lockdown failure above).
-  - **Codex, two rounds:**
+  - **Codex, three rounds:**
     - fixed: a scored attempt could be decided through the manual path,
       skipping the writing checks;
+    - fixed: the transcript's "assessments passed" check treated "Critical
+      Error - Not Passed" as passed (it only rejected "Fail"), which mattered
+      if an admin override kept that module complete;
     - not fixing: the work package is student-supplied evidence (the simulator
       runs in the browser, as it already does for the instructor's review); the
       card now says the score comes from what the browser recorded.

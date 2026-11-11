@@ -3658,7 +3658,9 @@ function assessProgressGradesCompletion(program, moduleScores, capstoneRecord, h
   // required-labs table) — documented as a known limitation rather than
   // inventing a stricter check this data can't actually support.
   const requiredLabsComplete = requiredModulesComplete;
-  const requiredAssessmentsPassed = moduleGrades.every((g) => g.grade !== 'Fail');
+  // A critical error on an official-grade lab never counts as passed, even if
+  // an admin override keeps its module complete.
+  const requiredAssessmentsPassed = moduleGrades.every((g) => g.grade !== 'Fail' && g.grade !== OFFICIAL_CRITICAL_RESULT);
   const capstonePassed = hasCapstone ? capstoneRecord.status === 'passed' : true;
   const zeroCriticalErrors = hasCapstone
     ? !(capstoneRecord.criticalErrorGate
