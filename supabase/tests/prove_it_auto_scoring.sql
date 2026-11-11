@@ -188,6 +188,18 @@ select pg_temp.check((select (r->>'recommended_score')::int = 0 and (r->>'recomm
   from (select public.prove_score(pg_temp.good_work() || jsonb_build_object('commands', jsonb_build_array(jsonb_build_object('command', 'Remove-Widget x', 'computer', 'DEMO-PC-01'))), pg_temp.demo_key()) r) s),
   'engine: a critical error is an automatic zero (every competency and part 0), keeping what the criteria found for staff');
 select pg_temp.check((select
+    (select c->>'student_feedback' from jsonb_array_elements(r->'competencies') c where c->>'id' = 'triage') is null
+    and (select c->'criteria'->0->>'met' from jsonb_array_elements(r->'competencies') c where c->>'id' = 'triage') = 'met'
+    and (select c->'criteria'->0->>'reason' from jsonb_array_elements(r->'competencies') c where c->>'id' = 'triage') is not null
+  from (select public.prove_score(pg_temp.good_work() || jsonb_build_object('commands', jsonb_build_array(jsonb_build_object('command', 'Remove-Widget x', 'computer', 'DEMO-PC-01'))), pg_temp.demo_key()) r) s),
+  'engine: under a critical error a fully met competency pre-fills no positive line; its staff result stays');
+select pg_temp.check((select
+    (select c->>'student_feedback' from jsonb_array_elements(r->'competencies') c where c->>'id' = 'triage') = 'Think again about who should own this ticket.'
+    and r->'critical_reasons'->0->>'feedback' = 'Some commands are off-limits on a user''s machine. Check the policy first.'
+    and not exists (select 1 from jsonb_array_elements(r->'competencies') c where c->>'student_feedback' ~ 'Good call')
+  from (select public.prove_score(pg_temp.weak_work(), pg_temp.demo_key()) r) s),
+  'engine: under a critical error the coaching lines and the critical line stay');
+select pg_temp.check((select
     (select (c->>'earned_before_critical')::int from jsonb_array_elements(r->'competencies') c where c->>'id' = 'triage') = 0
     and (select (c->>'earned_before_critical')::int from jsonb_array_elements(r->'competencies') c where c->>'id' = 'investigation') = 10
     and (select (c->>'earned_before_critical')::int from jsonb_array_elements(r->'competencies') c where c->>'id' = 'action') = 15

@@ -1,4 +1,4 @@
-**2026-11-10 (Megan; branch `shared/hdesk-prove-auto-score`, PR not yet opened: "Prove It automatic scoring: a staff-only recommendation the instructor confirms"; shared `supabase/migrations/20261110200000_prove_it_auto_scoring.sql`, `supabase/tests/prove_it_auto_scoring.sql`, `supabase/tests/hdesk_faculty_gate.sql`, `portal/app.js`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `portal/it-support-shared.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests — please review the shared ones):**
+**2026-11-10 (Megan; branch `shared/hdesk-prove-auto-score`, PR not yet opened: "Prove It automatic scoring: a staff-only recommendation the instructor confirms"; shared `supabase/migrations/20261110200000_prove_it_auto_scoring.sql`, `supabase/migrations/20261111120000_prove_it_critical_coaching_only.sql`, `supabase/tests/prove_it_auto_scoring.sql`, `supabase/tests/hdesk_faculty_gate.sql`, `portal/app.js`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `portal/it-support-shared.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests — please review the shared ones):**
 Help Desk Module 1's Prove It (HD-2125) is now scored automatically when the
 student submits. The score is a recommendation that only staff can read. The
 instructor confirms or changes it, and decides through `record_lab_grade` as
@@ -7,8 +7,10 @@ database. A critical error is now an **automatic zero** (it was a cap at the
 pass mark minus 1), and the student sees "Critical Error - Not Passed" instead
 of a score.
 - **For your code or agent:**
-  - **New migration** (one file). Megan runs it on staging, and on production
-    before merging.
+  - **Two new migrations.** Megan runs them on staging, and on production
+    before merging. The second, `20261111120000_prove_it_critical_coaching_only.sql`,
+    only replaces `prove_score()` (see Recommendation below); it's separate
+    because the first was already applied on staging.
     - `assessment_answer_keys`: keys by lab + rubric version + revision, one
       active per lab. RLS on with **no policies**: no API role (student,
       instructor or admin) can read or write it; only the scoring functions and
@@ -60,6 +62,8 @@ of a score.
       competencies JSON (`earned_before_critical`,
       `suggested_before_critical`), with every staff reason. An instructor
       who clears a flagged critical error starts from those points.
+      Under a critical error the pre-filled student lines are coaching only:
+      no "met" (positive) line, plus the critical rule's own line.
   - **Grading card** (`it-support-shared.js`, Help Desk Prove It only): after
     Lab Attempts draws, it reads the staff tables and redraws each Prove It
     card with:
@@ -89,7 +93,7 @@ of a score.
     `record_lab_grade` called with its old arguments. Any other read failure
     says "couldn't be loaded, reload".
   - **Tests:** the database tests (`supabase/tests/prove_it_auto_scoring.sql`,
-    66 checks, made-up lab and key) and the updated
+    68 checks, made-up lab and key) and the updated
     `supabase/tests/hdesk_faculty_gate.sql` (73 checks) run on the local stack with
     `bin/db-security-check.sh`; they aren't in CI. Note:
     `supabase/tests/student_write_lockdown.sql` already fails on master (it
@@ -105,8 +109,17 @@ of a score.
     - not fixing: the work package is student-supplied evidence (the simulator
       runs in the browser, as it already does for the instructor's review); the
       card now says the score comes from what the browser recorded.
-  - Hosted staging not yet checked.
-  - Migration: `20261110200000_prove_it_auto_scoring.sql`.
+  - Hosted staging checked Nov 11 on `4f314bb` (scoring, approve, adjust and
+    return, critical zero, student views, SOC unchanged); the coaching-only
+    change is rechecked separately.
+  - Migrations: `20261110200000_prove_it_auto_scoring.sql`,
+    `20261111120000_prove_it_critical_coaching_only.sql`.
+  - **Production order:** (1) apply both migrations; (2) merge and wait for
+    the production deploy; (3) only then load the HD-2125 key. Once a key is
+    loaded, a scored attempt's first decision must come from its
+    recommendation (`recommendation_required`), and the old production card
+    can't send one, so a key loaded before the deploy would block grading new
+    HD-2125 submissions.
 
 **2026-11-10 (Megan; PR #106 "Help Desk Module 1: the Module 1 version of the HD-2125 Prove It"; Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `portal/it-support-shared.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests, plus `?v=` lines in `ui/index.html` and `portal/index.html` — please review the `it-support-shared.js` and `index.html` lines):**
 The HD-2125 Prove It (Module 1) is reworked for Module 1 skills: no commands
