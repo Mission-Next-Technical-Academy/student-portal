@@ -845,6 +845,25 @@ async function testSearchesAndActionsReachTheInstructor() {
   assert.match(none, /Actions in the simulator<\/h4>\s*<p[^>]*>None recorded\.<\/p>/);
 }
 
+// A v1 attempt (submitted before the Module 1 rework) that was returned and is
+// resubmitted from today's simulator is saved under the current rubric version,
+// so automatic scoring (keyed by rubric version) can score it.
+async function testReturnedV1AttemptResubmitsUnderV2() {
+  await submittedAndReturned();
+  Object.assign(db.attempts[0], { rubric_version: 'hdesk-its-01-prove-v1' });
+  db.attempts[0].result = { ...db.attempts[0].result, rubricVersion: 'hdesk-its-01-prove-v1', fields: { category: 'Incident', type: 'Printer', priority: 'P2' }, steps: ['p1'], stepTexts: ['An earlier step'] };
+  const tab = await openTab(null, { local: store() });
+  assert.equal(tab.status(), 'returned');
+  fill(tab);
+  tab.run('hdProveSubmit()');
+  await flush();
+  assert.equal(db.attempts.length, 2, 'the resubmission is a new row');
+  const row = db.attempts[1];
+  assert.equal(row.rubric_version, 'hdesk-its-01-prove-v2', 'the row records the current rubric version');
+  assert.equal(row.result.rubricVersion, 'hdesk-its-01-prove-v2', 'and so does the saved work');
+  assert.deepEqual({ ...row.result.fields }, PRESET);
+}
+
 async function testPrefillDropsValuesTheTicketNoLongerOffers() {
   await submittedAndReturned();
   db.attempts[0].result = { ...db.attempts[0].result, diagnosis: 'A retired option', steps: ['gone'], ticketId: 'HD-2125' };
@@ -862,7 +881,7 @@ const tests = [
   testReloadTakesTheLockFromTheServer, testFailuresKeepWorkAndShowNoSuccess, testSimulatorOnlyAcceptsItsOwnReply, testPortalRefusals,
   testOneWaitingAttempt, testReturnedReopensForOneResubmission, testReturnedPrefillsFromTheLastAttemptOnAnotherBrowser, testPrefillCarriesOnlyTheStudentsOwnWork,
   testNewerBrowserDraftIsKept, testDraftOlderThanTheAttemptIsReplaced, testNoPrefillUnlessReturnedOrForAnotherStudent, testPrefillDropsValuesTheTicketNoLongerOffers,
-  testReturnedV1AttemptReopensOnTheCurrentTicket, testSearchesAndActionsReachTheInstructor,
+  testReturnedV1AttemptReopensOnTheCurrentTicket, testReturnedV1AttemptResubmitsUnderV2, testSearchesAndActionsReachTheInstructor,
   testInstructorReadsPlainText, testTypedPasswordReachesTheInstructorAsAFlag, testWrittenPasswordReachesTheInstructorAsAFlag, testModuleOnePage,
 ];
 (async () => {

@@ -1,3 +1,110 @@
+**2026-11-10 (Megan; branch `shared/hdesk-prove-auto-score`, PR not yet opened: "Prove It automatic scoring: a staff-only recommendation the instructor confirms"; shared `supabase/migrations/20261110200000_prove_it_auto_scoring.sql`, `supabase/tests/prove_it_auto_scoring.sql`, `supabase/tests/hdesk_faculty_gate.sql`, `portal/app.js`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `portal/it-support-shared.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests — please review the shared ones):**
+Help Desk Module 1's Prove It (HD-2125) is now scored automatically when the
+student submits. The score is a recommendation that only staff can read. The
+instructor confirms or changes it, and decides through `record_lab_grade` as
+before. No answer key is in the repository: keys are loaded by hand into the
+database. A critical error is now an **automatic zero** (it was a cap at the
+pass mark minus 1), and the student sees "Critical Error - Not Passed" instead
+of a score.
+- **For your code or agent:**
+  - **New migration** (one file). Megan runs it on staging, and on production
+    before merging.
+    - `assessment_answer_keys`: keys by lab + rubric version + revision, one
+      active per lab. RLS on with **no policies**: no API role (student,
+      instructor or admin) can read or write it; only the scoring functions and
+      the SQL editor can.
+    - `lab_attempt_recommendations` (one per attempt) and
+      `lab_attempt_grade_reviews` (one per decision made from a
+      recommendation): **staff read only** (`is_admin()` or
+      `can_manage_course_messages(track)`), no student policy, no write grants.
+      Students can't read the system's points or reasons, before or after a
+      decision.
+    - `AFTER INSERT` trigger `lab_attempts_score_recommendation`: scores a
+      finished `hdesk-prove` package on a `requires_official_score` lab with
+      the active key. It runs after the existing BEFORE guards (the write guard
+      and the one-pending rule), so a refused insert is never scored. Any
+      scoring failure is stored as status `error`; it never stops the
+      submission. Every other lab returns at once.
+    - The engine (`prove_score`, `prove_check`, `prove_note_missing`, …) is
+      generic: the key holds the rules (steps, KB searches, articles, actions,
+      commands, diagnosis or decision values, text and note-part checks,
+      partial points, critical rules), so the capstone and SOC could use it
+      later with their own keys. Its helpers aren't granted to any API role.
+    - `rescore_lab_attempt(uuid)`: staff only. It scores an attempt with no
+      recommendation or a failed one; it's refused once the attempt has a
+      decision, and it can't override a rubric-version mismatch.
+    - **`record_lab_grade`** is dropped and recreated with three optional
+      arguments: `p_recommendation_id`, `p_writing_parts`,
+      `p_writing_acknowledged`. Without them it behaves exactly as before:
+      named calls from older pages still work. The pass mark and "below the
+      pass mark is returned" are unchanged.
+      - **Changed rule: a critical error is an automatic zero.** With Critical
+        error ticked, `official_score`, `uncapped_total` and every
+        competency's `earned` are saved as 0, whatever was sent; the zeroed
+        competencies need no justification of their own. A reason is still
+        required, Approve is still refused, and the attempt is returned.
+        Old graded rows (capped at 69) are not changed.
+      An attempt with a scored recommendation can't get its first decision
+      without it (`hint = 'recommendation_required'`); corrections of a
+      decided attempt are exempt. With a recommendation:
+      - a changed pre-filled score needs the instructor's own reason;
+      - the writing (judgment parts) must be acknowledged and entered by hand,
+        adding up to its competency;
+      - a staff-only review row records what was recommended and what changed.
+      - with a critical error ticked, nothing counts as changed and the
+        writing parts aren't needed (they're zeroed), but the writing must
+        still be acknowledged.
+    - **Recommendation:** when a critical rule fires, the recommended total,
+      score, `automatic_earned`, `writing_suggested` and every competency and
+      writing part are 0. What the criteria found is kept for staff in the
+      competencies JSON (`earned_before_critical`,
+      `suggested_before_critical`), with every staff reason. An instructor
+      who clears a flagged critical error starts from those points.
+  - **Grading card** (`it-support-shared.js`, Help Desk Prove It only): after
+    Lab Attempts draws, it reads the staff tables and redraws each Prove It
+    card with:
+    - a "System rubric" box: staff reasons, "Suggested: check this" on the
+      writing, how and with which key revision it scored;
+    - pre-filled automatic competencies, with the key's student lines in the
+      justification boxes;
+    - empty writing part boxes, behind a required tick-box;
+    - a "Score this attempt" button;
+    - a critical error: "Critical error: automatic zero" with the reason, the
+      points boxes locked while it's ticked, and "Final 0".
+  - **What the student sees after a critical error** (only on official-grade
+    labs, today Module 1's Prove It): "Critical Error - Not Passed" instead of
+    "0%" and the competency points, with the critical error's line and the
+    instructor's notes still shown. Places: the marked lab
+    (`itsProveMarkedLabHtml`), the Module 1 course page's status line and the
+    returned notice (`itsLabStatusHtml`, `itsRedoNoticeHtml`), the program
+    page's module card (`truthfulLabLine` in `portal/app.js`), and the records
+    (transcript grade and progress state, evidence-record status:
+    `officialLabStanding` / `officialAttemptRecord` in `portal/app.js`, still
+    no score or date). `latestLabAttemptByKey[lab].criticalError` is loaded at
+    sign-in (`fetchUserDetails`) and by `itsProveRefreshAttempt`.
+    `admin-submission-sheet.js` is not changed.
+  - **Deploy order:** the portal reaches production before the migration is
+    applied. Until the new tables exist (`42P01` / `PGRST205`), the card is
+    exactly as before: no System rubric box, no rescore button, and
+    `record_lab_grade` called with its old arguments. Any other read failure
+    says "couldn't be loaded, reload".
+  - **Tests:** the database tests (`supabase/tests/prove_it_auto_scoring.sql`,
+    66 checks, made-up lab and key) and the updated
+    `supabase/tests/hdesk_faculty_gate.sql` (73 checks) run on the local stack with
+    `bin/db-security-check.sh`; they aren't in CI. Note:
+    `supabase/tests/student_write_lockdown.sql` already fails on master (it
+    writes without a registered session); this branch doesn't change it.
+- **Status:** `bin/ci-check.sh` passes; the local SQL tests pass (except the
+  existing write-lockdown failure above).
+  - **Codex, two rounds:**
+    - fixed: a scored attempt could be decided through the manual path,
+      skipping the writing checks;
+    - not fixing: the work package is student-supplied evidence (the simulator
+      runs in the browser, as it already does for the instructor's review); the
+      card now says the score comes from what the browser recorded.
+  - Hosted staging not yet checked.
+  - Migration: `20261110200000_prove_it_auto_scoring.sql`.
+
 **2026-11-10 (Megan; PR #106 "Help Desk Module 1: the Module 1 version of the HD-2125 Prove It"; Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `portal/it-support-shared.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests, plus `?v=` lines in `ui/index.html` and `portal/index.html` — please review the `it-support-shared.js` and `index.html` lines):**
 The HD-2125 Prove It (Module 1) is reworked for Module 1 skills: no commands
 are needed, the ticket's category, type and priority are pre-set, and the
