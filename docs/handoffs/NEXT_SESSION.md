@@ -1,3 +1,58 @@
+**2026-11-12 (Megan; branch `shared/test-account-progress-reset`, "Admin: reset progress for test accounts (all or selected modules)"; shared `portal/app.js`, `bin/ci-check.sh`, `supabase/migrations/20261110120000_test_account_progress_reset.sql`, `supabase/migrations/20261112120000_test_account_flag_rpc_only.sql`, `supabase/tests/test_account_progress_reset.sql`, `supabase/tests/test_account_flag_rpc_only.sql`, plus `tests/test-account-reset.test.js` — please review all of it, it's all shared):**
+Admins can mark an account as a **test account** on the roster and then erase
+its coursework: all of it, or only the modules they tick. Real students,
+admins and instructors can never be reset. This is the roster and database
+you share, and you haven't seen either migration on master yet.
+- **For your code or agent:**
+  - **Roster (admin only, never the instructor dashboard):** each row gets a
+    "Test account" checkbox and a solid red **Reset Progress** button, built
+    by `testAccountRosterControlsHtml()`. The button is on every row but has
+    `hidden` unless the row is a test account, so the checkbox shows it at
+    once. Don't add a display class (`inline-flex`, `block`, …) to it: in the
+    bundled Tailwind that overrides `hidden` and the button would show on
+    real students (a test checks this). A **TEST** badge sits next to the ID.
+  - **Reset dialog** (`openTestResetModal`): erase all, or selected modules.
+    The admin types **RESET** (exact uppercase, spaces around it ignored,
+    `testResetConfirmed()`), not the student ID. It **no longer downloads a
+    progress file**; the warning tells the admin to use the roster's Save
+    Progress File first if they want a copy. The automatic snapshot before
+    an enrolled → disenrolled toggle is unchanged.
+  - **Student side, every program:** at sign-in `buildUserFromSession` calls
+    `applyPendingProgressReset()` (not for admins or instructors). If an
+    admin reset the account since this browser last looked, it clears that
+    account's browser-held progress once. Known limit: the simulator's
+    `defender-lab.*` keys and the imported labs' `mission_next_progress_ext`
+    aren't per account, so an erase-all clears them for everyone on that
+    browser. Use test accounts on QA browsers, not a real student's.
+  - **Two migrations.** Megan runs both, on staging and on production before
+    merging.
+    - `20261110120000_test_account_progress_reset.sql`: the flag and reset
+      columns on `students`, `admin_set_test_account()`,
+      `admin_reset_test_progress()` (logged to `test_account_progress_resets`),
+      and admin Storage access to a **test account's own** evidence folder
+      only. **Already applied on staging; not yet on production.** Its
+      timestamp is older than PR #107's, so on production
+      `supabase db push` needs `--include-all`. It must stay byte-for-byte
+      the same; any change goes in a new migration.
+    - `20261112120000_test_account_flag_rpc_only.sql`: a trigger on
+      `students`. `students_admin_update` let an admin set `is_test_account`
+      (or the reset markers) by a direct API update, on any row, skipping the
+      functions' checks. Now API roles (`authenticated`, `anon`) can change
+      those three columns only through the two admin functions. For every
+      caller, a row can't become both a test account and an admin or
+      instructor. The service role and the SQL editor can still set the flag
+      on a learner. **Not yet on staging or production.** Every other
+      `students` edit (enrollment toggle, names) works as before.
+  - **Before the migrations are applied** (e.g. the portal deploys first):
+    the roster shows no test-account controls, and the sign-in check sees
+    "column does not exist" and does nothing. Both are tested.
+  - **Tests:** `tests/test-account-reset.test.js` is in `bin/ci-check.sh`.
+    The two SQL tests run on the local stack with `bin/db-security-check.sh`
+    and aren't in CI. In the first one, two checks were wrong and are fixed:
+    a learner's update of `students` matches no row rather than raising, and
+    deleting from `storage.objects` now needs
+    `storage.allow_delete_query = 'true'`, as Storage's own API sets.
+
 **2026-11-10 (Megan; branch `shared/hdesk-prove-auto-score`, PR #107 "Prove It automatic scoring: a staff-only recommendation the instructor confirms; critical errors are an automatic zero"; shared `supabase/migrations/20261110200000_prove_it_auto_scoring.sql`, `supabase/migrations/20261111120000_prove_it_critical_coaching_only.sql`, `supabase/tests/prove_it_auto_scoring.sql`, `supabase/tests/hdesk_faculty_gate.sql`, `portal/app.js`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `portal/it-support-shared.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests — please review the shared ones):**
 Help Desk Module 1's Prove It (HD-2125) is now scored automatically when the
 student submits. The score is a recommendation that only staff can read. The
