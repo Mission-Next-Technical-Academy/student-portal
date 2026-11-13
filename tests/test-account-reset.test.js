@@ -34,11 +34,21 @@ async function main() {
     local[`mnt-portal.lab-state.v1.its01-ticket-v1.${anon}`] = '{}';
     local[`mnt-portal.lab-state.v1.its02-vm-build-v1.${anon}`] = '{}';
     local[`mnt-portal.lab-state.v1.its02-vm-build-v1.${otherAnon}`] = '{}';
-    local['defender-lab.helpdesk.prove.v1.its-01.9900000022-HDESK'] = '{}';
-    local['defender-lab.helpdesk.prove.v1.its-02.9900000022-HDESK'] = '{}';
-    session['defender-lab.helpdesk.prove.v1.its-02.9900000022-HDESK'] = '{}';
+    // Simulator keys as ui/helpdesk.js names them: <prefix>.<module or set>.<student id from the launch>.
+    local[`defender-lab.helpdesk.prove.v1.its-01.${anon}`] = '{}';
+    local[`defender-lab.helpdesk.prove.v1.its-02.${anon}`] = '{}';
+    session[`defender-lab.helpdesk.prove.v1.its-02.${anon}`] = '{}';
+    local[`defender-lab.helpdesk.practice.v1.its-01.${anon}`] = '{}';
+    // Another student's own drafts on the same browser.
+    local[`defender-lab.helpdesk.prove.v1.its-02.${otherAnon}`] = '{"other":1}';
+    session[`defender-lab.helpdesk.prove.v1.its-02.${otherAnon}`] = '{"other":1}';
+    local[`defender-lab.helpdesk.practice.v1.its-01.${otherAnon}`] = '{"other":1}';
+    // Shared simulator state (no student id), Help Desk and SOC.
+    local['defender-lab.helpdesk.state.v1'] = '{}';
+    local['defender-lab.sentinel.rules.created'] = '[]';
+    session['defender-lab.helpdesk.practice.student.its-01'] = anon;
     local['mission_next_progress_ext'] = JSON.stringify({ 'guest_learner_its-01': { a: 1 }, 'guest_learner_its-02': { b: 1 } });
-    local['mnt.coach.resume'] = '{}';
+    local['mnt.coach.resume'] = JSON.stringify({ id: 'its-03-walkthrough', step: 2, student: anon });
     ctx.saveModuleEngagement(user, {
       openedModules: [`${slug}:its-01`, `${slug}:its-02`, `${slug}:its-12`],
       completedLabs: [`${slug}:its-01:lab-its-01-prove-it`, `${slug}:its-02:lab-its-02-vm-build`],
@@ -52,9 +62,14 @@ async function main() {
   assert.ok(local[`mnt-portal.lab-state.v1.its01-ticket-v1.${anon}`], 'its-01 lab state kept');
   assert.equal(local[`mnt-portal.lab-state.v1.its02-vm-build-v1.${anon}`], undefined, 'its-02 lab state cleared');
   assert.ok(local[`mnt-portal.lab-state.v1.its02-vm-build-v1.${otherAnon}`], "another account's lab state on this browser is kept");
-  assert.ok(local['defender-lab.helpdesk.prove.v1.its-01.9900000022-HDESK'], 'its-01 Prove It state kept');
-  assert.equal(local['defender-lab.helpdesk.prove.v1.its-02.9900000022-HDESK'], undefined, 'its-02 Prove It state cleared');
-  assert.equal(session['defender-lab.helpdesk.prove.v1.its-02.9900000022-HDESK'], undefined, 'its-02 session state cleared');
+  assert.ok(local[`defender-lab.helpdesk.prove.v1.its-01.${anon}`], 'its-01 Prove It state kept');
+  assert.equal(local[`defender-lab.helpdesk.prove.v1.its-02.${anon}`], undefined, 'its-02 Prove It state cleared');
+  assert.equal(session[`defender-lab.helpdesk.prove.v1.its-02.${anon}`], undefined, 'its-02 session state cleared');
+  assert.ok(local[`defender-lab.helpdesk.practice.v1.its-01.${anon}`], 'its-01 practice state kept');
+  assert.ok(local[`defender-lab.helpdesk.prove.v1.its-02.${otherAnon}`], "another student's its-02 Prove It draft is kept");
+  assert.ok(session[`defender-lab.helpdesk.prove.v1.its-02.${otherAnon}`], "another student's its-02 session draft is kept");
+  assert.ok(local['defender-lab.helpdesk.state.v1'] && local['defender-lab.sentinel.rules.created'],
+    'shared simulator state that names no module is kept by a module reset');
   assert.deepEqual(Object.keys(JSON.parse(local['mission_next_progress_ext'])), ['guest_learner_its-01'], 'only the its-02 imported-lab bucket cleared');
   const engagement = ctx.loadModuleEngagement(user);
   assert.deepEqual([...engagement.openedModules], [`${slug}:its-01`, `${slug}:its-12`]);
@@ -65,9 +80,38 @@ async function main() {
   ({ local, session } = freshStores(ctx));
   seed(local, session);
   ctx.clearLocalProgressForReset(user, null);
-  assert.deepEqual(Object.keys(local).sort(), [`mnt-portal.lab-state.v1.its02-vm-build-v1.${otherAnon}`],
-    "erase all clears this account's browser progress and keeps only the other account's");
-  assert.deepEqual(Object.keys(session), []);
+  assert.deepEqual(Object.keys(local).sort(), [
+    `defender-lab.helpdesk.practice.v1.its-01.${otherAnon}`,
+    `defender-lab.helpdesk.prove.v1.its-02.${otherAnon}`,
+    `mnt-portal.lab-state.v1.its02-vm-build-v1.${otherAnon}`,
+  ].sort(), "erase all clears this account's browser progress and shared state, and keeps only the other student's own");
+  assert.deepEqual(Object.keys(session), [`defender-lab.helpdesk.prove.v1.its-02.${otherAnon}`]);
+
+  // The coach resume record is cleared only when it is this account's or names no one.
+  ({ local, session } = freshStores(ctx));
+  local['mnt.coach.resume'] = JSON.stringify({ id: 'its-03-walkthrough', step: 2, student: otherAnon });
+  ctx.clearLocalProgressForReset(user, null);
+  assert.ok(local['mnt.coach.resume'], "another student's coach resume record is kept");
+  local['mnt.coach.resume'] = JSON.stringify({ id: 'its-03-walkthrough', step: 2, student: '' });
+  ctx.clearLocalProgressForReset(user, null);
+  assert.equal(local['mnt.coach.resume'], undefined, 'a resume record that names no student is cleared');
+
+  // The student id the reset matches is the one every simulator launch sends
+  // (student=), so this account's own drafts can never be left behind.
+  const launchStudent = (href) => decodeURIComponent((/[?&]student=([^&#]*)/.exec(href) || [])[1] || '');
+  const launchIds = [
+    ctx.itsProveLaunchHref('its-02', user),
+    ctx.its01PracticeTicketsHref(user),
+    ctx.itsCoachLaunchHref('its-03-walkthrough', user),
+  ].map(launchStudent);
+  assert.ok(launchIds.every((id) => /^student-/.test(id)), 'every launch sends a student- id');
+  assert.deepEqual(launchIds, [anon, anon, anon], 'Prove It, practice and coach launches send the same id');
+  ({ local, session } = freshStores(ctx));
+  local[`defender-lab.helpdesk.prove.v1.its-02.${launchIds[0]}`] = '{}';
+  local[`defender-lab.helpdesk.practice.v1.its-01.${launchIds[1]}`] = '{}';
+  local['mnt.coach.resume'] = JSON.stringify({ id: 'its-03-walkthrough', step: 2, student: launchIds[2] });
+  ctx.clearLocalProgressForReset(user, null);
+  assert.deepEqual(Object.keys(local), [], 'keys named from the launch ids are all cleared by an erase-all reset');
 
   // ------------------------------------------------ applied once per reset
   ({ local, session } = freshStores(ctx));

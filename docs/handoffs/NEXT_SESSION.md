@@ -20,10 +20,18 @@ you share, and you haven't seen either migration on master yet.
   - **Student side, every program:** at sign-in `buildUserFromSession` calls
     `applyPendingProgressReset()` (not for admins or instructors). If an
     admin reset the account since this browser last looked, it clears that
-    account's browser-held progress once. Known limit: the simulator's
-    `defender-lab.*` keys and the imported labs' `mission_next_progress_ext`
-    aren't per account, so an erase-all clears them for everyone on that
-    browser. Use test accounts on QA browsers, not a real student's.
+    account's browser-held progress once. Another student's own saved work
+    on the same browser is kept: keys ending in their `student-…` id (the
+    Help Desk Prove It and practice drafts, `mnt-portal.lab-state.v1.*`, the
+    module engagement list) and a coach resume record (`mnt.coach.resume`)
+    that names them. The id is `LabRuntime.anonymousStudentId`, the one
+    every simulator launch sends as `student=`; a test checks they match.
+    If you add a per-student simulator key, end its name with that id.
+    Known limit: simulator keys with no student id (the SOC simulator's
+    `defender-lab.*` keys, `defender-lab.helpdesk.state.v1`) and the
+    imported labs' `mission_next_progress_ext` are shared by everyone on the
+    browser, so an erase-all clears them for everyone there. Use test
+    accounts on QA browsers, not a real student's.
   - **Two migrations.** Megan runs both, on staging and on production before
     merging.
     - `20261110120000_test_account_progress_reset.sql`: the flag and reset

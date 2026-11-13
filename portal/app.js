@@ -4297,9 +4297,20 @@ function clearLocalProgressForReset(user, moduleKeys) {
   remove(localStorage, (k) => k.startsWith(LAB_STATE_PREFIX) && k.endsWith(`.${anon}`)
     && (all || compact.some((c) => k.slice(LAB_STATE_PREFIX.length).startsWith(c))));
 
-  // Simulator state (defender-lab.*). Help Desk Prove It keys carry the
-  // module key: defender-lab.helpdesk.prove.v1.<module>.<student>.
+  // Simulator state (defender-lab.*). The simulator names a student's own
+  // saved work after the anonymous id the portal sends in every launch
+  // (student=, the same LabRuntime.anonymousStudentId as `anon` here):
+  // defender-lab.helpdesk.prove.v1.<module>.<student-…> and
+  // defender-lab.helpdesk.practice.v1.<set>.<student-…>. Another student's
+  // key is never touched. Keys with no student id are shared by everyone on
+  // this browser: erase-all clears them, a module reset clears those that
+  // name the module.
+  const otherStudentsKey = (k) => {
+    const owner = /\.(student-[A-Za-z0-9_-]+)$/.exec(k);
+    return !!owner && owner[1] !== anon;
+  };
   [localStorage, sessionStorage].forEach((store) => remove(store, (k) => k.startsWith('defender-lab.')
+    && !otherStudentsKey(k)
     && (all || mods.some((mk) => k.includes(`.${mk}.`)))));
 
   // Opened modules / completed labs engagement list.
@@ -4329,7 +4340,17 @@ function clearLocalProgressForReset(user, moduleKeys) {
     }
   } catch (_) { /* unreadable: leave it */ }
 
-  if (all) localStorage.removeItem('mnt.coach.resume');
+  // The coach's resume record (ui/coach.js) is one key per browser that
+  // names its student inside. Clear it only when it is this account's, or
+  // names no one (a launch from an older course page).
+  if (all) {
+    let resumeStudent = '';
+    try {
+      const resume = JSON.parse(localStorage.getItem('mnt.coach.resume') || 'null');
+      resumeStudent = (resume && typeof resume.student === 'string') ? resume.student : '';
+    } catch (_) { /* unreadable: nobody's, clear it */ }
+    if (!resumeStudent || resumeStudent === anon) localStorage.removeItem('mnt.coach.resume');
+  }
 }
 
 async function applyPendingProgressReset(core) {
