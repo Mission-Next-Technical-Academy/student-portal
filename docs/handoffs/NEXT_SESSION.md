@@ -31,14 +31,16 @@ you share, and you haven't seen either migration on master yet.
     `defender-lab.*` keys, `defender-lab.helpdesk.state.v1`) and the
     imported labs' `mission_next_progress_ext` are shared by everyone on the
     browser, so an erase-all clears them for everyone there. Use test
-    accounts on QA browsers, not a real student's.
+    accounts on QA browsers, not a real student's. Close any open simulator
+    tabs before signing back in after a reset; an open tab can write the
+    erased work back.
   - **Two migrations.** Megan runs both, on staging and on production before
     merging.
     - `20261110120000_test_account_progress_reset.sql`: the flag and reset
       columns on `students`, `admin_set_test_account()`,
       `admin_reset_test_progress()` (logged to `test_account_progress_resets`),
       and admin Storage access to a **test account's own** evidence folder
-      only. **Already applied on staging; not yet on production.** Its
+      only. **Applied on staging; not yet on production.** Its
       timestamp is older than PR #107's, so on production
       `supabase db push` needs `--include-all`. It must stay byte-for-byte
       the same; any change goes in a new migration.
@@ -49,7 +51,7 @@ you share, and you haven't seen either migration on master yet.
       those three columns only through the two admin functions. For every
       caller, a row can't become both a test account and an admin or
       instructor. The service role and the SQL editor can still set the flag
-      on a learner. **Not yet on staging or production.** Every other
+      on a learner. **Applied on staging; not yet on production.** Every other
       `students` edit (enrollment toggle, names) works as before.
   - **Before the migrations are applied** (e.g. the portal deploys first):
     the roster shows no test-account controls, and the sign-in check sees
