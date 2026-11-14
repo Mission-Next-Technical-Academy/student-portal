@@ -1,3 +1,52 @@
+**2026-11-14 (Megan; branch `shared/agent-rules-refactor`, PR #110 "Agent rules: one core rule file plus domain rules by path"; shared `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, new `.claude/rules/*.md` (9 files), `docs/operations/AI_AGENT_RULES.md`, `docs/operations/STAGING_AUTOMATION.md`, `docs/operations/OPERATIONS.md`, `docs/RELEASE_VERSIONING.md`, `README.md`, `bin/run-module-agents.sh` (one "read first" line), `.gitignore`, two broken links in `ui/NODE_MAP.md` and `local-tasks/README.md`, and two `git mv`s into `archive/` — please review all of it, it changes the rules your agent reads):**
+Docs only; no portal, database or workflow code changes.
+- **New rule layout.** `CLAUDE.md` is now the core rule set for every agent
+  (rules only; the dated status notes are gone, still in git history). Domain
+  rules live in `.claude/rules/` (database, staging-deploy, grading-assessment,
+  ui-frontend, curriculum, evidence-uploads, simulator, testing,
+  docs-handoffs). Claude Code loads each one when it reads a file matching
+  its `paths:`; Codex reads `AGENTS.md`, which points it to `CLAUDE.md`'s
+  index. `docs/operations/AI_AGENT_RULES.md` is now a pointer so old links
+  work. `docs/operations/PROJECT_GUIDE_FOR_AI.md` moved to
+  `archive/historical-plans/` (it said there was no auth or database), and
+  `archive/legacy-sc200-simulator/AGENTS.md` is now `AGENTS.legacy.md` so
+  Codex stops auto-loading it.
+- **`CLAUDE.md` no longer says to read `NEXT_SESSION.md` before anything
+  else.** Agents read a handoff only when the task touches that work. Your
+  call: if you want the old line back, restore it.
+- **An agent may now start Staging test branch without asking** and must
+  report which migrations it put on staging (this replaces "ask again for
+  every run" from the 2026-11-13 entry). Before a run with migrations it
+  reads each new one and stops to ask if one drops a table or column,
+  deletes or truncates rows, or goes outside the task. Agents still never
+  run `supabase db push` or `functions deploy`, and never touch `staging`.
+- **Staging test branch accepts only `hdesk/` and `shared/` branches.**
+  `CONTRIBUTING.md` still lists `soc/` and `m360/` prefixes, so a `soc/`
+  branch can't use the workflow today. Rename the branch to `shared/…`, or
+  widen the name check in `bin/ci/check-branch-for-staging.sh`.
+- **Production migrations** (`.claude/rules/database.md` and
+  `STAGING_AUTOMATION.md` "Production migrations"): a person applies a PR's
+  migrations in the production SQL Editor before merging, with a dry-run
+  script (`begin;`, migrations, checks, a raised "DRY RUN OK, NOTHING
+  SAVED") and an apply script (`begin;`, migrations, the
+  `schema_migrations` insert, `commit;`). Never link the CLI to production.
+- **Hand staging push form** (fallback only, a person runs it), checked
+  against `supabase db push --help` on CLI 2.118.0:
+  `supabase db push --linked --project-ref xbblgtrfwgeiyttdlbue --dry-run`.
+  `.github/workflows/supabase-change-reminder.yml` still prints the older
+  "`db push` has no `--project-ref` option" advice; not changed here.
+- **Needs Alex's confirmation:**
+  - Dropping "read `NEXT_SESSION.md` before anything else" (above).
+  - Squash and merge for every PR, including shared PRs others depend on
+    (`CONTRIBUTING.md` used to say regular merge for maintenance PRs).
+  - A Prove It critical error is an automatic zero, as a rule for all
+    programs (`.claude/rules/grading-assessment.md`).
+- **Also:** `.claude/work/` is now in `.gitignore` (the rules send drafts,
+  keys and production scripts there). The grading and evidence rules also
+  load when an agent edits `portal/app.js`, and `CLAUDE.md` keeps the
+  "read `docs/LAB_ASSESSMENT_STANDARD.md` before Learn/Practice/Prove It,
+  scoring, review or completion changes" line.
+
 **2026-11-12 (Megan; branch `shared/test-account-progress-reset`, PR #109 "Admin: reset progress for test accounts (all or selected modules)"; shared `portal/app.js`, `bin/ci-check.sh`, `supabase/migrations/20261110120000_test_account_progress_reset.sql`, `supabase/migrations/20261112120000_test_account_flag_rpc_only.sql`, `supabase/tests/test_account_progress_reset.sql`, `supabase/tests/test_account_flag_rpc_only.sql`, plus `tests/test-account-reset.test.js` — please review all of it, it's all shared):**
 Admins can mark an account as a **test account** on the roster and then erase
 its coursework: all of it, or only the modules they tick. Real students,
@@ -598,6 +647,7 @@ This affects every coach, SOC and Help Desk.
 **2026-10-30 (Megan; PR #93 (draft) "Official faculty grades, Help Desk Module 1 Prove It first (L-003)"; shared new `supabase/` migration and tests, `portal/app.js`, `portal/index.html`, `bin/ci-check.sh` and `tests/portal-vm.js`, plus Help Desk `portal/it-support-shared.js`, `portal/it-support-module-01.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests — please review the shared ones):**
 **Hold (updated 2026-10-30): PR #90, PR #91, PR #92 and the faculty-gate PR roll out together, and none reaches production alone. Staging goes together once Megan has the production impact numbers. Before the production push Megan sends Randy a heads-up on four points: L-003 stays open for other labs, the records change, Module 2 waits on review, and the hours and transcript gap (L-005). The push doesn't wait for his answer; any change he asks for is handled afterwards. Production order: run the read-only impact query, apply the migrations by hand, then merge straight away.**
 **Production impact, read-only query, run 2026-10-30 before any of PR #90–#93 (Megan). Rerun 2026-10-31, unchanged: AIENG 0 and 0, HDESK 1 flip and 11 later modules locked, SOCAN 0 and 0, every other column identical. Staging is verified (transcript 83.0, Pass, on 10/31). Production dry run 2026-10-31 passed, nothing saved: verified modules AIENG 0 to 0, HDESK 13 to 12, SOCAN 33 to 33; official-grade labs `lab-its-01-prove-it`; Module 1 rows demoted 2. One is the flip above, a synthetic test account. The other's progress said complete but it was never verified (one of the 11 Help Desk rows in the last column), so it changes no verified count.**
+**Production migrations applied by hand before merging; Megan confirmed `schema_migrations` lists 20261031120000, 20261030221555 and 20261030175603 above 20261029234710.** (Recorded 2026-11-14.)
 
 | Track | Students | Complete modules | Flip from PR #90 (Module 1) | Other complete modules then behind the lock | If every lab needed `score` ≥ 70 | If every lab needed an official score | Admin override | Marked complete but not verified |
 |---|---|---|---|---|---|---|---|---|

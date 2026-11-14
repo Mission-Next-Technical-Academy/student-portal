@@ -9,12 +9,8 @@ intentionally has no build step.
 - Minor (`1.x.0`): backward-compatible user-facing capability.
 - Major (`x.0.0`): a deliberately breaking compatibility change.
 
-For every deployment release:
-
-1. Update both `VERSION` and `portal/release.js` in the release commit.
-2. Commit with `release: v<version>`.
-3. Tag that exact commit as `v<version>` and push the commit and tag together.
-4. Record the deployed commit SHA in the deployment debrief.
+Updated 2026-11-14: the old manual release steps (bump, `release:` commit,
+tag) were removed. They were superseded by the build counter below.
 
 The displayed version is deliberately not derived from a live Git command:
 GitHub Pages serves static files, and the portal must remain functional when
@@ -32,5 +28,4 @@ generates `release.js` into the assembled site on every push to `master`, so the
 footer counter increments with each push and no version-bump commit is needed.
 The deploy never edits source. `VERSION` and `portal/release.js` are kept equal
 to the deployed number by `bin/stamp-version.sh` (run it before a commit, or any
-time, to sync them to the version the next commit will deploy as). The manual
-`release:` tag procedure above is superseded by this counter.
+time, to sync them to the version the next commit will deploy as).

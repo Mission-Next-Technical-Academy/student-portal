@@ -1,57 +1,33 @@
 # Working on the student portal
 
-Use one branch and one working directory per task. Keep each PR limited to SOC,
-M360, Helpdesk, or shared maintenance. This prevents unfinished work from one
-track being carried into another track's PR.
+Updated 2026-11-14. Agent rules: `CLAUDE.md`. Merge and staging steps: `.claude/rules/staging-deploy.md`.
 
-| Area | Owner |
-| --- | --- |
-| SOC modules, imported labs, range tools | @cyberdude88 |
-| M360 | @randy608 |
-| Helpdesk (`portal/it-support-*`) | @mcorreira |
-| Shared portal shell, data, module lab helpers, CI | All three maintainers |
+| Area | Owner | Branch prefix |
+| --- | --- | --- |
+| SOC modules, imported labs, range tools | @cyberdude88 | `soc/` |
+| M360 | @randy608 | `m360/` |
+| Help Desk (`portal/it-support-*`, `ui/helpdesk*`) | @mcorreira | `hdesk/` |
+| Shared portal shell, data, module lab helpers, CI | All three maintainers | `shared/` |
 
-`.github/CODEOWNERS` requests review from the listed owners when a PR is ready
-and its base branch contains the ownership file. It does not prevent edits or
-require every listed owner to approve. Enforcing approvals requires GitHub
-branch protection; this cleanup does not change repository protection settings.
+`.github/CODEOWNERS` requests review from these owners. It does not enforce
+approval; only GitHub branch protection can.
 
 ## Start a task
 
-Start new work from current `master`, in a separate worktree. For example:
-
-```bash
-git fetch origin
-git worktree add -b soc/my-task ../student-portal-soc-my-task origin/master
-```
-
-Use `m360/`, `helpdesk/`, or `maintenance/` instead of `soc/` as appropriate.
-Work and commit inside the new directory. Leave any existing uncommitted work
-in its original directory.
+- Start each task on its own branch from current `master`.
+- A separate `git worktree` per task is optional; it keeps unfinished work apart.
+- Keep each PR to one track or one shared task.
 
 ## Shared files
 
-`portal/app.js`, `portal/index.html`, `portal/data.js`, and
-`portal/module-labs.*` serve multiple tracks. Explain changes to these files in
-the PR and request review from affected owners. Put track-specific behavior in
-its existing track files where practical. Keep shared maintenance in its own
-PR; avoid unrelated refactors while fixing a course.
+- Explain every change to a shared file in the PR.
+- Request review from the owners it affects.
+- Put track-only behavior in that track's files.
+- Avoid unrelated refactors while fixing a course.
 
 ## Before merging
 
-Run `bash bin/ci-check.sh` and wait for applicable GitHub checks to pass. M360
-changes also run the M360 gates and browser regression workflows. Passing
-checks reduce risk but do not replace review of shared-file behavior.
-
-If a course PR depends on a maintenance PR, temporarily base it on that
-maintenance branch. Merge maintenance first, change the course PR's base back
-to `master`, and wait for checks again. Use a regular merge for the maintenance
-PR to preserve ancestry and keep the dependent diff clear.
-
-## Current cleanup
-
-`maintenance/m360-gates-and-ownership` contains only gate repairs, regression
-checks, and collaboration files. PR #34 retains the existing SOC/lab changes
-and depends on that maintenance branch. The portal comment correction belongs
-with the SOC code that introduced the comment. No Helpdesk runtime files are
-changed by this cleanup.
+- Run `bash bin/ci-check.sh` and wait for the GitHub checks.
+- M360 changes also run the M360 gate and browser regression workflows.
+- If a course PR depends on a shared PR, base it on that branch until the shared PR merges.
+- Squash and merge.
