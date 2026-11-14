@@ -1,0 +1,162 @@
+# Test a feature branch on hosted staging in one run. Start it from master:
+#   gh workflow run staging-test-branch.yml --ref master -f ref=<branch>
+#
+#   0. preflight     read-only, no secrets: the branch name is valid, the
+#                    branch contains master, and its only database change is
+#                    NEW migration files that sort after master's newest
+#                    (bin/ci/check-branch-for-staging.sh)
+#   1. migrate       only if the branch adds migrations: dry run, stop if it
+#                    names any file that is not one of the branch's new ones,
+#                    then apply them to the STAGING database
+#                    (bin/ci/migrate-staging.sh with EXPECTED_MIGRATIONS)
+#   2. deploy-site   start the staging website deploy for the branch's exact
+#                    commit (full SHA, never the branch name)
+#
+# It never moves the `staging` branch and never deploys Edge Functions. The
+# next Staging sync (every merge to master) puts staging back on master.
+#
+# Trust boundary: started from master only, so the staging-sync environment
+# (deployment branches: master) releases its secrets, and this file and the
+# scripts are always master's. The jobs that hold a secret run master's
+# scripts, never the branch's: only the files under supabase/migrations/ are
+# taken from the branch's commit. The branch name enters only through env:
+# and is validated before use. Every log line is public. Never add
+# pull_request or pull_request_target to this file.
+#
+# Runbook: docs/operations/STAGING_AUTOMATION.md
+name: Staging test branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Feature branch to test on staging (hdesk/... or shared/...)
+        required: true
+        type: string
+
+# Each job asks for exactly what it needs.
+permissions: {}
+
+# Same group as Staging sync, so a branch test and a master sync never race
+# on the staging database.
+concurrency:
+  group: staging-sync
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Check the branch is safe to put on staging
+    runs-on: ubuntu-latest
+    # Read-only: no environment and no secret is needed here
+    permissions:
+      contents: read
+    outputs:
+      sha: ${{ steps.check.outputs.sha }}
+      migrations: ${{ steps.check.outputs.migrations }}
+      has_migrations: ${{ steps.check.outputs.has_migrations }}
+    steps:
+      - name: Refuse to run from any branch but master
+        if: github.ref != 'refs/heads/master'
+        run: |
+          echo "::error::Start this workflow from master (Run workflow -> Branch: master) and put the feature branch in the ref box. Nothing was changed."
+          exit 1
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check the branch and list its new migrations
+        id: check
+        env:
+          BRANCH: ${{ inputs.ref }}
+        run: bash bin/ci/check-branch-for-staging.sh origin "$BRANCH"
+
+  migrate:
+    name: Apply the branch's new migrations to the staging database
+    needs: preflight
+    if: needs.preflight.outputs.has_migrations == 'true'
+    runs-on: ubuntu-latest
+    environment: staging-sync
+    permissions:
+      contents: read
+    steps:
+      # master's scripts (trusted) ...
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      # ... plus only the migration files from the branch's checked commit.
+      - name: Take supabase/migrations from the branch
+        env:
+          BRANCH_SHA: ${{ needs.preflight.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$BRANCH_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::preflight did not report a full commit SHA. Nothing was applied."
+            exit 1
+          fi
+          git fetch --no-tags --quiet origin "$BRANCH_SHA"
+          git checkout "$BRANCH_SHA" -- supabase/migrations
+          # preflight allowed only plain .sql files; check the checkout too.
+          if find supabase/migrations -mindepth 1 \( ! -type f -o ! -name '*.sql' \) | grep -q .; then
+            echo "::error::supabase/migrations holds something other than plain .sql files. Nothing was applied."
+            exit 1
+          fi
+
+      - name: Check that STAGING_DB_URL is the staging project
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: bash bin/ci/check-staging-db-url.sh
+
+      - name: Install the Supabase CLI
+        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        with:
+          version: 2.118.0
+
+      - name: Dry run, check the list, then apply
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+          EXPECTED_MIGRATIONS: ${{ needs.preflight.outputs.migrations }}
+        run: bash bin/ci/migrate-staging.sh
+
+  deploy-site:
+    name: Start the staging website deploy for the branch
+    needs: [preflight, migrate]
+    # migrate is skipped when the branch adds no migrations; a failed or
+    # cancelled migrate stops the deploy.
+    if: ${{ !cancelled() && needs.preflight.result == 'success' && (needs.migrate.result == 'success' || needs.migrate.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    environment: staging-sync
+    # Needs no GITHUB_TOKEN: it only uses STAGING_DEPLOY_TOKEN.
+    permissions: {}
+    steps:
+      - name: Dispatch deploy-staging.yml in student-portal-staging
+        env:
+          STAGING_DEPLOY_TOKEN: ${{ secrets.STAGING_DEPLOY_TOKEN }}
+          BRANCH_SHA: ${{ needs.preflight.outputs.sha }}
+          BRANCH: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          if [ -z "$STAGING_DEPLOY_TOKEN" ]; then
+            echo "::error::STAGING_DEPLOY_TOKEN is not set in the staging-sync environment, so the staging website was not deployed. See docs/operations/STAGING_AUTOMATION.md (Secret 2)."
+            exit 1
+          fi
+          if ! [[ "$BRANCH_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::preflight did not report a full commit SHA. Not deploying."
+            exit 1
+          fi
+
+          # --ref picks the branch whose deploy-staging.yml runs; -f ref is the commit it builds.
+          GH_TOKEN="$STAGING_DEPLOY_TOKEN" gh workflow run deploy-staging.yml \
+            --repo Mission-Next-Technical-Academy/student-portal-staging \
+            --ref main \
+            -f ref="$BRANCH_SHA"
+          {
+            echo "### Staging website"
+            echo "Started **Deploy staging site** for \`$BRANCH\` at commit \`${BRANCH_SHA}\`. Follow it at https://github.com/Mission-Next-Technical-Academy/student-portal-staging/actions/workflows/deploy-staging.yml"
+            echo
+            echo "The staging site shows this branch until the next merge to master (or a manual Staging sync run) redeploys it. Any migrations applied above stay on the staging database: keep their file names unchanged until the branch merges."
+          } >> "$GITHUB_STEP_SUMMARY"

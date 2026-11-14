@@ -14,9 +14,20 @@ or merge work. Details: `docs/operations/STAGING_AUTOMATION.md`.
 
 - Never push, merge into, reset or force the `staging` branch. Only the
   Staging sync workflow moves it.
-- To test a feature on the hosted staging site: push the feature branch, then
-  a person runs Deploy staging site in `student-portal-staging` with
-  `ref` = the feature branch.
+- To test a feature on the hosted staging site: push the feature branch,
+  update it from `master`, then run Staging test branch from `master`:
+  `gh workflow run staging-test-branch.yml --ref master -f ref=<branch>`.
+  It applies only the branch's new migrations to staging and deploys the
+  branch's exact commit. The hand steps in `STAGING_AUTOMATION.md` are the
+  fallback, for a person only.
+- Added 2026-11-13: an agent may start `Staging test branch` from `master`
+  for the current feature branch after the person approves that run. Ask
+  again for every run. Agents still never run `supabase db push`, never
+  deploy functions, and never touch the `staging` branch.
+- Once a branch's migration is on staging, Staging sync fails on every merge
+  to `master` until that branch merges. Say so to the person before asking
+  to start a run for a branch with migrations, and never rename that
+  migration afterwards.
 
 ## Database
 
@@ -37,7 +48,8 @@ or merge work. Details: `docs/operations/STAGING_AUTOMATION.md`.
   `cat supabase/.temp/project-ref` prints `xbblgtrfwgeiyttdlbue` (staging).
   If it prints anything else, stop and ask the person.
 - Updated 2026-10-30 (CLI 2.118): a person, never an agent, pushes migrations
-  to staging in this form: first `cat supabase/.temp/project-ref` (must print
+  to staging by hand (the Staging test branch workflow, above, is not a hand
+  push) in this form: first `cat supabase/.temp/project-ref` (must print
   `xbblgtrfwgeiyttdlbue`), then
   `supabase db push --linked --project-ref xbblgtrfwgeiyttdlbue --dry-run`,
   then the same command without `--dry-run`. Plain `supabase db push` also
