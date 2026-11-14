@@ -40,9 +40,11 @@ product-architecture planning, explicitly classified as historical-only by
   `OBJECTIVES_DELTA.md` — completed content-gap audit sessions from
   2026-06-28 through 2026-07-07.
 - `LAB_MANAGEMENT.md` — a 2026-07-06 dev-process handoff for the old `ui/`
-  simulator, superseded by `PROJECT_GUIDE_FOR_AI.md` and `HANDOFF.md`.
-- `AGENTS.md` — inherited per-agent task checklist; all current planning uses
-  the root handoff and workstream state documents instead.
+  simulator, superseded by `historical-plans/PROJECT_GUIDE_FOR_AI.md` (itself
+  archived 2026-11-14; current rules: root `CLAUDE.md`) and `HANDOFF.md`.
+- `AGENTS.legacy.md` (renamed from `AGENTS.md` 2026-11-14 so Codex no longer
+  auto-loads it) — inherited per-agent task checklist; all current planning
+  uses the root handoff and workstream state documents instead.
 - `PRODUCT_ARCHITECTURE_PLAN.md` (2026-08-05) and `PLATFORM_ARCHITECTURE.md`
   (2026-08-17, still headed "draft v1, no implementation started" even
   though the portal/simulator unification and backend simplification it

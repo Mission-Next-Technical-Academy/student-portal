@@ -1,11 +1,7 @@
 # Instructions for AI agents (Codex and others)
 
-Read `CLAUDE.md` in this directory first and follow its rules. It is the
-single set of project instructions for every agent, not only Claude Code.
+Updated 2026-11-14.
 
-In particular, run the app locally only with `bin/dev.sh`, which connects to
-the **staging** Supabase project. Confirm `bin/dev.sh status` shows
-`target=STAGING` before signing in, never use `--production` unless a person
-explicitly asks in this session, and never serve `portal/` any other way.
-
-Before database, staging, deploy or merge work, read `docs/operations/AI_AGENT_RULES.md`.
+- Read `CLAUDE.md` first. It is the one rule set for every agent.
+- Codex does not auto-load `.claude/rules/`. Use the index at the end of `CLAUDE.md`.
+- Before editing a listed path, open and follow the matching rule file.

@@ -136,15 +136,17 @@ single-origin site and publishes it to GitHub Pages. No manual deploy step.
 
 ## Documentation map
 
+Updated 2026-11-14.
+
 | File | What it covers |
 |---|---|
 | `docs/specs/MODULE_STANDARD.md` | The shape every module object must carry |
 | `docs/MNT_DESIGN_TOKENS.md` | Colors, type, and components taken from the live site |
-| `archive/session-logs/LATEST_PROGRESS.md` | Current status and project direction |
+| `CLAUDE.md` | Core rules for every AI agent (Codex reaches them through `AGENTS.md`) |
+| `.claude/rules/` | Domain rules for agents (database, staging, grading, UI and more), indexed at the end of `CLAUDE.md` |
 | `ROADMAP.md` | Canonical delivery order, Module 1 direction, and CI/CD workflow |
 | `docs/handoffs/HANDOFF.md` | Evidence for the active roadmap item; historical logs are in `archive/session-logs/` |
 | `docs/handoffs/NEXT_SESSION.md` | Compatibility pointer to the roadmap, not a second task queue |
-| `docs/operations/PROJECT_GUIDE_FOR_AI.md` | Orientation for AI agents working in this repo |
 | `docs/operations/OPERATIONS.md` | Live data control plane, test-account cleanup, and cohort retention |
 | `docs/LAB_ASSESSMENT_STANDARD.md` | Required architecture and review standard for labs and Prove It assessments |
 
