@@ -11,6 +11,9 @@ find portal ui -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 echo '== Portal module render =='
 node bin/portal-check.js
 
+echo '== Test-account progress reset (admin RPC calls, browser-state clearing) =='
+node tests/test-account-reset.test.js
+
 echo '== Module card states =='
 node tests/module-card-state.test.js
 
