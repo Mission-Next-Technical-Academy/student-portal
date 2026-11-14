@@ -534,6 +534,10 @@ async function signIn(identifier, password) {
   _cachedUserPromise = null;
   const core = await buildCoreUserFromSession(data.session);
   if (payload.login_event_id) recordLoginGeo(payload.login_event_id);
+  // Same check as buildUserFromSession: this path renders without a reload,
+  // so an admin's reset must clear this browser before details are read.
+  // It returns at once for admins and instructors.
+  await applyPendingProgressReset(core);
   const detailsPromise = core.isInstructor && !core.isAdmin
     ? Promise.resolve({})
     : fetchUserDetails(core.userId, core.trackCode);

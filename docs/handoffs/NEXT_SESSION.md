@@ -34,6 +34,12 @@ you share, and you haven't seen either migration on master yet.
     accounts on QA browsers, not a real student's. Close any open simulator
     tabs before signing back in after a reset; an open tab can write the
     erased work back.
+    `signIn()` (the login form, no page reload) now runs the same check, so
+    every student login in every program does one extra read
+    (`students.progress_reset_at` for that student); admins and instructors
+    skip it.
+    Known limit: a second module reset before the student signs in replaces
+    the first, so only the latest one is cleared in that browser.
   - **Two migrations.** Megan runs both, on staging and on production before
     merging.
     - `20261110120000_test_account_progress_reset.sql`: the flag and reset

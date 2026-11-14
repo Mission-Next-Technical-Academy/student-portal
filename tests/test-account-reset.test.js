@@ -238,6 +238,41 @@ async function main() {
   assert.equal(ctx.testAccountRosterControlsHtml({ student_id: '9900000022-HDESK', is_test_account: true }, false), '',
     'database without the migration: no test-account controls');
 
+  // ------------------------- sign-in through the login form also clears
+  // signIn() builds the user itself (no page reload), so it must run the
+  // same reset check as buildUserFromSession, before details are read.
+  const signInCalls = [];
+  const saved = vm.runInContext(`({
+    fetch: typeof fetch === 'undefined' ? undefined : fetch,
+    setSession: mntSupabase.auth.setSession,
+    buildCoreUserFromSession, applyPendingProgressReset, fetchUserDetails,
+  })`, ctx);
+  ctx.__signInCalls = signInCalls;
+  vm.runInContext(`
+    fetch = async () => ({ ok: true, json: async () => ({ access_token: 'a', refresh_token: 'r' }) });
+    mntSupabase.auth.setSession = async () => ({ data: { session: { user: { id: 'u-test' } } }, error: null });
+    buildCoreUserFromSession = async () => { __signInCalls.push('core'); return { userId: 'u-test', trackCode: 'HDESK', isAdmin: false, isInstructor: false }; };
+    applyPendingProgressReset = async (core) => { __signInCalls.push('reset:' + core.userId); };
+    fetchUserDetails = async () => { __signInCalls.push('details'); return {}; };
+  `, ctx);
+  try {
+    const signedIn = await ctx.signIn('9900000022-HDESK', 'pw');
+    assert.equal(signedIn && signedIn.userId, 'u-test');
+    assert.deepEqual(signInCalls, ['core', 'reset:u-test', 'details'],
+      'signIn() checks for a pending reset after building the user and before reading details');
+  } finally {
+    ctx.__saved = saved;
+    vm.runInContext(`
+      if (__saved.fetch !== undefined) fetch = __saved.fetch;
+      mntSupabase.auth.setSession = __saved.setSession;
+      buildCoreUserFromSession = __saved.buildCoreUserFromSession;
+      applyPendingProgressReset = __saved.applyPendingProgressReset;
+      fetchUserDetails = __saved.fetchUserDetails;
+      _cachedUser = null;
+      _cachedUserPromise = null;
+    `, ctx);
+  }
+
   console.log('test-account-reset: all checks passed');
 }
 
