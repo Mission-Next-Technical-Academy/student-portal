@@ -1,4 +1,4 @@
-**2026-11-13 (Megan; branch `shared/staging-test-branch`, PR #<added by /pr-ready> "Staging: test a feature branch on hosted staging in one run"; shared `.github/workflows/staging-test-branch.yml` (new), `bin/ci/check-branch-for-staging.sh` (new), `bin/ci/migrate-staging.sh`, `bin/ci-check.sh`, `tests/staging-sync-scripts.test.js`, `docs/operations/STAGING_AUTOMATION.md`, `docs/operations/AI_AGENT_RULES.md` — please review those):**
+**2026-11-13 (Megan; branch `shared/staging-test-branch`, PR #108 "Staging: test a feature branch on hosted staging in one run"; shared `.github/workflows/staging-test-branch.yml` (new), `bin/ci/check-branch-for-staging.sh` (new), `bin/ci/migrate-staging.sh`, `bin/ci-check.sh`, `tests/staging-sync-scripts.test.js`, `docs/operations/STAGING_AUTOMATION.md`, `docs/operations/AI_AGENT_RULES.md` — please review those):**
 A new manual workflow, **Staging test branch**, replaces the hand steps for
 testing a feature branch on hosted staging. Started from `master`
 (`gh workflow run staging-test-branch.yml --ref master -f ref=<branch>`), it
