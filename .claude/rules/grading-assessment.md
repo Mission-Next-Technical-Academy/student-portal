@@ -59,7 +59,7 @@ Read that standard in full before a new or materially changed Prove It.
 - Keep technical credit when writing is weak; polish alone earns only writing credit.
 - Show each competency's earned and available points and why.
 - Keep rubrics as data, separate from rendering; avoid long `if` chains.
-- A defined critical error scores zero and returns the attempt.
+- Help Desk: a defined critical error scores zero and returns the attempt. Other programs: ask the program owner (pending Alex's confirmation for SOC).
 
 ## Answer keys
 

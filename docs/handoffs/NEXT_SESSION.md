@@ -39,8 +39,9 @@ Docs only; no portal, database or workflow code changes.
   - Dropping "read `NEXT_SESSION.md` before anything else" (above).
   - Squash and merge for every PR, including shared PRs others depend on
     (`CONTRIBUTING.md` used to say regular merge for maintenance PRs).
-  - A Prove It critical error is an automatic zero, as a rule for all
-    programs (`.claude/rules/grading-assessment.md`).
+  - A Prove It critical error is an automatic zero: the rule now applies to
+    Help Desk only; other programs ask their owner. Please confirm whether
+    SOC follows it (`.claude/rules/grading-assessment.md`, updated 2026-11-14).
 - **Also:** `.claude/work/` is now in `.gitignore` (the rules send drafts,
   keys and production scripts there). The grading and evidence rules also
   load when an agent edits `portal/app.js`, and `CLAUDE.md` keeps the
