@@ -36,7 +36,7 @@ const state = { assessment: {
   approvalRequests: [{ id: 'approval-1', status: 'approved', audit: [{ status: 'approved', execution: 'never' }] }],
   automationResults: [{ type: 'indicator_enrichment', status: 'succeeded', iocId: 'M04-I-001', executionId: 'auto-exec-1', matchedEventIds: ['M04-A-001'] }],
   savedQueries: [{ id: 'query-1', query: 'AuthLog | where EventType == "AuthFailure" | summarize count() by SourceIp' }],
-  rules: [{ id: 'rule-1', queryId: 'query-1', query: 'AuthLog | where EventType == "AuthFailure" | summarize count() by SourceIp', name: 'Spray', groupingField: 'sourceIp', threshold: 5, windowMinutes: 10, enabled: true, schedule: { scheduledAt: timestamp, frequencyMinutes: 30 }, exclusion: { enabled: true } }],
+  rules: [{ id: 'rule-1', queryId: 'query-1', query: 'AuthLog | where EventType == "AuthFailure" | summarize count() by SourceIp', name: 'Spray', groupingField: 'sourceIp', threshold: 5, windowMinutes: fixture.scenario.truth.rule.windowMinutes, enabled: true, schedule: { scheduledAt: timestamp, frequencyMinutes: 30 }, exclusion: { enabled: true } }],
   executions: [{ id: 'execution-1', ruleId: 'rule-1', mode: 'scheduled', status: 'completed', alertIds: ['alert-1'], reviewEvidence: { excluded: [{ supportingEventIds: fixture.scenario.truth.rule.excludeEventIds }], suppressed: [] } }],
   alerts: [{ id: 'alert-1', ruleId: 'rule-1', sourceRule: 'Spray', groupingField: 'sourceIp', group: fixture.scenario.truth.maliciousSourceIp, eventIds: fixture.scenario.truth.rule.matchEventIds }],
 } , caseRecord: { disposition: 'true-positive', escalation: 'Identity Response', notes: 'Credential spray from 198.51.100.64 followed by successful sign-in for acct-44; corroborated by IOC.' } };
