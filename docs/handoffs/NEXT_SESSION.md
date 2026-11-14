@@ -1,3 +1,54 @@
+**2026-11-13 (Megan; branch `shared/staging-test-branch`, PR #108 "Staging: test a feature branch on hosted staging in one run"; shared `.github/workflows/staging-test-branch.yml` (new), `bin/ci/check-branch-for-staging.sh` (new), `bin/ci/migrate-staging.sh`, `bin/ci-check.sh`, `tests/staging-sync-scripts.test.js`, `docs/operations/STAGING_AUTOMATION.md`, `docs/operations/AI_AGENT_RULES.md` — please review those):**
+A new manual workflow, **Staging test branch**, replaces the hand steps for
+testing a feature branch on hosted staging. Started from `master`
+(`gh workflow run staging-test-branch.yml --ref master -f ref=<branch>`), it
+checks the branch, applies only the branch's new migrations to the staging
+database, and starts `deploy-staging.yml` in student-portal-staging with the
+branch's full commit SHA. It never moves the `staging` branch and never
+deploys Edge Functions. The hand steps stay in `STAGING_AUTOMATION.md` as
+the fallback.
+- **How it works:**
+  - `preflight` (no secrets, runs no branch code):
+    `bin/ci/check-branch-for-staging.sh` refuses the branch unless its name
+    matches `^(hdesk|shared)/[a-z0-9._-]+$`, it exists, it contains the
+    `master` tip, and every change under `supabase/migrations/` is a newly
+    added plain `.sql` file named `<14 digits>_<lowercase_words>.sql` that
+    sorts after `master`'s newest migration. Changes under
+    `supabase/functions/` only add a "deploy by hand" note to the summary.
+  - `migrate` (only when the branch adds migrations; `staging-sync`
+    environment): checks out `master`'s scripts, takes only
+    `supabase/migrations/` from the checked SHA, then runs
+    `bin/ci/migrate-staging.sh` with `EXPECTED_MIGRATIONS`. That script now
+    stops after the dry run if it names any file outside that list (fewer is
+    allowed, so a rerun works). If the dry run names no file at all, it
+    skips the real push, so a change in the CLI's wording can never let it
+    apply unchecked migrations. **With `EXPECTED_MIGRATIONS` unset, Staging
+    sync behaves exactly as before.**
+  - `deploy-site` (`staging-sync` environment, `permissions: {}`): dispatches
+    `deploy-staging.yml` with `-f ref=<full SHA>`. Unlike Staging sync, a
+    missing `STAGING_DEPLOY_TOKEN` is an error, not a notice.
+- **For your code or agent:**
+  - It uses the same `staging-sync` concurrency group as Staging sync.
+    GitHub keeps one waiting run per group, so a branch test can cancel a
+    waiting Staging sync run (or the other way round); rerun it from
+    `master` if it shows as cancelled.
+  - While a branch's migration is on staging and not on `master`, Staging
+    sync's `migrate-staging` fails on every merge ("Remote migration versions
+    not found in local migrations directory"), as it already did with the
+    hand steps. The docs now say so.
+  - The branch's SQL runs on staging with full database rights, and anyone
+    with write access can start the run. No branch code runs in a job that
+    holds a secret.
+  - `tests/staging-sync-scripts.test.js` now runs in `bin/ci-check.sh`, so
+    in CI, `pages.yml` and `deploy-staging.yml` too. It works offline with
+    throwaway git repos. Its boundary check now allows exactly two workflows
+    to use the `staging-sync` secrets.
+  - `AI_AGENT_RULES.md`: an agent may start Staging test branch from
+    `master` for the current feature branch after the person approves that
+    run; agents still never run `supabase db push`, never deploy functions,
+    and never touch the `staging` branch.
+- No migrations, no Supabase commands, nothing on production.
+
 **2026-11-10 (Megan; branch `shared/hdesk-prove-auto-score`, PR #107 "Prove It automatic scoring: a staff-only recommendation the instructor confirms; critical errors are an automatic zero"; shared `supabase/migrations/20261110200000_prove_it_auto_scoring.sql`, `supabase/migrations/20261111120000_prove_it_critical_coaching_only.sql`, `supabase/tests/prove_it_auto_scoring.sql`, `supabase/tests/hdesk_faculty_gate.sql`, `portal/app.js`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `portal/it-support-shared.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests — please review the shared ones):**
 Help Desk Module 1's Prove It (HD-2125) is now scored automatically when the
 student submits. The score is a recommendation that only staff can read. The
