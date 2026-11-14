@@ -61,6 +61,9 @@ node tests/lab-attempt-evidence-panel.test.js
 echo '== Simulator route render and navigation =='
 node bin/render_all.js
 
+echo '== Staging automation scripts and workflow boundaries (offline, throwaway git repos) =='
+node tests/staging-sync-scripts.test.js
+
 echo '== Diff whitespace =='
 git diff --check
 

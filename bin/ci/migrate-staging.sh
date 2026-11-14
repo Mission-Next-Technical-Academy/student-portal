@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Apply pending migrations to the STAGING database (staging-sync.yml, job
-# migrate-staging). Needs STAGING_DB_URL in the environment and the Supabase
-# CLI on PATH.
+# migrate-staging; staging-test-branch.yml, job migrate, with
+# EXPECTED_MIGRATIONS set). Needs STAGING_DB_URL in the environment and the
+# Supabase CLI on PATH.
 #
 # The connection string reaches the CLI only as an expanded argument inside
 # this script (the workflow log shows the step's script text, not expanded
@@ -76,6 +77,52 @@ pending="$(migrations_named_in "$dry_log")"
 
 if [ -z "$pending" ]; then
   echo "No pending migrations; the staging database is up to date."
+fi
+
+# Staging test branch (staging-test-branch.yml): EXPECTED_MIGRATIONS lists
+# the branch's new migration files, space-separated. Stop before the real
+# push if the dry run names any other file. Fewer is fine: those files were
+# applied by an earlier run of the same branch. Set but empty means "expect
+# none". Unset (Staging sync) changes nothing.
+if [ -n "${EXPECTED_MIGRATIONS+set}" ]; then
+  unexpected=""
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    case " $EXPECTED_MIGRATIONS " in
+      *" $name "*) ;;
+      *) unexpected="$unexpected $name" ;;
+    esac
+  done <<< "$pending"
+  if [ -n "$unexpected" ]; then
+    {
+      echo "### Staging database migrations: STOPPED after the dry run"
+      echo "Nothing was applied. The dry run would also apply migrations that are not this branch's new files:"
+      echo
+      for name in $unexpected; do
+        echo "- \`$name\`"
+      done
+      echo
+      echo "Usually master has migrations staging has not applied yet: run Staging sync from master first, then run this workflow again."
+      details "Dry-run output" "$dry_log"
+    } >> "$summary"
+    echo "::error::The dry run names migrations that are not this branch's new files:$unexpected. Nothing was applied and the website was not deployed. Run Staging sync from master first, then try again."
+    exit 1
+  fi
+  echo "Every pending migration is one of this branch's new files."
+
+  # Never run the real push on a dry run that named no file: if the CLI's
+  # wording ever changed so that file names were missing, the push could
+  # apply migrations nobody checked. Nothing pending means nothing to do.
+  if [ -z "$pending" ]; then
+    {
+      echo "### Staging database migrations"
+      echo "None applied: the dry run named none of this branch's new files, so they are already on staging (an earlier run of this branch). The real push was not run."
+      echo
+      echo "A migration's content is never re-applied: if you changed the SQL inside a file already on staging, that change is not on staging. See docs/operations/STAGING_AUTOMATION.md."
+      details "Dry-run output" "$dry_log"
+    } >> "$summary"
+    exit 0
+  fi
 fi
 
 echo "== Applying migrations to staging =="
