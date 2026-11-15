@@ -221,13 +221,13 @@ const PRACTICE = 'lab-its-01-practice-tickets';
 
 // The retired Lab 1.1 is off the page: its old attempts stay in the database
 // but show nowhere on Module 1 (no section, no status line, no rail row, no
-// counter). Practice It labs read "Practice complete (not graded)", whether
+// counter). Practice It labs read "Complete", whether
 // waiting or approved before Practice It stopped being reviewed.
 async function testModuleOneClearedStorage() {
   const user = hdUser({ [LAB11]: waiting(), [LAB12]: approved() });
   fresh(user);
   const html = moduleLab(1).view(user, HD);
-  assert.equal(statusLine(html, LAB12), `Lab 1.1: Practice complete (not graded) · ${DAY}`);
+  assert.equal(statusLine(html, LAB12), `Lab 1.1: Complete · ${DAY}`);
   assert.equal(counter(html, 'its01-status'), '3 labs · 1 practice complete · 0 passed');
   assert.match(section(html, 'its01-lab-1-2'), /Review the walkthrough/);
   assert.equal(railRow(html, 'its01-lab-1-2').ticked, true);
@@ -238,8 +238,8 @@ async function testModuleOneClearedStorage() {
   const both = hdUser({ [LAB12]: waiting(), [PRACTICE]: waiting() });
   fresh(both);
   const page = moduleLab(1).view(both, HD);
-  assert.equal(statusLine(page, LAB12), `Lab 1.1: Practice complete (not graded) · ${DAY}`);
-  assert.equal(statusLine(page, PRACTICE), `Lab 1.2: Practice complete (not graded) · ${DAY}`);
+  assert.equal(statusLine(page, LAB12), `Lab 1.1: Complete · ${DAY}`);
+  assert.equal(statusLine(page, PRACTICE), `Lab 1.2: Complete · ${DAY}`);
   assert.equal(counter(page, 'its01-status'), '3 labs · 2 practice complete · 0 passed');
   assert.equal(railRow(page, 'its01-practice-tickets').ticked, true);
   assert.doesNotMatch(page, /waiting for instructor review|In review/);

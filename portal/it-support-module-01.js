@@ -684,8 +684,8 @@ function its01Lab2Status() {
 function its01Lab2() {
   const button = itsWalkthroughButton(its01User, [ITS01_LAB2_KEY]);
   return `<section class="its01-section its01-lab-section" id="its01-lab-1-2" aria-labelledby="its01-lab-1-2-title">
-    <div class="its01-section-heading"><span>1</span><div><p class="its01-kicker">Practice It · coached · not graded</p><h2 id="its01-lab-1-2-title">${esc(itsLabTitle(ITS01_LAB2_KEY))}</h2></div></div>
-    <p class="its01-instruction">Work your first ticket end to end in the IT Service Desk simulator: INC0010150, Sam Rivera’s account lockout. Take the ticket, find out what changed, follow KB-0024 to verify Sam and unlock the account, confirm Sam can sign in, tell Sam what to do if it happens again, and write the work note. A coach walks you through every step. No commands needed.</p>
+    <div class="its01-section-heading"><span>1</span><div><p class="its01-kicker">Practice It · coached</p><h2 id="its01-lab-1-2-title">${esc(itsLabTitle(ITS01_LAB2_KEY))}</h2></div></div>
+    <p class="its01-instruction">Practice: not graded. Work your first ticket end to end in the IT Service Desk simulator: INC0010150, Sam Rivera’s account lockout. Take the ticket, verify Sam the way KB-0024 says, find out what changed, unlock the account, confirm Sam can sign in, tell Sam what to do if it happens again, and write the work note. A coach walks you through every step. No commands needed.</p>
     <a class="itsw-evidence-button" data-its01-console-launch href="${esc(itsCoachLaunchHref('hd-m01', its01User))}" target="_blank" rel="opener">
       <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: ITS01_LAB2_START }[button.mode]}
     </a>
@@ -695,10 +695,10 @@ function its01Lab2() {
   </section>`;
 }
 
-// Lab 1.2, Module 1's unguided tickets (1-A to 1-C), not graded: the
+// Lab 1.2, Module 1's unguided tickets (1-A to 1-D), not graded: the
 // simulator opens just these tickets in their own saved shift
 // (?practice=its-01, ui/helpdesk.js), with feedback but no score. Opened
-// with an opener, so once all three are closed the simulator can report it
+// with an opener, so once all four are closed the simulator can report it
 // (its01ReceivePracticeCompletion).
 function its01PracticeTicketsHref(user) {
   const student = typeof LabRuntime !== 'undefined' ? LabRuntime.anonymousStudentId(user) : '';
@@ -706,13 +706,13 @@ function its01PracticeTicketsHref(user) {
 }
 function its01PracticeTickets() {
   return `<section class="its01-section its01-lab-section" id="its01-practice-tickets" aria-labelledby="its01-practice-tickets-title">
-    <div class="its01-section-heading"><span>2</span><div><p class="its01-kicker">Practice It · on your own · not graded</p><h2 id="its01-practice-tickets-title">${esc(itsLabTitle(ITS01_PRACTICE_KEY))}</h2></div></div>
-    <p class="its01-instruction">Three more tickets to work on your own: Leah Brooks has forgotten her password, Ravi Shah has cracked his laptop screen, and a caller wants an executive’s password reset in a hurry. Use the method, search the knowledge base and verify callers with KB-0024. Press Check my work on a ticket for feedback.</p>
-    <p class="its01-instruction">Nothing is graded and your answers aren’t sent. Finish all three tickets: resolve or escalate each one. The simulator then tells this page, and your account records that you completed Lab 1.2.</p>
+    <div class="its01-section-heading"><span>2</span><div><p class="its01-kicker">Practice It · on your own</p><h2 id="its01-practice-tickets-title">${esc(itsLabTitle(ITS01_PRACTICE_KEY))}</h2></div></div>
+    <p class="its01-instruction">Four more tickets to work on your own: Leah Brooks has forgotten her password, Ravi Shah has cracked his laptop screen, a caller wants an executive’s password reset in a hurry, and Hana Okafor needs her team printer added to her laptop. Use the method, search the knowledge base and verify callers with KB-0024. Press Check my work on a ticket for feedback.</p>
+    <p class="its01-instruction">Practice: not graded. Your answers aren’t sent. Finish all four tickets: resolve, escalate or route each one. The simulator then tells this page, and your account records that you completed Lab 1.2.</p>
     <a class="itsw-evidence-button" data-its01-practice-launch href="${esc(its01PracticeTicketsHref(its01User))}" target="_blank" rel="opener">
       <i class="ri-play-list-line" aria-hidden="true"></i> Open the practice tickets
     </a>
-    ${itsLabStatusHtml(its01User, ITS01_PRACTICE_KEY, { label: 'Lab 1.2', prefix: 'its01', pendingText: 'Finish all three tickets: resolve or escalate each one.' })}
+    ${itsLabStatusHtml(its01User, ITS01_PRACTICE_KEY, { label: 'Lab 1.2', prefix: 'its01', pendingText: 'Finish all four tickets: resolve, escalate or route each one.' })}
   </section>`;
 }
 
@@ -1010,12 +1010,12 @@ async function its01ReceiveCoachCompletion(event) {
   if (section) section.scrollIntoView({ block: 'start' });
 }
 
-// Lab 1.2's completion: the simulator's practice set says all three tickets
+// Lab 1.2's completion: the simulator's practice set says all four tickets
 // are closed (ui/helpdesk.js hdPracticeReport). Saved once, as a lab attempt
 // with no score and no answers: completion, its time and the ticket ids.
 // Every message gets an answer, so the simulator can say whether it was
 // saved: signed out, another student, not every ticket, or a failed save.
-const ITS01_PRACTICE_TICKETS = ['HD-2151', 'HD-2152', 'SEC-2153'];
+const ITS01_PRACTICE_TICKETS = ['HD-2151', 'HD-2152', 'SEC-2153', 'HD-2154'];
 async function its01ReceivePracticeCompletion(event) {
   const data = event.data;
   if (!data || data.type !== 'mnt-practice-complete' || data.id !== 'its-01') return;

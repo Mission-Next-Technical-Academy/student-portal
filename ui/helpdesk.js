@@ -48,6 +48,7 @@ const HD_DIAGNOSIS_OVERRIDES = {
   'HD-2151':'Forgotten password: nothing is broken',
   'HD-2152':'Physical damage: a Tier 2 repair',
   'SEC-2153':'Social engineering: someone is trying to talk you into handing over an account',
+  'HD-2154':'The printer is missing from her laptop: nothing is broken',
   'HD-2108':'GPO scope',
   'HD-2109':'Corrupt profile mapping',
   'HD-2118':'NTFS permission',
@@ -225,6 +226,9 @@ function hdNewPracticeScenario(now) {
 function hdEnsurePractice(state, now = hdNowMs()) {
   if (!state || state.mode === 'prove' || typeof HD_PRACTICE_SCENARIOS === 'undefined') return state;
   if (!state.machines) state.machines = hdClone(HD_PRACTICE_MACHINES);
+  // A machine added to the fixtures later (NS-LT-0188, 2026-11-15) reaches a
+  // shift saved before it.
+  Object.keys(HD_PRACTICE_MACHINES).forEach(name => { if (!state.machines[name]) state.machines[name] = hdClone(HD_PRACTICE_MACHINES[name]); });
   if (!state.scenarios) state.scenarios = { [HD_M01]:hdNewPracticeScenario(now) };
   if (!Array.isArray(state.practiceLog)) state.practiceLog = [];
   if (!state.eventFilter) state.eventFilter = { id:'', text:'' };
@@ -432,6 +436,23 @@ function hdProveUpgrade(saved) {
   try { localStorage.setItem(hdStateKey(), JSON.stringify(fresh)); } catch (_) {}
   return fresh;
 }
+// A practice set saved before a ticket joined it (Module 1's set had three
+// tickets until HD-2154 joined on 2026-11-15) gets the new ticket fresh; the
+// other tickets keep their work. A completion already saved stays saved.
+function hdPracticeSetUpgrade(saved) {
+  if (!HD_PRACTICE_SET || !saved || !Array.isArray(saved.tickets)) return saved;
+  const missing = HD_PRACTICE_SET.set.tickets.filter(id => !saved.tickets.some(ticket => ticket.id === id));
+  if (!missing.length) return saved;
+  const fresh = hdFreshState();
+  missing.forEach(id => {
+    const ticket = fresh.tickets.find(item => item.id === id); if (!ticket) return;
+    saved.tickets.push(ticket);
+    const account = hdConsole(ticket).account;
+    if (account && account.locked) saved.userOverrides = { ...(saved.userOverrides || {}), [account.userId]:{ ...((saved.userOverrides || {})[account.userId] || {}), locked:true } };
+  });
+  if (!saved.selectedTicketId) saved.selectedTicketId = saved.tickets[0].id;
+  return saved;
+}
 function hdLoadState() {
   if (HD_PROVE && HD_PROVE.blocked) return { ...hdFreshProveState(), tickets:[], selectedTicketId:null };
   try {
@@ -439,7 +460,7 @@ function hdLoadState() {
     const fits = HD_PROVE ? saved && saved.mode === 'prove' && saved.moduleKey === HD_PROVE.moduleKey && saved.prove
       : HD_PRACTICE_SET ? saved && saved.mode !== 'prove' && saved.practiceSet === HD_PRACTICE_SET.key
         : saved && saved.mode !== 'prove' && !saved.practiceSet;
-    if (fits && saved.version === 1 && Array.isArray(saved.tickets)) return hdScrubSavedCommands(HD_PROVE ? hdProveUpgrade(saved) : hdEnsurePractice(saved));
+    if (fits && saved.version === 1 && Array.isArray(saved.tickets)) return hdScrubSavedCommands(HD_PROVE ? hdProveUpgrade(saved) : hdEnsurePractice(hdPracticeSetUpgrade(saved)));
   } catch (_) {}
   const fresh = HD_PROVE ? hdFreshProveState() : HD_PRACTICE_SET ? hdFreshPracticeSetState() : hdFreshState();
   localStorage.setItem(hdStateKey(), JSON.stringify(fresh));
@@ -455,7 +476,9 @@ function hdSave() { if (HD_PROVE && HD_PROVE.blocked) return; localStorage.setIt
 // Prove shift adds its own computers and KB articles, and its server and
 // event overrides.
 function hdComputers() { return HD_PROVE ? [...HD_COMPUTERS, ...(HD_PROVE.shift.computers || [])] : HD_COMPUTERS; }
-function hdKbArticles() { return HD_PROVE ? [...HD_KB_ARTICLES, ...(HD_PROVE.shift.kbArticles || [])] : HD_KB_ARTICLES; }
+// An article marked practiceOnly (KB-0059, Lab 1.2's printer steps) never
+// shows in a Prove It: it would hand over the Prove It's fix.
+function hdKbArticles() { return HD_PROVE ? [...HD_KB_ARTICLES.filter(article => !article.practiceOnly), ...(HD_PROVE.shift.kbArticles || [])] : HD_KB_ARTICLES; }
 function hdServers() {
   const overrides = HD_PROVE ? HD_PROVE.shift.serverOverrides || {} : {};
   return HD_SERVERS.map(server => ({ ...server, ...(overrides[server.name] || {}) }));
@@ -540,13 +563,17 @@ function hdSetPriorityFilter(value) { hdState.priorityFilter = value; hdRerender
 function hdAssignTicket(id) {
   const ticket = hdTicketById(id); if (!ticket) return;
   ticket.assignedTechnician = 'Riley Morgan';
-  if (ticket.status === 'New') ticket.status = 'Assigned';
-  hdHistory(ticket, 'Assigned to Riley Morgan.'); hdRerender();
+  // A ticket with simpleStates (Module 1) goes straight to In Progress.
+  const simple = hdConsole(ticket).simpleStates === true;
+  if (ticket.status === 'New') ticket.status = simple ? 'In Progress' : 'Assigned';
+  hdHistory(ticket, simple ? 'Assigned to Riley Morgan; state In Progress.' : 'Assigned to Riley Morgan.'); hdRerender();
 }
 function hdTransitionTicket(id, status) {
   const ticket = hdTicketById(id); if (!ticket || !HD_STATUS_NEXT[ticket.status].includes(status)) {
     toast('That state transition is not valid from the current ticket state.'); return;
   }
+  // A simpleStates ticket has one close control and no state list.
+  if (hdConsole(ticket).simpleStates === true) { toast('This ticket closes through its own control.'); return; }
   // A ticket with an owner choice closes only through it.
   if (['Resolved', 'Escalated'].includes(status) && hdConsole(ticket).owner) { toast('Choose who owns this ticket in "Who owns this ticket?".'); hdRerender(); return; }
   // A console-only ticket's outcomes can't be skipped through the state list:
@@ -570,6 +597,7 @@ function hdAddNote(id) {
   // A password is never saved in a note, on any ticket.
   if (hdPasswordInText(text)) { toast(hdRefusePasswordText(ticket, 'work note')); return false; }
   ticket.notes.push({ time:new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }), author:'Riley Morgan', text });
+  hdClearDraft(ticket, 'note');
   hdProveEdited();
   hdHistory(ticket, 'Technician work note added.');
   // HD-2101 Practice feedback: the note's three parts.
@@ -678,16 +706,19 @@ VIEWS['helpdesk/dashboard'] = () => {
   const p1 = open.filter(t => t.priority === 'P1');
   const risk = open.filter(t => ['At risk','Breached'].includes(hdSlaState(t).label));
   const cluster = open.filter(t => t.correlationKey === 'APP-CERT-EXPIRY-01');
+  // A shift with no correlated tickets (the Module 1 practice set) shows no
+  // correlation metric or card.
+  const correlated = hdState.tickets.some(t => t.correlationKey);
   const urgent = [...open].sort((a,b) =>
     ({P1:1,P2:2,P3:3,P4:4}[a.priority] - {P1:1,P2:2,P3:3,P4:4}[b.priority]) ||
     hdAgeMinutes(b) - hdAgeMinutes(a)
   ).slice(0,7);
   return `${hdPageHeader('Help Desk Dashboard', `${HD_ORG.name} · ${HD_ORG.domain} · simulated shift`, `${HD_PROVE ? '' : '<button class="btn btn-secondary" onclick="hdResetShift()">Reset shift</button>'}<button class="btn btn-primary" onclick="navigate('#/helpdesk/tickets')">Open queue</button>`)}${hdProveBlockedNotice()}
-    <div class="hd-metric-grid">${hdMetric('Open tickets', open.length, `${hdState.tickets.length} received this shift`)}${hdMetric('Priority 1', p1.length, 'Immediate response required','danger')}${hdMetric('SLA risk', risk.length, 'At risk or breached','warning')}${hdMetric('Correlated reports', cluster.length, 'Possible shared incident','info')}</div>
+    <div class="hd-metric-grid">${hdMetric('Open tickets', open.length, `${hdState.tickets.length} received this shift`)}${hdMetric('Priority 1', p1.length, 'Immediate response required','danger')}${hdMetric('SLA risk', risk.length, 'At risk or breached','warning')}${correlated ? hdMetric('Correlated reports', cluster.length, 'Possible shared incident','info') : ''}</div>
     <div class="two-col hd-dashboard-grid">
       <div class="card"><div class="card-header"><strong>Priority work</strong><button class="btn btn-ghost btn-sm" onclick="navigate('#/helpdesk/tickets')">View all</button></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Priority</th><th>Requester</th><th>Issue</th><th>Status</th><th>SLA</th><th>Owner</th></tr></thead><tbody>${hdQueueRows(urgent)}</tbody></table></div></div>
       <div class="hd-side-stack">
-        ${HD_PROVE ? '' : `<div class="card hd-correlation"><div class="card-header"><strong>Correlation opportunity</strong>${hdBadge(`${cluster.length} reports`,'warn')}</div><div class="card-body"><h3>Purchasing sign-in failures</h3><p>Users in five departments report the same secure-connection error. Treat the shared timing and evidence as a possible broader incident.</p><button class="btn btn-primary btn-sm" onclick="hdSelectTicket('${cluster[0] ? cluster[0].id : ''}')">Investigate cluster</button></div></div>`}
+        ${HD_PROVE || !correlated ? '' : `<div class="card hd-correlation"><div class="card-header"><strong>Correlation opportunity</strong>${hdBadge(`${cluster.length} reports`,'warn')}</div><div class="card-body"><h3>Purchasing sign-in failures</h3><p>Users in five departments report the same secure-connection error. Treat the shared timing and evidence as a possible broader incident.</p><button class="btn btn-primary btn-sm" onclick="hdSelectTicket('${cluster[0] ? cluster[0].id : ''}')">Investigate cluster</button></div></div>`}
         <div class="card"><div class="card-header"><strong>Shift discipline</strong></div><div class="card-body">${hdList(['Prioritize business impact and urgency','Own every handoff until accepted','Preserve security evidence','Verify fixes from the user perspective','Close with complete resolution notes'])}</div></div>
       </div>
     </div>`;
@@ -709,8 +740,11 @@ VIEWS['helpdesk/ticket'] = () => {
   if (HD_PROVE && hdState.prove && ticket.pathPool) return hdProveTicketView(ticket);
   const sla = hdSlaState(ticket);
   const related = ticket.correlationKey ? hdState.tickets.filter(t => t.correlationKey === ticket.correlationKey) : [];
-  // A ticket with an owner choice closes through it, not the state list.
-  const nextStates = (HD_STATUS_NEXT[ticket.status] || []).filter(state => !hdConsole(ticket).owner || !['Resolved', 'Escalated'].includes(state));
+  // A ticket with an owner choice closes through it, not the state list. A
+  // simpleStates ticket (Module 1) has no state list at all: Assign to me
+  // sets In Progress, and its one close control closes it.
+  const simpleStates = hdConsole(ticket).simpleStates === true;
+  const nextStates = simpleStates ? [] : (HD_STATUS_NEXT[ticket.status] || []).filter(state => !hdConsole(ticket).owner || !['Resolved', 'Escalated'].includes(state));
   const diagnosisOptions = ticket.plausibleCauses;
   const scenario = ticket.id === HD_M01 && hdM01();
   if (scenario) hdM01Tick();
@@ -720,21 +754,24 @@ VIEWS['helpdesk/ticket'] = () => {
   // A console-only ticket shows its progress instead of the path checklist,
   // the diagnosis dropdown and the "find the evidence with the tools" card.
   const byOutcomes = !scenario && !!hdConsoleOutcomes(ticket);
-  const evidenceCard = byOutcomes && !ticket.logs.length ? '' : `<div class="card"><div class="card-header"><strong>Available logs and evidence</strong><span class="muted">Investigate; do not infer beyond the evidence.</span></div><div class="card-body">${evidence}</div></div>`;
+  // A console ticket (Module 1) is worked on the ticket itself, so with no
+  // logs it gets no "use Event Viewer, Active Directory and PowerShell" card.
+  const consoleTicket = !scenario && Object.keys(hdConsole(ticket)).length > 0;
+  const evidenceCard = (byOutcomes || consoleTicket) && !ticket.logs.length ? '' : `<div class="card"><div class="card-header"><strong>Available logs and evidence</strong><span class="muted">Investigate; do not infer beyond the evidence.</span></div><div class="card-body">${evidence}</div></div>`;
   const pathAndDiagnosis = scenario ? hdM01IdentityCard(scenario) + hdM01InvestigationCard(scenario) : byOutcomes ? hdConsoleOutcomesCard(ticket) : `<div class="card"><div class="card-header"><strong>Troubleshooting path</strong><span class="muted">Record what you actually checked.</span></div><div class="card-body"><div class="hd-path">${ticket.correctPath.map((step,index) => `<label><input type="checkbox" onchange="hdTogglePathStep('${ticket.id}',${index},this.checked)" ${(ticket.checkedSteps || []).includes(step)?'checked':''}> <span>${index+1}</span>${hdEsc(step)}</label>`).join('')}</div></div></div>
         <div class="card"><div class="card-header"><strong>Diagnosis checkpoint</strong></div><div class="card-body"><div class="hd-diagnosis-row"><select id="hd-diagnosis" class="select"><option value="">Choose the most likely cause…</option>${diagnosisOptions.map(value => `<option ${ticket.diagnosis===value?'selected':''}>${hdEsc(value)}</option>`).join('')}</select><button class="btn btn-primary" onclick="hdSubmitDiagnosis('${ticket.id}')">Check diagnosis</button></div>${ticket.diagnosis ? `<div class="callout ${ticket.diagnosisCorrect?'success':'warning'}">${ticket.diagnosisCorrect ? `<strong>Supported by the evidence.</strong> ${hdEsc(ticket.hiddenRootCause)}` : '<strong>Not sufficiently supported.</strong> Recheck the evidence and test a different hypothesis.'}</div>` : ''}${ticket.diagnosisCorrect ? `<div class="hd-resolution"><strong>Expected resolution</strong><p>${hdEsc(ticket.expectedResolution)}</p></div>` : ''}</div></div>`;
   return `${hdPageHeader(hdTicketLabel(ticket), `${ticket.category} · ${ticket.subcategory}`, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/tickets')">← Queue</button>${ticket.assignedTechnician==='Unassigned'?`<button class="btn btn-primary" onclick="hdAssignTicket('${ticket.id}')">Assign to me</button>`:''}`)}
     ${related.length > 1 ? `<div class="callout warning hd-related"><strong>${related.length} related reports detected.</strong> Same application, symptom, and time window. ${ticket.linkedProblem ? `Linked to ${hdEsc(ticket.linkedProblem)}.` : `<button class="btn btn-sm btn-secondary" onclick="hdLinkProblem('${ticket.id}')">Link to problem record</button>`}</div>` : ''}
     <div class="hd-ticket-layout">
       <div class="hd-ticket-main">
-        <div class="card"><div class="card-header"><strong>Requester statement</strong>${hdBadge(ticket.priority,ticket.priority.toLowerCase())}${hdBadge(ticket.status)}${hdBadge(sla.label,sla.cls)}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid"><div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Business impact</span><strong>${hdEsc(ticket.businessImpact)}</strong></div><div><span>SLA target</span><strong>${hdEsc(ticket.sla)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}${ticket.callerStatus ? `<div><span>Caller</span><strong>${hdEsc(ticket.callerStatus)}</strong></div>` : ''}</div></div></div>${hdConsoleChatCard(ticket)}${hdConsoleKbCard(ticket)}${hdConsoleVerifyCard(ticket)}${hdConsoleAccountCard(ticket)}${hdConsoleActionsCard(ticket)}${hdConsoleOwnerCard(ticket)}
+        <div class="card"><div class="card-header"><strong>Requester statement</strong>${hdBadge(ticket.priority,ticket.priority.toLowerCase())}${hdBadge(ticket.status)}${hdBadge(sla.label,sla.cls)}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid"><div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Business impact</span><strong>${hdEsc(ticket.businessImpact)}</strong></div><div><span>SLA target</span><strong>${hdEsc(ticket.sla)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}${ticket.callerStatus ? `<div><span>Caller</span><strong>${hdEsc(ticket.callerStatus)}</strong></div>` : ''}</div></div></div>${hdConsoleVerifyCard(ticket)}${hdConsoleChatCard(ticket)}${hdConsoleKbCard(ticket)}${hdConsoleAccountCard(ticket)}${hdConsoleActionsCard(ticket)}${hdConsoleComputerCard(ticket)}${hdConsoleOwnerCard(ticket)}
         <div class="two-col"><div class="card"><div class="card-header"><strong>Observable symptoms</strong></div><div class="card-body">${hdList(ticket.symptoms)}</div></div><div class="card"><div class="card-header"><strong>Relevant system state</strong></div><div class="card-body">${hdList(ticket.systemState)}</div></div></div>
         ${evidenceCard}
         ${pathAndDiagnosis}
-        <div class="card"><div class="card-header"><strong>Work notes</strong><span class="muted">Facts, commands, results, interpretation, next action.</span></div><div class="card-body"><div class="hd-note-list">${ticket.notes.length ? ticket.notes.map(note => `<div><strong>${hdEsc(note.author)} · ${hdEsc(note.time)}</strong><p>${hdEsc(note.text)}</p></div>`).join('') : '<p class="muted">No technician notes yet.</p>'}</div><textarea id="hd-note-input" class="ipt hd-note-input" rows="7" placeholder="${scenario ? 'Reported: what Jordan reported&#10;Tried: what you checked and changed, and what each step showed&#10;Result: the outcome and how you confirmed it' : hdConsole(ticket).notes ? hdConsoleNotePlaceholder(ticket) : 'Document the action you took and what the result proved…'}"></textarea><button class="btn btn-secondary" onclick="hdAddNote('${ticket.id}')">Add work note</button></div></div>${hdConsoleCommentsCard(ticket)}${hdConsoleFeedbackCard(ticket)}
+        <div class="card"><div class="card-header"><strong>Work notes</strong><span class="muted">${hdConsole(ticket).notes ? 'Reported / Tried / Result (+ Next action if it stays open or goes to another team)' : 'Facts, commands, results, interpretation, next action.'}</span></div><div class="card-body"><div class="hd-note-list">${ticket.notes.length ? ticket.notes.map(note => `<div><strong>${hdEsc(note.author)} · ${hdEsc(note.time)}</strong><p>${hdEsc(note.text)}</p></div>`).join('') : '<p class="muted">No technician notes yet.</p>'}</div><textarea id="hd-note-input" class="ipt hd-note-input" rows="7" oninput="hdKeepDraft('${ticket.id}','note',this.value)" placeholder="${scenario ? 'Reported: what Jordan reported&#10;Tried: what you checked and changed, and what each step showed&#10;Result: the outcome and how you confirmed it' : hdConsole(ticket).notes ? hdConsoleNotePlaceholder(ticket) : 'Document the action you took and what the result proved…'}">${hdEsc(hdDraft(ticket, 'note'))}</textarea>${hdNoteNeedsCard(ticket)}<button class="btn btn-secondary" onclick="hdAddNote('${ticket.id}')">Add work note</button></div></div>${hdConsoleCommentsCard(ticket)}${hdConsoleFeedbackCard(ticket)}
       </div>
       <aside class="hd-ticket-side">
-        <div class="card"><div class="card-header"><strong>Ticket controls</strong></div><div class="card-body hd-control-stack">${hdConsolePriorityControl(ticket)}${nextStates.length?`<label>Next state<select class="select" onchange="if(this.value)hdTransitionTicket('${ticket.id}',this.value)"><option value="">Choose…</option>${nextStates.map(v=>`<option>${v}</option>`).join('')}</select></label>`:''}<button class="btn btn-secondary" onclick="hdContactRequester('${ticket.id}')">Contact requester</button>${hdConsoleResolutionControl(ticket)}${hdConsole(ticket).owner ? '' : `<button class="btn btn-primary" onclick="hdResolveTicket('${ticket.id}')">${ticket.category==='Security Incident'?'Warm escalate':'Resolve / escalate'}</button>`}</div></div>
+        <div class="card"><div class="card-header"><strong>Ticket controls</strong></div><div class="card-body hd-control-stack">${hdConsolePriorityControl(ticket)}${nextStates.length?`<label>Next state<select class="select" onchange="if(this.value)hdTransitionTicket('${ticket.id}',this.value)"><option value="">Choose…</option>${nextStates.map(v=>`<option>${v}</option>`).join('')}</select></label>`:''}<button class="btn btn-secondary" onclick="hdContactRequester('${ticket.id}')">Contact requester</button>${hdConsoleResolutionControl(ticket)}${hdConsole(ticket).owner ? '' : `<button class="btn btn-primary" onclick="hdResolveTicket('${ticket.id}')">${simpleStates ? 'Resolve' : ticket.category==='Security Incident'?'Warm escalate':'Resolve / escalate'}</button>`}</div></div>
         <div class="card"><div class="card-header"><strong>Escalation criteria</strong></div><div class="card-body">${hdList(ticket.escalationCriteria)}</div></div>
         <div class="card"><div class="card-header"><strong>History</strong></div><div class="card-body hd-history">${ticket.troubleshootingHistory.slice().reverse().map(row=>`<div><time>${hdEsc(row.time)}</time><p>${hdEsc(row.action)}</p></div>`).join('')}</div></div>
         ${ticket.resolution ? `<div class="card"><div class="card-header"><strong>Resolution</strong>${hdBadge(ticket.closureCode,'ok')}</div><div class="card-body"><p>${hdEsc(ticket.resolution)}</p></div></div>` : ''}
@@ -785,10 +822,19 @@ function hdM01InvestigationCard(scenario) {
  *                                  if the problem comes back (regex source)
  *   resolutionCode: { options?, required? }  resolving needs a code when required
  *   priorityReason: '...'          ticket.priority is pre-set; shown read-only
- *   notes: { parts?, nextAction?, jargon? }  work note parts (HD_NOTE_PARTS
- *                                  keys), a Next action part while the ticket
- *                                  stays open, words a customer comment
- *                                  mustn't use
+ *   notes: { parts?, nextAction?, jargon?, needs? }  work note parts
+ *                                  (HD_NOTE_PARTS keys), a Next action part
+ *                                  while the ticket stays open, words a
+ *                                  customer comment mustn't use, and the
+ *                                  ticket's own "Your note needs" items
+ *                                  (needs: [{ label, pattern }])
+ *   simpleStates: true             Module 1 states: Assign to me sets In
+ *                                  Progress, no Next state list, one close
+ *                                  control (Resolve or the owner choice)
+ *   settingsPrinters: { computer, printers:[path], action }
+ *                                  Settings › Printers & scanners › Add
+ *                                  device on that laptop in Practice; adding
+ *                                  a printer records the named action
  *   verification options may set concludes:'unverified' (the caller can't be
  *                                  verified, e.g. refuses a callback)
  *   caller questions may set afterAction + replyBefore (a reply that waits
@@ -803,7 +849,9 @@ function hdM01InvestigationCard(scenario) {
  *                                  escalate, or route to Security Operations)
  *   feedback: [{ area, checks:[rule], good, fix }]
  *                                  Practice "Check my work": one line per
- *                                  area, never points (hdConsoleFeedback)
+ *                                  area, never points (hdConsoleFeedback);
+ *                                  rule printerInstalled:{ computer, printer }
+ *                                  reads the laptop's installed printers
  *   resolveByOutcomes: true        worked through these features alone: no
  *                                  diagnosis or path checklist; Resolved needs
  *                                  every outcome (HD_CONSOLE_OUTCOMES)
@@ -861,19 +909,104 @@ function hdTicketStaysOpen(ticket) {
 // for other parts (e.g. Reported / Checked / Done / Result). Only the parts
 // asked for split the note, so a word like "Done:" inside "Tried:" still
 // counts as Tried text there.
+//
+// Where a label counts, in any case, with at least 8 characters after it:
+// - followed by a colon, anywhere ("… then Tried: …");
+// - followed by a dash, a full stop or a line break, but only at the start of
+//   the note, at the start of a line, or right after a full stop, semicolon
+//   or comma ("Reported - … Tried - …"). So "the user tried. She restarted"
+//   is ordinary prose, not a Tried part.
+// Practice only: Prove It never calls this; its notes are checked on the
+// server (prove_note_missing), which keeps the colon rule for now.
 const HD_NOTE_PARTS = { reported:'Reported', tried:'Tried', checked:'Checked', done:'Done', result:'Result', next:'Next action' };
 const HD_NOTE_DEFAULT_PARTS = ['reported', 'tried', 'result'];
 function hdNotePartPattern(key) { return HD_NOTE_PARTS[key].replace(/ /g, '\\s+'); }
+function hdNoteLabels(text, keys) {
+  const labels = keys.map(hdNotePartPattern).join('|');
+  // Group 1: what comes before a dash/stop/line-break label (start, a line
+  // break or . ; ,); group 2: that label. Group 3: a label before a colon.
+  const pattern = new RegExp(`(^|[\\n.;,])[ \\t]*(${labels})[ \\t]*(?:[-\\u2013\\u2014.]|\\r?\\n)|\\b(${labels})\\s*:`, 'gi');
+  const marks = [];
+  let match;
+  while ((match = pattern.exec(text))) {
+    const label = match[2] || match[3];
+    const key = keys.find(item => new RegExp(`^${hdNotePartPattern(item)}$`, 'i').test(label));
+    marks.push({ key, start:match.index + (match[2] ? match[1].length : 0), end:match.index + match[0].length });
+    // A label ending in a line break: the next label may start that line.
+    if (match[0].endsWith('\n')) pattern.lastIndex -= 1;
+  }
+  return marks;
+}
 function hdNoteMissingParts(text, parts = HD_NOTE_DEFAULT_PARTS) {
   const keys = parts.filter(key => HD_NOTE_PARTS[key]);
   if (!keys.length) return [];
-  const pieces = String(text || '').split(new RegExp(`\\b(${keys.map(hdNotePartPattern).join('|')})\\s*:`, 'i'));
+  const value = String(text || '');
+  const marks = hdNoteLabels(value, keys);
   const found = {};
-  for (let i = 1; i < pieces.length; i += 2) {
-    const key = keys.find(item => new RegExp(`^${hdNotePartPattern(item)}$`, 'i').test(pieces[i]));
-    found[key] = (found[key] || '') + pieces[i + 1];
-  }
+  marks.forEach((mark, i) => {
+    found[mark.key] = (found[mark.key] || '') + value.slice(mark.end, i + 1 < marks.length ? marks[i + 1].start : value.length);
+  });
   return keys.filter(key => (found[key] || '').replace(/\s+/g, '').length < 8).map(key => HD_NOTE_PARTS[key]);
+}
+
+// A work note or customer comment typed but not yet added: kept per ticket,
+// so a redraw (chat, KB search, Verify, Check diagnosis, owner choice,
+// resolution code) never clears it. Never kept with a password in it: the
+// draft is dropped instead, and adding it is refused as before. Cleared once
+// the note or comment is added.
+const HD_DRAFT_MAX = 4000;
+function hdDraft(ticket, kind) {
+  const drafts = ticket && ticket.drafts;
+  return drafts && typeof drafts[kind] === 'string' ? drafts[kind] : '';
+}
+function hdKeepDraft(id, kind, value) {
+  const ticket = hdTicketById(id); if (!ticket || !['note', 'comment'].includes(kind)) return;
+  const text = String(value || '').slice(0, HD_DRAFT_MAX);
+  ticket.drafts = { ...(ticket.drafts || {}) };
+  if (!text || hdPasswordInText(text)) delete ticket.drafts[kind]; else ticket.drafts[kind] = text;
+  if (!Object.keys(ticket.drafts).length) delete ticket.drafts;
+  if (kind === 'note') hdUpdateNoteNeeds(ticket, text);
+  hdSave();
+}
+function hdClearDraft(ticket, kind) {
+  if (!ticket || !ticket.drafts) return;
+  delete ticket.drafts[kind];
+  if (!Object.keys(ticket.drafts).length) delete ticket.drafts;
+}
+
+// "Your note needs": beside the Work notes box of a ticket that checks its
+// notes (console notes). Each part ticks live as the student types, by the
+// rule above. Next action shows when the ticket can go to another team (it
+// is required once the ticket stays open), and a ticket's own items
+// (notes.needs: [{ label, pattern }], e.g. SEC-2153's number and time) tick
+// when the text matches. With nothing typed, it reads the last added note.
+function hdNoteNeeds(ticket, text) {
+  const config = hdConsole(ticket).notes; if (!config) return null;
+  const notes = (ticket.notes || []).filter(note => note.author === 'Riley Morgan');
+  const value = String(text || '') || (notes.length ? notes[notes.length - 1].text : '');
+  const parts = hdConsoleNoteParts(ticket);
+  const base = parts.filter(key => key !== 'next');
+  const missing = hdNoteMissingParts(value, config.nextAction ? [...base, 'next'] : base);
+  const rows = base.map(key => ({ label:HD_NOTE_PARTS[key], ok:!missing.includes(HD_NOTE_PARTS[key]) }));
+  if (config.nextAction) rows.push({ label:parts.includes('next') ? 'Next action' : 'Next action (when it goes to another team)', ok:!missing.includes('Next action') });
+  (Array.isArray(config.needs) ? config.needs : []).forEach(item => {
+    let ok = false;
+    try { ok = new RegExp(item.pattern, 'i').test(value); } catch (_) {}
+    rows.push({ label:item.label, ok });
+  });
+  return rows;
+}
+function hdNoteNeedsList(rows) {
+  return rows.map(row => `<li data-done="${row.ok ? 'yes' : 'no'}">${row.ok ? '✓' : '○'} ${hdEsc(row.label)}</li>`).join('');
+}
+function hdNoteNeedsCard(ticket) {
+  const rows = hdNoteNeeds(ticket, hdDraft(ticket, 'note')); if (!rows) return '';
+  return `<div class="hd-note-needs" style="margin:0 0 10px"><strong style="font-size:12px">Your note needs</strong><ul class="hd-list hd-outcomes" id="hd-note-needs" aria-live="polite">${hdNoteNeedsList(rows)}</ul></div>`;
+}
+function hdUpdateNoteNeeds(ticket, text) {
+  const list = typeof document !== 'undefined' && document.getElementById('hd-note-needs');
+  const rows = list && hdNoteNeeds(ticket, text);
+  if (rows) list.innerHTML = hdNoteNeedsList(rows);
 }
 function hdConsoleNoteParts(ticket) {
   const config = hdConsole(ticket).notes || {};
@@ -912,7 +1045,8 @@ function hdKbSearchArticles(query, articles) {
   const terms = [...new Set(hdKbWords(query).filter(word => !HD_KB_FILLER.has(word)))];
   if (!terms.length) return [];
   return (articles || []).map(article => {
-    const words = hdKbWords(`${article.id} ${article.title} ${article.summary}`);
+    // keywords: an article's "found by" words (KB-0059), searched but not shown.
+    const words = hdKbWords(`${article.id} ${article.title} ${article.summary} ${article.keywords || ''}`);
     const matched = terms.filter(term => (/\d/.test(term) ? words.includes(term) : words.some(word => word.startsWith(hdKbStem(term)))));
     return { article, score:matched.length };
   }).filter(row => row.score > 0).sort((a, b) => b.score - a.score || a.article.id.localeCompare(b.article.id)).map(row => row.article);
@@ -1044,6 +1178,7 @@ function hdAddComment(id) {
   if (!text) { toast('Write the comment the customer will read first.'); return false; }
   if (hdPasswordInText(text)) { toast(hdRefusePasswordText(ticket, 'customer comment')); return false; }
   hdComments(ticket).push({ time:hdConsoleTime(), author:'Riley Morgan', text:text.slice(0, 2000) });
+  hdClearDraft(ticket, 'comment');
   hdHistory(ticket, 'Additional comment (customer-visible) added.');
   const jargon = hdJargonFound(text, (hdConsole(ticket).notes || {}).jargon);
   hdPracticeEvent('customer_comment', { ticket:ticket.id, jargon:jargon.join(', ') });
@@ -1080,7 +1215,9 @@ function hdConsoleAction(id, actionId) {
   if (!action) return;
   const state = hdConsoleState(ticket);
   if (action.needsVerification && !state.verification.passed) {
-    hdConsoleCritical(ticket, `early:${action.id}`, action.earlyCritical || 'Acted before verifying the caller');
+    // earlyCritical:false: refused until the caller is verified, but not a
+    // critical error (HD-2152's loaner).
+    if (action.earlyCritical !== false) hdConsoleCritical(ticket, `early:${action.id}`, action.earlyCritical || 'Acted before verifying the caller');
     state.lastAction = `early:${action.id}`;
     hdPracticeEvent('action_refused', { ticket:ticket.id, action:action.id });
     toast(action.earlyFeedback || 'Verify the caller first (KB-0024).');
@@ -1166,6 +1303,12 @@ function hdConsoleRule(ticket, rule) {
   if (rule.notePattern) return notes.some(note => test(rule.notePattern, note.text));
   if (rule.comment) return comments.length > 0 && !hdJargonFound(comments[comments.length - 1].text, (config.notes || {}).jargon).length;
   if (rule.commentPattern) return comments.some(comment => test(rule.commentPattern, comment.text));
+  // printerInstalled: { computer, printer }: that printer (by its \\server\name
+  // path) is installed on that laptop in this shift.
+  if (rule.printerInstalled) {
+    const machine = hdMachine(rule.printerInstalled.computer);
+    return !!(machine && Array.isArray(machine.printers) && machine.printers.includes(rule.printerInstalled.printer));
+  }
   return false;
 }
 function hdConsoleFeedback(ticket) {
@@ -1330,14 +1473,28 @@ function hdConsoleActionsCard(ticket) {
   const taken = (id) => state.actions.some(entry => entry.id === id);
   const last = state.lastAction.startsWith('early:') ? actions.find(item => `early:${item.id}` === state.lastAction) : actions.find(item => item.id === state.lastAction);
   const early = state.lastAction.startsWith('early:');
-  const feedback = last ? `<div class="callout ${early || last.critical ? 'bad' : 'success'}" role="${early || last.critical ? 'alert' : 'status'}">${hdEsc(early ? last.earlyFeedback || 'Verify the caller first (KB-0024).' : last.feedback || '')}</div>` : '';
+  const earlyBad = early && last && last.earlyCritical !== false;
+  const feedback = last ? `<div class="callout ${earlyBad || (!early && last.critical) ? 'bad' : early ? 'warn' : 'success'}" role="${earlyBad || (!early && last.critical) ? 'alert' : 'status'}">${hdEsc(early ? last.earlyFeedback || 'Verify the caller first (KB-0024).' : last.feedback || '')}</div>` : '';
   return `<div class="card hd-actions"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Take an action</strong><span class="muted">What do you do for the caller?</span></div><div class="card-body"><div style="display:grid;gap:8px">${actions.map(action => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} ${taken(action.id) ? 'disabled' : ''} onclick="hdConsoleAction('${ticket.id}','${hdEsc(action.id)}')">${taken(action.id) ? '✓ ' : ''}${hdEsc(action.text)}</button>`).join('')}</div>${feedback}</div></div>`;
+}
+// The user's laptop, for a ticket whose fix is done on it (settingsPrinters):
+// one button opens it on the Windows Desktop screen.
+function hdConsoleComputerCard(ticket) {
+  const config = hdConsole(ticket).settingsPrinters; if (!config || !config.computer) return '';
+  const computer = hdComputerByName(config.computer); if (!computer) return '';
+  return `<div class="card hd-computer"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>On the user’s laptop</strong><span class="muted">${hdEsc(computer.name)} · signed in: ${hdEsc(computer.user)}</span></div><div class="card-body"><button type="button" class="btn btn-secondary" onclick="hdSelectComputer('${hdEsc(computer.name)}','#/helpdesk/windows')">Open ${hdEsc(computer.name)}</button></div></div>`;
 }
 function hdConsoleOwnerCard(ticket) {
   const config = hdConsole(ticket).owner; if (!config) return '';
   const owner = hdConsoleState(ticket).owner;
   const chosen = (config.options || []).find(option => option.id === owner.choice);
-  const feedback = chosen ? `<div class="callout ${chosen.right ? 'success' : 'warn'}" role="status">${hdEsc(chosen.feedback || '')}</div>${owner.blocked ? `<p class="muted">Not closed yet. ${hdEsc(owner.blocked)}</p>` : ''}` : '';
+  // A blocked choice stays on the card, worked out again on every redraw:
+  // what is still missing, or that the route's work is now done.
+  const blocked = chosen && owner.blocked ? hdConsoleOwnerBlock(ticket, chosen) : '';
+  const waiting = chosen && owner.blocked ? (blocked
+    ? `<div class="callout warn" role="status" data-hd-owner-blocked>Not closed yet. ${hdEsc(blocked)}</div>`
+    : `<div class="callout info" role="status" data-hd-owner-blocked>Ready to close. The work this choice needs is done. Choose it again to close the ticket.</div>`) : '';
+  const feedback = chosen ? `<div class="callout ${chosen.right ? 'success' : 'warn'}" role="status">${hdEsc(chosen.feedback || '')}</div>${waiting}` : '';
   return `<div class="card hd-owner"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Who owns this ticket?</strong><span class="muted">Resolve it at Tier 1, escalate it, or route it.</span></div><div class="card-body"><div style="display:grid;gap:8px">${(config.options || []).map(option => `<button type="button" class="btn ${option.id === owner.choice ? 'btn-primary' : 'btn-secondary'}" ${HD_CONSOLE_CHOICE} aria-pressed="${option.id === owner.choice}" onclick="hdConsoleOwner('${ticket.id}','${hdEsc(option.id)}')">${hdEsc(option.text)}</button>`).join('')}</div>${feedback}</div></div>`;
 }
 function hdConsoleFeedbackCard(ticket) {
@@ -1349,17 +1506,23 @@ function hdConsoleFeedbackCard(ticket) {
     : result ? '<p><strong>No critical errors.</strong></p>' : '';
   const flags = result && result.flags.length ? `<ul class="hd-list">${result.flags.map(text => `<li>${hdEsc(text)}</li>`).join('')}</ul>` : '';
   const areas = result ? `<ul class="hd-list hd-feedback">${result.areas.map(row => `<li data-area="${hdEsc(row.area)}" data-ok="${row.ok ? 'yes' : 'no'}">${row.ok ? '✓' : '○'} <strong>${hdEsc(row.area)}:</strong> ${hdEsc(row.text)}</li>`).join('')}</ul>` : '';
-  return `<div class="card hd-practice-feedback"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Check my work</strong><span class="muted">Practice: not graded</span></div><div class="card-body"><p class="muted">Practice: not graded. Feedback on your work so far, by area. Category and priority are pre-set in Module 1.</p>${critical}${flags}${areas}<button type="button" class="btn btn-secondary" onclick="hdConsoleCheckWork('${ticket.id}')">${result ? 'Check again' : 'Check my work'}</button></div></div>`;
+  return `<div class="card hd-practice-feedback"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Check my work</strong><span class="muted">Practice: not graded</span></div><div class="card-body"><p class="muted">Feedback on your work so far, by area. Category and priority are pre-set in Module 1.</p>${critical}${flags}${areas}<button type="button" class="btn btn-secondary" onclick="hdConsoleCheckWork('${ticket.id}')">${result ? 'Check again' : 'Check my work'}</button></div></div>`;
 }
 function hdConsoleAccountCard(ticket) {
   const account = hdConsole(ticket).account; if (!account) return '';
   const user = hdUserById(account.userId); if (!user) return '';
   return `<div class="card hd-account"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Account · ${hdEsc(user.name)}</strong>${user.locked ? hdBadge('Locked', 'bad') : hdBadge('Unlocked', 'ok')}</div><div class="card-body"><dl class="hd-dl"><dt>Username</dt><dd>${hdEsc(`${HD_ORG.netbios}\\${user.username}`)}</dd><dt>Employee ID</dt><dd>${hdEsc(user.employeeId || '')}</dd><dt>Department</dt><dd>${hdEsc(user.department)}</dd><dt>Directory phone</dt><dd>${hdEsc(user.phone || '')}</dd></dl>${hdConsoleUnlockBlock(user.id) ? '<button type="button" class="btn btn-secondary" disabled aria-describedby="hd-unlock-why" style="opacity:.55;cursor:not-allowed">Unlock account</button><p id="hd-unlock-why" class="muted">Verify the caller first (KB-0024).</p>' : `<button type="button" class="btn btn-secondary" onclick="hdConsoleUnlock('${ticket.id}')">Unlock account</button>`}</div></div>`;
 }
+// The first name the comment box greets: the caller's (SEC-2153's caller is
+// "Karen (caller)"), else the requester's.
+function hdCommentName(ticket) {
+  const caller = hdConsole(ticket).caller;
+  return String((caller && caller.name) || ticket.requester || '').split(' ')[0];
+}
 function hdConsoleCommentsCard(ticket) {
   if (!hdConsole(ticket).comments) return '';
   const comments = hdComments(ticket);
-  return `<div class="card hd-comments"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Additional comments (customer-visible)</strong><span class="muted">${hdEsc(ticket.requester)} reads these. Plain words, no internal terms.</span></div><div class="card-body"><div class="hd-note-list">${comments.length ? comments.map(comment => `<div><strong>${hdEsc(comment.author)} · ${hdEsc(comment.time)}</strong><p>${hdEsc(comment.text)}</p></div>`).join('') : '<p class="muted">No customer comments yet.</p>'}</div><textarea id="hd-comment-input" class="ipt hd-note-input" rows="6" maxlength="2000" placeholder="Hi ${hdEsc(String(ticket.requester).split(' ')[0])}, …"></textarea><button class="btn btn-secondary" onclick="hdAddComment('${ticket.id}')">Add customer comment</button></div></div>`;
+  return `<div class="card hd-comments"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Additional comments (customer-visible)</strong><span class="muted">${hdEsc(ticket.requester)} reads these. Plain words, no internal terms.</span></div><div class="card-body"><div class="hd-note-list">${comments.length ? comments.map(comment => `<div><strong>${hdEsc(comment.author)} · ${hdEsc(comment.time)}</strong><p>${hdEsc(comment.text)}</p></div>`).join('') : '<p class="muted">No customer comments yet.</p>'}</div><textarea id="hd-comment-input" class="ipt hd-note-input" rows="6" maxlength="2000" oninput="hdKeepDraft('${ticket.id}','comment',this.value)" placeholder="Hi ${hdEsc(hdCommentName(ticket))}, …">${hdEsc(hdDraft(ticket, 'comment'))}</textarea><button class="btn btn-secondary" onclick="hdAddComment('${ticket.id}')">Add customer comment</button></div></div>`;
 }
 function hdConsolePriorityControl(ticket) {
   const reason = hdConsole(ticket).priorityReason;
@@ -1426,15 +1589,38 @@ function hdSelectComputer(name, route) { hdState.selectedComputer=name; hdProveO
 function hdEndpointCards() { return hdComputers().map(base=>{const c=hdComputerByName(base.name);return `<button class="hd-device-card ${hdState.selectedComputer===c.name?'active':''}" onclick="hdSelectComputer('${c.name}')"><strong>${hdEsc(c.name)}</strong><span>${hdEsc(c.user)}</span><small>${hdEsc(c.health)} · ${hdEsc(c.lastSeen)}</small></button>`}).join(''); }
 VIEWS['helpdesk/windows'] = () => { const c=hdComputerByName(hdState.selectedComputer)||hdComputerByName('NS-LT-0042'); return `${hdPageHeader('Windows Desktop', 'Inspect a managed Windows 11 endpoint before choosing a repair.')}<div class="hd-endpoint-layout"><aside class="card"><div class="card-header"><strong>Endpoints</strong></div><div class="hd-device-list">${hdEndpointCards()}</div></aside><div class="hd-windows-screen"><div class="hd-window-bar"><span>${hdEsc(c.name)} · Remote session</span><span>— □ ×</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows 11 Enterprise</strong><span>${hdEsc(c.os)}</span></div><div class="hd-field-grid"><div><span>Signed-in user</span><strong>${hdEsc(c.user)}</strong></div><div><span>IPv4</span><strong>${hdEsc(c.ip)}</strong></div><div><span>Domain trust</span><strong>${hdEsc(c.trust)}</strong></div><div><span>BitLocker</span><strong>${hdEsc(c.bitlocker)}</strong></div><div><span>OU</span><strong>${hdEsc(c.ou)}</strong></div><div><span>Health</span><strong>${hdEsc(c.health)}</strong></div>${c.uptimeDays ? `<div><span>Uptime</span><strong>${hdEsc(c.uptimeDays)} days</strong></div>` : ''}</div><div class="hd-tool-grid"><button onclick="navigate('#/helpdesk/event-viewer')">📋 Event Viewer</button><button onclick="navigate('#/helpdesk/powershell')">&gt;_ PowerShell</button><button onclick="navigate('#/helpdesk/active-directory')">🗂 Directory</button><button onclick="navigate('#/helpdesk/remote-support')">🖥 Remote Support</button>${hdSettingsPrinterPaths(c.name).length ? `<button onclick="navigate('#/helpdesk/settings-printers')">⚙ Settings › Printers &amp; scanners</button>` : ''}</div></div></div></div>`; };
 
-/* ---------- Settings › Printers & scanners (a Prove laptop) ----------
+/* ---------- Settings › Printers & scanners ----------
  * The approved way for a standard user to add a published printer: Add
- * device lists the printers this laptop's fixture offers (a Prove shift's
- * settingsPrinters) that the signed-in user may use, and adds one with no
- * admin rights. Only a laptop with such a list shows the button, so Practice
- * is unchanged. Adding one is recorded for the instructor (action_taken). */
+ * device lists the printers this laptop's fixture offers that the signed-in
+ * user may use, and adds one with no admin rights. Only a laptop with such a
+ * list shows the button.
+ * - Prove It: the list is the Prove shift's settingsPrinters, and adding one
+ *   is recorded for the instructor (action_taken), exactly as before.
+ * - Practice: a ticket turns it on for one laptop with
+ *   console.settingsPrinters: { computer, printers:[path], action }. Adding a
+ *   printer there records the ticket's named action (so a chat reply with
+ *   afterAction can wait for it, and feedback can check it). Never a Prove
+ *   event. */
+function hdSettingsPracticeTicket(name) {
+  if (HD_PROVE || !hdState || !Array.isArray(hdState.tickets)) return null;
+  return hdState.tickets.find(ticket => { const config = hdConsole(ticket).settingsPrinters; return !!(config && config.computer === name); }) || null;
+}
 function hdSettingsPrinterPaths(name) {
-  const lists = HD_PROVE ? HD_PROVE.shift.settingsPrinters || {} : {};
+  if (!HD_PROVE) {
+    const ticket = hdSettingsPracticeTicket(name);
+    const printers = ticket && hdConsole(ticket).settingsPrinters.printers;
+    return Array.isArray(printers) ? printers : [];
+  }
+  const lists = HD_PROVE.shift.settingsPrinters || {};
   return Array.isArray(lists[name]) ? lists[name] : [];
+}
+function hdSettingsPracticeAction(computerName, printer) {
+  const ticket = hdSettingsPracticeTicket(computerName); if (!ticket) return;
+  const config = hdConsole(ticket).settingsPrinters;
+  const state = hdConsoleState(ticket);
+  if (config.action && !state.actions.some(entry => entry.id === config.action)) state.actions.push({ id:config.action, time:hdConsoleTime() });
+  hdHistory(ticket, `On ${computerName}: added ${printer.name} from Settings › Printers & scanners › Add device.`);
+  hdPracticeEvent('action_taken', { ticket:ticket.id, action:config.action || 'settings-add-printer', computer:computerName, printer:printer.name });
 }
 function hdSettingsPrinterChoices(computer) {
   const user = hdSessionUser(computer);
@@ -1454,6 +1640,7 @@ function hdSettingsAddPrinter(computerName, path) {
     machine.printers.push(printer.path);
     hdProveEvent('action_taken', { label:`Added ${printer.name} from Settings › Printers & scanners › Add device`, computer:computer.name });
     hdProveEdited();
+    if (!HD_PROVE) hdSettingsPracticeAction(computer.name, printer);
   }
   toast(`${printer.name} added. No administrator rights were needed.`);
   hdRerender();
@@ -1465,9 +1652,11 @@ VIEWS['helpdesk/settings-printers'] = () => {
   const found = hdSettingsPrinterChoices(c).filter(printer => !installed.includes(printer.path));
   const locked = hdProveLocked();
   const scan = !hdState.settingsScan ? '' : found.length
-    ? `<div class="hd-note-list" data-hd-settings-found>${found.map(printer => `<div><strong>${hdEsc(printer.name)}</strong><small class="muted"> ${hdEsc(printer.location)} · ${hdEsc(printer.path)}</small> <button type="button" class="btn btn-secondary btn-sm" ${locked ? 'disabled' : ''} onclick="hdSettingsAddPrinter('${hdEsc(c.name)}','${hdEsc(printer.path.replace(/\\/g, '\\\\'))}')">Add device</button></div>`).join('')}</div>`
+    ? `<div class="hd-note-list" data-hd-settings-found>${found.map(printer => `<div><strong>${hdEsc(printer.name)}</strong><small class="muted"> ${hdEsc(printer.location)} · ${hdEsc(printer.path)}</small> <div style="margin-top:8px"><button type="button" class="btn btn-secondary btn-sm" ${locked ? 'disabled' : ''} onclick="hdSettingsAddPrinter('${hdEsc(c.name)}','${hdEsc(printer.path.replace(/\\/g, '\\\\'))}')">Add device</button></div></div>`).join('')}</div>`
     : '<p class="muted">No new printers or scanners found.</p>';
-  return `${hdPageHeader('Settings', `${hdEsc(c.name)} · Bluetooth & devices › Printers & scanners`, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/windows')">← Windows Desktop</button>`)}
+  const practiceTicket = hdSettingsPracticeTicket(c.name);
+  const back = practiceTicket ? `<button class="btn btn-secondary" onclick="hdSelectTicket('${practiceTicket.id}')">← ${hdEsc(hdTicketLabel(practiceTicket))}</button>` : '';
+  return `${hdPageHeader('Settings', `${hdEsc(c.name)} · Bluetooth & devices › Printers & scanners`, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/windows')">← Windows Desktop</button>${back}`)}
     <div class="card"><div class="card-header"><strong>Add a printer or scanner</strong><button type="button" class="btn btn-primary btn-sm" ${locked ? 'disabled' : ''} onclick="hdSettingsScan()">Add device</button></div><div class="card-body">${scan || '<p class="muted">Press Add device to look for printers you can add.</p>'}</div></div>
     <div class="card"><div class="card-header"><strong>Printers &amp; scanners on ${hdEsc(c.name)}</strong></div><div class="card-body"><ul class="hd-list" data-hd-settings-installed>${installed.map(name => `<li>${hdEsc(name)}</li>`).join('')}</ul></div></div>`;
 };
@@ -2299,7 +2488,7 @@ window.hdSetAdTab=hdSetAdTab; window.hdAdAction=hdAdAction; window.hdSelectCompu
 window.hdRunPowerShell=hdRunPowerShell; window.hdPrinterAction=hdPrinterAction;
 window.hdSetEventFilter=hdSetEventFilter; window.hdClearEventFilter=hdClearEventFilter; window.hdM01Identity=hdM01Identity;
 window.hdM01Hint=hdM01Hint; window.hdM01AdLockoutDetails=hdM01AdLockoutDetails;
-window.hdKbSearch=hdKbSearch; window.hdKbOpen=hdKbOpen; window.hdChatAsk=hdChatAsk; window.hdVerify=hdVerify;
+window.hdKbSearch=hdKbSearch; window.hdKbOpen=hdKbOpen; window.hdChatAsk=hdChatAsk; window.hdVerify=hdVerify; window.hdKeepDraft=hdKeepDraft;
 window.hdConsoleUnlock=hdConsoleUnlock; window.hdAddComment=hdAddComment; window.hdSetResolutionCode=hdSetResolutionCode;
 window.hdConsoleAction=hdConsoleAction; window.hdConsoleOwner=hdConsoleOwner; window.hdConsoleCheckWork=hdConsoleCheckWork;
 

@@ -203,7 +203,7 @@ function testShiftTicketAndKb() {
   assert.match(opened, /<li>Never ask for, type or write down a user&#39;s password|<li>Never ask for, type or write down a user's password/);
   const page = tab.view('helpdesk/knowledge-base');
   assert.match(page, /-TaskName &lt;task&gt; -User &lt;DOMAIN\\user&gt;/, 'placeholders are shown, not swallowed as tags');
-  assert.equal((page.match(/<ol class="hd-kb-steps"/g) || []).length, 2, 'KB-0024 and KB-0071 have numbered steps');
+  assert.equal((page.match(/<ol class="hd-kb-steps"/g) || []).length, 3, 'KB-0024, KB-0059 and KB-0071 have numbered steps');
   assert.match(page, /<p>Validate link state, DHCP reachability/, 'other articles stay one paragraph');
   const body = (text) => tab.run(`hdKbBody(${JSON.stringify(text)})`);
   assert.equal(body('Restart it. Open port 3389. Done.'), '<p>Restart it. Open port 3389. Done.</p>', 'a lone number is not a list');
@@ -224,21 +224,34 @@ function testWalkthroughEndToEnd() {
   tab.advance();
   assert.equal(step(tab), 0, 'waits for the ticket to be taken');
   tab.run("hdSelectTicket('HD-2150'); hdAssignTicket('HD-2150')"); tab.advance();
-  assert.equal(step(tab), 0, 'assigned is not In Progress yet');
-  tab.run("hdTransitionTicket('HD-2150', 'In Progress')"); tab.advance();
-  assert.equal(step(tab), 2, 'step 2 (read the ticket) continues; step 3 waits for the chat');
-  tab.ask('when'); tab.advance();
-  assert.equal(step(tab), 2, 'both identify questions');
-  tab.ask('changed'); tab.advance();
+  // Assign to me sets In Progress in one step (Module 1), and Resolve is the
+  // ticket's only close control: no Next state list.
+  assert.equal(tab.ticket().status, 'In Progress', 'Assign to me goes straight to In Progress');
+  assert.equal(tab.ticket().assignedTechnician, 'Riley Morgan');
+  let html = tab.open();
+  assert.doesNotMatch(html, /<label>Next state/, 'no Next state list');
+  assert.match(html, /onclick="hdResolveTicket\('HD-2150'\)">Resolve<\/button>/, 'one close control: Resolve');
+  tab.run("hdTransitionTicket('HD-2150', 'Resolved')");
+  assert.equal(tab.ticket().status, 'In Progress', 'the state list can\'t close it either');
+  // The Verify caller card sits right under the requester statement.
+  assert.ok(html.indexOf('hd-request') < html.indexOf('hd-verify') && html.indexOf('hd-verify') < html.indexOf('hd-chat') && html.indexOf('hd-verify') < html.indexOf('hd-kb-search'), 'Verify caller comes before the chat and the KB');
+  assert.doesNotMatch(html, /Gather the evidence yourself with the tools/, 'no Event Viewer evidence card');
+  assert.equal(step(tab), 2, 'step 2 (read the ticket) continues; step 3 waits for the caller check');
+  tab.verify('callback'); tab.advance();
   assert.equal(step(tab), 3);
+  html = tab.open();
+  assert.match(html, /hd-badge ok">Verified/, 'the verification badge turns green');
+  assert.match(html, /You called Sam back on ext\. 4391 from the User Directory, and Sam confirmed employee ID E-42856\./, 'the result stays at the top of the ticket');
+  assert.ok(html.indexOf('ext. 4391') < html.indexOf('hd-chat'));
+  tab.ask('when'); tab.advance();
+  assert.equal(step(tab), 3, 'both identify questions');
+  tab.ask('changed'); tab.advance();
+  assert.equal(step(tab), 4);
   assert.match(tab.progress().chatAsked.join(), /when,changed/);
   tab.input('hd-kb-input', 'locked out'); tab.run("hdKbSearch({ preventDefault() {} }, 'HD-2150')"); tab.advance();
-  assert.equal(step(tab), 3, 'a search alone is not reading the article');
+  assert.equal(step(tab), 4, 'a search alone is not reading the article');
   tab.run("hdKbOpen('HD-2150', 'KB-0024')"); tab.advance();
-  assert.equal(step(tab), 4);
-  tab.verify('callback'); tab.advance();
   assert.equal(step(tab), 5);
-  assert.match(tab.open(), /hd-badge ok">Verified/, 'the verification badge turns green');
   tab.run("hdConsoleUnlock('HD-2150')"); tab.advance();
   assert.equal(step(tab), 6);
   assert.equal(tab.run("hdUserById('u-1013').locked"), false);
@@ -355,7 +368,7 @@ function testResolveNeedsEveryOutcome() {
   tab.run("hdResolveTicket('HD-2150')");
   assert.equal(tab.toasts.at(-1), 'Before you resolve this ticket, verify the caller the way KB-0024 says.');
   tab.run("hdTransitionTicket('HD-2150', 'Resolved')");
-  assert.equal(tab.toasts.at(-1), 'Before you resolve this ticket, verify the caller the way KB-0024 says.', 'Next state can\'t skip it');
+  assert.equal(tab.toasts.at(-1), 'This ticket closes through its own control.', 'Next state can\'t skip it: Resolve is the only close control');
   assert.equal(tab.ticket().status, 'In Progress');
   tab.verify('callback');
   tab.run("hdResolveTicket('HD-2150')");
@@ -387,8 +400,8 @@ function testResolveNeedsEveryOutcome() {
   tab.run("hdResolveTicket('HD-2150')");
   assert.match(tab.toasts.at(-1), /choose a resolution code/);
   tab.run("hdSetResolutionCode('HD-2150', 'Solution provided')");
-  // Next state = Resolved resolves the same way: the note is the resolution.
-  tab.run("hdTransitionTicket('HD-2150', 'Resolved')");
+  // Resolve, the only close control: the note is the resolution.
+  tab.run("hdResolveTicket('HD-2150')");
   assert.equal(tab.ticket().status, 'Resolved');
   assert.equal(tab.ticket().resolution, MODEL_NOTE);
   assert.match(tab.open(), /data-outcome="code" data-done="yes"/);
@@ -528,12 +541,12 @@ function testOldWalkthroughStartsFresh() {
   assert.ok(!tab.hd().tickets.some((t) => t.id === 'HD-2101'));
   // A current walkthrough still resumes where it was.
   const current = sim(launchUrl(), { local: store() });
-  current.run("hdSelectTicket('HD-2150'); hdAssignTicket('HD-2150'); hdTransitionTicket('HD-2150', 'In Progress')"); current.advance();
-  current.ask('when'); current.ask('changed'); current.advance();
+  current.run("hdSelectTicket('HD-2150'); hdAssignTicket('HD-2150')"); current.advance();
+  current.verify('callback'); current.ask('when'); current.ask('changed'); current.advance();
   const at = step(current);
-  assert.equal(at, 3);
+  assert.equal(at, 4);
   const resumed = sim(launchUrl(false), { local: current.local });
-  assert.equal(step(resumed), at, 'same step after a relaunch');
+  assert.equal(step(resumed), at, 'same step after a relaunch: a run in the new order is never moved back');
   assert.deepEqual(resumed.progress().chatAsked, ['when', 'changed'], 'same work');
 }
 
