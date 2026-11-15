@@ -31,19 +31,19 @@
     'lab-its-01-lms-validation': 'Module 01 · LMS & Environment Validation',
     'lab-its-01-ticket-triage': 'Module 01 · Guided Ticket Triage',
     'lab-its-01-practice-tickets': 'Module 01 · Lab 1.2 · Practice tickets (not graded)',
-    'lab-its-02-vm-build': 'Module 02 · Build Your Windows Client VM',
-    'lab-its-02-vm-snapshot-server': 'Module 02 · Snapshot, Recover & Connect',
-    'lab-its-02-device-manager': 'Module 02 · The Misbehaving Peripheral',
-    'lab-its-02-print-spooler': 'Module 02 · The Stuck Queue and Offline Printer',
-    'lab-its-03-blank-desktop': 'Module 03 · The Blank Desktop',
-    'lab-its-04-connectivity': 'Module 04 · Connected But Nothing Works',
-    'lab-its-05-server-ad': 'Module 05 · Server and Active Directory',
-    'lab-its-06-identity-access': 'Module 06 · Restoring Access the Right Way',
-    'lab-its-07-app-cert': 'Module 07 · Application and Certificate Support',
-    'lab-its-08-unfamiliar-problems': 'Module 08 · Unfamiliar Problems',
-    'lab-its-09-security-incidents': 'Module 09 · Security Incidents',
-    'lab-its-10-priority-queue': 'Module 10 · Working the Queue by Priority',
-    'lab-its-11-handoff-documentation': 'Module 11 · Handoff Documentation',
+    'lab-its-02-vm-build': 'Module 04 · Build Your Windows Client VM',
+    'lab-its-02-vm-snapshot-server': 'Module 04 · Snapshot, Recover & Connect',
+    'lab-its-02-device-manager': 'Module 04 · The Misbehaving Peripheral',
+    'lab-its-02-print-spooler': 'Module 04 · The Stuck Queue and Offline Printer',
+    'lab-its-03-blank-desktop': 'Module 05 · The Blank Desktop',
+    'lab-its-04-connectivity': 'Module 09 · Connected But Nothing Works',
+    'lab-its-05-server-ad': 'Module 07 · Server and Active Directory',
+    'lab-its-06-identity-access': 'Module 08 · Restoring Access the Right Way',
+    'lab-its-07-app-cert': 'Module 06 · Application and Certificate Support',
+    'lab-its-08-unfamiliar-problems': 'Module 10 · Unfamiliar Problems',
+    'lab-its-09-security-incidents': 'Module 11 · Security Incidents',
+    'lab-its-10-priority-queue': 'Module 02 · Working the Queue by Priority',
+    'lab-its-11-handoff-documentation': 'Module 03 · Handoff Documentation',
     'lab-its-12-capstone': 'Module 12 · IT Help Desk Capstone',
   };
   const workTickets = (result) => result.work && Array.isArray(result.work.tickets) ? result.work.tickets : [];
@@ -80,7 +80,7 @@
   const PRIORITY_KEY = 'lab-its-10-priority-queue';
   const priorityFix = 'Explain the business impact and time remaining against the SLA, then state why this ticket comes before the others.';
 
-  // Module 10 saves every P1 in the queue; the coach asks for one note on one
+  // Module 2 (its-10) saves every P1 in the queue; the coach asks for one note on one
   // of them. A P1 with a note is the one the student worked. A note shows;
   // whether it justifies the priority stays the instructor's judgment.
   function prioritySections(tickets) {
@@ -220,7 +220,7 @@
       if (ticket && ticket.id && !tickets.some((other) => other.id === ticket.id)) tickets.push(ticket);
     }));
     if (key === PRIORITY_KEY) return prioritySections(tickets);
-    // A card holding Lab 2.3 and Lab 2.4 grades both labs' tickets, in course order.
+    // A card holding Lab 4.3 and Lab 4.4 grades both labs' tickets, in course order.
     const cardKeys = new Set([key].concat(ctx.rows.map((row) => row && row.lab_key)));
     const ticketsFor = (labKey) => {
       const current = TICKETS_BY_LAB[labKey];

@@ -237,8 +237,10 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
   assert.deepEqual(c.lines.map((l) => l[0]), ['passed', 'passed']);
   assert.match(c.panel, new RegExp(`data-lab-key="${LAB_1}">See your marked lab`));
   assert.match(c.html, /data-module-primary-action>Review Module</);
-  // Module 2 unlocks once Module 1 has passed.
-  assert.equal(card(hdUser2({ remoteVerifiedModuleProgress: { 'its-01': true } }), 'its-02').state, 'not_started');
+  // Module 2 (its-10, in course order) unlocks once Module 1 has passed;
+  // its-02 is Module 4 and stays locked until Modules 2 and 3 are done.
+  assert.equal(card(hdUser2({ remoteVerifiedModuleProgress: { 'its-01': true } }), 'its-10').state, 'not_started');
+  assert.equal(card(hdUser2({ remoteVerifiedModuleProgress: { 'its-01': true } }), 'its-02').state, 'locked');
 }
 
 // Returned for Revision beats a verified complete record.
@@ -286,19 +288,23 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
     card(hdUser({ latestLabAttemptByKey: { [LAB_1]: finished(), [LAB_2]: finished() } })).label], ['practice_submitted', 'Practice Submitted']);
   // One Practice It lab in: In Progress.
   assert.equal(card(hdUser({ latestLabAttemptByKey: { [LAB_1]: finished() } })).state, 'in_progress');
-  // Both Practice It labs approved, no Prove It: not passed, Module 2 locked.
+  // Both Practice It labs approved, no Prove It: not passed, Module 2 (its-10) locked.
   const practiceApproved = hdUser({ latestLabAttemptByKey: { [LAB_1]: approved(), [LAB_2]: approved() } });
   assert.notEqual(card(practiceApproved).state, 'complete');
-  assert.equal(card(practiceApproved, 'its-02').state, 'locked');
+  assert.equal(card(practiceApproved, 'its-10').state, 'locked');
   // Prove It submitted: waiting on the instructor, one required lab.
   const waiting = card(hdUser({ latestLabAttemptByKey: { [LAB_1]: approved(), [LAB_2]: approved(), [PROVE]: finished() } }));
   assert.equal(waiting.state, 'awaiting_approval');
   assert.match(waiting.panel, /1 of 1 required lab submitted/);
   assert.deepEqual(waiting.lines, [['waiting', `${PROVE_TITLE}: waiting on your instructor.`]]);
-  // Prove It approved and verified: Passed, Module 2 opens.
+  // Prove It approved and verified: Passed, Module 2 (its-10) opens; Module 4 (its-02) does not.
   const passed = hdUser({ remoteVerifiedModuleProgress: { 'its-01': true }, latestLabAttemptByKey: { [PROVE]: approved() } });
   assert.equal(card(passed).state, 'complete');
-  assert.equal(card(passed, 'its-02').state, 'not_started');
+  assert.equal(card(passed, 'its-10').state, 'not_started');
+  assert.equal(card(passed, 'its-02').state, 'locked');
+  // Modules 1 to 3 done: Module 4 (its-02) opens.
+  const firstThree = hdUser({ remoteVerifiedModuleProgress: { 'its-01': true, 'its-10': true, 'its-11': true } });
+  assert.equal(card(firstThree, 'its-02').state, 'not_started');
 }
 
 // The retired old Lab 1.1: out of the program's lab lists, but its past

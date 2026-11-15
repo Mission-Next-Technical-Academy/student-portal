@@ -1,4 +1,4 @@
-/* Module 10 — IT Help Desk & Career Accelerator ('it-support').
+/* Module 02 (key its-10; was Module 10 before the 2026-11 reorder) — IT Help Desk & Career Accelerator ('it-support').
  * Lesson content sourced from Module_10_Student_Content.docx. Lab is a
  * guided walkthrough of the real, full ticket queue ('hd-m10') in the IT
  * Service Desk simulator — see it-support-shared.js's itsRegisterCoachModule.
@@ -6,7 +6,7 @@
 
 const ITS10_LESSONS = [
   {
-    id: 'its-10-lesson-01', number: '10.1', icon: 'ri-file-list-2-line',
+    id: 'its-10-lesson-01', number: '2.1', icon: 'ri-file-list-2-line',
     title: 'Anatomy of a Ticket: Fields, Categories & Status', minutes: 90,
     learn: [
       'What information a complete ticket needs to capture',
@@ -25,7 +25,7 @@ const ITS10_LESSONS = [
     comingUp: 'You\'ll rewrite a set of genuinely weak ticket notes into complete, properly categorized ones.',
   },
   {
-    id: 'its-10-lesson-02', number: '10.2', icon: 'ri-alarm-warning-line',
+    id: 'its-10-lesson-02', number: '2.2', icon: 'ri-alarm-warning-line',
     title: 'Impact, Urgency, Priority & SLAs', minutes: 120,
     learn: [
       'The difference between impact and urgency, and how they combine into priority',
@@ -46,7 +46,7 @@ const ITS10_LESSONS = [
 ];
 
 itsRegisterCoachModule({
-  moduleNumber: 10, moduleKey: 'its-10', coachId: 'hd-m10', labKeys: ['lab-its-10-priority-queue'],
+  moduleNumber: 2, moduleKey: 'its-10', coachId: 'hd-m10', labKeys: ['lab-its-10-priority-queue'],
   lessons: ITS10_LESSONS,
   lede: 'Every ticket you\'ll ever work has a structure underneath it. This module teaches you that structure — the fields, the priorities, the service-level expectations — so you can move through a queue with confidence instead of guesswork.',
   labDescription: 'Work the real, full ticket queue in the IT Service Desk simulator: filter it down to P1 by priority, open a real P1 ticket, and document why it sorts to the top of the shift. A coach spotlights each step for you.',

@@ -12,7 +12,7 @@
 //   - Two quick presses send one set of files and one attempt.
 //   - The files show as "Uploaded" only after the attempt is saved.
 //
-// Work done before Submit (Labs 2.1, 2.2):
+// Work done before Submit (Labs 4.1, 4.2):
 //   - The lab's state (added-file names) is saved to the
 //     student's account (module_progress.case_state) and comes back in another
 //     browser; work kept only in an older browser is copied up.
@@ -38,7 +38,9 @@ ctx.currentUser = async () => signedIn;
 
 const HD = run(`PROGRAMS.find((p) => p.slug === 'it-support')`);
 const LabRuntime = run('LabRuntime');
-const moduleLab = (n) => run(`MODULE_LABS['it-support/${n}']`);
+// moduleLab(n) is the page for module key its-NN (Help Desk display numbers
+// differ from key order: its-10 is Module 2), so look up the key's number.
+const moduleLab = (n) => run(`MODULE_LABS['it-support/' + PROGRAMS.find((p) => p.slug === 'it-support').modules['its-${String(n).padStart(2, '0')}'].number]`);
 const seed = (labId, user, state) => LabRuntime.save(labId, user, { ...LabRuntime.load(labId, user, {}), ...state });
 
 const LAB21 = 'lab-its-02-vm-build';
@@ -207,7 +209,7 @@ async function testUploadThenInsertWithTheSameId() {
   assert.equal(calls(BUCKET, 'remove').length, 0, 'nothing is removed after a successful submit');
 
   const html = moduleLab(2).view(user, HD);
-  assert.match(statusLine(html, LAB21), /^Lab 2\.1 submitted .+, waiting for instructor review$/);
+  assert.match(statusLine(html, LAB21), /^Lab 4\.1 submitted .+, waiting for instructor review$/);
   assert.match(section(html, 'its02-lab-2-1'), /<strong>Uploaded<\/strong> — Finished Windows desktop: desktop\.png/);
   assert.match(section(html, 'its02-lab-2-1'), /<strong>Uploaded<\/strong> — VM settings summary: settings\.jpg/);
   assert.equal(run(`itswPickedFile(${JSON.stringify(user)}, 'evDesktop')`), null, 'picked files are released once saved');
@@ -228,7 +230,7 @@ async function testFailedUploadRecordsNothing() {
   assert.deepEqual(plain(remove.payload.map((p) => p.split('/').pop())), ['evDesktop.png', 'evVmSettings.jpg'], 'every path tried is removed');
 
   const html = moduleLab(2).view(user, HD);
-  assert.equal(statusLine(html, LAB21), 'Lab 2.1 wasn’t submitted. Check your connection, then press Submit Lab 2.1.');
+  assert.equal(statusLine(html, LAB21), 'Lab 4.1 wasn’t submitted. Check your connection, then press Submit Lab 4.1.');
   assert.match(html, /data-its-submit="lab-its-02-vm-build"/, 'the student can try again');
   assert.doesNotMatch(section(html, 'its02-lab-2-1'), /Uploaded/);
 }
@@ -270,7 +272,7 @@ async function testFailedCleanupIsLogged() {
   assert.ok(logged.some(([message, labKey, error]) => message === 'lab evidence cleanup failed' && labKey === LAB21 && error.message === 'remove refused'),
     'a cleanup refused by Storage is logged');
   const html = moduleLab(2).view(user, HD);
-  assert.equal(statusLine(html, LAB21), 'Lab 2.1 wasn’t submitted. Check your connection, then press Submit Lab 2.1.');
+  assert.equal(statusLine(html, LAB21), 'Lab 4.1 wasn’t submitted. Check your connection, then press Submit Lab 4.1.');
 }
 
 async function testDoubleClickSendsOneSet() {

@@ -10723,6 +10723,16 @@ function adminModuleLabel(trackCode, moduleKey) {
   return module ? module.title : moduleKey;
 }
 
+// A module's display number, for listing modules in course order. Help Desk
+// numbers differ from key order (its-10 is Module 2), so sort by this, not
+// by key. A key not in the catalogue sorts last.
+function adminModuleOrder(trackCode, moduleKey) {
+  const slug = TRACK_CODE_TO_PROGRAM_SLUG[trackCode];
+  const program = PROGRAMS.find((p) => p.slug === slug);
+  const module = program && program.modules && program.modules[moduleKey];
+  return module && Number.isFinite(module.number) ? module.number : Infinity;
+}
+
 function adminLabLabel(labKey) {
   const lab = LABS.find((l) => l.key === labKey);
   return lab ? lab.title : labKey;
@@ -10912,7 +10922,7 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
              </tr>
            </thead>
            <tbody>
-             ${moduleRows.slice().sort((a, b) => String(a.module_key).localeCompare(String(b.module_key))).map((m) => `
+             ${moduleRows.slice().sort((a, b) => (adminModuleOrder(row.track_code, a.module_key) - adminModuleOrder(row.track_code, b.module_key)) || String(a.module_key).localeCompare(String(b.module_key))).map((m) => `
                <tr class="border-b border-gray-100">
                  <td class="px-4 py-2 text-gray-900">${esc(adminModuleLabel(row.track_code, m.module_key))}</td>
                  <td class="px-4 py-2">${adminModuleStatusHtml(m, labRows)}${m.admin_override ? ' <span class="text-xs font-semibold text-amber-700">(admin override)</span>' : ''}</td>

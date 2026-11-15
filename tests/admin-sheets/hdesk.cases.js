@@ -121,9 +121,9 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
       html: ['Noah Williams', 'HD-2109', 'Corrupt profile', 'Profile service loaded a temporary profile', 'compare the event log before rebuilding'],
     },
   },
-  // Module 4: the coach walks HD-2104 and HD-2105; HD-2113 is free practice.
+  // Module 9 (its-04): the coach walks HD-2104 and HD-2105; HD-2113 is free practice.
   {
-    name: 'Module 4 grades only the two coached tickets',
+    name: 'Module 9 (its-04) grades only the two coached tickets',
     row: coachRow('hdesk-m04-worked', 'lab-its-04-connectivity', [
       savedTicket('HD-2104', { worked: true }), savedTicket('HD-2105', { worked: true }),
       // Worked loosely on the side: still context, so no ✗ and no writing ◐.
@@ -143,7 +143,7 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
     },
   },
   {
-    name: 'Module 4 untouched queue ticket is not a missing section',
+    name: 'Module 9 (its-04) untouched queue ticket is not a missing section',
     row: coachRow('hdesk-m04-wrong', 'lab-its-04-connectivity', [
       savedTicket('HD-2104', { worked: true }),
       { ...savedTicket('HD-2105', { worked: true }), diagnosis: 'Bad cable', diagnosisCorrect: false },
@@ -155,9 +155,9 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
       assertContext(sheet, suggested, 'HD-2113');
     },
   },
-  // Module 7: the coach walks HD-2119 only; the other four are the same outage.
+  // Module 6 (its-07): the coach walks HD-2119 only; the other four are the same outage.
   {
-    name: 'Module 7 grades only HD-2119',
+    name: 'Module 6 (its-07) grades only HD-2119',
     row: coachRow('hdesk-m07-worked', 'lab-its-07-app-cert', [
       savedTicket('HD-2119', { worked: true, expectedStatus: 'Escalated' }),
       ...['HD-2120', 'HD-2121', 'HD-2122', 'HD-2123'].map((id) => savedTicket(id, { expectedStatus: 'Escalated' })),
@@ -175,9 +175,9 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
       assert.equal(sheet.sections.filter((s) => s.status === 'fail').length, 0, 'no ✗ anywhere');
     },
   },
-  // Module 10: every P1 is saved; the one with a note is the one worked.
+  // Module 2 (its-10): every P1 is saved; the one with a note is the one worked.
   {
-    name: 'Module 10 requires a justification only on the P1 worked',
+    name: 'Module 2 (its-10) requires a justification only on the P1 worked',
     row: coachRow('hdesk-m10-one', 'lab-its-10-priority-queue', [
       savedTicket('SR-2103', { priority: 'P1' }),
       savedTicket('SEC-2114', { priority: 'P1', notes: [{ author: 'Student technician', time: '10:00', text: 'Possible credential compromise with a 15 minute SLA, so this comes first.' }] }),
@@ -198,7 +198,7 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
     },
   },
   {
-    name: 'Module 10 with no P1 note shows one required ✗',
+    name: 'Module 2 (its-10) with no P1 note shows one required ✗',
     row: coachRow('hdesk-m10-none', 'lab-its-10-priority-queue', ['SR-2103', 'SEC-2114', 'SEC-2115'].map((id) => savedTicket(id, { priority: 'P1' }))),
     expect: {
       verdict: 'judgment',
@@ -213,7 +213,7 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
     },
   },
   {
-    name: 'Module 10 with no saved tickets shows the justification as not recorded',
+    name: 'Module 2 (its-10) with no saved tickets shows the justification as not recorded',
     row: { ...coachRow('hdesk-m10-empty', 'lab-its-10-priority-queue', []), result: {} },
     expect: { verdict: 'judgment', sections: { 'priority-justification': 'missing' }, feedback: [], html: ['Read and judge: Priority justification.'] },
     custom: ({ sheet }) => assert.equal(sheet.sections.length, 1),
@@ -242,7 +242,7 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
     };
   }),
   {
-    name: 'Lab 2.4 on its own card grades HD-2112, HD-2106 is context',
+    name: 'Lab 4.4 on its own card grades HD-2112, HD-2106 is context',
     row: coachRow('hdesk-m02-lab24-alone', lab24, module2Work()),
     expect: { verdict: 'judgment', sections: { 'diagnosis-hd-2112': 'pass', 'context-hd-2106': 'judgment' }, feedback: [] },
     custom: ({ sheet, suggested }) => assertContext(sheet, suggested, 'HD-2106'),
@@ -258,7 +258,7 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
     };
   })(),
   {
-    name: 'Lab 2.4 marked lab shows the HD-2112 note beside its section',
+    name: 'Lab 4.4 marked lab shows the HD-2112 note beside its section',
     row: coachRow('hdesk-m02-marked-24', lab24, module2Work()),
     expect: { verdict: 'judgment' },
     custom: () => {
@@ -268,7 +268,7 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
       assert.match(section, /Your instructor’s note[\s\S]*Recheck the Print Spooler crash event before naming the driver\./);
       assert.doesNotMatch(student, /data-student-overall-notes/, 'not repeated as an overall note');
       // Known follow-up (shared code): a merged card saves every note against
-      // both attempts, so Lab 2.3's marked lab lists this note under "Notes
+      // both attempts, so Lab 4.3's marked lab lists this note under "Notes
       // from your instructor". Update this when notes save per attempt.
       const lab23Student = Sheet.renderStudent({ ...row, id: 'hdesk-m02-marked-23', lab_key: lab23 }, { feedback: [hd2112Note] });
       assert.match(lab23Student, /data-student-overall-notes[\s\S]*Recheck the Print Spooler crash event/);
