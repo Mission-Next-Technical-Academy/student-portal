@@ -1,5 +1,7 @@
 # Mission Next Lab Architecture Audit
 
+> **Correction (2026-11-14):** Below-pass attempts are now saved as "submitted" and go to instructor review.
+
 **Status:** Story A2 discovery complete; implementation not started  
 **Audit date:** 2026-09-23  
 **Scope:** Mission Next Academy shell, SOC Analyst Modules 1 and 2, lab state, submission, verified progress, and instructor review  
