@@ -1657,7 +1657,7 @@ VIEWS['helpdesk/settings-printers'] = () => {
   const practiceTicket = hdSettingsPracticeTicket(c.name);
   const back = practiceTicket ? `<button class="btn btn-secondary" onclick="hdSelectTicket('${practiceTicket.id}')">← ${hdEsc(hdTicketLabel(practiceTicket))}</button>` : '';
   return `${hdPageHeader('Settings', `${hdEsc(c.name)} · Bluetooth & devices › Printers & scanners`, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/windows')">← Windows Desktop</button>${back}`)}
-    <div class="card"><div class="card-header"><strong>Add a printer or scanner</strong><button type="button" class="btn btn-primary btn-sm" ${locked ? 'disabled' : ''} onclick="hdSettingsScan()">Add device</button></div><div class="card-body">${scan || '<p class="muted">Press Add device to look for printers you can add.</p>'}</div></div>
+    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Add a printer or scanner</strong><button type="button" class="btn btn-primary btn-sm" ${locked ? 'disabled' : ''} onclick="hdSettingsScan()">Add device</button></div><div class="card-body">${scan || '<p class="muted">Press Add device to look for printers you can add.</p>'}</div></div>
     <div class="card"><div class="card-header"><strong>Printers &amp; scanners on ${hdEsc(c.name)}</strong></div><div class="card-body"><ul class="hd-list" data-hd-settings-installed>${installed.map(name => `<li>${hdEsc(name)}</li>`).join('')}</ul></div></div>`;
 };
 window.hdSettingsScan=hdSettingsScan; window.hdSettingsAddPrinter=hdSettingsAddPrinter;
