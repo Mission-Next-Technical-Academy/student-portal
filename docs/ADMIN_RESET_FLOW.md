@@ -1,5 +1,7 @@
 # Admin Reset Flow
 
+> **Note (2026-11-14):** The test-account reset is the only flow that erases coursework, and only for admin-flagged test accounts.
+
 Use this when a student was disenrolled by mistake and you need a connected AI agent to restore their progress.
 
 ## When to use this
