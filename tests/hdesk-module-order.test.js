@@ -122,6 +122,12 @@ ORDER.forEach(([key, n]) => {
   assert.equal(order('SOCAN', 'soc-03'), 3, 'SOC numbers are unchanged');
 }
 
+// Per-module grades (gradebook and exports) list modules in course order.
+{
+  const scores = run('computeModuleScores')(HD, [], []);
+  assert.deepEqual([...scores.map((s) => s.moduleKey)], ORDER.map(([key]) => key), 'module grades run in display-number order');
+}
+
 // Other programs keep their numbers in key order.
 run('PROGRAMS').filter((p) => p.slug !== 'it-support' && p.modules).forEach((p) => {
   const keys = Object.keys(p.modules);
