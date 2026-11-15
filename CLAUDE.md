@@ -49,7 +49,7 @@ matching file from the index at the bottom before editing those paths.
 - Never use `--production` unless a person asks in this session.
 - Staging project: `xbblgtrfwgeiyttdlbue`. Production: `eokvngifirjgfozzbieu`.
 - Sign in only with synthetic staging accounts the person provides.
-- Never take credentials from files in this repo.
+- Never take credentials from tracked files in this repo.
 - Touch production data only with explicit, task-scoped approval this session.
 - Never run `supabase db push`, `db reset --linked` or `functions deploy` yourself.
 - Give the person the exact command instead; see `.claude/rules/database.md`.
