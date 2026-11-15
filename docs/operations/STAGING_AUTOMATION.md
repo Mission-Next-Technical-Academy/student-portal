@@ -1,5 +1,7 @@
 # Staging automation: what keeps staging in step with master
 
+Updated 2026-11-14.
+
 After every merge to `master`, staging catches up on its own, in this order:
 the staging database's migrations, then the `staging` branch, then the staging
 website. Staging never moves ahead of its database. Edge Functions stay
@@ -205,17 +207,18 @@ an agent, runs them.
 
    It must print `xbblgtrfwgeiyttdlbue`. If it prints anything else, link to
    staging (`supabase link --project-ref xbblgtrfwgeiyttdlbue`) and check
-   again. `supabase db push` has no `--project-ref` option: it always acts on
-   the linked project.
+   again.
 
-   Preview, check the list, then apply:
-
-   ```
-   supabase db push --linked --dry-run
-   ```
+   Updated 2026-11-14 (checked with `supabase db push --help`, CLI 2.118.0):
+   a person, never an agent, runs these two commands. Preview, check the list
+   names only this branch's migrations, then apply:
 
    ```
-   supabase db push --linked
+   supabase db push --linked --project-ref xbblgtrfwgeiyttdlbue --dry-run
+   ```
+
+   ```
+   supabase db push --linked --project-ref xbblgtrfwgeiyttdlbue
    ```
 
    Never run these while the CLI is linked to `eokvngifirjgfozzbieu`
@@ -421,6 +424,30 @@ The current functions are `admin-provision`, `check-login-geofence`,
 Then release the gate: start **Staging sync** by hand from `master` with
 **functions_deployed** ticked. That run applies any new migrations, moves
 `staging`, and deploys the website.
+
+## Production migrations
+
+Added 2026-11-14. Automation never touches production; this is how a PR's
+migrations reach it (used for PR #107 and PR #109). The agent rule is
+`.claude/rules/database.md` ("Production migrations").
+
+- A person applies a PR's migrations to production **before** merging it,
+  because production deploys on merge.
+- Never link the Supabase CLI to production, and an agent never pushes
+  migrations to production.
+- The person runs two scripts, which an agent may write, in the production
+  project's **SQL Editor**:
+  - **Dry run:** `begin;`, the migrations byte for byte, checks, then a
+    raised `DRY RUN OK, NOTHING SAVED` error, so nothing is kept.
+  - **Apply:** `begin;`, the same migrations, the
+    `supabase_migrations.schema_migrations` insert, then `commit;`.
+- First check the migrations themselves contain no `begin;`, `commit;` or
+  `rollback;`.
+- Keep both scripts in an untracked folder (for example `.claude/work/`),
+  never in git.
+- A migration dated before production's newest one is fine this way.
+- Afterwards, the person confirms every version is in
+  `supabase_migrations.schema_migrations`.
 
 ## Logs are public
 

@@ -1,5 +1,7 @@
 # Operations: live data, cleanup, and retention
 
+Updated 2026-11-14.
+
 This repository's portal is a **live production application**.  It is not a
 local demo database: `portal/supabase-config.js` names the production Supabase
 project, which the deployed site uses. Local development (`bin/dev.sh`)
@@ -30,14 +32,9 @@ refuse the production project unless `--production` is passed
 (`bin/lib/supabase-target.js`). For staging, prefix the command with
 `SUPABASE_URL=https://xbblgtrfwgeiyttdlbue.supabase.co`.
 
-`bin/dev.sh` follows the same rule for the local portal: it connects to
-**staging** by default and to production only with `--production`. It serves
-`portal/` live but swaps `/supabase-config.js` for a generated staging copy
-(with an orange "STAGING (LOCAL)" badge; production gets a red one), refuses
-to start if any other `portal/` or `ui/` file hard-codes the production
-project, and refuses to reuse a running portal whose target differs.
-`bin/dev.sh status` prints the target the portal is actually serving. Serving
-`portal/` any other way bypasses this and connects to production.
+`bin/dev.sh` follows the same rule for the local portal: staging by default.
+The rules for running it locally are in `CLAUDE.md` ("Environments")
+(updated 2026-11-14).
 
 Never commit a service-role key, roster CSV, or password. The locally generated
 roster output belongs in `bin/.roster-output/` (already gitignored) or an
@@ -72,11 +69,3 @@ fails: [`STAGING_AUTOMATION.md`](STAGING_AUTOMATION.md).
 4. Treat a zero-item grading queue as a workflow result, not a retention
    strategy. Reviewed work stays as an academic record; archive cohorts to
    keep the live list short.
-
-## Current cleanup note (2026-09-22)
-
-The SOC instructor account exposed two accounts whose only messages were
-explicit test messages. Their IDs and work should be verified through the
-dry-run command before deletion. The command prints only the records belonging
-to the IDs passed to it; it never discovers and removes accounts by a fuzzy
-"test" label.

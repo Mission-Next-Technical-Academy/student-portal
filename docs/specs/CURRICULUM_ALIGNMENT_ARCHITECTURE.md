@@ -3,7 +3,7 @@
 Status: implementation authority for the 2026-08-28 curriculum-alignment wave  
 Scope: learner portal curriculum labels, hours, mappings, labs, capstone, M360 boundary, and compliance exports  
 Supersedes for curriculum decisions: `docs/specs/MODULE_STANDARD.md` SOC title/hour assumptions and the curriculum portions of `PLATFORM_ARCHITECTURE.md`
-Does not supersede: `docs/specs/architecture.md` for the in-progress Supabase/auth migration or `docs/operations/PROJECT_GUIDE_FOR_AI.md` for repository safety
+Does not supersede: `docs/specs/architecture.md` for the in-progress Supabase/auth migration or `CLAUDE.md` for repository safety (updated 2026-11-14: was `PROJECT_GUIDE_FOR_AI.md`, now archived)
 
 ## 0. Sprint status (as of 2026-08-28, this wave)
 
