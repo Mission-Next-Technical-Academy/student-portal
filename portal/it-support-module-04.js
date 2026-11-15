@@ -1,4 +1,4 @@
-/* Module 04 — IT Help Desk & Career Accelerator ('it-support').
+/* Module 09 (key its-04; was Module 04 before the 2026-11 reorder) — IT Help Desk & Career Accelerator ('it-support').
  * Lesson content sourced from Module_4_Student_Content.docx. Lab is a
  * guided walkthrough of two real tickets ('hd-m04') in the IT Service Desk
  * simulator — see it-support-shared.js's itsRegisterCoachModule.
@@ -6,7 +6,7 @@
 
 const ITS04_LESSONS = [
   {
-    id: 'its-04-lesson-01', number: '4.1', icon: 'ri-router-line',
+    id: 'its-04-lesson-01', number: '9.1', icon: 'ri-router-line',
     title: 'IP Addressing, Subnets & How Networks Talk', minutes: 120,
     learn: [
       'What an IP address, subnet, gateway, and DNS server actually do, at the level a technician needs',
@@ -24,7 +24,7 @@ const ITS04_LESSONS = [
     comingUp: 'You\'ll be handed a machine that shows "connected" but can\'t reach anything, and work out why.',
   },
   {
-    id: 'its-04-lesson-02', number: '4.2', icon: 'ri-terminal-line',
+    id: 'its-04-lesson-02', number: '9.2', icon: 'ri-terminal-line',
     title: 'Diagnostic Commands: ipconfig, ping, tracert & nslookup', minutes: 120,
     learn: [
       'How to read the output of ipconfig /all',
@@ -44,7 +44,7 @@ const ITS04_LESSONS = [
     comingUp: 'You\'ll use these four commands together to diagnose a connectivity problem you haven\'t been told the cause of.',
   },
   {
-    id: 'its-04-lesson-03', number: '4.3', icon: 'ri-wifi-off-line',
+    id: 'its-04-lesson-03', number: '9.3', icon: 'ri-wifi-off-line',
     title: 'DHCP, DNS & Recognizing APIPA', minutes: 120,
     learn: [
       'What DHCP does and why almost every device relies on it',
@@ -63,7 +63,7 @@ const ITS04_LESSONS = [
     comingUp: 'You\'ll be handed a device showing a 169.254 address and asked to diagnose and explain the fix.',
   },
   {
-    id: 'its-04-lesson-04', number: '4.4', icon: 'ri-chat-smile-2-line',
+    id: 'its-04-lesson-04', number: '9.4', icon: 'ri-chat-smile-2-line',
     title: 'Domain Joining & Explaining Network Issues in Plain Language', minutes: 120,
     learn: [
       'What it means for a computer to "join a domain," and why organizations do it',
@@ -83,7 +83,7 @@ const ITS04_LESSONS = [
 ];
 
 itsRegisterCoachModule({
-  moduleNumber: 4, moduleKey: 'its-04', coachId: 'hd-m04', labKeys: ['lab-its-04-connectivity'],
+  moduleNumber: 9, moduleKey: 'its-04', coachId: 'hd-m04', labKeys: ['lab-its-04-connectivity'],
   lessons: ITS04_LESSONS,
   lede: 'You\'ve built your lab environment and fixed your first hardware and printer tickets. Now it\'s time for one of the most valuable skills on any help desk: figuring out why something won\'t connect, and explaining it in plain language.',
   labDescription: 'Resolve two real connectivity tickets end to end in the IT Service Desk simulator — an APIPA/DHCP failure (HD-2104) and a DNS failure (HD-2105) — using the diagnostic evidence rather than guessing. A coach spotlights each step for you.',

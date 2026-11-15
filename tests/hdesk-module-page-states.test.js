@@ -3,8 +3,8 @@
 // (user.latestLabAttemptByKey). Browser storage holds only work not yet
 // sent, so clearing site data never changes a lab's status, counter or rail.
 //
-//   - Status lines: "Lab 2.1 submitted <day>, waiting for instructor review",
-//     "Lab 2.1 passed", "Lab 2.1 returned for revision ...", else the prompt.
+//   - Status lines: "Lab 4.1 submitted <day>, waiting for instructor review",
+//     "Lab 4.1 passed", "Lab 4.1 returned for revision ...", else the prompt.
 //   - Hero counter: "4 labs · 3 waiting for review · 1 passed" (waiting and
 //     returned parts only when non-zero).
 //   - Rail: ticked only when passed; "In review" / "Returned" otherwise.
@@ -29,7 +29,9 @@ const HD = run(`PROGRAMS.find((p) => p.slug === 'it-support')`);
 const LabRuntime = run('LabRuntime');
 // The anonymous id a walkthrough launch link carries (never the email).
 const studentOf = (user) => LabRuntime.anonymousStudentId(user);
-const moduleLab = (n) => run(`MODULE_LABS['it-support/${n}']`);
+// moduleLab(n) is the page for module key its-NN (Help Desk display numbers
+// differ from key order: its-10 is Module 2), so look up the key's number.
+const moduleLab = (n) => run(`MODULE_LABS['it-support/' + PROGRAMS.find((p) => p.slug === 'it-support').modules['its-${String(n).padStart(2, '0')}'].number]`);
 const seed = (labId, user, state) => LabRuntime.save(labId, user, { ...LabRuntime.load(labId, user, {}), ...state });
 
 const SUBMITTED = '2026-10-01T15:00:00Z';
@@ -105,10 +107,10 @@ async function testModuleTwoClearedStorageShowsDatabaseStatus() {
   fresh(user);
   const html = moduleLab(2).view(user, HD);
 
-  assert.equal(statusLine(html, LAB21), `Lab 2.1 submitted ${DAY}, waiting for instructor review`);
-  assert.equal(statusLine(html, LAB22), 'Lab 2.2 passed');
-  assert.equal(statusLine(html, LAB23), `Lab 2.3 submitted ${DAY}, waiting for instructor review`);
-  assert.equal(statusLine(html, LAB24), `Lab 2.4 submitted ${DAY}, waiting for instructor review`);
+  assert.equal(statusLine(html, LAB21), `Lab 4.1 submitted ${DAY}, waiting for instructor review`);
+  assert.equal(statusLine(html, LAB22), 'Lab 4.2 passed');
+  assert.equal(statusLine(html, LAB23), `Lab 4.3 submitted ${DAY}, waiting for instructor review`);
+  assert.equal(statusLine(html, LAB24), `Lab 4.4 submitted ${DAY}, waiting for instructor review`);
   assert.equal(counter(html, 'its02-status'), '4 labs · 3 waiting for review · 1 passed');
   assert.doesNotMatch(html, /Labs complete/, 'the counter never says complete');
 
@@ -134,14 +136,14 @@ async function testModuleTwoLocalFlagsAloneAreNotSubmitted() {
     consoleStarted: true, consoleCompleted: true,
   });
   const html = moduleLab(2).view(user, HD);
-  assert.doesNotMatch(html, /Lab 2\.1 complete|Lab 2\.2 complete|Labs 2\.3 &(amp;)? 2\.4 complete/);
+  assert.doesNotMatch(html, /Lab 4\.1 complete|Lab 4\.2 complete|Labs 4\.3 &(amp;)? 4\.4 complete/);
   // Picked files live only in the page that picked them: after a reload each
   // tile asks for its file again, and nothing is ready to submit.
   assert.equal(statusLine(html, LAB21), 'Upload both evidence files to complete this lab.');
   assert.equal(submitButton(html, LAB21), null, 'no Submit button until the files are chosen again');
   assert.match(section(html, 'its02-lab-2-1'), /Choose this file again — “d\.png”/);
   assert.equal(counter(html, 'its02-status'), '4 labs · 0 passed');
-  assert.match(section(html, 'its02-lab-2-3'), /Start Labs 2\.3 &(amp;)? 2\.4 walkthrough/);
+  assert.match(section(html, 'its02-lab-2-3'), /Start Labs 4\.3 &(amp;)? 4\.4 walkthrough/);
   for (const id of ['its02-lab-2-1', 'its02-lab-2-2', 'its02-lab-2-3']) assert.equal(railRow(html, id).ticked, false, `${id} not ticked`);
 }
 
@@ -149,7 +151,7 @@ async function testModuleTwoReturnedLab() {
   const user = hdUser({ [LAB21]: returned(), [LAB22]: approved() });
   fresh(user);
   const html = moduleLab(2).view(user, HD);
-  assert.equal(statusLine(html, LAB21), 'Lab 2.1 returned for revision — see your instructor’s notes below.');
+  assert.equal(statusLine(html, LAB21), 'Lab 4.1 returned for revision — see your instructor’s notes below.');
   assert.match(section(html, 'its02-lab-2-1'), /data-itsw-evidence-input/, 'a returned lab shows its upload boxes again');
   assert.match(section(html, 'its02-lab-2-1'), /data-its-resubmit/, 'PR #61 Resubmit button stays');
   assert.equal(counter(html, 'its02-status'), '4 labs · 1 passed · 1 returned');
@@ -171,23 +173,23 @@ async function testEvidenceUploadNeverCompletes() {
   await settle();
   assert.equal(inserts().length, 0, 'adding every file does not submit by itself');
   html = moduleLab(2).view(user, HD);
-  assert.equal(statusLine(html, LAB21), 'Ready to submit Lab 2.1');
+  assert.equal(statusLine(html, LAB21), 'Ready to submit Lab 4.1');
   assert.doesNotMatch(statusLine(html, LAB21), /complete|passed/i);
-  assert.ok(submitButton(html, LAB21), 'Submit Lab 2.1 button once every file is added');
-  assert.match(submitButton(html, LAB21), /Submit Lab 2\.1/);
+  assert.ok(submitButton(html, LAB21), 'Submit Lab 4.1 button once every file is added');
+  assert.match(submitButton(html, LAB21), /Submit Lab 4\.1/);
   assert.equal(railRow(html, 'its02-lab-2-1').ticked, false);
 
   // Pressing Submit: "Submitting…" while the save is in flight, one row only.
   const first = run('its02SubmitLab')(LAB21);
   const second = run('its02SubmitLab')(LAB21);
   html = moduleLab(2).view(user, HD);
-  assert.equal(statusLine(html, LAB21), 'Submitting Lab 2.1…');
+  assert.equal(statusLine(html, LAB21), 'Submitting Lab 4.1…');
   await Promise.all([first, second]);
   assert.equal(inserts(LAB21).length, 1, 'exactly one attempt');
   assert.equal(inserts().length, 1, 'no other lab is submitted');
 
   html = moduleLab(2).view(user, HD);
-  assert.match(statusLine(html, LAB21), /^Lab 2\.1 submitted .+, waiting for instructor review$/);
+  assert.match(statusLine(html, LAB21), /^Lab 4\.1 submitted .+, waiting for instructor review$/);
   assert.equal(counter(html, 'its02-status'), '4 labs · 1 waiting for review · 0 passed');
   assert.equal(submitButton(html, LAB21), null, 'no Submit button once submitted');
   assert.match(railRow(html, 'its02-lab-2-1').text, /In review/);
@@ -203,7 +205,7 @@ async function testEvidenceSubmitFailure() {
   run('its02AddEvidence')('its02-ev-vmsettings', file('settings.png', SUBMITTED));
   await run('its02SubmitLab')(LAB21);
   const html = moduleLab(2).view(user, HD);
-  assert.equal(statusLine(html, LAB21), 'Lab 2.1 wasn’t submitted. Check your connection, then press Submit Lab 2.1.');
+  assert.equal(statusLine(html, LAB21), 'Lab 4.1 wasn’t submitted. Check your connection, then press Submit Lab 4.1.');
   assert.ok(submitButton(html, LAB21), 'the Submit button stays so the student can retry');
   assert.equal(counter(html, 'its02-status'), '4 labs · 0 passed');
 }
@@ -264,7 +266,8 @@ async function testModuleOneHasNoEvidenceLab() {
 async function testSharedWalkthroughModules() {
   for (let n = 3; n <= 11; n += 1) {
     const key = `its-${String(n).padStart(2, '0')}`;
-    const rail = `itss-lab-${String(n).padStart(2, '0')}`;
+    // The page anchor follows the module's display number, not its key.
+    const rail = `itss-lab-${String(HD.modules[key].number).padStart(2, '0')}`;
     const [lab] = run('LABS').filter((l) => l.module === key).map((l) => l.key);
 
     let user = hdUser({ [lab]: waiting() });
@@ -514,9 +517,9 @@ const returnLink = (coachId) => run(`location.search = ${JSON.stringify(coachId 
 async function testReturnLinkRecordsNothing() {
   const cases = [
     [1, 'hd-m01', 'its01-lab-1-2', 'lab-its-01-ticket-triage', 'its01-lab-1-2', 'Start Lab 1.1 walkthrough'],
-    [2, 'hd-m02', 'its02-lab-2-3', LAB23, 'its02-lab-2-3', 'Start Labs 2.3 &amp; 2.4 walkthrough'],
-    [3, 'hd-m03', null, 'lab-its-03-blank-desktop', 'itss-lab-03', 'Start guided walkthrough'],
-    [7, 'hd-m07', null, run('LABS').find((l) => l.module === 'its-07').key, 'itss-lab-07', 'Start guided walkthrough'],
+    [2, 'hd-m02', 'its02-lab-2-3', LAB23, 'its02-lab-2-3', 'Start Labs 4.3 &amp; 4.4 walkthrough'],
+    [3, 'hd-m03', null, 'lab-its-03-blank-desktop', 'itss-lab-05', 'Start guided walkthrough'],
+    [7, 'hd-m07', null, run('LABS').find((l) => l.module === 'its-07').key, 'itss-lab-06', 'Start guided walkthrough'],
   ];
   for (const [n, coachId, sectionId, lab, railId, start] of cases) {
     const user = hdUser();

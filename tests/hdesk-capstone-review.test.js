@@ -366,8 +366,8 @@ function testTicketWidgetUnchangedWhenNotLocked() {
   const plain = queue(config);
   assert.equal(queue({ ...config, locked: false }), plain, 'locked: false renders the same as no setting');
   assert.doesNotMatch(plain, /disabled/, 'nothing disabled by default');
-  // Only Module 12 uses the ticket widget; Modules 1 and 2 never render it.
-  [1, 2].forEach((n) => {
+  // Only Module 12 uses the ticket widget; Module 1 and the its-02 page (Module 4) never render it.
+  [1, HD.modules['its-02'].number].forEach((n) => {
     const html = run(`MODULE_LABS['it-support/${n}']`).view(hdUser(), HD);
     assert.doesNotMatch(html, /itsw-ticket-form/, `Module ${n} does not render the ticket widget`);
   });

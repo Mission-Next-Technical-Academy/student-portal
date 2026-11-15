@@ -1,7 +1,7 @@
-/* Module 02 — IT Help Desk & Career Accelerator ('it-support').
+/* Module 04 (key its-02; was Module 02 before the 2026-11 reorder) — IT Help Desk & Career Accelerator ('it-support').
  * Fictional scenarios; no real systems involved beyond the student's own VM
- * build. Labs 2.1/2.2 are physical, evidence-based labs (the student's own
- * VirtualBox build) — unchanged from the original design. Labs 2.3/2.4 are a
+ * build. Labs 4.1/4.2 are physical, evidence-based labs (the student's own
+ * VirtualBox build) — unchanged from the original design. Labs 4.3/4.4 are a
  * single guided walkthrough of two real print-driver tickets ('hd-m02') in
  * the IT Service Desk simulator (ui/helpdesk.js + ui/coach.js), the same
  * coach engine Module 1's Lab 1.2 and SOC's Module 1 already use — not a
@@ -15,7 +15,7 @@ const ITS02_SOURCES = [
 
 const ITS02_LESSONS = [
   {
-    id: 'its-02-lesson-01', number: '2.1', icon: 'ri-cpu-line',
+    id: 'its-02-lesson-01', number: '4.1', icon: 'ri-cpu-line',
     title: 'Virtualization Fundamentals & Building Your First VM', minutes: 240,
     learn: [
       'What virtualization is, and why IT support teams rely on it constantly',
@@ -40,7 +40,7 @@ const ITS02_LESSONS = [
     comingUp: 'Submit proof of your working VM build as your first hands-on evidence in this program.',
   },
   {
-    id: 'its-02-lesson-02', number: '2.2', icon: 'ri-history-line',
+    id: 'its-02-lesson-02', number: '4.2', icon: 'ri-history-line',
     title: 'VM Snapshots, Recovery & Building a Server Environment', minutes: 240,
     learn: [
       'How to take and restore a VirtualBox snapshot',
@@ -66,7 +66,7 @@ const ITS02_LESSONS = [
     comingUp: 'Demonstrate a full snapshot-and-recover cycle, plus working communication between your client and server VMs.',
   },
   {
-    id: 'its-02-lesson-03', number: '2.3', icon: 'ri-hard-drive-2-line',
+    id: 'its-02-lesson-03', number: '4.3', icon: 'ri-hard-drive-2-line',
     title: 'Windows Device & Storage Management', minutes: 90,
     learn: [
       'How to open Device Manager and read what it\'s telling you',
@@ -87,7 +87,7 @@ const ITS02_LESSONS = [
     comingUp: 'A stuck label printer traces back to the exact same kind of driver problem — you\'ll diagnose and fix it start to finish in the IT Service Desk simulator.',
   },
   {
-    id: 'its-02-lesson-04', number: '2.4', icon: 'ri-printer-line',
+    id: 'its-02-lesson-04', number: '4.4', icon: 'ri-printer-line',
     title: 'Printer & Peripheral Triage', minutes: 90,
     learn: [
       'How to clear a print job that\'s stuck in the queue',
@@ -119,8 +119,8 @@ const ITS02_LAB24_KEY = 'lab-its-02-print-spooler';
 // submitted), its name, prompt, and the Resubmit label used when faculty
 // return it.
 const ITS02_EVIDENCE_LABS = {
-  [ITS02_LAB21_KEY]: { fields: ['evDesktop', 'evVmSettings'], label: 'Lab 2.1', pendingText: 'Upload both evidence files to complete this lab.', resubmitLabel: 'Resubmit Lab 2.1' },
-  [ITS02_LAB22_KEY]: { fields: ['evSnapshot', 'evPing1', 'evPing2'], label: 'Lab 2.2', pendingText: 'Upload all three evidence files to complete this lab.', resubmitLabel: 'Resubmit Lab 2.2' },
+  [ITS02_LAB21_KEY]: { fields: ['evDesktop', 'evVmSettings'], label: 'Lab 4.1', pendingText: 'Upload both evidence files to complete this lab.', resubmitLabel: 'Resubmit Lab 4.1' },
+  [ITS02_LAB22_KEY]: { fields: ['evSnapshot', 'evPing1', 'evPing2'], label: 'Lab 4.2', pendingText: 'Upload all three evidence files to complete this lab.', resubmitLabel: 'Resubmit Lab 4.2' },
 };
 const ITS02_EVIDENCE_FIELD_BY_INPUT = {
   'its02-ev-desktop': 'evDesktop', 'its02-ev-vmsettings': 'evVmSettings',
@@ -128,7 +128,7 @@ const ITS02_EVIDENCE_FIELD_BY_INPUT = {
 };
 const ITS02_WALKTHROUGH_LAB_KEYS = [ITS02_LAB23_KEY, ITS02_LAB24_KEY];
 const ITS02_ALL_LAB_KEYS = [ITS02_LAB21_KEY, ITS02_LAB22_KEY, ...ITS02_WALKTHROUGH_LAB_KEYS];
-const ITS02_WALKTHROUGH_START = 'Start Labs 2.3 & 2.4 walkthrough';
+const ITS02_WALKTHROUGH_START = 'Start Labs 4.3 & 4.4 walkthrough';
 
 const ITS02_DEFAULT_STATE = {
   evDesktop: null, evVmSettings: null,
@@ -197,11 +197,11 @@ function its02Lessons() {
   return `<div class="its02-lesson-grid">${ITS02_LESSONS.map(its02LessonCard).join('')}</div>`;
 }
 
-/* ---------- Lab 2.1 / 2.2 — physical, evidence-based ---------- */
+/* ---------- Lab 4.1 / 4.2 — physical, evidence-based ---------- */
 
 function its02Lab21() {
   return `<section class="its02-section its02-lab-section" id="its02-lab-2-1" aria-labelledby="its02-lab-2-1-title">
-    <div class="its02-section-heading"><span>1</span><div><p class="its02-kicker">Lab 2.1 · physical · evidence-based<span class="its02-lab-tag">Your own device</span></p><h2 id="its02-lab-2-1-title">Build Your Windows Client VM</h2></div></div>
+    <div class="its02-section-heading"><span>1</span><div><p class="its02-kicker">Lab 4.1 · physical · evidence-based<span class="its02-lab-tag">Your own device</span></p><h2 id="its02-lab-2-1-title">Build Your Windows Client VM</h2></div></div>
     <p class="its02-instruction">Install VirtualBox and build a working Windows 11 client VM (4GB RAM, 2 CPU cores, 64GB dynamically-allocated disk, NAT networking) through to a usable desktop.</p>
     ${itsLabSubmitted(its02User, ITS02_LAB21_KEY) ? '' : `<div class="its02-evidence-grid" id="its02-lab21-grid">
       ${itswEvidenceTile({ id: 'its02-ev-desktop', user: its02User, field: 'evDesktop', hint: 'A screenshot of the completed Windows desktop.', file: its02State.evDesktop })}
@@ -214,7 +214,7 @@ function its02Lab21() {
 
 function its02Lab22() {
   return `<section class="its02-section its02-lab-section" id="its02-lab-2-2" aria-labelledby="its02-lab-2-2-title">
-    <div class="its02-section-heading"><span>2</span><div><p class="its02-kicker">Lab 2.2 · physical · evidence-based<span class="its02-lab-tag">Your own device</span></p><h2 id="its02-lab-2-2-title">Snapshot, Recover &amp; Connect Client to Server</h2></div></div>
+    <div class="its02-section-heading"><span>2</span><div><p class="its02-kicker">Lab 4.2 · physical · evidence-based<span class="its02-lab-tag">Your own device</span></p><h2 id="its02-lab-2-2-title">Snapshot, Recover &amp; Connect Client to Server</h2></div></div>
     <p class="its02-instruction">Snapshot your client VM as "Clean Install," make a breaking change, restore the snapshot, build a Windows Server VM, and confirm a successful ping in both directions.</p>
     ${itsLabSubmitted(its02User, ITS02_LAB22_KEY) ? '' : `<div class="its02-evidence-grid its02-evidence-grid-3" id="its02-lab22-grid">
       ${itswEvidenceTile({ id: 'its02-ev-snapshot', user: its02User, field: 'evSnapshot', hint: 'A screenshot of the snapshot list showing "Clean Install."', file: its02State.evSnapshot })}
@@ -290,14 +290,14 @@ function its02ResubmitLab(labKey) {
   });
 }
 
-/* ---------- Labs 2.3 & 2.4 — guided walkthrough in the real simulator ---------- */
+/* ---------- Labs 4.3 & 4.4 — guided walkthrough in the real simulator ---------- */
 
 // One line per lab once either has been submitted; before that, one prompt.
 function its02Lab34Status() {
   if (ITS02_WALKTHROUGH_LAB_KEYS.every((labKey) => itsLabStatus(its02User, labKey) === 'not_submitted')) {
     return '<div class="its02-lab-status its02-status-pending"><i class="ri-time-line" aria-hidden="true"></i><span>Complete the guided walkthrough in the simulator to finish these labs.</span></div>';
   }
-  return [[ITS02_LAB23_KEY, 'Lab 2.3'], [ITS02_LAB24_KEY, 'Lab 2.4']]
+  return [[ITS02_LAB23_KEY, 'Lab 4.3'], [ITS02_LAB24_KEY, 'Lab 4.4']]
     .map(([labKey, label]) => itsLabStatusHtml(its02User, labKey, { label, prefix: 'its02', pendingText: `${label} not submitted yet — finish the walkthrough to submit it.` }))
     .join('');
 }
@@ -305,7 +305,7 @@ function its02Lab34Status() {
 function its02Lab34() {
   const button = itsWalkthroughButton(its02User, ITS02_WALKTHROUGH_LAB_KEYS);
   return `<section class="its02-section its02-lab-section" id="its02-lab-2-3" aria-labelledby="its02-lab-2-3-title">
-    <div class="its02-section-heading"><span>3</span><div><p class="its02-kicker">Labs 2.3 &amp; 2.4 · guided walkthrough</p><h2 id="its02-lab-2-3-title">The Misbehaving Peripheral &amp; The Stuck Queue</h2></div></div>
+    <div class="its02-section-heading"><span>3</span><div><p class="its02-kicker">Labs 4.3 &amp; 4.4 · guided walkthrough</p><h2 id="its02-lab-2-3-title">The Misbehaving Peripheral &amp; The Stuck Queue</h2></div></div>
     <p class="its02-instruction">Work two real print-driver tickets end to end in the IT Service Desk simulator — a stuck label queue (HD-2106) and a crashing Print Spooler service (HD-2112) — tracing both back to the same driver crash and resolving them under change control. A coach spotlights each step for you.</p>
     <a class="itsw-evidence-button" data-its02-console-launch href="${esc(itsCoachLaunchHref('hd-m02', its02User))}" target="_blank" rel="opener">
       <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: esc(ITS02_WALKTHROUGH_START) }[button.mode]}
@@ -330,7 +330,7 @@ function viewItsModuleTwo(user, program) {
     ${moduleTopbar(user, program)}
     ${moduleProgressShell(navSections, { moduleKey: 'its02', stageKey: 'its-02' })}
     <main class="its02-main">
-      <section class="its02-hero" aria-labelledby="its02-title"><div><p class="its02-kicker">Module 02 · ${formatInstructionalMinutes(module.durationMinutes)} · Week 1</p><h1 id="its02-title">${esc(module.title)}</h1><p class="its02-lede">Build your own virtual lab environment from scratch, then put it to work on two of the most common ticket types in the industry: device/driver problems and printer issues.</p></div><dl class="its02-progress" aria-label="Saved module progress"><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Guided labs</dt><dd>4</dd></div><div><dt>Labs</dt><dd id="its02-status">${itsLabCounterText(user, ITS02_ALL_LAB_KEYS)}</dd></div></dl></section>
+      <section class="its02-hero" aria-labelledby="its02-title"><div><p class="its02-kicker">Module 04 · ${formatInstructionalMinutes(module.durationMinutes)} · Week ${esc(String(module.week))}</p><h1 id="its02-title">${esc(module.title)}</h1><p class="its02-lede">Build your own virtual lab environment from scratch, then put it to work on two of the most common ticket types in the industry: device/driver problems and printer issues.</p></div><dl class="its02-progress" aria-label="Saved module progress"><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Guided labs</dt><dd>4</dd></div><div><dt>Labs</dt><dd id="its02-status">${itsLabCounterText(user, ITS02_ALL_LAB_KEYS)}</dd></div></dl></section>
 
       <section class="its02-section" id="its02-lessons" aria-labelledby="its02-lessons-title"><div class="its02-section-heading"><span>L</span><div><p class="its02-kicker">Learn</p><h2 id="its02-lessons-title">Four foundation lessons</h2></div></div><p class="its02-instruction">Open each lesson for the full walkthrough, then work its Try It Yourself exercise on your own lab VM.</p>${its02Lessons()}</section>
 
@@ -392,7 +392,7 @@ async function its02ReceiveCoachCompletion(event) {
   const wrongStudent = itsCoachStudentMismatch(event, user);
   if (wrongStudent) { itsConfirmCoachReceipt(event, false, wrongStudent); return; }
 
-  // Submit first: Labs 2.3 and 2.4 count as complete only once the portal
+  // Submit first: Labs 4.3 and 4.4 count as complete only once the portal
   // has their attempts (saved now, or already waiting or approved).
   const received = await itsSubmitWalkthroughLabs(user, 'its-02', ITS02_WALKTHROUGH_LAB_KEYS, itsCleanCoachWork(event.data.work));
   its02User = user;
@@ -417,6 +417,6 @@ async function its02ReceiveCoachCompletion(event) {
 }
 
 registerModuleLab({
-  program: 'it-support', moduleNumber: 2, moduleKey: 'its-02',
+  program: 'it-support', moduleNumber: 4, moduleKey: 'its-02',
   view: viewItsModuleTwo, wire: wireItsModuleTwoLab, onMessage: its02ReceiveCoachCompletion,
 });

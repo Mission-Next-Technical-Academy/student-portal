@@ -1,4 +1,4 @@
-/* Module 03 — IT Help Desk & Career Accelerator ('it-support').
+/* Module 05 (key its-03; was Module 03 before the 2026-11 reorder) — IT Help Desk & Career Accelerator ('it-support').
  * Lesson content sourced from Module_3_Student_Content.docx. Lab is a
  * guided walkthrough of a real ticket ('hd-m03') in the IT Service Desk
  * simulator (ui/helpdesk.js + ui/coach.js) — see it-support-shared.js's
@@ -7,7 +7,7 @@
 
 const ITS03_LESSONS = [
   {
-    id: 'its-03-lesson-01', number: '3.1', icon: 'ri-layout-grid-line',
+    id: 'its-03-lesson-01', number: '5.1', icon: 'ri-layout-grid-line',
     title: 'Navigation, User Profiles, Local Accounts & Support Utilities', minutes: 90,
     learn: [
       'How to move between Settings and Control Panel, and when you need each one',
@@ -29,7 +29,7 @@ const ITS03_LESSONS = [
     comingUp: 'Diagnose a simulated account/profile issue using exactly these tools.',
   },
   {
-    id: 'its-03-lesson-02', number: '3.2', icon: 'ri-terminal-box-line',
+    id: 'its-03-lesson-02', number: '5.2', icon: 'ri-terminal-box-line',
     title: 'Boot & Performance Troubleshooting, Command-Line Tools & Cross-Platform Awareness', minutes: 90,
     learn: [
       'The core command-line tools every technician should know by heart',
@@ -52,7 +52,7 @@ const ITS03_LESSONS = [
 ];
 
 itsRegisterCoachModule({
-  moduleNumber: 3, moduleKey: 'its-03', coachId: 'hd-m03', labKeys: ['lab-its-03-blank-desktop'],
+  moduleNumber: 5, moduleKey: 'its-03', coachId: 'hd-m03', labKeys: ['lab-its-03-blank-desktop'],
   lessons: ITS03_LESSONS,
   lede: 'Now that your lab environment is built and you\'ve handled your first hardware tickets, go deeper into Windows itself — efficient navigation, account and profile management, and diagnosing problems with the operating system\'s own built-in tools.',
   labDescription: 'Resolve a real corrupted-profile ticket (HD-2109) end to end in the IT Service Desk simulator: read the evidence, work the troubleshooting path, diagnose against the log, document it, and resolve it. A coach spotlights each step for you.',

@@ -1,4 +1,4 @@
-/* Module 06 — IT Help Desk & Career Accelerator ('it-support').
+/* Module 08 (key its-06; was Module 06 before the 2026-11 reorder) — IT Help Desk & Career Accelerator ('it-support').
  * Lesson content sourced from Module_6_Student_Content.docx. Lab is a
  * guided walkthrough of two real tickets ('hd-m06') in the IT Service Desk
  * simulator — see it-support-shared.js's itsRegisterCoachModule.
@@ -6,7 +6,7 @@
 
 const ITS06_LESSONS = [
   {
-    id: 'its-06-lesson-01', number: '6.1', icon: 'ri-lock-unlock-line',
+    id: 'its-06-lesson-01', number: '8.1', icon: 'ri-lock-unlock-line',
     title: 'Password Resets, Account Unlocks & Reading Account Status Correctly', minutes: 120,
     learn: [
       'How to reset a password and force a password change at next login',
@@ -28,7 +28,7 @@ const ITS06_LESSONS = [
     comingUp: 'You\'ll receive tickets describing locked, disabled, and expired accounts, and have to correctly identify which is which before applying the right fix.',
   },
   {
-    id: 'its-06-lesson-02', number: '6.2', icon: 'ri-team-line',
+    id: 'its-06-lesson-02', number: '8.2', icon: 'ri-team-line',
     title: 'Group Membership & Access Troubleshooting', minutes: 120,
     learn: [
       'How to check what groups a user currently belongs to',
@@ -46,7 +46,7 @@ const ITS06_LESSONS = [
     comingUp: 'A user reports they lost access to a shared resource after changing departments — you\'ll trace it to a group membership issue and fix it.',
   },
   {
-    id: 'its-06-lesson-03', number: '6.3', icon: 'ri-cloud-line',
+    id: 'its-06-lesson-03', number: '8.3', icon: 'ri-cloud-line',
     title: 'Introductory Entra ID & M365 Identity Scenarios', minutes: 120,
     learn: [
       'What Entra ID is, at an introductory level, and how it relates to traditional Active Directory',
@@ -68,7 +68,7 @@ const ITS06_LESSONS = [
 ];
 
 itsRegisterCoachModule({
-  moduleNumber: 6, moduleKey: 'its-06', coachId: 'hd-m06', labKeys: ['lab-its-06-identity-access'],
+  moduleNumber: 8, moduleKey: 'its-06', coachId: 'hd-m06', labKeys: ['lab-its-06-identity-access'],
   lessons: ITS06_LESSONS,
   lede: 'You know the structure of Active Directory now — this module puts it to work solving the identity tickets you\'ll see more than almost any other type, from password resets to modern cloud-identity scenarios.',
   labDescription: 'Resolve two real identity tickets end to end in the IT Service Desk simulator — an approved group-membership restore (SR-2107) and a missing NTFS permission group (HD-2118) — verifying authorization before you act. A coach spotlights each step for you.',

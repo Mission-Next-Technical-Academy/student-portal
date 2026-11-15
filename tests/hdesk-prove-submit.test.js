@@ -33,7 +33,9 @@ let signedIn = null;
 portal.currentUser = async () => signedIn;
 const studentOf = (user) => prun('LabRuntime').anonymousStudentId(user);
 const HD = prun(`PROGRAMS.find((p) => p.slug === 'it-support')`);
-const moduleLab = (n) => prun(`MODULE_LABS['it-support/${n}']`);
+// moduleLab(n) is the page for module key its-NN (Help Desk display numbers
+// differ from key order: its-10 is Module 2), so look up the key's number.
+const moduleLab = (n) => prun(`MODULE_LABS['it-support/' + PROGRAMS.find((p) => p.slug === 'it-support').modules['its-${String(n).padStart(2, '0')}'].number]`);
 
 const hdUser = (extra = {}) => ({
   userId: 'user-hdesk', email: 'hdesk@test.invalid', trackCode: 'HDESK',

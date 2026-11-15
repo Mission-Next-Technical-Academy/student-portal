@@ -17,7 +17,7 @@ const ITS12_LESSON = {
     'Make real resolve-or-escalate decisions with no instructor cueing you toward the answer',
     'Produce at least one knowledge-base article and complete an after-action review',
   ],
-  body: 'Nothing in this capstone is new — that\'s the point. You\'ll receive a realistic set of L1 tickets spanning identity, endpoint, peripheral, network, and security issues. Prioritize them the way you learned in Module 10, work through them with the troubleshooting mindset from Module 1, and make real resolve-or-escalate calls throughout. By the end you\'ll have resolved everything within your scope, escalated anything genuinely outside it, written at least one knowledge-base article, and completed an honest after-action review of your own performance.',
+  body: 'Nothing in this capstone is new — that\'s the point. You\'ll receive a realistic set of L1 tickets spanning identity, endpoint, peripheral, network, and security issues. Prioritize them the way you learned in Module 2, work through them with the troubleshooting mindset from Module 1, and make real resolve-or-escalate calls throughout. By the end you\'ll have resolved everything within your scope, escalated anything genuinely outside it, written at least one knowledge-base article, and completed an honest after-action review of your own performance.',
 };
 
 const ITS12_RUBRIC = [

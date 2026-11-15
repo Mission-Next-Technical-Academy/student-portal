@@ -1,4 +1,4 @@
-/* Module 08 — IT Help Desk & Career Accelerator ('it-support').
+/* Module 10 (key its-08; was Module 08 before the 2026-11 reorder) — IT Help Desk & Career Accelerator ('it-support').
  * Lesson content sourced from Module_8_Student_Content.docx. Lab is a
  * guided walkthrough of two real tickets ('hd-m08') in the IT Service Desk
  * simulator — see it-support-shared.js's itsRegisterCoachModule.
@@ -6,7 +6,7 @@
 
 const ITS08_LESSONS = [
   {
-    id: 'its-08-lesson-01', number: '8.1', icon: 'ri-remote-control-2-line',
+    id: 'its-08-lesson-01', number: '10.1', icon: 'ri-remote-control-2-line',
     title: 'Remote Support Etiquette & Tools', minutes: 60,
     learn: [
       'How to get proper consent before starting a remote session',
@@ -26,7 +26,7 @@ const ITS08_LESSONS = [
     comingUp: 'You\'ll conduct a simulated remote session, observed for consent, verification, and narration.',
   },
   {
-    id: 'its-08-lesson-02', number: '8.2', icon: 'ri-flow-chart',
+    id: 'its-08-lesson-02', number: '10.2', icon: 'ri-flow-chart',
     title: 'Structured Troubleshooting & Stop-and-Escalate Judgment', minutes: 60,
     learn: [
       'How to apply structured troubleshooting to a problem you\'ve genuinely never seen before',
@@ -44,7 +44,7 @@ const ITS08_LESSONS = [
 ];
 
 itsRegisterCoachModule({
-  moduleNumber: 8, moduleKey: 'its-08', coachId: 'hd-m08', labKeys: ['lab-its-08-unfamiliar-problems'],
+  moduleNumber: 10, moduleKey: 'its-08', coachId: 'hd-m08', labKeys: ['lab-its-08-unfamiliar-problems'],
   lessons: ITS08_LESSONS,
   lede: 'You\'ve learned to fix specific things — now this module is about how you work: connecting to a user\'s machine responsibly, and applying a consistent method to any problem you haven\'t seen before.',
   labDescription: 'Resolve two real unfamiliar-shaped tickets end to end in the IT Service Desk simulator — a broken domain trust (HD-2110) and a BitLocker recovery (HD-2111) — applying the troubleshooting method itself, not a memorized fix. A coach spotlights each step for you.',

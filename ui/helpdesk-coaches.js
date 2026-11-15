@@ -349,11 +349,11 @@
   }
 
   const hd2Steps = hd2TicketSteps('HD-2106', true).concat(hd2TicketSteps('HD-2112', false));
-  hd2Steps[hd2Steps.length - 1].finish = { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/2', 'hd-m02') };
+  hd2Steps[hd2Steps.length - 1].finish = { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/4', 'hd-m02') };
 
   MODULE_COACHES.push({
     id: 'hd-m02',
-    module: 2,
+    module: 4,
     name: 'The Misbehaving Peripheral & The Stuck Queue',
     role: 'Tier 1 Help Desk Technician',
     summary: 'Work two real print-driver tickets end to end — a stuck label queue and a crashing Print Spooler service — tracing both back to the same root cause and resolving them under change control.',
@@ -481,10 +481,10 @@
     return MODULE_COACHES[MODULE_COACHES.length - 1];
   }
 
-  /* hd-m03 — Module 3: Windows Operating System Support. One ticket. */
-  hdRegisterSimpleCoach('hd-m03', 3, 'The Blank Desktop', 'Diagnose a corrupted Windows profile end to end: read the evidence, work the troubleshooting path, diagnose against the log, document it, and resolve it.', ['HD-2109']).steps =
+  /* hd-m03 — Module 5 (key its-03): Windows Operating System Support. One ticket. */
+  hdRegisterSimpleCoach('hd-m03', 5, 'The Blank Desktop', 'Diagnose a corrupted Windows profile end to end: read the evidence, work the troubleshooting path, diagnose against the log, document it, and resolve it.', ['HD-2109']).steps =
     hdTicketFlowSteps('HD-2109', {
-      opening: true, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/3', 'hd-m03'),
+      opening: true, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/5', 'hd-m03'),
       openBody: 'Noah signed in to a completely empty desktop with his shortcuts missing — but he can still sign in fine. That combination is the clue.',
       evidenceBody: 'The User Profile Service log line about a temporary profile is the tell — Windows quietly loaded a fallback profile because it couldn’t load the real one.',
       pathBody: 'Protecting the user’s data comes first, before any repair — a profile fix should never risk losing what’s already there.',
@@ -493,11 +493,11 @@
       resolveBody: 'Resolving is gated on your diagnosis actually being correct — the same discipline as every ticket in this program.',
     });
 
-  /* hd-m04 — Module 4: Networking Fundamentals. Three tickets scoped;
+  /* hd-m04 — Module 9 (key its-04): Networking Fundamentals. Three tickets scoped;
    * guides HD-2104 (DHCP/APIPA) then HD-2105 (DNS), leaves HD-2113 (VPN
    * gateway certificate, an 'Always' escalation) for free practice — it
    * gets its own dedicated treatment in hd-m11 instead. */
-  hdRegisterSimpleCoach('hd-m04', 4, 'Connected But Nothing Works', 'Work two real connectivity tickets end to end — an APIPA/DHCP failure and a DNS failure — using ipconfig, ping, and nslookup-style evidence rather than guessing.', ['HD-2104', 'HD-2105', 'HD-2113']).steps =
+  hdRegisterSimpleCoach('hd-m04', 9, 'Connected But Nothing Works', 'Work two real connectivity tickets end to end — an APIPA/DHCP failure and a DNS failure — using ipconfig, ping, and nslookup-style evidence rather than guessing.', ['HD-2104', 'HD-2105', 'HD-2113']).steps =
     hdTicketFlowSteps('HD-2104', {
       opening: true, isLast: false, finalStatus: 'Resolved',
       openBody: 'Priya is connected to the office network but nothing opens — that gap between “connected” and “working” is exactly what this module is about.',
@@ -507,7 +507,7 @@
       noteBody: 'Name the APIPA evidence, which interface you disabled, and that a valid lease and resource access were confirmed afterward.',
       resolveBody: 'Resolving is gated on your diagnosis actually being correct — recheck the evidence if it isn’t.',
     }).concat(hdTicketFlowSteps('HD-2105', {
-      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/4', 'hd-m04'),
+      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/9', 'hd-m04'),
       openBody: 'Maya can reach the public internet and internal resources by IP, but a hostname fails — a classic DNS-shaped symptom.',
       evidenceBody: 'NXDOMAIN on an internal hostname, plus a client DNS server that isn’t the corporate resolver — that combination is the clue.',
       pathBody: 'Capturing the current DNS configuration before changing anything is what makes this fixable and documentable.',
@@ -516,8 +516,8 @@
       resolveBody: 'Resolving is gated on your diagnosis actually being correct, same as every ticket.',
     }));
 
-  /* hd-m05 — Module 5: Windows Server & Active Directory. Two tickets. */
-  hdRegisterSimpleCoach('hd-m05', 5, 'The Missing Drive & The Vanishing Free Space', 'Work two real Windows Server tickets end to end — a Group Policy scope issue and a file-server disk-space incident.', ['HD-2108', 'HD-2117']).steps =
+  /* hd-m05 — Module 7 (key its-05): Windows Server & Active Directory. Two tickets. */
+  hdRegisterSimpleCoach('hd-m05', 7, 'The Missing Drive & The Vanishing Free Space', 'Work two real Windows Server tickets end to end — a Group Policy scope issue and a file-server disk-space incident.', ['HD-2108', 'HD-2117']).steps =
     hdTicketFlowSteps('HD-2108', {
       opening: true, isLast: false, finalStatus: 'Resolved',
       openBody: 'Amir’s Operations drive disappeared after his laptop was replaced — his group membership is correct, so it isn’t an access problem.',
@@ -527,7 +527,7 @@
       noteBody: 'Name the OU evidence, the object you moved, and that the drive mapping returned after a policy refresh.',
       resolveBody: 'Resolving is gated on your diagnosis actually being correct.',
     }).concat(hdTicketFlowSteps('HD-2117', {
-      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/5', 'hd-m05'),
+      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/7', 'hd-m05'),
       openBody: 'A monitoring alert: the file server’s data volume has 4% free space left and is dropping fast.',
       evidenceBody: 'A single export path accounting for most of the growth, right after a job that ran overnight, is the clue.',
       pathBody: 'Confirming impact and growth rate first is what keeps you from deleting something that turns out to matter.',
@@ -536,12 +536,12 @@
       resolveBody: 'Resolving is gated on your diagnosis actually being correct.',
     }));
 
-  /* hd-m06 — Module 6: Identity, Accounts & Access Management. Two
+  /* hd-m06 — Module 8 (key its-06): Identity, Accounts & Access Management. Two
    * tickets. SR-2107 is a Service Request (its resolve gate doesn't
    * actually require diagnosisCorrect in the underlying app) — the coach
    * still requires a correct diagnosis anyway, for the same reasoning
    * practice as every other ticket. */
-  hdRegisterSimpleCoach('hd-m06', 6, 'Restoring Access the Right Way', 'Work two real identity tickets end to end — an approved group-membership restore and a missing file-permission group — verifying authorization before you act.', ['SR-2107', 'HD-2118']).steps =
+  hdRegisterSimpleCoach('hd-m06', 8, 'Restoring Access the Right Way', 'Work two real identity tickets end to end — an approved group-membership restore and a missing file-permission group — verifying authorization before you act.', ['SR-2107', 'HD-2118']).steps =
     hdTicketFlowSteps('SR-2107', {
       opening: true, isLast: false, finalStatus: 'Resolved',
       openBody: 'An approved request: restore Grace’s contributor access to the HR onboarding folder. Manager approval is already attached — verify it before acting.',
@@ -551,7 +551,7 @@
       noteBody: 'Name the approval reference, the group you restored, and that upload access was verified afterward.',
       resolveBody: 'Resolving is gated on your diagnosis actually being correct, the same discipline whether or not it’s strictly required for a request.',
     }).concat(hdTicketFlowSteps('HD-2118', {
-      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/6', 'hd-m06'),
+      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/8', 'hd-m06'),
       openBody: 'Evan can open the payroll workbook but can’t save — read succeeds, modify is denied.',
       evidenceBody: 'Effective access showing Read & Execute while the share permission allows Change is the clue — the block is on the NTFS side.',
       pathBody: 'Calculating group-based effective access (not just the share permission) is what actually explains this.',
@@ -560,14 +560,14 @@
       resolveBody: 'Resolving is gated on your diagnosis actually being correct.',
     }));
 
-  /* hd-m07 — Module 7: Software, Applications & Endpoint Management. Five
+  /* hd-m07 — Module 6 (key its-07): Software, Applications & Endpoint Management. Five
    * correlated tickets scoped (same underlying cert expiry); guides just
    * HD-2119 and leaves the other four for free practice — matching hd-m01's
    * own "guide one, scope the rest" precedent, doubly appropriate here
    * since all five are literally the same root cause from different users. */
-  hdRegisterSimpleCoach('hd-m07', 7, 'The Purchasing App Everyone’s Locked Out Of', 'Work one of five correlated tickets end to end — a shared application certificate expiry — and recognize the pattern across the others.', ['HD-2119', 'HD-2120', 'HD-2121', 'HD-2122', 'HD-2123']).steps =
+  hdRegisterSimpleCoach('hd-m07', 6, 'The Purchasing App Everyone’s Locked Out Of', 'Work one of five correlated tickets end to end — a shared application certificate expiry — and recognize the pattern across the others.', ['HD-2119', 'HD-2120', 'HD-2121', 'HD-2122', 'HD-2123']).steps =
     hdTicketFlowSteps('HD-2119', {
-      opening: true, isLast: true, finalStatus: 'Escalated', finishHref: itsPortalUrl('#/program/it-support/module/7', 'hd-m07'),
+      opening: true, isLast: true, finalStatus: 'Escalated', finishHref: itsPortalUrl('#/program/it-support/module/6', 'hd-m07'),
       openBody: 'Maya can’t sign in to the Purchasing app — a secure-connection error, not a login error. Four other tickets in this queue report the exact same thing.',
       evidenceBody: 'A certificate-date browser error alongside a NotAfter timestamp that’s already passed is the clue — this isn’t a user account or browser-cache problem.',
       pathBody: 'Comparing timestamps and linking the related incidents comes before escalating — confirm the pattern, don’t just assume it.',
@@ -576,10 +576,10 @@
       resolveBody: 'This is a shared production certificate — outside what a technician fixes alone. Escalate it, don’t try to resolve it user by user.',
     });
 
-  /* hd-m08 — Module 8: Troubleshooting Methodology & Diagnostics. Two
+  /* hd-m08 — Module 10 (key its-08): Troubleshooting Methodology & Diagnostics. Two
    * tickets, both genuinely unfamiliar-shaped problems worked with the
    * five-step method rather than a memorized fix. */
-  hdRegisterSimpleCoach('hd-m08', 8, 'Two Problems You Haven’t Seen Before', 'Work two real unfamiliar-shaped tickets end to end — a broken domain trust and a BitLocker recovery — applying the troubleshooting method itself, not a memorized answer.', ['HD-2110', 'HD-2111']).steps =
+  hdRegisterSimpleCoach('hd-m08', 10, 'Two Problems You Haven’t Seen Before', 'Work two real unfamiliar-shaped tickets end to end — a broken domain trust and a BitLocker recovery — applying the troubleshooting method itself, not a memorized answer.', ['HD-2110', 'HD-2111']).steps =
     hdTicketFlowSteps('HD-2110', {
       opening: true, isLast: false, finalStatus: 'Resolved',
       openBody: 'Sofia’s workstation says the trust relationship with the domain failed — right after a VM snapshot was restored yesterday.',
@@ -589,7 +589,7 @@
       noteBody: 'Name the snapshot-timing evidence, the approved repair procedure you used, and that domain sign-in was verified afterward.',
       resolveBody: 'Resolving is gated on your diagnosis actually being correct.',
     }).concat(hdTicketFlowSteps('HD-2111', {
-      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/8', 'hd-m08'),
+      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/10', 'hd-m08'),
       openBody: 'Dina’s laptop is asking for a BitLocker recovery key right after an overnight firmware update.',
       evidenceBody: 'A completed, approved firmware change logged overnight, right before the recovery prompt, is the clue — not tampering.',
       pathBody: 'Verifying the user and device identity, and matching the recovery key ID, comes before disclosing anything.',
@@ -598,9 +598,9 @@
       resolveBody: 'Resolving is gated on your diagnosis actually being correct.',
     }));
 
-  /* hd-m09 — Module 9: Security Fundamentals for IT Support. Two Security
+  /* hd-m09 — Module 11 (key its-09): Security Fundamentals for IT Support. Two Security
    * Incident tickets — both correctly end in 'Escalated', not 'Resolved'. */
-  hdRegisterSimpleCoach('hd-m09', 9, 'Two Calls You Escalate, Not Fix', 'Work two real security-incident tickets end to end — a credential-phishing report and a malware alert — recognizing why L1 escalates rather than resolves.', ['SEC-2114', 'SEC-2115']).steps =
+  hdRegisterSimpleCoach('hd-m09', 11, 'Two Calls You Escalate, Not Fix', 'Work two real security-incident tickets end to end — a credential-phishing report and a malware alert — recognizing why L1 escalates rather than resolves.', ['SEC-2114', 'SEC-2115']).steps =
     hdTicketFlowSteps('SEC-2114', {
       opening: true, isLast: false, finalStatus: 'Escalated',
       openBody: 'Luis clicked a shipping link and signed in again — he’s asking if that was real. Treat it as a real possibility, not reassurance.',
@@ -610,7 +610,7 @@
       noteBody: 'Name the lookalike-domain evidence, that the account was protected within procedure, and that this was escalated immediately.',
       resolveBody: 'This is a possible credential compromise — outside what L1 resolves alone. Escalate it, don’t declare the endpoint safe yourself.',
     }).concat(hdTicketFlowSteps('SEC-2115', {
-      opening: false, isLast: true, finalStatus: 'Escalated', finishHref: itsPortalUrl('#/program/it-support/module/9', 'hd-m09'),
+      opening: false, isLast: true, finalStatus: 'Escalated', finishHref: itsPortalUrl('#/program/it-support/module/11', 'hd-m09'),
       openBody: 'A high-confidence EDR malware alert on a user’s laptop, with a report of browser pop-ups. Security needs help-desk coordination, not a solo fix.',
       evidenceBody: 'A suspicious PowerShell process launched as a child of the browser is the clue — that’s not a normal browser behavior.',
       pathBody: 'Do not delete evidence — confirming the user and device comes first, before any containment step.',
@@ -619,12 +619,12 @@
       resolveBody: 'This is a confirmed malware indicator — outside what L1 resolves alone. Escalate it as a warm handoff to security.',
     }));
 
-  /* hd-m10 — Module 10: Ticketing, Service Management & SLAs. Full,
+  /* hd-m10 — Module 2 (key its-10): Ticketing, Service Management & SLAs. Full,
    * unfiltered queue — this module is about ticket structure and
    * prioritization across the whole queue, not fixing one ticket. Guides
    * filtering to P1 and reading a real ticket's fields, no resolve step. */
   MODULE_COACHES.push({
-    id: 'hd-m10', module: 10, name: 'Working the Queue by Priority', role: 'Tier 1 Help Desk Technician',
+    id: 'hd-m10', module: 2, name: 'Working the Queue by Priority', role: 'Tier 1 Help Desk Technician',
     summary: 'Filter the full ticket queue down to what actually needs attention first, then read a priority ticket the way a real shift starts.',
     completionToken: 'hd-m10', home: '#/helpdesk/tickets',
     resetState: () => hdResetTicketScope(null),
@@ -668,13 +668,13 @@
         waitLabel: 'Next Step: Note added',
         nudge: 'Type a note and click Add work note.',
         check: () => typeof hdCurrentTicket === 'function' && hdCurrentTicket() && hdCurrentTicket().notes.length > 0,
-        finish: { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/10', 'hd-m10') },
+        finish: { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/2', 'hd-m10') },
       },
     ],
   });
 
-  /* hd-m11 — Module 11: Customer Service, Documentation & Escalation. Two
-   * tickets. HD-2113 (also reachable unguided from Module 4's scope) whose
+  /* hd-m11 — Module 3 (key its-11): Customer Service, Documentation & Escalation. Two
+   * tickets. HD-2113 (also reachable unguided from Module 9's scope, coach hd-m04) whose
    * 'Always' escalation criteria makes it a clean example of recognizing an
    * escalation trigger and writing a handoff-quality note, rather than a
    * fixable-by-L1 ticket. HD-2124 pairs that with the module's other half —
@@ -682,7 +682,7 @@
    * technical cause — practicing calm, plain-language, expectation-setting
    * communication under pressure (lesson 2's 'Updating Users Without
    * Overpromising' / 'Setting Expectations From the Start'). */
-  hdRegisterSimpleCoach('hd-m11', 11, 'Writing the Handoff That Actually Helps', 'Work two real tickets end to end, focused on documentation, escalation, and communication under pressure: recognize an escalation trigger and write a note a stranger could act on, then diagnose while calmly setting expectations for an already-frustrated, repeat-contact user.', ['HD-2113', 'HD-2124']).steps =
+  hdRegisterSimpleCoach('hd-m11', 3, 'Writing the Handoff That Actually Helps', 'Work two real tickets end to end, focused on documentation, escalation, and communication under pressure: recognize an escalation trigger and write a note a stranger could act on, then diagnose while calmly setting expectations for an already-frustrated, repeat-contact user.', ['HD-2113', 'HD-2124']).steps =
     hdTicketFlowSteps('HD-2113', {
       opening: true, isLast: false, finalStatus: 'Escalated',
       openBody: 'Kai’s VPN accepts MFA, connects for a few seconds, then drops — every time.',
@@ -692,7 +692,7 @@
       noteBody: 'This is the note a stranger has to act on: name the expired-certificate evidence, confirm other users are affected the same way, and state plainly that this needs a certificate renewal — not a per-user fix.',
       resolveBody: 'A shared gateway certificate is outside what a technician replaces alone. Escalate it with a note complete enough that the next person isn’t starting from zero.',
     }).concat(hdTicketFlowSteps('HD-2124', {
-      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/11', 'hd-m11'),
+      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/3', 'hd-m11'),
       openBody: 'Tara is calling for the second time today — Outlook keeps demanding her password and failing, and she has a client proposal waiting. She’s frustrated, and that’s the point of this one: the fix has to happen while you keep her calm and informed, not after.',
       evidenceBody: 'Teams and the browser already accept her new password — only Outlook fails. That split, plus a Credential Manager entry that’s weeks old, is the clue: something cached is still holding the old password.',
       pathBody: 'Confirm the scope is Outlook-only before touching anything, then go straight to the stale credential — don’t make her repeat troubleshooting she’s effectively already done for you by mentioning Teams works fine.',
