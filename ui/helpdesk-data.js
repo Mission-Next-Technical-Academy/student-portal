@@ -14,11 +14,15 @@ const HD_ORG = {
     { tier:'Tier 2', owner:'Enterprise Support', scope:'Windows, Active Directory, Group Policy, servers, VPN, file and print services' },
     { tier:'Tier 3', owner:'Infrastructure / Security / App teams', scope:'Production changes, architecture, security incidents, vendor defects' },
   ],
+  // Northstar SLA targets (Module 2's table). Only the Enterprise Map shows
+  // this list; the clock on a ticket is ui/helpdesk.js (HD_SN_SLA on matrix
+  // tickets, hdSlaMinutes on older ones).
   slas: [
-    { priority:'P1', response:'15 minutes', resolve:'4 hours', use:'Enterprise outage, confirmed security event, critical safety or payroll impact' },
-    { priority:'P2', response:'1 hour', resolve:'8 hours', use:'Department impact or time-critical single-user failure' },
-    { priority:'P3', response:'4 hours', resolve:'2 business days', use:'Normal single-user incident' },
-    { priority:'P4', response:'1 business day', resolve:'5 business days', use:'Low-impact request or information' },
+    { priority:'P1', response:'15 minutes', resolve:'4 hours', tell:'Service Desk lead immediately; Major Incident process' },
+    { priority:'P2', response:'30 minutes', resolve:'8 hours', tell:'Team lead if 50% of SLA used with no plan' },
+    { priority:'P3', response:'4 business hours', resolve:'2 business days', tell:'—' },
+    { priority:'P4', response:'1 business day', resolve:'5 business days', tell:'—' },
+    { priority:'P5', response:'2 business days', resolve:'By agreement', tell:'—' },
   ],
 };
 
