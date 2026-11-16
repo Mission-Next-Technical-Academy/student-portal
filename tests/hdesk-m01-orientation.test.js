@@ -218,7 +218,7 @@ async function testPolicyAcknowledgementSavesWithoutLabOne() {
   const saved = savedState();
   assert.ok(saved, 'saved to module_progress.case_state');
   assert.equal(saved.aupAcknowledged, true);
-  assert.equal(saved.aupVersion, '2026-11-10');
+  assert.equal(saved.aupVersion, '2026-11-15');
   assert.ok(!Number.isNaN(Date.parse(saved.aupAcknowledgedAt)), 'with the time');
   assert.equal(calls('lab_attempts').length, 0, 'no lab attempt: it is an orientation task');
   assert.equal(calls('storage:lab-evidence').length, 0);
@@ -240,7 +240,7 @@ async function testEarlierAcknowledgementAsksAgain() {
   const old = { aupScrolled: true, aupAcknowledged: true };
   const user = hdUser({ remoteCaseState: { 'its-01': { [STATE_ID]: old } } });
   let html = page().view(user, HD);
-  assert.match(text(html), /The Acceptable Use Policy changed on Nov 10, 2026\. Read it again and acknowledge the new version\./);
+  assert.match(text(html), /The Acceptable Use Policy changed on Nov 15, 2026\. Read it again and acknowledge the new version\./);
   assert.match(html, /data-its01-aup-checkbox disabled/, 'reading the old text doesn’t count');
   assert.doesNotMatch(railRow(html, 'its01-orientation').cls, /mnav-chip-complete/);
 
@@ -248,8 +248,18 @@ async function testEarlierAcknowledgementAsksAgain() {
   assert.equal(run('its01AcknowledgeAup()'), true);
   await flush();
   html = page().view(user, HD);
-  assert.doesNotMatch(html, /changed on Nov 10, 2026/);
-  assert.equal(savedState().aupVersion, '2026-11-10');
+  assert.doesNotMatch(html, /changed on Nov 15, 2026/);
+  assert.equal(savedState().aupVersion, '2026-11-15');
+
+  // An acknowledgement of the 2026-11-10 text asks again too: the
+  // confidentiality wording changed on 2026-11-15.
+  fresh();
+  const nov10 = { aupAcknowledged: true, aupVersion: '2026-11-10', aupReadVersion: '2026-11-10', aupAcknowledgedAt: '2026-11-12T10:00:00Z' };
+  html = page().view(hdUser({ remoteCaseState: { 'its-01': { [STATE_ID]: nov10 } } }), HD);
+  assert.match(text(html), /The Acceptable Use Policy changed on Nov 15, 2026\. Read it again and acknowledge the new version\./);
+  assert.match(html, /data-its01-aup-checkbox disabled/, 'the new text must be read first');
+  assert.doesNotMatch(railRow(html, 'its01-orientation').cls, /mnav-chip-complete/);
+  assert.ok(text(html).includes('never share, post or screenshot them for use outside this course.'));
 }
 
 /* -------------------------------------------------------------- checks */
@@ -345,7 +355,7 @@ function testRail() {
   // Counted: orientation, its check, the readings, Lab 1.1, Lab 1.2, the
   // Prove It and the two checks.
   assert.equal(percent(html), '13');
-  const done = page().view(hdUser({ remoteCaseState: { 'its-01': { [STATE_ID]: { aupAcknowledged: true, aupVersion: '2026-11-10', aupReadVersion: '2026-11-10', orientationCheckCompleted: true } } } }), HD);
+  const done = page().view(hdUser({ remoteCaseState: { 'its-01': { [STATE_ID]: { aupAcknowledged: true, aupVersion: '2026-11-15', aupReadVersion: '2026-11-15', orientationCheckCompleted: true } } } }), HD);
   assert.equal(percent(done), '38');
   assert.doesNotMatch(done, /href="#its01-lab-1-1"/);
   // Orientation done, the checks not: Lab 1.1 is open, not locked behind them.

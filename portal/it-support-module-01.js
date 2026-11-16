@@ -449,15 +449,15 @@ function its01LessonCard(lesson) {
 
 /* An orientation task, not a lab: the acknowledgement is saved to the
  * student's account (module_progress.case_state) under the id Lab 1.1 used,
- * so acknowledgements already given are still found. The policy text changed
- * on 2026-11-10, so an acknowledgement of an earlier version (no aupVersion)
- * asks the student to acknowledge again. */
-const ITS01_AUP_VERSION = '2026-11-10';
-const ITS01_AUP_VERSION_DAY = 'Nov 10, 2026';
+ * so acknowledgements already given are still found. The policy text last
+ * changed on 2026-11-15 (the confidentiality wording), so an acknowledgement
+ * of an earlier version asks the student to acknowledge again. */
+const ITS01_AUP_VERSION = '2026-11-15';
+const ITS01_AUP_VERSION_DAY = 'Nov 15, 2026';
 const ITS01_AUP_PARAGRAPHS = [
   'Use the simulator and course materials only for coursework. Don’t try to reach any system outside an assigned lab.',
   'Credentials: keep your LMS login to yourself. Don’t share it with anyone, including other students. The simulator never needs a real password, so never type one into it.',
-  'Confidentiality: the people, company and data in the labs are fictional. Treat them as real personal data anyway: never share, post or screenshot them outside the course.',
+  'Confidentiality: the people, company and data in the labs are fictional. Treat them as real personal data anyway: never share, post or screenshot them for use outside this course.',
 ];
 
 // The case-state id Lab 1.1 used; kept so earlier acknowledgements carry over.
