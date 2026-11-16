@@ -199,6 +199,37 @@ function testRelaunchSameStudentResumes() {
   assert.equal(relaunched.location.search, '?coach=hd-m03');
 }
 
+// hd-m01's steps were reordered on 2026-11-15 (Verify caller moved from step
+// 4 to step 2). A run saved under the old order at step 3 or 4 hasn't
+// verified yet and resumes at step 2; every other step is unchanged. The
+// remap runs once per shift, so a run in the new order is never moved back.
+function testHdM01OldStepOrderResumesOnAValidStep() {
+  const expected = { 0: 0, 1: 1, 2: 2, 3: 2, 4: 2, 5: 5, 6: 6, 7: 7, 8: 8 };
+  for (const [old, want] of Object.entries(expected)) {
+    const local = store();
+    const first = sim(launchUrl('hd-m01'), { local });
+    assert.equal(first.hd().coachOrder, 2, 'a fresh lab runs the new order');
+    // A shift saved before the reorder, with the coach part way through.
+    first.run('delete hdState.coachOrder; hdSave()');
+    local.setItem('mnt.coach.resume', JSON.stringify({ id: 'hd-m01', step: Number(old), student: STUDENT_A }));
+    const relaunched = sim(launchUrl('hd-m01'), { local });
+    assert.equal(relaunched.coachState().step, want, `old step ${old} resumes at ${want}`);
+    assert.equal(relaunched.hd().coachOrder, 2, 'the shift is marked, so the remap runs once');
+  }
+  // The new order, saved at step 4 (the KB): never moved back.
+  const local = store();
+  sim(launchUrl('hd-m01'), { local });
+  local.setItem('mnt.coach.resume', JSON.stringify({ id: 'hd-m01', step: 4, student: STUDENT_A }));
+  assert.equal(sim(launchUrl('hd-m01'), { local }).coachState().step, 4);
+  // A reload (sessionStorage) is remapped the same way.
+  const tabLocal = store();
+  const tab = sim(launchUrl('hd-m01'), { local: tabLocal });
+  tab.run('delete hdState.coachOrder; hdSave()');
+  tab.run(`sessionStorage.setItem('mnt.coach.state', ${JSON.stringify(JSON.stringify({ id: 'hd-m01', step: 3, student: STUDENT_A }))})`);
+  tabLocal.setItem('mnt.coach.resume', JSON.stringify({ id: 'hd-m01', step: 3, student: STUDENT_A }));
+  assert.equal(tab.reload().coachState().step, 2);
+}
+
 function testRelaunchDifferentStudentStartsFresh() {
   const local = store();
   const tab = workHdM03ToPath(sim(launchUrl('hd-m03'), { local }));
@@ -439,6 +470,7 @@ const tests = [
   testPortalClosedMessageFitsEveryModule,
   testFinishOtherStudentKeepsWork,
   testOlderCoursePageResumesAfterReload,
+  testHdM01OldStepOrderResumesOnAValidStep,
   testSocM01LaunchStillStartsFresh,
   testSocM01ReloadKeepsFilterAndStep,
   testSocM01FinishUnchanged,

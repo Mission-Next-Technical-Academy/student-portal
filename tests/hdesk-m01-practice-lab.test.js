@@ -1,6 +1,6 @@
 // Help Desk Module 1, Lab 1.2: the practice tickets (HD-2151, HD-2152,
-// SEC-2153) as a Practice It lab, key lab-its-01-practice-tickets. Not graded,
-// no score. The simulator reports when all three are closed
+// SEC-2153, HD-2154) as a Practice It lab, key lab-its-01-practice-tickets.
+// Not graded, no score. The simulator reports when all four are closed
 // (tests/hdesk-m01-practice-tickets.test.js covers that side); the course page
 // saves one completion record. The old Lab 1.1 (LMS & Environment
 // Validation, lab-its-01-lms-validation) is retired: off the lab lists, its
@@ -10,7 +10,8 @@
 //     (no minutes, no allocation), the visible numbers.
 //   - The Module 1 page: section, launch link, status line, rail, hero.
 //   - The completion message: saved once, only for the right student, the
-//     right origin and all three tickets; every message answered.
+//     right origin and all four tickets; every message answered. A record
+//     saved when the set had three tickets still shows complete.
 //   - The instructor sheets: the new completion sheet, the old evidence sheet.
 //
 // The portal runs in tests/portal-vm.js. Synthetic data only.
@@ -37,7 +38,8 @@ const PRACTICE = 'lab-its-01-practice-tickets';
 const GUIDED = 'lab-its-01-ticket-triage';
 const RETIRED = 'lab-its-01-lms-validation';
 const PROVE = 'lab-its-01-prove-it';
-const TICKETS = ['HD-2151', 'HD-2152', 'SEC-2153'];
+const TICKETS = ['HD-2151', 'HD-2152', 'SEC-2153', 'HD-2154'];
+const OLD_TICKETS = ['HD-2151', 'HD-2152', 'SEC-2153'];
 
 function hdUser(attempts = {}) {
   return {
@@ -132,9 +134,13 @@ function testPageBeforeCompletion() {
   assert.match(html, /<h2 id="its01-practice-tickets-title">Lab 1\.2 · Practice tickets \(not graded\)<\/h2>/);
   assert.match(html, /<h2 id="its01-lab-1-2-title">Lab 1\.1 · Guided Lab: A Day in the Life of an L1 Technician<\/h2>/);
   assert.match(html, /data-its01-practice-launch[^>]*target="_blank" rel="opener"/, 'opened with an opener, so the simulator can report back');
-  assert.equal(statusLine(html, PRACTICE), 'Finish all three tickets: resolve or escalate each one.');
-  assert.match(html, /Finish all three tickets: resolve or escalate each one\. The simulator then tells this page/);
-  assert.doesNotMatch(html.replace(/<[^>]+>/g, ' '), /closed all three|Close all three/i, 'ServiceNow\'s Closed state is taught in Module 2');
+  assert.equal(statusLine(html, PRACTICE), 'Finish all four tickets: resolve, escalate or route each one.');
+  assert.match(html, /Practice: not graded\. Your answers aren’t sent\. Finish all four tickets: resolve, escalate or route each one\. The simulator then tells this page/);
+  assert.match(html, /Hana Okafor needs her team printer added to her laptop/);
+  assert.doesNotMatch(html.replace(/<[^>]+>/g, ' '), /closed all (three|four)|Close all (three|four)/i, 'ServiceNow\'s Closed state is taught in Module 2');
+  // "not graded" once in each lab's intro, not in its kicker as well.
+  assert.match(html, /<p class="its01-kicker">Practice It · coached<\/p>/);
+  assert.match(html, /<p class="its01-kicker">Practice It · on your own<\/p>/);
   assert.match(html, /Start Lab 1\.1 walkthrough/);
   assert.equal((/id="its01-status">([^<]*)</.exec(html) || [])[1], '3 labs · 0 practice complete · 0 passed');
   assert.equal(railRow(html, 'its01-lab-1-2').text, 'Lab 1.1 · Guided Lab');
@@ -151,10 +157,12 @@ function testPageAfterCompletion() {
   const without = hdUser();
   fresh(without);
   const before = percent(moduleOne().view(without, HD));
-  const user = hdUser({ [PRACTICE]: { completedAt: new Date().toISOString(), reviewedAt: null, redoRequested: false, supersededAt: null } });
+  // Saved when the set had three tickets: still complete (the page counts any
+  // saved attempt; it never reads the ticket list back).
+  const user = hdUser({ [PRACTICE]: { completedAt: new Date().toISOString(), reviewedAt: null, redoRequested: false, supersededAt: null, result: { source: 'mnt-practice-complete', practiceSet: 'its-01', tickets: OLD_TICKETS } } });
   fresh(user);
   const html = moduleOne().view(user, HD);
-  assert.equal(statusLine(html, PRACTICE), `Lab 1.2: Practice complete (not graded) · ${DAY}`);
+  assert.equal(statusLine(html, PRACTICE), `Lab 1.2: Complete · ${DAY}`);
   assert.equal(railRow(html, 'its01-practice-tickets').ticked, true);
   assert.ok(percent(html) > before, `the rail percent counts Lab 1.2 (${before}% → ${percent(html)}%)`);
   assert.equal((/id="its01-status">([^<]*)</.exec(html) || [])[1], '3 labs · 1 practice complete · 0 passed');
@@ -175,7 +183,7 @@ async function testCompletionSavedOnce() {
   assert.deepEqual(row.result, { source: 'mnt-practice-complete', practiceSet: 'its-01', tickets: TICKETS }, 'completion and ticket ids only: no answers');
   assert.ok(row.completed_at, 'the time is saved');
   assert.deepEqual(replies, [{ data: { type: 'mnt-practice-received', id: 'its-01', nonce: 'p-1', saved: true }, origin: SIM }]);
-  assert.equal(statusLine(moduleOne().view(user, HD), PRACTICE), `Lab 1.2: Practice complete (not graded) · ${DAY}`);
+  assert.equal(statusLine(moduleOne().view(user, HD), PRACTICE), `Lab 1.2: Complete · ${DAY}`);
   // Again (a second tab, a retry): answered as saved, nothing inserted.
   await moduleOne().onMessage(completion(source, { nonce: 'p-2' }));
   assert.equal(inserts().length, 1);
@@ -188,7 +196,8 @@ async function testCompletionRefused() {
     ['another student', () => {}, { student: 'student-someoneelse' }, 'other-student'],
     ['no student', () => {}, { student: '' }, 'no-student'],
     ['two tickets', () => {}, { tickets: ['HD-2151', 'HD-2152'] }, 'incomplete'],
-    ['a wrong ticket', () => {}, { tickets: ['HD-2151', 'HD-2152', 'HD-2150'] }, 'incomplete'],
+    ['a wrong ticket', () => {}, { tickets: ['HD-2151', 'HD-2152', 'SEC-2153', 'HD-2150'] }, 'incomplete'],
+    ['the old three tickets', () => {}, { tickets: OLD_TICKETS }, 'incomplete'],
     ['not a list', () => {}, { tickets: 'HD-2151,HD-2152,SEC-2153' }, 'incomplete'],
   ];
   for (const [name, setup, fields, reason] of cases) {
@@ -227,7 +236,7 @@ async function testCompletionNeverSavedTwiceAcrossTabs() {
   assert.equal(inserts().length, 0);
   assert.equal(ctx.supabaseCalls.filter(isRead)[0].filters.user_id, 'user-m01p', 'reads only this student\'s rows');
   assert.deepEqual(catcher.replies.map((r) => [r.data.saved, r.data.reason]), [[true, undefined]]);
-  assert.match(statusLine(moduleOne().view(user, HD), PRACTICE), /^Lab 1\.2: Practice complete \(not graded\)/);
+  assert.match(statusLine(moduleOne().view(user, HD), PRACTICE), /^Lab 1\.2: Complete /);
 
   // Only a superseded (set aside, e.g. by a reset) or returned record: it
   // doesn't count, so the new work gets its own record.
@@ -279,7 +288,7 @@ async function testCompletionSaveFails() {
   console.error = () => {};
   try { await moduleOne().onMessage(completion(source)); } finally { console.error = logged; }
   assert.deepEqual(replies.map((r) => [r.data.saved, r.data.reason]), [[false, 'save-failed']]);
-  assert.equal(statusLine(moduleOne().view(user, HD), PRACTICE), 'Finish all three tickets: resolve or escalate each one.', 'nothing shows as complete');
+  assert.equal(statusLine(moduleOne().view(user, HD), PRACTICE), 'Finish all four tickets: resolve, escalate or route each one.', 'nothing shows as complete');
 }
 
 /* ------------------------------------------------------ instructor sheets */
@@ -291,7 +300,7 @@ function testInstructorSheets() {
   const html = sheet.render(row);
   assert.match(html, /Lab 1\.2 · Practice tickets \(not graded\)/);
   assert.match(html, /Practice completion/);
-  assert.match(html, /HD-2151, HD-2152, SEC-2153/);
+  assert.match(html, /HD-2151, HD-2152, SEC-2153, HD-2154/);
   assert.match(html, /No: Practice It, no score and no answers saved/);
   assert.match(html, /Tickets finished/);
   assert.doesNotMatch(html, /Tickets closed|closed every/);

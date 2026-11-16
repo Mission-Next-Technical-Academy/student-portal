@@ -93,7 +93,7 @@ function sim({ url = 'https://academy.test/sim/#/helpdesk/tickets', withTest = t
   return tab;
 }
 
-const NEW_MARKERS = /hd-chat|hd-kb-search|hd-verify|hd-account|hd-comments|hd-resolution-code|hd-priority-preset|Caller chat|Additional comments|Resolution code/;
+const NEW_MARKERS = /hd-chat|hd-kb-search|hd-verify|hd-account|hd-comments|hd-resolution-code|hd-priority-preset|hd-note-needs|hd-computer|Your note needs|Caller chat|Additional comments|Resolution code/;
 
 function testExistingTicketsTurnNothingOn() {
   const tab = sim({ withTest: false });
@@ -101,17 +101,29 @@ function testExistingTicketsTurnNothingOn() {
   assert.ok(ids.includes('HD-2101') && ids.length >= 20);
   // Module 1's tickets turn them on: HD-2150 (Guided Lab 1,
   // tests/hdesk-m01-guided-lab.test.js) and the practice tickets
-  // (tests/hdesk-m01-practice-tickets.test.js).
-  const MODULE_1 = ['HD-2150', 'HD-2151', 'HD-2152', 'SEC-2153'];
+  // (tests/hdesk-m01-practice-tickets.test.js, tests/hdesk-m01-ticket-1d.test.js).
+  const MODULE_1 = ['HD-2150', 'HD-2151', 'HD-2152', 'SEC-2153', 'HD-2154'];
   for (const id of ids.filter((item) => !MODULE_1.includes(item))) {
     assert.equal(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === ${JSON.stringify(id)}).console`), undefined, `${id} has no console settings`);
     const html = tab.open(id);
     assert.doesNotMatch(html, NEW_MARKERS, `${id} shows no new feature`);
+    // The Work notes card keeps its old subtitle, and the evidence card stays.
+    assert.match(html, /<strong>Work notes<\/strong><span class="muted">Facts, commands, results, interpretation, next action\.<\/span>/, `${id} keeps its Work notes subtitle`);
+    assert.match(html, /Available logs and evidence/, `${id} keeps its evidence card`);
     assert.match(html, /<label>Priority<select class="select" onchange="hdSetTicketPriority/, `${id} keeps its priority dropdown`);
     assert.equal(tab.run(`hdConsoleProgress(${JSON.stringify(id)})`), null);
     assert.equal(tab.ticket(id).consoleState, undefined, 'no console state is added to an existing ticket');
     assert.equal(tab.ticket(id).customerComments, undefined);
   }
+  // Every other module keeps Assigned and every state: Assign to me sets
+  // Assigned, and the Next state list offers the full set of next states.
+  tab.run("hdAssignTicket('HD-2104')");
+  assert.equal(tab.ticket('HD-2104').status, 'Assigned');
+  assert.match(tab.open('HD-2104'), /<label>Next state<select[^>]*><option value="">Choose…<\/option><option>In Progress<\/option><option>Escalated<\/option><\/select>/);
+  tab.run("hdTransitionTicket('HD-2104', 'In Progress')");
+  assert.equal(tab.ticket('HD-2104').status, 'In Progress');
+  assert.match(tab.open('HD-2104'), /<option>Pending User<\/option><option>Pending Vendor<\/option><option>Escalated<\/option><option>Resolved<\/option>/);
+  assert.match(tab.open('HD-2104'), />Resolve \/ escalate<\/button>/);
   // Behaviour too: a priority change and a resolve work as before.
   tab.run("hdSetTicketPriority('HD-2105', 'P1')");
   assert.equal(tab.ticket('HD-2105').priority, 'P1');

@@ -129,6 +129,8 @@
     hdState.queueFilter = 'Open';
     hdState.priorityFilter = 'All';
     hdState.selectedTicketId = null;
+    // A fresh lab runs the current step order (hd1RemapOldStepOrder).
+    hdState.coachOrder = 2;
     if (typeof hdSave === 'function') hdSave();
     // The page was drawn from the old tickets before the coach booted.
     if (typeof render === 'function') render();
@@ -154,12 +156,36 @@
   const hd1Outcome = (key) => () => { const p = hd1Progress(); return Boolean(p && p.outcomes && p.outcomes[key]); };
   const hd1Asked = (...ids) => () => { const p = hd1Progress(); return Boolean(p) && ids.every((id) => p.chatAsked.includes(id)); };
 
+  // The step order changed on 2026-11-15: Verify caller moved from step 4 to
+  // step 2, before the chat questions (old 2) and the KB (old 3). A run saved
+  // under the old order at step 3 or 4 hasn't verified yet, so it resumes at
+  // step 2 (verify); steps 0, 1 and 5 to 9 mean the same in both orders, and
+  // a run at old step 2 lands on verify anyway. Done once per shift: the
+  // shift then carries coachOrder, as does every fresh lab (hd1Reset), so a
+  // run saved under the new order is never moved back. Only the coached
+  // lab's shift: a practice set or a Prove It has its own.
+  const HD1_COACH_ORDER = 2;
+  (function hd1RemapOldStepOrder() {
+    if ((typeof HD_PRACTICE_SET !== 'undefined' && HD_PRACTICE_SET) || (typeof HD_PROVE !== 'undefined' && HD_PROVE)) return;
+    if (typeof hdState === 'undefined' || !hdState || hdState.coachOrder === HD1_COACH_ORDER) return;
+    const remap = (storage, key) => {
+      try {
+        const saved = JSON.parse(storage.getItem(key) || 'null');
+        if (saved && saved.id === 'hd-m01' && (saved.step === 3 || saved.step === 4)) storage.setItem(key, JSON.stringify({ ...saved, step: 2 }));
+      } catch { /* storage blocked or unreadable: the coach starts as it would */ }
+    };
+    try { remap(localStorage, 'mnt.coach.resume'); } catch { /* storage blocked */ }
+    try { remap(sessionStorage, 'mnt.coach.state'); } catch { /* storage blocked */ }
+    hdState.coachOrder = HD1_COACH_ORDER;
+    if (typeof hdSave === 'function') hdSave();
+  }());
+
   MODULE_COACHES.push({
     id: 'hd-m01',
     module: 1,
     name: 'Your First Help Desk Ticket',
     role: 'Tier 1 Help Desk Technician',
-    summary: 'Work Sam Rivera’s account lockout end to end: take the ticket, find out what changed, follow KB-0024, verify Sam, unlock the account, confirm Sam can sign in, tell Sam what to do if it happens again and document it.',
+    summary: 'Work Sam Rivera’s account lockout end to end: take the ticket, verify Sam, find out what changed, follow KB-0024, unlock the account, confirm Sam can sign in, tell Sam what to do if it happens again, document it and resolve it.',
     completionToken: 'hd-m01',
     home: '#/helpdesk/tickets',
     resetState: hd1Reset,
@@ -169,25 +195,34 @@
         route: '#/helpdesk/tickets',
         target: 'tr[onclick*="HD-2150"]',
         title: 'Take the ticket',
-        instruction: 'Open <strong>INC0010150</strong>, click <strong>Assign to me</strong>, then set <strong>Next state</strong> to <strong>In Progress</strong>.',
-        body: 'Why: an unowned ticket stalls. Nobody is working it while its SLA clock runs. Assigning it to yourself and setting it In Progress tells Sam and your team someone has it.',
-        waitLabel: 'Next Step: Ticket assigned and In Progress',
-        check: () => { const t = hd1Ticket(); return Boolean(t) && t.assignedTechnician === 'Riley Morgan' && !['New', 'Assigned'].includes(t.status); },
+        instruction: 'Open <strong>INC0010150</strong> and click <strong>Assign to me</strong>. The ticket moves to <strong>In Progress</strong> and <strong>Assigned technician</strong> shows Riley Morgan.',
+        body: 'Why: an unowned ticket stalls. Nobody is working it while its SLA clock runs. Success looks like: your name shows in Assigned technician, and the SLA badge is green.',
+        waitLabel: 'Next Step: Ticket assigned to you',
+        check: () => { const t = hd1Ticket(); return Boolean(t) && t.assignedTechnician === 'Riley Morgan' && t.status !== 'New'; },
       },
       {
         route: '#/helpdesk/ticket',
         target: '.hd-field-grid',
         title: 'Read the ticket',
         instruction: 'Read what Sam reported and jot down Sam’s own words (on paper or in a text file; it isn’t graded). Then read the pre-set <strong>Priority: P3</strong> and its reason.',
-        body: 'Why: identify the problem before you form a theory. You should be able to say: “Locked out after wrong password tries; on the phones at 9.” Priority is pre-set in Module 1; you’ll set it yourself from impact and urgency in Module 2.',
+        body: 'Why: identify the problem before you form a theory. Success looks like: you can say “Locked out after wrong password tries; on the phones at 9.” Priority is pre-set in Module 1; you’ll set it yourself from impact and urgency in Module 2.',
         continueLabel: 'I’ve read it',
+      },
+      {
+        route: '#/helpdesk/ticket',
+        target: '.hd-verify',
+        title: 'Verify the caller',
+        instruction: 'In the <strong>Verify caller</strong> card, right under Sam’s statement, choose <strong>Call Sam back on the number in the User Directory and confirm their employee ID</strong>. The result stays at the top of the ticket.',
+        body: 'Why: KB-0024 says verify before you act. Unlocking an account for the wrong person hands them the account. Success looks like: the badge turns green and the card shows you called Sam back on ext. 4391 and confirmed employee ID E-42856. Accepting a name and department, or asking for a password, is a critical error and is recorded for your instructor.',
+        waitLabel: 'Next Step: Caller verified',
+        check: hd1Outcome('verified'),
       },
       {
         route: '#/helpdesk/ticket',
         target: '.hd-chat',
         title: 'Find out what changed',
         instruction: 'In the chat, ask Sam two identify questions: <strong>when did it start</strong>, and <strong>did anything change</strong>?',
-        body: 'Why: step 1 of the method is to find out what changed. Wrong tries after a long weekend point to a simple lockout; a new password or a new device would point somewhere else.',
+        body: 'Why: step 1 of the method is to find out what changed. Success looks like: Sam says “I typed it wrong a few times after the long weekend. I didn’t change it.” Wrong tries after a long weekend point to a simple lockout; a new password or a new device would point somewhere else.',
         waitLabel: 'Next Step: Both questions asked',
         check: hd1Asked('when', 'changed'),
       },
@@ -196,25 +231,16 @@
         target: '.hd-kb-search',
         title: 'Check the knowledge base',
         instruction: 'In the Knowledge Base search box on the ticket, type <strong>locked out</strong>. Open <strong>KB-0024</strong> and read every step.',
-        body: 'Why: your theory and your fix come from approved knowledge first. KB-0024 says how to verify a caller, what Tier 1 may do, and when a ticket goes to someone else.',
+        body: 'Why: your theory and your fix come from approved knowledge first. Success looks like: KB-0024 is open, and you’ve read how Tier 1 unlocks an account and when a ticket goes to someone else.',
         waitLabel: 'Next Step: KB-0024 opened',
         check: () => { const p = hd1Progress(); return Boolean(p) && p.kbOpened.includes('KB-0024'); },
-      },
-      {
-        route: '#/helpdesk/ticket',
-        target: '.hd-verify',
-        title: 'Verify the caller',
-        instruction: 'Verify it’s really Sam, the way KB-0024 says.',
-        body: 'Why: verify before you act. Unlocking an account for the wrong person hands them the account. Accepting a name and department, or asking for a password, is a critical error and is recorded for your instructor.',
-        waitLabel: 'Next Step: Caller verified',
-        check: hd1Outcome('verified'),
       },
       {
         route: '#/helpdesk/ticket',
         target: '.hd-account',
         title: 'Unlock the account',
         instruction: 'Follow KB-0024’s unlock step: click <strong>Unlock account</strong> on Sam’s account card.',
-        body: 'Why: Tier 1 may unlock a verified user’s account. This button is the simulator’s version of the Active Directory tool you’ll use in Module 8.',
+        body: 'Why: Tier 1 may unlock a verified user’s account. Success looks like: the account card shows Unlocked. This button is the simulator’s version of the Active Directory tool you’ll use in Module 8.',
         waitLabel: 'Next Step: Account unlocked',
         check: hd1Outcome('unlocked'),
       },
@@ -223,7 +249,7 @@
         target: '.hd-chat',
         title: 'Confirm from Sam’s side',
         instruction: 'In the chat, ask Sam to sign in again slowly with Caps Lock off. Never ask for or look at the password.',
-        body: 'Why: a fix isn’t done until it works for the user. Sam types the password and tells you it worked; you never see or handle it.',
+        body: 'Why: verify the fix from the user’s side; you never handle passwords. Success looks like: Sam says “I’m in, thank you!”',
         waitLabel: 'Next Step: Sam is signed in',
         check: hd1Outcome('confirmed'),
       },
@@ -232,7 +258,7 @@
         target: '.hd-comments',
         title: 'Plan for a repeat',
         instruction: 'KB-0024 says a lockout that comes back within a day goes to the next-level team to find its source. Add a customer comment for Sam that says what to do <strong>if it happens again</strong>.',
-        body: 'Why: plan for a repeat and know when to hand it on. Sam reads this comment, so use plain words: “our next-level team”, not “Tier 2”, and no internal terms.',
+        body: 'Why: plan for a repeat and know when to escalate. Success looks like: the checker finds your “if it happens again” line. Sam reads this comment, so use plain words: “our next-level team”, not “Tier 2”, and no internal terms.',
         waitLabel: 'Next Step: Comment says what to do if it happens again',
         check: hd1Outcome('comment'),
       },
@@ -240,8 +266,8 @@
         route: '#/helpdesk/ticket',
         target: '#hd-note-input, #hd-resolution-code',
         title: 'Document and resolve',
-        instruction: 'Add a work note in three parts: <strong>Reported:</strong> what Sam reported, <strong>Tried:</strong> what you checked and did, <strong>Result:</strong> the outcome and how you confirmed it. Set <strong>Resolution code</strong> to <strong>Solution provided</strong>, then resolve the ticket.',
-        body: 'Why: document so the next technician never starts from zero. Your note becomes the ticket’s resolution. If anything is still missing, Resolve tells you what.',
+        instruction: 'Add a work note in three parts: <strong>Reported</strong>: what Sam reported, <strong>Tried</strong>: what you checked and did, <strong>Result</strong>: the outcome and how you confirmed it. Set <strong>Resolution code</strong> to <strong>Solution provided</strong>, then click <strong>Resolve</strong>, the ticket’s only close control.',
+        body: 'Why: document so the next technician never starts from zero. Success looks like: “Your note needs” ticks Reported, Tried and Result, your comment has no internal words, and the ticket shows Resolved. If anything is still missing, Resolve tells you what.',
         waitLabel: 'Next Step: Ticket resolved',
         check: () => { const t = hd1Ticket(); return Boolean(t) && t.status === 'Resolved'; },
       },

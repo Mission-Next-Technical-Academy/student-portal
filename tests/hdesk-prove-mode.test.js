@@ -429,12 +429,49 @@ function testSettingsAddDeviceAddsThePrinter() {
   assert.match(locked.view('helpdesk/settings-printers'), /<button type="button" class="btn btn-secondary btn-sm" disabled/);
   locked.run(`hdSettingsAddPrinter('NS-LT-0122', ${JSON.stringify(FIN_PRINTER)})`);
   assert.deepEqual([...locked.hd().machines['NS-LT-0122'].printers], ['Microsoft Print to PDF']);
-  // Practice: no Settings button on any laptop.
+  // Practice: the Settings button only on the laptop a Practice ticket turns
+  // it on for (HD-2154's NS-LT-0188, tests/hdesk-m01-ticket-1d.test.js), and
+  // a Prove It never offers it there.
   const practice = sim(`${SIM_URL}#/helpdesk/windows`);
   practice.run('hdComputers()').forEach((c) => {
     practice.run(`hdState.selectedComputer = ${JSON.stringify(c.name)}`);
-    assert.doesNotMatch(practice.view('helpdesk/windows'), /settings-printers/, c.name);
+    if (c.name === 'NS-LT-0188') assert.match(practice.view('helpdesk/windows'), /settings-printers/, c.name);
+    else assert.doesNotMatch(practice.view('helpdesk/windows'), /settings-printers/, c.name);
   });
+  tab.run("hdState.selectedComputer = 'NS-LT-0188'");
+  assert.doesNotMatch(tab.view('helpdesk/windows'), /settings-printers/, 'NS-LT-0188 has no Settings in Prove It');
+  assert.deepEqual([...tab.run("hdSettingsPrinterPaths('NS-LT-0188')")], []);
+  // Lab 1.2's printer article (KB-0059, practiceOnly) is never in a Prove It
+  // search: it would hand over the fix. Practice still finds it.
+  for (const query of ['printer', 'add printer', 'admin rights', 'printer missing', 'KB-0059']) {
+    const ids = [...tab.run(`hdKbSearchArticles(${JSON.stringify(query)}, hdKbArticles()).map((a) => a.id)`)];
+    assert.ok(!ids.includes('KB-0059'), `Prove It "${query}": ${ids}`);
+  }
+  assert.equal(tab.run("hdKbSearchArticles('add printer', hdKbArticles())[0].id"), 'KB-0058');
+  assert.equal(practice.run("hdKbSearchArticles('add printer', hdKbArticles())[0].id"), 'KB-0059');
+}
+
+// Prove It keeps the colon-only note rule until the server's note check
+// (prove_note_missing) changes: the browser's Practice note check, which now
+// accepts "Reported - …", never runs in a Prove It. A Prove note gets no part
+// feedback, and the note is saved and sent exactly as typed.
+function testProveNeverRunsThePracticeNoteCheck() {
+  const DASH_NOTE = 'Reported - wants admin rights to add the Finance printer. Tried - added NS-FIN-PRN01 from Settings. Result - user printed a test page.';
+  const tab = sim(proveUrl('student-notedash01', '#/helpdesk/ticket'));
+  tab.run('globalThis.noteChecks = 0; const realCheck = hdNoteMissingParts; hdNoteMissingParts = function () { globalThis.noteChecks += 1; return realCheck.apply(this, arguments); }');
+  tab.input('hd-note-input', DASH_NOTE);
+  assert.equal(tab.run(`hdAddNote('${PROVE_ID}')`), true);
+  tab.view('helpdesk/ticket');
+  const pkg = tab.run('hdProvePackage()');
+  assert.equal(tab.run('globalThis.noteChecks'), 0, 'no Prove It path calls the Practice note check');
+  assert.ok(!tab.toasts.some((text) => /Still missing|are all there/.test(text)), 'no note-part feedback in Prove It');
+  assert.ok(JSON.stringify(pkg).includes(DASH_NOTE), 'the note is sent as typed, for the server to check');
+  // The counter sees calls from inside the simulator (so 0 above means none).
+  tab.run(`hdConsoleNoteFeedback(hdState.tickets[0], 'x')`);
+  assert.equal(tab.run('globalThis.noteChecks'), 1, 'the counter works');
+  // The same note passes the new rule in Practice.
+  const practice = sim(`${SIM_URL}#/helpdesk/tickets`);
+  assert.deepEqual([...practice.run(`hdNoteMissingParts(${JSON.stringify(DASH_NOTE)})`)], []);
 }
 
 // The knowledge base search is the only console feature in a Prove It: the
@@ -491,7 +528,7 @@ function testV1DraftStartsFromTheCurrentTicket() {
 }
 
 const tests = [
-  testPresetFieldsAreReadOnly, testSettingsAddDeviceAddsThePrinter, testOnlyTheKbSearchInProve, testV1DraftStartsFromTheCurrentTicket,
+  testPresetFieldsAreReadOnly, testSettingsAddDeviceAddsThePrinter, testProveNeverRunsThePracticeNoteCheck, testOnlyTheKbSearchInProve, testV1DraftStartsFromTheCurrentTicket,
   testSelectedChoiceIsNeutral,
   testLaunchWithoutStudentOpensNothing,
   testPracticeNeverGetsProveMaterial, testProveLaunchOpensOnlyItsTicketWithNoCoach, testProveTicketViewRevealsNothing,

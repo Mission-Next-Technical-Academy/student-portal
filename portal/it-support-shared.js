@@ -1423,7 +1423,7 @@ function itsLabSubmitting(user, labKey) {
 function itsLabStatusHtml(user, labKey, { label, prefix, pendingText, ready = false }) {
   const status = itsLabStatus(user, labKey);
   const officialScore = (itsLabAttempt(user, labKey) || {}).officialScore;
-  const line = status === 'practice' ? { pass: true, icon: 'ri-checkbox-circle-fill', text: `${label}: Practice complete (not graded) · ${itsSubmittedDay(user, labKey)}` }
+  const line = status === 'practice' ? { pass: true, icon: 'ri-checkbox-circle-fill', text: `${label}: Complete · ${itsSubmittedDay(user, labKey)}` }
     : status === 'passed' ? { pass: true, icon: 'ri-checkbox-circle-fill', text: `${label} passed${typeof officialScore === 'number' ? ` · ${officialScore}%` : ''}` }
     : status === 'waiting' ? { icon: 'ri-send-plane-line', text: `${label} submitted ${itsSubmittedDay(user, labKey)}, waiting for instructor review` }
     : status === 'returned' && itsLabCritical(user, labKey) ? { icon: 'ri-error-warning-line', text: `${label}: ${ITS_CRITICAL_RESULT} — returned for revision, see your instructor’s notes below.` }

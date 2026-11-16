@@ -41,6 +41,7 @@ const HD_USERS = [
   { id:'u-1014', employeeId:'E-43190', phone:'ext. 4463', name:'Leah Brooks', username:'lbrooks', email:'leah.brooks@northstar.example', department:'Marketing', title:'Marketing Coordinator', ou:'OU=Marketing,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:96, groups:['GG-Marketing-Users'], manager:'Owen Price', mfa:'Registered' },
   { id:'u-1015', employeeId:'E-44027', phone:'ext. 4315', name:'Ravi Shah', username:'rshah', email:'ravi.shah@northstar.example', department:'Sales', title:'Account Manager', ou:'OU=Sales,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:40, groups:['GG-Sales-Users','GG-CRM-Users'], manager:'Tara Singh', mfa:'Registered' },
   { id:'u-1016', employeeId:'E-45308', phone:'ext. 4501 · mobile 407-555-0142', name:'Martin Alvarez', username:'ralvarez', email:'martin.alvarez@northstar.example', department:'Executive Office', title:'Chief Financial Officer', ou:'OU=Executive Office,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:52, groups:['GG-Executive-Users','GG-Finance-Users'], manager:'Evelyn Reed', mfa:'Registered' },
+  { id:'u-1017', employeeId:'E-46415', phone:'ext. 4687', name:'Hana Okafor', username:'hokafor', email:'hana.okafor@northstar.example', department:'Customer Service', title:'Customer Service Representative', ou:'OU=Customer Service,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:33, groups:['GG-CustomerService-Users'], manager:'Nadia Flores', mfa:'Registered' },
 ];
 
 const HD_GROUPS = [
@@ -64,6 +65,7 @@ const HD_COMPUTERS = [
   { name:'NS-LT-0145', user:'Amir Patel', os:'Windows 11 Enterprise 24H2', ip:'10.20.10.145', ou:'CN=Computers', trust:'Healthy', bitlocker:'Protected', lastSeen:'9 minutes ago', health:'Policy scope warning' },
   { name:'NS-WS-0204', user:'Dina Foster', os:'Windows 11 Enterprise 24H2', ip:'10.20.50.204', ou:'OU=Executive Office,OU=Workstations', trust:'Healthy', bitlocker:'Recovery', lastSeen:'18 minutes ago', health:'BitLocker recovery' },
   { name:'NS-LT-0215', user:'Ravi Shah', os:'Windows 11 Enterprise 24H2', ip:'10.20.40.215', ou:'OU=Sales,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'12 minutes ago', health:'Healthy' },
+  { name:'NS-LT-0188', user:'Hana Okafor', os:'Windows 11 Enterprise 24H2', ip:'10.20.60.188', ou:'OU=Customer Service,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'3 minutes ago', health:'Healthy' },
 ];
 
 const HD_SERVERS = [
@@ -97,6 +99,7 @@ const HD_PRINTERS = [
   { name:'NS-PAY-SECURE', server:'NS-PRINT01', location:'Payroll secure room', driver:'SecurePrint v7.1', queue:2, status:'Paused', group:'GG-Payroll-Print' },
   { name:'NS-WH-LABEL01', server:'NS-PRINT01', location:'Warehouse dock A', driver:'LabelPro 3.8', queue:17, status:'Error', group:'GG-Warehouse-Print' },
   { name:'NS-HR-MFP01', server:'NS-PRINT01', location:'HR · 2nd floor', driver:'Universal PCL 6 v4.2', queue:1, status:'Ready', group:'GG-HR-Users' },
+  { name:'NS-CS-PRN02', server:'NS-PRINT01', location:'Customer Service · 1st floor', driver:'Universal PCL 6 v4.2', queue:0, status:'Ready', group:'GG-CustomerService-Users' },
 ];
 
 const HD_GPOS = [
@@ -120,7 +123,8 @@ const HD_KB_ARTICLES = [
   { id:'KB-0031', title:'Mapped drive missing after device replacement', category:'Group Policy', updated:'2026-07-22', audience:'Tier 2', summary:'Check user groups, computer OU, policy scope, gpresult evidence, and token refresh.' },
   { id:'KB-0044', title:'Print queue triage without deleting evidence', category:'Printing', updated:'2026-08-06', audience:'Tier 1 / Tier 2', summary:'Isolate client, queue, driver, port, and device while preserving confidential jobs.' },
   { id:'KB-0050', title:'Security incident warm-handoff template', category:'Security', updated:'2026-08-12', audience:'All Support', summary:'Record facts, timestamps, indicators, user actions, containment, evidence locations, impact, and requested next action.' },
-  { id:'KB-0071', title:'Damaged laptop: loaner and escalation', category:'Hardware', updated:'2026-11-09', audience:'Service Desk', summary:'Tier 1 does not repair hardware. 1. Collect the asset tag and what happened, such as a dropped laptop or a cracked screen (when, how, and whether the laptop still starts). 2. If any glass is loose or sharp, tell the user to stop using the laptop now. 3. Ask whether their files are saved somewhere other than the laptop. 4. Offer a loaner so the user can keep working. 5. Escalate to Desktop Support (Tier 2) for repair or replacement, with everything you collected. Never promise a repair date: Desktop Support sets it.' },
+  { id:'KB-0071', title:'Damaged laptop: loaner and escalation', category:'Hardware', updated:'2026-11-15', audience:'Service Desk', summary:'Tier 1 does not repair hardware. 1. Collect the asset tag and what happened, such as a dropped laptop or a cracked screen (when, how, and whether the laptop still starts). 2. If any glass is loose or sharp, tell the user to stop using the laptop now. 3. Ask whether their files are saved somewhere other than the laptop. 4. Verify the user before handing over a loaner (KB-0024): call them back on the number in the User Directory and confirm their employee ID. 5. Offer a loaner so the user can keep working. 6. Escalate to Desktop Support (Tier 2) for repair or replacement, with everything you collected. Never promise a repair date: Desktop Support sets it.' },
+  { id:'KB-0059', title:'Add a department printer to a user\'s laptop', category:'Hardware', updated:'2026-11-15', audience:'Service Desk', practiceOnly:true, keywords:'add printer · printer missing · printer not in list · team printer', summary:'Department printers are added on the user\'s laptop from Settings. No admin rights are needed. 1. Ask which printer the user needs and what they see when they try to print. 2. On the user\'s laptop, open Settings › Printers & scanners and select Add device. 3. Choose the printer by its name. The Customer Service printer is NS-CS-PRN02. 4. Ask the user to print a test page and confirm it printed. 5. If the printer isn\'t in the list, stop there and escalate to Desktop Support (Tier 2) with the laptop\'s asset tag and the printer\'s name. Never ask for the user\'s password or sign in as the user.' },
 ];
 
 /* Practice scenario for HD-2101 (Module 1 Practice It). The evidence lives on
@@ -129,6 +133,9 @@ const HD_KB_ARTICLES = [
  * (read and changed through ui/helpdesk.js). Practice only: a Prove shift
  * never gets this state. Times are shift-clock times. */
 const HD_PRACTICE_MACHINES = {
+  // Hana Okafor's laptop (HD-2154): the Customer Service printer isn't added
+  // yet; Settings › Printers & scanners › Add device adds it.
+  'NS-LT-0188': { printers:['Microsoft Print to PDF'], pendingPolicyPrinters:[], localAdministrators:['NORTHSTAR\\Domain Admins','NS-LT-0188\\MNT-Support'], spooler:'Running' },
   'NS-LT-0117': {
     scheduledTasks: [
       { name:'FinanceReportSync', path:'\\Northstar\\Finance\\', runAs:'NORTHSTAR\\jbell', logonType:'Password (stored)', credentialChangedDaysAgo:90, credentialCurrent:false, trigger:'Daily at 07:00, repeats every 2 minutes', description:'Copies the morning finance report to \\\\NS-FILE01\\Finance\\Exports.', lastRun:'08:11:18', lastResult:'0x8007052E', state:'Ready' },
@@ -167,7 +174,7 @@ function hdTicket(spec) {
 // from its course page with ?practice=<key>&student=<id> (ui/helpdesk.js).
 // Only these tickets, no coach, saved apart from the coached lab's shift.
 const HD_PRACTICE_SETS = {
-  'its-01': { title:'Module 1 practice tickets', tickets:['HD-2151', 'HD-2152', 'SEC-2153'] },
+  'its-01': { title:'Module 1 practice tickets', tickets:['HD-2151', 'HD-2152', 'SEC-2153', 'HD-2154'] },
 };
 
 const HD_TICKET_TEMPLATES = [
@@ -200,6 +207,7 @@ const HD_TICKET_TEMPLATES = [
       priorityReason:'P3: one person is affected, and a verified unlock is a quick, standard fix.',
       notes: { parts:['reported', 'tried', 'result'], jargon:['badPwdCount', 'lockout threshold', 'KB-0024', 'Active Directory', 'AD', 'domain controller', 'event 4740', 'Tier 2', 'srivera'] },
       resolveByOutcomes: true,
+      simpleStates: true,
     } }),
   // Module 1 Practice It, unguided tickets 1-A to 1-C (not graded): opened
   // from the Module 1 page as a practice set (HD_PRACTICE_SETS, ?practice=).
@@ -238,6 +246,7 @@ const HD_TICKET_TEMPLATES = [
       comments: true,
       priorityReason:'P4: one person, no deadline today.',
       notes: { parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0024', 'Active Directory', 'AD', 'lbrooks', 'Tier 2'] },
+      simpleStates: true,
       feedback: [
         { area:'Right owner', checks:[{ owner:true }], good:'A known fix the Service Desk keeps.', fix:'A forgotten password is a known fix the Service Desk keeps: resolve it at Tier 1.' },
         { area:'Investigation', checks:[{ kb:'KB-0024' }], good:'You found KB-0024 by searching symptom words.', fix:'Search the KB by symptom words (for example "forgot password") and open KB-0024.' },
@@ -249,9 +258,9 @@ const HD_TICKET_TEMPLATES = [
   hdTicket({ id:'HD-2152', requester:'Ravi Shah', department:'Sales', category:'Hardware', subcategory:'Laptop – damage', priority:'P3', contactType:'Email', ci:'NS-LT-0215', businessImpact:'Client demo on Thursday', sla:'2 business days', createdMinutesAgo:31,
     description:'Subject: dropped my laptop. I knocked my laptop off the desk and the screen is cracked across one corner. I can still see most of it. I have a client demo on Thursday. Can you fix it?',
     symptoms:['Screen cracked across one corner','Most of the screen still visible'], logs:[], systemState:['Laptop NS-LT-0215 assigned to Ravi Shah'],
-    plausibleCauses:['Display driver fault','Physical damage: a Tier 2 repair','Screen brightness setting'], correctPath:['Identify: the four questions, safety first','Search the KB by symptom words','Offer a loaner','Escalate to Desktop Support with a full handoff','Tell Ravi what happens next','Document'],
+    plausibleCauses:['Display driver fault','Physical damage: a Tier 2 repair','Screen brightness setting'], correctPath:['Identify: the four questions, safety first','Search the KB by symptom words','Verify Ravi before the loaner (KB-0071, KB-0024)','Offer a loaner','Escalate to Desktop Support with a full handoff','Tell Ravi what happens next','Document'],
     hiddenRootCause:'The laptop was dropped and the screen is physically damaged; Tier 1 doesn\'t repair hardware.',
-    expectedResolution:'Per KB-0071: collect the asset tag and what happened, check for loose glass, offer a loaner for the demo, and escalate to Desktop Support for repair or replacement with a full handoff. Don\'t promise a repair date.',
+    expectedResolution:'Per KB-0071: collect the asset tag and what happened, check for loose glass, verify Ravi (callback on his directory number and his employee ID, KB-0024), offer a loaner for the demo, and escalate to Desktop Support for repair or replacement with a full handoff. Don\'t promise a repair date.',
     escalationCriteria:['Physical damage: escalate to Desktop Support (Tier 2) per KB-0071'],
     console: {
       kb: true,
@@ -261,10 +270,14 @@ const HD_TICKET_TEMPLATES = [
         { id:'glass', text:'Is any glass loose or sharp?', reply:'No. It\'s cracked across one corner, but nothing is loose.' },
         { id:'files', text:'Are your files saved somewhere other than the laptop?', reply:'Yes, everything is in OneDrive.' },
       ] },
+      verification: { prompt:'Before you hand Ravi a loaner, KB-0071 says to verify him (KB-0024). How do you verify it\'s really Ravi?', options: [
+        { id:'name', text:'Accept it: the email came from Ravi, and he gives his name and department', feedback:'Not verification. Anyone can learn a name and a department, and an email can come from someone else. KB-0024: call Ravi back on his directory number and confirm his employee ID.' },
+        { id:'callback', text:'Call Ravi back on the number in the User Directory and confirm his employee ID', pass:true, feedback:'Verified. You called Ravi back on ext. 4315 from the User Directory, and Ravi confirmed employee ID E-44027.', history:'Identity verified per KB-0024: called Ravi back on the User Directory number (ext. 4315); employee ID E-44027 confirmed.' },
+      ] },
       actions: [
         { id:'diy', text:'Tell Ravi how to take the screen off and replace it himself', critical:true, feedback:'Critical error. Tier 1 doesn\'t repair hardware, and a user should never open a damaged laptop (KB-0071).' },
         { id:'promise', text:'Promise Ravi the screen will be fixed by Wednesday', critical:true, feedback:'Critical error. Never promise a repair date Tier 1 can\'t control: Desktop Support sets it (KB-0071).' },
-        { id:'loaner', text:'Offer Ravi a loaner laptop he can collect today', pass:true, feedback:'Ravi will collect a loaner at 14:00, so he\'s ready for Thursday\'s demo.', history:'Loaner offered per KB-0071; user collecting 14:00.' },
+        { id:'loaner', text:'Offer Ravi a loaner laptop he can collect today', pass:true, needsVerification:true, earlyCritical:false, earlyFeedback:'Not yet. KB-0071 says to verify the user before handing over a loaner (KB-0024): call Ravi back on his directory number and confirm his employee ID first.', feedback:'Ravi will collect a loaner at 14:00, so he\'s ready for Thursday\'s demo.', history:'Loaner offered per KB-0071; user collecting 14:00.' },
       ],
       owner: { options: [
         { id:'servicedesk', text:'Service Desk keeps it: resolve at Tier 1', status:'Resolved', group:'Riley Morgan', code:'Solution provided', feedback:'Not the right owner: Tier 1 doesn\'t repair hardware. Physical damage goes to Desktop Support (KB-0071).' },
@@ -274,11 +287,12 @@ const HD_TICKET_TEMPLATES = [
       comments: true,
       priorityReason:'P3: one person, with a deadline this week.',
       notes: { parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0071', 'Tier 2', 'CI', 'NS-LT-0215'] },
+      simpleStates: true,
       feedback: [
         { area:'Right owner', checks:[{ owner:true }], good:'Physical damage goes to Desktop Support per KB-0071.', fix:'Tier 1 doesn\'t repair hardware: escalate to Desktop Support (KB-0071).' },
         { area:'Investigation', checks:[{ chat:['when', 'starts', 'glass', 'files'] }], good:'You asked all four identify questions, including the safety one about loose glass.', fix:'Ask when it happened, whether it still starts, whether any glass is loose (the safety question), and where his files are saved.' },
         { area:'Diagnosis', checks:[{ diagnosis:true }], good:'Physical damage: a Tier 2 repair.', fix:'Look again: a dropped laptop with a cracked screen is physical damage, a Tier 2 repair.' },
-        { area:'Action', checks:[{ kb:'KB-0071' }, { action:'loaner' }], good:'You followed KB-0071 and offered a loaner, so Ravi is ready for his demo.', fix:'Search the KB (for example "damaged laptop"), follow KB-0071 and offer Ravi a loaner.' },
+        { area:'Action', checks:[{ kb:'KB-0071' }, { verified:true }, { action:'loaner' }], good:'You followed KB-0071: you verified Ravi, then offered a loaner, so he\'s ready for his demo.', fix:'Search the KB (for example "damaged laptop") and follow KB-0071: verify Ravi with a callback on his directory number and his employee ID (KB-0024), then offer him a loaner.' },
         { area:'Documentation', checks:[{ note:true }, { comment:true }], good:'A complete handoff note with a Next action, and a plain-words comment telling Ravi what happens next.', fix:'Write the handoff note (Reported / Tried / Result / Next action) and tell Ravi what happens next in plain words.' },
       ],
     } }),
@@ -287,7 +301,7 @@ const HD_TICKET_TEMPLATES = [
     symptoms:['A third party is asking for the reset','The new password is to go to a personal number','The caller is pushing for speed'], logs:[], systemState:['Account ralvarez enabled and not locked','407-555-0199 is not in the User Directory'],
     plausibleCauses:['Social engineering: someone is trying to talk you into handing over an account','Account locked out while travelling','Expired password'], correctPath:['Identify the red flags','Search the KB by symptom words','Follow KB-0024: offer a callback on the directory number','Decline calmly and make no change','Route to Security Operations with the caller\'s exact words, number and time','Document'],
     hiddenRootCause:'Social engineering: an unverified third party wants a password reset sent to a personal number.',
-    expectedResolution:'Follow KB-0024 for a caller you can\'t verify: offer a callback on Mr. Alvarez\'s directory mobile, decline calmly when the caller refuses, make no change, and route the ticket to Security Operations (Category Security › Suspicious request, Caller Unverified) with the caller\'s exact words, number and time. The Service Desk then calls Mr. Alvarez back on his directory number.',
+    expectedResolution:'Follow KB-0024 for a caller you can\'t verify: offer a callback on Mr. Alvarez\'s directory mobile, decline calmly when the caller refuses, make no change, and route the ticket to Security Operations (Category Security › Suspicious request, Caller Unverified) with the caller\'s exact words, number and time. Security Operations reviews it and contacts the account owner.',
     escalationCriteria:['A caller you can\'t verify: make no change and route the ticket to Security Operations (KB-0024)'],
     console: {
       kb: true,
@@ -313,13 +327,61 @@ const HD_TICKET_TEMPLATES = [
       ] },
       comments: true,
       priorityReason:'P2: an executive account at risk, and the caller is pushing for speed.',
-      notes: { parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0024', 'SOC', 'ralvarez', 'Tier 2'] },
+      notes: { parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0024', 'SOC', 'ralvarez', 'Tier 2'], needs: [
+        { label:'The caller\'s exact words, in quotes', pattern:'"[^"]{3,}"|\u201c[^\u201d]{3,}\u201d|\u2018[^\u2019]{3,}\u2019' },
+        { label:'The number: 407-555-0199', pattern:'407-555-0199' },
+        { label:'The time (for example 11:05)', pattern:'\\b\\d{1,2}[:.]\\d{2}\\b' },
+      ] },
+      simpleStates: true,
       feedback: [
         { area:'Right owner', checks:[{ owner:true }], good:'KB-0024\'s route for an unverified caller (Category Security › Suspicious request, Caller Unverified, assigned to Security Operations).', fix:'A caller you can\'t verify: make no change and route the ticket to Security Operations (KB-0024).' },
         { area:'Investigation', checks:[{ chat:['who', 'number'] }], good:'You named the red flags: pressure, a third party asking, and a personal number that isn\'t in the directory.', fix:'Ask whose account it is and why the password should go to that number. The pressure, the third party and the personal number are red flags.' },
         { area:'Diagnosis', checks:[{ diagnosis:true }], good:'Social engineering: someone is trying to talk you into handing over an account.', fix:'Look again: an unverified third party wants a password sent to a personal number. That is social engineering.' },
         { area:'Action', checks:[{ verifyChoice:'callback' }, { action:'decline' }], good:'You offered a callback on Mr. Alvarez\'s directory mobile, declined calmly and changed nothing.', fix:'Offer to call Mr. Alvarez back on his directory mobile, then decline calmly and make no change (KB-0024).' },
-        { area:'Documentation', checks:[{ note:true }, { notePattern:'407-555-0199' }, { notePattern:'\\b(call|ring)s?\\s+(Mr\\.?\\s+)?(Martin\\s+)?(Alvarez|him)\\s+back\\b[^\\n]{0,40}\\bdirectory\\b' }, { comment:true }, { commentPattern:'\\bAlvarez\\b' }], good:'Your note has the caller\'s exact words, the number and the time, and says the Service Desk will call Mr. Alvarez back on his directory number. Your comment is addressed to Mr. Alvarez.', fix:'In the note, record the caller\'s exact words, the number (407-555-0199) and the time, and add the Next action: the Service Desk calls Mr. Alvarez back on his directory number. Address the customer comment to Mr. Alvarez.' },
+        { area:'Documentation', checks:[{ note:true }, { notePattern:'"[^"]{3,}"|\u201c[^\u201d]{3,}\u201d|\u2018[^\u2019]{3,}\u2019' }, { notePattern:'407-555-0199' }, { notePattern:'\\b\\d{1,2}[:.]\\d{2}\\b' }, { notePattern:'\\bnext\\s+action\\b[\\s\\S]{0,160}\\b(SOC|Security\\s+Operations|security\\s+team)\\b' }, { comment:true }], good:'Your note has the caller\'s exact words, the number and the time, and a Next action for Security Operations to review. Your comment declines politely, in plain words.', fix:'In the note, record the caller\'s exact words in quotes, the number (407-555-0199) and the time, and add the Next action: Security Operations reviews it and contacts the account owner. Then add a polite, plain-words comment to Karen that explains why you can\'t make the change.' },
+      ],
+    } }),
+  // Ticket 1-D (added 2026-11-15): the on-computer KB step, practised before
+  // the Prove It. Hana's laptop NS-LT-0188 gets NS-CS-PRN02 from Settings ›
+  // Printers & scanners › Add device (KB-0059). No account action and no
+  // device handover, so no caller check.
+  hdTicket({ id:'HD-2154', requester:'Hana Okafor', department:'Customer Service', category:'Hardware', subcategory:'Printer', priority:'P4', contactType:'Chat', ci:'NS-LT-0188', businessImpact:'One person; she can print from a colleague\'s PC meanwhile', sla:'5 business days', createdMinutesAgo:6,
+    description:'Hi, it\'s Hana Okafor in Customer Service. I just moved to the desk by the window and my laptop doesn\'t show our team printer. Can you add it? I need to print a refund form this morning.',
+    symptoms:['The team printer isn\'t in her printer list','She moved desks this morning'], logs:[], systemState:['Laptop NS-LT-0188 assigned to Hana Okafor','Printer NS-CS-PRN02 is online for Customer Service'],
+    plausibleCauses:['The printer is offline','Her account is locked','The printer is missing from her laptop: nothing is broken'], correctPath:['Identify: which printer, and what she sees','Search the KB by symptom words','Add the printer from Settings per KB-0059','Ask her to print a test page','Document'],
+    hiddenRootCause:'The Customer Service printer was never added to Hana\'s laptop; nothing is broken.',
+    expectedResolution:'Per KB-0059: on NS-LT-0188, add NS-CS-PRN02 from Settings › Printers & scanners › Add device, then ask Hana to print a test page and confirm it printed.',
+    escalationCriteria:['The printer isn\'t in the Add device list: escalate to Desktop Support (Tier 2) with the laptop\'s asset tag and the printer\'s name (KB-0059)'],
+    console: {
+      kb: true,
+      caller: { name:'Hana Okafor', questions: [
+        { id:'which', text:'Which printer do you need?', reply:'Our Customer Service printer.' },
+        { id:'see', text:'What do you see when you try to print?', reply:'It just isn\'t in my list.' },
+        { id:'elsewhere', text:'Can you print anywhere else for now?', reply:'I can use Tomás\'s PC next to me if I have to, but I\'d rather have it on mine.' },
+        { id:'password', text:'What\'s your password, so I can add it for you?', asksPassword:true },
+        { id:'test', text:'Can you print a test page?', reply:'It printed, thanks!', replyBefore:'I can\'t yet. The printer still isn\'t in my list.', afterAction:'printer-added', confirms:true },
+      ] },
+      actions: [
+        { id:'sign-in-as', text:'Sign in to NS-LT-0188 as Hana to add the printer', critical:true, feedback:'Critical error. Never sign in as a user. KB-0059: add the printer on her laptop from Settings › Printers & scanners while she stays signed in. No admin rights are needed.' },
+        { id:'ask-password', text:'Ask Hana for her password so you can add the printer for her', critical:true, feedback:'Critical error. The help desk never asks for a password, for any reason (KB-0024, KB-0059).' },
+        { id:'explain', text:'Tell Hana you\'ll add the printer on her laptop from Settings while she stays signed in', pass:true, feedback:'Hana stays signed in while you open her laptop and add the printer from Settings (KB-0059).', history:'Told the user the printer is added from Settings on her laptop; no password or admin rights needed.' },
+      ],
+      settingsPrinters: { computer:'NS-LT-0188', printers:['\\\\NS-PRINT01\\NS-CS-PRN02'], action:'printer-added' },
+      owner: { options: [
+        { id:'servicedesk', text:'Service Desk keeps it: resolve at Tier 1', status:'Resolved', group:'Riley Morgan', code:'Solution provided', right:true, feedback:'Right owner: a known fix with a KB article, so the Service Desk keeps it.' },
+        { id:'desktop', text:'Escalate to Desktop Support (Tier 2)', status:'Escalated', group:'Desktop Support', code:'Escalated', feedback:'Not the right owner: KB-0059 gives Tier 1 the fix. Escalate to Desktop Support only if the printer isn\'t in the Add device list.' },
+        { id:'soc', text:'Route to Security Operations (SOC): Category Security › Suspicious request, Caller Unverified', status:'Escalated', group:'Security Operations (SOC)', code:'Routed to Security Operations', category:'Security', subcategory:'Suspicious request', caller:'Unverified', feedback:'Not the right owner: nothing here is suspicious. Hana needs a printer added (KB-0059).' },
+      ] },
+      comments: true,
+      priorityReason:'P4: one person, and she can print from a colleague\'s PC in the meantime.',
+      notes: { parts:['reported', 'tried', 'result'], jargon:['KB-0059', 'NS-CS-PRN02', 'NS-LT-0188', 'Tier 2', 'Add device'] },
+      simpleStates: true,
+      feedback: [
+        { area:'Right owner', checks:[{ owner:true }], good:'A known fix with a KB article: the Service Desk keeps it.', fix:'KB-0059 gives Tier 1 the fix, so the Service Desk keeps it. Escalate only if the printer isn\'t in the Add device list.' },
+        { area:'Investigation', checks:[{ kb:'KB-0059' }], good:'You found KB-0059 by searching symptom words.', fix:'Search the KB by symptom words (for example "add printer") and open KB-0059.' },
+        { area:'Diagnosis', checks:[{ diagnosis:true }], good:'The printer is missing from her laptop: nothing is broken.', fix:'Look again: the printer works and Hana\'s account is fine. The printer just isn\'t on her laptop yet.' },
+        { area:'Action', checks:[{ kb:'KB-0059' }, { printerInstalled:{ computer:'NS-LT-0188', printer:'\\\\NS-PRINT01\\NS-CS-PRN02' } }, { confirmed:'test' }], good:'You added NS-CS-PRN02 from Settings per KB-0059, and Hana\'s test page printed.', fix:'Follow KB-0059: on NS-LT-0188, open Settings › Printers & scanners, select Add device and add NS-CS-PRN02. Then ask Hana to print a test page.' },
+        { area:'Documentation', checks:[{ note:true }, { comment:true }], good:'A complete Reported / Tried / Result note, and a plain-words comment for Hana.', fix:'Write a Reported / Tried / Result note and a plain-words comment for Hana (no printer or laptop names, no KB numbers).' },
       ],
     } }),
   hdTicket({ id:'SR-2102', requester:'New Hire · Theo Grant', department:'Logistics', category:'Service Request', subcategory:'Onboarding', priority:'P2', businessImpact:'New employee cannot begin work', sla:'4 hours', createdMinutesAgo:112, description:'Create the approved account, access groups, laptop assignment, and warehouse printer.', symptoms:['Manager approval attached','Start date is today'], logs:['HRIS export: employee 8841 active'], systemState:['No AD user exists','Laptop NS-LT-0177 is staged'], plausibleCauses:['Missing approval','Provisioning delay'], correctPath:['Validate approval and identity attributes','Create user in Logistics OU','Apply role groups','Assign endpoint','Verify sign-in and resources'], hiddenRootCause:'Standard approved onboarding request; no technical fault.', expectedResolution:'Complete least-privilege provisioning and document each asset and group assignment.', escalationCriteria:['Requested access exceeds role template','Missing manager or data-owner approval'] }),

@@ -1,18 +1,19 @@
-// Help Desk Module 1 Practice It, unguided tickets 1-A to 1-C (not graded):
+// Help Desk Module 1 Practice It, unguided tickets 1-A to 1-D (not graded):
 // HD-2151 (Leah Brooks, forgotten password), HD-2152 (Ravi Shah, cracked
-// screen, KB-0071) and SEC-2153 (an unverified caller wants an executive's
-// password). Opened from the Module 1 page as a practice set (?practice=its-01,
+// screen, KB-0071), SEC-2153 (an unverified caller wants an executive's
+// password) and HD-2154 (Hana Okafor's team printer, KB-0059; its own file,
+// tests/hdesk-m01-ticket-1d.test.js, covers the laptop step). Opened from the Module 1 page as a practice set (?practice=its-01,
 // ui/helpdesk.js), worked with the console features, with "Check my work"
 // feedback by the spec's rubric areas: never points, and category and
 // priority (pre-set in Module 1) never judged.
 //
-//   - The practice set: only its three tickets, its own saved shift, no coach;
+//   - The practice set: only its four tickets, its own saved shift, no coach;
 //     the coached lab's shift and walkthrough progress stay untouched.
 //   - Each ticket worked correctly: every area met, no critical error.
 //   - Each ticket's critical errors: recorded, shown at once and listed first.
 //   - Right owner: Tier 1, Desktop Support per KB-0071, or the SOC route
 //     (Category Security › Suspicious request, Caller Unverified).
-//   - Lab 1.2's completion: once all three are closed, one message to the
+//   - Lab 1.2's completion: once all four are closed, one message to the
 //     course page (ticket ids only, no answers, no score), answered and then
 //     never sent again; a retry when it wasn't saved. The Module 1 page links
 //     the set (tests/hdesk-m01-practice-lab.test.js covers the page's save).
@@ -141,15 +142,17 @@ function sim(url, { local = store(), session = store(), clock = { now: Date.UTC(
 
 
 const practiceUrl = (student = STUDENT) => `${SIM_URL}?practice=its-01&student=${student}#/helpdesk/tickets`;
-const SET = ['HD-2151', 'HD-2152', 'SEC-2153'];
+const SET = ['HD-2151', 'HD-2152', 'SEC-2153', 'HD-2154'];
 const ok = (fb) => Object.fromEntries(fb.areas.map((row) => [row.area, row.ok]));
 
 const LEAH_NOTE = 'Reported: user returning from 2 weeks\' leave, forgot password; asked us to tell her or set an easy one.\nTried: identity verified per KB-0024 (callback + employee ID match); explained we can\'t view or set passwords; guided user through the self-service reset page per KB-0024.\nResult: user set a new password and signed in on the call.';
 const LEAH_COMMENT = 'Hi Leah, welcome back! You\'re signed in with your new password. For your security, IT can never see or choose your password, so the self-service page is the fastest way if you forget it again. It\'s linked on the sign-in screen. – Riley';
-const RAVI_NOTE = 'Reported: laptop NS-LT-0215 dropped today; screen cracked in one corner, still usable; no loose glass; client demo Thursday.\nTried: device starts; user\'s files are in OneDrive per user; per KB-0071, offered loaner (user collecting 14:00); escalated to Desktop Support for screen repair or replacement.\nResult: pending Tier 2; user informed of next steps.\nNext action: Desktop Support repairs or replaces the screen and contacts Ravi.';
+const RAVI_NOTE = 'Reported: laptop NS-LT-0215 dropped today; screen cracked in one corner, still usable; no loose glass; client demo Thursday.\nTried: verified identity per KB-0024 (callback + employee ID); device starts; user\'s files are in OneDrive per user; per KB-0071, offered loaner (user collecting 14:00); escalated to Desktop Support for screen repair or replacement.\nResult: pending Tier 2; user informed of next steps.\nNext action: Desktop Support repairs or replaces the screen and contacts Ravi.';
 const RAVI_COMMENT = 'Hi Ravi, sorry about the laptop! Please bring it to the Service Desk today and we\'ll give you a loaner so you\'re ready for Thursday\'s demo. Our desktop team will repair or replace the screen and let you know when it\'s ready. If any glass comes loose, stop using it. – Riley';
-const KAREN_NOTE = 'Reported: caller "Karen, CFO office" requested reset of ralvarez with the new one texted to 407-555-0199 (not in directory). Exact words: "reset his password and text the new one to his personal cell. Please hurry, he\'s furious." Time 11:02.\nTried: caller not verifiable; offered a callback to Mr. Alvarez\'s directory mobile, declined by caller; declined per KB-0024; no account changes; suspected social engineering.\nResult: routed to Security Operations 11:05.\nNext action: the Service Desk calls Mr. Alvarez back on his directory number.';
-const ALVAREZ_COMMENT = 'Mr. Alvarez, we received a call asking us to reset your password and send it to a personal number. We didn\'t make any changes to your account. If you didn\'t ask for this, no action is needed; our security team is reviewing it. – Northstar Service Desk';
+const KAREN_NOTE = 'Reported: caller "Karen, CFO office" requested reset of ralvarez with the new one texted to 407-555-0199 (not in directory). Exact words: "reset his password and text the new one to his personal cell. Please hurry, he\'s furious." Time 11:02.\nTried: caller not verifiable; offered a callback to Mr. Alvarez\'s directory mobile, declined by caller; declined per KB-0024; no account changes; suspected social engineering.\nResult: routed to Security Operations 11:05.\nNext action: Security Operations reviews and contacts the account owner.';
+const KAREN_COMMENT = 'Hi Karen, I understand this is urgent. For security, we can only reset a password after we verify the account owner with a callback to the number in our directory, so I can\'t make this change or send a password to another number. I\'ve passed your request to our security team, who will contact Mr. Alvarez directly. – Riley, Northstar Service Desk';
+const HANA_NOTE = 'Reported: user moved desks; team printer missing from her printer list; needs to print a refund form this morning.\nTried: per KB-0059, on NS-LT-0188 added NS-CS-PRN02 from Settings › Printers & scanners › Add device.\nResult: user printed a test page and confirmed.';
+const HANA_COMMENT = 'Hi Hana, the Customer Service printer is now on your laptop, and your test page printed. If it ever disappears from your list, reply here and we\'ll add it again. – Riley';
 
 function workLeah(tab) {
   const id = 'HD-2151';
@@ -168,6 +171,7 @@ function workRavi(tab) {
   ['when', 'starts', 'glass', 'files'].forEach((q) => tab.ask(id, q));
   tab.kb(id, 'damaged laptop', 'KB-0071');
   tab.diagnose(id, 'Physical damage: a Tier 2 repair');
+  tab.verify(id, 'callback');
   tab.act(id, 'loaner');
   assert.equal(tab.note(id, RAVI_NOTE), true);
   assert.equal(tab.comment(id, RAVI_COMMENT), true);
@@ -181,15 +185,26 @@ function workKaren(tab) {
   tab.verify(id, 'callback');
   tab.act(id, 'decline');
   assert.equal(tab.note(id, KAREN_NOTE), true);
-  assert.equal(tab.comment(id, ALVAREZ_COMMENT), true);
+  assert.equal(tab.comment(id, KAREN_COMMENT), true);
   tab.own(id, 'soc');
+}
+function workHana(tab) {
+  const id = 'HD-2154';
+  tab.ask(id, 'which'); tab.ask(id, 'see');
+  tab.kb(id, 'add printer', 'KB-0059');
+  tab.diagnose(id, 'The printer is missing from her laptop: nothing is broken');
+  tab.run("hdSelectComputer('NS-LT-0188'); hdSettingsScan(); hdSettingsAddPrinter('NS-LT-0188', '\\\\\\\\NS-PRINT01\\\\NS-CS-PRN02')");
+  tab.ask(id, 'test');
+  assert.equal(tab.note(id, HANA_NOTE), true);
+  assert.equal(tab.comment(id, HANA_COMMENT), true);
+  tab.own(id, 'servicedesk');
 }
 
 /* ------------------------------------------------------ the practice set */
 
 function testPracticeSetShift() {
   const tab = sim(practiceUrl());
-  assert.deepEqual(Array.from(tab.hd().tickets, (t) => t.id).sort(), [...SET].sort(), 'only the three practice tickets');
+  assert.deepEqual(Array.from(tab.hd().tickets, (t) => t.id).sort(), [...SET].sort(), 'only the four practice tickets');
   assert.equal(tab.coachStep(), undefined, 'no coach');
   assert.ok(tab.local.getItem(`defender-lab.helpdesk.practice.v1.its-01.${STUDENT}`), 'its own saved shift');
   assert.equal(tab.local.getItem('defender-lab.helpdesk.state.v1'), null, 'the coached lab\'s shift is not touched');
@@ -198,6 +213,8 @@ function testPracticeSetShift() {
     ['hd-chat', 'hd-kb-search', 'hd-actions', 'hd-owner', 'hd-comments', 'hd-practice-feedback', 'hd-priority-preset'].forEach((cls) => assert.match(html, new RegExp(`class="card ${cls}"|class="${cls}"`), `${id}: ${cls}`));
     assert.doesNotMatch(html, /hdSetTicketPriority|hdResolveTicket/, `${id}: priority read-only, no Resolve button (the owner choice closes it)`);
     assert.doesNotMatch(html, /<option>Resolved<\/option>|<option>Escalated<\/option>/, `${id}: the state list can't close it`);
+    assert.doesNotMatch(html, /<label>Next state/, `${id}: no Next state list (one close control)`);
+    assert.doesNotMatch(html, /Gather the evidence yourself with the tools|Available logs and evidence/, `${id}: no Event Viewer, Active Directory or PowerShell evidence card`);
     assert.match(html, /<span>Contact type<\/span>/);
   }
   assert.match(tab.open('HD-2151'), /Pre-set: P4: one person, no deadline today\./);
@@ -206,7 +223,7 @@ function testPracticeSetShift() {
   assert.match(tab.open('SEC-2153'), /Pre-set: P2: an executive account at risk, and the caller is pushing for speed\./);
   // The state list refuses to close a ticket with an owner choice, too.
   tab.run("hdState.tickets.find((t) => t.id === 'HD-2151').status = 'In Progress'; hdTransitionTicket('HD-2151', 'Resolved')");
-  assert.match(tab.toasts.at(-1), /Choose who owns this ticket/);
+  assert.match(tab.toasts.at(-1), /closes through its own control/);
   assert.equal(tab.ticket('HD-2151').status, 'In Progress');
 
   // KB: symptom words find the right article first; KB-0071 as written.
@@ -214,13 +231,17 @@ function testPracticeSetShift() {
   assert.equal(first('forgot password'), 'KB-0024');
   assert.equal(first('damaged laptop'), 'KB-0071');
   assert.equal(first('cracked screen laptop'), 'KB-0071');
+  assert.equal(first('add printer'), 'KB-0059');
+  assert.equal(first('printer missing'), 'KB-0059', 'found by its keywords');
+  assert.equal(first('team printer'), 'KB-0059');
   const kb71 = tab.run("HD_KB_ARTICLES.find((a) => a.id === 'KB-0071').summary");
-  ['Tier 1 does not repair hardware', 'asset tag and what happened', 'glass is loose', 'stop using the laptop', 'Offer a loaner', 'Escalate to Desktop Support'].forEach((text) => assert.ok(kb71.includes(text), text));
+  ['Tier 1 does not repair hardware', 'asset tag and what happened', 'glass is loose', 'stop using the laptop', 'Verify the user before handing over a loaner (KB-0024)', 'Offer a loaner', 'Escalate to Desktop Support'].forEach((text) => assert.ok(kb71.includes(text), text));
   // The people and the laptop.
   const dir = tab.view('helpdesk/directory');
   assert.match(dir, /Leah Brooks[\s\S]*Marketing/);
   assert.match(dir, /Ravi Shah[\s\S]*Sales/);
   assert.match(dir, /Martin Alvarez[\s\S]*Executive Office[\s\S]*mobile 407-555-0142/);
+  assert.match(dir, /Hana Okafor[\s\S]*E-46415[\s\S]*Customer Service[\s\S]*ext\. 4687/);
   assert.ok(tab.run('HD_ORG.departments').includes('Marketing'));
   assert.equal(tab.run("hdUserById('u-1016').username"), 'ralvarez');
   assert.equal(tab.run("hdUserById('u-1016').title"), 'Chief Financial Officer');
@@ -232,6 +253,32 @@ function testPracticeSetShift() {
   assert.deepEqual(tab.reload().progress('HD-2151').chatAsked, ['what']);
   tab.run('hdResetShift()');
   assert.deepEqual(Array.from(tab.hd().tickets, (t) => t.id).sort(), [...SET].sort());
+}
+
+// A practice set saved when it had three tickets gets HD-2154, fresh; the
+// other three keep their work, and a saved completion stays saved.
+function testThreeTicketSetGetsHd2154() {
+  const local = store();
+  const old = sim(practiceUrl('student-m01t0010'), { local });
+  old.ask('HD-2151', 'what');
+  old.note('HD-2152', 'Reported: cracked screen this morning on the laptop.');
+  old.run("hdState.tickets = hdState.tickets.filter((t) => t.id !== 'HD-2154'); delete hdState.machines['NS-LT-0188']; hdSave()");
+  assert.deepEqual(Array.from(old.hd().tickets, (t) => t.id).sort(), ['HD-2151', 'HD-2152', 'SEC-2153']);
+  const reopened = sim(practiceUrl('student-m01t0010'), { local });
+  assert.deepEqual(Array.from(reopened.hd().tickets, (t) => t.id).sort(), [...SET].sort(), 'HD-2154 joins the set');
+  assert.deepEqual(reopened.progress('HD-2151').chatAsked, ['what'], 'the other tickets keep their work');
+  assert.equal(reopened.ticket('HD-2152').notes.at(-1).text, 'Reported: cracked screen this morning on the laptop.');
+  assert.equal(reopened.ticket('HD-2154').status, 'New', 'the new ticket starts fresh');
+  assert.deepEqual([...reopened.hd().machines['NS-LT-0188'].printers], ['Microsoft Print to PDF'], 'with its laptop');
+  // Saved, it stays four on the next load.
+  assert.equal(sim(practiceUrl('student-m01t0010'), { local }).hd().tickets.length, 4);
+  // A completion saved under three tickets stays saved.
+  const done = store();
+  const finished = sim(practiceUrl('student-m01t0011'), { local: done });
+  finished.run("hdState.tickets = hdState.tickets.filter((t) => t.id !== 'HD-2154'); hdState.practiceSaved = true; hdSave()");
+  const later = sim(practiceUrl('student-m01t0011'), { local: done });
+  assert.equal(later.hd().practiceSaved, true);
+  assert.equal(notice(later)[0], 'saved');
 }
 
 // Opening the practice tickets never touches the coached lab: its shift, its
@@ -314,14 +361,32 @@ function testRaviCorrect() {
   // escalation waits for it (Codex, round 1).
   const short = sim(practiceUrl('student-m01t0003'));
   short.kb('HD-2152', 'damaged laptop', 'KB-0071');
+  // The loaner waits for the caller check (KB-0071, KB-0024): refused, and
+  // not a critical error.
   short.act('HD-2152', 'loaner');
+  assert.match(short.toasts.at(-1), /^Not yet\. KB-0071 says to verify the user before handing over a loaner/);
+  assert.deepEqual(short.progress('HD-2152').actions, [], 'no loaner before verifying');
+  assert.deepEqual(short.progress('HD-2152').critical, [], 'not a critical error');
+  assert.match(short.open('HD-2152'), /class="callout warn" role="status">Not yet\. KB-0071/);
+  assert.ok(short.open('HD-2152').indexOf('hd-verify') < short.open('HD-2152').indexOf('hd-chat'), 'Verify caller sits under the requester statement');
+  short.verify('HD-2152', 'name');
+  assert.equal(short.progress('HD-2152').verification.passed, false, 'a name and department are not verification');
+  short.verify('HD-2152', 'callback');
+  assert.match(short.open('HD-2152'), /You called Ravi back on ext\. 4315 from the User Directory, and Ravi confirmed employee ID E-44027\./);
+  short.act('HD-2152', 'loaner');
+  assert.deepEqual(short.progress('HD-2152').actions, ['loaner']);
   short.note('HD-2152', RAVI_NOTE.replace(/\nNext action:.*$/, ''));
   short.comment('HD-2152', RAVI_COMMENT);
   short.own('HD-2152', 'desktop');
   assert.match(short.toasts.at(-1), /^Not closed yet\. Write the handoff note \(Reported \/ Tried \/ Result \/ Next action\)/);
   assert.notEqual(short.ticket('HD-2152').status, 'Escalated');
-  assert.match(short.open('HD-2152'), /Right owner: physical damage goes to Desktop Support[\s\S]*Not closed yet\./, 'the owner feedback still shows');
+  // The owner card keeps showing what is missing, not only the toast; once
+  // the work is done it says so, before the choice is made again.
+  assert.match(short.open('HD-2152'), /Right owner: physical damage goes to Desktop Support[\s\S]*data-hd-owner-blocked>Not closed yet\. Write the handoff note/, 'the owner feedback and what is missing still show');
+  short.ask('HD-2152', 'when');
+  assert.match(short.open('HD-2152'), /data-hd-owner-blocked>Not closed yet\. Write the handoff note/, 'still there after another redraw');
   short.note('HD-2152', RAVI_NOTE);
+  assert.match(short.open('HD-2152'), /data-hd-owner-blocked>Ready to close\./, 'updated once the gap is fixed');
   short.own('HD-2152', 'desktop');
   assert.equal(short.ticket('HD-2152').status, 'Escalated');
 }
@@ -407,11 +472,28 @@ function testKarenCorrect() {
   assert.match(html, /<span>Caller<\/span><strong>Unverified<\/strong>/);
   assert.match(html, /She declines the callback, so the caller can't be verified|She declines the callback, so the caller can&#39;t be verified/);
   assert.equal(tab.run("hdUserById('u-1016').locked"), false, 'no change to the account');
-  // The note must say the Service Desk calls Mr. Alvarez back on his
-  // directory number; offering a callback isn't the same.
-  const missing = sim(practiceUrl('student-m01t0004'));
-  workKaren.call(null, { ...missing, note: (i, text) => missing.note(i, text.replace(/\nNext action:.*$/, '\nNext action: wait for the SOC.')) });
-  assert.equal(ok(missing.feedback(id)).Documentation, false);
+  // Documentation needs the caller's exact words (in quotes), the number,
+  // the time, and a Next action for Security Operations; the comment is a
+  // polite decline to Karen. The old "call Mr. Alvarez back" checks are gone.
+  const docs = (note, comment = KAREN_COMMENT, student = 'student-m01t0004') => {
+    const other = sim(practiceUrl(student));
+    workKaren.call(null, { ...other, note: (i) => other.note(i, note), comment: (i) => other.comment(i, comment) });
+    return ok(other.feedback(id)).Documentation;
+  };
+  assert.equal(docs(KAREN_NOTE), true, 'the model note and the reply to Karen pass');
+  assert.equal(docs(KAREN_NOTE.replace(/\b\d{2}:\d{2}\b/g, 'this morning')), false, 'no time');
+  assert.equal(docs(KAREN_NOTE.replace(/"/g, '')), false, 'no exact words in quotes');
+  assert.equal(docs(KAREN_NOTE.replace(/\nNext action:.*$/, '\nNext action: none needed.')), false, 'a Next action that names nobody');
+  assert.equal(docs(KAREN_NOTE.replace(/11:0([25])/g, '11.0$1')), true, 'a time written 11.05 counts');
+  assert.equal(docs(KAREN_NOTE.replace(/"/g, '\u201c').replace(/\u201c([^\u201c]*)\u201c/g, '\u201c$1\u201d')), true, 'curly quotes count');
+  assert.equal(docs(KAREN_NOTE, 'Hi, for security we can only reset a password after a callback to the number in our directory. – Riley'), true, 'a polite decline without her name: plain words are what is checked');
+  assert.equal(docs(KAREN_NOTE, 'Per KB-0024 the SOC has it.'), false, 'internal words in the comment');
+  assert.doesNotMatch(JSON.stringify(tab.run("HD_TICKET_TEMPLATES.find((t) => t.id === 'SEC-2153')")), /Service Desk (then )?calls Mr\. Alvarez back|Service Desk will call Mr\. Alvarez back|addressed to Mr\. Alvarez/, 'no Service Desk callback after routing (offering the callback while verifying stays)');
+  // "Your note needs" lists the ticket's own items, and ticks them live.
+  const needs = (text) => JSON.parse(JSON.stringify(tab.run(`hdNoteNeeds(hdTicketById('SEC-2153'), ${JSON.stringify(text)})`)));
+  assert.deepEqual(needs('').map((row) => row.label), ['Reported', 'Tried', 'Result', 'Next action', 'The caller\'s exact words, in quotes', 'The number: 407-555-0199', 'The time (for example 11:05)'], 'escalated: Next action is required');
+  assert.deepEqual(needs('Reported - caller "Karen" asked at 11:02 for 407-555-0199.').map((row) => row.ok), [true, false, false, false, true, true, true], 'a dash label at the start counts');
+  assert.ok(needs(KAREN_NOTE).every((row) => row.ok), 'the model note ticks every item');
   // Social engineering, never "vishing" (Module 11).
   const words = JSON.stringify(tab.run("HD_TICKET_TEMPLATES.filter((t) => ['HD-2151', 'HD-2152', 'SEC-2153'].includes(t.id))"));
   assert.doesNotMatch(words, /vishing/i);
@@ -447,7 +529,7 @@ function testClosingOpensTheFeedback() {
   tab.verify(id, 'callback');
   tab.act(id, 'decline');
   tab.note(id, KAREN_NOTE);
-  tab.comment(id, ALVAREZ_COMMENT);
+  tab.comment(id, KAREN_COMMENT);
   const shown = () => tab.run("hdConsoleState(hdTicketById('SEC-2153')).feedbackShown");
   assert.equal(shown(), false, 'not open before closing');
   assert.doesNotMatch(tab.open(id), /data-area="Investigation"/);
@@ -476,7 +558,7 @@ function testFeedbackNeverScoresCategoryOrPriority() {
     assert.deepEqual(fb.areas.map((row) => row.area), ['Right owner', 'Investigation', 'Diagnosis', 'Action', 'Documentation']);
     const html = tab.open(id);
     const card = html.match(/<div class="card hd-practice-feedback">[\s\S]*?Check again<\/button>/)[0];
-    assert.match(card, /Practice: not graded/);
+    assert.equal((card.match(/Practice: not graded/g) || []).length, 1, `${id}: "Practice: not graded" once`);
     assert.match(card, /Category and priority are pre-set in Module 1\./);
     assert.doesNotMatch(card, /\bpoints?\b|\bscore\b|\/ ?100/i);
     fb.areas.forEach((row) => assert.doesNotMatch(row.text, /\bpriority\b|\bP[1-4]\b/i, `${id} ${row.area}`));
@@ -484,7 +566,7 @@ function testFeedbackNeverScoresCategoryOrPriority() {
     fb.areas.forEach((row) => assert.ok(!row.text.startsWith(`${row.area}:`), `${id}: "${row.area}:" not repeated`));
   }
   const done = sim(practiceUrl('student-m01t0006'));
-  workLeah(done); workRavi(done); workKaren(done);
+  workLeah(done); workRavi(done); workKaren(done); workHana(done);
   for (const id of SET) {
     assert.ok(done.feedback(id).areas.every((row) => row.ok && !row.text.startsWith(`${row.area}:`)), id);
     assert.doesNotMatch(done.open(id), /<strong>Right owner:<\/strong> Right owner:/, id);
@@ -503,11 +585,11 @@ const notice = (tab) => (/data-hd-practice-notice="([a-z]+)"[^>]*>([\s\S]*?)<\/d
 function testCompletionSentOnceAllClosed() {
   const opener = fakeOpener();
   const tab = sim(practiceUrl(), { opener });
-  workLeah(tab); workRavi(tab);
-  assert.deepEqual(opener.sent, [], 'two of three closed: nothing sent');
+  workLeah(tab); workRavi(tab); workKaren(tab);
+  assert.deepEqual(opener.sent, [], 'three of four closed: nothing sent');
   assert.equal(notice(tab)[0], '', 'no notice yet');
-  workKaren(tab);
-  assert.equal(opener.sent.length, 1, 'all three closed: one message');
+  workHana(tab);
+  assert.equal(opener.sent.length, 1, 'all four closed: one message');
   const [{ data, origin }] = opener.sent;
   assert.equal(origin, PORTAL);
   assert.deepEqual(Object.keys(data).sort(), ['id', 'nonce', 'student', 'tickets', 'type']);
@@ -539,7 +621,7 @@ function testCompletionSentOnceAllClosed() {
 // the notice says why and offers a retry; the retry sends again.
 function testCompletionRetry() {
   const alone = sim(practiceUrl('student-m01t0007'));
-  workLeah(alone); workRavi(alone); workKaren(alone);
+  workLeah(alone); workRavi(alone); workKaren(alone); workHana(alone);
   assert.deepEqual(notice(alone).slice(0, 1), ['unsaved']);
   assert.match(notice(alone)[1], /You’ve finished every ticket, but your completion isn’t saved yet\./);
   assert.doesNotMatch(notice(alone)[1], /closed/i);
@@ -548,7 +630,7 @@ function testCompletionRetry() {
 
   const opener = fakeOpener();
   const tab = sim(practiceUrl('student-m01t0008'), { opener });
-  workLeah(tab); workRavi(tab); workKaren(tab);
+  workLeah(tab); workRavi(tab); workKaren(tab); workHana(tab);
   tab.reply({ type: 'mnt-practice-received', id: 'its-01', nonce: opener.sent[0].data.nonce, saved: false, reason: 'signed-out' });
   assert.equal(notice(tab)[0], 'unsaved');
   assert.match(notice(tab)[1], /signed out on your course page/);
@@ -586,13 +668,13 @@ function testModuleOnePageLinksTheSet() {
   assert.match(html, /<h2 id="its01-practice-tickets-title">Lab 1\.2 · Practice tickets \(not graded\)<\/h2>/);
   assert.ok(html.includes(`?practice=its-01&amp;student=${student}#/helpdesk/tickets`) || html.includes(`?practice=its-01&student=${student}#/helpdesk/tickets`));
   assert.match(html, /data-its01-practice-launch[^>]*rel="opener"/);
-  assert.match(html, /Nothing is graded and your answers aren’t sent\./);
+  assert.match(html, /Practice: not graded\. Your answers aren’t sent\./);
 }
 
 /* -------------------------------------------------------------------- run */
 
 (async () => {
-  const tests = [
+  const tests = [testThreeTicketSetGetsHd2154,
     testPracticeSetShift, testGuidedLabProgressUntouched,
     testLeahCorrect, testLeahCriticalErrors, testRaviCorrect, testRaviCriticalErrors, testOwnerChoiceWaitsAndRestoresFields, testClosingOpensTheFeedback,
     testKarenCorrect, testKarenCriticalErrors, testFeedbackNeverScoresCategoryOrPriority,
