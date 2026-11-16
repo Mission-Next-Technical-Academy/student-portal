@@ -1308,6 +1308,7 @@ function hdResolutionCodes(ticket) {
 function hdResolutionConfig(ticket) { return hdConsole(ticket).resolutionCode || (hdIsMatrix(ticket) ? { required:true } : null); }
 function hdSetResolutionCode(id, value) {
   const ticket = hdTicketById(id); if (!ticket || !hdResolutionConfig(ticket)) return;
+  if (hdIsMatrix(ticket) && ['Resolved', 'Closed', 'Canceled'].includes(ticket.status)) return;
   const code = hdResolutionCodes(ticket).includes(value) ? value : '';
   hdConsoleState(ticket).resolutionCode = code;
   if (code) hdHistory(ticket, `Resolution code set to ${code}.`);
@@ -1661,7 +1662,8 @@ function hdConsolePriorityControl(ticket) {
 function hdConsoleResolutionControl(ticket) {
   const config = hdResolutionConfig(ticket); if (!config) return '';
   const code = hdConsoleState(ticket).resolutionCode;
-  return `<label>Resolution code${config.required ? ' (required to resolve)' : ''}<select id="hd-resolution-code" class="select" onchange="hdSetResolutionCode('${ticket.id}',this.value)"><option value="">Choose…</option>${hdResolutionCodes(ticket).map(value => `<option ${code === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></label>`;
+  const locked = hdIsMatrix(ticket) && ['Resolved', 'Closed', 'Canceled'].includes(ticket.status);
+  return `<label>Resolution code${config.required ? ' (required to resolve)' : ''}<select id="hd-resolution-code" class="select" ${locked ? 'disabled' : ''} onchange="hdSetResolutionCode('${ticket.id}',this.value)"><option value="">Choose…</option>${hdResolutionCodes(ticket).map(value => `<option ${code === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></label>`;
 }
 function hdConsoleNotePlaceholder(ticket) {
   return hdConsoleNoteParts(ticket).map(key => `${HD_NOTE_PARTS[key]}: …`).join('&#10;');
@@ -1936,6 +1938,17 @@ function hdMatrixTransition(id, status) {
   hdRerender();
 }
 
+function hdApplyState(id) {
+  const input = document.getElementById('hd-next-state');
+  if (!input || !input.value) { toast('Choose the next state first.'); return; }
+  hdTransitionTicket(id, input.value);
+}
+function hdApplyGroup(id) {
+  const ticket = hdTicketById(id); const input = document.getElementById('hd-assignment-group');
+  if (!ticket || !input) return;
+  if (input.value === (ticket.assignmentGroup || HD_SERVICE_DESK) && (input.value !== HD_SERVICE_DESK || ticket.assignedTechnician === 'Riley Morgan')) { toast(`It is already assigned to ${input.value}.`); return; }
+  hdMatrixAssignGroup(id, input.value);
+}
 // Category / Subcategory, CI and Contact type the student sets (classify).
 const HD_CONTACT_TYPES = ['Phone', 'Email', 'Self-service', 'Walk-in', 'Chat'];
 function hdClassification(ticket) {
@@ -2206,9 +2219,11 @@ function hdWorkDrop(event, targetId) {
   let id = hdWorkDragged;
   try { id = event.dataTransfer.getData('text/plain') || id; } catch (_) {}
   hdWorkDragged = '';
-  const order = hdWorkOrder(); if (!order || !order.includes(id) || id === targetId) return;
+  const order = hdWorkOrder(); if (!order || !order.includes(id) || !order.includes(targetId) || id === targetId) return;
+  // Dropped on a row below: it goes after that row; on a row above: before it.
+  const down = order.indexOf(id) < order.indexOf(targetId);
   order.splice(order.indexOf(id), 1);
-  order.splice(order.indexOf(targetId), 0, id);
+  order.splice(order.indexOf(targetId) + (down ? 1 : 0), 0, id);
   hdState.workOrderResult = '';
   hdRerender();
 }
@@ -2361,8 +2376,10 @@ function hdMatrixControls(ticket) {
   const priority = `<div class="hd-priority-preset" data-hd-priority="${hdEsc(ticket.priority || '')}"><span>Priority</span> ${ticket.priority ? `${hdBadge(ticket.priority, ticket.priority.toLowerCase())} ${hdEsc(HD_PRIORITY_NAMES[ticket.priority])}` : '<span class="muted">Not set</span>'}<p class="muted" style="margin:4px 0 0">Calculated from Impact × Urgency. You don't type it.</p></div>`;
   const next = HD_SN_STATUS_NEXT[ticket.status] || [];
   // State first; the reason select is read when On Hold is chosen.
-  const state = next.length ? `<label>State<select class="select" data-hd-field="state" onchange="if(this.value)hdTransitionTicket('${ticket.id}',this.value)"><option value="">${hdEsc(hdStatusText(ticket))}</option>${next.map(value => `<option>${value}</option>`).join('')}</select></label>${next.includes('On Hold') ? `<label>On Hold reason (choose it before you pick On Hold)<select id="hd-hold-reason" class="select"><option value="">Choose…</option>${HD_HOLD_REASONS.map(reason => `<option ${ticket.holdReason === reason ? 'selected' : ''}>${reason}</option>`).join('')}</select></label>` : ''}` : `<div><span class="muted">State</span> ${hdStatusBadge(ticket)}</div>`;
-  const group = `<label>Assignment group<select class="select" data-hd-field="group" ${closed ? 'disabled' : ''} onchange="hdMatrixAssignGroup('${ticket.id}',this.value)">${HD_ASSIGNMENT_GROUPS.map(value => `<option ${(ticket.assignmentGroup || HD_SERVICE_DESK) === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>`;
+  // State and assignment group apply with a button, so moving through a
+  // list with the arrow keys never changes the ticket.
+  const state = next.length ? `<label>State<select id="hd-next-state" class="select" data-hd-field="state"><option value="">${hdEsc(hdStatusText(ticket))}</option>${next.map(value => `<option>${value}</option>`).join('')}</select></label>${next.includes('On Hold') ? `<label>On Hold reason (only for On Hold)<select id="hd-hold-reason" class="select"><option value="">Choose…</option>${HD_HOLD_REASONS.map(reason => `<option ${ticket.holdReason === reason ? 'selected' : ''}>${reason}</option>`).join('')}</select></label>` : ''}<button type="button" class="btn btn-secondary" onclick="hdApplyState('${ticket.id}')">Apply state</button>` : `<div><span class="muted">State</span> ${hdStatusBadge(ticket)}</div>`;
+  const group = closed ? `<div><span class="muted">Assignment group</span> <strong>${hdEsc(ticket.assignmentGroup || HD_SERVICE_DESK)}</strong></div>` : `<label>Assignment group<select id="hd-assignment-group" class="select" data-hd-field="group">${HD_ASSIGNMENT_GROUPS.map(value => `<option ${(ticket.assignmentGroup || HD_SERVICE_DESK) === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label><button type="button" class="btn btn-secondary" onclick="hdApplyGroup('${ticket.id}')">Assign to group</button>`;
   const resolving = !closed ? `<label>Resolution notes (required to resolve)<textarea id="hd-resolution-notes" class="ipt" rows="4" maxlength="4000" oninput="hdKeepDraft('${ticket.id}','resolution',this.value)" placeholder="Why and how it was closed">${hdEsc(hdDraft(ticket, 'resolution'))}</textarea></label>` : '';
   return `${select('impact', 'Impact')}${select('urgency', 'Urgency')}${priority}${hdClassifyControls(ticket)}${group}${state}${hdConsoleResolutionControl(ticket)}${resolving}`;
 }

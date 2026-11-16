@@ -313,6 +313,21 @@ function testServiceNowStates() {
   tab.run("hdSetResolutionCode('HD-9205', 'Escalated')");
   assert.equal(tab.ticket('HD-9205').consoleState.resolutionCode, 'Escalated');
   assert.match(tab.open('HD-9205'), /Resolution code \(required to resolve\)/);
+  // The State and Assignment group lists change nothing until Apply.
+  assert.match(tab.open('HD-9201'), /id="hd-next-state"[^>]*data-hd-field="state">(?![\s\S]*onchange="if\(this.value\)hdTransitionTicket)/);
+  tab.input('hd-next-state', '');
+  tab.run("hdApplyState('HD-9201')");
+  assert.match(tab.lastToast(), /Choose the next state/);
+  tab.input('hd-next-state', 'In Progress');
+  tab.run("hdApplyState('HD-9201')");
+  assert.equal(tab.ticket('HD-9201').status, 'In Progress');
+  tab.input('hd-assignment-group', 'Facilities');
+  tab.run("hdApplyGroup('HD-9201')");
+  assert.equal(tab.ticket('HD-9201').status, 'Escalated');
+  // A resolved matrix ticket's resolution code is locked.
+  tab.run("hdSetResolutionCode('HD-9204', 'Duplicate')");
+  assert.equal(tab.ticket('HD-9204').consoleState.resolutionCode, 'Solution provided');
+  assert.match(tab.open('HD-9204'), /id="hd-resolution-code" class="select" disabled/);
   // A closed ticket's fields are locked.
   tab.run("hdMatrixAssignGroup('HD-9204', 'Facilities')");
   assert.equal(tab.ticket('HD-9204').assignmentGroup, 'Service Desk (Tier 1)');
@@ -364,6 +379,15 @@ function testWorkOrder() {
   assert.deepEqual(order(), ['HD-9205', 'HD-9201', 'HD-9204', 'HD-9202', 'HD-9203']);
   tab.run('hdWorkOrderSubmit()');
   assert.equal(tab.run('hdState.workOrderResult'), 'INC0019202 is out of place. Move it up, above INC0019201.');
+  // Dragging down one place, and to the last place.
+  tab.run("hdWorkDrop({ preventDefault(){}, dataTransfer:{ getData:() => 'HD-9201' } }, 'HD-9204')");
+  assert.deepEqual(order(), ['HD-9205', 'HD-9204', 'HD-9201', 'HD-9202', 'HD-9203']);
+  tab.run("hdWorkDrop({ preventDefault(){}, dataTransfer:{ getData:() => 'HD-9201' } }, 'HD-9203')");
+  assert.deepEqual(order(), ['HD-9205', 'HD-9204', 'HD-9202', 'HD-9203', 'HD-9201']);
+  tab.run("hdWorkOrderMove('HD-9201', -1); hdWorkOrderMove('HD-9201', -1); hdWorkOrderMove('HD-9201', -1); hdWorkOrderMove('HD-9204', 1); hdWorkOrderMove('HD-9204', 1)");
+  assert.deepEqual(order(), ['HD-9205', 'HD-9201', 'HD-9202', 'HD-9203', 'HD-9204']);
+  tab.run("hdWorkOrderMove('HD-9204', -1); hdWorkOrderMove('HD-9204', -1)");
+  assert.deepEqual(order(), ['HD-9205', 'HD-9201', 'HD-9204', 'HD-9202', 'HD-9203']);
   // Move buttons (the keyboard path).
   tab.run("hdWorkOrderMove('HD-9201', 1); hdWorkOrderMove('HD-9201', 1); hdWorkOrderMove('HD-9201', 1)");
   tab.run("hdWorkOrderMove('HD-9204', 1); hdWorkOrderMove('HD-9204', 1)");
