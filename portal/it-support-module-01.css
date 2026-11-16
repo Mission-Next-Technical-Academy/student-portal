@@ -45,6 +45,8 @@
 .its01-lesson-body { margin: 0 17px 17px 70px; }
 .its01-lesson-body h4 { margin: 16px 0 8px; color: var(--its-navy); font-size: 13px; }
 .its01-lesson-body h4:first-child { margin-top: 0; }
+.its01-lesson-body h5 { margin: 12px 0 4px; color: var(--its-navy); font-size: 12.5px; }
+.its01-lesson-body h5 + p { margin-top: 0; }
 .its01-lesson-body ul { margin: 0; padding-left: 18px; color: #475569; font: 13px/1.7 Inter, sans-serif; }
 .its01-lesson-body p { margin: 0 0 10px; color: #475569; font: 13px/1.7 Inter, sans-serif; }
 .its01-lesson-topic { margin-bottom: 10px; }
