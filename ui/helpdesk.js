@@ -44,6 +44,43 @@ const HD_STATUS_NEXT = {
   'Resolved':['Closed','In Progress'],
   'Closed':[],
 };
+/* ServiceNow-style tickets (Module 2 on), switched on per ticket by
+ * `console.matrix` (see "Queue and matrix features" below). Older tickets
+ * keep HD_STATUSES, HD_STATUS_NEXT and hdSlaMinutes exactly as they were.
+ * Defined up here because hdLoadState runs while the file loads. */
+const HD_SN_STATUSES = ['New', 'In Progress', 'On Hold', 'Escalated', 'Resolved', 'Closed', 'Canceled'];
+const HD_SN_STATUS_NEXT = {
+  'New':['In Progress', 'Canceled'],
+  'In Progress':['On Hold', 'Resolved', 'Canceled'],
+  'On Hold':['In Progress', 'Resolved'],
+  'Escalated':['In Progress', 'Resolved'],
+  'Resolved':['In Progress', 'Closed'],
+  'Closed':[],
+  'Canceled':[],
+};
+const HD_HOLD_REASONS = ['Awaiting Caller', 'Awaiting Change', 'Awaiting Problem', 'Awaiting Vendor'];
+// The Impact × Urgency lookup (spec section 5): row impact 1-3, column urgency 1-3.
+const HD_PRIORITY_MATRIX = { '1':{ '1':'P1', '2':'P2', '3':'P3' }, '2':{ '1':'P2', '2':'P3', '3':'P4' }, '3':{ '1':'P3', '2':'P4', '3':'P5' } };
+const HD_PRIORITY_NAMES = { P1:'Critical', P2:'High', P3:'Moderate', P4:'Low', P5:'Planning' };
+const HD_IMPACT_LABELS = { '1':'1 – High', '2':'2 – Medium', '3':'3 – Low' };
+// Northstar SLA targets in minutes. P1 and P2 count clock minutes; P3 to P5
+// count business minutes (08:00 to 17:00 UTC, Monday to Friday; one
+// business day is 540). P5 resolves "by agreement": no resolve target.
+const HD_SN_SLA = {
+  P1:{ respond:15, resolve:240, business:false },
+  P2:{ respond:30, resolve:480, business:false },
+  P3:{ respond:240, resolve:1080, business:true },
+  P4:{ respond:540, resolve:2700, business:true },
+  P5:{ respond:1080, resolve:0, business:true },
+};
+const HD_BUSINESS_START = 8 * 60;
+const HD_BUSINESS_END = 17 * 60;
+// Assignment groups at Northstar (spec section 5).
+const HD_ASSIGNMENT_GROUPS = ['Service Desk (Tier 1)', 'Desktop Support (Tier 2)', 'Network Operations', 'Server & Identity', 'Messaging & Collaboration', 'Security Operations (SOC)', 'Facilities'];
+const HD_SERVICE_DESK = 'Service Desk (Tier 1)';
+const HD_CONTACT_METHODS = ['Phone – voicemail left', 'Phone – no answer', 'Phone – reached the caller', 'Customer comment (Additional comments)', 'Email'];
+const HD_NO_RESPONSE_CODE = 'No response from caller';
+const HD_DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const HD_DIAGNOSIS_OVERRIDES = {
   'HD-2151':'Forgotten password: nothing is broken',
   'HD-2152':'Physical damage: a Tier 2 repair',
@@ -118,7 +155,8 @@ function hdPracticeClosed() {
   if (!HD_PRACTICE_SET || !hdState || !Array.isArray(hdState.tickets)) return false;
   return HD_PRACTICE_SET.set.tickets.every(id => {
     const ticket = hdState.tickets.find(item => item.id === id);
-    return Boolean(ticket && ['Resolved', 'Escalated'].includes(ticket.status));
+    // A converted incident (Canceled – Converted) is closed too.
+    return Boolean(ticket && (['Resolved', 'Escalated'].includes(ticket.status) || (ticket.status === 'Canceled' && ticket.cancelReason === 'Converted')));
   });
 }
 function hdPracticeReport() {
@@ -241,18 +279,28 @@ function hdEnsurePractice(state, now = hdNowMs()) {
   return state;
 }
 
+// The shared Practice shift's templates: every Practice ticket except those
+// a ticket set keeps to itself (ownSet: true, e.g. Module 2's guided queue),
+// which open only in the set that lists them (hdFreshSetState).
+function hdSharedTemplates() { return HD_TICKET_TEMPLATES.filter(template => template.ownSet !== true); }
 // Practice shifts are built from HD_TICKET_TEMPLATES only; a Prove shift
-// passes its own tickets (hdFreshProveState).
-function hdFreshState(templates = HD_TICKET_TEMPLATES) {
+// passes its own tickets (hdFreshProveState). `practice` (default: any list
+// of Practice templates) adds the Practice machines, scenarios and locked
+// accounts.
+function hdFreshState(templates = hdSharedTemplates(), practice = templates.every(t => HD_TICKET_TEMPLATES.includes(t))) {
   const seed = Math.floor(Math.random() * 0x7fffffff) || 8172026;
   const independent = templates.filter(t => !t.correlationKey);
   const correlated = templates.filter(t => t.correlationKey);
   const tickets = hdSeededOrder([...independent, ...correlated], seed).map((ticket, index) => ({
     ...hdClone(ticket),
-    createdTimestamp: new Date(HD_SHIFT_NOW.getTime() - (ticket.createdMinutesAgo + (index % 4)) * 60000).toISOString(),
+    // createdAt: an exact shift time (a ticket set's SLA ages are exact);
+    // otherwise minutes before HD_SHIFT_NOW, a little apart per ticket.
+    createdTimestamp: ticket.createdAt ? new Date(ticket.createdAt).toISOString() : new Date(HD_SHIFT_NOW.getTime() - (ticket.createdMinutesAgo + (index % 4)) * 60000).toISOString(),
     troubleshootingHistory: [{ time:'Created', action:'Ticket received from monitoring, portal, phone, or email intake.' }],
     diagnosis:'', diagnosisCorrect:false, linkedProblem:'', checkedSteps:[],
   }));
+  // Matrix fields only on a Practice shift: a Prove ticket never gets them.
+  if (practice) tickets.forEach(hdMatrixStart);
   const state = {
     version:1, seed, tickets, selectedTicketId:tickets[0].id,
     queueFilter:'Open', priorityFilter:'All', adTab:'users', selectedUserId:'u-1005',
@@ -261,22 +309,46 @@ function hdFreshState(templates = HD_TICKET_TEMPLATES) {
     powershell:[{ type:'system', text:'Northstar Enterprise Support Shell · training subset\nType Get-Help to list supported commands.' }],
   };
   // A console ticket's account starts in the state its ticket describes.
-  if (templates === HD_TICKET_TEMPLATES) {
+  if (practice) {
     templates.forEach(template => {
       const account = template.console && template.console.account;
       if (account && account.locked) state.userOverrides[account.userId] = { ...(state.userOverrides[account.userId] || {}), locked:true };
     });
   }
-  // Only a Practice shift (the shared templates) gets the Practice scenarios.
-  return templates === HD_TICKET_TEMPLATES ? hdEnsurePractice(state) : state;
+  // Only a Practice shift gets the Practice scenarios.
+  return practice ? hdEnsurePractice(state) : state;
+}
+// A shift with only a set's tickets, built from every Practice template so
+// a set's own (ownSet) tickets are there. A set with `now` runs on its own
+// fixed clock (hdShiftNow), which only "Next day" moves.
+function hdFreshSetState(set) {
+  const state = hdFreshState(HD_TICKET_TEMPLATES, true);
+  state.tickets = state.tickets.filter(ticket => set.tickets.includes(ticket.id));
+  state.selectedTicketId = state.tickets[0] ? state.tickets[0].id : null;
+  if (set.now) state.clockNow = new Date(set.now).toISOString();
+  return state;
 }
 // A fresh practice-set shift: the Practice shift with only the set's tickets.
 function hdFreshPracticeSetState() {
-  const state = hdFreshState();
-  state.tickets = state.tickets.filter(ticket => HD_PRACTICE_SET.set.tickets.includes(ticket.id));
-  state.selectedTicketId = state.tickets[0] ? state.tickets[0].id : null;
+  const state = hdFreshSetState(HD_PRACTICE_SET.set);
   state.practiceSet = HD_PRACTICE_SET.key;
   return state;
+}
+// A coached ticket set (HD_COACHED_SETS, e.g. Module 2's guided queue): a
+// coach's resetState calls hdUseTicketSet(key) to replace the shared shift
+// with only the set's tickets, on the set's clock. Saved under the shared
+// key, as a narrowed Module 1 shift is; hdActiveSet() drops the set's clock
+// and queue tools as soon as another coach's reset swaps the tickets.
+function hdCoachedSets() { return typeof HD_COACHED_SETS === 'undefined' ? {} : HD_COACHED_SETS; }
+function hdUseTicketSet(key) {
+  if (HD_PROVE || HD_PRACTICE_SET || !Object.prototype.hasOwnProperty.call(hdCoachedSets(), key)) return false;
+  const fresh = hdFreshSetState(hdCoachedSets()[key]);
+  fresh.ticketSet = key;
+  fresh.selectedTicketId = null;
+  hdState = fresh;
+  hdSave();
+  if (typeof render === 'function') render();
+  return true;
 }
 // A Prove ticket's pre-set fields (Module 1: set for the student, read-only,
 // never scored), or null when the student sets them.
@@ -443,7 +515,7 @@ function hdPracticeSetUpgrade(saved) {
   if (!HD_PRACTICE_SET || !saved || !Array.isArray(saved.tickets)) return saved;
   const missing = HD_PRACTICE_SET.set.tickets.filter(id => !saved.tickets.some(ticket => ticket.id === id));
   if (!missing.length) return saved;
-  const fresh = hdFreshState();
+  const fresh = hdFreshState(HD_TICKET_TEMPLATES, true);
   missing.forEach(id => {
     const ticket = fresh.tickets.find(item => item.id === id); if (!ticket) return;
     saved.tickets.push(ticket);
@@ -467,6 +539,8 @@ function hdLoadState() {
   return fresh;
 }
 let hdState = hdLoadState();
+// Replies already waiting when the shift opens (arrivals with no condition).
+if (hdHasArrivals() && hdCheckArrivals(true)) hdSave();
 // Closed earlier but not confirmed (the course page was closed, or the save
 // failed): try once more when the practice set opens.
 if (HD_PRACTICE_SET) setTimeout(() => { if (!hdState.practiceSaved && hdPracticeClosed()) hdPracticeReport(); }, 0);
@@ -516,7 +590,7 @@ function hdProveOpened(source, label) {
   hdProveEvent('evidence_opened', { source, label });
   hdSave();
 }
-function hdRerender() { hdSave(); render(); hdPracticeReport(); }
+function hdRerender() { hdCheckArrivals(); hdSave(); render(); hdPracticeReport(); }
 function hdEsc(value) { return escHtml(String(value == null ? '' : value)); }
 function hdTicketById(id) { return hdState.tickets.find(ticket => ticket.id === id); }
 function hdCurrentTicket() { return hdTicketById(hdState.selectedTicketId) || hdState.tickets[0]; }
@@ -528,10 +602,12 @@ function hdComputerByName(name) {
   const base = hdComputers().find(computer => computer.name === name);
   return base ? { ...base, ...(hdState.computerOverrides[name] || {}) } : null;
 }
-function hdOpenTickets() { return hdState.tickets.filter(t => !['Resolved','Closed'].includes(t.status)); }
+function hdOpenTickets() { return hdState.tickets.filter(t => !['Resolved','Closed','Canceled'].includes(t.status)); }
+// Older tickets' SLA clock, unchanged: a matrix ticket uses hdMatrixSla.
 function hdSlaMinutes(ticket) { return { P1:15, P2:120, P3:480, P4:1440 }[ticket.priority] || 480; }
-function hdAgeMinutes(ticket) { return Math.max(0, Math.round((HD_SHIFT_NOW - new Date(ticket.createdTimestamp)) / 60000)); }
+function hdAgeMinutes(ticket) { return Math.max(0, Math.round((hdShiftNow() - new Date(ticket.createdTimestamp)) / 60000)); }
 function hdSlaState(ticket) {
+  if (hdIsMatrix(ticket)) return hdMatrixSla(ticket);
   if (['Resolved','Closed'].includes(ticket.status)) return { label:'Met / stopped', cls:'ok' };
   const ratio = hdAgeMinutes(ticket) / hdSlaMinutes(ticket);
   if (ratio >= 1) return { label:'Breached', cls:'bad' };
@@ -549,12 +625,15 @@ function hdList(items, ordered) {
 function hdMetric(label, value, detail, tone) {
   return `<div class="card hd-metric ${tone || ''}"><div class="card-body"><span class="muted">${hdEsc(label)}</span><strong>${hdEsc(value)}</strong><small>${hdEsc(detail)}</small></div></div>`;
 }
+// On a set's own clock the history shows shift time (day and time, UTC).
 function hdHistory(ticket, action) {
-  ticket.troubleshootingHistory.push({ time:new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }), action });
+  ticket.troubleshootingHistory.push({ time:hdActiveSet() && hdActiveSet().now ? hdShiftTimeText(hdShiftNow()) : new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }), action });
 }
 
 function hdSelectTicket(id) {
   hdState.selectedTicketId = id;
+  // A message can wait for a ticket to be opened (arrivals: when.opened).
+  if (hdHasArrivals()) { const ticket = hdTicketById(id); if (ticket) ticket.opened = true; hdCheckArrivals(); }
   hdSave();
   navigate('#/helpdesk/ticket');
 }
@@ -562,6 +641,7 @@ function hdSetQueueFilter(value) { hdState.queueFilter = value; hdRerender(); }
 function hdSetPriorityFilter(value) { hdState.priorityFilter = value; hdRerender(); }
 function hdAssignTicket(id) {
   const ticket = hdTicketById(id); if (!ticket) return;
+  if (hdIsMatrix(ticket)) { hdMatrixAssignToMe(ticket); hdRerender(); return; }
   ticket.assignedTechnician = 'Riley Morgan';
   // A ticket with simpleStates (Module 1) goes straight to In Progress.
   const simple = hdConsole(ticket).simpleStates === true;
@@ -569,7 +649,9 @@ function hdAssignTicket(id) {
   hdHistory(ticket, simple ? 'Assigned to Riley Morgan; state In Progress.' : 'Assigned to Riley Morgan.'); hdRerender();
 }
 function hdTransitionTicket(id, status) {
-  const ticket = hdTicketById(id); if (!ticket || !HD_STATUS_NEXT[ticket.status].includes(status)) {
+  // A matrix ticket has the ServiceNow states (HD_SN_STATUS_NEXT).
+  if (hdIsMatrix(hdTicketById(id))) { hdMatrixTransition(id, status); return; }
+  const ticket = hdTicketById(id); if (!ticket || !(HD_STATUS_NEXT[ticket.status] || []).includes(status)) {
     toast('That state transition is not valid from the current ticket state.'); return;
   }
   // A simpleStates ticket has one close control and no state list.
@@ -588,6 +670,7 @@ function hdTransitionTicket(id, status) {
 function hdSetTicketPriority(id, priority) {
   const ticket = hdTicketById(id); if (!ticket) return;
   if (hdConsole(ticket).priorityReason) { toast('This ticket\'s priority is pre-set.'); return; }
+  if (hdIsMatrix(ticket)) { toast('Priority is calculated from Impact and Urgency.'); return; }
   ticket.priority = priority; hdHistory(ticket, `Priority set to ${priority} after impact and urgency review.`); hdRerender();
 }
 function hdAddNote(id) {
@@ -635,6 +718,8 @@ function hdTogglePathStep(id, index, checked) {
 }
 function hdResolveTicket(id) {
   const ticket = hdTicketById(id); if (!ticket) return;
+  // A matrix ticket resolves through its State list (code and notes).
+  if (hdIsMatrix(ticket)) { hdMatrixTransition(id, 'Resolved'); return; }
   // HD-2101 Practice: resolving needs the investigation's outcomes, and the
   // resolution is the student's own Reported / Tried / Result note.
   const scenario = ticket.id === HD_M01 && hdM01();
@@ -675,7 +760,10 @@ function hdResetShift() {
   // A Prove attempt has one shift; it never resets.
   if (HD_PROVE) return;
   if (!confirm('Reset the Help Desk shift and discard only Help Desk simulator progress?')) return;
-  hdState = HD_PRACTICE_SET ? hdFreshPracticeSetState() : hdFreshState();
+  // A coached ticket set starts its own set again.
+  const coached = hdActiveSet() && hdState.ticketSet;
+  if (coached) { const key = hdState.ticketSet; hdState = hdFreshSetState(hdCoachedSets()[key]); hdState.ticketSet = key; hdState.selectedTicketId = null; }
+  else hdState = HD_PRACTICE_SET ? hdFreshPracticeSetState() : hdFreshState();
   // A practice set has no coach, and its shift isn't the coached lab's: the
   // coached lab's saved progress stays.
   if (!HD_PRACTICE_SET && typeof window.forgetModuleCoachProgress === 'function') window.forgetModuleCoachProgress();
@@ -695,8 +783,8 @@ function hdQueueRows(tickets) {
       <td><strong>${hdEsc(hdTicketLabel(ticket))}</strong>${ticket.linkedProblem ? `<small>${hdEsc(ticket.linkedProblem)}</small>` : ''}</td>
       <td>${priority ? hdBadge(priority, priority.toLowerCase()) : '<span class="muted">Not set</span>'}</td>
       <td><strong>${hdEsc(ticket.requester)}</strong><small>${hdEsc(ticket.department)}</small></td>
-      <td><strong>${hdEsc(fields ? ticket.title : ticket.subcategory)}</strong><small>${hdEsc(ticket.description)}</small></td>
-      <td>${hdBadge(ticket.status)}</td><td>${fields ? '<span class="muted">—</span>' : hdBadge(sla.label, sla.cls)}</td><td>${hdEsc(ticket.assignedTechnician)}</td>
+      <td><strong>${hdEsc(fields ? ticket.title : hdConsole(ticket).classify ? hdTicketCategoryText(ticket) : ticket.subcategory)}</strong><small>${hdEsc(ticket.description)}</small></td>
+      <td>${hdIsMatrix(ticket) ? hdStatusBadge(ticket) : hdBadge(ticket.status)}</td><td>${fields ? '<span class="muted">—</span>' : hdIsMatrix(ticket) ? hdSlaBadge(ticket) : hdBadge(sla.label, sla.cls)}</td><td>${hdEsc(ticket.assignedTechnician)}</td>
     </tr>`;
   }).join('');
 }
@@ -710,10 +798,10 @@ VIEWS['helpdesk/dashboard'] = () => {
   // correlation metric or card.
   const correlated = hdState.tickets.some(t => t.correlationKey);
   const urgent = [...open].sort((a,b) =>
-    ({P1:1,P2:2,P3:3,P4:4}[a.priority] - {P1:1,P2:2,P3:3,P4:4}[b.priority]) ||
+    ((HD_PRIORITY_RANK[a.priority] || 9) - (HD_PRIORITY_RANK[b.priority] || 9)) ||
     hdAgeMinutes(b) - hdAgeMinutes(a)
   ).slice(0,7);
-  return `${hdPageHeader('Help Desk Dashboard', `${HD_ORG.name} · ${HD_ORG.domain} · simulated shift`, `${HD_PROVE ? '' : '<button class="btn btn-secondary" onclick="hdResetShift()">Reset shift</button>'}<button class="btn btn-primary" onclick="navigate('#/helpdesk/tickets')">Open queue</button>`)}${hdProveBlockedNotice()}
+  return `${hdPageHeader('Help Desk Dashboard', `${HD_ORG.name} · ${HD_ORG.domain} · simulated shift`, `${hdNextDayControl()}${HD_PROVE ? '' : '<button class="btn btn-secondary" onclick="hdResetShift()">Reset shift</button>'}<button class="btn btn-primary" onclick="navigate('#/helpdesk/tickets')">Open queue</button>`)}${hdProveBlockedNotice()}
     <div class="hd-metric-grid">${hdMetric('Open tickets', open.length, `${hdState.tickets.length} received this shift`)}${hdMetric('Priority 1', p1.length, 'Immediate response required','danger')}${hdMetric('SLA risk', risk.length, 'At risk or breached','warning')}${correlated ? hdMetric('Correlated reports', cluster.length, 'Possible shared incident','info') : ''}</div>
     <div class="two-col hd-dashboard-grid">
       <div class="card"><div class="card-header"><strong>Priority work</strong><button class="btn btn-ghost btn-sm" onclick="navigate('#/helpdesk/tickets')">View all</button></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Priority</th><th>Requester</th><th>Issue</th><th>Status</th><th>SLA</th><th>Owner</th></tr></thead><tbody>${hdQueueRows(urgent)}</tbody></table></div></div>
@@ -725,12 +813,15 @@ VIEWS['helpdesk/dashboard'] = () => {
 };
 
 VIEWS['helpdesk/tickets'] = () => {
+  // A set with queue: true gets the ServiceNow-style list instead.
+  const set = hdActiveSet();
+  if (set && set.queue) return `${hdPageHeader('Ticket Queue', 'Incidents assigned to your group. Add the columns you need, sort, then set your work order.', `${hdNextDayControl()}<button class="btn btn-secondary" onclick="hdResetShift()">Generate new shift</button>`)}${hdProveBlockedNotice()}${hdSetQueueHtml(set)}`;
   let tickets = hdState.tickets;
-  if (hdState.queueFilter === 'Open') tickets = tickets.filter(t => !['Resolved','Closed'].includes(t.status));
+  if (hdState.queueFilter === 'Open') tickets = tickets.filter(t => !['Resolved','Closed','Canceled'].includes(t.status));
   else if (hdState.queueFilter !== 'All') tickets = tickets.filter(t => t.status === hdState.queueFilter);
   if (hdState.priorityFilter !== 'All') tickets = tickets.filter(t => t.priority === hdState.priorityFilter);
   return `${hdPageHeader('Ticket Queue', 'Classify, prioritize, own, investigate, communicate, resolve, and close.', HD_PROVE ? '' : `<button class="btn btn-secondary" onclick="hdResetShift()">Generate new shift</button>`)}${hdProveBlockedNotice()}
-    <div class="filterbar"><label>Status <select class="select" onchange="hdSetQueueFilter(this.value)">${['All','Open',...HD_STATUSES].map(v => `<option ${v===hdState.queueFilter?'selected':''}>${v}</option>`).join('')}</select></label><label>Priority <select class="select" onchange="hdSetPriorityFilter(this.value)">${['All','P1','P2','P3','P4'].map(v => `<option ${v===hdState.priorityFilter?'selected':''}>${v}</option>`).join('')}</select></label><span class="muted">${tickets.length} shown${HD_PROVE ? '' : ' · roots remain hidden until diagnosed'}</span></div>
+    <div class="filterbar"><label>Status <select class="select" onchange="hdSetQueueFilter(this.value)">${['All','Open',...(hdState.tickets.some(hdIsMatrix) ? [...new Set([...HD_STATUSES, ...HD_SN_STATUSES])] : HD_STATUSES)].map(v => `<option ${v===hdState.queueFilter?'selected':''}>${v}</option>`).join('')}</select></label><label>Priority <select class="select" onchange="hdSetPriorityFilter(this.value)">${['All','P1','P2','P3','P4',...(hdState.tickets.some(hdIsMatrix) ? ['P5'] : [])].map(v => `<option ${v===hdState.priorityFilter?'selected':''}>${v}</option>`).join('')}</select></label><span class="muted">${tickets.length} shown${HD_PROVE ? '' : ' · roots remain hidden until diagnosed'}</span></div>
     <div class="card"><div class="table-wrap"><table><thead><tr><th>Ticket</th><th>Priority</th><th>Requester</th><th>Category / summary</th><th>Status</th><th>SLA</th><th>Assigned</th></tr></thead><tbody>${hdQueueRows(tickets)}</tbody></table></div></div>`;
 };
 
@@ -757,22 +848,32 @@ VIEWS['helpdesk/ticket'] = () => {
   // A console ticket (Module 1) is worked on the ticket itself, so with no
   // logs it gets no "use Event Viewer, Active Directory and PowerShell" card.
   const consoleTicket = !scenario && Object.keys(hdConsole(ticket)).length > 0;
+  // A matrix ticket is worked through its fields, states and cards: no path
+  // checklist or diagnosis dropdown, and it shows only the facts it has.
+  const matrix = hdIsMatrix(ticket);
   const evidenceCard = (byOutcomes || consoleTicket) && !ticket.logs.length ? '' : `<div class="card"><div class="card-header"><strong>Available logs and evidence</strong><span class="muted">Investigate; do not infer beyond the evidence.</span></div><div class="card-body">${evidence}</div></div>`;
-  const pathAndDiagnosis = scenario ? hdM01IdentityCard(scenario) + hdM01InvestigationCard(scenario) : byOutcomes ? hdConsoleOutcomesCard(ticket) : `<div class="card"><div class="card-header"><strong>Troubleshooting path</strong><span class="muted">Record what you actually checked.</span></div><div class="card-body"><div class="hd-path">${ticket.correctPath.map((step,index) => `<label><input type="checkbox" onchange="hdTogglePathStep('${ticket.id}',${index},this.checked)" ${(ticket.checkedSteps || []).includes(step)?'checked':''}> <span>${index+1}</span>${hdEsc(step)}</label>`).join('')}</div></div></div>
+  const pathAndDiagnosis = scenario ? hdM01IdentityCard(scenario) + hdM01InvestigationCard(scenario) : byOutcomes ? hdConsoleOutcomesCard(ticket) : matrix ? '' : `<div class="card"><div class="card-header"><strong>Troubleshooting path</strong><span class="muted">Record what you actually checked.</span></div><div class="card-body"><div class="hd-path">${ticket.correctPath.map((step,index) => `<label><input type="checkbox" onchange="hdTogglePathStep('${ticket.id}',${index},this.checked)" ${(ticket.checkedSteps || []).includes(step)?'checked':''}> <span>${index+1}</span>${hdEsc(step)}</label>`).join('')}</div></div></div>
         <div class="card"><div class="card-header"><strong>Diagnosis checkpoint</strong></div><div class="card-body"><div class="hd-diagnosis-row"><select id="hd-diagnosis" class="select"><option value="">Choose the most likely cause…</option>${diagnosisOptions.map(value => `<option ${ticket.diagnosis===value?'selected':''}>${hdEsc(value)}</option>`).join('')}</select><button class="btn btn-primary" onclick="hdSubmitDiagnosis('${ticket.id}')">Check diagnosis</button></div>${ticket.diagnosis ? `<div class="callout ${ticket.diagnosisCorrect?'success':'warning'}">${ticket.diagnosisCorrect ? `<strong>Supported by the evidence.</strong> ${hdEsc(ticket.hiddenRootCause)}` : '<strong>Not sufficiently supported.</strong> Recheck the evidence and test a different hypothesis.'}</div>` : ''}${ticket.diagnosisCorrect ? `<div class="hd-resolution"><strong>Expected resolution</strong><p>${hdEsc(ticket.expectedResolution)}</p></div>` : ''}</div></div>`;
-  return `${hdPageHeader(hdTicketLabel(ticket), `${ticket.category} · ${ticket.subcategory}`, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/tickets')">← Queue</button>${ticket.assignedTechnician==='Unassigned'?`<button class="btn btn-primary" onclick="hdAssignTicket('${ticket.id}')">Assign to me</button>`:''}`)}
+  const fieldGrid = matrix
+    ? `<div><span>Caller</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Short description</span><strong>${hdEsc(hdShortDescription(ticket) || '—')}</strong></div><div><span>SLA target</span><strong>${hdEsc(hdMatrixTargetText(ticket))}</strong></div><div><span>Created</span><strong>${hdEsc(hdShiftTimeText(ticket.createdTimestamp))}</strong></div><div><span>Assignment group</span><strong>${hdEsc(ticket.assignmentGroup || HD_SERVICE_DESK)}</strong></div><div><span>Assigned to</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${hdConsole(ticket).classify ? '' : `${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}`}`
+    : '';
+  const factCards = matrix && !(ticket.symptoms || []).length && !(ticket.systemState || []).length ? '' : `<div class="two-col"><div class="card"><div class="card-header"><strong>Observable symptoms</strong></div><div class="card-body">${hdList(ticket.symptoms)}</div></div><div class="card"><div class="card-header"><strong>Relevant system state</strong></div><div class="card-body">${hdList(ticket.systemState)}</div></div></div>`;
+  const controls = matrix
+    ? `${hdMatrixControls(ticket)}`
+    : `${hdConsolePriorityControl(ticket)}${nextStates.length?`<label>Next state<select class="select" onchange="if(this.value)hdTransitionTicket('${ticket.id}',this.value)"><option value="">Choose…</option>${nextStates.map(v=>`<option>${v}</option>`).join('')}</select></label>`:''}<button class="btn btn-secondary" onclick="hdContactRequester('${ticket.id}')">Contact requester</button>${hdConsoleResolutionControl(ticket)}${hdConsole(ticket).owner ? '' : `<button class="btn btn-primary" onclick="hdResolveTicket('${ticket.id}')">${simpleStates ? 'Resolve' : ticket.category==='Security Incident'?'Warm escalate':'Resolve / escalate'}</button>`}`;
+  return `${hdPageHeader(hdTicketLabel(ticket), matrix || hdConsole(ticket).classify ? `${hdTicketCategoryText(ticket)} · ${hdStatusText(ticket)}` : `${ticket.category} · ${ticket.subcategory}`, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/tickets')">← Queue</button>${ticket.assignedTechnician==='Unassigned'?`<button class="btn btn-primary" onclick="hdAssignTicket('${ticket.id}')">Assign to me</button>`:''}`)}
     ${related.length > 1 ? `<div class="callout warning hd-related"><strong>${related.length} related reports detected.</strong> Same application, symptom, and time window. ${ticket.linkedProblem ? `Linked to ${hdEsc(ticket.linkedProblem)}.` : `<button class="btn btn-sm btn-secondary" onclick="hdLinkProblem('${ticket.id}')">Link to problem record</button>`}</div>` : ''}
     <div class="hd-ticket-layout">
       <div class="hd-ticket-main">
-        <div class="card"><div class="card-header"><strong>Requester statement</strong>${hdBadge(ticket.priority,ticket.priority.toLowerCase())}${hdBadge(ticket.status)}${hdBadge(sla.label,sla.cls)}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid"><div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Business impact</span><strong>${hdEsc(ticket.businessImpact)}</strong></div><div><span>SLA target</span><strong>${hdEsc(ticket.sla)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}${ticket.callerStatus ? `<div><span>Caller</span><strong>${hdEsc(ticket.callerStatus)}</strong></div>` : ''}</div></div></div>${hdConsoleVerifyCard(ticket)}${hdConsoleChatCard(ticket)}${hdConsoleKbCard(ticket)}${hdConsoleAccountCard(ticket)}${hdConsoleActionsCard(ticket)}${hdConsoleComputerCard(ticket)}${hdConsoleOwnerCard(ticket)}
-        <div class="two-col"><div class="card"><div class="card-header"><strong>Observable symptoms</strong></div><div class="card-body">${hdList(ticket.symptoms)}</div></div><div class="card"><div class="card-header"><strong>Relevant system state</strong></div><div class="card-body">${hdList(ticket.systemState)}</div></div></div>
+        <div class="card"><div class="card-header"><strong>Requester statement</strong>${matrix ? `${ticket.priority ? hdBadge(ticket.priority, ticket.priority.toLowerCase()) : '<span class="muted">Priority not set</span>'}${hdStatusBadge(ticket)}${hdSlaBadge(ticket)}` : `${hdBadge(ticket.priority,ticket.priority.toLowerCase())}${hdBadge(ticket.status)}${hdBadge(sla.label,sla.cls)}`}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid">${matrix ? fieldGrid : `<div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Business impact</span><strong>${hdEsc(ticket.businessImpact)}</strong></div><div><span>SLA target</span><strong>${hdEsc(ticket.sla)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}${ticket.callerStatus ? `<div><span>Caller</span><strong>${hdEsc(ticket.callerStatus)}</strong></div>` : ''}`}</div></div></div>${hdConsoleVerifyCard(ticket)}${hdConsoleChatCard(ticket)}${hdConsoleKbCard(ticket)}${hdConsoleAccountCard(ticket)}${hdConsoleActionsCard(ticket)}${hdConsoleComputerCard(ticket)}${hdConsoleOwnerCard(ticket)}${hdMatrixCards(ticket)}
+        ${factCards}
         ${evidenceCard}
         ${pathAndDiagnosis}
         <div class="card"><div class="card-header"><strong>Work notes</strong><span class="muted">${hdConsole(ticket).notes ? 'Reported / Tried / Result (+ Next action if it stays open or goes to another team)' : 'Facts, commands, results, interpretation, next action.'}</span></div><div class="card-body"><div class="hd-note-list">${ticket.notes.length ? ticket.notes.map(note => `<div><strong>${hdEsc(note.author)} · ${hdEsc(note.time)}</strong><p>${hdEsc(note.text)}</p></div>`).join('') : '<p class="muted">No technician notes yet.</p>'}</div><textarea id="hd-note-input" class="ipt hd-note-input" rows="7" oninput="hdKeepDraft('${ticket.id}','note',this.value)" placeholder="${scenario ? 'Reported: what Jordan reported&#10;Tried: what you checked and changed, and what each step showed&#10;Result: the outcome and how you confirmed it' : hdConsole(ticket).notes ? hdConsoleNotePlaceholder(ticket) : 'Document the action you took and what the result proved…'}">${hdEsc(hdDraft(ticket, 'note'))}</textarea>${hdNoteNeedsCard(ticket)}<button class="btn btn-secondary" onclick="hdAddNote('${ticket.id}')">Add work note</button></div></div>${hdConsoleCommentsCard(ticket)}${hdConsoleFeedbackCard(ticket)}
       </div>
       <aside class="hd-ticket-side">
-        <div class="card"><div class="card-header"><strong>Ticket controls</strong></div><div class="card-body hd-control-stack">${hdConsolePriorityControl(ticket)}${nextStates.length?`<label>Next state<select class="select" onchange="if(this.value)hdTransitionTicket('${ticket.id}',this.value)"><option value="">Choose…</option>${nextStates.map(v=>`<option>${v}</option>`).join('')}</select></label>`:''}<button class="btn btn-secondary" onclick="hdContactRequester('${ticket.id}')">Contact requester</button>${hdConsoleResolutionControl(ticket)}${hdConsole(ticket).owner ? '' : `<button class="btn btn-primary" onclick="hdResolveTicket('${ticket.id}')">${simpleStates ? 'Resolve' : ticket.category==='Security Incident'?'Warm escalate':'Resolve / escalate'}</button>`}</div></div>
-        <div class="card"><div class="card-header"><strong>Escalation criteria</strong></div><div class="card-body">${hdList(ticket.escalationCriteria)}</div></div>
+        <div class="card"><div class="card-header"><strong>Ticket controls</strong></div><div class="card-body hd-control-stack">${controls}</div></div>
+        ${matrix && !(ticket.escalationCriteria || []).length ? '' : `<div class="card"><div class="card-header"><strong>Escalation criteria</strong></div><div class="card-body">${hdList(ticket.escalationCriteria)}</div></div>`}
         <div class="card"><div class="card-header"><strong>History</strong></div><div class="card-body hd-history">${ticket.troubleshootingHistory.slice().reverse().map(row=>`<div><time>${hdEsc(row.time)}</time><p>${hdEsc(row.action)}</p></div>`).join('')}</div></div>
         ${ticket.resolution ? `<div class="card"><div class="card-header"><strong>Resolution</strong>${hdBadge(ticket.closureCode,'ok')}</div><div class="card-body"><p>${hdEsc(ticket.resolution)}</p></div></div>` : ''}
       </aside>
@@ -900,7 +1001,7 @@ function hdComments(ticket) {
 function hdConsoleTime() { return new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }); }
 // Escalated or waiting tickets stay open: their note needs a Next action.
 function hdTicketStaysOpen(ticket) {
-  return ['Escalated', 'Pending User', 'Pending Vendor'].includes(ticket.status) || ticket.category === 'Security Incident'
+  return ['Escalated', 'Pending User', 'Pending Vendor', 'On Hold'].includes(ticket.status) || ticket.category === 'Security Incident'
     || (ticket.escalationCriteria || []).some(item => item.startsWith('Always'));
 }
 
@@ -960,7 +1061,7 @@ function hdDraft(ticket, kind) {
   return drafts && typeof drafts[kind] === 'string' ? drafts[kind] : '';
 }
 function hdKeepDraft(id, kind, value) {
-  const ticket = hdTicketById(id); if (!ticket || !['note', 'comment'].includes(kind)) return;
+  const ticket = hdTicketById(id); if (!ticket || !['note', 'comment', 'resolution', 'rewriteShort', 'rewriteDesc', 'kbTitle', 'kbText'].includes(kind)) return;
   const text = String(value || '').slice(0, HD_DRAFT_MAX);
   ticket.drafts = { ...(ticket.drafts || {}) };
   if (!text || hdPasswordInText(text)) delete ticket.drafts[kind]; else ticket.drafts[kind] = text;
@@ -1184,21 +1285,30 @@ function hdAddComment(id) {
   hdClearDraft(ticket, 'comment');
   hdHistory(ticket, 'Additional comment (customer-visible) added.');
   const jargon = hdJargonFound(text, (hdConsole(ticket).notes || {}).jargon);
-  hdPracticeEvent('customer_comment', { ticket:ticket.id, jargon:jargon.join(', ') });
   const config = hdConsole(ticket).comments;
+  // A ticket's internal names (servers, groups, other users) never belong
+  // in what the customer reads.
+  const internal = config && typeof config === 'object' && Array.isArray(config.internalNames) ? hdJargonFound(text, config.internalNames) : [];
+  hdPracticeEvent('customer_comment', { ticket:ticket.id, jargon:jargon.join(', '), ...(internal.length ? { internal:internal.join(', ') } : {}) });
   const repeat = config && typeof config === 'object' ? config.repeatLine : null;
   const repeatTip = repeat && !hdCommentHasRepeatLine(ticket, text) ? ` It doesn't say ${repeat.label} yet.` : '';
-  toast(jargon.length ? `Comment added. The customer won't know these words: ${jargon.join(', ')}. Say it in plain words.${repeatTip}` : repeatTip ? `Customer comment added.${repeatTip}` : 'Customer comment added.');
+  const internalTip = internal.length ? ` Internal names stay in the work notes: ${internal.join(', ')}.` : '';
+  toast(jargon.length ? `Comment added. The customer won't know these words: ${jargon.join(', ')}. Say it in plain words.${internalTip}${repeatTip}` : internalTip ? `Comment added.${internalTip}${repeatTip}` : repeatTip ? `Customer comment added.${repeatTip}` : 'Customer comment added.');
   hdRerender();
   return true;
 }
 const HD_RESOLUTION_CODES = ['Solution provided', 'Workaround provided', 'Escalated', 'Routed to Security Operations', 'User cancelled', 'Duplicate'];
 function hdResolutionCodes(ticket) {
   const config = hdConsole(ticket).resolutionCode;
-  return config && Array.isArray(config.options) && config.options.length ? config.options : HD_RESOLUTION_CODES;
+  if (config && Array.isArray(config.options) && config.options.length) return config.options;
+  // A ticket that logs contact attempts can close for no response.
+  return hdContactConfig(ticket) ? [...HD_RESOLUTION_CODES, HD_NO_RESPONSE_CODE] : HD_RESOLUTION_CODES;
 }
+// A matrix ticket always has the resolution code (required to resolve).
+function hdResolutionConfig(ticket) { return hdConsole(ticket).resolutionCode || (hdIsMatrix(ticket) ? { required:true } : null); }
 function hdSetResolutionCode(id, value) {
-  const ticket = hdTicketById(id); if (!ticket || !hdConsole(ticket).resolutionCode) return;
+  const ticket = hdTicketById(id); if (!ticket || !hdResolutionConfig(ticket)) return;
+  if (hdIsMatrix(ticket) && ['Resolved', 'Closed', 'Canceled'].includes(ticket.status)) return;
   const code = hdResolutionCodes(ticket).includes(value) ? value : '';
   hdConsoleState(ticket).resolutionCode = code;
   if (code) hdHistory(ticket, `Resolution code set to ${code}.`);
@@ -1217,6 +1327,15 @@ function hdConsoleAction(id, actionId) {
   const action = Array.isArray(actions) && actions.find(item => item.id === actionId);
   if (!action) return;
   const state = hdConsoleState(ticket);
+  // An action that needs the request's approval (needsApproval), taken
+  // before it: not done, and recorded as its earlyCritical.
+  if (action.needsApproval && !hdRequestApproved(ticket)) {
+    if (action.earlyCritical !== false) hdConsoleCritical(ticket, `early:${action.id}`, action.earlyCritical || 'Acted before the request was approved');
+    state.lastAction = `early:${action.id}`;
+    hdPracticeEvent('action_refused', { ticket:ticket.id, action:action.id });
+    toast(action.earlyFeedback || 'Wait for the request to be approved first.');
+    hdRerender(); return;
+  }
   if (action.needsVerification && !state.verification.passed) {
     // earlyCritical:false: refused until the caller is verified, but not a
     // critical error (HD-2152's loaner).
@@ -1428,6 +1547,7 @@ function hdConsoleProgress(id) {
     outcomes:hdConsoleOutcomes(ticket),
     unverified:state.verification.unverified, actions:state.actions.map(entry => entry.id),
     critical:state.critical.map(entry => entry.id), owner:state.owner.choice, ownerTries:state.owner.tries.slice(),
+    ...hdMatrixProgress(ticket),
   };
 }
 
@@ -1462,7 +1582,7 @@ function hdConsoleKbCard(ticket) {
   if (!hdConsole(ticket).kb) return '';
   const state = hdConsoleState(ticket);
   const results = state.kbQuery ? hdKbSearchArticles(state.kbQuery, hdKbArticles()) : [];
-  const list = !state.kbQuery ? '' : results.length ? `<div class="hd-note-list hd-kb-results">${results.map(article => `<div data-kb="${hdEsc(article.id)}"><strong>${hdEsc(article.id)} · ${hdEsc(article.title)}</strong><small class="muted"> ${hdEsc(article.audience)}</small> <button type="button" class="btn btn-ghost btn-sm" onclick="hdKbOpen('${ticket.id}','${hdEsc(article.id)}')">${state.kbOpen === article.id ? 'Close' : 'Open'}</button>${state.kbOpen === article.id ? hdKbBody(article.summary) : ''}</div>`).join('')}</div>` : `<p class="muted">No articles match “${hdEsc(state.kbQuery)}”. Try the symptom words or the exact error code.</p>`;
+  const list = !state.kbQuery ? '' : results.length ? `<div class="hd-note-list hd-kb-results">${results.map(article => `<div data-kb="${hdEsc(article.id)}"><strong>${hdEsc(article.id)} · ${hdEsc(article.title)}</strong><small class="muted"> ${hdEsc(article.audience)}</small> <button type="button" class="btn btn-ghost btn-sm" onclick="hdKbOpen('${ticket.id}','${hdEsc(article.id)}')">${state.kbOpen === article.id ? 'Close' : 'Open'}</button>${state.kbOpen === article.id ? `${hdKbBody(article.summary)}${hdKbConfig(ticket).attach ? ((state.kbAttached || []).includes(article.id) ? '<p class="muted" data-hd-kb-attached>✓ Attached to this ticket</p>' : `<button type="button" class="btn btn-secondary btn-sm" onclick="hdKbAttach('${ticket.id}','${hdEsc(article.id)}')">Attach knowledge</button>`) : ''}` : ''}</div>`).join('')}</div>` : `<p class="muted">No articles match “${hdEsc(state.kbQuery)}”. Try the symptom words or the exact error code.</p>`;
   return `<div class="card hd-kb-search"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Knowledge Base</strong><span class="muted">Search by symptom words or the error code.</span></div><div class="card-body"><form class="filterbar" onsubmit="hdKbSearch(event,'${ticket.id}')"><input id="hd-kb-input" class="ipt" maxlength="80" value="${hdEsc(state.kbQuery)}" placeholder="e.g. locked out, 0x80070005"><button class="btn btn-primary btn-sm" type="submit">Search</button></form>${list}</div></div>`;
 }
 function hdConsoleVerifyCard(ticket) {
@@ -1484,7 +1604,7 @@ function hdConsoleActionsCard(ticket) {
   const last = state.lastAction.startsWith('early:') ? actions.find(item => `early:${item.id}` === state.lastAction) : actions.find(item => item.id === state.lastAction);
   const early = state.lastAction.startsWith('early:');
   const earlyBad = early && last && last.earlyCritical !== false;
-  const feedback = last ? `<div class="callout ${earlyBad || (!early && last.critical) ? 'bad' : early ? 'warn' : 'success'}" role="${earlyBad || (!early && last.critical) ? 'alert' : 'status'}">${hdEsc(early ? last.earlyFeedback || 'Verify the caller first (KB-0024).' : last.feedback || '')}</div>` : '';
+  const feedback = last ? `<div class="callout ${earlyBad || (!early && last.critical) ? 'bad' : early ? 'warn' : 'success'}" role="${earlyBad || (!early && last.critical) ? 'alert' : 'status'}">${hdEsc(early ? last.earlyFeedback || (last.needsApproval ? 'Wait for the request to be approved first.' : 'Verify the caller first (KB-0024).') : last.feedback || '')}</div>` : '';
   return `<div class="card hd-actions"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Take an action</strong><span class="muted">What do you do for the caller?</span></div><div class="card-body"><div style="display:grid;gap:8px">${actions.map(action => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} ${taken(action.id) ? 'disabled' : ''} onclick="hdConsoleAction('${ticket.id}','${hdEsc(action.id)}')">${taken(action.id) ? '✓ ' : ''}${hdEsc(action.text)}</button>`).join('')}</div>${feedback}</div></div>`;
 }
 // The user's laptop, for a ticket whose fix is done on it (settingsPrinters):
@@ -1540,12 +1660,824 @@ function hdConsolePriorityControl(ticket) {
   return `<div class="hd-priority-preset"><span>Priority</span> ${hdBadge(ticket.priority, ticket.priority.toLowerCase())}<p class="muted" style="margin:4px 0 0">Pre-set: ${hdEsc(reason)}</p></div>`;
 }
 function hdConsoleResolutionControl(ticket) {
-  const config = hdConsole(ticket).resolutionCode; if (!config) return '';
+  const config = hdResolutionConfig(ticket); if (!config) return '';
   const code = hdConsoleState(ticket).resolutionCode;
-  return `<label>Resolution code${config.required ? ' (required to resolve)' : ''}<select id="hd-resolution-code" class="select" onchange="hdSetResolutionCode('${ticket.id}',this.value)"><option value="">Choose…</option>${hdResolutionCodes(ticket).map(value => `<option ${code === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></label>`;
+  const locked = hdIsMatrix(ticket) && ['Resolved', 'Closed', 'Canceled'].includes(ticket.status);
+  return `<label>Resolution code${config.required ? ' (required to resolve)' : ''}<select id="hd-resolution-code" class="select" ${locked ? 'disabled' : ''} onchange="hdSetResolutionCode('${ticket.id}',this.value)"><option value="">Choose…</option>${hdResolutionCodes(ticket).map(value => `<option ${code === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></label>`;
 }
 function hdConsoleNotePlaceholder(ticket) {
   return hdConsoleNoteParts(ticket).map(key => `${HD_NOTE_PARTS[key]}: …`).join('&#10;');
+}
+
+/* ---------- Queue and matrix features (Module 2 on), switched on per ticket ----------
+ * More `console` keys, each off unless a ticket's template sets it. Older
+ * tickets keep the old states (HD_STATUSES), the old SLA clock
+ * (hdSlaMinutes) and the old queue. Keys:
+ *   matrix: { impact?, urgency?, respondedAt?, stops?:[{ from, to?, kind }] }
+ *                                  Impact and Urgency (1 to 3) calculate
+ *                                  Priority (HD_PRIORITY_MATRIX, P1 to P5);
+ *                                  the Northstar SLA (HD_SN_SLA): respond
+ *                                  target until the desk responds, then the
+ *                                  resolve target, both from Created; Paused
+ *                                  only for On Hold – Awaiting Caller; time in
+ *                                  Resolved doesn't count; ServiceNow states
+ *                                  (HD_SN_STATUSES) with an On Hold reason;
+ *                                  an assignment group; resolving needs a
+ *                                  resolution code and resolution notes.
+ *                                  Seeds: preset impact/urgency, respondedAt
+ *                                  and earlier stops (kind 'resolved' or
+ *                                  'paused'), all in shift time (ISO, UTC).
+ *                                  The template's status, holdReason and
+ *                                  assignedTechnician seed the rest.
+ *   classify: { categories:{ name:[sub] }, cis?:[...], contactTypes?:[...], preset?:{...} }
+ *                                  Category / Subcategory, CI and Contact type
+ *                                  the student sets; the template's own
+ *                                  category is never shown on the ticket
+ *   convert: { number, items:[{ name, approval?, approver?, fields?:[{ id, label, options }] }] }
+ *                                  Convert to Request: the incident becomes
+ *                                  Canceled – Converted and carries a RITM
+ *                                  (catalog item, Requested for, Approval)
+ *   link: true                     link this ticket to a parent as related
+ *   arrivals: [{ id, from, text, when?, at?, reopen?, resume?, approve? }]
+ *                                  a message that arrives once `when` holds
+ *                                  (hdArrivalMet; it may read another
+ *                                  ticket), and what it does to the ticket
+ *   kb: { attach?, draft? }        as kb: true, plus Attach knowledge and
+ *                                  Create knowledge draft (state Review)
+ *   contactAttempts: true | { seed:[{ at, method }] }
+ *                                  contact attempts logged on the ticket; adds
+ *                                  "No response from caller" to the codes
+ *   comments: { internalNames:[...] }  names a customer comment mustn't use
+ *   rewrite: { checks:[{ part, pattern, field? }] }
+ *                                  short description and description the
+ *                                  student rewrites; the check names each
+ *                                  part (who, what, where, when, impact, ...)
+ *                                  still missing (field: short, description
+ *                                  or either)
+ *   actions may set needsApproval: refused until the RITM is approved, and
+ *                                  recorded as its earlyCritical
+ * A ticket set (HD_PRACTICE_SETS or HD_COACHED_SETS) may set now (its fixed
+ * clock), queue: true (the ServiceNow-style list view), workOrder:{ tickets,
+ * groups? } and nextDay:{ unlock:[rule], max? }. The answer-key parts (the
+ * work order's groups) are only ever read by hdWorkOrderCheck. */
+
+// The set the current shift is running, or null. A coached set counts only
+// while the shift still holds only its tickets: another coach's reset
+// (hd1Reset, hdResetTicketScope) swaps the tickets, and the set's clock and
+// queue tools go with them.
+function hdActiveSet() {
+  if (HD_PROVE) return null;
+  if (HD_PRACTICE_SET) return HD_PRACTICE_SET.set;
+  const set = hdState && hdState.ticketSet ? hdCoachedSets()[hdState.ticketSet] : null;
+  return set && hdState.tickets.length && hdState.tickets.every(ticket => set.tickets.includes(ticket.id)) ? set : null;
+}
+// The shift clock: a set's own fixed time (moved only by "Next day"), or
+// HD_SHIFT_NOW for every other shift, exactly as before.
+function hdShiftNow() {
+  const set = hdActiveSet();
+  return set && set.now ? new Date(hdState.clockNow || set.now) : HD_SHIFT_NOW;
+}
+// Shift times are UTC everywhere, so every browser shows the same time.
+function hdShiftTimeText(value) {
+  const date = new Date(value); if (Number.isNaN(date.getTime())) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${HD_DAY_NAMES[date.getUTCDay()]} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
+}
+function hdDayStart(ms) { const d = new Date(ms); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); }
+function hdIsWeekday(dayMs) { const day = new Date(dayMs).getUTCDay(); return day >= 1 && day <= 5; }
+// Business minutes between two times: 08:00 to 17:00 UTC, Monday to Friday.
+function hdBusinessMinutes(fromMs, toMs) {
+  if (!(toMs > fromMs)) return 0;
+  let total = 0;
+  for (let day = hdDayStart(fromMs); day < toMs; day += 86400000) {
+    if (!hdIsWeekday(day)) continue;
+    const open = day + HD_BUSINESS_START * 60000; const close = day + HD_BUSINESS_END * 60000;
+    total += Math.max(0, Math.min(close, toMs) - Math.max(open, fromMs));
+  }
+  return total / 60000;
+}
+function hdSlaUnits(fromMs, toMs, business) { return business ? hdBusinessMinutes(fromMs, toMs) : Math.max(0, (toMs - fromMs) / 60000); }
+// The time `minutes` SLA minutes after fromMs (business or clock).
+function hdAddSlaUnits(fromMs, minutes, business) {
+  if (!business) return fromMs + minutes * 60000;
+  let at = fromMs; let left = minutes;
+  for (let day = hdDayStart(fromMs), guard = 0; guard < 400; day += 86400000, guard += 1) {
+    if (!hdIsWeekday(day)) continue;
+    const open = day + HD_BUSINESS_START * 60000; const close = day + HD_BUSINESS_END * 60000;
+    if (at < open) at = open;
+    if (at >= close) continue;
+    const room = (close - at) / 60000;
+    if (left <= room) return at + left * 60000;
+    left -= room; at = close;
+  }
+  return at;
+}
+// The same time on the next working day (Friday goes to Monday).
+function hdNextWorkingDay(ms) {
+  let next = ms + 86400000;
+  while (!hdIsWeekday(hdDayStart(next))) next += 86400000;
+  return next;
+}
+function hdDurationText(minutes) {
+  const total = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(total / 60); const rest = total % 60;
+  return hours ? `${hours}h${rest ? ` ${rest}m` : ''}` : `${rest}m`;
+}
+
+function hdIsMatrix(ticket) { return !!(ticket && hdConsole(ticket).matrix); }
+function hdMatrixPriority(impact, urgency) { return (HD_PRIORITY_MATRIX[String(impact)] || {})[String(urgency)] || ''; }
+// A matrix ticket's start (hdFreshState): priority from the seeded impact
+// and urgency, or not set; the seeded SLA history; the seeded classification.
+// Reads the ticket's own console block, so it works while the file loads.
+function hdMatrixStart(ticket) {
+  const config = ticket.console || {};
+  const matrix = config.matrix; if (!matrix) return;
+  const iso = value => (value ? new Date(value).toISOString() : '');
+  ticket.impact = matrix.impact ? String(matrix.impact) : '';
+  ticket.urgency = matrix.urgency ? String(matrix.urgency) : '';
+  ticket.priority = hdMatrixPriority(ticket.impact, ticket.urgency);
+  ticket.holdReason = ticket.status === 'On Hold' ? ticket.holdReason || '' : '';
+  ticket.assignmentGroup = ticket.assignmentGroup || HD_SERVICE_DESK;
+  ticket.slaClock = { respondedAt:iso(matrix.respondedAt), stops:(Array.isArray(matrix.stops) ? matrix.stops : []).map(stop => ({ from:iso(stop.from), to:iso(stop.to), kind:stop.kind === 'paused' ? 'paused' : 'resolved' })) };
+  if (config.classify) ticket.classification = { category:'', subcategory:'', ci:'', contactType:'', ...(config.classify.preset || {}) };
+}
+function hdSlaClock(ticket) {
+  const clock = ticket.slaClock = ticket.slaClock || { respondedAt:'', stops:[] };
+  if (!Array.isArray(clock.stops)) clock.stops = [];
+  return clock;
+}
+// SLA minutes used between from and to, less every stop (Resolved, or On
+// Hold – Awaiting Caller) inside that time.
+function hdSlaUsed(ticket, fromMs, toMs, business) {
+  const stopped = hdSlaClock(ticket).stops.reduce((sum, stop) => {
+    const start = Math.max(fromMs, Date.parse(stop.from)); const end = Math.min(toMs, stop.to ? Date.parse(stop.to) : toMs);
+    return end > start ? sum + hdSlaUnits(start, end, business) : sum;
+  }, 0);
+  return Math.max(0, hdSlaUnits(fromMs, toMs, business) - stopped);
+}
+function hdMatrixPaused(ticket) { return ticket.status === 'On Hold' && ticket.holdReason === 'Awaiting Caller'; }
+// A matrix ticket's SLA bar: which target it measures (respond, then
+// resolve), what is used and left, and the badge. "At risk" at 70% and
+// "Breached" at 100%, as the old clock does.
+function hdMatrixSla(ticket) {
+  if (ticket.status === 'Canceled') return { label:ticket.cancelReason === 'Converted' ? 'Converted' : 'Canceled', cls:'ok', stopped:true };
+  if (['Resolved', 'Closed'].includes(ticket.status)) return { label:'Met / stopped', cls:'ok', stopped:true };
+  const targets = HD_SN_SLA[ticket.priority];
+  if (!targets) return { label:'Not set', cls:'', notSet:true };
+  const responded = !!hdSlaClock(ticket).respondedAt;
+  const phase = responded ? 'Resolve' : 'Respond';
+  const target = responded ? targets.resolve : targets.respond;
+  if (!target) return { label:'By agreement', cls:'ok', phase };
+  const now = hdShiftNow().getTime();
+  const used = hdSlaUsed(ticket, Date.parse(ticket.createdTimestamp), now, targets.business);
+  const left = target - used;
+  const base = { phase, used, target, left, business:targets.business, dueMs:hdAddSlaUnits(now, Math.max(0, left), targets.business) };
+  if (hdMatrixPaused(ticket)) return { ...base, label:'Paused', cls:'', paused:true, dueMs:null };
+  if (used >= target) return { ...base, label:'Breached', cls:'bad' };
+  if (used >= target * 0.7) return { ...base, label:'At risk', cls:'warn' };
+  return { ...base, label:`${hdDurationText(left)} left`, cls:'ok' };
+}
+function hdSlaBadge(ticket) {
+  const sla = hdSlaState(ticket);
+  if (!hdIsMatrix(ticket)) return hdBadge(sla.label, sla.cls);
+  if (sla.notSet) return '<span class="muted" data-sla="not-set">Not set</span>';
+  // Paused: a plain grey badge (the base .hd-badge style).
+  return `<span data-sla="${sla.paused ? 'paused' : sla.stopped ? 'stopped' : hdEsc(sla.cls)}">${sla.phase ? `<small class="muted">${sla.phase} </small>` : ''}${sla.paused ? hdBadge('Paused', 'paused') : hdBadge(sla.label, sla.cls)}</span>`;
+}
+function hdMatrixTargetText(ticket) {
+  const targets = HD_SN_SLA[ticket.priority]; if (!targets) return 'Not set (set Impact and Urgency)';
+  const text = minutes => (!minutes ? 'by agreement' : targets.business ? (minutes % 540 === 0 ? `${minutes / 540} business day${minutes === 540 ? '' : 's'}` : `${minutes / 60} business hours`) : minutes < 60 ? `${minutes} minutes` : `${minutes / 60} hours`);
+  return `Respond ${text(targets.respond)} · resolve ${text(targets.resolve)}`;
+}
+function hdStatusText(ticket) {
+  if (ticket.status === 'On Hold' && ticket.holdReason) return `On Hold – ${ticket.holdReason}`;
+  if (ticket.status === 'Canceled' && ticket.cancelReason === 'Converted') return 'Canceled – Converted';
+  return ticket.status;
+}
+function hdStatusBadge(ticket) { return hdBadge(hdStatusText(ticket), String(ticket.status).toLowerCase().replace(/[^a-z0-9]+/g, '-')); }
+function hdShiftIso() { return hdShiftNow().toISOString(); }
+// The respond target is met once, when the desk first takes the next move.
+function hdMatrixRespond(ticket) {
+  const clock = hdSlaClock(ticket);
+  if (!clock.respondedAt) clock.respondedAt = hdShiftIso();
+}
+// Every state change on a matrix ticket goes through here, on the shift
+// clock: it closes an open stop and opens one for Resolved or for On Hold –
+// Awaiting Caller.
+function hdMatrixSetStatus(ticket, status, reason, at) {
+  const clock = hdSlaClock(ticket); const now = at || hdShiftIso();
+  clock.stops.forEach(stop => { if (!stop.to) stop.to = now; });
+  ticket.status = status;
+  ticket.holdReason = status === 'On Hold' ? reason || '' : '';
+  if (status === 'Resolved') clock.stops.push({ from:now, to:'', kind:'resolved' });
+  if (status === 'On Hold' && reason === 'Awaiting Caller') clock.stops.push({ from:now, to:'', kind:'paused' });
+}
+function hdSetImpact(id, field, value) {
+  const ticket = hdTicketById(id); if (!ticket || !hdIsMatrix(ticket) || !['impact', 'urgency'].includes(field)) return;
+  if (['Resolved', 'Closed', 'Canceled'].includes(ticket.status)) return;
+  ticket[field] = ['1', '2', '3'].includes(String(value)) ? String(value) : '';
+  const before = ticket.priority;
+  ticket.priority = hdMatrixPriority(ticket.impact, ticket.urgency);
+  hdHistory(ticket, `${field === 'impact' ? 'Impact' : 'Urgency'} set to ${HD_IMPACT_LABELS[ticket[field]] || 'not set'}${ticket.priority !== before ? `; Priority ${ticket.priority ? `${ticket.priority} ${HD_PRIORITY_NAMES[ticket.priority]}` : 'not set'}` : ''}.`);
+  hdPracticeEvent('priority_set', { ticket:ticket.id, impact:ticket.impact, urgency:ticket.urgency, priority:ticket.priority });
+  hdRerender();
+}
+function hdMatrixAssignToMe(ticket) {
+  ticket.assignedTechnician = 'Riley Morgan';
+  ticket.assignmentGroup = HD_SERVICE_DESK;
+  hdMatrixRespond(ticket);
+  if (['New', 'Escalated'].includes(ticket.status)) hdMatrixSetStatus(ticket, 'In Progress');
+  hdHistory(ticket, `Assigned to Riley Morgan (${HD_SERVICE_DESK}); state In Progress.`);
+}
+function hdMatrixAssignGroup(id, group) {
+  const ticket = hdTicketById(id); if (!ticket || !hdIsMatrix(ticket) || !HD_ASSIGNMENT_GROUPS.includes(group)) return;
+  if (['Resolved', 'Closed', 'Canceled'].includes(ticket.status)) { toast('This ticket is closed. Reopen it before you change its assignment group.'); return; }
+  if (group === HD_SERVICE_DESK) { hdMatrixAssignToMe(ticket); hdRerender(); return; }
+  ticket.assignmentGroup = group;
+  ticket.assignedTechnician = group;
+  hdMatrixRespond(ticket);
+  hdMatrixSetStatus(ticket, 'Escalated');
+  hdHistory(ticket, `Assigned to ${group}; state Escalated.`);
+  hdPracticeEvent('assignment_group', { ticket:ticket.id, group });
+  hdRerender();
+}
+// A state from the State list. On Hold needs a reason; Resolved needs a
+// resolution code and resolution notes (spec section 5); leaving New takes
+// the ticket (Assign to me).
+function hdMatrixTransition(id, status) {
+  const ticket = hdTicketById(id); if (!ticket) return;
+  if (!(HD_SN_STATUS_NEXT[ticket.status] || []).includes(status)) { toast('That state transition is not valid from the current ticket state.'); hdRerender(); return; }
+  if (status === 'On Hold') {
+    const input = document.getElementById('hd-hold-reason');
+    const reason = input ? input.value : '';
+    if (!HD_HOLD_REASONS.includes(reason)) { toast('Choose an On Hold reason first.'); hdRerender(); return; }
+    hdMatrixSetStatus(ticket, 'On Hold', reason);
+    hdHistory(ticket, `State changed to On Hold – ${reason}.`);
+    hdRerender(); return;
+  }
+  if (status === 'Resolved') {
+    const state = hdConsoleState(ticket);
+    const input = document.getElementById('hd-resolution-notes');
+    const notes = String(input ? input.value : hdDraft(ticket, 'resolution')).trim().slice(0, 4000);
+    if (!state.resolutionCode) { toast('Choose a resolution code before you resolve this ticket.'); hdRerender(); return; }
+    if (notes.length < 10) { toast('Write the resolution notes before you resolve this ticket: why and how it was closed.'); hdRerender(); return; }
+    if (hdPasswordInText(notes)) { toast(hdRefusePasswordText(ticket, 'resolution note')); hdRerender(); return; }
+    ticket.resolution = notes; ticket.closureCode = state.resolutionCode;
+    hdClearDraft(ticket, 'resolution');
+    if (ticket.assignedTechnician === 'Unassigned') { ticket.assignedTechnician = 'Riley Morgan'; ticket.assignmentGroup = HD_SERVICE_DESK; }
+    hdMatrixRespond(ticket);
+    hdMatrixSetStatus(ticket, 'Resolved');
+    hdHistory(ticket, `State changed to Resolved (${state.resolutionCode}).`);
+    hdRerender(); return;
+  }
+  if (status === 'In Progress' && ticket.status === 'New') { hdMatrixAssignToMe(ticket); hdRerender(); return; }
+  if (status === 'Canceled') ticket.cancelReason = 'Canceled';
+  if (status === 'In Progress' && ticket.status === 'Resolved') { ticket.closureCode = ''; ticket.resolution = ''; }
+  hdMatrixSetStatus(ticket, status);
+  hdHistory(ticket, status === 'In Progress' ? 'State changed to In Progress.' : `State changed to ${status}.`);
+  hdRerender();
+}
+
+function hdApplyState(id) {
+  const input = document.getElementById('hd-next-state');
+  if (!input || !input.value) { toast('Choose the next state first.'); return; }
+  hdTransitionTicket(id, input.value);
+}
+function hdApplyGroup(id) {
+  const ticket = hdTicketById(id); const input = document.getElementById('hd-assignment-group');
+  if (!ticket || !input) return;
+  if (input.value === (ticket.assignmentGroup || HD_SERVICE_DESK) && (input.value !== HD_SERVICE_DESK || ticket.assignedTechnician === 'Riley Morgan')) { toast(`It is already assigned to ${input.value}.`); return; }
+  hdMatrixAssignGroup(id, input.value);
+}
+// Category / Subcategory, CI and Contact type the student sets (classify).
+const HD_CONTACT_TYPES = ['Phone', 'Email', 'Self-service', 'Walk-in', 'Chat'];
+function hdClassification(ticket) {
+  if (!ticket.classification) ticket.classification = { category:'', subcategory:'', ci:'', contactType:'' };
+  return ticket.classification;
+}
+function hdClassifyOptions(ticket, field) {
+  const config = hdConsole(ticket).classify || {};
+  if (field === 'category') return Object.keys(config.categories || {});
+  if (field === 'subcategory') return ((config.categories || {})[hdClassification(ticket).category]) || [];
+  if (field === 'ci') return Array.isArray(config.cis) && config.cis.length ? config.cis : hdComputers().map(computer => computer.name);
+  if (field === 'contactType') return Array.isArray(config.contactTypes) && config.contactTypes.length ? config.contactTypes : HD_CONTACT_TYPES;
+  return [];
+}
+const HD_CLASSIFY_LABELS = { category:'Category', subcategory:'Subcategory', ci:'Configuration item', contactType:'Contact type' };
+function hdSetClassification(id, field, value) {
+  const ticket = hdTicketById(id); if (!ticket || !hdConsole(ticket).classify || !HD_CLASSIFY_LABELS[field]) return;
+  const classification = hdClassification(ticket);
+  const next = hdClassifyOptions(ticket, field).includes(value) ? value : '';
+  if (classification[field] === next) return;
+  classification[field] = next;
+  if (field === 'category' && !hdClassifyOptions(ticket, 'subcategory').includes(classification.subcategory)) classification.subcategory = '';
+  hdHistory(ticket, `${HD_CLASSIFY_LABELS[field]} set to ${next || 'none'}.`);
+  hdPracticeEvent('classified', { ticket:ticket.id, field, value:next });
+  hdRerender();
+}
+// What the ticket shows as its category: the student's own classification
+// on a classify ticket (never the template's), else the ticket's fields.
+function hdTicketCategoryText(ticket) {
+  if (!hdConsole(ticket).classify) return `${ticket.category} · ${ticket.subcategory}`;
+  const c = hdClassification(ticket);
+  return c.category ? `${c.category}${c.subcategory ? ` › ${c.subcategory}` : ''}` : 'Not classified';
+}
+function hdShortDescription(ticket) { return ticket.shortDescription || ticket.title || ticket.subcategory || ''; }
+
+// Convert to Request: the incident is Canceled – Converted and carries its
+// Requested Item (ticket.request), which has no SLA bar.
+function hdConvertDraft(ticket) {
+  const state = hdConsoleState(ticket);
+  state.convert = state.convert || { item:'', requestedFor:ticket.requester, fields:{} };
+  return state.convert;
+}
+function hdConvertSet(id, field, value) {
+  const ticket = hdTicketById(id); const config = ticket && hdConsole(ticket).convert; if (!config) return;
+  const draft = hdConvertDraft(ticket);
+  if (field === 'item') { draft.item = (config.items || []).some(item => item.name === value) ? value : ''; draft.fields = {}; }
+  else if (field === 'requestedFor') draft.requestedFor = HD_USERS.some(user => user.name === value) ? value : '';
+  else {
+    const item = (config.items || []).find(entry => entry.name === draft.item);
+    const spec = item && (item.fields || []).find(entry => entry.id === field);
+    if (spec) draft.fields[field] = (spec.options || []).includes(value) ? value : '';
+  }
+  hdRerender();
+}
+function hdConvertToRequest(id) {
+  const ticket = hdTicketById(id); const config = ticket && hdConsole(ticket).convert; if (!config || ticket.request) return;
+  if (['Resolved', 'Closed', 'Canceled'].includes(ticket.status)) { toast('This ticket is closed, so it can\'t be converted.'); return; }
+  const draft = hdConvertDraft(ticket);
+  const item = (config.items || []).find(entry => entry.name === draft.item);
+  if (!item) { toast('Choose the catalog item first.'); return; }
+  if (!draft.requestedFor) { toast('Choose who the request is for.'); return; }
+  const missing = (item.fields || []).find(field => !draft.fields[field.id]);
+  if (missing) { toast(`Choose the ${missing.label} first.`); return; }
+  const approved = item.approval === 'Approved';
+  ticket.request = {
+    number:config.number || 'RITM', item:item.name, requestedFor:draft.requestedFor,
+    fields:(item.fields || []).map(field => ({ id:field.id, label:field.label, value:draft.fields[field.id] })),
+    approval:approved ? 'Approved' : 'Requested', approver:item.approver || '', approvedAt:approved ? hdShiftIso() : '', state:'Open',
+  };
+  hdMatrixRespond(ticket);
+  ticket.cancelReason = 'Converted';
+  ticket.closureCode = 'Canceled – Converted';
+  hdMatrixSetStatus(ticket, 'Canceled');
+  hdHistory(ticket, `Converted to Request ${ticket.request.number} (${item.name}); incident Canceled – Converted.`);
+  hdPracticeEvent('converted', { ticket:ticket.id, item:item.name });
+  hdRerender();
+}
+function hdRequestApprove(ticket) {
+  if (!ticket.request || ticket.request.approval === 'Approved') return;
+  ticket.request.approval = 'Approved'; ticket.request.approvedAt = hdShiftIso();
+  hdHistory(ticket, `${ticket.request.number} approved${ticket.request.approver ? ` by ${ticket.request.approver}` : ''}.`);
+}
+function hdRequestClose(id) {
+  const ticket = hdTicketById(id); if (!ticket || !ticket.request || ticket.request.state !== 'Open') return;
+  if (ticket.request.approval !== 'Approved') { toast('The request can\'t be closed before it is approved.'); return; }
+  ticket.request.state = 'Closed Complete';
+  hdHistory(ticket, `${ticket.request.number} closed complete.`);
+  hdRerender();
+}
+function hdRequestApproved(ticket) { return !!(ticket.request && ticket.request.approval === 'Approved'); }
+
+// Link tickets as related: a child names its parent. Linking meets the
+// child's respond target; each ticket keeps its own resolve clock.
+function hdLinkParent(id, parentId) {
+  const ticket = hdTicketById(id); if (!ticket || !hdConsole(ticket).link) return;
+  const parent = hdTicketById(parentId);
+  if (!parent || parent.id === ticket.id || parent.parentId === ticket.id) { toast('Choose another ticket as the parent.'); return; }
+  ticket.parentId = parent.id;
+  if (hdIsMatrix(ticket)) hdMatrixRespond(ticket);
+  hdHistory(ticket, `Linked as related: child of ${hdTicketLabel(parent)}.`);
+  hdHistory(parent, `${hdTicketLabel(ticket)} linked as a related child ticket.`);
+  hdPracticeEvent('linked', { ticket:ticket.id, parent:parent.id });
+  hdRerender();
+}
+function hdUnlinkParent(id) {
+  const ticket = hdTicketById(id); if (!ticket || !ticket.parentId) return;
+  const parent = hdTicketById(ticket.parentId);
+  ticket.parentId = '';
+  hdHistory(ticket, `Link to ${parent ? hdTicketLabel(parent) : 'the parent'} removed.`);
+  hdRerender();
+}
+function hdChildTickets(ticket) { return hdState.tickets.filter(item => item.parentId === ticket.id); }
+
+// Messages that arrive after the student does something (arrivals): checked
+// after every change. `when` reads this ticket or another (ticket: id):
+// status (state names, "On Hold – Awaiting Caller" form allowed), opened,
+// comments / notes (at least that many by the technician), converted,
+// linked, resolved; all: [...] needs each one. No `when`: at once.
+function hdArrivalMet(ticket, when) {
+  if (!when) return true;
+  if (Array.isArray(when.all)) return when.all.every(item => hdArrivalMet(ticket, item));
+  const target = when.ticket ? hdTicketById(when.ticket) : ticket; if (!target) return false;
+  const mine = list => (list || []).filter(entry => entry.author === 'Riley Morgan').length;
+  if (when.status && ![].concat(when.status).some(value => value === target.status || value === hdStatusText(target))) return false;
+  if (when.opened && target.opened !== true) return false;
+  if (when.comments && mine(target.customerComments) < when.comments) return false;
+  if (when.notes && mine(target.notes) < when.notes) return false;
+  if (when.converted && !target.request) return false;
+  if (when.linked && !target.parentId) return false;
+  return true;
+}
+function hdCheckArrivals(quiet) {
+  if (!hdState || !Array.isArray(hdState.tickets)) return false;
+  let arrivedNow = false;
+  hdState.tickets.forEach(ticket => {
+    const arrivals = hdConsole(ticket).arrivals; if (!Array.isArray(arrivals)) return;
+    const state = hdConsoleState(ticket);
+    state.arrived = Array.isArray(state.arrived) ? state.arrived : [];
+    arrivals.forEach(arrival => {
+      if (state.arrived.some(entry => entry.id === arrival.id) || !hdArrivalMet(ticket, arrival.when)) return;
+      // at: the message's own shift time (a reply that came in before the
+      // shift opened); otherwise now on the shift clock.
+      const at = arrival.at && !Number.isNaN(Date.parse(arrival.at)) ? new Date(arrival.at).toISOString() : '';
+      state.arrived.push({ id:arrival.id, from:arrival.from || ticket.requester, text:arrival.text, time:at ? hdShiftTimeText(at) : hdActiveSet() && hdActiveSet().now ? hdShiftTimeText(hdShiftNow()) : hdConsoleTime() });
+      hdHistory(ticket, `Reply from ${arrival.from || ticket.requester} (customer-visible).`);
+      if (arrival.reopen && ticket.status === 'Resolved') {
+        hdMatrixSetStatus(ticket, 'In Progress', '', at); ticket.closureCode = ''; ticket.resolution = '';
+        hdHistory(ticket, 'Reopened by the caller\'s reply; state In Progress.');
+      }
+      if (arrival.resume && ticket.status === 'On Hold') { hdMatrixSetStatus(ticket, 'In Progress', '', at); hdHistory(ticket, 'The caller replied; state In Progress.'); }
+      if (arrival.approve) hdRequestApprove(ticket);
+      hdPracticeEvent('message_arrived', { ticket:ticket.id, message:arrival.id });
+      arrivedNow = true;
+      if (!quiet && typeof toast === 'function') toast(`New reply from ${arrival.from || ticket.requester} on ${hdTicketLabel(ticket)}.`);
+    });
+  });
+  return arrivedNow;
+}
+function hdHasArrivals() { return !!(hdState && hdState.tickets.some(ticket => Array.isArray(hdConsole(ticket).arrivals))); }
+
+// Knowledge: Attach knowledge (Related › Knowledge) and Create knowledge
+// draft (state Review), for a ticket whose kb is { attach, draft }.
+function hdKbConfig(ticket) { const kb = hdConsole(ticket).kb; return kb && typeof kb === 'object' ? kb : {}; }
+function hdKbAttach(id, articleId) {
+  const ticket = hdTicketById(id); if (!ticket || !hdKbConfig(ticket).attach) return;
+  const article = hdKbArticles().find(item => item.id === articleId); if (!article) return;
+  const state = hdConsoleState(ticket);
+  state.kbAttached = Array.isArray(state.kbAttached) ? state.kbAttached : [];
+  if (state.kbAttached.includes(articleId)) return;
+  state.kbAttached.push(articleId);
+  hdHistory(ticket, `Knowledge attached: ${articleId} · ${article.title}.`);
+  hdPracticeEvent('kb_attached', { ticket:ticket.id, article:articleId });
+  hdRerender();
+}
+function hdKbCreateDraft(id) {
+  const ticket = hdTicketById(id); if (!ticket || !hdKbConfig(ticket).draft) return;
+  const state = hdConsoleState(ticket);
+  if (state.kbDraft) return;
+  if (!['Resolved', 'Closed'].includes(ticket.status)) { toast('Resolve the ticket first: a knowledge draft records a fix that worked.'); return; }
+  const title = String((document.getElementById('hd-kb-draft-title') || {}).value || '').trim().slice(0, 160);
+  const text = String((document.getElementById('hd-kb-draft-text') || {}).value || '').trim().slice(0, 4000);
+  if (title.length < 5) { toast('Give the knowledge draft a title that names the symptom and the fix.'); return; }
+  if (text.length < 10) { toast('Write the steps that fixed it in the knowledge draft.'); return; }
+  if (hdPasswordInText(title) || hdPasswordInText(text)) { toast(hdRefusePasswordText(ticket, 'knowledge draft')); return; }
+  state.kbDraft = { title, text, state:'Review', at:hdActiveSet() && hdActiveSet().now ? hdShiftIso() : new Date().toISOString() };
+  hdClearDraft(ticket, 'kbTitle'); hdClearDraft(ticket, 'kbText');
+  hdHistory(ticket, `Knowledge draft created: "${title}" (state Review).`);
+  hdPracticeEvent('kb_draft', { ticket:ticket.id });
+  hdRerender();
+}
+
+// Contact attempts: the seeded ones and the ones the student logs, numbered.
+function hdContactConfig(ticket) { const value = hdConsole(ticket).contactAttempts; return value ? (typeof value === 'object' ? value : {}) : null; }
+function hdContactAttempts(ticket) {
+  const config = hdContactConfig(ticket); if (!config) return [];
+  const state = hdConsoleState(ticket);
+  state.contactAttempts = Array.isArray(state.contactAttempts) ? state.contactAttempts : [];
+  return [...(Array.isArray(config.seed) ? config.seed : []), ...state.contactAttempts];
+}
+function hdLogContactAttempt(id) {
+  const ticket = hdTicketById(id); if (!ticket || !hdContactConfig(ticket)) return;
+  const input = document.getElementById('hd-contact-method');
+  const method = input ? input.value : '';
+  if (!HD_CONTACT_METHODS.includes(method)) { toast('Choose how you tried to reach the caller.'); return; }
+  hdContactAttempts(ticket);
+  hdConsoleState(ticket).contactAttempts.push({ at:hdShiftIso(), method });
+  const count = hdContactAttempts(ticket).length;
+  hdHistory(ticket, `Contact attempt ${count}: ${method}.`);
+  hdPracticeEvent('contact_attempt', { ticket:ticket.id, method, count });
+  hdRerender();
+}
+
+// The rewrite check: which parts (who, what, where, when, impact, ...) the
+// rewritten short description and description don't have yet.
+function hdRewriteMissing(checks, short, description) {
+  return (Array.isArray(checks) ? checks : []).filter(check => {
+    const text = check.field === 'short' ? short : check.field === 'description' ? description : `${short}\n${description}`;
+    try { return !new RegExp(check.pattern, 'i').test(String(text || '')); } catch (_) { return true; }
+  }).map(check => check.part);
+}
+function hdRewriteParts(config) { return (Array.isArray(config.checks) ? config.checks : []).map(check => check.part); }
+function hdRewriteSave(id) {
+  const ticket = hdTicketById(id); const config = ticket && hdConsole(ticket).rewrite; if (!config) return;
+  const short = String((document.getElementById('hd-rewrite-short') || {}).value || '').trim().slice(0, 160);
+  const description = String((document.getElementById('hd-rewrite-desc') || {}).value || '').trim().slice(0, 4000);
+  if (!short) { toast('Write the short description first.'); return; }
+  if (hdPasswordInText(short) || hdPasswordInText(description)) { toast(hdRefusePasswordText(ticket, 'description')); return; }
+  const missing = hdRewriteMissing(config.checks, short, description);
+  hdConsoleState(ticket).rewrite = { short, description, missing, saves:((hdConsoleState(ticket).rewrite || {}).saves || 0) + 1 };
+  ticket.shortDescription = short;
+  hdClearDraft(ticket, 'rewriteShort'); hdClearDraft(ticket, 'rewriteDesc');
+  hdHistory(ticket, 'Short description and description rewritten.');
+  hdPracticeEvent('rewritten', { ticket:ticket.id, missing:missing.join(', ') });
+  toast(missing.length ? `Saved. Check that it says ${hdJoinWords(missing)}.` : `Saved. The rewrite has every part: ${hdJoinWords(hdRewriteParts(config))}.`);
+  hdRerender();
+}
+
+// The work order (a set's workOrder): the student's own order of the set's
+// tickets, moved by dragging or by Move up / Move down.
+function hdWorkOrder() {
+  const set = hdActiveSet(); const config = set && set.workOrder; if (!config) return null;
+  const ids = (config.tickets || set.tickets).filter(id => hdTicketById(id));
+  const saved = Array.isArray(hdState.workOrder) ? hdState.workOrder.filter(id => ids.includes(id)) : [];
+  hdState.workOrder = [...saved, ...hdQueueSorted(ids.filter(id => !saved.includes(id)).map(hdTicketById)).map(ticket => ticket.id)];
+  return hdState.workOrder;
+}
+function hdWorkOrderMove(id, delta) {
+  const order = hdWorkOrder(); if (!order) return;
+  const from = order.indexOf(id); const to = from + delta;
+  if (from < 0 || to < 0 || to >= order.length) return;
+  order.splice(to, 0, order.splice(from, 1)[0]);
+  hdState.workOrderResult = '';
+  hdRerender();
+}
+function hdWorkOrderFromSort() {
+  const order = hdWorkOrder(); if (!order) return;
+  hdState.workOrder = hdQueueSorted(order.map(hdTicketById)).map(ticket => ticket.id);
+  hdState.workOrderResult = '';
+  hdRerender();
+}
+let hdWorkDragged = '';
+function hdWorkDrag(event, id) {
+  hdWorkDragged = id;
+  try { event.dataTransfer.setData('text/plain', id); event.dataTransfer.effectAllowed = 'move'; } catch (_) {}
+}
+function hdWorkDrop(event, targetId) {
+  if (event && event.preventDefault) event.preventDefault();
+  let id = hdWorkDragged;
+  try { id = event.dataTransfer.getData('text/plain') || id; } catch (_) {}
+  hdWorkDragged = '';
+  const order = hdWorkOrder(); if (!order || !order.includes(id) || !order.includes(targetId) || id === targetId) return;
+  // Dropped on a row below: it goes after that row; on a row above: before it.
+  const down = order.indexOf(id) < order.indexOf(targetId);
+  order.splice(order.indexOf(id), 1);
+  order.splice(order.indexOf(targetId) + (down ? 1 : 0), 0, id);
+  hdState.workOrderResult = '';
+  hdRerender();
+}
+// Check order: the groups are the accepted order (any order inside a
+// group). Returns { ok } or the first ticket out of place: the one that
+// should move up, and the ticket it should come before. Feedback only.
+function hdWorkOrderCheck(order, groups) {
+  const list = Array.isArray(groups) ? groups : [];
+  const groupOf = id => { const index = list.findIndex(group => group.includes(id)); return index < 0 ? list.length : index; };
+  const expected = [];
+  list.forEach((group, index) => group.forEach(() => expected.push(index)));
+  for (let i = 0; i < order.length; i += 1) {
+    const want = i < expected.length ? expected[i] : list.length;
+    if (groupOf(order[i]) === want) continue;
+    const move = order.slice(i + 1).find(id => groupOf(id) === want);
+    return { ok:false, move:move || order[i], before:order[i] };
+  }
+  return { ok:true };
+}
+function hdWorkOrderSubmit() {
+  const set = hdActiveSet(); const order = hdWorkOrder(); if (!order) return;
+  const result = hdWorkOrderCheck(order, set.workOrder.groups);
+  const label = id => { const ticket = hdTicketById(id); return ticket ? hdTicketLabel(ticket) : id; };
+  hdState.workOrderResult = result.ok ? 'ok' : result.move === result.before ? `${label(result.move)} is in the wrong place.` : `${label(result.move)} is out of place. Move it up, above ${label(result.before)}.`;
+  hdPracticeEvent('order_checked', { ok:result.ok, order:order.join(', ') });
+  hdRerender();
+}
+
+// "Next day": moves a set's clock to the same time on the next working day,
+// once every unlock rule holds (rule: { ticket, done:[converted | resolved |
+// escalated] } or { ticket, attempts:n }). While locked it names the tickets
+// that still need work today.
+function hdNextDayRuleMet(rule) {
+  const ticket = hdTicketById(rule.ticket); if (!ticket) return true;
+  if (rule.attempts) return hdContactAttempts(ticket).length >= rule.attempts;
+  const done = Array.isArray(rule.done) ? rule.done : [];
+  return done.some(kind => (kind === 'converted' && ticket.status === 'Canceled' && ticket.cancelReason === 'Converted')
+    || (kind === 'resolved' && ['Resolved', 'Closed'].includes(ticket.status))
+    || (kind === 'escalated' && ticket.status === 'Escalated'));
+}
+function hdNextDayState() {
+  const set = hdActiveSet(); const config = set && set.now && set.nextDay; if (!config) return null;
+  const used = hdState.daysMoved || 0;
+  const waiting = (config.unlock || []).filter(rule => !hdNextDayRuleMet(rule)).map(rule => hdTicketById(rule.ticket)).filter(Boolean);
+  return { used, max:config.max || 1, waiting:[...new Set(waiting)].map(hdTicketLabel) };
+}
+function hdNextDay() {
+  const state = hdNextDayState(); if (!state || state.used >= state.max) return;
+  if (state.waiting.length) { toast(`Not yet. Still needs work today: ${hdJoinWords(state.waiting)}.`); return; }
+  hdState.clockNow = new Date(hdNextWorkingDay(hdShiftNow().getTime())).toISOString();
+  hdState.daysMoved = state.used + 1;
+  hdPracticeEvent('next_day', { now:hdState.clockNow });
+  toast(`It's ${hdShiftTimeText(hdShiftNow())}.`);
+  hdRerender();
+}
+function hdNextDayControl() {
+  const state = hdNextDayState(); if (!state) return '';
+  if (state.used >= state.max) return `<span class="muted" data-hd-next-day="used">Shift clock: ${hdEsc(hdShiftTimeText(hdShiftNow()))}</span>`;
+  const locked = state.waiting.length > 0;
+  return `<span data-hd-next-day="${locked ? 'locked' : 'open'}" style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px"><span class="muted">Shift clock: ${hdEsc(hdShiftTimeText(hdShiftNow()))}</span><button type="button" class="btn btn-secondary" ${locked ? 'disabled aria-describedby="hd-next-day-why" style="opacity:.55;cursor:not-allowed"' : ''} onclick="hdNextDay()">Next day</button>${locked ? `<small id="hd-next-day-why" class="muted">Still needs work today: ${hdEsc(hdJoinWords(state.waiting))}</small>` : ''}</span>`;
+}
+
+// The ServiceNow-style list (a set's queue: true): Incidents › Assigned to
+// my group › Unassigned, the columns the student adds, and a two-level sort.
+const HD_QUEUE_COLUMNS = { priority:'Priority', sla:'SLA due', category:'Category', caller:'Caller', created:'Created' };
+const HD_QUEUE_SORTS = { number:'Number', ...HD_QUEUE_COLUMNS };
+const HD_QUEUE_LISTS = { unassigned:'Assigned to my group › Unassigned', mine:'Assigned to my group › All open', all:'All incidents' };
+function hdQueueView() {
+  const view = hdState.queueView = hdState.queueView || {};
+  if (!HD_QUEUE_LISTS[view.list]) view.list = 'unassigned';
+  view.columns = Array.isArray(view.columns) ? view.columns.filter(key => HD_QUEUE_COLUMNS[key]) : [];
+  view.sort = Array.isArray(view.sort) ? view.sort.slice(0, 2).map(key => (HD_QUEUE_SORTS[key] ? key : '')) : ['created', ''];
+  if (!view.sort[0]) view.sort[0] = 'created';
+  return view;
+}
+function hdQueueSetList(value) { hdQueueView().list = HD_QUEUE_LISTS[value] ? value : 'unassigned'; hdRerender(); }
+function hdQueueColumn(key, on) {
+  const view = hdQueueView(); if (!HD_QUEUE_COLUMNS[key]) return;
+  view.columns = on ? [...new Set([...view.columns, key])] : view.columns.filter(item => item !== key);
+  view.columns.sort((a, b) => Object.keys(HD_QUEUE_COLUMNS).indexOf(a) - Object.keys(HD_QUEUE_COLUMNS).indexOf(b));
+  hdRerender();
+}
+function hdQueueSort(level, key) {
+  const view = hdQueueView(); if (![0, 1].includes(level)) return;
+  view.sort[level] = HD_QUEUE_SORTS[key] ? key : '';
+  if (!view.sort[0]) view.sort[0] = 'created';
+  hdRerender();
+}
+const HD_PRIORITY_RANK = { P1:1, P2:2, P3:3, P4:4, P5:5 };
+function hdQueueSortValue(ticket, key) {
+  if (key === 'priority') return HD_PRIORITY_RANK[ticket.priority] || 9;
+  if (key === 'sla') { const sla = hdSlaState(ticket); return sla.dueMs == null ? Infinity : sla.dueMs; }
+  if (key === 'category') return hdTicketCategoryText(ticket);
+  if (key === 'caller') return ticket.requester || '';
+  if (key === 'created') return Date.parse(ticket.createdTimestamp) || 0;
+  return hdTicketLabel(ticket);
+}
+function hdQueueSorted(tickets) {
+  const keys = hdState.queueView ? hdQueueView().sort.filter(Boolean) : ['created'];
+  const compare = (a, b, key) => { const x = hdQueueSortValue(a, key); const y = hdQueueSortValue(b, key); return typeof x === 'string' ? x.localeCompare(y) : x - y; };
+  return tickets.slice().sort((a, b) => keys.reduce((result, key) => result || compare(a, b, key), 0) || hdTicketLabel(a).localeCompare(hdTicketLabel(b)));
+}
+function hdQueueListTickets(list) {
+  const open = ticket => !['Resolved', 'Closed', 'Canceled'].includes(ticket.status);
+  const mine = ticket => (ticket.assignmentGroup || HD_SERVICE_DESK) === HD_SERVICE_DESK;
+  if (list === 'all') return hdState.tickets.slice();
+  if (list === 'mine') return hdState.tickets.filter(ticket => open(ticket) && mine(ticket));
+  return hdState.tickets.filter(ticket => open(ticket) && mine(ticket) && ticket.assignedTechnician === 'Unassigned');
+}
+function hdQueueCell(ticket, key) {
+  if (key === 'priority') return ticket.priority ? hdBadge(ticket.priority, ticket.priority.toLowerCase()) : '<span class="muted">Not set</span>';
+  if (key === 'sla') {
+    const sla = hdSlaState(ticket);
+    return `${hdSlaBadge(ticket)}${sla.dueMs ? `<small>${hdEsc(hdShiftTimeText(sla.dueMs))}</small>` : ''}`;
+  }
+  if (key === 'category') return hdEsc(hdTicketCategoryText(ticket));
+  if (key === 'caller') return `<strong>${hdEsc(ticket.requester)}</strong><small>${hdEsc(ticket.department)}</small>`;
+  if (key === 'created') return hdEsc(hdShiftTimeText(ticket.createdTimestamp));
+  return '';
+}
+function hdSetQueueHtml(set) {
+  const view = hdQueueView();
+  const tickets = hdQueueSorted(hdQueueListTickets(view.list));
+  const sortSelect = level => `<select class="select" aria-label="${level ? 'Then sort by' : 'Sort by'}" onchange="hdQueueSort(${level},this.value)">${level ? `<option value="" ${!view.sort[1] ? 'selected' : ''}>None</option>` : ''}${Object.keys(HD_QUEUE_SORTS).map(key => `<option value="${key}" ${view.sort[level] === key ? 'selected' : ''}>${HD_QUEUE_SORTS[key]}</option>`).join('')}</select>`;
+  const columns = `<fieldset style="border:0;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:10px;align-items:center"><legend class="muted" style="float:left;margin-right:6px">Columns</legend>${Object.keys(HD_QUEUE_COLUMNS).map(key => `<label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-hd-column="${key}" ${view.columns.includes(key) ? 'checked' : ''} onchange="hdQueueColumn('${key}',this.checked)"> ${HD_QUEUE_COLUMNS[key]}</label>`).join('')}</fieldset>`;
+  const head = `<th>Number</th><th>Short description</th>${view.columns.map(key => `<th>${HD_QUEUE_COLUMNS[key]}</th>`).join('')}<th>State</th><th>Assigned to</th>`;
+  const rows = tickets.map(ticket => `<tr class="hd-ticket-row" data-hd-row="${hdEsc(ticket.id)}" tabindex="0" onclick="hdSelectTicket('${ticket.id}')" onkeydown="if(event.key==='Enter')hdSelectTicket('${ticket.id}')"><td><strong>${hdEsc(hdTicketLabel(ticket))}</strong>${ticket.parentId && hdTicketById(ticket.parentId) ? `<small>Child of ${hdEsc(hdTicketLabel(hdTicketById(ticket.parentId)))}</small>` : ''}</td><td>${hdEsc(hdShortDescription(ticket) || ticket.description)}</td>${view.columns.map(key => `<td data-hd-cell="${key}">${hdQueueCell(ticket, key)}</td>`).join('')}<td>${hdStatusBadge(ticket)}</td><td>${hdEsc(ticket.assignedTechnician)}</td></tr>`).join('')
+    || `<tr><td colspan="${4 + view.columns.length}" class="muted">No tickets in this list.</td></tr>`;
+  return `<div class="filterbar" style="flex-wrap:wrap;gap:10px"><label>Incidents › <select class="select" aria-label="List" onchange="hdQueueSetList(this.value)">${Object.keys(HD_QUEUE_LISTS).map(key => `<option value="${key}" ${view.list === key ? 'selected' : ''}>${HD_QUEUE_LISTS[key]}</option>`).join('')}</select></label><label>Sort by ${sortSelect(0)}</label><label>then by ${sortSelect(1)}</label><span class="muted">${tickets.length} shown</span></div>
+    <div class="filterbar">${columns}</div>
+    <div class="card"><div class="table-wrap"><table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div></div>${set.workOrder ? hdWorkOrderCard() : ''}`;
+}
+function hdWorkOrderCard() {
+  const order = hdWorkOrder(); if (!order) return '';
+  const result = hdState.workOrderResult;
+  const feedback = !result ? '' : result === 'ok'
+    ? '<div class="callout success" role="status" data-hd-order="ok"><strong>This order works.</strong></div>'
+    : `<div class="callout warn" role="status" data-hd-order="out">${hdEsc(result)}</div>`;
+  const items = order.map((id, index) => {
+    const ticket = hdTicketById(id);
+    return `<li draggable="true" data-hd-order-row="${hdEsc(id)}" ondragstart="hdWorkDrag(event,'${id}')" ondragover="event.preventDefault()" ondrop="hdWorkDrop(event,'${id}')" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px;border:1px solid #e4e7ec;border-radius:8px;cursor:grab"><span aria-hidden="true">⠿</span><strong>${index + 1}. ${hdEsc(hdTicketLabel(ticket))}</strong>${ticket.priority ? hdBadge(ticket.priority, ticket.priority.toLowerCase()) : '<span class="muted">Not set</span>'}${hdSlaBadge(ticket)}<span style="flex:1 1 160px">${hdEsc(hdShortDescription(ticket) || ticket.description)}</span><button type="button" class="btn btn-ghost btn-sm" aria-label="Move ${hdEsc(hdTicketLabel(ticket))} up" ${index === 0 ? 'disabled' : ''} onclick="hdWorkOrderMove('${id}',-1)">Move up</button><button type="button" class="btn btn-ghost btn-sm" aria-label="Move ${hdEsc(hdTicketLabel(ticket))} down" ${index === order.length - 1 ? 'disabled' : ''} onclick="hdWorkOrderMove('${id}',1)">Move down</button></li>`;
+  }).join('');
+  return `<div class="card hd-work-order"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Your work order</strong><span class="muted">Drag the rows, or use Move up and Move down.</span></div><div class="card-body"><ol style="list-style:none;margin:0 0 10px;padding:0;display:grid;gap:6px">${items}</ol><div style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="btn btn-secondary" onclick="hdWorkOrderFromSort()">Start from the list's sort</button><button type="button" class="btn btn-primary" onclick="hdWorkOrderSubmit()">Check order</button></div>${feedback}</div></div>`;
+}
+
+// The cards and controls on a matrix ticket. Each is '' without its feature.
+function hdMatrixControls(ticket) {
+  const closed = ['Resolved', 'Closed', 'Canceled'].includes(ticket.status);
+  const select = (field, label) => `<label>${label}<select class="select" data-hd-field="${field}" ${closed ? 'disabled' : ''} onchange="hdSetImpact('${ticket.id}','${field}',this.value)"><option value="">Choose…</option>${['1', '2', '3'].map(value => `<option value="${value}" ${ticket[field] === value ? 'selected' : ''}>${HD_IMPACT_LABELS[value]}</option>`).join('')}</select></label>`;
+  const priority = `<div class="hd-priority-preset" data-hd-priority="${hdEsc(ticket.priority || '')}"><span>Priority</span> ${ticket.priority ? `${hdBadge(ticket.priority, ticket.priority.toLowerCase())} ${hdEsc(HD_PRIORITY_NAMES[ticket.priority])}` : '<span class="muted">Not set</span>'}<p class="muted" style="margin:4px 0 0">Calculated from Impact × Urgency. You don't type it.</p></div>`;
+  const next = HD_SN_STATUS_NEXT[ticket.status] || [];
+  // State first; the reason select is read when On Hold is chosen.
+  // State and assignment group apply with a button, so moving through a
+  // list with the arrow keys never changes the ticket.
+  const state = next.length ? `<label>State<select id="hd-next-state" class="select" data-hd-field="state"><option value="">${hdEsc(hdStatusText(ticket))}</option>${next.map(value => `<option>${value}</option>`).join('')}</select></label>${next.includes('On Hold') ? `<label>On Hold reason (only for On Hold)<select id="hd-hold-reason" class="select"><option value="">Choose…</option>${HD_HOLD_REASONS.map(reason => `<option ${ticket.holdReason === reason ? 'selected' : ''}>${reason}</option>`).join('')}</select></label>` : ''}<button type="button" class="btn btn-secondary" onclick="hdApplyState('${ticket.id}')">Apply state</button>` : `<div><span class="muted">State</span> ${hdStatusBadge(ticket)}</div>`;
+  const group = closed ? `<div><span class="muted">Assignment group</span> <strong>${hdEsc(ticket.assignmentGroup || HD_SERVICE_DESK)}</strong></div>` : `<label>Assignment group<select id="hd-assignment-group" class="select" data-hd-field="group">${HD_ASSIGNMENT_GROUPS.map(value => `<option ${(ticket.assignmentGroup || HD_SERVICE_DESK) === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label><button type="button" class="btn btn-secondary" onclick="hdApplyGroup('${ticket.id}')">Assign to group</button>`;
+  const resolving = !closed ? `<label>Resolution notes (required to resolve)<textarea id="hd-resolution-notes" class="ipt" rows="4" maxlength="4000" oninput="hdKeepDraft('${ticket.id}','resolution',this.value)" placeholder="Why and how it was closed">${hdEsc(hdDraft(ticket, 'resolution'))}</textarea></label>` : '';
+  return `${select('impact', 'Impact')}${select('urgency', 'Urgency')}${priority}${hdClassifyControls(ticket)}${group}${state}${hdConsoleResolutionControl(ticket)}${resolving}`;
+}
+function hdClassifyControls(ticket) {
+  if (!hdConsole(ticket).classify) return '';
+  const c = hdClassification(ticket);
+  const closed = ['Resolved', 'Closed', 'Canceled'].includes(ticket.status);
+  return Object.keys(HD_CLASSIFY_LABELS).map(field => {
+    const options = hdClassifyOptions(ticket, field);
+    return `<label>${HD_CLASSIFY_LABELS[field]}<select class="select" data-hd-field="${field}" ${closed || !options.length ? 'disabled' : ''} onchange="hdSetClassification('${ticket.id}','${field}',this.value)"><option value="">Choose…</option>${options.map(value => `<option ${c[field] === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></label>`;
+  }).join('');
+}
+function hdConvertCard(ticket) {
+  const config = hdConsole(ticket).convert; if (!config) return '';
+  const request = ticket.request;
+  if (request) {
+    const fields = request.fields.map(field => `<dt>${hdEsc(field.label)}</dt><dd>${hdEsc(field.value)}</dd>`).join('');
+    const close = request.state === 'Open' ? `<button type="button" class="btn btn-secondary" ${request.approval === 'Approved' ? '' : 'disabled style="opacity:.55;cursor:not-allowed"'} onclick="hdRequestClose('${ticket.id}')">Close the request (Closed Complete)</button>` : '';
+    return `<div class="card hd-request-item" data-hd-request="${hdEsc(request.number)}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Requested item ${hdEsc(request.number)}</strong>${hdBadge(`Approval: ${request.approval}`, request.approval === 'Approved' ? 'ok' : 'warn')}${hdBadge(request.state, request.state === 'Open' ? 'in-progress' : 'closed')}</div><div class="card-body"><dl class="hd-dl"><dt>Catalog item</dt><dd>${hdEsc(request.item)}</dd><dt>Requested for</dt><dd>${hdEsc(request.requestedFor)}</dd>${fields}${request.approver ? `<dt>Approver</dt><dd>${hdEsc(request.approver)}</dd>` : ''}<dt>SLA</dt><dd class="muted">None: requests have no SLA bar here</dd></dl>${close}</div></div>`;
+  }
+  if (['Resolved', 'Closed', 'Canceled'].includes(ticket.status)) return '';
+  const draft = hdConvertDraft(ticket);
+  const item = (config.items || []).find(entry => entry.name === draft.item);
+  const fields = item ? (item.fields || []).map(field => `<label>${hdEsc(field.label)}<select class="select" data-hd-convert="${hdEsc(field.id)}" onchange="hdConvertSet('${ticket.id}','${hdEsc(field.id)}',this.value)"><option value="">Choose…</option>${(field.options || []).map(value => `<option ${draft.fields[field.id] === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></label>`).join('') : '';
+  return `<div class="card hd-convert"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Convert to Request</strong><span class="muted">For something new, not something broken.</span></div><div class="card-body" style="display:grid;gap:8px"><label>Catalog item<select class="select" data-hd-convert="item" onchange="hdConvertSet('${ticket.id}','item',this.value)"><option value="">Choose…</option>${(config.items || []).map(entry => `<option ${draft.item === entry.name ? 'selected' : ''}>${hdEsc(entry.name)}</option>`).join('')}</select></label><label>Requested for<select class="select" data-hd-convert="requestedFor" onchange="hdConvertSet('${ticket.id}','requestedFor',this.value)"><option value="">Choose…</option>${HD_USERS.map(user => `<option ${draft.requestedFor === user.name ? 'selected' : ''}>${hdEsc(user.name)}</option>`).join('')}</select></label>${fields}<div><button type="button" class="btn btn-primary" onclick="hdConvertToRequest('${ticket.id}')">Convert to Request</button></div></div></div>`;
+}
+function hdLinkCard(ticket) {
+  if (!hdConsole(ticket).link) return '';
+  const parent = ticket.parentId ? hdTicketById(ticket.parentId) : null;
+  const children = hdChildTickets(ticket);
+  const options = hdState.tickets.filter(item => item.id !== ticket.id && item.parentId !== ticket.id);
+  const body = parent
+    ? `<p data-hd-parent="${hdEsc(parent.id)}">Child of <strong>${hdEsc(hdTicketLabel(parent))}</strong> · ${hdEsc(hdShortDescription(parent) || parent.description)}</p><button type="button" class="btn btn-ghost btn-sm" onclick="hdUnlinkParent('${ticket.id}')">Remove link</button>`
+    : `<label>Link as related: child of<select id="hd-link-parent" class="select"><option value="">Choose a ticket…</option>${options.map(item => `<option value="${hdEsc(item.id)}">${hdEsc(hdTicketLabel(item))} · ${hdEsc(item.requester)} · ${hdEsc(String(hdShortDescription(item) || item.description).slice(0, 60))}</option>`).join('')}</select></label> <button type="button" class="btn btn-secondary" onclick="hdLinkParent('${ticket.id}',(document.getElementById('hd-link-parent')||{}).value)">Link</button>`;
+  const kids = children.length ? `<p class="muted">Related child tickets: ${children.map(item => hdEsc(hdTicketLabel(item))).join(', ')}</p>` : '';
+  return `<div class="card hd-link"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Related tickets</strong><span class="muted">Two tickets, one cause: link the child to the parent.</span></div><div class="card-body">${body}${kids}</div></div>`;
+}
+function hdRewriteCard(ticket) {
+  const config = hdConsole(ticket).rewrite; if (!config) return '';
+  const saved = hdConsoleState(ticket).rewrite;
+  const short = hdDraft(ticket, 'rewriteShort') || (saved ? saved.short : hdShortDescription(ticket));
+  const description = hdDraft(ticket, 'rewriteDesc') || (saved ? saved.description : '');
+  const parts = hdJoinWords(hdRewriteParts(config));
+  const result = saved ? (saved.missing.length ? `<div class="callout warn" role="status" data-hd-rewrite="missing">Check that it says ${hdEsc(hdJoinWords(saved.missing))}.</div>` : `<div class="callout success" role="status" data-hd-rewrite="ok">The rewrite has every part: ${hdEsc(parts)}.</div>`) : '';
+  return `<div class="card hd-rewrite"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Short description and description</strong><span class="muted">Rewrite it so a stranger can follow it${parts ? `: ${hdEsc(parts)}` : ''}.</span></div><div class="card-body" style="display:grid;gap:8px"><label>Short description<input id="hd-rewrite-short" class="ipt" maxlength="160" value="${hdEsc(short)}" oninput="hdKeepDraft('${ticket.id}','rewriteShort',this.value)"></label><label>Description<textarea id="hd-rewrite-desc" class="ipt" rows="4" maxlength="4000" oninput="hdKeepDraft('${ticket.id}','rewriteDesc',this.value)">${hdEsc(description)}</textarea></label><div><button type="button" class="btn btn-secondary" onclick="hdRewriteSave('${ticket.id}')">Save and check</button></div>${result}</div></div>`;
+}
+function hdContactCard(ticket) {
+  if (!hdContactConfig(ticket)) return '';
+  const attempts = hdContactAttempts(ticket);
+  const list = attempts.length ? `<ol class="hd-list" data-hd-attempts="${attempts.length}">${attempts.map(entry => `<li>${hdEsc(hdShiftTimeText(entry.at))} · ${hdEsc(entry.method)}</li>`).join('')}</ol>` : '<p class="muted">No contact attempts logged yet.</p>';
+  const open = !['Resolved', 'Closed', 'Canceled'].includes(ticket.status);
+  return `<div class="card hd-contact-attempts"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Contact attempts</strong><span class="muted">${attempts.length} so far</span></div><div class="card-body">${list}${open ? `<div class="filterbar"><select id="hd-contact-method" class="select" aria-label="How you tried to reach the caller"><option value="">How did you try?</option>${HD_CONTACT_METHODS.map(method => `<option>${method}</option>`).join('')}</select><button type="button" class="btn btn-secondary" onclick="hdLogContactAttempt('${ticket.id}')">Log contact attempt</button></div>` : ''}</div></div>`;
+}
+function hdArrivalsCard(ticket) {
+  if (!Array.isArray(hdConsole(ticket).arrivals)) return '';
+  const arrived = hdConsoleState(ticket).arrived || [];
+  if (!arrived.length) return '';
+  return `<div class="card hd-arrivals"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Replies from the caller</strong><span class="muted">Customer-visible</span></div><div class="card-body"><div class="hd-note-list">${arrived.map(entry => `<div data-hd-arrival="${hdEsc(entry.id)}"><strong>${hdEsc(entry.from)} · ${hdEsc(entry.time)}</strong><p>${hdEsc(entry.text)}</p></div>`).join('')}</div></div></div>`;
+}
+function hdKnowledgeCard(ticket) {
+  const config = hdKbConfig(ticket); if (!config.attach && !config.draft) return '';
+  const state = hdConsoleState(ticket);
+  const attached = (state.kbAttached || []).map(id => hdKbArticles().find(article => article.id === id)).filter(Boolean);
+  const list = attached.length ? `<ul class="hd-list" data-hd-attached="${attached.length}">${attached.map(article => `<li>${hdEsc(article.id)} · ${hdEsc(article.title)}</li>`).join('')}</ul>` : '<p class="muted">No knowledge attached yet. Open an article in the Knowledge Base search, then Attach knowledge.</p>';
+  let draft = '';
+  if (config.draft) {
+    draft = state.kbDraft
+      ? `<div data-hd-kb-draft="review"><strong>Knowledge draft</strong> ${hdBadge(`State: ${state.kbDraft.state}`, 'in-progress')}<p><strong>${hdEsc(state.kbDraft.title)}</strong></p><p>${hdEsc(state.kbDraft.text)}</p></div>`
+      : ['Resolved', 'Closed'].includes(ticket.status)
+        ? `<div style="display:grid;gap:8px"><label>Knowledge draft title<input id="hd-kb-draft-title" class="ipt" maxlength="160" value="${hdEsc(hdDraft(ticket, 'kbTitle'))}" oninput="hdKeepDraft('${ticket.id}','kbTitle',this.value)" placeholder="Symptom: the fix"></label><label>Steps that fixed it<textarea id="hd-kb-draft-text" class="ipt" rows="4" maxlength="4000" oninput="hdKeepDraft('${ticket.id}','kbText',this.value)">${hdEsc(hdDraft(ticket, 'kbText') || ticket.resolution || '')}</textarea></label><div><button type="button" class="btn btn-secondary" onclick="hdKbCreateDraft('${ticket.id}')">Create knowledge draft</button></div></div>`
+        : '<p class="muted">Create knowledge draft: available once the ticket is resolved.</p>';
+  }
+  return `<div class="card hd-related-knowledge"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Related › Knowledge</strong></div><div class="card-body">${list}${draft}</div></div>`;
+}
+function hdMatrixCards(ticket) {
+  return `${hdArrivalsCard(ticket)}${hdConvertCard(ticket)}${hdLinkCard(ticket)}${hdRewriteCard(ticket)}${hdContactCard(ticket)}${hdKnowledgeCard(ticket)}`;
+}
+// What a coach reads about the new features on one ticket (added to
+// hdConsoleProgress only for a ticket that turns one on).
+function hdMatrixProgress(ticket) {
+  const config = hdConsole(ticket); const state = hdConsoleState(ticket); const out = {};
+  if (config.matrix) {
+    const sla = hdSlaState(ticket);
+    out.matrix = { impact:ticket.impact || '', urgency:ticket.urgency || '', priority:ticket.priority || '', status:hdStatusText(ticket), holdReason:ticket.holdReason || '', assignmentGroup:ticket.assignmentGroup || '', responded:!!hdSlaClock(ticket).respondedAt, sla:sla.label, slaPhase:sla.phase || '' };
+  }
+  if (config.classify) out.classification = { ...hdClassification(ticket) };
+  if (config.convert) out.request = ticket.request ? { item:ticket.request.item, requestedFor:ticket.request.requestedFor, approval:ticket.request.approval, state:ticket.request.state, fields:ticket.request.fields.map(field => ({ ...field })) } : null;
+  if (config.link) out.parent = ticket.parentId || '';
+  if (Array.isArray(config.arrivals)) out.arrived = (state.arrived || []).map(entry => entry.id);
+  if (hdKbConfig(ticket).attach) out.kbAttached = (state.kbAttached || []).slice();
+  if (hdKbConfig(ticket).draft) out.kbDraft = state.kbDraft ? state.kbDraft.state : '';
+  if (hdContactConfig(ticket)) out.contactAttempts = hdContactAttempts(ticket).length;
+  if (config.rewrite) out.rewriteMissing = state.rewrite ? state.rewrite.missing.slice() : null;
+  if (config.comments && typeof config.comments === 'object' && Array.isArray(config.comments.internalNames)) {
+    const comments = hdComments(ticket); const last = comments[comments.length - 1];
+    out.lastCommentInternal = last ? hdJargonFound(last.text, config.comments.internalNames) : [];
+  }
+  return out;
 }
 
 function hdDirectoryTable(users) {
@@ -2217,9 +3149,16 @@ function hdPrinter(name){const base=HD_PRINTERS.find(p=>p.name===name);return {.
 function hdPrinterAction(name,action){const p=hdPrinter(name);const patch=hdState.printerOverrides[name]||{};if(action==='resume'){patch.status='Ready';}if(action==='clear'){patch.queue=0;}hdState.printerOverrides[name]=patch;hdSave();toast(`${name}: ${action} completed in the simulation.`);render();}
 VIEWS['helpdesk/printers'] = () => `${hdPageHeader('Printer Management', 'Inspect print servers, access groups, drivers, ports, and queued jobs.')}<div class="card"><div class="table-wrap"><table><thead><tr><th>Printer</th><th>Location</th><th>Server</th><th>Driver</th><th>Jobs</th><th>Access group</th><th>Status</th><th>Actions</th></tr></thead><tbody>${HD_PRINTERS.map(base=>{const p=hdPrinter(base.name);return `<tr><td><strong>${p.name}</strong></td><td>${p.location}</td><td>${p.server}</td><td>${p.driver}</td><td>${p.queue}</td><td>${p.group}</td><td>${hdBadge(p.status,p.status==='Ready'?'ok':p.status==='Paused'?'warn':'bad')}</td><td><button class="btn btn-sm btn-secondary" onclick="hdPrinterAction('${p.name}','resume')">Resume</button> <button class="btn btn-sm btn-ghost" onclick="hdPrinterAction('${p.name}','clear')">Clear training jobs</button></td></tr>`}).join('')}</tbody></table></div></div><div class="callout warning">Preserve confidential jobs and print-service evidence before clearing a production queue.${HD_PROVE ? '' : ' The warehouse failure points to a driver crash, not a network outage.'}</div>`;
 VIEWS['helpdesk/endpoint-security'] = () => `${hdPageHeader('Endpoint Security', 'Help desk technicians gather facts and perform approved first response; cybersecurity owns incident investigation.')}<div class="card"><div class="table-wrap"><table><thead><tr><th>Alert</th><th>Severity</th><th>User / device</th><th>Signal</th><th>Status</th><th>Owner</th></tr></thead><tbody>${HD_SECURITY_ALERTS.map(a=>`<tr><td><strong>${a.title}</strong><small>${a.id}</small></td><td>${hdBadge(a.severity,a.severity==='High'?'bad':'warn')}</td><td>${a.user}<small>${a.device}</small></td><td>${a.signal}</td><td>${hdBadge(a.status,a.status==='Needs escalation'?'bad':'warn')}</td><td>${a.owner}</td></tr>`).join('')}</tbody></table></div></div><div class="three-col">${['Preserve evidence','Protect the account or endpoint only within authority','Warm hand off with facts, timestamps, impact, and actions'].map((x,i)=>`<div class="card"><div class="card-body"><strong>${i+1}. ${x}</strong><p class="muted">${['Do not delete messages, extensions, files, or logs.','Follow the approved response runbook; do not improvise containment.','Never promise that a device or account is safe before security validates it.'][i]}</p></div></div>`).join('')}</div>`;
-VIEWS['helpdesk/knowledge-base'] = () => `${hdPageHeader('Knowledge Base', 'Use approved runbooks, then improve them with validated symptoms, evidence, resolution, and escalation boundaries.')}<div class="hd-kb-grid">${hdKbArticles().map(k=>`<article class="card"><div class="card-header"><strong>${k.id}</strong>${hdBadge(k.category)}</div><div class="card-body"><h3>${hdEsc(k.title)}</h3>${hdKbBody(k.summary)}<small>${hdEsc(k.audience)} · Updated ${hdEsc(k.updated)}</small></div></article>`).join('')}</div>`;
+// Knowledge drafts students create (state Review) show above the articles,
+// only once there is one.
+function hdKbDraftsHtml() {
+  const drafts = hdState.tickets.map(ticket => ({ ticket, draft:ticket.consoleState && ticket.consoleState.kbDraft })).filter(row => row.draft);
+  if (!drafts.length) return '';
+  return `<div class="card hd-kb-drafts"><div class="card-header"><strong>Drafts in review</strong></div><div class="card-body"><div class="hd-note-list">${drafts.map(row => `<div><strong>${hdEsc(row.draft.title)}</strong> ${hdBadge(`State: ${row.draft.state}`, 'in-progress')}<small class="muted"> from ${hdEsc(hdTicketLabel(row.ticket))}</small><p>${hdEsc(row.draft.text)}</p></div>`).join('')}</div></div></div>`;
+}
+VIEWS['helpdesk/knowledge-base'] = () => `${hdPageHeader('Knowledge Base', 'Use approved runbooks, then improve them with validated symptoms, evidence, resolution, and escalation boundaries.')}${hdKbDraftsHtml()}<div class="hd-kb-grid">${hdKbArticles().map(k=>`<article class="card"><div class="card-header"><strong>${k.id}</strong>${hdBadge(k.category)}</div><div class="card-body"><h3>${hdEsc(k.title)}</h3>${hdKbBody(k.summary)}<small>${hdEsc(k.audience)} · Updated ${hdEsc(k.updated)}</small></div></article>`).join('')}</div>`;
 VIEWS['helpdesk/remote-support'] = () => {const c=hdComputerByName(hdState.selectedComputer)||hdComputers()[0];return `${hdPageHeader('Remote Support', 'Obtain consent, explain actions, protect privacy, and leave the endpoint in a verified state.')}<div class="two-col"><div class="card"><div class="card-header"><strong>Session target</strong>${hdBadge(c.health,c.health==='Healthy'?'ok':'warn')}</div><div class="card-body"><select class="select" onchange="hdSelectComputer(this.value,'#/helpdesk/remote-support')">${hdComputers().map(x=>`<option ${x.name===c.name?'selected':''}>${x.name}</option>`).join('')}</select><dl class="hd-dl"><dt>User</dt><dd>${c.user}</dd><dt>Last seen</dt><dd>${c.lastSeen}</dd><dt>Address</dt><dd>${c.ip}</dd><dt>Domain trust</dt><dd>${c.trust}</dd></dl><button class="btn btn-primary" onclick="toast('Consent request sent to ${hdEsc(c.user)}.')">Request session consent</button></div></div><div class="card"><div class="card-header"><strong>Remote-support checklist</strong></div><div class="card-body">${hdList(['Verify the requester and ticket','Explain what you need to inspect','Ask before viewing personal or sensitive content','Narrate material actions','Stop if security indicators appear','Verify the fix with the user','End the session and document it'],true)}</div></div></div>`;};
-VIEWS['helpdesk/environment'] = () => `${hdPageHeader('Enterprise Map', `${HD_ORG.name} · persistent fictional training environment`)}<div class="three-col"><div class="card"><div class="card-header"><strong>Identity</strong></div><div class="card-body"><h2>${HD_USERS.length} users</h2><p>${HD_GROUPS.length} modeled groups · ${HD_ORG.domain}</p><button class="btn btn-secondary" onclick="navigate('#/helpdesk/active-directory')">Open directory</button></div></div><div class="card"><div class="card-header"><strong>Endpoints</strong></div><div class="card-body"><h2>${hdComputers().length} Windows devices</h2><p>Managed Windows 11 laptops and workstations</p><button class="btn btn-secondary" onclick="navigate('#/helpdesk/windows')">Open endpoints</button></div></div><div class="card"><div class="card-header"><strong>Infrastructure</strong></div><div class="card-body"><h2>${hdServers().length} servers</h2><p>AD DS, DNS, DHCP, file, print, and applications</p><button class="btn btn-secondary" onclick="navigate('#/helpdesk/server-manager')">Open servers</button></div></div></div><div class="card"><div class="card-header"><strong>Support model</strong></div><div class="table-wrap"><table><thead><tr><th>Tier</th><th>Owner</th><th>Typical scope</th></tr></thead><tbody>${HD_ORG.supportTiers.map(t=>`<tr><td><strong>${t.tier}</strong></td><td>${t.owner}</td><td>${t.scope}</td></tr>`).join('')}</tbody></table></div></div><div class="card"><div class="card-header"><strong>SLA model</strong></div><div class="table-wrap"><table><thead><tr><th>Priority</th><th>Response</th><th>Resolution target</th><th>Use when</th></tr></thead><tbody>${HD_ORG.slas.map(s=>`<tr><td>${hdBadge(s.priority,s.priority.toLowerCase())}</td><td>${s.response}</td><td>${s.resolve}</td><td>${s.use}</td></tr>`).join('')}</tbody></table></div></div>`;
+VIEWS['helpdesk/environment'] = () => `${hdPageHeader('Enterprise Map', `${HD_ORG.name} · persistent fictional training environment`)}<div class="three-col"><div class="card"><div class="card-header"><strong>Identity</strong></div><div class="card-body"><h2>${HD_USERS.length} users</h2><p>${HD_GROUPS.length} modeled groups · ${HD_ORG.domain}</p><button class="btn btn-secondary" onclick="navigate('#/helpdesk/active-directory')">Open directory</button></div></div><div class="card"><div class="card-header"><strong>Endpoints</strong></div><div class="card-body"><h2>${hdComputers().length} Windows devices</h2><p>Managed Windows 11 laptops and workstations</p><button class="btn btn-secondary" onclick="navigate('#/helpdesk/windows')">Open endpoints</button></div></div><div class="card"><div class="card-header"><strong>Infrastructure</strong></div><div class="card-body"><h2>${hdServers().length} servers</h2><p>AD DS, DNS, DHCP, file, print, and applications</p><button class="btn btn-secondary" onclick="navigate('#/helpdesk/server-manager')">Open servers</button></div></div></div><div class="card"><div class="card-header"><strong>Support model</strong></div><div class="table-wrap"><table><thead><tr><th>Tier</th><th>Owner</th><th>Typical scope</th></tr></thead><tbody>${HD_ORG.supportTiers.map(t=>`<tr><td><strong>${t.tier}</strong></td><td>${t.owner}</td><td>${t.scope}</td></tr>`).join('')}</tbody></table></div></div><div class="card"><div class="card-header"><strong>SLA model</strong></div><div class="table-wrap"><table><thead><tr><th>Priority</th><th>Respond within</th><th>Resolve within</th><th>Who must be told</th></tr></thead><tbody>${HD_ORG.slas.map(s=>`<tr><td>${hdBadge(s.priority,s.priority.toLowerCase())}</td><td>${s.response}</td><td>${s.resolve}</td><td>${s.tell}</td></tr>`).join('')}</tbody></table></div></div>`;
 
 /* ---------- Prove It ticket ----------
  * One assigned ticket, worked with no coach and no feedback: the student sets
