@@ -1030,7 +1030,10 @@ function hdJargonFound(text, words) {
 }
 
 // Knowledge Base search: symptom words and error codes against each
-// article's ID, title and text. A word matches the start of an article word
+// article's ID, title and text. An article with keywords (its curated "found
+// by" words, KB-0059) is searched by its ID, title and keywords only, so a
+// rule in its text ("Never ask for the user's password") doesn't list it for
+// an unrelated search such as "forgot password". A word matches the start of an article word
 // once a plural or -ed/-ing ending is dropped ("locked" finds "lockout"); a
 // word with a digit (an error code, a KB number) must match a whole article
 // word. Most words matched first, then by ID.
@@ -1046,7 +1049,7 @@ function hdKbSearchArticles(query, articles) {
   if (!terms.length) return [];
   return (articles || []).map(article => {
     // keywords: an article's "found by" words (KB-0059), searched but not shown.
-    const words = hdKbWords(`${article.id} ${article.title} ${article.summary} ${article.keywords || ''}`);
+    const words = hdKbWords(`${article.id} ${article.title} ${article.keywords || article.summary}`);
     const matched = terms.filter(term => (/\d/.test(term) ? words.includes(term) : words.some(word => word.startsWith(hdKbStem(term)))));
     return { article, score:matched.length };
   }).filter(row => row.score > 0).sort((a, b) => b.score - a.score || a.article.id.localeCompare(b.article.id)).map(row => row.article);
@@ -1239,13 +1242,20 @@ function hdConsoleAction(id, actionId) {
 // judged as if the ticket were already in its new state (an escalated note
 // needs a Next action). Each choice starts from the ticket's own fields, so a
 // changed choice never leaves another route's classification behind.
+// What is missing names only the checks not yet met, when each of them has
+// its own `missing` line (HD-2152's Action); otherwise it is the area's fix.
 function hdConsoleOwnerBlock(ticket, option) {
   const areas = (hdConsole(ticket).feedback || []).filter(area => ['Action', 'Documentation'].includes(area.area));
   const status = ticket.status;
   ticket.status = option.status;
+  let text = '';
   const missing = areas.find(area => !(area.checks || []).every(rule => hdConsoleRule(ticket, rule)));
+  if (missing) {
+    const unmet = (missing.checks || []).filter(rule => !hdConsoleRule(ticket, rule));
+    text = unmet.every(rule => rule.missing) ? unmet.map(rule => rule.missing).join(' ') : missing.fix;
+  }
   ticket.status = status;
-  return missing ? missing.fix : '';
+  return text;
 }
 function hdConsoleOwner(id, optionId) {
   const ticket = hdTicketById(id); const config = ticket && hdConsole(ticket).owner;
@@ -1657,8 +1667,10 @@ VIEWS['helpdesk/settings-printers'] = () => {
   const practiceTicket = hdSettingsPracticeTicket(c.name);
   const back = practiceTicket ? `<button class="btn btn-secondary" onclick="hdSelectTicket('${practiceTicket.id}')">← ${hdEsc(hdTicketLabel(practiceTicket))}</button>` : '';
   return `${hdPageHeader('Settings', `${hdEsc(c.name)} · Bluetooth & devices › Printers & scanners`, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/windows')">← Windows Desktop</button>${back}`)}
+    <div class="hd-settings-view">
     <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Add a printer or scanner</strong><button type="button" class="btn btn-primary btn-sm" ${locked ? 'disabled' : ''} onclick="hdSettingsScan()">Add device</button></div><div class="card-body">${scan || '<p class="muted">Press Add device to look for printers you can add.</p>'}</div></div>
-    <div class="card"><div class="card-header"><strong>Printers &amp; scanners on ${hdEsc(c.name)}</strong></div><div class="card-body"><ul class="hd-list" data-hd-settings-installed>${installed.map(name => `<li>${hdEsc(name)}</li>`).join('')}</ul></div></div>`;
+    <div class="card"><div class="card-header"><strong>Printers &amp; scanners on ${hdEsc(c.name)}</strong></div><div class="card-body"><ul class="hd-list" data-hd-settings-installed>${installed.map(name => `<li>${hdEsc(name)}</li>`).join('')}</ul></div></div>
+    </div>`;
 };
 window.hdSettingsScan=hdSettingsScan; window.hdSettingsAddPrinter=hdSettingsAddPrinter;
 

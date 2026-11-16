@@ -12,10 +12,9 @@
 //     Neither records a lab attempt or a score.
 //   - Learn It: three readings and three inline SVG diagrams with the plan's
 //     exact words, role="img" and an aria-label; a wide and a phone layout.
-//   - The Learn It (8) and A+ (4) checks: an explanation after each answer;
-//     nothing saved or sent.
-//   - The rail: orientation and its check count toward progress; the checks,
-//     the unguided tickets and Sources don't.
+//   - The Learn It (8) and A+ (4) checks: tests/hdesk-m01-checks.test.js.
+//   - The rail: orientation, its check, the labs and the two checks count
+//     toward the percent; Sources doesn't. The checks never lock a lab.
 //
 // The portal runs in tests/portal-vm.js. Synthetic data only.
 const assert = require('node:assert/strict');
@@ -30,7 +29,6 @@ const HD = run(`PROGRAMS.find((p) => p.slug === 'it-support')`);
 const LabRuntime = run('LabRuntime');
 const page = () => run("MODULE_LABS['it-support/1']");
 const STATE_ID = 'its01-lms-validation-v1';
-const NO_VM_SENTENCE = 'Every lab runs in the browser-based IT Service Desk simulator. There is nothing to install and no virtual machine to build.';
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&#39;|&apos;/g, '’').replace(/\s+/g, ' ');
@@ -57,7 +55,7 @@ function fresh() {
   ctx.supabaseCalls.length = 0;
   ctx.supabaseResponder = () => ({ data: null, error: null });
   ctx.localStorage.clear();
-  run("its01CheckAnswers.orientation = {}; its01CheckAnswers.learn = {}; its01CheckAnswers.aplus = {}");
+  run("['orientation', 'learn', 'aplus'].forEach((k) => { its01CheckAnswers[k] = {}; its01CheckPicks[k] = {}; })");
 }
 
 const calls = (table, op) => ctx.supabaseCalls.filter((c) => c.table === table && (!op || c.op === op));
@@ -97,10 +95,17 @@ function testOrientationComesFirst() {
   assert.ok(order.every((at, i) => at > 0 && (i === 0 || at > order[i - 1])), 'orientation, readings, checks, Lab 1.1 (guided), Lab 1.2 (practice tickets), Prove It, Sources');
 
   const orientation = text(section(html, 'its01-orientation'));
-  for (const heading of ['Program orientation: how this program runs', 'LMS navigation', 'Technology setup', 'Acceptable Use Policy', 'Getting help and the chain of command', 'Policies you need to know', 'Course calendar', 'Orientation tasks (not graded)', 'Orientation check']) {
+  for (const heading of ['Program orientation: how this program runs', 'LMS navigation', 'Technology setup', 'Acceptable Use Policy', 'Getting help and the chain of command', 'Policies you need to know', 'Course calendar', 'Start here: Program Orientation', 'Before you begin', 'Orientation check',
+    'Attendance and identity', 'Academic integrity', 'Grades and progress', 'Records, privacy, withdrawal and refunds', 'Career Readiness Core (M360-101)']) {
     assert.ok(orientation.includes(heading), `orientation has "${heading}"`);
   }
-  assert.ok(orientation.includes('Find it (not graded)'));
+  assert.ok(orientation.includes('Find it in the LMS'));
+  // "not graded" is said once, at the top of the section.
+  assert.equal((orientation.match(/not graded|isn’t graded/gi) || []).length, 1, 'orientation says "not graded" once');
+  assert.ok(orientation.includes('pay all tuition and fees in full'));
+  assert.ok(orientation.includes('Your score and your instructor’s feedback appear on the module’s card once your instructor has finalized them: open See your marked lab.'));
+  assert.doesNotMatch(orientation, /gradebook/i);
+  assert.match(orientation, /Where your live session links come from: To be confirmed: where the links are posted ?\./);
   assert.ok(orientation.includes('Office of Student Services'));
   assert.ok(orientation.includes('(850) 974-5763 · info@mntacademy.com'));
   assert.ok(orientation.includes('325 West Gaines Street, Suite 1414, Tallahassee, FL 32399-0400, toll-free (888) 224-6684'));
@@ -119,11 +124,11 @@ function testOrientationComesFirst() {
   assert.match(section(html, 'its01-sources'), /href="https:\/\/www\.comptia\.org\/certifications\/a"/);
   assert.doesNotMatch(section(html, 'its01-sources'), /href=""/, 'a placeholder source has no empty link');
 
-  // Removed from the old Module 1. The one allowed mention: technology
-  // setup says there is no virtual machine to build.
+  // Removed from the old Module 1, and from technology setup.
   const all = text(html);
-  assert.equal(all.split(NO_VM_SENTENCE).length - 1, 1, 'technology setup says there is no virtual machine to build');
-  assert.doesNotMatch(all.replace(NO_VM_SENTENCE, ''), /Two Logins|sandbox|virtual machine|\bVM\b|lab login|lab-environment|five-step/i);
+  assert.doesNotMatch(all, /Two Logins|sandbox|virtual machine|\bVM\b|lab login|lab-environment|five-step|nothing to install|Nothing to upload/i);
+  // "CompTIA" only in Sources & Further Reading.
+  assert.doesNotMatch(text(html.replace(section(html, 'its01-sources'), '')), /CompTIA/, 'CompTIA appears only in Sources');
   // "Lab 1.1" is now the guided lab; the old Lab 1.1 is retired.
   assert.doesNotMatch(all, /LMS & Environment Validation/);
   assert.doesNotMatch(html, /lab-its-01-lms-validation/);
@@ -133,9 +138,13 @@ function testOrientationComesFirst() {
   // Until the shared save can report success, nothing claims it finished.
   assert.doesNotMatch(all, /saved to your account/i);
 
-  // The hero and the Prove It no longer mention Lab 1.1.
   assert.match(html, /Start with orientation/);
+  // The Prove It suggests Lab 1.1 first only until Lab 1.1 is complete.
   assert.match(section(html, 'its01-prove-it'), /Complete Lab 1.1, the guided lab, first/);
+  const lab11Done = hdUser({ latestLabAttemptByKey: { 'lab-its-01-ticket-triage': { completedAt: '2026-11-15T10:00:00Z', reviewedAt: null, redoRequested: false } } });
+  const after = page().view(lab11Done, HD);
+  assert.match(railRow(after, 'its01-lab-1-2').cls, /mnav-chip-complete/, 'Lab 1.1 is complete');
+  assert.doesNotMatch(section(after, 'its01-prove-it'), /Complete Lab 1.1/, 'no "complete Lab 1.1 first" once it is complete');
 }
 
 function testReadingsAndDiagrams() {
@@ -143,11 +152,19 @@ function testReadingsAndDiagrams() {
   const html = page().view(hdUser(), HD);
   const learn = section(html, 'its01-lessons');
   const words = text(learn);
-  for (const heading of ['Reading 1. What IT support is, and where you fit', 'Reading 2. One method for every problem', 'Reading 3. Conduct, identity and the knowledge base', 'How to write it down', 'About priority in Module 1', 'Triage in Module 1']) {
+  for (const heading of ['Reading 1. The help desk role and support tiers', 'Reading 2. The troubleshooting method and writing it down', 'Reading 3. Verifying callers and using the knowledge base', 'How to write it down', 'Example note for the printer ticket', 'About priority in Module 1', 'Ticket states in Module 1', 'Triage in Module 1']) {
     assert.ok(words.includes(heading), `Learn It has "${heading}"`);
   }
   assert.ok(words.includes('Every work note has three parts the next technician can use. Reported: what the user said, in their words.'));
   assert.ok(words.includes('Log the ticket with Category Security › Suspicious request, set Caller to Unverified, and assign it to Security Operations (SOC)'));
+  for (const h of learn.match(/<h4>[^<]*<\/h4>/g) || []) assert.doesNotMatch(h, /Lesson 1\.\d/, `reading title without "Lesson 1.x ·": ${h}`);
+  assert.ok(words.includes('Every company device has an asset tag'));
+  assert.ok(words.includes('Escalating an issue is not failing.'));
+  assert.ok(words.includes('Test: open the print queue. The job is stuck, so the theory is confirmed.'));
+  assert.ok(words.includes('and before you hand over or swap a device such as a loaner'));
+  assert.match(learn, /<strong>Never ask for, type or write down a user’s password\.<\/strong>/, 'the password rule is emphasized');
+  assert.ok(words.includes('KB-0024 (verifying callers, passwords and unlocks), KB-0071 (damaged devices), KB-0059 (adding a department printer) and KB-0058'));
+  assert.ok(words.includes('If the user gives you an error code, search with the exact code'));
 
   const diagrams = {
     tiers: {
@@ -247,13 +264,15 @@ async function testOrientationCheckRetake() {
   page().view(user, HD);
   assert.deepEqual(plain(run('ITS01_CHECKS.orientation.questions.map((q) => q.answer)')), ORIENTATION_KEY, 'the plan’s answers: B, C, C, B, C, C');
 
-  // One wrong answer: not complete, and the right answer is shown.
+  // One wrong answer: its own reason, never the right answer.
   run('its01Answer')('orientation', 0, 0);
   let html = page().view(user, HD);
-  assert.match(text(checkHtml(html, 'orientation')), /Not quite\. The answer is B\) Technical support\./);
-  // An answered question can't be changed.
+  assert.match(text(checkHtml(html, 'orientation')), /Not quite\. Try another answer\. Your instructor helps with course content/);
+  assert.doesNotMatch(checkHtml(html, 'orientation'), /is-answer|The answer is/);
+  // Picking again is allowed; the first pick still counts.
   run('its01Answer')('orientation', 0, 1);
   assert.equal(run('its01CheckAnswers.orientation[0]'), 0);
+  assert.match(text(checkHtml(page().view(user, HD), 'orientation')), /Correct\./);
   ORIENTATION_KEY.slice(1).forEach((answer, i) => run('its01Answer')('orientation', i + 1, answer));
   await flush();
   html = page().view(user, HD);
@@ -273,7 +292,7 @@ async function testOrientationCheckRetake() {
   // LabRuntime adds its own standard fields to every saved state (labId,
   // attempts, score: null, ...); the page adds only these, and no answers.
   const runtime = Object.keys(plain(LabRuntime.load('its01-probe', hdUser(), {})));
-  assert.deepEqual(Object.keys(saved).filter((k) => !runtime.includes(k)).sort(), ['aupAcknowledged', 'aupAcknowledgedAt', 'aupReadVersion', 'aupVersion', 'consoleCompleted', 'consoleStarted', 'orientationCheckCompleted', 'orientationCheckCompletedAt']);
+  assert.deepEqual(Object.keys(saved).filter((k) => !runtime.includes(k)).sort(), ['aplusCheckCompleted', 'aplusCheckCompletedAt', 'aupAcknowledged', 'aupAcknowledgedAt', 'aupReadVersion', 'aupVersion', 'consoleCompleted', 'consoleStarted', 'learnCheckCompleted', 'learnCheckCompletedAt', 'orientationCheckCompleted', 'orientationCheckCompletedAt']);
   assert.equal(saved.score, 0, 'the runtime default; the page never sets a score');
   assert.equal(calls('lab_attempts').length, 0, 'no lab attempt');
 
@@ -283,34 +302,6 @@ async function testOrientationCheckRetake() {
   assert.match(text(checkHtml(html, 'orientation')), /Orientation check complete \([A-Z][a-z]{2} \d{1,2}, \d{4}\)\. You can retake it any time\./);
   assert.match(railRow(html, 'its01-check-orientation').cls, /mnav-chip-complete/);
   assert.doesNotMatch(checkHtml(html, 'orientation'), /disabled/, 'every answer can be chosen again');
-}
-
-async function testPracticeChecksExplainAndSaveNothing() {
-  fresh();
-  const user = hdUser();
-  page().view(user, HD);
-  await flush();
-  const before = ctx.supabaseCalls.length;
-  assert.deepEqual(plain(run('ITS01_CHECKS.learn.questions.map((q) => q.answer)')), LEARN_KEY, 'the plan’s answers: B, C, B, B, B, B, B, D');
-  assert.deepEqual(plain(run('ITS01_CHECKS.aplus.questions.map((q) => q.answer)')), APLUS_KEY, 'the plan’s answers: B, C, B, B');
-  assert.ok(run('ITS01_CHECKS.learn.questions.every((q) => q.why) && ITS01_CHECKS.aplus.questions.every((q) => q.why)'), 'every question has an explanation');
-
-  LEARN_KEY.forEach((answer, i) => run('its01Answer')('learn', i, i === 7 ? 0 : answer));
-  APLUS_KEY.forEach((answer, i) => run('its01Answer')('aplus', i, answer));
-  await flush();
-  const html = page().view(user, HD);
-  const learn = text(checkHtml(html, 'learn'));
-  assert.equal((learn.match(/Correct\./g) || []).length, 7);
-  assert.match(learn, /Not quite\. The answer is D\) Result\./);
-  assert.ok(learn.includes(run('ITS01_CHECKS.learn.questions[7].why')), 'the explanation follows a wrong answer too');
-  assert.ok(text(checkHtml(html, 'aplus')).includes('Documentation is the final step.'));
-  assert.match(learn, /That’s every question\. Press Start again to try them again\./);
-
-  await flush();
-  const after = ctx.supabaseCalls.slice(before).filter((c) => c.table !== 'module_progress' || (c.payload && c.payload.case_state));
-  assert.equal(after.filter((c) => c.table === 'lab_attempts' || (c.payload && c.payload.case_state)).length, 0, 'nothing saved or sent');
-  const state = plain(run('its01State'));
-  assert.equal(Object.keys(state).filter((k) => /learn|aplus/i.test(k)).length, 0);
 }
 
 // A second student signing in on the same page (no reload) never sees the
@@ -329,6 +320,7 @@ function testAnswersClearedForAnotherStudent() {
   const second = hdUser({ userId: '8e2f3a4b-2222-4333-8444-a55566667777', email: 'hdesk-m01b@test.invalid' });
   const html = page().view(second, HD);
   assert.deepEqual(plain(run('its01CheckAnswers')), { orientation: {}, learn: {}, aplus: {} });
+  assert.deepEqual(plain(run('its01CheckPicks')), { orientation: {}, learn: {}, aplus: {} });
   assert.doesNotMatch(checkHtml(html, 'orientation'), /disabled|Not quite/, "no answers from the first student");
 }
 
@@ -339,18 +331,26 @@ function testRail() {
   const html = page().view(hdUser(), HD);
   assert.equal(railRow(html, 'its01-orientation').text, 'Orientation');
   assert.equal(railRow(html, 'its01-check-orientation').text, 'Orientation check');
-  // Not counted toward progress.
-  assert.match(railRow(html, 'its01-checks').cls, /munified-row-ungated/);
+  // The two checks: counted, but never locked, even before Lab 1.1.
+  assert.equal(railRow(html, 'its01-check-learn').text, 'Learn It knowledge check');
+  assert.equal(railRow(html, 'its01-check-aplus').text, 'A+ check');
+  assert.doesNotMatch(railRow(html, 'its01-check-learn').cls, /mnav-chip-locked/);
+  // In the rail they sit under Learn It, before Lab 1.1.
+  assert.ok(html.indexOf('href="#its01-check-aplus"') < html.indexOf('href="#its01-lab-1-2"'), 'the checks show under Learn It');
   // The two Practice It labs keep their own numbered names (not "Guided Lab");
   // the practice tickets are never locked.
   assert.equal(railRow(html, 'its01-lab-1-2').text, 'Lab 1.1 · Guided Lab');
   assert.equal(railRow(html, 'its01-practice-tickets').text, 'Lab 1.2 · Practice tickets');
   assert.doesNotMatch(railRow(html, 'its01-practice-tickets').cls, /mnav-chip-locked/);
-  // Counted: orientation, its check, the readings, Lab 1.1, Lab 1.2, the Prove It.
-  assert.equal(percent(html), '17');
+  // Counted: orientation, its check, the readings, Lab 1.1, Lab 1.2, the
+  // Prove It and the two checks.
+  assert.equal(percent(html), '13');
   const done = page().view(hdUser({ remoteCaseState: { 'its-01': { [STATE_ID]: { aupAcknowledged: true, aupVersion: '2026-11-10', aupReadVersion: '2026-11-10', orientationCheckCompleted: true } } } }), HD);
-  assert.equal(percent(done), '50');
+  assert.equal(percent(done), '38');
   assert.doesNotMatch(done, /href="#its01-lab-1-1"/);
+  // Orientation done, the checks not: Lab 1.1 is open, not locked behind them.
+  assert.doesNotMatch(railRow(done, 'its01-lab-1-2').cls, /mnav-chip-locked/);
+  assert.match(railRow(done, 'its01-lab-1-2').cls, /mnav-chip-current/);
 }
 
 /* -------------------------------------------------------------- run */
@@ -362,7 +362,6 @@ function testRail() {
     testPolicyAcknowledgementSavesWithoutLabOne,
     testEarlierAcknowledgementAsksAgain,
     testOrientationCheckRetake,
-    testPracticeChecksExplainAndSaveNothing,
     testAnswersClearedForAnotherStudent,
     testRail,
   ];

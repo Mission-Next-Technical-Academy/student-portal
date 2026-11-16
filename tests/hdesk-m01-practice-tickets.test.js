@@ -234,6 +234,13 @@ function testPracticeSetShift() {
   assert.equal(first('add printer'), 'KB-0059');
   assert.equal(first('printer missing'), 'KB-0059', 'found by its keywords');
   assert.equal(first('team printer'), 'KB-0059');
+  assert.equal(first('add device'), 'KB-0059');
+  assert.equal(first('department printer'), 'KB-0059');
+  // KB-0059 is found by its ID, title and keywords only: its rule "Never ask
+  // for the user's password" doesn't list it for a password search.
+  const all = (q) => [...tab.run(`hdKbSearchArticles(${JSON.stringify(q)}, hdKbArticles()).map((a) => a.id)`)];
+  for (const q of ['forgot password', 'password', 'password reset']) assert.ok(!all(q).includes('KB-0059'), `"${q}": ${all(q)}`);
+  assert.equal(all('KB-0059')[0], 'KB-0059', 'still found first by its ID');
   const kb71 = tab.run("HD_KB_ARTICLES.find((a) => a.id === 'KB-0071').summary");
   ['Tier 1 does not repair hardware', 'asset tag and what happened', 'glass is loose', 'stop using the laptop', 'Verify the user before handing over a loaner (KB-0024)', 'Offer a loaner', 'Escalate to Desktop Support'].forEach((text) => assert.ok(kb71.includes(text), text));
   // The people and the laptop.
@@ -432,6 +439,24 @@ function testOwnerChoiceWaitsAndRestoresFields() {
   assert.equal(ticket.callerStatus, undefined, 'no caller status left behind');
   assert.equal(ticket.assignedTechnician, 'Riley Morgan');
   assert.equal(ok(tab.feedback('SEC-2153'))['Right owner'], false);
+}
+
+// The owner card's "Not closed yet" names only HD-2152's Action steps still
+// missing, not the whole Action hint again.
+function testOwnerCardNamesOnlyWhatIsMissing() {
+  const tab = sim(practiceUrl('student-m01t0007'));
+  const id = 'HD-2152';
+  tab.own(id, 'desktop');
+  const blocked = () => (/data-hd-owner-blocked>([^<]*)</.exec(tab.open(id)) || [null, ''])[1].replace(/&quot;/g, '"');
+  assert.equal(blocked(), 'Not closed yet. Search the KB (for example "damaged laptop") and open KB-0071. Verify Ravi with a callback on his directory number and his employee ID (KB-0024). Offer Ravi a loaner.');
+  tab.kb(id, 'damaged laptop', 'KB-0071');
+  tab.verify(id, 'callback');
+  assert.equal(blocked(), 'Not closed yet. Offer Ravi a loaner.', 'only the step still missing');
+  tab.own(id, 'desktop');
+  assert.equal(tab.toasts.at(-1), 'Not closed yet. Offer Ravi a loaner.');
+  tab.act(id, 'loaner');
+  // Action done: Documentation's hint has no per-check lines, so it shows whole.
+  assert.match(blocked(), /^Not closed yet\. Write the handoff note \(Reported \/ Tried \/ Result \/ Next action\)/);
 }
 
 function testRaviCriticalErrors() {
@@ -676,7 +701,7 @@ function testModuleOnePageLinksTheSet() {
 (async () => {
   const tests = [testThreeTicketSetGetsHd2154,
     testPracticeSetShift, testGuidedLabProgressUntouched,
-    testLeahCorrect, testLeahCriticalErrors, testRaviCorrect, testRaviCriticalErrors, testOwnerChoiceWaitsAndRestoresFields, testClosingOpensTheFeedback,
+    testLeahCorrect, testLeahCriticalErrors, testRaviCorrect, testRaviCriticalErrors, testOwnerCardNamesOnlyWhatIsMissing, testOwnerChoiceWaitsAndRestoresFields, testClosingOpensTheFeedback,
     testKarenCorrect, testKarenCriticalErrors, testFeedbackNeverScoresCategoryOrPriority,
     testCompletionSentOnceAllClosed, testCompletionRetry, testOnlyThePracticeSetReports, testModuleOnePageLinksTheSet,
   ];
