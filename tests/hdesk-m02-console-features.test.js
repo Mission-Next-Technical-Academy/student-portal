@@ -79,7 +79,7 @@ const store = (initial) => {
   const map = new Map(initial || []);
   return { map, getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
 };
-function sim({ url = 'https://academy.test/sim/#/helpdesk/tickets', withTest = true, local = store() } = {}) {
+function sim({ url = 'https://academy.test/sim/#/helpdesk/tickets', withTest = true, local = store(), before = '' } = {}) {
   const u = new URL(url);
   const byId = new Map();
   const toasts = [];
@@ -103,6 +103,7 @@ function sim({ url = 'https://academy.test/sim/#/helpdesk/tickets', withTest = t
       Object.assign(HD_PRACTICE_SETS, JSON.parse(JSON.stringify(__test.sets.practice)));
       var HD_COACHED_SETS = JSON.parse(JSON.stringify(__test.sets.coached));`, ctx);
   }
+  if (before) vm.runInContext(before, ctx);
   vm.runInContext(read('helpdesk.js'), ctx, { filename: 'helpdesk.js' });
   const run = (code) => vm.runInContext(code, ctx);
   const input = (id, value) => byId.set(id, { id, value });
@@ -261,9 +262,9 @@ function testPausedResolvedTimeAndNextDay() {
   assert.equal(tab.run('hdShiftNow().toISOString()'), '2026-08-20T13:00:00.000Z');
   assert.match(tab.view('helpdesk/dashboard'), /data-hd-next-day="used"/);
   // Attempt 3 is logged on Thursday's clock.
-  tab.input('hd-contact-method', 'Additional comment');
+  tab.input('hd-contact-method', 'Customer comment (Additional comments)');
   tab.run("hdLogContactAttempt('HD-9215')");
-  assert.match(tab.open('HD-9215'), /Mon 09:40 · Additional comment<\/li><li>Wed 13:00 · Phone – voicemail left<\/li><li>Thu 13:00 · Additional comment/);
+  assert.match(tab.open('HD-9215'), /Mon 09:40 · Additional comment<\/li><li>Wed 13:00 · Phone – voicemail left<\/li><li>Thu 13:00 · Customer comment \(Additional comments\)/);
   // The clock survives a reload.
   const again = practice(tab.local);
   assert.equal(again.run('hdShiftNow().toISOString()'), '2026-08-20T13:00:00.000Z');
@@ -308,6 +309,10 @@ function testServiceNowStates() {
   const t = tab.ticket('HD-9205');
   assert.deepEqual([t.status, t.assignmentGroup, t.assignedTechnician, tab.sla('HD-9205').phase], ['Escalated', 'Messaging & Collaboration', 'Messaging & Collaboration', 'Resolve']);
   assert.ok(!tab.run("hdQueueListTickets('mine')").some((x) => x.id === 'HD-9205'));
+  // A matrix ticket with no resolutionCode setting still gets the code.
+  tab.run("hdSetResolutionCode('HD-9205', 'Escalated')");
+  assert.equal(tab.ticket('HD-9205').consoleState.resolutionCode, 'Escalated');
+  assert.match(tab.open('HD-9205'), /Resolution code \(required to resolve\)/);
   // A closed ticket's fields are locked.
   tab.run("hdMatrixAssignGroup('HD-9204', 'Facilities')");
   assert.equal(tab.ticket('HD-9204').assignmentGroup, 'Service Desk (Tier 1)');
@@ -432,7 +437,8 @@ function testLinkingAndRewrite() {
   tab.input('hd-rewrite-desc', 'Laptop has no internet.');
   tab.run("hdRewriteSave('HD-9203')");
   assert.deepEqual(plain(tab.ticket('HD-9203').consoleState.rewrite.missing), ['who', 'where', 'when', 'impact', '"(reopened)"']);
-  assert.match(tab.lastToast(), /doesn't say who, where, when, impact and "\(reopened\)" yet/);
+  assert.match(tab.lastToast(), /Check that it says who, where, when, impact and "\(reopened\)"\./);
+  assert.match(tab.open('HD-9203'), /stranger can follow it: who, where, when, impact and &quot;\(reopened\)&quot;/);
   tab.input('hd-rewrite-short', 'Wi-Fi no internet – Luis Ortega – floor 9 (reopened)');
   tab.input('hd-rewrite-desc', 'Since 08:15. All of Sales on floor 9 is affected.');
   tab.run("hdRewriteSave('HD-9203')");
@@ -527,8 +533,28 @@ function testContactAttemptsAndCoachedSetGuard() {
   assert.ok(tab.local.getItem('defender-lab.helpdesk.practice.v1.test-practice.stu-1'));
 }
 
+
+// A Prove shift gets none of the new features, even if its ticket asks for
+// them: no matrix, set clock, queue tools, work order or Next day.
+function testProveGetsNoneOfTheNewFeatures() {
+  const every = "{ kb:true, matrix:{}, classify:{ categories:{ A:['b'] } }, convert:{ number:'RITM1', items:[{ name:'x' }] }, link:true, rewrite:{ checks:[] }, contactAttempts:true, arrivals:[{ id:'m', text:'hi', reopen:true }] }";
+  const prove = sim({ url: 'https://academy.test/sim/?prove=its-01&student=student-m02-prove#/helpdesk/tickets', before: `HD_PROVE_SHIFTS['its-01'].tickets[0].console = ${every};` });
+  const id = prove.run('hdState.tickets[0].id');
+  assert.deepEqual(plain(prove.run('hdConsole(hdState.tickets[0])')), { kb: true });
+  assert.equal(prove.run('hdIsMatrix(hdState.tickets[0])'), false);
+  assert.equal(prove.run('hdActiveSet()'), null);
+  assert.equal(prove.run('hdShiftNow() === HD_SHIFT_NOW'), true);
+  assert.equal(prove.run('hdHasArrivals()'), false);
+  for (const html of [prove.open(id), prove.view('helpdesk/tickets'), prove.view('helpdesk/dashboard')]) {
+    assert.doesNotMatch(html, NEW_MARKERS);
+    assert.doesNotMatch(html, /Columns|Sort by|Your work order|Check order|Next day/);
+  }
+  assert.equal(prove.run('hdState.practiceLog'), undefined, 'no practice log in a Prove shift');
+  assert.equal(prove.run('hdState.tickets[0].slaClock'), undefined, 'no matrix fields in the Prove state');
+}
+
 const tests = [
-  testOldTicketsKeepTheOldClockAndStates, testImpactAndUrgencyCalculatePriority, testSlaRespondThenResolveOnTheSetClock,
+  testProveGetsNoneOfTheNewFeatures, testOldTicketsKeepTheOldClockAndStates, testImpactAndUrgencyCalculatePriority, testSlaRespondThenResolveOnTheSetClock,
   testPausedResolvedTimeAndNextDay, testServiceNowStates, testQueueViewColumnsAndSort, testWorkOrder, testConvertToRequest,
   testLinkingAndRewrite, testArrivalsCommentsAndKnowledge, testContactAttemptsAndCoachedSetGuard,
 ];

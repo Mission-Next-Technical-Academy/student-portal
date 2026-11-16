@@ -78,7 +78,7 @@ const HD_BUSINESS_END = 17 * 60;
 // Assignment groups at Northstar (spec section 5).
 const HD_ASSIGNMENT_GROUPS = ['Service Desk (Tier 1)', 'Desktop Support (Tier 2)', 'Network Operations', 'Server & Identity', 'Messaging & Collaboration', 'Security Operations (SOC)', 'Facilities'];
 const HD_SERVICE_DESK = 'Service Desk (Tier 1)';
-const HD_CONTACT_METHODS = ['Phone – voicemail left', 'Phone – no answer', 'Phone – reached the caller', 'Additional comment', 'Email'];
+const HD_CONTACT_METHODS = ['Phone – voicemail left', 'Phone – no answer', 'Phone – reached the caller', 'Customer comment (Additional comments)', 'Email'];
 const HD_NO_RESPONSE_CODE = 'No response from caller';
 const HD_DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const HD_DIAGNOSIS_OVERRIDES = {
@@ -299,7 +299,8 @@ function hdFreshState(templates = hdSharedTemplates(), practice = templates.ever
     troubleshootingHistory: [{ time:'Created', action:'Ticket received from monitoring, portal, phone, or email intake.' }],
     diagnosis:'', diagnosisCorrect:false, linkedProblem:'', checkedSteps:[],
   }));
-  tickets.forEach(hdMatrixStart);
+  // Matrix fields only on a Practice shift: a Prove ticket never gets them.
+  if (practice) tickets.forEach(hdMatrixStart);
   const state = {
     version:1, seed, tickets, selectedTicketId:tickets[0].id,
     queueFilter:'Open', priorityFilter:'All', adTab:'users', selectedUserId:'u-1005',
@@ -1303,8 +1304,10 @@ function hdResolutionCodes(ticket) {
   // A ticket that logs contact attempts can close for no response.
   return hdContactConfig(ticket) ? [...HD_RESOLUTION_CODES, HD_NO_RESPONSE_CODE] : HD_RESOLUTION_CODES;
 }
+// A matrix ticket always has the resolution code (required to resolve).
+function hdResolutionConfig(ticket) { return hdConsole(ticket).resolutionCode || (hdIsMatrix(ticket) ? { required:true } : null); }
 function hdSetResolutionCode(id, value) {
-  const ticket = hdTicketById(id); if (!ticket || !hdConsole(ticket).resolutionCode) return;
+  const ticket = hdTicketById(id); if (!ticket || !hdResolutionConfig(ticket)) return;
   const code = hdResolutionCodes(ticket).includes(value) ? value : '';
   hdConsoleState(ticket).resolutionCode = code;
   if (code) hdHistory(ticket, `Resolution code set to ${code}.`);
@@ -1656,7 +1659,7 @@ function hdConsolePriorityControl(ticket) {
   return `<div class="hd-priority-preset"><span>Priority</span> ${hdBadge(ticket.priority, ticket.priority.toLowerCase())}<p class="muted" style="margin:4px 0 0">Pre-set: ${hdEsc(reason)}</p></div>`;
 }
 function hdConsoleResolutionControl(ticket) {
-  const config = hdConsole(ticket).resolutionCode; if (!config) return '';
+  const config = hdResolutionConfig(ticket); if (!config) return '';
   const code = hdConsoleState(ticket).resolutionCode;
   return `<label>Resolution code${config.required ? ' (required to resolve)' : ''}<select id="hd-resolution-code" class="select" onchange="hdSetResolutionCode('${ticket.id}',this.value)"><option value="">Choose…</option>${hdResolutionCodes(ticket).map(value => `<option ${code === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></label>`;
 }
@@ -2153,6 +2156,7 @@ function hdRewriteMissing(checks, short, description) {
     try { return !new RegExp(check.pattern, 'i').test(String(text || '')); } catch (_) { return true; }
   }).map(check => check.part);
 }
+function hdRewriteParts(config) { return (Array.isArray(config.checks) ? config.checks : []).map(check => check.part); }
 function hdRewriteSave(id) {
   const ticket = hdTicketById(id); const config = ticket && hdConsole(ticket).rewrite; if (!config) return;
   const short = String((document.getElementById('hd-rewrite-short') || {}).value || '').trim().slice(0, 160);
@@ -2165,7 +2169,7 @@ function hdRewriteSave(id) {
   hdClearDraft(ticket, 'rewriteShort'); hdClearDraft(ticket, 'rewriteDesc');
   hdHistory(ticket, 'Short description and description rewritten.');
   hdPracticeEvent('rewritten', { ticket:ticket.id, missing:missing.join(', ') });
-  toast(missing.length ? `Saved. The rewrite doesn't say ${hdJoinWords(missing)} yet.` : 'Saved: the rewrite says who, what, where, when and the impact.');
+  toast(missing.length ? `Saved. Check that it says ${hdJoinWords(missing)}.` : `Saved. The rewrite has every part: ${hdJoinWords(hdRewriteParts(config))}.`);
   hdRerender();
 }
 
@@ -2228,7 +2232,7 @@ function hdWorkOrderSubmit() {
   const set = hdActiveSet(); const order = hdWorkOrder(); if (!order) return;
   const result = hdWorkOrderCheck(order, set.workOrder.groups);
   const label = id => { const ticket = hdTicketById(id); return ticket ? hdTicketLabel(ticket) : id; };
-  hdState.workOrderResult = result.ok ? 'ok' : `${label(result.move)} is out of place. Move it up, above ${label(result.before)}.`;
+  hdState.workOrderResult = result.ok ? 'ok' : result.move === result.before ? `${label(result.move)} is in the wrong place.` : `${label(result.move)} is out of place. Move it up, above ${label(result.before)}.`;
   hdPracticeEvent('order_checked', { ok:result.ok, order:order.join(', ') });
   hdRerender();
 }
@@ -2341,7 +2345,7 @@ function hdWorkOrderCard() {
   const order = hdWorkOrder(); if (!order) return '';
   const result = hdState.workOrderResult;
   const feedback = !result ? '' : result === 'ok'
-    ? '<div class="callout success" role="status" data-hd-order="ok"><strong>This order works.</strong> Highest priority first, then the clock.</div>'
+    ? '<div class="callout success" role="status" data-hd-order="ok"><strong>This order works.</strong></div>'
     : `<div class="callout warn" role="status" data-hd-order="out">${hdEsc(result)}</div>`;
   const items = order.map((id, index) => {
     const ticket = hdTicketById(id);
@@ -2356,7 +2360,8 @@ function hdMatrixControls(ticket) {
   const select = (field, label) => `<label>${label}<select class="select" data-hd-field="${field}" ${closed ? 'disabled' : ''} onchange="hdSetImpact('${ticket.id}','${field}',this.value)"><option value="">Choose…</option>${['1', '2', '3'].map(value => `<option value="${value}" ${ticket[field] === value ? 'selected' : ''}>${HD_IMPACT_LABELS[value]}</option>`).join('')}</select></label>`;
   const priority = `<div class="hd-priority-preset" data-hd-priority="${hdEsc(ticket.priority || '')}"><span>Priority</span> ${ticket.priority ? `${hdBadge(ticket.priority, ticket.priority.toLowerCase())} ${hdEsc(HD_PRIORITY_NAMES[ticket.priority])}` : '<span class="muted">Not set</span>'}<p class="muted" style="margin:4px 0 0">Calculated from Impact × Urgency. You don't type it.</p></div>`;
   const next = HD_SN_STATUS_NEXT[ticket.status] || [];
-  const state = next.length ? `<label>On Hold reason<select id="hd-hold-reason" class="select"><option value="">Choose…</option>${HD_HOLD_REASONS.map(reason => `<option ${ticket.holdReason === reason ? 'selected' : ''}>${reason}</option>`).join('')}</select></label><label>State<select class="select" data-hd-field="state" onchange="if(this.value)hdTransitionTicket('${ticket.id}',this.value)"><option value="">${hdEsc(hdStatusText(ticket))}</option>${next.map(value => `<option>${value}</option>`).join('')}</select></label>` : `<div><span class="muted">State</span> ${hdStatusBadge(ticket)}</div>`;
+  // State first; the reason select is read when On Hold is chosen.
+  const state = next.length ? `<label>State<select class="select" data-hd-field="state" onchange="if(this.value)hdTransitionTicket('${ticket.id}',this.value)"><option value="">${hdEsc(hdStatusText(ticket))}</option>${next.map(value => `<option>${value}</option>`).join('')}</select></label>${next.includes('On Hold') ? `<label>On Hold reason (choose it before you pick On Hold)<select id="hd-hold-reason" class="select"><option value="">Choose…</option>${HD_HOLD_REASONS.map(reason => `<option ${ticket.holdReason === reason ? 'selected' : ''}>${reason}</option>`).join('')}</select></label>` : ''}` : `<div><span class="muted">State</span> ${hdStatusBadge(ticket)}</div>`;
   const group = `<label>Assignment group<select class="select" data-hd-field="group" ${closed ? 'disabled' : ''} onchange="hdMatrixAssignGroup('${ticket.id}',this.value)">${HD_ASSIGNMENT_GROUPS.map(value => `<option ${(ticket.assignmentGroup || HD_SERVICE_DESK) === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>`;
   const resolving = !closed ? `<label>Resolution notes (required to resolve)<textarea id="hd-resolution-notes" class="ipt" rows="4" maxlength="4000" oninput="hdKeepDraft('${ticket.id}','resolution',this.value)" placeholder="Why and how it was closed">${hdEsc(hdDraft(ticket, 'resolution'))}</textarea></label>` : '';
   return `${select('impact', 'Impact')}${select('urgency', 'Urgency')}${priority}${hdClassifyControls(ticket)}${group}${state}${hdConsoleResolutionControl(ticket)}${resolving}`;
@@ -2391,7 +2396,7 @@ function hdLinkCard(ticket) {
   const options = hdState.tickets.filter(item => item.id !== ticket.id && item.parentId !== ticket.id);
   const body = parent
     ? `<p data-hd-parent="${hdEsc(parent.id)}">Child of <strong>${hdEsc(hdTicketLabel(parent))}</strong> · ${hdEsc(hdShortDescription(parent) || parent.description)}</p><button type="button" class="btn btn-ghost btn-sm" onclick="hdUnlinkParent('${ticket.id}')">Remove link</button>`
-    : `<label>Link as related: child of<select id="hd-link-parent" class="select"><option value="">Choose a ticket…</option>${options.map(item => `<option value="${hdEsc(item.id)}">${hdEsc(hdTicketLabel(item))} · ${hdEsc(item.requester)} · ${hdEsc(hdShortDescription(item) || item.description).slice(0, 60)}</option>`).join('')}</select></label> <button type="button" class="btn btn-secondary" onclick="hdLinkParent('${ticket.id}',(document.getElementById('hd-link-parent')||{}).value)">Link</button>`;
+    : `<label>Link as related: child of<select id="hd-link-parent" class="select"><option value="">Choose a ticket…</option>${options.map(item => `<option value="${hdEsc(item.id)}">${hdEsc(hdTicketLabel(item))} · ${hdEsc(item.requester)} · ${hdEsc(String(hdShortDescription(item) || item.description).slice(0, 60))}</option>`).join('')}</select></label> <button type="button" class="btn btn-secondary" onclick="hdLinkParent('${ticket.id}',(document.getElementById('hd-link-parent')||{}).value)">Link</button>`;
   const kids = children.length ? `<p class="muted">Related child tickets: ${children.map(item => hdEsc(hdTicketLabel(item))).join(', ')}</p>` : '';
   return `<div class="card hd-link"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Related tickets</strong><span class="muted">Two tickets, one cause: link the child to the parent.</span></div><div class="card-body">${body}${kids}</div></div>`;
 }
@@ -2400,8 +2405,9 @@ function hdRewriteCard(ticket) {
   const saved = hdConsoleState(ticket).rewrite;
   const short = hdDraft(ticket, 'rewriteShort') || (saved ? saved.short : hdShortDescription(ticket));
   const description = hdDraft(ticket, 'rewriteDesc') || (saved ? saved.description : '');
-  const result = saved ? (saved.missing.length ? `<div class="callout warn" role="status" data-hd-rewrite="missing">Still missing: ${hdEsc(hdJoinWords(saved.missing))}.</div>` : '<div class="callout success" role="status" data-hd-rewrite="ok">The rewrite says who, what, where, when and the impact.</div>') : '';
-  return `<div class="card hd-rewrite"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Short description and description</strong><span class="muted">Rewrite so a stranger knows who, what, where, when and the impact.</span></div><div class="card-body" style="display:grid;gap:8px"><label>Short description<input id="hd-rewrite-short" class="ipt" maxlength="160" value="${hdEsc(short)}" oninput="hdKeepDraft('${ticket.id}','rewriteShort',this.value)"></label><label>Description<textarea id="hd-rewrite-desc" class="ipt" rows="4" maxlength="4000" oninput="hdKeepDraft('${ticket.id}','rewriteDesc',this.value)">${hdEsc(description)}</textarea></label><div><button type="button" class="btn btn-secondary" onclick="hdRewriteSave('${ticket.id}')">Save and check</button></div>${result}</div></div>`;
+  const parts = hdJoinWords(hdRewriteParts(config));
+  const result = saved ? (saved.missing.length ? `<div class="callout warn" role="status" data-hd-rewrite="missing">Check that it says ${hdEsc(hdJoinWords(saved.missing))}.</div>` : `<div class="callout success" role="status" data-hd-rewrite="ok">The rewrite has every part: ${hdEsc(parts)}.</div>`) : '';
+  return `<div class="card hd-rewrite"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Short description and description</strong><span class="muted">Rewrite it so a stranger can follow it${parts ? `: ${hdEsc(parts)}` : ''}.</span></div><div class="card-body" style="display:grid;gap:8px"><label>Short description<input id="hd-rewrite-short" class="ipt" maxlength="160" value="${hdEsc(short)}" oninput="hdKeepDraft('${ticket.id}','rewriteShort',this.value)"></label><label>Description<textarea id="hd-rewrite-desc" class="ipt" rows="4" maxlength="4000" oninput="hdKeepDraft('${ticket.id}','rewriteDesc',this.value)">${hdEsc(description)}</textarea></label><div><button type="button" class="btn btn-secondary" onclick="hdRewriteSave('${ticket.id}')">Save and check</button></div>${result}</div></div>`;
 }
 function hdContactCard(ticket) {
   if (!hdContactConfig(ticket)) return '';
