@@ -2085,6 +2085,7 @@ function hdArrivalMet(ticket, when) {
   if (when.notes && mine(target.notes) < when.notes) return false;
   if (when.converted && !target.request) return false;
   if (when.linked && !target.parentId) return false;
+  if (when.resolved && !['Resolved', 'Closed'].includes(target.status)) return false;
   return true;
 }
 function hdCheckArrivals(quiet) {
