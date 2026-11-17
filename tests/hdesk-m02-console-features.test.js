@@ -482,6 +482,8 @@ function testLinkingAndRewrite() {
 
 function testArrivalsCommentsAndKnowledge() {
   const tab = guided();
+  // when.resolved waits for Resolved or Closed.
+  assert.equal(tab.run("hdArrivalMet(hdTicketById('HD-9204'), { resolved:true })"), false);
   tab.impact('HD-9204', 3, 2);
   tab.state('HD-9204', 'In Progress');
   tab.state('HD-9204', 'On Hold', { 'hd-hold-reason': 'Awaiting Caller' });
@@ -501,6 +503,7 @@ function testArrivalsCommentsAndKnowledge() {
   assert.match(tab.open('HD-9204'), /available once the ticket is resolved/);
   tab.run("hdSetResolutionCode('HD-9204', 'Solution provided')");
   tab.state('HD-9204', 'Resolved', { 'hd-resolution-notes': 'New batteries in the wireless mouse fixed the freezing.' });
+  assert.equal(tab.run("hdArrivalMet(hdTicketById('HD-9204'), { resolved:true })"), true);
   assert.match(tab.open('HD-9204'), /id="hd-kb-draft-text"[^>]*>New batteries in the wireless mouse fixed the freezing\./);
   tab.input('hd-kb-draft-title', 'Wireless mouse pointer freezes: replace the batteries first');
   tab.input('hd-kb-draft-text', 'passcode = 1234');
