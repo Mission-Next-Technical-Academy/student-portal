@@ -596,7 +596,7 @@ const HD_TICKET_TEMPLATES = [
         { id:'now', text:'What does the printer do now?', reply:'The same as yesterday. The badge goes in, and then nothing prints.' },
         { id:'since', text:'When did it stop again?', reply:'This morning. One badge worked yesterday, and today it won\'t print at all.' },
       ] },
-      rewrite:{ checks:[{ part:'"(reopened)"', pattern:'\\(reopened\\)', field:'short' }] },
+      rewrite:{ checks:[{ part:'the word "(reopened)" in the short description', pattern:'\\(reopened\\)', field:'short' }] },
       arrivals:[{ id:'ines-reopen', from:'Ines Calder', text:'RE: INC0010412 has been resolved. It is NOT resolved. The badge printer worked for one badge yesterday and now it\'s doing the same thing again.', reopen:true, at:'2026-08-19T12:50:00Z' }],
       notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Tier 1', 'Tier 2', 'SLA', 'Impact', 'Urgency', 'Desktop Support', 'P3', 'parent ticket'] },
       feedback:[
