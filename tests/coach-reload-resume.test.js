@@ -456,7 +456,71 @@ function testSocM01FinishUnchanged() {
   assert.equal(tab.ctx.closed, true);
 }
 
+/* ----------------------------------- a launch that didn't ask for a coach */
+
+// Staging, Nov 16: Lab 1.1's Finish couldn't reach the course page, so the
+// hd-m01 coach stayed on its last step in that tab's sessionStorage.
+// "Coursework" then turned the tab into the course page, and Lab 1.2 opened
+// from it in a new tab, which starts with a copy of the tab's sessionStorage.
+// The practice set showed the Lab 1.1 coach panel, also after a reload.
+const PRACTICE_URL = `${SIM_URL}?practice=its-01&student=${STUDENT_A}#/helpdesk/tickets`;
+const panelOpen = (tab) => Boolean(tab.ctx.document.getElementById('coach-panel')) && !tab.ctx.document.getElementById('coach-panel').hidden;
+
+function hdM01LeftOnFinish(local) {
+  const lab11 = sim(launchUrl('hd-m01'), { local });
+  const last = lab11.run("MODULE_COACHES.find((c) => c.id === 'hd-m01').steps.length - 1");
+  const saved = JSON.stringify({ id: 'hd-m01', step: last, student: STUDENT_A });
+  lab11.ctx.sessionStorage.setItem('mnt.coach.state', saved);
+  local.setItem('mnt.coach.resume', saved);
+  return { last, session: store(lab11.ctx.sessionStorage.map) };
+}
+
+function testPracticeLaunchShowsNoCoach() {
+  const local = store();
+  const { last, session } = hdM01LeftOnFinish(local);
+  const practice = sim(PRACTICE_URL, { local, session, opener: fakeOpener() });
+  assert.equal(practice.coachState(), null, 'the practice set runs with no coach');
+  assert.equal(panelOpen(practice), false, 'no coach panel over the practice tickets');
+  assert.equal(practice.location.search, '?practice=its-01', 'student leaves the address bar, as before');
+  // Lab 1.1's module number came along too; left there, the corner dock
+  // offered SOC Module 1's "Take the tour", which opens another coach panel.
+  assert.equal(practice.ctx.sessionStorage.getItem('mnt.coach.lastModule'), null, 'no module number left for the tour button');
+
+  const reloaded = practice.reload();
+  assert.equal(reloaded.coachState(), null, 'still no coach after a reload');
+  assert.equal(panelOpen(reloaded), false);
+
+  // Lab 1.1 wasn't saved, so reopening it still resumes on its Finish step.
+  assert.deepEqual(practice.resume(), { id: 'hd-m01', step: last, student: STUDENT_A }, 'the in-progress record is kept');
+  const lab11 = sim(launchUrl('hd-m01'), { local, opener: fakeOpener() });
+  assert.equal(lab11.coachState().step, last, 'Lab 1.1 resumes where it stopped');
+  assert.equal(panelOpen(lab11), true);
+}
+
+// A Help Desk coach always runs with ?coach=<id> in the address, and a reload
+// keeps it, so a load without it never brings one back.
+function testHelpDeskCoachNeedsItsLaunch() {
+  const local = store();
+  const { session } = hdM01LeftOnFinish(local);
+  const plain = sim(`${SIM_URL}#/helpdesk/tickets`, { local, session });
+  assert.equal(plain.coachState(), null, 'a plain simulator load shows no Help Desk coach');
+  assert.equal(panelOpen(plain), false);
+  assert.equal(plain.reload().coachState(), null);
+}
+
+// SOC's orientation tour starts inside the simulator with no ?coach, so a
+// reload brings it back from sessionStorage, as before.
+function testSocTourReloadKeepsStep() {
+  const session = store([['mnt.coach.state', JSON.stringify({ id: 'm01-orientation', step: 2 })]]);
+  const tab = sim(`${SIM_URL}#/defender/alerts`, { local: store(), session });
+  assert.equal(tab.coachState().step, 2, 'the tour resumes on its step');
+  assert.equal(panelOpen(tab), true);
+}
+
 const tests = [
+  testPracticeLaunchShowsNoCoach,
+  testHelpDeskCoachNeedsItsLaunch,
+  testSocTourReloadKeepsStep,
   testFirstLaunchStartsFreshAndCleansAddress,
   testReloadKeepsWork,
   testRelaunchSameStudentResumes,
