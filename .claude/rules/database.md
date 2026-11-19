@@ -8,7 +8,7 @@ paths:
 
 # Database, migrations and admin scripts
 
-Updated 2026-11-14 (Staging test branch; production SQL Editor method). Background and recovery steps: `docs/operations/STAGING_AUTOMATION.md`,
+Updated 2026-11-19 (Staging test branch; production SQL Editor method). Background and recovery steps: `docs/operations/STAGING_AUTOMATION.md`,
 `docs/operations/OPERATIONS.md`, `docs/SCHEMA_MIGRATION_HYGIENE.md`.
 
 ## Who runs what
@@ -40,7 +40,7 @@ Updated 2026-11-14 (Staging test branch; production SQL Editor method). Backgrou
 
 ## Production migrations
 
-Added 2026-11-14. Used for PR #107 (Nov 11) and PR #109 (Nov 14).
+Added 2026-11-14.
 
 - A person applies a PR's migrations to production before merging it; production deploys on merge.
 - Never link the CLI to production. Never push migrations to production from an agent.

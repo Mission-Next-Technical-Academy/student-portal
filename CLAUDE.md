@@ -1,6 +1,6 @@
 # Student portal: core agent rules
 
-Updated 2026-11-14. Always loaded, for every agent. Domain rules live in
+Updated 2026-11-19. Always loaded, for every agent. Domain rules live in
 `.claude/rules/` and load by file path in Claude Code. Other agents: open the
 matching file from the index at the bottom before editing those paths.
 
@@ -106,11 +106,11 @@ matching file from the index at the bottom before editing those paths.
 | When you touch | Read |
 | --- | --- |
 | Learn/Practice/Prove It, scoring, review, completion, admin sheets, `portal/app.js`, `portal/module-labs.*`, `ui/coach*`, `ui/helpdesk*` | `.claude/rules/grading-assessment.md` |
-| `supabase/**`, `bin/*.js` admin scripts, production data | `.claude/rules/database.md` |
+| `supabase/**`, `bin/*.js` admin scripts, `bin/lib/**`, `bin/db-*.sh`, production data | `.claude/rules/database.md` |
 | `.github/**`, `bin/ci/**`, `bin/dev.sh`, `bin/serve.py`, `bin/stamp-version.sh`, `VERSION`, `portal/release.js`, `portal/supabase-config.js` | `.claude/rules/staging-deploy.md` |
 | `portal/**` or `ui/**` HTML, CSS or JS | `.claude/rules/ui-frontend.md` |
 | `portal/data.js`, module files, `ui/*-data.js`, curriculum checks | `.claude/rules/curriculum.md` |
 | Evidence uploads, Storage buckets (`portal/it-support-shared.js`, `portal/app.js`, `supabase/migrations/*evidence*`, `*storage*`) | `.claude/rules/evidence-uploads.md` |
 | `ui/**` simulator, `portal/imported-labs/**`, `portal/range-tools/**` | `.claude/rules/simulator.md` |
-| `tests/**`, `supabase/tests/**`, `bin/ci-check.sh` | `.claude/rules/testing.md` |
-| `docs/**`, `archive/**`, `ROADMAP.md`, handoffs | `.claude/rules/docs-handoffs.md` |
+| `tests/**`, `supabase/tests/**`, `bin/ci-check.sh`, `bin/db-security-check.sh` | `.claude/rules/testing.md` |
+| `docs/**`, `archive/**`, `ROADMAP.md`, `README.md`, `CONTRIBUTING.md`, handoffs | `.claude/rules/docs-handoffs.md` |
