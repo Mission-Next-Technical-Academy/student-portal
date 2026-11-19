@@ -203,7 +203,7 @@ function testShiftTicketAndKb() {
   assert.match(opened, /<li>Never ask for, type or write down a user&#39;s password|<li>Never ask for, type or write down a user's password/);
   const page = tab.view('helpdesk/knowledge-base');
   assert.match(page, /-TaskName &lt;task&gt; -User &lt;DOMAIN\\user&gt;/, 'placeholders are shown, not swallowed as tags');
-  assert.equal((page.match(/<ol class="hd-kb-steps"/g) || []).length, 3, 'KB-0024, KB-0059 and KB-0071 have numbered steps');
+  assert.equal((page.match(/<ol class="hd-kb-steps"/g) || []).length, 5, 'KB-0024, KB-0059, KB-0062, KB-0063 and KB-0071 have numbered steps');
   assert.match(page, /<p>Validate link state, DHCP reachability/, 'other articles stay one paragraph');
   const body = (text) => tab.run(`hdKbBody(${JSON.stringify(text)})`);
   assert.equal(body('Restart it. Open port 3389. Done.'), '<p>Restart it. Open port 3389. Done.</p>', 'a lone number is not a list');

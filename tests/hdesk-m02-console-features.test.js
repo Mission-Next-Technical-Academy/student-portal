@@ -101,7 +101,7 @@ function sim({ url = 'https://academy.test/sim/#/helpdesk/tickets', withTest = t
     ctx.__test = { tickets: [...GUIDED, ...PRACTICE], sets: SETS };
     vm.runInContext(`__test.tickets.forEach((t) => HD_TICKET_TEMPLATES.push(hdTicket(JSON.parse(JSON.stringify(t)))));
       Object.assign(HD_PRACTICE_SETS, JSON.parse(JSON.stringify(__test.sets.practice)));
-      var HD_COACHED_SETS = JSON.parse(JSON.stringify(__test.sets.coached));`, ctx);
+      Object.assign(HD_COACHED_SETS, JSON.parse(JSON.stringify(__test.sets.coached)));`, ctx);
   }
   if (before) vm.runInContext(before, ctx);
   vm.runInContext(read('helpdesk.js'), ctx, { filename: 'helpdesk.js' });
@@ -161,9 +161,17 @@ function testOldTicketsKeepTheOldClockAndStates() {
   assert.match(map, /<th>Respond within<\/th><th>Resolve within<\/th><th>Who must be told<\/th>/);
   assert.match(map, /p2">P2<\/span><\/td><td>30 minutes<\/td><td>8 hours<\/td>/);
   assert.match(map, /p5">P5<\/span><\/td><td>2 business days<\/td><td>By agreement<\/td>/);
-  // Without the test fixtures, the real data has no matrix ticket yet.
+  // Without the test fixtures: every real matrix ticket (Module 2 on) is a
+  // set's own ticket, listed in a coached or practice set, and none of them
+  // is on the shared shift, which runs no set.
   const plain = sim({ withTest: false });
-  assert.equal(plain.run('HD_TICKET_TEMPLATES.some((t) => t.console && (t.console.matrix || t.ownSet))'), false);
+  const realSets = plain.run("[...Object.values(HD_COACHED_SETS), ...Object.values(HD_PRACTICE_SETS)].flatMap((set) => set.tickets)");
+  const matrixTickets = JSON.parse(JSON.stringify(plain.run("HD_TICKET_TEMPLATES.filter((t) => (t.console && t.console.matrix) || t.ownSet).map((t) => ({ id:t.id, ownSet:t.ownSet === true }))")));
+  for (const t of matrixTickets) {
+    assert.equal(t.ownSet, true, `${t.id} needs ownSet: true`);
+    assert.ok(realSets.includes(t.id), `${t.id} belongs to no set`);
+  }
+  assert.ok(!plain.run('hdState.tickets.map((t) => t.id)').some((id) => matrixTickets.some((t) => t.id === id)), 'no matrix ticket on the shared shift');
   assert.equal(plain.run('hdActiveSet()'), null);
 }
 
