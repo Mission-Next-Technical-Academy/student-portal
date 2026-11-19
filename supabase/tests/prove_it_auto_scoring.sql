@@ -169,6 +169,40 @@ select pg_temp.check(public.prove_note_missing('reported : widget stopped workin
   'note checker: any case, spaces before the colon, "Next action" over spaces');
 select pg_temp.check(public.prove_note_missing('No headers at all, just text.', array['reported']) = array['Reported'], 'note checker: no header means missing');
 
+-- The note rule matches the simulator's Practice check (ui/helpdesk.js,
+-- hdNoteLabels): the cases of tests/hdesk-m01-ticket-1d.test.js testNoteRule
+-- (20261119070547_prove_note_check_dash_labels.sql).
+create function pg_temp.note(p_text text, p_parts text[] default array['reported','tried','result']) returns text[] language sql as $$
+  select public.prove_note_missing(p_text, p_parts);
+$$;
+select pg_temp.check(pg_temp.note(E'Reported: locked out after typing it wrong.\nTried: unlocked it per the article.\nResult: signed in on the call.') = '{}', 'note rule: colon');
+select pg_temp.check(pg_temp.note(E'Reported - locked out after typing it wrong.\nTried - unlocked it per the article.\nResult - signed in on the call.') = '{}', 'note rule: dash');
+select pg_temp.check(pg_temp.note(E'Reported. locked out after typing it wrong.\nTried. unlocked it per the article.\nResult. signed in on the call.') = '{}', 'note rule: full stop');
+select pg_temp.check(pg_temp.note(E'Reported\nlocked out after typing it wrong.\nTried\nunlocked it per the article.\nResult\nsigned in on the call.') = '{}', 'note rule: line break');
+select pg_temp.check(pg_temp.note(E'Reported\r\nlocked out after typing it wrong.\r\nTried\r\nunlocked it per the article.\r\nResult\r\nsigned in on the call.') = '{}', 'note rule: Windows line break');
+select pg_temp.check(pg_temp.note(E'Reported – locked out after typing it wrong.\nTried — unlocked it per the article.\nResult - signed in on the call.') = '{}', 'note rule: en and em dashes');
+select pg_temp.check(pg_temp.note(E'REPORTED - locked out after typing it wrong.\ntried: unlocked it per the article.\nresult. signed in on the call.') = '{}', 'note rule: any case');
+select pg_temp.check(pg_temp.note('Reported - locked out this morning. Tried - unlocked it per the article; Result - signed in on the call.') = '{}', 'note rule: one line');
+select pg_temp.check(pg_temp.note('Reported - locked out this morning, Tried - unlocked it per the article, Result - signed in fine.') = '{}', 'note rule: after commas');
+select pg_temp.check(pg_temp.note('Call notes Reported: locked out this morning and Tried: unlocked it per KB and Result: signed in fine.') = '{}', 'note rule: a colon counts mid-sentence');
+select pg_temp.check(pg_temp.note('Reported: Sam says the user tried. She restarted the laptop twice.') = array['Tried','Result'], 'note rule: "the user tried. She restarted" is not a Tried part');
+select pg_temp.check(pg_temp.note('Reported: the screen shows a result - nothing happens when she clicks it.') = array['Tried','Result'], 'note rule: a dash after a word mid-sentence');
+select pg_temp.check(pg_temp.note(E'Reported - locked out this morning.\nTried - x.\nResult - signed in on the call.') = array['Tried'], 'note rule: at least 8 characters after a dash label');
+select pg_temp.check(pg_temp.note(E'Reported - 1234567.\nTried - unlocked it per KB.\nResult - signed in fine.') = '{}', 'note rule: the . before the next label stays with the part (8 characters)');
+select pg_temp.check(pg_temp.note(E'Reported - laptop dropped today.\nTried - offered a loaner per the article.\nResult - escalated to the desktop team.\nNext action - Desktop Support repairs it.', array['reported','tried','result','next']) = '{}', 'note rule: Next action with a dash');
+select pg_temp.check(pg_temp.note('Reported: locked out again. Tried: x. Done: unlocked it') = array['Result'], 'note rule: a label not asked for does not split');
+select pg_temp.check(pg_temp.note(E'Tried\n: abcdefg\nResult - signed in ok.', array['reported','tried','result']) = array['Reported'], 'note rule: a label then a line break ends at the line break, as in the browser');
+select pg_temp.check(pg_temp.note(E'Reported: abcd\nTried\nabcd', array['reported','tried']) = array['Reported','Tried'], 'note rule: a bare label at a line start splits a colon part');
+-- Through the engine: a dash note meets the demo key's note criterion.
+select pg_temp.check((public.prove_check(pg_temp.good_work() || jsonb_build_object('resolutionNote', E'Reported - the widget stopped working.\nTried - reset the widget from Settings.\nResult - widget works again.'),
+  '{"type":"note_parts","field":"resolutionNote","parts":["reported","tried","result"]}'::jsonb) ->> 'met')::boolean, 'note rule: a dash note meets note_parts');
+select pg_temp.check((select r->>'met' = 'false' and r->>'met_count' = '1' and r->>'missing' = 'Tried, Result'
+  from (select public.prove_check(pg_temp.good_work() || jsonb_build_object('resolutionNote', 'Reported: Sam says the user tried. She restarted the laptop twice.'),
+    '{"type":"note_parts","field":"resolutionNote","parts":["reported","tried","result"]}'::jsonb) r) s), 'note rule: prose is not a Tried part in note_parts');
+select pg_temp.check((select (a->>'writing_suggested')::int = 30 and (a->>'writing_suggested') = (b->>'writing_suggested')
+  from (select public.prove_score(pg_temp.good_work() || jsonb_build_object('resolutionNote', E'Reported - the widget stopped working.\nTried - reset the widget from Settings.\nResult - widget works again.'), pg_temp.demo_key()) a,
+               public.prove_score(pg_temp.good_work(), pg_temp.demo_key()) b) s), 'note rule: a dash note scores the same as the colon note');
+
 select pg_temp.check((public.prove_score(pg_temp.good_work(), pg_temp.demo_key()) ->> 'recommended_score')::int = 100, 'engine: complete work scores 100');
 select pg_temp.check((select (r->>'automatic_earned')::int = 70 and (r->>'automatic_points')::int = 70 and (r->>'writing_suggested')::int = 30 and (r->>'writing_points')::int = 30
   from (select public.prove_score(pg_temp.good_work(), pg_temp.demo_key()) r) s), 'engine: automatic and writing totals kept apart');

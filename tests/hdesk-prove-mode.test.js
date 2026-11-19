@@ -451,10 +451,10 @@ function testSettingsAddDeviceAddsThePrinter() {
   assert.equal(practice.run("hdKbSearchArticles('add printer', hdKbArticles())[0].id"), 'KB-0059');
 }
 
-// Prove It keeps the colon-only note rule until the server's note check
-// (prove_note_missing) changes: the browser's Practice note check, which now
-// accepts "Reported - …", never runs in a Prove It. A Prove note gets no part
-// feedback, and the note is saved and sent exactly as typed.
+// The browser's Practice note check never runs in a Prove It: a Prove note
+// gets no part feedback, and the note is saved and sent exactly as typed. The
+// server's note check (prove_note_missing) uses the same rule, so
+// "Reported - …" counts there too.
 function testProveNeverRunsThePracticeNoteCheck() {
   const DASH_NOTE = 'Reported - wants admin rights to add the Finance printer. Tried - added NS-FIN-PRN01 from Settings. Result - user printed a test page.';
   const tab = sim(proveUrl('student-notedash01', '#/helpdesk/ticket'));
