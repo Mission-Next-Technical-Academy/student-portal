@@ -17,6 +17,9 @@ node tests/test-account-reset.test.js
 echo '== Module card states =='
 node tests/module-card-state.test.js
 
+echo '== SOC Instructor Guide tab (no guide content shipped; SOC staff only) =='
+node tests/soc-instructor-guide.test.js
+
 echo '== Help Desk module order (display numbers and weeks) =='
 node tests/hdesk-module-order.test.js
 
