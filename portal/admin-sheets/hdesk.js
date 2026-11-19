@@ -130,14 +130,18 @@
     const comments = saved && Array.isArray(ticket.customerComments) ? ticket.customerComments.filter((comment) => comment && comment.text) : [];
     const id = entry.id;
     const has = (value) => (saved ? value : null);
+    // The coach lets the request be converted before it is triaged, which
+    // locks Impact and Urgency: those two checks are then the instructor's
+    // judgment, never a failure (the given text still shows what was set).
+    const convertedFirst = id === 'SR-2161' && Boolean(work && work.request);
     const checks = [{
       label: 'Priority matches the facts (Impact × Urgency)', expected: entry.priority,
-      test: () => (matrix ? (matrix.priority ? matrix.priority === entry.priority : false) : null),
+      test: () => (matrix ? (matrix.priority ? matrix.priority === entry.priority : convertedFirst ? null : false) : null),
       given: () => (matrix ? (matrix.priority ? `Impact ${matrix.impact} × Urgency ${matrix.urgency} = ${matrix.priority}` : 'Not set') : null),
       fix: 'Set Impact from how much of the business is hurt and Urgency from how fast it grows, never from the caller’s tone, and let Priority calculate.',
     }, {
       label: 'Category and configuration item set', expected: 'Both set',
-      test: () => (cls ? Boolean(cls.category && cls.ci) : null),
+      test: () => (cls ? (cls.category && cls.ci ? true : convertedFirst ? null : false) : null),
       given: () => (cls ? `${[cls.category, cls.subcategory].filter(Boolean).join(' › ') || 'No category'} · ${cls.ci || 'No CI'}` : null),
       fix: 'Set Category / Subcategory from the symptom and the configuration item the ticket is about.',
     }];
@@ -157,6 +161,7 @@
     const response = [
       ...noteResponses(notes),
       ...comments.map((comment) => ({ label: `Customer comment · ${comment.time || ''}`, text: comment.text })),
+      ...(saved && ticket.resolution ? [{ label: 'Resolution notes', text: ticket.resolution }] : []),
       ...(writing && writing.shortDescription ? [{ label: 'Rewritten short description', text: writing.shortDescription }, { label: 'Rewritten description', text: writing.description || '(empty)' }] : []),
       ...(writing && writing.kbDraftTitle ? [{ label: 'Knowledge draft title', text: writing.kbDraftTitle }, { label: 'Knowledge draft text', text: writing.kbDraftText || '(empty)' }] : []),
     ];

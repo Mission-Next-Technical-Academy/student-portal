@@ -185,7 +185,7 @@ function hdPracticeReport() {
   timer = setTimeout(() => { window.removeEventListener('message', onReply); done({ reason:'unconfirmed' }); }, HD_PRACTICE_REPLY_MS);
   hdPracticeSending = true;
   render();
-  opener.postMessage({ type:'mnt-practice-complete', id:HD_PRACTICE_SET.key, nonce, student:HD_PRACTICE_SET.student, tickets:HD_PRACTICE_SET.set.tickets.slice() }, origin);
+  opener.postMessage({ type:'mnt-practice-complete', id:HD_PRACTICE_SET.key, nonce, student:HD_PRACTICE_SET.student, tickets:(Array.isArray(HD_PRACTICE_SET.set.complete) ? HD_PRACTICE_SET.set.complete : HD_PRACTICE_SET.set.tickets).slice() }, origin);
 }
 function hdPracticeNotice() {
   if (!HD_PRACTICE_SET || !hdState) return '';

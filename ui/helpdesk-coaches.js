@@ -704,7 +704,7 @@
         route: '#/helpdesk/tickets',
         target: 'select[data-hd-field="impact"], select[data-hd-field="urgency"], select[data-hd-field="category"], tr[data-hd-row]',
         title: 'Triage every ticket',
-        instruction: 'Open each ticket in the order it arrived. Set <strong>Category</strong>, <strong>Configuration item</strong>, <strong>Impact</strong> and <strong>Urgency</strong> from the facts, not the caller’s tone. Then read the coach note that appears on the ticket once its priority is calculated.',
+        instruction: 'Open each ticket in the order it arrived. Set <strong>Category</strong>, <strong>Configuration item</strong>, <strong>Impact</strong> and <strong>Urgency</strong> from the facts, not the caller’s tone. If the ticket doesn’t say which laptop it is, ask the caller in the chat. Then read the coach note that appears on the ticket once its priority is calculated.',
         body: 'Why: priority is calculated from impact and urgency. You never type it. Success looks like: every ticket shows a priority, and the coach note on each ticket says whether your impact and urgency match the facts, and why. This is feedback only, with no points. The request ticket may already be converted by the time you finish.',
         waitLabel: 'Next Step: Every ticket has a priority',
         check: () => Object.values(HD10_ID).every((id) => {
@@ -720,7 +720,7 @@
         target: '.hd-convert, tr[data-hd-row]',
         title: 'Convert the request',
         instruction: 'Find the request in the queue. Open it, click <strong>Convert to Request</strong> and choose the catalog item.',
-        body: 'Why: requests need approval and asset tracking, and an incident is the wrong record for them. Success looks like: the incident shows Canceled – Converted, and the request shows Approval = Approved, because the manager already approved it. (The request is INC0010161, from Amir Patel, who asked for a headset.)',
+        body: 'Why: requests need approval and asset tracking, and an incident is the wrong record for them. Success looks like: the incident shows Canceled – Converted, and the request shows Approval = Approved, because the manager already approved it. (The request is INC0010161, from Amir Patel, who asked for a headset.) If you canceled or closed it by mistake, it can’t be converted: press <strong>Reset shift</strong> on the Dashboard to start the queue again.',
         waitLabel: 'Next Step: Request converted',
         check: () => { const t = hd10Ticket(HD10_ID.amir); return Boolean(t) && t.cancelReason === 'Converted' && Boolean(t.request) && t.request.approval === 'Approved'; },
       },
@@ -764,7 +764,7 @@
         target: '.hd-comments, #hd-next-state, #hd-hold-reason',
         title: 'Pause while you wait on the caller',
         instruction: 'On <strong>INC0010162</strong>, the mouse ticket, ask a question in an <strong>Additional comment</strong>. For example, ask if the mouse is wireless and when its batteries were last changed. Then set the state to <strong>On Hold</strong> with the reason <strong>Awaiting Caller</strong>.',
-        body: 'Why: the SLA clock pauses only while you wait on the user. Success looks like: the state shows On Hold – Awaiting Caller and the SLA bar turns grey and says Paused. Priya’s reply may arrive later in the lab. If it has already arrived, this step is done.',
+        body: 'Why: the SLA clock pauses only while you wait on the user. Success looks like: the state shows On Hold – Awaiting Caller and the SLA bar turns grey and says Paused. Priya’s reply may arrive later in the lab. If it has already arrived, this step is done. If you resolved or closed this ticket by mistake, it can’t go On Hold: press <strong>Reset shift</strong> on the Dashboard to start the queue again.',
         waitLabel: 'Next Step: On Hold – Awaiting Caller',
         check: () => {
           const t = hd10Ticket(HD10_ID.priya);

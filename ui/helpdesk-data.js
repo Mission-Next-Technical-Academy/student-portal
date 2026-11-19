@@ -481,6 +481,7 @@ const HD_TICKET_TEMPLATES = [
         { id:'when', text:'When did it start?', reply:'About 8:15. It worked when I got in.' },
         { id:'tried', text:'Did you try anything?', reply:'I turned Wi-Fi off and on. Same result.' },
         { id:'others', text:'Is anyone else affected? Do you have a deadline?', reply:'Everyone in Sales on this floor, I think. People at desks with a cable are fine. We have client calls at 10.' },
+        { id:'laptop', text:'Which laptop are you using?', reply:'My own laptop, NS-LT-0154.' },
       ] },
       rewrite:{ checks:[
         { part:'who', pattern:'Luis|Ortega' },
@@ -522,6 +523,7 @@ const HD_TICKET_TEMPLATES = [
       caller:{ name:'Priya Shah', questions:[
         { id:'who', text:'Is anyone else having this problem?', reply:'No, only me as far as I know. Everyone else in HR is fine.' },
         { id:'touchpad', text:'Does the touchpad on your laptop still work?', reply:'Yes. The touchpad works. It is only the mouse that freezes.' },
+        { id:'laptop', text:'Which laptop are you using?', reply:'My own laptop, NS-LT-0094.' },
       ] },
       arrivals:[{ id:'priya-reply', from:'Priya Shah', text:'It\'s wireless. I put new batteries in and it\'s fine now.', resume:true,
         when:{ all:[{ ticket:'HD-2158', notes:1, comments:1 }, { status:'On Hold – Awaiting Caller' }] } }],
@@ -533,6 +535,10 @@ const HD_TICKET_TEMPLATES = [
     console: {
       matrix:{}, classify:{ categories:HD_M02_CATEGORIES, cis:['NS-LT-0145', 'Teams', 'NS-LT-0042', 'NS-LT-0131'] },
       priorityCoach:{ impact:'3', urgency:'3', line:'Nothing is broken, and nothing is waiting on this. So Impact is 3 and Urgency is 3.' },
+      caller:{ name:'Amir Patel', questions:[
+        { id:'laptop', text:'Which laptop will you use the headset with?', reply:'My own laptop, NS-LT-0145.' },
+        { id:'when', text:'When do you need it?', reply:'No rush. Whenever it is ready is fine.' },
+      ] },
       convert:{ number:'RITM0010161', items:[
         { name:'Wireless headset', approval:'Approved', approver:'Caleb Wright (Amir’s manager)' },
         { name:'Wired headset', approval:'Approved', approver:'Caleb Wright (Amir’s manager)' },
@@ -567,7 +573,7 @@ const HD_TICKET_TEMPLATES = [
       arrivals:[{ id:'omar-approves', from:'Omar Haddad', text:'I approve this request in the portal. Nina Patel is my assistant.', approve:true, when:{ converted:true } }],
       actions:[
         { id:'grant', text:'Grant Nina the delegate access', needsApproval:true, earlyCritical:'Granted access before the mailbox owner approved', earlyFeedback:'Not yet. The mailbox owner must approve the request first (KB-0062). Wait for Omar\'s approval on the request.', feedback:'Nina has the delegate access Omar approved. It can take up to an hour to appear.', history:'Granted the delegate access that the mailbox owner approved, per KB-0062.' },
-        { id:'grant-owner', text:'Grant Nina Owner (full control) on Omar\'s mailbox', critical:true, feedback:'Critical error. Grant the permission asked for and no more. Editor (delegate) lets Nina see the calendar and book meetings. Owner gives full control of the mailbox (KB-0062).' },
+        { id:'grant-owner', text:'Grant Nina Owner (full control) on Omar\'s mailbox', feedback:'Not the right level. Grant the permission asked for and no more. Editor (delegate) lets Nina see the calendar and book meetings. Owner gives full control of the mailbox (KB-0062).' },
       ],
       notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0062', 'RITM', 'catalog item', 'Tier 1', 'Tier 2', 'SLA', 'Impact', 'Urgency', 'Editor (delegate)'] },
       feedback:[

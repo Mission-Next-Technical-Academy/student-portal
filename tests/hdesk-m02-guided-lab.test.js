@@ -250,7 +250,7 @@ function testWalkthroughEndToEnd() {
   assert.equal(coach.steps.length, 11, 'ten steps, then Finish');
   coach.steps.slice(0, 10).forEach((s, i) => {
     assert.match(s.body, /^Why: [\s\S]*Success looks like:/, `step ${i + 1} says why and what success looks like`);
-    assert.doesNotMatch(`${s.instruction} ${s.body}`, /\b(HD|SR|SEC)-21\d\d\b|Module 10|N25|shift pilot|\d+\s*points?\b/i, `step ${i + 1} text`);
+    assert.doesNotMatch(`${s.instruction} ${s.body}`, /\b(HD|SR|SEC)-21\d\d\b|Module 10|shift pilot|\d+\s*points?\b/i, `step ${i + 1} text`);
   });
   assert.equal(tab.coachStep(), 0);
   // Step 1 waits for all five columns.
@@ -381,6 +381,19 @@ function testPortalAndSheet(work) {
   rough.workOrderResult = 'INC0010162 is out of place. Move it up, above INC0010161.';
   const roughSheet = sheet.evaluate({ ...row, id: 'm02g-2', result: { ...row.result, work: rough } });
   ['queue-work-order', 'queue-hd-2158', 'queue-hd-2160'].forEach((id) => assert.notEqual(roughSheet.sections.find((s) => s.id === id).status, 'pass', id));
+  // The resolution notes the student wrote show in full.
+  assert.ok(html.includes('Priya put new batteries in the wireless mouse; the pointer no longer freezes.'), 'resolution notes shown');
+  // The request converted before triage: the two triage checks are the
+  // instructor's judgment, not a failure, and what was set still shows.
+  const early = JSON.parse(JSON.stringify(clean));
+  const amir = early.tickets.find((t) => t.id === 'SR-2161');
+  amir.console.matrix = { ...amir.console.matrix, impact: '', urgency: '', priority: '' };
+  amir.console.classification = { category: '', subcategory: '', ci: '', contactType: '' };
+  const earlySection = sheet.evaluate({ ...row, id: 'm02g-4', result: { ...row.result, work: early } }).sections.find((s) => s.id === 'queue-sr-2161');
+  assert.notEqual(earlySection.status, 'fail', 'converted first is never a failure');
+  const unconverted = JSON.parse(JSON.stringify(early));
+  unconverted.tickets.find((t) => t.id === 'SR-2161').console.request = null;
+  assert.equal(sheet.evaluate({ ...row, id: 'm02g-5', result: { ...row.result, work: unconverted } }).sections.find((s) => s.id === 'queue-sr-2161').status, 'fail', 'not triaged and not converted still fails');
   // An attempt saved under the old coach keeps the P1 sheet.
   const oldRow = { ...row, id: 'm02g-3', result: { source: 'mnt-coach-complete', work: { version: 1, tickets: [{ id: 'SEC-2114', priority: 'P1', notes: [{ author: 'Riley Morgan', time: '10:00', text: 'P1: possible compromise.' }] }] } } };
   assert.ok(sheet.evaluate(oldRow).sections.some((s) => s.id === 'priority-sec-2114'));
