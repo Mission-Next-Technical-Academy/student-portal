@@ -43,7 +43,7 @@
     'lab-its-08-unfamiliar-problems': 'Module 10 · Unfamiliar Problems',
     'lab-its-09-security-incidents': 'Module 11 · Security Incidents',
     'lab-its-10-priority-queue': 'Module 02 · Lab 2.1 · Guided Lab: queue shift',
-    'lab-its-10-practice-tickets': 'Module 02 · Lab 2.2 · Practice tickets',
+    'lab-its-10-practice-tickets': 'Module 02 · Lab 2.2 · Practice tickets (not graded)',
     'lab-its-10-prove-it': 'Module 02 · Prove It: queue shift',
     'lab-its-11-handoff-documentation': 'Module 03 · Handoff Documentation',
     'lab-its-12-capstone': 'Module 12 · IT Help Desk Capstone',

@@ -558,7 +558,7 @@ const ITS10_CHECK = {
     { q: 'A user asks for new software. How should it be logged?',
       choices: ['Incident', 'Problem', 'Requested item from the catalog', 'Change failure'], answer: 2,
       why: 'Asking for something new is a request, logged as a Requested Item (RITM) from the Service Catalog, so it gets its approval and tracking (Reading 1).',
-      ifWrong: ['An incident is something that used to work and now doesn’t; nothing is broken here.', 'A problem record is for finding the cause behind repeated incidents; you’ll meet it in Module 12.', null, 'Nothing was changed and nothing failed.'] },
+      ifWrong: ['An incident is something that used to work and now doesn’t; nothing is broken here.', 'A problem record is a separate record used to find the cause behind repeated incidents. Nothing here repeats, and one user is asking for something new.', null, 'Nothing was changed and nothing failed.'] },
     { q: 'A ticket is waiting on the user’s reply. Which state pauses the SLA?',
       choices: ['In Progress', 'On Hold – Awaiting Caller', 'On Hold – Awaiting Vendor', 'Resolved'], answer: 1,
       why: 'The clock pauses only while you’re waiting on the user, in On Hold – Awaiting Caller. Every other open state keeps it running (Reading 1 and the SLA table).',
@@ -715,7 +715,7 @@ function its10Check() {
 function its10Learn() {
   return `<section class="its01-section" id="its10-lessons" aria-labelledby="its10-lessons-title">
     <div class="its01-section-heading"><span>L</span><div><p class="its01-kicker">Learn It</p><h2 id="its10-lessons-title">Three readings</h2></div></div>
-    <p class="its01-instruction">Open each lesson for the readings, the reference tables and the diagrams, then try the knowledge check below.</p>
+    <p class="its01-instruction">Two lessons hold the three readings: Reading 1 in Lesson 2.1, Readings 2 and 3 in Lesson 2.2. Open each lesson for the readings, the reference tables and the diagrams, then try the knowledge check below.</p>
     <div class="its01-lesson-grid">${ITS10_LESSONS.map(its10LessonCard).join('')}</div>
   </section>`;
 }
@@ -741,7 +741,7 @@ function its10Lab1() {
       <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: ITS10_LAB1_START }[button.mode]}
     </a>
     ${itsWalkthroughNoticeHtml(its10User, ITS10_COACH_ID, [ITS10_LAB1_KEY], ITS10_LAB1_START)}
-    ${itsLabStatusHtml(its10User, ITS10_LAB1_KEY, { label: 'Lab 2.1', prefix: 'its10', pendingText: 'Complete the guided walkthrough in the simulator to finish this lab.' })}
+    ${itsLabStatusHtml(its10User, ITS10_LAB1_KEY, { label: 'Lab 2.1', prefix: 'its01', pendingText: 'Complete the guided walkthrough in the simulator to finish this lab.' })}
     ${itsRedoNoticeHtml(its10User, [{ key: ITS10_LAB1_KEY, action: 'Run the walkthrough again to resubmit this lab.' }])}
   </section>`;
 }
@@ -763,7 +763,7 @@ function its10PracticeTickets() {
     <a class="itsw-evidence-button" data-its10-practice-launch href="${esc(its10PracticeTicketsHref(its10User))}" target="_blank" rel="opener">
       <i class="ri-play-list-line" aria-hidden="true"></i> Open the practice tickets
     </a>
-    ${itsLabStatusHtml(its10User, ITS10_PRACTICE_KEY, { label: 'Lab 2.2', prefix: 'its10', pendingText: 'Finish all three tickets: resolve or escalate each one.' })}
+    ${itsLabStatusHtml(its10User, ITS10_PRACTICE_KEY, { label: 'Lab 2.2', prefix: 'its01', pendingText: 'Finish all three tickets: resolve or escalate each one.' })}
   </section>`;
 }
 

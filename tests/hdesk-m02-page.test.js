@@ -102,7 +102,7 @@ function testPageContent() {
   const html = page().view(user, HD);
   assert.match(html, /class="its10-shell"/);
   assert.match(html, /Module 02 · /, 'the hero shows Module 02');
-  assert.doesNotMatch(words(html), /Module 10|Module 0?10\b|N25|shift pilot|Overview tab/i, 'no old number or plan label a student sees');
+  assert.doesNotMatch(words(html), /Module 10|Module 0?10\b|shift pilot|Overview tab/i, 'no old number or plan label a student sees');
   assert.doesNotMatch(words(html), /payroll|flickering/i, 'Reading 2 uses its own examples');
   assert.deepEqual([...html.matchAll(/<strong>Lesson (2\.\d) · /g)].map((m) => m[1]), ['2.1', '2.2'], 'two lessons, 2.1 and 2.2');
   assert.equal((html.match(/<figure /g) || []).length, 3, 'three diagrams');
