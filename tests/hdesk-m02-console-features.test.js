@@ -482,6 +482,8 @@ function testLinkingAndRewrite() {
 
 function testArrivalsCommentsAndKnowledge() {
   const tab = guided();
+  // when.resolved waits for Resolved or Closed.
+  assert.equal(tab.run("hdArrivalMet(hdTicketById('HD-9204'), { resolved:true })"), false);
   tab.impact('HD-9204', 3, 2);
   tab.state('HD-9204', 'In Progress');
   tab.state('HD-9204', 'On Hold', { 'hd-hold-reason': 'Awaiting Caller' });
@@ -501,6 +503,7 @@ function testArrivalsCommentsAndKnowledge() {
   assert.match(tab.open('HD-9204'), /available once the ticket is resolved/);
   tab.run("hdSetResolutionCode('HD-9204', 'Solution provided')");
   tab.state('HD-9204', 'Resolved', { 'hd-resolution-notes': 'New batteries in the wireless mouse fixed the freezing.' });
+  assert.equal(tab.run("hdArrivalMet(hdTicketById('HD-9204'), { resolved:true })"), true);
   assert.match(tab.open('HD-9204'), /id="hd-kb-draft-text"[^>]*>New batteries in the wireless mouse fixed the freezing\./);
   tab.input('hd-kb-draft-title', 'Wireless mouse pointer freezes: replace the batteries first');
   tab.input('hd-kb-draft-text', 'passcode = 1234');
@@ -543,6 +546,14 @@ function testContactAttemptsAndCoachedSetGuard() {
   assert.equal(g.run('hdActiveSet()'), null);
   assert.equal(g.run('hdShiftNow() === HD_SHIFT_NOW'), true);
   assert.doesNotMatch(g.view('helpdesk/tickets'), /Incidents ›/);
+  // The next save drops the set's leftover fields with it.
+  g.run("hdState.workOrder = ['HD-9201']; hdState.queueView = { columns:[] }; hdSave()");
+  const saved = JSON.parse(g.local.getItem(g.run('hdStateKey()')));
+  for (const key of ['ticketSet', 'clockNow', 'daysMoved', 'workOrder', 'queueView']) assert.equal(saved[key], undefined, `${key} left in the save`);
+  // While the set's own tickets are on the shift, a save keeps the set.
+  const g3 = guided();
+  g3.run('hdSave()');
+  assert.equal(JSON.parse(g3.local.getItem(g3.run('hdStateKey()'))).ticketSet, 'test-guided');
   // Reset shift on a coached set starts the set again; a practice set can't
   // switch to a coached set.
   const g2 = guided();
@@ -560,6 +571,21 @@ function testContactAttemptsAndCoachedSetGuard() {
 
 // A Prove shift gets none of the new features, even if its ticket asks for
 // them: no matrix, set clock, queue tools, work order or Next day.
+// A coached set's tickets must be kept out of the shared shift (ownSet).
+// Then no other coach's reset can leave only some of them on the shift, and
+// the set guard (hdActiveSet) can't keep a set for tickets that aren't its own.
+function testCoachedSetTicketsAreOwnSet() {
+  const tab = sim({ withTest: false });
+  const sets = tab.run("typeof HD_COACHED_SETS === 'undefined' ? {} : HD_COACHED_SETS");
+  for (const [key, set] of Object.entries(plain(sets))) {
+    for (const id of set.tickets) {
+      const template = plain(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === ${JSON.stringify(id)}) || null`));
+      assert.ok(template, `coached set ${key}: ticket ${id} has no template`);
+      assert.equal(template.ownSet, true, `coached set ${key}: ticket ${id} needs ownSet: true`);
+    }
+  }
+}
+
 function testProveGetsNoneOfTheNewFeatures() {
   const every = "{ kb:true, matrix:{}, classify:{ categories:{ A:['b'] } }, convert:{ number:'RITM1', items:[{ name:'x' }] }, link:true, rewrite:{ checks:[] }, contactAttempts:true, arrivals:[{ id:'m', text:'hi', reopen:true }] }";
   const prove = sim({ url: 'https://academy.test/sim/?prove=its-01&student=student-m02-prove#/helpdesk/tickets', before: `HD_PROVE_SHIFTS['its-01'].tickets[0].console = ${every};` });
@@ -580,7 +606,7 @@ function testProveGetsNoneOfTheNewFeatures() {
 const tests = [
   testProveGetsNoneOfTheNewFeatures, testOldTicketsKeepTheOldClockAndStates, testImpactAndUrgencyCalculatePriority, testSlaRespondThenResolveOnTheSetClock,
   testPausedResolvedTimeAndNextDay, testServiceNowStates, testQueueViewColumnsAndSort, testWorkOrder, testConvertToRequest,
-  testLinkingAndRewrite, testArrivalsCommentsAndKnowledge, testContactAttemptsAndCoachedSetGuard,
+  testLinkingAndRewrite, testArrivalsCommentsAndKnowledge, testContactAttemptsAndCoachedSetGuard, testCoachedSetTicketsAreOwnSet,
 ];
 let failed = 0;
 for (const test of tests) {

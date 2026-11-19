@@ -544,7 +544,14 @@ if (hdHasArrivals() && hdCheckArrivals(true)) hdSave();
 // Closed earlier but not confirmed (the course page was closed, or the save
 // failed): try once more when the practice set opens.
 if (HD_PRACTICE_SET) setTimeout(() => { if (!hdState.practiceSaved && hdPracticeClosed()) hdPracticeReport(); }, 0);
-function hdSave() { if (HD_PROVE && HD_PROVE.blocked) return; localStorage.setItem(hdStateKey(), JSON.stringify(hdState)); }
+function hdSave() { if (HD_PROVE && HD_PROVE.blocked) return; hdDropStaleTicketSet(); localStorage.setItem(hdStateKey(), JSON.stringify(hdState)); }
+// Another coach's reset (hd1Reset, hdResetTicketScope) swaps a coached set's
+// tickets for its own. The set's clock, work order and queue view then belong
+// to no ticket, so they leave the save with the set.
+function hdDropStaleTicketSet() {
+  if (HD_PROVE || HD_PRACTICE_SET || !hdState || !hdState.ticketSet || hdActiveSet()) return;
+  ['ticketSet', 'clockNow', 'daysMoved', 'workOrder', 'queueView'].forEach(key => { delete hdState[key]; });
+}
 
 // The fixture lists a page shows: Practice sees the shared fixtures only; a
 // Prove shift adds its own computers and KB articles, and its server and
@@ -2078,6 +2085,7 @@ function hdArrivalMet(ticket, when) {
   if (when.notes && mine(target.notes) < when.notes) return false;
   if (when.converted && !target.request) return false;
   if (when.linked && !target.parentId) return false;
+  if (when.resolved && !['Resolved', 'Closed'].includes(target.status)) return false;
   return true;
 }
 function hdCheckArrivals(quiet) {
