@@ -38,6 +38,8 @@ node tests/hdesk-m01-practice.test.js
 echo '== Help Desk console features: off by default, each one on per ticket =='
 node tests/hdesk-console-features.test.js
 node tests/hdesk-m02-console-features.test.js
+node tests/hdesk-m02-guided-lab.test.js
+node tests/hdesk-m02-practice-tickets.test.js
 node tests/hdesk-m01-guided-lab.test.js
 node tests/hdesk-m01-practice-tickets.test.js
 node tests/hdesk-m01-ticket-1d.test.js

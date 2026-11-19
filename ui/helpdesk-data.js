@@ -8,7 +8,7 @@ const HD_ORG = {
   domain: 'northstar.example',
   netbios: 'NORTHSTAR',
   timezone: 'Eastern Time',
-  departments: ['Human Resources', 'Finance', 'Operations', 'Information Technology', 'Cybersecurity', 'Executive Office', 'Logistics', 'Sales', 'Customer Service', 'Marketing'],
+  departments: ['Human Resources', 'Finance', 'Operations', 'Information Technology', 'Cybersecurity', 'Executive Office', 'Logistics', 'Sales', 'Customer Service', 'Marketing', 'Front Desk'],
   supportTiers: [
     { tier:'Tier 1', owner:'Service Desk', scope:'Intake, identity verification, standard requests, endpoint and connectivity triage' },
     { tier:'Tier 2', owner:'Enterprise Support', scope:'Windows, Active Directory, Group Policy, servers, VPN, file and print services' },
@@ -46,6 +46,10 @@ const HD_USERS = [
   { id:'u-1015', employeeId:'E-44027', phone:'ext. 4315', name:'Ravi Shah', username:'rshah', email:'ravi.shah@northstar.example', department:'Sales', title:'Account Manager', ou:'OU=Sales,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:40, groups:['GG-Sales-Users','GG-CRM-Users'], manager:'Tara Singh', mfa:'Registered' },
   { id:'u-1016', employeeId:'E-45308', phone:'ext. 4501 · mobile 407-555-0142', name:'Martin Alvarez', username:'ralvarez', email:'martin.alvarez@northstar.example', department:'Executive Office', title:'Chief Financial Officer', ou:'OU=Executive Office,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:52, groups:['GG-Executive-Users','GG-Finance-Users'], manager:'Evelyn Reed', mfa:'Registered' },
   { id:'u-1017', employeeId:'E-46415', phone:'ext. 4687', name:'Hana Okafor', username:'hokafor', email:'hana.okafor@northstar.example', department:'Customer Service', title:'Customer Service Representative', ou:'OU=Customer Service,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:33, groups:['GG-CustomerService-Users'], manager:'Nadia Flores', mfa:'Registered' },
+  { id:'u-1018', employeeId:'E-47521', phone:'ext. 4325', name:'Omar Haddad', username:'ohaddad', email:'omar.haddad@northstar.example', department:'Sales', title:'Field Sales Manager', ou:'OU=Sales,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:26, groups:['GG-Sales-Users','GG-CRM-Users'], manager:'Tara Singh', mfa:'Registered' },
+  { id:'u-1019', employeeId:'E-48634', phone:'ext. 4326', name:'Nina Patel', username:'npatel', email:'nina.patel@northstar.example', department:'Sales', title:'Sales Assistant', ou:'OU=Sales,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:2, groups:['GG-Sales-Users'], manager:'Omar Haddad', mfa:'Registered' },
+  { id:'u-1020', employeeId:'E-49748', phone:'ext. 4472', name:'Marcus Lee', username:'mlee', email:'marcus.lee@northstar.example', department:'Marketing', title:'Marketing Specialist', ou:'OU=Marketing,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:57, groups:['GG-Marketing-Users'], manager:'Owen Price', mfa:'Registered' },
+  { id:'u-1021', employeeId:'E-50862', phone:'ext. 4105', name:'Ines Calder', username:'icalder', email:'ines.calder@northstar.example', department:'Front Desk', title:'Receptionist', ou:'OU=Front Desk,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:19, groups:['GG-FrontDesk-Users'], manager:'Caleb Wright', mfa:'Registered' },
 ];
 
 const HD_GROUPS = [
@@ -70,6 +74,7 @@ const HD_COMPUTERS = [
   { name:'NS-WS-0204', user:'Dina Foster', os:'Windows 11 Enterprise 24H2', ip:'10.20.50.204', ou:'OU=Executive Office,OU=Workstations', trust:'Healthy', bitlocker:'Recovery', lastSeen:'18 minutes ago', health:'BitLocker recovery' },
   { name:'NS-LT-0215', user:'Ravi Shah', os:'Windows 11 Enterprise 24H2', ip:'10.20.40.215', ou:'OU=Sales,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'12 minutes ago', health:'Healthy' },
   { name:'NS-LT-0188', user:'Hana Okafor', os:'Windows 11 Enterprise 24H2', ip:'10.20.60.188', ou:'OU=Customer Service,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'3 minutes ago', health:'Healthy' },
+  { name:'NS-LT-0154', user:'Luis Ortega', os:'Windows 11 Enterprise 24H2', ip:'10.20.40.154', ou:'OU=Sales,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'5 minutes ago', health:'Healthy' },
 ];
 
 const HD_SERVERS = [
@@ -129,6 +134,8 @@ const HD_KB_ARTICLES = [
   { id:'KB-0050', title:'Security incident warm-handoff template', category:'Security', updated:'2026-08-12', audience:'All Support', summary:'Record facts, timestamps, indicators, user actions, containment, evidence locations, impact, and requested next action.' },
   { id:'KB-0071', title:'Damaged laptop: loaner and escalation', category:'Hardware', updated:'2026-11-15', audience:'Service Desk', summary:'Tier 1 does not repair hardware. 1. Collect the asset tag and what happened, such as a dropped laptop or a cracked screen (when, how, and whether the laptop still starts). 2. If any glass is loose or sharp, tell the user to stop using the laptop now. 3. Ask whether their files are saved somewhere other than the laptop. 4. Verify the user before handing over a loaner (KB-0024): call them back on the number in the User Directory and confirm their employee ID. 5. Offer a loaner so the user can keep working. 6. Escalate to Desktop Support (Tier 2) for repair or replacement, with everything you collected. Never promise a repair date: Desktop Support sets it.' },
   { id:'KB-0059', title:'Add a department printer to a user\'s laptop', category:'Hardware', updated:'2026-11-15', audience:'Service Desk', practiceOnly:true, keywords:'add printer · printer missing · printer not in list · team printer · department printer · add device · Settings › Printers & scanners · NS-CS-PRN02', summary:'Department printers are added on the user\'s laptop from Settings. No admin rights are needed. 1. Ask which printer the user needs and what they see when they try to print. 2. On the user\'s laptop, open Settings › Printers & scanners and select Add device. 3. Choose the printer by its name. The Customer Service printer is NS-CS-PRN02. 4. Ask the user to print a test page and confirm it printed. 5. If the printer isn\'t in the list, stop there and escalate to Desktop Support (Tier 2) with the laptop\'s asset tag and the printer\'s name. Never ask for the user\'s password or sign in as the user.' },
+  { id:'KB-0062', title:'Calendar delegate access', category:'Messaging', updated:'2026-11-19', audience:'Service Desk', practiceOnly:true, keywords:'calendar delegate access · delegate · assistant · calendar · book meetings · see calendar · meeting invitations · Editor (delegate) · mailbox owner approval', summary:'Tier 1 may grant delegate access once the mailbox owner approves the request. 1. Confirm the person never had access. That makes it a request, not a fault. 2. Convert it to the catalog item "Calendar delegate access" with Requested for, Mailbox and Permission. 3. Wait for the mailbox owner\'s approval on the request. An approval made in the portal while signed in needs no callback. A request by phone, chat or email is verified with KB-0024 first. 4. Grant the permission asked for and no more. Editor (delegate) lets the delegate see the calendar and book meetings. 5. Ask the owner whether the delegate should also receive meeting invitations. 6. Tell both people it can take up to an hour to appear, then confirm with the delegate.' },
+  { id:'KB-0063', title:'Several people in one area lose Wi-Fi', category:'Networking', updated:'2026-11-19', audience:'Service Desk', practiceOnly:true, keywords:'wifi · Wi-Fi · wifi no internet · no internet · wireless · several people · whole floor · whole area · same area · network cable · Wi-Fi down', summary:'1. Ask whether other people in the same area have the same problem, and whether desks on a network cable still work. 2. One person only: have them turn Wi-Fi off and on and restart the laptop. If it still fails, escalate to Desktop Support with the laptop\'s asset tag. 3. Several people in one area: the cause is the network, not the laptops. Link the tickets to one parent and escalate the parent to Network Operations with the area, the start time and the business impact. 4. Never restart network equipment yourself.' },
 ];
 
 /* Practice scenario for HD-2101 (Module 1 Practice It). The evidence lives on
@@ -179,6 +186,28 @@ function hdTicket(spec) {
 // Only these tickets, no coach, saved apart from the coached lab's shift.
 const HD_PRACTICE_SETS = {
   'its-01': { title:'Module 1 practice tickets', tickets:['HD-2151', 'HD-2152', 'SEC-2153', 'HD-2154'] },
+  // Module 2 Lab 2.2: Wednesday 13:00 on a fixed clock that "Next day" moves.
+  'its-10': { title:'Module 2 practice tickets', tickets:['HD-2155', 'HD-2156', 'HD-2169', 'HD-2170', 'HD-2157'], complete:['HD-2155', 'HD-2156', 'HD-2157'], now:'2026-08-19T13:00:00Z', queue:true, queueList:'mine',
+    nextDay:{ unlock:[{ ticket:'HD-2155', done:['converted', 'resolved', 'escalated'] }, { ticket:'HD-2156', done:['resolved', 'escalated'] }, { ticket:'HD-2157', attempts:2 }] } },
+};
+
+// Coached ticket sets: Practice It content for a coach's guided lab, opened by
+// the coach (not from a course page link). The work order groups are a
+// practice answer for the guided lab, not a Prove It key.
+const HD_COACHED_SETS = {
+  'its-10-guided': { title:'Lab 2.1 · Guided Lab: queue shift', tickets:['HD-2158', 'HD-2159', 'HD-2160', 'SEC-2163', 'HD-2162', 'SR-2161'], now:'2026-08-18T08:35:00Z', queue:true,
+    workOrder:{ tickets:['HD-2158', 'HD-2159', 'HD-2160', 'SEC-2163', 'HD-2162', 'SR-2161'], groups:[['HD-2158'], ['HD-2159', 'HD-2160', 'SEC-2163'], ['HD-2162'], ['SR-2161']] } },
+};
+
+// Categories for the Module 2 queue tickets; each ticket adds its own CI list.
+const HD_M02_CATEGORIES = {
+  Software:['Phone app', 'Email', 'Browser'],
+  Network:['Wi-Fi', 'VPN', 'Wired port'],
+  Security:['Suspicious email', 'Suspicious sign-in', 'Lost device'],
+  Hardware:['Mouse', 'Monitor', 'Keyboard', 'Laptop'],
+  Request:['Hardware', 'Software', 'Access'],
+  Access:['Password reset', 'Account unlock'],
+  Printing:['Printer queue', 'Badge printer'],
 };
 
 const HD_TICKET_TEMPLATES = [
@@ -410,6 +439,199 @@ const HD_TICKET_TEMPLATES = [
     return hdTicket({ id:`HD-${2119 + index}`, requester, department, category:'Incident', subcategory:'Enterprise application', priority:index === 0 ? 'P2' : 'P3', businessImpact:'Purchasing application unavailable', sla:index === 0 ? '8 hours' : '2 business days', createdMinutesAgo:32 - index * 4, description:'Purchasing opens, but sign-in ends with a secure connection error.', symptoms:['Same application error','Other websites and file shares work'], logs:['Browser: NET::ERR_CERT_DATE_INVALID','TLS NotAfter: 2026-08-16T23:59:59Z'], systemState:['NS-APP01 online','Application service running'], plausibleCauses:['User account','Browser cache','Application certificate'], correctPath:['Confirm shared symptom','Compare timestamps and error','Link related incidents','Validate certificate evidence','Escalate controlled renewal'], hiddenRootCause:'NS-APP01 service certificate expired.', expectedResolution:'Link to the common incident/problem, renew the certificate through change control, verify all user paths.', escalationCriteria:['Always: shared production application and certificate change'], correlationKey:'APP-CERT-EXPIRY-01' });
   }),
   hdTicket({ id:'HD-2124', requester:'Tara Singh', department:'Sales', category:'Incident', subcategory:'Email / Outlook', priority:'P2', businessImpact:'Sales manager blocked from sending a time-critical client proposal', sla:'8 hours', createdMinutesAgo:51, description:'This is the second time I\'ve called about this today. Outlook keeps asking for my password and it just fails. I have a client waiting on this proposal and I cannot keep retyping it every five minutes.', symptoms:['Outlook repeatedly prompts for password mid-session','Send/receive fails after the prompt is dismissed','Teams and the browser M365 apps sign in fine','Second contact today about the same issue'], logs:['Outlook Connection Status: Auth error 0x8004101 on send/receive','Azure AD sign-in log: password changed 09:02 today','Credential Manager: generic credential MicrosoftOffice16_Data:ssp: last modified 3 weeks ago'], systemState:['Domain password changed this morning per policy','Browser and Teams already authenticate with the new password','Outlook profile still failing to authenticate'], plausibleCauses:['Outlook profile corruption','Exchange service outage','Stale cached credential in Credential Manager'], correctPath:['Verify identity and confirm the recent password change','Check other M365 apps to confirm the failure is scoped to Outlook','Open Credential Manager and locate the stale Office/Outlook entry','Remove the stale credential and restart Outlook','Re-authenticate and confirm send/receive succeeds','Set a clear, honest expectation before ending the call'], hiddenRootCause:'Windows Credential Manager retained a stale cached password for Outlook after this morning\'s required domain password change.', expectedResolution:'Remove the stale Outlook/Office credential from Credential Manager, restart Outlook, re-authenticate with the new password, and confirm send/receive succeeds before closing.', escalationCriteria:['Credential is cleared but authentication still fails','Multiple users report the same post-password-change Outlook failure'] }),
+  // Module 2 Practice It. Lab 2.1 (coach, HD_COACHED_SETS 'its-10-guided') and
+  // Lab 2.2 (HD_PRACTICE_SETS 'its-10') run on a fixed clock with the queue and
+  // matrix features (ui/helpdesk.js). The facts a student needs are in the
+  // description and the caller's messages only, never on a tool screen. Each
+  // ticket starts with no priority (or a seeded one) and a neutral category:
+  // the student sets both. Queue rows and tickets show the INC number only.
+  // Practice feedback only, never points.
+  hdTicket({ id:'HD-2158', ownSet:true, number:'INC0010158', requester:'Sam Rivera', department:'Customer Service', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-18T08:31:00Z', shortDescription:'Phone app says Not connected',
+    description:'Hey, no rush, I know you\'re busy: none of us in Customer Service can take calls. The phone app says \'Not connected\' for the whole team since 8:30. Customers are getting voicemail.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      matrix:{}, classify:{ categories:HD_M02_CATEGORIES, cis:['Customer Service phone app', 'Teams', 'NS-LT-0188', 'Floor 3 Wi-Fi'] },
+      priorityCoach:{ impact:'1', urgency:'1', line:'"No rush" is how Sam said it. It is not what it is. A whole department can\'t take customer calls. So Impact is 1 and Urgency is 1.' },
+      caller:{ name:'Sam Rivera', questions:[
+        { id:'who', text:'Is every agent affected, or only you?', reply:'Everyone on the team. Nobody can take a call.' },
+        { id:'when', text:'When did it start?', reply:'At 8:30, when the phones opened for the day.' },
+      ] },
+      comments:{ internalNames:['Messaging & Collaboration', 'Service Desk lead', 'Network Operations', 'Desktop Support', 'Security Operations', 'SOC', 'Server & Identity', 'Facilities', 'Tier 1', 'Tier 2'] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['P1', 'P2', 'SLA', 'Impact', 'Urgency', 'Tier 1', 'Tier 2', 'CI', 'matrix', 'assignment group'] },
+    } }),
+  hdTicket({ id:'HD-2159', ownSet:true, number:'INC0010159', requester:'Noah Williams', department:'Sales', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-18T08:15:00Z', shortDescription:'3rd floor Wi-Fi down for all of Sales',
+    description:'The Wi-Fi on the 3rd floor dropped for all of Sales about 20 minutes ago. Laptops say \'No internet\'. Desks with a network cable are fine. Client calls start at 10.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      matrix:{}, classify:{ categories:HD_M02_CATEGORIES, cis:['Floor 3 Wi-Fi', 'Floor 2 Wi-Fi', 'NS-LT-0081', 'Sales CRM'] },
+      priorityCoach:{ impact:'1', urgency:'2', line:'All of Sales is a department, so Impact is 1. Desks with a network cable still work until the 10:00 calls, so Urgency is 2.' },
+      kb:{ attach:true }, comments:true,
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['P1', 'P2', 'SLA', 'Impact', 'Urgency', 'Tier 1', 'Tier 2', 'CI', 'KB-0063', 'Network Operations'] },
+    } }),
+  hdTicket({ id:'HD-2160', ownSet:true, number:'INC0010160', requester:'Luis Ortega', department:'Sales', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-18T08:22:00Z', shortDescription:'internet not working',
+    description:'internet not working',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      matrix:{}, classify:{ categories:HD_M02_CATEGORIES, cis:['NS-LT-0154', 'NS-LT-0081', 'NS-LT-0215', 'Floor 3 Wi-Fi'] },
+      priorityCoach:{ impact:'1', urgency:'2', line:'Rated alone, this looks like one person. It is the same outage as INC0010159. Step 4 links the two tickets, and then the ticket is a Priority 2.' },
+      link:true, comments:true,
+      caller:{ name:'Luis Ortega', questions:[
+        { id:'where', text:'Where are you working? Which floor?', reply:'I\'m on floor 3.' },
+        { id:'what', text:'What do you see on your laptop?', reply:'The Wi-Fi icon shows a connection, but it says \'No internet\'.' },
+        { id:'when', text:'When did it start?', reply:'About 8:15. It worked when I got in.' },
+        { id:'tried', text:'Did you try anything?', reply:'I turned Wi-Fi off and on. Same result.' },
+        { id:'others', text:'Is anyone else affected? Do you have a deadline?', reply:'Everyone in Sales on this floor, I think. People at desks with a cable are fine. We have client calls at 10.' },
+      ] },
+      rewrite:{ checks:[
+        { part:'who', pattern:'Luis|Ortega' },
+        { part:'what', pattern:'no internet|wi-?fi|wireless|internet' },
+        { part:'where', pattern:'floor\\s*3|3rd floor|third floor' },
+        { part:'when', pattern:'since[^.\\n]{0,25}\\d{1,2}(:\\d{2})?|\\d{1,2}:\\d{2}' },
+        { part:'impact', pattern:'all of|whole|everyone|everybody|entire|INC0010159|parent|several|team|department' },
+      ] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['P1', 'P2', 'SLA', 'Impact', 'Urgency', 'Tier 1', 'Tier 2', 'CI', 'Network Operations'] },
+    } }),
+  hdTicket({ id:'SEC-2163', ownSet:true, number:'INC0010163', requester:'Maya Chen', department:'Operations', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-18T08:24:00Z', shortDescription:'Attachment asked me to enable content',
+    description:'I opened an email attachment called Invoice_8841 and it asked me to \'enable content\'. I clicked it and nothing happened. I don\'t recognize the supplier.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      matrix:{}, classify:{ categories:HD_M02_CATEGORIES, cis:['NS-LT-0042', 'NS-LT-0145', 'NS-LT-0131', 'Outlook'] },
+      priorityCoach:{ impact:'2', urgency:'1', line:'One person clicked. But a possible compromise can spread, and it can\'t wait. So Impact is 2 and Urgency is 1.' },
+      comments:true,
+      caller:{ name:'Maya Chen', questions:[
+        { id:'sender', text:'Who sent the email? What is the sender\'s address?', reply:'It came from accounts@brightfield-supply.example. I don\'t know that supplier.' },
+        { id:'when', text:'When did you click Enable content?', reply:'At about 08:20, right after I opened the attachment.' },
+        { id:'laptop', text:'Which laptop were you using?', reply:'My own laptop, NS-LT-0042.' },
+      ] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['P1', 'P2', 'SLA', 'Impact', 'Urgency', 'Tier 1', 'Tier 2', 'CI', 'SOC', 'Security Operations', 'indicators'],
+        needs:[
+          { label:'The sender\'s address', pattern:'[\\w.-]+@[\\w.-]+' },
+          { label:'The attachment name (Invoice_8841)', pattern:'Invoice_8841' },
+          { label:'What Maya clicked (Enable content)', pattern:'enable content' },
+          { label:'When Maya clicked it', pattern:'\\b\\d{1,2}[:.]\\d{2}\\b' },
+          { label:'Which laptop (NS-LT-0042)', pattern:'NS-LT-0042' },
+        ] },
+    } }),
+  hdTicket({ id:'HD-2162', ownSet:true, number:'INC0010162', requester:'Priya Shah', department:'Human Resources', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-17T16:10:00Z', shortDescription:'HIGH PRIORITY!!! Mouse pointer freezes',
+    description:'HIGH PRIORITY!!! My mouse pointer keeps freezing every few minutes. I can\'t work like this!!',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      matrix:{}, classify:{ categories:HD_M02_CATEGORIES, cis:['NS-LT-0094', 'NS-LT-0068', 'NS-LT-0117', 'NS-LT-0215'] },
+      priorityCoach:{ impact:'3', urgency:'2', line:'Capital letters are not urgency. One person is affected, and the laptop\'s touchpad still works. So Impact is 3 and Urgency is 2.' },
+      comments:true, resolutionCode:{ required:true }, kb:{ draft:true },
+      caller:{ name:'Priya Shah', questions:[
+        { id:'who', text:'Is anyone else having this problem?', reply:'No, only me as far as I know. Everyone else in HR is fine.' },
+        { id:'touchpad', text:'Does the touchpad on your laptop still work?', reply:'Yes. The touchpad works. It is only the mouse that freezes.' },
+      ] },
+      arrivals:[{ id:'priya-reply', from:'Priya Shah', text:'It\'s wireless. I put new batteries in and it\'s fine now.', resume:true,
+        when:{ all:[{ ticket:'HD-2158', notes:1, comments:1 }, { status:'On Hold – Awaiting Caller' }] } }],
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['P1', 'P2', 'SLA', 'Impact', 'Urgency', 'Tier 1', 'Tier 2', 'CI', 'On Hold', 'Awaiting Caller'] },
+    } }),
+  hdTicket({ id:'SR-2161', ownSet:true, number:'INC0010161', requester:'Amir Patel', department:'Operations', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-17T14:00:00Z', shortDescription:'Wireless headset for Teams calls',
+    description:'Can I get a wireless headset for Teams calls? My manager approved it by email.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      matrix:{}, classify:{ categories:HD_M02_CATEGORIES, cis:['NS-LT-0145', 'Teams', 'NS-LT-0042', 'NS-LT-0131'] },
+      priorityCoach:{ impact:'3', urgency:'3', line:'Nothing is broken, and nothing is waiting on this. So Impact is 3 and Urgency is 3.' },
+      convert:{ number:'RITM0010161', items:[
+        { name:'Wireless headset', approval:'Approved', approver:'Caleb Wright (Amir’s manager)' },
+        { name:'Wired headset', approval:'Approved', approver:'Caleb Wright (Amir’s manager)' },
+        { name:'Laptop dock', approval:'Approved', approver:'Caleb Wright (Amir’s manager)' },
+      ] },
+      comments:true,
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['P1', 'P2', 'SLA', 'Impact', 'Urgency', 'Tier 1', 'Tier 2', 'CI', 'RITM', 'catalog item'] },
+    } }),
+  // Module 2 Lab 2.2 practice tickets 2-A to 2-C and the two related badge
+  // printer tickets. Priority is seeded only where the story needs it.
+  hdTicket({ id:'HD-2155', ownSet:true, number:'INC0010155', requester:'Omar Haddad', department:'Sales', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T12:50:00Z', shortDescription:'Calendar broken for my assistant',
+    description:'My new assistant Nina can\'t see or book anything on my calendar. Can you fix it? She started Monday.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      matrix:{}, classify:{ categories:HD_M02_CATEGORIES, cis:['Outlook calendar', 'Teams', 'NS-LT-0081'], preset:{ contactType:'Self-service' } },
+      kb:true, comments:{ internalNames:['KB-0062', 'Tier 1', 'Tier 2', 'Messaging & Collaboration'] },
+      caller:{ name:'Omar Haddad', questions:[
+        { id:'access', text:'Did Nina ever have access to your calendar?', reply:'No, never. She only started Monday.' },
+        { id:'need', text:'What does Nina need to do on your calendar?', reply:'She needs to see my schedule and book meetings for me.' },
+        { id:'invites', text:'Should Nina also get copies of your meeting invitations?', reply:'Yes, please.' },
+      ] },
+      convert:{ number:'RITM0010088', items:[
+        { name:'Calendar delegate access', approver:'Omar Haddad', fields:[
+          { id:'mailbox', label:'Mailbox', options:['Omar Haddad', 'Tara Singh', 'Nadia Flores'] },
+          { id:'permission', label:'Permission', options:['Reviewer (read only)', 'Author', 'Editor (delegate)', 'Owner (full control)'] },
+        ] },
+        { name:'Shared mailbox access', approver:'Mailbox owner', fields:[
+          { id:'mailbox', label:'Mailbox', options:['Sales team mailbox', 'Customer Service mailbox'] },
+        ] },
+        { name:'New user account', approver:'Hiring manager' },
+      ] },
+      arrivals:[{ id:'omar-approves', from:'Omar Haddad', text:'I approve this request in the portal. Nina Patel is my assistant.', approve:true, when:{ converted:true } }],
+      actions:[
+        { id:'grant', text:'Grant Nina the delegate access', needsApproval:true, earlyCritical:'Granted access before the mailbox owner approved', earlyFeedback:'Not yet. The mailbox owner must approve the request first (KB-0062). Wait for Omar\'s approval on the request.', feedback:'Nina has the delegate access Omar approved. It can take up to an hour to appear.', history:'Granted the delegate access that the mailbox owner approved, per KB-0062.' },
+        { id:'grant-owner', text:'Grant Nina Owner (full control) on Omar\'s mailbox', critical:true, feedback:'Critical error. Grant the permission asked for and no more. Editor (delegate) lets Nina see the calendar and book meetings. Owner gives full control of the mailbox (KB-0062).' },
+      ],
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0062', 'RITM', 'catalog item', 'Tier 1', 'Tier 2', 'SLA', 'Impact', 'Urgency', 'Editor (delegate)'] },
+      feedback:[
+        { area:'Triage', checks:[{ converted:true, missing:'Convert the incident to a request. Nina never had access, so nothing is broken.' }, { requestFor:'Nina Patel', missing:'Set Requested for to Nina Patel, the person who needs the access.' }], good:'You saw that this is a request, not a fault, and you made it for the right person.', fix:'Nina never had access, so nothing is broken. Convert the incident to a request for Nina Patel.' },
+        { area:'Investigation', checks:[{ kb:'KB-0062', missing:'Search the KB for "calendar delegate" and open KB-0062.' }, { chat:['invites'], missing:'Ask Omar whether Nina should also get copies of his meeting invitations (KB-0062, step 5).' }], good:'You used KB-0062 and asked Omar about meeting invitations.', fix:'Search the KB for "calendar delegate", open KB-0062, and ask Omar whether Nina should get his meeting invitations.' },
+        { area:'Diagnosis', checks:[{ chat:['access'], missing:'Ask Omar whether Nina ever had access.' }], good:'You confirmed Nina never had access. That makes it a request.', fix:'Ask Omar whether Nina ever had access to his calendar. If she never did, nothing is broken.' },
+        { area:'Action', checks:[{ requestField:{ id:'permission', value:'Editor (delegate)' }, missing:'Set Permission to Editor (delegate). It lets Nina see the calendar and book meetings.' }, { action:'grant', missing:'Grant the access after Omar approves the request.' }], good:'You asked for Editor (delegate), no more, and granted it after Omar approved.', fix:'Set Permission to Editor (delegate), wait for Omar to approve, then grant the access. Never grant more than the request asks for.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note with a Next action.' }, { comment:true, missing:'Write a comment for Omar in plain words, with no internal names.' }], good:'A complete work note, and a plain-words comment for Omar.', fix:'Write a Reported / Tried / Result note, and a comment for Omar that says what happened, what he needs to do and what happens next.' },
+      ],
+    } }),
+  hdTicket({ id:'HD-2156', ownSet:true, number:'INC0010412', requester:'Ines Calder', department:'Front Desk', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-18T09:00:00Z', status:'Resolved', assignedTechnician:'Riley Morgan', shortDescription:'Reception badge printer stuck',
+    description:'The reception badge printer will not print visitor badges from my PC.',
+    notes:[{ time:'Tue 11:30', author:'Riley Morgan (Tue)', text:'Reported: the reception badge printer would not print. Tried: cleared stuck jobs, unticked Use Printer Offline. Result: one badge printed. Resolved.' }],
+    resolution:'Cleared the stuck print jobs and unticked Use Printer Offline. One badge printed.', closureCode:'Solution provided',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      matrix:{ impact:'2', urgency:'2', respondedAt:'2026-08-18T09:20:00Z', stops:[{ from:'2026-08-18T11:30:00Z', kind:'resolved' }] },
+      link:true, comments:{ internalNames:['Desktop Support', 'Tier 1', 'Tier 2', 'Network Operations'] },
+      caller:{ name:'Ines Calder', questions:[
+        { id:'now', text:'What does the printer do now?', reply:'The same as yesterday. The badge goes in, and then nothing prints.' },
+        { id:'since', text:'When did it stop again?', reply:'This morning. One badge worked yesterday, and today it won\'t print at all.' },
+      ] },
+      rewrite:{ checks:[{ part:'"(reopened)"', pattern:'\\(reopened\\)', field:'short' }] },
+      arrivals:[{ id:'ines-reopen', from:'Ines Calder', text:'RE: INC0010412 has been resolved. It is NOT resolved. The badge printer worked for one badge yesterday and now it\'s doing the same thing again.', reopen:true, at:'2026-08-19T12:50:00Z' }],
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Tier 1', 'Tier 2', 'SLA', 'Impact', 'Urgency', 'Desktop Support', 'P3', 'parent ticket'] },
+      feedback:[
+        { area:'Triage', checks:[{ status:['In Progress', 'Escalated'], missing:'Reopen INC0010412 with Ines\'s reply. Do not open a new incident.' }, { rewrite:true, missing:'Add "(reopened)" to the short description.' }], good:'You reopened the same ticket and marked it "(reopened)".', fix:'The reply reopens INC0010412: do not open a new incident. Add "(reopened)" to the short description.' },
+        { area:'Investigation', checks:[{ notePattern:'yesterday|earlier|prior|previous|offline|stuck', missing:'Read the ticket history first, and write down what was done yesterday.' }, { notePattern:'INC0010431|INC0010433|other (front|reception)|same (symptom|problem|fault)|more tickets|two (more|other)', missing:'Look at the queue. Other front-desk PCs have the same fault.' }], good:'You read yesterday\'s work and saw the same fault on other front-desk PCs.', fix:'Read yesterday\'s work note, then look at the queue: two more badge printer tickets came from other front-desk PCs.' },
+        { area:'Diagnosis', checks:[{ notePattern:'printer|print server|not the (pc|computer|client)|not (a )?(pc|client)', missing:'Say in your note where the cause is likely to be.' }], good:'The same fault on several PCs points at the printer side, not at one PC.', fix:'The same fault on several PCs means the cause is not the PC. It is on the printer or print server side.' },
+        { area:'Action', checks:[{ child:'HD-2169', missing:'Link INC0010431 to this ticket as related.' }, { child:'HD-2170', missing:'Link INC0010433 to this ticket as related.' }, { group:'Desktop Support (Tier 2)', missing:'Escalate to Desktop Support (Tier 2) with yesterday\'s and today\'s evidence.' }], good:'You linked both related tickets and escalated with the evidence.', fix:'Link INC0010431 and INC0010433 to this ticket as related, then escalate to Desktop Support (Tier 2) with yesterday\'s and today\'s evidence.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note with a Next action.' }, { commentPattern:'sorry|apolog', missing:'Say sorry for the trouble in your comment, without blaming anyone.' }, { commentPattern:'by \\d|\\d{1,2}:\\d{2}|\\d\\s*(am|pm)|this afternoon|end of (the )?day|tomorrow|within \\d', missing:'Give Ines a time for your next update.' }], good:'A complete note, a comment that says sorry without blame, and a time for the next update.', fix:'Write a Reported / Tried / Result note with a Next action. In your comment say sorry without blame and give Ines a time for the next update.' },
+      ],
+    } }),
+  hdTicket({ id:'HD-2169', ownSet:true, number:'INC0010431', requester:'Sofia Martin', department:'Operations', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T12:15:00Z', shortDescription:'Reception badge printer will not print',
+    description:'I am covering the second front-desk PC. The reception badge printer will not print visitor badges from this PC. It fails the same way as at the first front-desk PC.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      matrix:{ impact:'2', urgency:'2' }, link:true, comments:true,
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Tier 1', 'Tier 2', 'SLA', 'Impact', 'Urgency', 'Desktop Support', 'P3', 'parent ticket'] },
+    } }),
+  hdTicket({ id:'HD-2170', ownSet:true, number:'INC0010433', requester:'Hana Okafor', department:'Customer Service', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T12:35:00Z', shortDescription:'Reception badge printer will not print',
+    description:'I am at the third front-desk PC. The reception badge printer will not print visitor badges from here. Other front-desk PCs have the same fault.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      matrix:{ impact:'2', urgency:'2' }, link:true, comments:true,
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Tier 1', 'Tier 2', 'SLA', 'Impact', 'Urgency', 'Desktop Support', 'P3', 'parent ticket'] },
+    } }),
+  hdTicket({ id:'HD-2157', ownSet:true, number:'INC0010377', requester:'Marcus Lee', department:'Marketing', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-17T09:00:00Z', status:'On Hold', holdReason:'Awaiting Caller', assignedTechnician:'Riley Morgan', shortDescription:'Outlook keeps asking for my password',
+    description:'Outlook keeps asking me for my password.',
+    customerComments:[{ time:'Mon 09:40', author:'Riley Morgan (Mon)', text:'Hi Marcus, thank you for telling us. Could you send us a screenshot of the message Outlook shows when it asks for your password? – Riley, Northstar Service Desk' }],
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      matrix:{ impact:'3', urgency:'2', respondedAt:'2026-08-17T09:40:00Z', stops:[{ from:'2026-08-17T09:40:00Z', kind:'paused' }] },
+      contactAttempts:{ seed:[{ at:'2026-08-17T09:40:00Z', method:'Customer comment (Additional comments)' }] },
+      resolutionCode:{ required:true }, comments:{ internalNames:['Tier 1', 'Tier 2', 'Messaging & Collaboration'] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Tier 1', 'Tier 2', 'SLA', 'Impact', 'Urgency', 'P4', 'On Hold', 'Awaiting Caller'] },
+      feedback:[
+        { area:'Triage', checks:[{ status:['On Hold – Awaiting Caller', 'Resolved'], missing:'Keep the ticket On Hold – Awaiting Caller while you wait. Any other open state restarts the clock.' }], good:'The ticket stayed On Hold – Awaiting Caller while you waited, so the clock stayed paused.', fix:'Keep the ticket On Hold – Awaiting Caller while you wait for the caller. The clock pauses only in that state.' },
+        { area:'Investigation', checks:[{ notePattern:'screenshot|attempt|contact|monday|requested|asked', missing:'Read the ticket history and write down what was asked and when.' }], good:'You read the history: one attempt on Monday, no reply.', fix:'Read the history first. Riley asked for a screenshot on Monday and the caller did not reply. That is attempt 1.' },
+        { area:'Diagnosis', checks:[{ notePattern:'no (response|reply)|not (responded|replied|answered)|unreachable|voicemail|has not', missing:'Say in your note that the caller has not responded.' }], good:'You wrote that the caller has not responded.', fix:'The caller has not responded. Say so in your note.' },
+        { area:'Action', checks:[{ attempts:3, missing:'Log three contact attempts before you close: use "Next day" to log attempt 3.' }, { code:'No response from caller', missing:'Resolve with the code "No response from caller".' }, { status:'Resolved', missing:'Resolve the ticket after attempt 3.' }], good:'You logged three attempts, then resolved with "No response from caller".', fix:'Log attempt 2 by phone today, attempt 3 on the next day, and only then resolve with "No response from caller".' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note that lists all three attempts.' }, { commentPattern:'reopen|reply', missing:'Tell Marcus in a comment how to reopen the ticket by replying.' }], good:'A complete note, and a comment that tells Marcus how to reopen the ticket.', fix:'Write a Reported / Tried / Result note with all three attempts. Tell Marcus in a comment how to reopen the ticket by replying.' },
+      ],
+    } }),
 ];
 
 /* Prove It shifts, by module key. A Prove shift opens with only its own

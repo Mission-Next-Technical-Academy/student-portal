@@ -153,7 +153,10 @@ const HD_PRACTICE_REASONS = {
 let hdPracticeSending = false;
 function hdPracticeClosed() {
   if (!HD_PRACTICE_SET || !hdState || !Array.isArray(hdState.tickets)) return false;
-  return HD_PRACTICE_SET.set.tickets.every(id => {
+  // complete: the tickets the set needs closed (Module 2 keeps 2-B's related
+  // tickets in the set without requiring them); otherwise every ticket.
+  const needed = Array.isArray(HD_PRACTICE_SET.set.complete) ? HD_PRACTICE_SET.set.complete : HD_PRACTICE_SET.set.tickets;
+  return needed.every(id => {
     const ticket = hdState.tickets.find(item => item.id === id);
     // A converted incident (Canceled – Converted) is closed too.
     return Boolean(ticket && (['Resolved', 'Escalated'].includes(ticket.status) || (ticket.status === 'Canceled' && ticket.cancelReason === 'Converted')));
@@ -1447,6 +1450,17 @@ function hdConsoleRule(ticket, rule) {
     const machine = hdMachine(rule.printerInstalled.computer);
     return !!(machine && Array.isArray(machine.printers) && machine.printers.includes(rule.printerInstalled.printer));
   }
+  // Module 2 work (matrix tickets): the request, links, state, owner,
+  // contact attempts and the rewrite, each read from the ticket's real state.
+  if (rule.converted) return !!ticket.request;
+  if (rule.requestField) return !!(ticket.request && ticket.request.fields.some(field => field.id === rule.requestField.id && field.value === rule.requestField.value));
+  if (rule.requestFor) return !!(ticket.request && ticket.request.requestedFor === rule.requestFor);
+  if (rule.child) { const child = hdTicketById(rule.child); return !!(child && child.parentId === ticket.id); }
+  if (rule.status) return [].concat(rule.status).some(value => value === ticket.status || value === hdStatusText(ticket));
+  if (rule.group) return ticket.assignmentGroup === rule.group;
+  if (rule.attempts) return hdContactAttempts(ticket).length >= rule.attempts;
+  if (rule.code) return (state.resolutionCode || ticket.closureCode) === rule.code;
+  if (rule.rewrite) return !!(state.rewrite && !state.rewrite.missing.length);
   return false;
 }
 function hdConsoleFeedback(ticket) {
@@ -1462,9 +1476,15 @@ function hdConsoleFeedback(ticket) {
     ...(ticket.passwordAsked ? ['Asked for a password in the chat (refused, never sent).'] : []),
     ...(ticket.passwordWritten ? ['Wrote a password in a ticket field (refused, not saved).'] : []),
   ];
+  // On a matrix ticket (Module 2 on), an area whose unmet checks each have
+  // their own `missing` line names exactly those (2-B names the link it
+  // misses); older tickets keep the area's fix, as before.
+  const matrix = hdIsMatrix(ticket);
   return { critical, flags, areas:areas.map(area => {
-    const ok = (area.checks || []).every(rule => hdConsoleRule(ticket, rule));
-    return { area:area.area, ok, text:ok ? area.good : area.fix };
+    const unmet = (area.checks || []).filter(rule => !hdConsoleRule(ticket, rule));
+    const ok = !unmet.length;
+    const missing = matrix && unmet.length && unmet.every(rule => rule.missing) ? unmet.map(rule => rule.missing).join(' ') : '';
+    return { area:area.area, ok, text:ok ? area.good : missing || area.fix };
   }) };
 }
 function hdConsoleCheckWork(id) {
@@ -1645,7 +1665,7 @@ function hdConsoleFeedbackCard(ticket) {
     : result ? '<p><strong>No critical errors.</strong></p>' : '';
   const flags = result && result.flags.length ? `<ul class="hd-list">${result.flags.map(text => `<li>${hdEsc(text)}</li>`).join('')}</ul>` : '';
   const areas = result ? `<ul class="hd-list hd-feedback">${result.areas.map(row => `<li data-area="${hdEsc(row.area)}" data-ok="${row.ok ? 'yes' : 'no'}">${row.ok ? '✓' : '○'} <strong>${hdEsc(row.area)}:</strong> ${hdEsc(row.text)}</li>`).join('')}</ul>` : '';
-  return `<div class="card hd-practice-feedback"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Check my work</strong><span class="muted">Practice: not graded</span></div><div class="card-body"><p class="muted">Feedback on your work so far, by area. Category and priority are pre-set in Module 1.</p>${critical}${flags}${areas}<button type="button" class="btn btn-secondary" onclick="hdConsoleCheckWork('${ticket.id}')">${result ? 'Check again' : 'Check my work'}</button></div></div>`;
+  return `<div class="card hd-practice-feedback"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Check my work</strong><span class="muted">Practice: not graded</span></div><div class="card-body"><p class="muted">Feedback on your work so far, by area.${hdIsMatrix(ticket) ? '' : ' Category and priority are pre-set in Module 1.'}</p>${critical}${flags}${areas}<button type="button" class="btn btn-secondary" onclick="hdConsoleCheckWork('${ticket.id}')">${result ? 'Check again' : 'Check my work'}</button></div></div>`;
 }
 function hdConsoleAccountCard(ticket) {
   const account = hdConsole(ticket).account; if (!account) return '';
@@ -1723,11 +1743,21 @@ function hdConsoleNotePlaceholder(ticket) {
  *                                  part (who, what, where, when, impact, ...)
  *                                  still missing (field: short, description
  *                                  or either)
+ *   priorityCoach: { impact, urgency, line }
+ *                                  a coached ticket's Practice explanation,
+ *                                  shown once Priority is calculated
+ *   feedback rules for this work:  converted, requestField:{ id, value },
+ *                                  requestFor, child (a ticket linked to
+ *                                  this one), status, group, attempts, code,
+ *                                  rewrite; a check's `missing` line names
+ *                                  what is still undone on a matrix ticket
  *   actions may set needsApproval: refused until the RITM is approved, and
  *                                  recorded as its earlyCritical
  * A ticket set (HD_PRACTICE_SETS or HD_COACHED_SETS) may set now (its fixed
  * clock), queue: true (the ServiceNow-style list view), workOrder:{ tickets,
- * groups? } and nextDay:{ unlock:[rule], max? }. The answer-key parts (the
+ * groups? } and nextDay:{ unlock:[rule], max? }. A practice set may set
+ * complete:[ids], the tickets its completion needs closed (default: all),
+ * and queueList, the queue list it opens on (default: unassigned). The answer-key parts (the
  * work order's groups) are only ever read by hdWorkOrderCheck. */
 
 // The set the current shift is running, or null. A coached set counts only
@@ -2303,7 +2333,9 @@ const HD_QUEUE_SORTS = { number:'Number', ...HD_QUEUE_COLUMNS };
 const HD_QUEUE_LISTS = { unassigned:'Assigned to my group › Unassigned', mine:'Assigned to my group › All open', all:'All incidents' };
 function hdQueueView() {
   const view = hdState.queueView = hdState.queueView || {};
-  if (!HD_QUEUE_LISTS[view.list]) view.list = 'unassigned';
+  // queueList: the list a set opens on (Lab 2.2 starts on All open, so the
+  // tickets already assigned to Riley show); otherwise Unassigned.
+  if (!HD_QUEUE_LISTS[view.list]) { const set = hdActiveSet(); view.list = set && HD_QUEUE_LISTS[set.queueList] ? set.queueList : 'unassigned'; }
   view.columns = Array.isArray(view.columns) ? view.columns.filter(key => HD_QUEUE_COLUMNS[key]) : [];
   view.sort = Array.isArray(view.sort) ? view.sort.slice(0, 2).map(key => (HD_QUEUE_SORTS[key] ? key : '')) : ['created', ''];
   if (!view.sort[0]) view.sort[0] = 'created';
@@ -2464,8 +2496,20 @@ function hdKnowledgeCard(ticket) {
   }
   return `<div class="card hd-related-knowledge"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Related › Knowledge</strong></div><div class="card-body">${list}${draft}</div></div>`;
 }
+// priorityCoach: { impact, urgency, line }: a coached ticket's explanation,
+// shown once its Priority is calculated (Practice It feedback, never points).
+// It says whether the student's Impact and Urgency match the facts, and why.
+function hdPriorityCoachCard(ticket) {
+  const coach = hdConsole(ticket).priorityCoach; if (!coach || !ticket.priority) return '';
+  const expected = hdMatrixPriority(coach.impact, coach.urgency);
+  const match = String(ticket.impact) === String(coach.impact) && String(ticket.urgency) === String(coach.urgency);
+  const head = match
+    ? `<strong>Matches the facts:</strong> Impact ${hdEsc(HD_IMPACT_LABELS[coach.impact] || coach.impact)} × Urgency ${hdEsc(HD_IMPACT_LABELS[coach.urgency] || coach.urgency)} = ${hdEsc(expected)}.`
+    : `<strong>Look again:</strong> the facts give Impact ${hdEsc(HD_IMPACT_LABELS[coach.impact] || coach.impact)} × Urgency ${hdEsc(HD_IMPACT_LABELS[coach.urgency] || coach.urgency)} = ${hdEsc(expected)}. You set ${hdEsc(ticket.priority)}.`;
+  return `<div class="callout ${match ? 'success' : 'warn'} hd-priority-coach" role="status" data-hd-priority-coach="${match ? 'match' : 'differs'}"><p style="margin:0 0 4px">${head}</p><p style="margin:0">${hdEsc(coach.line || '')}</p></div>`;
+}
 function hdMatrixCards(ticket) {
-  return `${hdArrivalsCard(ticket)}${hdConvertCard(ticket)}${hdLinkCard(ticket)}${hdRewriteCard(ticket)}${hdContactCard(ticket)}${hdKnowledgeCard(ticket)}`;
+  return `${hdPriorityCoachCard(ticket)}${hdArrivalsCard(ticket)}${hdConvertCard(ticket)}${hdLinkCard(ticket)}${hdRewriteCard(ticket)}${hdContactCard(ticket)}${hdKnowledgeCard(ticket)}`;
 }
 // What a coach reads about the new features on one ticket (added to
 // hdConsoleProgress only for a ticket that turns one on).

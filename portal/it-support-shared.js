@@ -528,7 +528,43 @@ function itsCleanConsoleWork(input) {
     noteMissing: list(input.noteMissing, 6, 24), resolutionCode: text(input.resolutionCode, 60),
     passwordWritten: input.passwordWritten === true, passwordAsked: input.passwordAsked === true,
     outcomes: outcomes ? Object.fromEntries(ITS_CONSOLE_OUTCOMES.map((key) => [key, outcomes[key] === true])) : null,
+    ...itsCleanMatrixWork(input),
   };
+}
+// Module 2 (key its-10) queue work on a matrix ticket (ui/helpdesk.js
+// hdMatrixProgress): triage, the request, the link, knowledge, contact
+// attempts and the rewrite check. Each key only when the ticket sent it, so
+// Module 1's saved work keeps its shape.
+function itsCleanMatrixWork(input) {
+  const text = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
+  const list = (value, max, size) => Array.isArray(value) ? value.slice(-max).map((item) => text(item, size)).filter(Boolean) : [];
+  const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+  const out = {};
+  const matrix = object(input.matrix);
+  if (matrix) {
+    out.matrix = {
+      impact: text(matrix.impact, 2), urgency: text(matrix.urgency, 2), priority: text(matrix.priority, 4), status: text(matrix.status, 60),
+      holdReason: text(matrix.holdReason, 40), assignmentGroup: text(matrix.assignmentGroup, 60), responded: matrix.responded === true,
+      sla: text(matrix.sla, 40), slaPhase: text(matrix.slaPhase, 20),
+    };
+  }
+  const classification = object(input.classification);
+  if (classification) out.classification = { category: text(classification.category, 60), subcategory: text(classification.subcategory, 60), ci: text(classification.ci, 60), contactType: text(classification.contactType, 30) };
+  if ('request' in input) {
+    const request = object(input.request);
+    out.request = request ? {
+      item: text(request.item, 80), requestedFor: text(request.requestedFor, 80), approval: text(request.approval, 20), state: text(request.state, 30),
+      fields: Array.isArray(request.fields) ? request.fields.slice(0, 6).map((field) => ({ id: text(field && field.id, 30), label: text(field && field.label, 60), value: text(field && field.value, 80) })) : [],
+    } : null;
+  }
+  if ('parent' in input) out.parent = text(input.parent, 16);
+  if ('arrived' in input) out.arrived = list(input.arrived, 6, 30);
+  if ('kbAttached' in input) out.kbAttached = list(input.kbAttached, 6, 16);
+  if ('kbDraft' in input) out.kbDraft = text(input.kbDraft, 20);
+  if ('contactAttempts' in input) out.contactAttempts = Number.isInteger(input.contactAttempts) && input.contactAttempts >= 0 ? Math.min(input.contactAttempts, 99) : 0;
+  if ('rewriteMissing' in input) out.rewriteMissing = Array.isArray(input.rewriteMissing) ? list(input.rewriteMissing, 8, 30) : null;
+  if ('lastCommentInternal' in input) out.lastCommentInternal = list(input.lastCommentInternal, 10, 60);
+  return out;
 }
 
 // postMessage data is student-controlled. Store only the small, known work
@@ -561,6 +597,13 @@ function itsCleanCoachWork(input) {
     })).filter((entry) => entry.action) : [],
     resolution: text(ticket.resolution, 1200),
     closureCode: text(ticket.closureCode, 120),
+    // Module 2: the number the student saw, and their rewrite and knowledge
+    // draft, word for word (only when the coach sent them).
+    ...(typeof ticket.number === 'string' ? { number: text(ticket.number, 16) } : {}),
+    ...(ticket.writing && typeof ticket.writing === 'object' ? { writing: {
+      shortDescription: text(ticket.writing.shortDescription, 160), description: text(ticket.writing.description, 4000),
+      kbDraftTitle: text(ticket.writing.kbDraftTitle, 160), kbDraftText: text(ticket.writing.kbDraftText, 4000),
+    } } : {}),
     ...(ticket.console && typeof ticket.console === 'object' ? {
       console: itsCleanConsoleWork(ticket.console),
       customerComments: Array.isArray(ticket.customerComments) ? ticket.customerComments.slice(-8).map((comment) => ({
@@ -570,6 +613,11 @@ function itsCleanCoachWork(input) {
   }));
   if (!tickets.length) return null;
   const work = { version: 1, selectedTicketId: text(input.selectedTicketId, 16), tickets };
+  // Module 2's guided queue: the student's work order and what Check order said.
+  if (Array.isArray(input.workOrder)) {
+    work.workOrder = input.workOrder.slice(0, 8).filter((id) => typeof id === 'string' && /^[A-Z]{2,4}-\d{4}$/.test(id));
+    work.workOrderResult = text(input.workOrderResult, 200);
+  }
   const investigation = itsCleanInvestigation(input.investigation);
   if (investigation) work.investigation = investigation;
   // Keep attempts comfortably below PostgREST's practical JSON payload limits.
