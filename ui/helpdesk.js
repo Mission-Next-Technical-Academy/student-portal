@@ -1025,7 +1025,9 @@ function hdTicketStaysOpen(ticket) {
 //   or comma ("Reported - … Tried - …"). So "the user tried. She restarted"
 //   is ordinary prose, not a Tried part.
 // Practice only: Prove It never calls this; its notes are checked on the
-// server (prove_note_missing), which keeps the colon rule for now.
+// server (prove_note_missing), which uses this same rule. A change here must
+// change the server copy too (supabase/tests/prove_it_auto_scoring.sql has
+// the same cases).
 const HD_NOTE_PARTS = { reported:'Reported', tried:'Tried', checked:'Checked', done:'Done', result:'Result', next:'Next action' };
 const HD_NOTE_DEFAULT_PARTS = ['reported', 'tried', 'result'];
 function hdNotePartPattern(key) { return HD_NOTE_PARTS[key].replace(/ /g, '\\s+'); }
