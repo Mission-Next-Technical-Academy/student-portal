@@ -9937,6 +9937,8 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
   }
 
   if (typeof itsProveWireGrading === 'function') itsProveWireGrading(() => render({ reuseAdminRoster: true }));
+  // SOC Prove It sheets: fill each "Server recommendation" box (staff only).
+  if (typeof socProveWireRecommendations === 'function') socProveWireRecommendations();
 
   document.querySelectorAll('[data-grading-filter]').forEach((input) => {
     const panel = input.closest('[id^="admin-tab-panel-"]') || document;

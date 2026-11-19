@@ -12,6 +12,9 @@ const MODULE_ONE_ROUTE = '#/program/soc-analyst/module/1';
 // MODULE_ONE_ESCALATION_LAB.departmentOptions in portal/data.js).
 const MODULE_ONE_LOG_PAGE_SIZE = 10;
 const MODULE_ONE_DEPARTMENT_BOUNCE_THRESHOLD = 40;
+// Saved as lab_attempts.rubric_version on the Prove It; the server-side
+// answer key for 'lab-soc-escalation' is loaded under this version.
+const MODULE_ONE_PROVE_RUBRIC_VERSION = 'soc-m01-prove-v1';
 
 /* Module-level assessment bank. selectQuizQuestions() returns wrappers shaped
  * { conceptId, conceptTitle, question, shuffledOptions, correctIndex } — the
@@ -179,7 +182,11 @@ function moduleOneFinalizeProveIt() {
     const caseDisplay = typeof caseRecordDisplay === 'function'
       ? caseRecordDisplay(moduleOneState.lab2, { caseId: scenario.caseId || scenario.id, incidentIds: scenario.incidentId, dispositionOptions: MODULE_ONE_ESCALATION_LAB.verdictOptions, departmentOptions: MODULE_ONE_ESCALATION_LAB.departmentOptions })
       : undefined;
-    recordLabAttempt(moduleOneUser, 'lab-soc-escalation', { state: 'complete', score: performance.score, result: { breakdown: performance.breakdown, feedback: performance.feedback, critical_errors: performance.criticalErrors, case_record: moduleOneState.lab2, case_display: caseDisplay } })
+    // kind 'soc-prove' (2026-11-19): the database scores this work package
+    // (case_record) against the lab's answer key at submit, as a staff-only
+    // recommendation (migration 20261119204423). The rubric version names the
+    // key it is scored with.
+    recordLabAttempt(moduleOneUser, 'lab-soc-escalation', { state: 'complete', score: performance.score, rubricVersion: MODULE_ONE_PROVE_RUBRIC_VERSION, result: { kind: 'soc-prove', breakdown: performance.breakdown, feedback: performance.feedback, critical_errors: performance.criticalErrors, case_record: moduleOneState.lab2, case_display: caseDisplay } })
       .then((saved) => {
         // The new append-only attempt supersedes the returned attempt in the
         // student UI. Faculty approval remains required by the server view.
