@@ -701,9 +701,22 @@
         }
         start(requested, student);
       }
-    } else if (restored) {
+    } else if (restored && !search.has('practice') && !coachById(restored.id).resumeAcrossLaunches) {
+      // A tour started inside the simulator has no ?coach, so a reload
+      // brings it back from sessionStorage.
       state = restored;
       goToStep(state.step);
+    } else if (restored) {
+      // A Help Desk coach always runs with ?coach=<id>, which a reload keeps,
+      // and a practice set never has any coach. This copy came from another tab
+      // (a new tab starts with its opener's sessionStorage), so drop it. Its
+      // in-progress record stays: reopening that lab still resumes it. Its
+      // module number goes too, or the corner dock offers that module's SOC
+      // tour (courseworkModuleNumber), which opens another coach panel.
+      try {
+        sessionStorage.removeItem(STATE_KEY);
+        sessionStorage.removeItem('mnt.coach.lastModule');
+      } catch { /* storage blocked */ }
     }
     coachAfterRender();
   }
