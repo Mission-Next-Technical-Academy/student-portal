@@ -1722,7 +1722,7 @@ function hdConsoleNotePlaceholder(ticket) {
  *                                  Category / Subcategory, CI and Contact type
  *                                  the student sets; the template's own
  *                                  category is never shown on the ticket
- *   convert: { number, items:[{ name, approval?, approver?, fields?:[{ id, label, options }] }] }
+ *   convert: { number, needsTriage?, items:[{ name, approval?, approver?, fields?:[{ id, label, options }] }] }
  *                                  Convert to Request: the incident becomes
  *                                  Canceled – Converted and carries a RITM
  *                                  (catalog item, Requested for, Approval)
@@ -2045,6 +2045,10 @@ function hdConvertSet(id, field, value) {
 function hdConvertToRequest(id) {
   const ticket = hdTicketById(id); const config = ticket && hdConsole(ticket).convert; if (!config || ticket.request) return;
   if (['Resolved', 'Closed', 'Canceled'].includes(ticket.status)) { toast('This ticket is closed, so it can\'t be converted.'); return; }
+  // needsTriage (Lab 2.1's request): triage it before converting, because
+  // converting locks Impact, Urgency and the classification.
+  const triage = hdClassification(ticket);
+  if (config.needsTriage && (!ticket.priority || !triage.category || !triage.ci)) { toast('Triage it first: set Category, Configuration item, Impact and Urgency, then convert.'); return; }
   const draft = hdConvertDraft(ticket);
   const item = (config.items || []).find(entry => entry.name === draft.item);
   if (!item) { toast('Choose the catalog item first.'); return; }

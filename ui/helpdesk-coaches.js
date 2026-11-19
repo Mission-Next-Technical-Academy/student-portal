@@ -665,7 +665,6 @@
   const hd10Progress = (id) => (typeof hdConsoleProgress === 'function' ? hdConsoleProgress(id) : null);
   const hd10State = (t) => (t && typeof hdConsoleState === 'function' ? hdConsoleState(t) : null);
   const hd10Mine = (list) => (Array.isArray(list) ? list : []).filter((item) => item && item.author === 'Riley Morgan');
-  const hd10Converted = (t) => Boolean(t) && (t.cancelReason === 'Converted' || (t.request && t.request.approval === 'Approved'));
   const hd10Arrived = (t) => { const s = hd10State(t); return Boolean(s) && Array.isArray(s.arrived) && s.arrived.some((a) => a && a.id === 'priya-reply'); };
   const hd10Empty = (v) => !v || (Array.isArray(v) && v.length === 0);
   // A saved run of the old four-step hd-m10 coach (before 2026-11-19) points
@@ -705,12 +704,11 @@
         target: 'select[data-hd-field="impact"], select[data-hd-field="urgency"], select[data-hd-field="category"], tr[data-hd-row]',
         title: 'Triage every ticket',
         instruction: 'Open each ticket in the order it arrived. Set <strong>Category</strong>, <strong>Configuration item</strong>, <strong>Impact</strong> and <strong>Urgency</strong> from the facts, not the caller’s tone. If the ticket doesn’t say which laptop it is, ask the caller in the chat. Then read the coach note that appears on the ticket once its priority is calculated.',
-        body: 'Why: priority is calculated from impact and urgency. You never type it. Success looks like: every ticket shows a priority, and the coach note on each ticket says whether your impact and urgency match the facts, and why. This is feedback only, with no points. The request ticket may already be converted by the time you finish.',
+        body: 'Why: priority is calculated from impact and urgency. You never type it. Success looks like: every ticket shows a priority, and the coach note on each ticket says whether your impact and urgency match the facts, and why. This is feedback only, with no points.',
         waitLabel: 'Next Step: Every ticket has a priority',
         check: () => Object.values(HD10_ID).every((id) => {
           const t = hd10Ticket(id);
           if (!t) return false;
-          if (hd10Converted(t)) return true;
           const c = typeof hdClassification === 'function' ? hdClassification(t) : null;
           return Boolean(t.priority) && Boolean(c) && Boolean(c.category) && Boolean(c.ci);
         }),

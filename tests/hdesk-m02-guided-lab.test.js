@@ -302,18 +302,15 @@ function testStepsPassOutOfOrder() {
   firstSix(tab);
   tab.advance();
   assert.ok(tab.coachStep() >= 7, 'step 7 passes once the reply has arrived');
-  // Converting the request before step 2 still lets step 2 pass.
+  // The request can't be converted before it is triaged (converting locks
+  // its fields), so step 2 never passes on an untriaged request.
   const early = sim(launchUrl());
   early.run("hdConvertSet('SR-2161', 'item', 'Wireless headset'); hdConvertToRequest('SR-2161')");
-  ['priority', 'sla', 'category', 'caller', 'created'].forEach((key) => early.run(`hdQueueColumn('${key}', true)`));
-  early.advance();
-  early.triage('HD-2158', 'Software', 'Phone app', 'Customer Service phone app', '1', '1');
-  early.triage('HD-2159', 'Network', 'Wi-Fi', 'Floor 3 Wi-Fi', '1', '2');
-  early.triage('HD-2160', 'Network', 'Wi-Fi', 'NS-LT-0154', '1', '2');
-  early.triage('HD-2162', 'Hardware', 'Mouse', 'NS-LT-0094', '3', '2');
-  early.triage('SEC-2163', 'Security', 'Suspicious email', 'NS-LT-0042', '2', '1');
-  early.advance();
-  assert.ok(early.coachStep() >= 3, 'steps 2 and 3 pass with the request converted first');
+  assert.equal(early.ticket('SR-2161').request, undefined);
+  assert.match(early.toasts[early.toasts.length - 1], /Triage it first/);
+  early.triage('SR-2161', 'Request', 'Hardware', 'NS-LT-0145', '3', '3');
+  early.run("hdConvertToRequest('SR-2161')");
+  assert.equal(early.ticket('SR-2161').request.approval, 'Approved', 'triaged first, then converted');
 }
 
 function testOldWalkthroughStartsFresh() {
@@ -383,17 +380,11 @@ function testPortalAndSheet(work) {
   ['queue-work-order', 'queue-hd-2158', 'queue-hd-2160'].forEach((id) => assert.notEqual(roughSheet.sections.find((s) => s.id === id).status, 'pass', id));
   // The resolution notes the student wrote show in full.
   assert.ok(html.includes('Priya put new batteries in the wireless mouse; the pointer no longer freezes.'), 'resolution notes shown');
-  // The request converted before triage: the two triage checks are the
-  // instructor's judgment, not a failure, and what was set still shows.
-  const early = JSON.parse(JSON.stringify(clean));
-  const amir = early.tickets.find((t) => t.id === 'SR-2161');
+  // A request with no triage recorded fails its triage checks.
+  const untriaged = JSON.parse(JSON.stringify(clean));
+  const amir = untriaged.tickets.find((t) => t.id === 'SR-2161');
   amir.console.matrix = { ...amir.console.matrix, impact: '', urgency: '', priority: '' };
-  amir.console.classification = { category: '', subcategory: '', ci: '', contactType: '' };
-  const earlySection = sheet.evaluate({ ...row, id: 'm02g-4', result: { ...row.result, work: early } }).sections.find((s) => s.id === 'queue-sr-2161');
-  assert.notEqual(earlySection.status, 'fail', 'converted first is never a failure');
-  const unconverted = JSON.parse(JSON.stringify(early));
-  unconverted.tickets.find((t) => t.id === 'SR-2161').console.request = null;
-  assert.equal(sheet.evaluate({ ...row, id: 'm02g-5', result: { ...row.result, work: unconverted } }).sections.find((s) => s.id === 'queue-sr-2161').status, 'fail', 'not triaged and not converted still fails');
+  assert.equal(sheet.evaluate({ ...row, id: 'm02g-4', result: { ...row.result, work: untriaged } }).sections.find((s) => s.id === 'queue-sr-2161').status, 'fail');
   // An attempt saved under the old coach keeps the P1 sheet.
   const oldRow = { ...row, id: 'm02g-3', result: { source: 'mnt-coach-complete', work: { version: 1, tickets: [{ id: 'SEC-2114', priority: 'P1', notes: [{ author: 'Riley Morgan', time: '10:00', text: 'P1: possible compromise.' }] }] } } };
   assert.ok(sheet.evaluate(oldRow).sections.some((s) => s.id === 'priority-sec-2114'));

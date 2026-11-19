@@ -539,7 +539,7 @@ const HD_TICKET_TEMPLATES = [
         { id:'laptop', text:'Which laptop will you use the headset with?', reply:'My own laptop, NS-LT-0145.' },
         { id:'when', text:'When do you need it?', reply:'No rush. Whenever it is ready is fine.' },
       ] },
-      convert:{ number:'RITM0010161', items:[
+      convert:{ number:'RITM0010161', needsTriage:true, items:[
         { name:'Wireless headset', approval:'Approved', approver:'Caleb Wright (Amir’s manager)' },
         { name:'Wired headset', approval:'Approved', approver:'Caleb Wright (Amir’s manager)' },
         { name:'Laptop dock', approval:'Approved', approver:'Caleb Wright (Amir’s manager)' },
