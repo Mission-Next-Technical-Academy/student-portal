@@ -15,8 +15,10 @@ const vm = require('node:vm');
 const { loadPortal } = require('./portal-vm');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'portal', 'soc-instructor-guide.js'), 'utf8');
-for (const secret of ['a.chen', 'LAP-442', 'jsmith', 'm.ortiz', 'acct-44', 'ws-assess-27', 'ws-318', 'acct-63', 'web-dmz-14', 'ws-173', 'j.sanders', 'ws-204', 'BK-204', 'expectedTruth']) {
-  assert.ok(!source.includes(secret), `soc-instructor-guide.js must not contain guide content (${secret})`);
+// Structural check: the renderer reads guide fields but never defines any.
+// Guide content would appear as data literals (`right: [[`, `scenario: '`...).
+for (const pattern of [/\b(right|note|fail|mistakes|points|teach|tell|due)\s*:\s*\[/, /\b(scenario|say|why|skill|plain|exit|assign)\s*:\s*['"`]/, /\bconst\s+(WEEKS|MODULES|RUBRIC)\b/]) {
+  assert.ok(!pattern.test(source), `soc-instructor-guide.js must not contain guide content (${pattern})`);
 }
 
 const ctx = loadPortal();
