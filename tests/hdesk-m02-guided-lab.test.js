@@ -203,7 +203,7 @@ function testTheLabOpensOnItsOwnSet() {
   // The shared Practice shift never gets them, nor any other Module 2 ticket.
   const shared = sim(`${SIM_URL}#/helpdesk/tickets`);
   const ids = shared.run('hdState.tickets.map((t) => t.id)');
-  assert.ok(!ids.some((id) => QUEUE.includes(id) || ['HD-2155', 'HD-2156', 'HD-2157', 'HD-2169', 'HD-2170'].includes(id)));
+  assert.ok(!ids.some((id) => QUEUE.includes(id) || ['HD-2155', 'HD-2156', 'HD-2157', 'HD-2184', 'HD-2185'].includes(id)));
   assert.equal(shared.run('hdActiveSet()'), null);
   // Module 1's coach still narrows the shift to its own tickets.
   const m01 = sim(`${SIM_URL}?coach=hd-m01&restart=1&student=${STUDENT}#/helpdesk/tickets`);

@@ -106,7 +106,7 @@ function testExistingTicketsTurnNothingOn() {
   // Module 2's (key its-10) tickets turn them on too, each in its own set,
   // never on the shared shift (tests/hdesk-m02-guided-lab.test.js and
   // tests/hdesk-m02-practice-tickets.test.js).
-  const MODULE_2 = ['HD-2158', 'HD-2159', 'HD-2160', 'SR-2161', 'HD-2162', 'SEC-2163', 'HD-2155', 'HD-2156', 'HD-2169', 'HD-2170', 'HD-2157'];
+  const MODULE_2 = ['HD-2158', 'HD-2159', 'HD-2160', 'SR-2161', 'HD-2162', 'SEC-2163', 'HD-2155', 'HD-2156', 'HD-2184', 'HD-2185', 'HD-2157'];
   for (const id of ids.filter((item) => !MODULE_1.includes(item) && !MODULE_2.includes(item))) {
     assert.equal(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === ${JSON.stringify(id)}).console`), undefined, `${id} has no console settings`);
     const html = tab.open(id);

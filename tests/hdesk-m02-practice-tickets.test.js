@@ -64,7 +64,7 @@ function sim({ url = 'https://academy.test/sim/?practice=its-10&student=stu-m02p
     area: (id, name) => plain(run(`hdConsoleFeedback(hdTicketById(${j(id)}))`)).areas.find((a) => a.area === name),
   };
 }
-const SET = ['HD-2155', 'HD-2156', 'HD-2169', 'HD-2170', 'HD-2157'];
+const SET = ['HD-2155', 'HD-2156', 'HD-2184', 'HD-2185', 'HD-2157'];
 
 function testTheSetOpensOnWednesday() {
   const tab = sim();
@@ -72,7 +72,7 @@ function testTheSetOpensOnWednesday() {
   assert.equal(tab.run('hdShiftNow().toISOString()'), '2026-08-19T13:00:00.000Z');
   // The build plan's ages: nothing opens At risk or Breached.
   assert.equal(tab.ticket('HD-2156').status, 'In Progress', 'Ines\'s reply reopened 2-B');
-  assert.deepEqual([tab.sla('HD-2155'), tab.sla('HD-2156'), tab.sla('HD-2169'), tab.sla('HD-2170'), tab.sla('HD-2157')], ['Not set', '15h 20m left', '3h 15m left', '3h 35m left', 'Paused']);
+  assert.deepEqual([tab.sla('HD-2155'), tab.sla('HD-2156'), tab.sla('HD-2184'), tab.sla('HD-2185'), tab.sla('HD-2157')], ['Not set', '15h 20m left', '3h 15m left', '3h 35m left', 'Paused']);
   // The queue opens on All open, so 2-B and 2-C (already Riley's) show.
   const queue = tab.view('helpdesk/tickets');
   assert.match(queue, /<option value="mine" selected>Assigned to my group › All open<\/option>/);
@@ -124,7 +124,7 @@ function testTicket2BLinksAndNextDay() {
   assert.equal(action.ok, false);
   assert.match(action.text, /INC0010431/); assert.match(action.text, /INC0010433/);
   // Link one: only the other is named.
-  tab.run("hdLinkParent('HD-2169', 'HD-2156')");
+  tab.run("hdLinkParent('HD-2184', 'HD-2156')");
   action = tab.area('HD-2156', 'Action');
   assert.doesNotMatch(action.text, /INC0010431/); assert.match(action.text, /INC0010433/);
   // "Next day" lists 2-A and 2-C, never the two related tickets.
@@ -138,13 +138,13 @@ function testTicket2BLinksAndNextDay() {
   tab.run('hdNextDay()');
   assert.equal(tab.run('hdShiftNow().toISOString()'), '2026-08-20T13:00:00.000Z');
   // Thursday 13:00: the linked one is fine, the unlinked one stays Breached.
-  assert.equal(tab.sla('HD-2170'), 'Breached');
-  assert.notEqual(tab.sla('HD-2169'), 'Breached');
+  assert.equal(tab.sla('HD-2185'), 'Breached');
+  assert.notEqual(tab.sla('HD-2184'), 'Breached');
   assert.notEqual(tab.sla('HD-2156'), 'Breached');
   assert.equal(tab.sla('HD-2157'), 'Paused');
   // The right path: both linked, "(reopened)", the note and the comment.
   const good = sim();
-  good.run("hdLinkParent('HD-2169', 'HD-2156'); hdLinkParent('HD-2170', 'HD-2156')");
+  good.run("hdLinkParent('HD-2184', 'HD-2156'); hdLinkParent('HD-2185', 'HD-2156')");
   good.input('hd-rewrite-short', 'Reception badge printer will not print (reopened)'); good.input('hd-rewrite-desc', 'Reopened by Ines Calder.');
   good.run("hdRewriteSave('HD-2156')");
   good.run("hdMatrixAssignGroup('HD-2156', 'Desktop Support (Tier 2)')");
@@ -179,7 +179,7 @@ function testTicket2CThreeAttemptsThenResolve() {
   assert.match(tab.open('HD-2157'), /Mon 09:40[\s\S]*Wed 13:00 · Phone – voicemail left[\s\S]*Thu 13:00 · Customer comment/);
   tab.feedback('HD-2157').areas.forEach((a) => assert.equal(a.ok, true, `${a.area}: ${a.text}`));
   // Lab 2.2 is done with the two related tickets still open.
-  assert.equal(tab.ticket('HD-2169').status, 'New');
+  assert.equal(tab.ticket('HD-2184').status, 'New');
   assert.equal(tab.run('hdPracticeClosed()'), true, '2-A converted, 2-B escalated, 2-C resolved');
 }
 

@@ -187,7 +187,7 @@ function hdTicket(spec) {
 const HD_PRACTICE_SETS = {
   'its-01': { title:'Module 1 practice tickets', tickets:['HD-2151', 'HD-2152', 'SEC-2153', 'HD-2154'] },
   // Module 2 Lab 2.2: Wednesday 13:00 on a fixed clock that "Next day" moves.
-  'its-10': { title:'Module 2 practice tickets', tickets:['HD-2155', 'HD-2156', 'HD-2169', 'HD-2170', 'HD-2157'], complete:['HD-2155', 'HD-2156', 'HD-2157'], now:'2026-08-19T13:00:00Z', queue:true, queueList:'mine',
+  'its-10': { title:'Module 2 practice tickets', tickets:['HD-2155', 'HD-2156', 'HD-2184', 'HD-2185', 'HD-2157'], complete:['HD-2155', 'HD-2156', 'HD-2157'], now:'2026-08-19T13:00:00Z', queue:true, queueList:'mine',
     nextDay:{ unlock:[{ ticket:'HD-2155', done:['converted', 'resolved', 'escalated'] }, { ticket:'HD-2156', done:['resolved', 'escalated'] }, { ticket:'HD-2157', attempts:2 }] } },
 };
 
@@ -603,18 +603,18 @@ const HD_TICKET_TEMPLATES = [
         { area:'Triage', checks:[{ status:['In Progress', 'Escalated'], missing:'Reopen INC0010412 with Ines\'s reply. Do not open a new incident.' }, { rewrite:true, missing:'Add "(reopened)" to the short description.' }], good:'You reopened the same ticket and marked it "(reopened)".', fix:'The reply reopens INC0010412: do not open a new incident. Add "(reopened)" to the short description.' },
         { area:'Investigation', checks:[{ notePattern:'yesterday|earlier|prior|previous|offline|stuck', missing:'Read the ticket history first, and write down what was done yesterday.' }, { notePattern:'INC0010431|INC0010433|other (front|reception)|same (symptom|problem|fault)|more tickets|two (more|other)', missing:'Look at the queue. Other front-desk PCs have the same fault.' }], good:'You read yesterday\'s work and saw the same fault on other front-desk PCs.', fix:'Read yesterday\'s work note, then look at the queue: two more badge printer tickets came from other front-desk PCs.' },
         { area:'Diagnosis', checks:[{ notePattern:'printer|print server|not the (pc|computer|client)|not (a )?(pc|client)', missing:'Say in your note where the cause is likely to be.' }], good:'The same fault on several PCs points at the printer side, not at one PC.', fix:'The same fault on several PCs means the cause is not the PC. It is on the printer or print server side.' },
-        { area:'Action', checks:[{ child:'HD-2169', missing:'Link INC0010431 to this ticket as related.' }, { child:'HD-2170', missing:'Link INC0010433 to this ticket as related.' }, { group:'Desktop Support (Tier 2)', missing:'Escalate to Desktop Support (Tier 2) with yesterday\'s and today\'s evidence.' }], good:'You linked both related tickets and escalated with the evidence.', fix:'Link INC0010431 and INC0010433 to this ticket as related, then escalate to Desktop Support (Tier 2) with yesterday\'s and today\'s evidence.' },
+        { area:'Action', checks:[{ child:'HD-2184', missing:'Link INC0010431 to this ticket as related.' }, { child:'HD-2185', missing:'Link INC0010433 to this ticket as related.' }, { group:'Desktop Support (Tier 2)', missing:'Escalate to Desktop Support (Tier 2) with yesterday\'s and today\'s evidence.' }], good:'You linked both related tickets and escalated with the evidence.', fix:'Link INC0010431 and INC0010433 to this ticket as related, then escalate to Desktop Support (Tier 2) with yesterday\'s and today\'s evidence.' },
         { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note with a Next action.' }, { commentPattern:'sorry|apolog', missing:'Say sorry for the trouble in your comment, without blaming anyone.' }, { commentPattern:'by \\d|\\d{1,2}:\\d{2}|\\d\\s*(am|pm)|this afternoon|end of (the )?day|tomorrow|within \\d', missing:'Give Ines a time for your next update.' }], good:'A complete note, a comment that says sorry without blame, and a time for the next update.', fix:'Write a Reported / Tried / Result note with a Next action. In your comment say sorry without blame and give Ines a time for the next update.' },
       ],
     } }),
-  hdTicket({ id:'HD-2169', ownSet:true, number:'INC0010431', requester:'Sofia Martin', department:'Operations', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T12:15:00Z', shortDescription:'Reception badge printer will not print',
+  hdTicket({ id:'HD-2184', ownSet:true, number:'INC0010431', requester:'Sofia Martin', department:'Operations', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T12:15:00Z', shortDescription:'Reception badge printer will not print',
     description:'I am covering the second front-desk PC. The reception badge printer will not print visitor badges from this PC. It fails the same way as at the first front-desk PC.',
     symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
     console: {
       matrix:{ impact:'2', urgency:'2' }, link:true, comments:true,
       notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Tier 1', 'Tier 2', 'SLA', 'Impact', 'Urgency', 'Desktop Support', 'P3', 'parent ticket'] },
     } }),
-  hdTicket({ id:'HD-2170', ownSet:true, number:'INC0010433', requester:'Hana Okafor', department:'Customer Service', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T12:35:00Z', shortDescription:'Reception badge printer will not print',
+  hdTicket({ id:'HD-2185', ownSet:true, number:'INC0010433', requester:'Hana Okafor', department:'Customer Service', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T12:35:00Z', shortDescription:'Reception badge printer will not print',
     description:'I am at the third front-desk PC. The reception badge printer will not print visitor badges from here. Other front-desk PCs have the same fault.',
     symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
     console: {
