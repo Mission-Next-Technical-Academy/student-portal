@@ -26,6 +26,8 @@ insert into public.faculty_course_assignments (user_id, track_code, active) valu
   ('d2000000-0000-0000-0000-000000000002', 'SOCAN', true),
   ('d2000000-0000-0000-0000-000000000003', 'HDESK', true),
   ('d2000000-0000-0000-0000-000000000005', 'SOCAN', false);
+-- Start from no guides (a loaded guide is removed only inside this rolled-back transaction).
+delete from public.instructor_guides;
 insert into public.instructor_guides (track_code, content) values
   ('SOCAN', '{"weeks": [], "modules": {"M01": {"name": "test"}}}'),
   ('HDESK', '{"weeks": []}');
