@@ -391,14 +391,16 @@ const PROGRAMS = [
             objective: 'Apply credential-handling discipline and explain least privilege and MFA in plain language to a user.' }),
         ],
         skills: ['Security Awareness', 'Phishing Recognition', 'Credential Handling', 'MFA'] },
-      'its-10': { number: 2, week: 1, title: 'Ticketing, Service Management & SLAs', hours: '3.5 Hours', durationMinutes: 210, creditMinutes: 210, lessons: 2, labs: 1,
+      // Lesson 2.2 holds Readings 2 and 3 and the knowledge check on the page;
+      // both share this lesson's filed minutes (it-support-module-10.js).
+      'its-10': { number: 2, week: 1, title: 'Ticketing, Service Management & SLAs', hours: '3.5 Hours', durationMinutes: 210, creditMinutes: 210, lessons: 2, labs: 3,
         status: 'authored',
-        summary: 'Learn the structure underneath every ticket — the fields, the priorities, the service-level expectations — so you can move through a queue with confidence instead of guesswork.',
+        summary: 'Log, categorize and prioritize tickets with Impact × Urgency, keep them inside their SLA, tell an incident from a request, and write work notes and customer comments to the Northstar standard.',
         curriculumItems: [
           itsItem({ key: 'its-10-lesson-01', title: 'Anatomy of a Ticket: Fields, Categories & Status', durationMinutes: 60, parentAllocations: [allocation('ITHD-101.2', 60)],
-            objective: 'Identify the fields a complete ticket needs and explain what each status value implies for next action and ownership.' }),
+            objective: 'Fill in a ticket’s fields, tell an incident from a request, and move a ticket through its states, saying whose move each state is.' }),
           itsItem({ key: 'its-10-lesson-02', title: 'Impact, Urgency, Priority & SLAs', durationMinutes: 75, parentAllocations: [allocation('ITHD-101.2', 75)],
-            objective: 'Combine impact and urgency into a priority call and sequence a mixed queue against SLA deadlines.' }),
+            objective: 'Set a ticket’s priority from Impact × Urgency, order a queue by priority and SLA time left, and write a work note and a customer comment for the same ticket.' }),
         ],
         skills: ['Ticket Management', 'SLAs', 'Queue Prioritization'] },
       'its-11': { number: 3, week: 2, title: 'Customer Service, Documentation & Escalation', hours: '3.5 Hours', durationMinutes: 210, creditMinutes: 210, lessons: 2, labs: 1,
@@ -2313,10 +2315,28 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.8', 30)], objective: 'Recognize two real security incidents and escalate them correctly rather than attempting to resolve them at L1.',
     description: 'A coach-guided walkthrough of tickets SEC-2114 (credential phishing) and SEC-2115 (malware alert) in the IT Service Desk simulator.',
     skills: ['Security Awareness', 'Phishing Recognition', 'Incident Escalation'], portalEntry: '#/program/it-support/module/11' }),
-  itsLab({ key: 'lab-its-10-priority-queue', module: 'its-10', title: 'Working the Queue by Priority', difficulty: 'Foundational', minutes: 75,
-    parentAllocations: [allocation('ITHD-101.2', 75)], objective: 'Filter the full ticket queue by priority and justify why a P1 ticket sorts to the top of the shift.',
-    description: 'A coach-guided walkthrough of the real, full ticket queue in the IT Service Desk simulator, filtering to P1 and documenting priority reasoning.',
+  // Module 2's guided lab. Students see it as Lab 2.1; the key is older than
+  // that numbering. Until Module 2's Prove It gates completion it stays the
+  // gating lab (course_module_labs), so it has no `phase: 'practice'`: an
+  // instructor still reviews and approves it.
+  itsLab({ key: 'lab-its-10-priority-queue', module: 'its-10', title: 'Lab 2.1 · Guided Lab: queue shift', difficulty: 'Foundational', minutes: 35,
+    parentAllocations: [allocation('ITHD-101.2', 35)], objective: 'Work a six-ticket morning queue: set Impact and Urgency on every ticket, convert a request, link two tickets about one outage, order the queue, route a security ticket, pause a ticket while waiting on the caller, and write for two audiences.',
+    description: 'A coach-guided queue shift in the IT Service Desk simulator: six practice tickets, each step with a why and what success looks like. Feedback only, no score.',
     skills: ['Ticket Management', 'Prioritization', 'SLAs'], portalEntry: '#/program/it-support/module/2' }),
+  // Module 2's unguided practice tickets (2-A to 2-C): not graded, no score.
+  // The simulator reports when all three are closed and the course page saves
+  // a completion record (it-support-module-10.js). No course_module_labs row:
+  // it never gates completion.
+  itsLab({ key: 'lab-its-10-practice-tickets', module: 'its-10', title: 'Lab 2.2 · Practice tickets', difficulty: 'Foundational', minutes: 20, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.2', 20)], objective: 'Work three tickets on your own: convert a request and wait for the owner’s approval, reopen a ticket and link the related ones, and follow the three-attempt contact policy before closing.',
+    description: 'Three unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all three and a completion record is saved to your account.',
+    skills: ['Incident vs Request', 'Ticket States', 'Documentation'], portalEntry: '#/program/it-support/module/2' }),
+  // Module 2's Prove It. The page shows "Opens soon" and launches nothing
+  // until its simulator shift, scoring and gating row are built.
+  itsLab({ key: 'lab-its-10-prove-it', module: 'its-10', title: 'Prove It: queue shift', difficulty: 'Foundational', minutes: 20,
+    parentAllocations: [allocation('ITHD-101.2', 20)], objective: 'Independently work a new ticket queue: classify and prioritize every ticket, order the queue by priority and SLA time left, route each ticket, and document the work.',
+    description: 'An independent Prove It on a queue you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
+    skills: ['Ticket Triage', 'Prioritization', 'Documentation'], portalEntry: '#/program/it-support/module/2' }),
   itsLab({ key: 'lab-its-11-handoff-documentation', module: 'its-11', title: 'Writing the Handoff That Actually Helps', difficulty: 'Foundational', minutes: 75,
     parentAllocations: [allocation('ITHD-101.2', 75)], objective: 'Recognize an escalation trigger and write a complete, stranger-actionable handoff note; diagnose and resolve a real ticket while calmly setting expectations for an already-frustrated user.',
     description: 'A coach-guided walkthrough of tickets HD-2113 (expired VPN gateway certificate) and HD-2124 (a repeat-contact user blocked by a stale Outlook credential) in the IT Service Desk simulator, focused on documentation, escalation, and communication under pressure.',

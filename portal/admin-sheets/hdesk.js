@@ -42,7 +42,9 @@
     'lab-its-07-app-cert': 'Module 06 · Application and Certificate Support',
     'lab-its-08-unfamiliar-problems': 'Module 10 · Unfamiliar Problems',
     'lab-its-09-security-incidents': 'Module 11 · Security Incidents',
-    'lab-its-10-priority-queue': 'Module 02 · Working the Queue by Priority',
+    'lab-its-10-priority-queue': 'Module 02 · Lab 2.1 · Guided Lab: queue shift',
+    'lab-its-10-practice-tickets': 'Module 02 · Lab 2.2 · Practice tickets (not graded)',
+    'lab-its-10-prove-it': 'Module 02 · Prove It: queue shift',
     'lab-its-11-handoff-documentation': 'Module 03 · Handoff Documentation',
     'lab-its-12-capstone': 'Module 12 · IT Help Desk Capstone',
   };
@@ -416,7 +418,7 @@
     const tickets = Array.isArray(result.tickets) ? result.tickets.filter((id) => typeof id === 'string') : [];
     const completedAt = ctx && ctx.row && ctx.row.completed_at;
     return [{
-      id: 'practice-completion', title: 'Practice completion', required: false, instructorPrompt: 'Practice only, not graded. The student finished every practice ticket (resolved or escalated each one); no score and no answers are saved. Nothing to grade here: use the Module 1 Prove It for review.',
+      id: 'practice-completion', title: 'Practice completion', required: false, instructorPrompt: 'Practice only, not graded. The student finished every practice ticket (resolved or escalated each one); no score and no answers are saved. Nothing to grade here: use this module’s Prove It for review.',
       answer: [['Completed', completedAt ? new Date(completedAt).toLocaleString() : null], ['Tickets finished', tickets.length ? tickets.join(', ') : null], ['Graded', 'No: Practice It, no score and no answers saved']],
     }];
   }
@@ -475,10 +477,13 @@
     AdminSubmissionSheet.register(key, { title: TITLES[key], sections: evidenceSections });
   });
 
-  AdminSubmissionSheet.register('lab-its-01-practice-tickets', {
-    title: TITLES['lab-its-01-practice-tickets'],
-    caseId: (result) => (Array.isArray(result.tickets) ? result.tickets.filter((id) => typeof id === 'string').join(', ') : '') || null,
-    sections: practiceCompletionSections,
+  // Module 1's and Module 2's practice tickets: a completion record only.
+  ['lab-its-01-practice-tickets', 'lab-its-10-practice-tickets'].forEach((key) => {
+    AdminSubmissionSheet.register(key, {
+      title: TITLES[key],
+      caseId: (result) => (Array.isArray(result.tickets) ? result.tickets.filter((id) => typeof id === 'string').join(', ') : '') || null,
+      sections: practiceCompletionSections,
+    });
   });
 
   AdminSubmissionSheet.register('lab-its-12-capstone', {
