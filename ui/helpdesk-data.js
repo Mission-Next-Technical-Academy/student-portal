@@ -655,7 +655,10 @@ const HD_PROVE_SHIFTS = {
       id: 'HD-2125', title: 'Admin rights "just for today"',
       requester: 'Evan Parker', requesterTitle: 'Payroll Specialist', department: 'Finance',
       device: 'NS-LT-0122', cc: 'Ava Robinson (manager)', createdMinutesAgo: 25,
-      status: 'Assigned', assignedTechnician: 'Riley Morgan',
+      // The student takes it with Assign to me (In Progress), as on the
+      // Module 1 practice tickets. A draft saved before 2026-11-20 keeps
+      // Assigned / Riley Morgan, which counts as assigned (ui/helpdesk.js).
+      status: 'New', assignedTechnician: 'Unassigned',
       description: 'I\'ve moved to the Payroll desk on the 3rd floor and need the Finance printer. The driver install asks for admin rights, so can you make me a local admin just for today? Ava is CC\'d and says it\'s fine.',
       conversation: [
         { from: 'Ava Robinson', role: 'Manager, Finance · CC', text: 'Approved, give him whatever he needs.' },
