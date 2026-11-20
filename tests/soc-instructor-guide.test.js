@@ -70,6 +70,24 @@ async function main() {
   expectView('grading', /Grade one submission/);
   expectView('rubric', /Safety cap/);
 
+  // 5. Sign-out takes the loaded guide (answer keys) out of the page, so the
+  //    next person on this browser can't read it from the console (2026-11-20).
+  run('globalThis.requestAnimationFrame = () => 0;'); // signOut() re-renders the login page
+  await run('signOut()');
+  assert.equal(run('SocInstructorGuide._state.guide'), null, 'sign-out clears the loaded guide');
+  assert.equal(run('SocInstructorGuide._state.status'), 'idle', 'the next staff sign-in reads the guide again');
+  assert.ok(!run('SocInstructorGuide.panel()').includes('Module one'), 'no guide text is left to render');
+
+  //    A read still on its way when staff sign out is dropped when it lands.
+  run(`supabaseResponder = () => new Promise((resolve) => { globalThis.__landGuide = () => resolve({ data: { content: ${JSON.stringify(guide)} }, error: null }); });`);
+  run('SocInstructorGuide.mount()');
+  await flush();
+  await run('signOut()');
+  run('__landGuide()');
+  await flush();
+  assert.equal(run('SocInstructorGuide._state.guide'), null, 'a late read after sign-out is discarded');
+  assert.equal(run('SocInstructorGuide._state.status'), 'idle');
+
   // 4. Dashboard tab placement and scope.
   const dashboard = (user, track) => run(`viewAdmin(${JSON.stringify(user)}, [], null, [], { activeTrackCode: ${JSON.stringify(track)}, facultyMessageTrackCodes: ${JSON.stringify(user.isAdmin ? [] : [track])} })`);
   const admin = { userId: 'a', email: 'a@test.invalid', isAdmin: true, isInstructor: false, instructorTrackCodes: [] };

@@ -15,6 +15,8 @@ const SocInstructorGuide = (() => {
 
   const TRACK = 'SOCAN';
   const state = { status: 'idle', guide: null, view: 'start', week: 1, module: 'M01', error: '' };
+  // Bumped by reset(), so a read that lands after sign-out is dropped.
+  let generation = 0;
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   // Guide text may mark `identifiers` and **bold** words; everything is escaped first.
@@ -180,20 +182,30 @@ const SocInstructorGuide = (() => {
   }
 
   async function load(root) {
+    const mine = generation;
     state.status = 'loading';
     paint(root);
     try {
       const client = typeof mntSupabase !== 'undefined' ? mntSupabase : null;
       if (!client) throw new Error('The portal is not connected.');
       const { data, error } = await client.from('instructor_guides').select('content').eq('track_code', TRACK).maybeSingle();
+      if (mine !== generation) return;
       if (error) throw error;
       if (!data || !data.content) { state.status = 'missing'; }
       else { state.guide = data.content; state.status = 'ready'; }
     } catch (err) {
+      if (mine !== generation) return;
       state.status = 'error';
       state.error = 'The guide could not be read. Try again in a moment.';
     }
     paint(document.querySelector('[data-soc-guide-root]') || root);
+  }
+
+  // Sign-out: forget the guide (it holds answer keys) and any read in flight,
+  // so the next person on this browser starts from nothing.
+  function socInstructorGuideReset() {
+    generation += 1;
+    Object.assign(state, { status: 'idle', guide: null, view: 'start', week: 1, module: 'M01', error: '' });
   }
 
   function socInstructorGuidePanel() {
@@ -220,5 +232,5 @@ const SocInstructorGuide = (() => {
     root.scrollIntoView({ block: 'start' });
   });
 
-  return { track: TRACK, panel: socInstructorGuidePanel, mount: socInstructorGuideMount, _state: state };
+  return { track: TRACK, panel: socInstructorGuidePanel, mount: socInstructorGuideMount, reset: socInstructorGuideReset, _state: state };
 })();
