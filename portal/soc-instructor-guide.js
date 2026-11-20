@@ -232,5 +232,18 @@ const SocInstructorGuide = (() => {
     root.scrollIntoView({ block: 'start' });
   });
 
+  // Every other way a session ends also clears the guide: the portal dropping
+  // a session it no longer accepts (discardLocalSession), a sign-out in another
+  // tab, or an expired login. All of these send SIGNED_OUT. Same pattern as
+  // itswWatchSignOut() in it-support-shared.js.
+  if (typeof mntSupabase !== 'undefined' && mntSupabase.auth && typeof mntSupabase.auth.onAuthStateChange === 'function') {
+    mntSupabase.auth.onAuthStateChange((event, session) => {
+      if (event !== 'SIGNED_OUT' && !(event === 'INITIAL_SESSION' && !session)) return;
+      socInstructorGuideReset();
+      const root = typeof document !== 'undefined' && document.querySelector ? document.querySelector('[data-soc-guide-root]') : null;
+      if (root) root.innerHTML = '';
+    });
+  }
+
   return { track: TRACK, panel: socInstructorGuidePanel, mount: socInstructorGuideMount, reset: socInstructorGuideReset, _state: state };
 })();

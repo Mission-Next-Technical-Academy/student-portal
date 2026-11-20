@@ -88,6 +88,19 @@ async function main() {
   assert.equal(run('SocInstructorGuide._state.guide'), null, 'a late read after sign-out is discarded');
   assert.equal(run('SocInstructorGuide._state.status'), 'idle');
 
+  //    Sessions that end without signOut() (the portal dropping a session it no
+  //    longer accepts, sign-out in another tab, an expired login) send
+  //    SIGNED_OUT. A fresh copy of the guide is loaded with a listener stub.
+  run('globalThis.__authListeners = []; mntSupabase.auth.onAuthStateChange = (fn) => { __authListeners.push(fn); return { data: { subscription: { unsubscribe() {} } } }; };');
+  run(`globalThis.__guide2 = (() => { ${source}\n return SocInstructorGuide; })();`);
+  assert.equal(run('__authListeners.length'), 1, 'the guide listens for the session ending');
+  run(`__guide2._state.guide = ${JSON.stringify(guide)}; __guide2._state.status = 'ready';`); // as after a load
+  run(`__authListeners[0]('TOKEN_REFRESHED', { user: {} })`);
+  assert.equal(run('__guide2._state.status'), 'ready', 'a token refresh keeps the guide for signed-in staff');
+  run(`__authListeners[0]('SIGNED_OUT', null)`);
+  assert.equal(run('__guide2._state.guide'), null, 'SIGNED_OUT clears the guide');
+  assert.equal(run('__guide2._state.status'), 'idle');
+
   // 4. Dashboard tab placement and scope.
   const dashboard = (user, track) => run(`viewAdmin(${JSON.stringify(user)}, [], null, [], { activeTrackCode: ${JSON.stringify(track)}, facultyMessageTrackCodes: ${JSON.stringify(user.isAdmin ? [] : [track])} })`);
   const admin = { userId: 'a', email: 'a@test.invalid', isAdmin: true, isInstructor: false, instructorTrackCodes: [] };
