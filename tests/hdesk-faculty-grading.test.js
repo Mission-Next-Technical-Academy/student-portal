@@ -115,6 +115,13 @@ function testCardOrderAndContent() {
   for (const c of rubric.competencies) assert.match(html, new RegExp(`data-its-prove-points="${c.id}"[^>]*/> / ${c.points}<`));
   assert.ok(html.includes('Line one.\n\nLine two.'), 'writing is whole');
   assert.match(html, /data-its-prove-decide="approved" disabled/, 'Approve starts unavailable');
+  // Approve is a solid button like Return, so it only looks faded while it
+  // is unavailable (disabled:opacity-50 on both).
+  const approve = html.match(/<button[^>]*data-its-prove-decide="approved"[^>]*>/)[0];
+  const ret = html.match(/<button[^>]*data-its-prove-decide="returned"[^>]*>/)[0];
+  assert.match(approve, /bg-green-700 hover:bg-green-800 text-white/);
+  assert.doesNotMatch(approve, /bg-green-50\b/);
+  [approve, ret].forEach((button) => assert.match(button, /disabled:opacity-50/));
   assert.match(html, /data-pass-mark="70"/, 'the pass mark comes from the attempt');
   assert.doesNotMatch(html, /Approve counts as a pass/);
   assert.doesNotMatch(html, /admin-grading-approve|admin-grading-send-back|No score/);
@@ -367,8 +374,12 @@ async function testCriticalErrorRecords() {
     recordRow({ id: 'new', completed_at: '2026-10-30T15:00:00Z', reviewed_at: null }),
   ], [moduleRow]);
   assert.equal(resubmitted.transcript.modules.find((m) => m.moduleKey === 'its-01').grade, 'In progress');
-  assert.deepEqual(JSON.parse(JSON.stringify(resubmitted.evidence.labs.filter((lab) => lab.labKey === LAB).map((lab) => lab.completionStatus))), ['In progress', 'In progress'],
+  // The staff evidence record says the resubmission is awaiting review; the
+  // older, replaced attempt stays "In progress".
+  assert.deepEqual(JSON.parse(JSON.stringify(resubmitted.evidence.labs.filter((lab) => lab.labKey === LAB).map((lab) => lab.completionStatus))), ['In progress', 'Awaiting review'],
     'only the standing (newest) attempt carries the label');
+  assert.deepEqual(JSON.parse(JSON.stringify(resubmitted.studentEvidence.labs.filter((lab) => lab.labKey === LAB).map((lab) => lab.completionStatus))), ['In progress', 'In progress'],
+    'the student\'s own download keeps "In progress"');
 }
 
 // After a correction the student sees only the newest decision's notes.
@@ -524,35 +535,42 @@ async function transcriptFor(slug, track, rows, modules) {
   };
   const identity = { userId: 'u', trackCode: track, program };
   const transcript = await prun('buildTranscriptData')('sid', identity);
-  const evidence = await prun('buildEvidencePacketData')('sid', identity);
+  // The staff download (staffLabels) and the student's own download.
+  const evidence = await prun('buildEvidencePacketData')('sid', { ...identity, staffLabels: true });
+  const studentEvidence = await prun('buildEvidencePacketData')('sid', identity);
   portal.supabaseResponder = () => ({ data: [], error: null });
-  return { transcript, evidence };
+  return { transcript, evidence, studentEvidence };
 }
 
 async function testRecordsUseTheStandingDecision() {
   const check = async (rows, expected, label) => {
-    const { transcript, evidence } = await transcriptFor('it-support', 'HDESK', rows, [moduleRow]);
+    const { transcript, evidence, studentEvidence } = await transcriptFor('it-support', 'HDESK', rows, [moduleRow]);
     const row = transcript.modules.find((m) => m.moduleKey === 'its-01');
+    // The student's own download never shows the staff labels.
+    assert.equal(studentEvidence.labs.filter((lab) => lab.labKey === LAB).pop().completionStatus, expected.grade, `${label}: student download status`);
     assert.equal(row.score, expected.score, `${label}: transcript score`);
     assert.equal(row.grade, expected.grade, `${label}: transcript grade`);
     assert.equal(row.completedAt, expected.date, `${label}: transcript date`);
     const newest = evidence.labs.filter((lab) => lab.labKey === LAB).pop();
     assert.equal(newest.score, expected.score, `${label}: evidence score`);
-    assert.equal(newest.completionStatus, expected.grade, `${label}: evidence status`);
+    // The staff evidence record names a waiting or returned attempt; the
+    // transcript keeps "In progress".
+    assert.equal(newest.completionStatus, expected.evidence || expected.grade, `${label}: evidence status`);
     assert.equal(newest.completedAt, expected.date, `${label}: evidence date`);
     return row;
   };
   const inProgress = { score: null, grade: 'In progress', date: null };
-  await check([recordRow({ redo_requested: true, official_grade: graded('returned', 58) })], inProgress, 'returned 58');
+  const returnedRecord = { ...inProgress, evidence: 'Returned' };
+  await check([recordRow({ redo_requested: true, official_grade: graded('returned', 58) })], returnedRecord, 'returned 58');
   await check([recordRow({ official_grade: graded('approved', 83) })], { score: 83, grade: 'Pass', date: '2026-10-30T12:00:00Z' }, 'approved 83');
-  await check([recordRow({ redo_requested: true, official_grade: graded('returned', null, '2026-10-30T13:00:00Z', { correction_reason: 'Approved by mistake.' }) })], inProgress, 'approved 100, then corrected');
-  await check([recordRow({ reviewed_at: null })], inProgress, 'waiting');
+  await check([recordRow({ redo_requested: true, official_grade: graded('returned', null, '2026-10-30T13:00:00Z', { correction_reason: 'Approved by mistake.' }) })], returnedRecord, 'approved 100, then corrected');
+  await check([recordRow({ reviewed_at: null })], { ...inProgress, evidence: 'Awaiting review' }, 'waiting');
   // Never reach back to an older attempt, or a practice lab in the same module.
   await check([
     recordRow({ id: 'old', official_grade: graded('approved', 83) }),
     recordRow({ id: 'new', completed_at: '2026-10-30T15:00:00Z', redo_requested: true, official_grade: graded('returned', 58, '2026-10-30T16:00:00Z') }),
     { id: 'practice', lab_key: 'lab-its-01-ticket-triage', state: 'complete', score: 100, started_at: '2026-10-29T09:00:00Z', completed_at: '2026-10-29T10:00:00Z', result: {} },
-  ], inProgress, 'older approval, newer return');
+  ], returnedRecord, 'older approval, newer return');
   // A higher returned score doesn't beat the newer approval; the older row shows nothing.
   const { evidence } = await transcriptFor('it-support', 'HDESK', [
     recordRow({ id: 'old', redo_requested: true, official_grade: graded('returned', 91) }),
@@ -598,14 +616,37 @@ function testStudentDetailUsesTheStandingDecision() {
   const cells = prun('adminLabRecordCells');
   const returned = recordRow({ redo_requested: true, official_grade: graded('returned', 58), score: 58 });
   const html = cells(returned, [returned]);
-  assert.match(html, />In progress</);
-  assert.doesNotMatch(html, /58|Complete|Fail/);
+  assert.match(html, />Returned</);
+  assert.doesNotMatch(html, /58|Complete|Fail|Awaiting review|data-admin-open-attempt/);
+  // A submission waiting for its review says so, with a link to its pill on
+  // the Lab Attempts tab (key: student id | item name).
+  const student = { student_id: 'MNT-HD-0001', track_code: 'HDESK', user_id: 'u' };
+  const waiting = recordRow({ id: 'w', reviewed_at: null });
+  const waitingHtml = cells(waiting, [waiting], student);
+  assert.match(waitingHtml, />Awaiting review</);
+  assert.ok(waitingHtml.includes('data-admin-open-attempt="MNT-HD-0001|Module 1 · PROVE IT"'), waitingHtml);
+  assert.match(waitingHtml, />Open attempt</);
+  assert.doesNotMatch(cells(waiting, [waiting]), /data-admin-open-attempt/, 'no student row, no link');
+  // The link's key is the pill the Lab Attempts tab shows for that attempt.
+  const panel = prun('adminLabAttemptsPanel')({ pendingRows: [{ ...waiting, user_id: 'u', student_id: 'MNT-HD-0001', track_code: 'HDESK' }] });
+  assert.ok(panel.includes('data-attempt-chip="MNT-HD-0001|Module 1 · PROVE IT"'), 'the Lab Attempts tab has the same pill');
+  // An older attempt replaced by a newer submission stays "In progress", with no link.
+  const older = recordRow({ id: 'o', redo_requested: true, official_grade: graded('returned', 58) });
+  const newer = recordRow({ id: 'n', completed_at: '2026-10-30T15:00:00Z', reviewed_at: null });
+  assert.match(cells(older, [older, newer], student), />In progress</);
+  assert.doesNotMatch(cells(older, [older, newer], student), /data-admin-open-attempt/);
+  assert.match(cells(newer, [older, newer], student), />Awaiting review</);
+  // A critical error keeps its own label.
+  const critical = recordRow({ redo_requested: true, official_grade: graded('returned', 0, '2026-10-30T12:00:00Z', { critical_error: true }) });
+  assert.match(cells(critical, [critical], student), />Critical Error - Not Passed</);
   const approved = recordRow({ official_grade: graded('approved', 83), score: 83 });
   const passed = cells(approved, [approved]);
   assert.match(passed, />Pass</);
   assert.match(passed, /83\.0/);
   const moduleStatus = prun('adminModuleStatusHtml');
-  assert.match(moduleStatus(moduleRow, [returned]), />In progress</);
+  assert.match(moduleStatus(moduleRow, [returned]), />Returned</);
+  assert.match(moduleStatus(moduleRow, [waiting]), />Awaiting review</);
+  assert.match(moduleStatus(moduleRow, [critical]), />Critical Error - Not Passed</);
   assert.match(moduleStatus(moduleRow, [approved]), />Pass</);
   assert.match(moduleStatus(moduleRow, []), />Complete</, 'nothing attempted: as before');
 }

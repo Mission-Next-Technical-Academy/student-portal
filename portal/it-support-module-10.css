@@ -1,0 +1,48 @@
+/* Module 2 (IT Help Desk, key its-10). The page reuses Module 1's inner
+ * classes (its01-hero, its01-section, its01-lesson, its01-check, its01-dg),
+ * so it looks the same. Only its shell and what Module 1 has no class for
+ * (the reference tables) live here, scoped with its10-. Loaded after
+ * it-support-module-01.css. */
+
+.its10-shell { min-height: 100vh; color: #172033; background: rgba(248, 250, 252, .76); overflow-x: clip; }
+.its10-shell :focus-visible { outline: 3px solid var(--its-accent-border); outline-offset: 2px; }
+
+/* The shared rail as a left pane beside main, as on Module 1
+   (module-labs.css does this for .its01-shell). */
+@media (min-width: 961px) {
+  .its10-shell > .munified-nav {
+    float: left;
+    margin: 12px 24px 24px max(20px, calc((100vw - 1180px) / 2));
+  }
+  .its10-shell > .munified-nav ~ main {
+    display: flow-root;
+    width: auto;
+    margin-left: 0;
+    margin-right: max(20px, calc((100vw - 1180px) / 2));
+  }
+}
+
+/* Reference tables in the readings. The wrapper scrolls sideways on a
+   narrow screen, so the page itself never does. Colours come from the
+   day/night theme variables (portal/theme.css). */
+.its10-table-wrap { margin: 14px 0; overflow-x: auto; border: 1px solid var(--mn-theme-border, #cfdae5); border-radius: 12px; background: var(--mn-theme-surface, #fff); }
+.its10-table { width: 100%; min-width: 520px; border-collapse: collapse; color: var(--mn-theme-text, #172d42); font: 13px/1.5 Inter, sans-serif; }
+.its10-table caption { padding: 10px 12px 6px; text-align: left; color: var(--mn-theme-text, #172d42); font: 700 14px/1.4 Inter, sans-serif; }
+.its10-table th, .its10-table td { padding: 8px 12px; text-align: left; vertical-align: top; border-top: 1px solid var(--mn-theme-border, #cfdae5); color: var(--mn-theme-text, #172d42); }
+.its10-table thead th { background: var(--mn-theme-surface-raised, #edf3f8); font-weight: 700; }
+.its10-table tbody th { font-weight: 600; }
+
+@media (max-width: 640px) {
+  .its10-table { min-width: 460px; font-size: 12.5px; }
+}
+
+/* The priority matrix diagram: each cell's fill by priority, darkest at P1,
+   with the same outline as Module 1's diagram boxes. */
+.its10-dg-p1, .its10-dg-p2, .its10-dg-p3, .its10-dg-p4, .its10-dg-p5 { stroke: #94a3b8; stroke-width: 1.5; }
+.its10-dg-p1 { fill: var(--its-navy); }
+.its10-dg-p2 { fill: #3b5b7d; }
+.its10-dg-p3 { fill: #94aec6; }
+.its10-dg-p4 { fill: #cddbe8; }
+.its10-dg-p5 { fill: #f1f5f9; }
+.its10-dg-cell-text { fill: #1e293b; font: 600 13px Inter, sans-serif; }
+.its10-dg-cell-text-light { fill: #fff; font: 600 13px Inter, sans-serif; }

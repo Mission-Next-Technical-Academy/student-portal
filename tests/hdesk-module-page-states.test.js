@@ -266,6 +266,8 @@ async function testModuleOneHasNoEvidenceLab() {
 async function testSharedWalkthroughModules() {
   for (let n = 3; n <= 11; n += 1) {
     const key = `its-${String(n).padStart(2, '0')}`;
+    // Module 2 (its-10) has its own page now: tests/hdesk-m02-page.test.js.
+    if (key === 'its-10') continue;
     // The page anchor follows the module's display number, not its key.
     const rail = `itss-lab-${String(HD.modules[key].number).padStart(2, '0')}`;
     const [lab] = run('LABS').filter((l) => l.module === key).map((l) => l.key);
