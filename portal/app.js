@@ -4454,9 +4454,12 @@ async function persistModuleCaseState(user, moduleKey, labId, state) {
     const current = data && data.case_state && typeof data.case_state === 'object' ? data.case_state : {};
     const caseState = { ...current, [labId]: state };
     let writeResult;
+    // True when the last write was an update: it returns the changed row.
+    let wasUpdate = false;
     if (data) {
+      wasUpdate = true;
       writeResult = await mntSupabase.from('module_progress').update({ case_state: caseState })
-        .eq('user_id', user.userId).eq('track_code', user.trackCode).eq('module_key', moduleKey);
+        .eq('user_id', user.userId).eq('track_code', user.trackCode).eq('module_key', moduleKey).select('module_key');
     } else {
       writeResult = await mntSupabase.from('module_progress').insert({
         user_id: user.userId, module_key: moduleKey, track_code: user.trackCode,
@@ -4470,11 +4473,16 @@ async function persistModuleCaseState(user, moduleKey, labId, state) {
           .eq('module_key', moduleKey).maybeSingle();
         if (racedReadError) throw racedReadError;
         const racedState = racedRow?.case_state && typeof racedRow.case_state === 'object' ? racedRow.case_state : {};
+        wasUpdate = true;
         writeResult = await mntSupabase.from('module_progress').update({ case_state: { ...racedState, [labId]: state } })
-          .eq('user_id', user.userId).eq('track_code', user.trackCode).eq('module_key', moduleKey);
+          .eq('user_id', user.userId).eq('track_code', user.trackCode).eq('module_key', moduleKey).select('module_key');
       }
     }
     if (writeResult.error) { console.error('module case_state write failed', moduleKey, labId, writeResult.error); return false; }
+    // An update that matches no row returns no error: it saved nothing (the
+    // row went away after the read, or the update was refused). The updates
+    // return the changed row, so no row back means no save.
+    if (wasUpdate && !(Array.isArray(writeResult.data) && writeResult.data.length > 0)) { console.error('module case_state update changed no row', moduleKey, labId); return false; }
     // LabRuntime.saveCaseState() already put every newer action from this
     // session in the in-session copy. Replacing it with this write's older
     // snapshot made the next load undo actions taken while it was in flight.

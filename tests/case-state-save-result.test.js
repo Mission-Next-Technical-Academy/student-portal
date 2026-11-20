@@ -61,7 +61,10 @@ async function flush() {
   LabRuntime.flushAllCaseStateWrites();
   for (let i = 0; i < 8; i += 1) await settle();
 }
-const existingRow = (call) => (call.op === 'select' ? { data: { case_state: {} }, error: null } : { data: null, error: null });
+// The row exists; an update returns the changed row (persistModuleCaseState
+// asks for it with .select('module_key')).
+const changedRow = { data: [{ module_key: 'its-01' }], error: null };
+const existingRow = (call) => (call.op === 'select' ? { data: { case_state: {} }, error: null } : call.op === 'update' ? changedRow : { data: null, error: null });
 
 /* ------------------------------------------------- persistModuleCaseState */
 
@@ -70,6 +73,14 @@ async function testPersistReportsItsResult() {
   let selects = 0;
   fresh(existingRow);
   assert.equal(await persist(u, 'its-01', 'lab-a', { a: 1 }), true, 'update lands');
+  await quiet(async () => {
+    // An update that matched no row (the row went away after the read, or
+    // the update was refused) saved nothing.
+    fresh((call) => (call.op === 'select' ? { data: { case_state: {} }, error: null } : { data: [], error: null }));
+    assert.equal(await persist(u, 'its-01', 'lab-a', { a: 1 }), false, 'zero-row update');
+    fresh((call) => (call.op === 'select' ? { data: { case_state: {} }, error: null } : { data: null, error: null }));
+    assert.equal(await persist(u, 'its-01', 'lab-a', { a: 1 }), false, 'update with no row back');
+  });
   fresh(() => ({ data: null, error: null }));
   assert.equal(await persist(u, 'its-01', 'lab-a', { a: 1 }), true, 'insert lands');
 
@@ -104,7 +115,7 @@ async function testPersistReportsItsResult() {
   fresh((call) => {
     if (call.op === 'select') { selects += 1; return { data: selects === 1 ? null : { case_state: { other: 1 } }, error: null }; }
     if (call.op === 'insert') return { data: null, error: { code: '23505', message: 'duplicate' } };
-    return { data: null, error: null };
+    return changedRow;
   });
   assert.equal(await persist(u, 'its-01', 'lab-a', { a: 2 }), true, '23505, then the merge lands');
   const merged = ctx.supabaseCalls.filter((c) => c.op === 'update').pop();
