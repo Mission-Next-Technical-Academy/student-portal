@@ -332,7 +332,7 @@ async function testOlderDraftKeepsItsAssignmentAndNotes() {
   const tab = await openTab();
   tab.run("hdState.tickets[0].status = 'Assigned'; hdState.tickets[0].assignedTechnician = 'Riley Morgan'; hdState.tickets[0].notes = [{ time:'09:10', author:'Riley Morgan', text:'Checked the KB.' }]; hdSave()");
   fill(tab, ['assign']);
-  assert.match(tab.view(), /From an earlier attempt:[\s\S]*Checked the KB\./);
+  assert.match(tab.view(), /Earlier notes:[\s\S]*Checked the KB\./);
   assert.equal(tab.submitState().enabled, true);
   tab.run('hdProveSubmit()');
   await flush();
@@ -651,7 +651,7 @@ async function testInstructorReadsPlainText() {
   // One work note, shown once under its own heading, with the ticket's
   // assignment and close beside the choices.
   assert.match(panel, />Work note<\/h4>/);
-  assert.doesNotMatch(panel, /Resolution note|Work notes from an earlier attempt|No work notes/);
+  assert.doesNotMatch(panel, /Resolution note|Earlier work notes|No work notes/);
   assert.equal(panel.split('Line one.').length - 1, 1, 'the note is not shown twice');
   assert.match(panel, /Assigned to<\/dt><dd[^>]*>Riley Morgan</);
   assert.match(panel, /Ticket state<\/dt><dd[^>]*>Escalated</);
@@ -661,7 +661,7 @@ async function testInstructorReadsPlainText() {
   assert.ok(old.includes('A work note.'));
   assert.doesNotMatch(old, /Ticket state/);
   // An earlier attempt's notes still show under the one note.
-  assert.match(prun('itsProveReviewPanel')(savedRow({ ...row.result, workNotes: ['Earlier note.'] })), /Work notes from an earlier attempt<\/h4>[\s\S]*Earlier note\./);
+  assert.match(prun('itsProveReviewPanel')(savedRow({ ...row.result, workNotes: ['Earlier note.'] })), /Earlier work notes<\/h4>[\s\S]*Earlier note\./);
   assert.ok(panel.includes(PRESET.category) && panel.includes(PRESET.type));
   assert.ok(panel.includes('P3'));
   assert.ok(panel.includes('Escalate'));
@@ -722,6 +722,17 @@ async function testWrittenPasswordReachesTheInstructorAsAFlag() {
   tab.run('hdProveSubmit()');
   await flush();
   assert.equal(db.attempts.length, 0, 'nothing is sent while a box holds a password');
+  // A redraw (here a decision change) rebuilds the box from the saved text,
+  // so the refusal clears with it and Submit is not left waiting.
+  tab.run("hdProveText('userReply', 'Your password is Spring2026x')");
+  assert.equal(tab.submitState().enabled, false);
+  tab.run("hdProveChoose('decision', 'Resolve')");
+  tab.view();
+  assert.doesNotMatch(tab.submitState().note, /Stopped/);
+  assert.equal(tab.run('hdState.prove.userReply'), 'Hello Evan.');
+  assert.equal(tab.run('hdState.prove.passwordWritten'), true, 'the flag stays for the instructor');
+  tab.run("hdProveChoose('decision', 'Escalate')");
+  closeTicket(tab);
   // The words alone are fine.
   tab.run(`hdProveText('resolutionNote', ${JSON.stringify('Explained we can\'t view or set passwords; guided Evan through the self-service password reset.')})`);
   assert.equal(tab.submitState().enabled, true);
@@ -876,6 +887,23 @@ async function testReturnedKeepsTheLaptopAndFlags() {
   assert.equal(db.attempts[1].result.passwordWritten, true);
 }
 
+// After a return, a recorded action with no form edit (a KB search, a
+// command) is newer than the attempt: a reload keeps it and the laptop as it
+// is now, rather than prefilling the earlier attempt over them.
+async function testReloadKeepsActionsTakenAfterTheReturn() {
+  const { first } = await submittedAndReturned();
+  const local = store();
+  const tab = await openTab(null, { local });
+  assert.equal(tab.status(), 'returned');
+  const before = tab.run('hdState.prove.events.length');
+  tab.run("hdState.machines['NS-LT-0122'].printers = ['Changed after the return']; hdProveEvent('kb_search', { value:'new search' }); hdSave()");
+  const again = await openTab(null, { local });
+  assert.equal(again.status(), 'returned');
+  assert.equal(again.run('hdState.prove.events.length'), before + 1, 'the new search is kept');
+  assert.deepEqual([...again.run("hdState.machines['NS-LT-0122'].printers")], ['Changed after the return']);
+  assert.ok(first);
+}
+
 // A simulator tab opened before 2026-11-20 sends no assignment or close: the
 // portal still accepts its work.
 function testOldSimulatorPackageStillSaves() {
@@ -1015,7 +1043,7 @@ async function testPrefillDropsValuesTheTicketNoLongerOffers() {
 }
 
 const tests = [
-  testSubmitTurnsOnFromCompletenessOnly, testConfirmedSaveOnlyAfterTheServerHasTheRow, testOneWorkNoteIsTheResolution, testOlderDraftKeepsItsAssignmentAndNotes, testReturnedKeepsTheLaptopAndFlags, testOldSimulatorPackageStillSaves,
+  testSubmitTurnsOnFromCompletenessOnly, testConfirmedSaveOnlyAfterTheServerHasTheRow, testOneWorkNoteIsTheResolution, testOlderDraftKeepsItsAssignmentAndNotes, testReturnedKeepsTheLaptopAndFlags, testReloadKeepsActionsTakenAfterTheReturn, testOldSimulatorPackageStillSaves,
   testReloadTakesTheLockFromTheServer, testFailuresKeepWorkAndShowNoSuccess, testSimulatorOnlyAcceptsItsOwnReply, testPortalRefusals,
   testOneWaitingAttempt, testReturnedReopensForOneResubmission, testReturnedPrefillsFromTheLastAttemptOnAnotherBrowser, testPrefillCarriesOnlyTheStudentsOwnWork,
   testNewerBrowserDraftIsKept, testDraftOlderThanTheAttemptIsReplaced, testNoPrefillUnlessReturnedOrForAnotherStudent, testPrefillDropsValuesTheTicketNoLongerOffers,

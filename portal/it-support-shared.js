@@ -870,7 +870,7 @@ function itsProveReviewPanel(row) {
     <h3 class="text-sm font-semibold text-[#1e3a5f]">Student's written work · ${text(work.ticketId)}</h3>
     ${oneNote ? writing('Work note', work.resolutionNote) : writing('Resolution note', work.resolutionNote)}
     ${writing('Reply to the user', work.userReply)}
-    ${oneNote && !notes.length ? '' : `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">${oneNote ? 'Work notes from an earlier attempt' : 'Work notes'}</h4>
+    ${oneNote && !notes.length ? '' : `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">${oneNote ? 'Earlier work notes' : 'Work notes'}</h4>
     ${notes.length ? notes.map((note) => `<p class="mt-1 text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">${text(note)}</p>`).join('') : '<p class="mt-1 text-sm text-gray-500">No work notes.</p>'}`}
     <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">Student's choices</h3>
     <dl class="mt-1 grid gap-2 sm:grid-cols-3">${fact('Category', fields.category)}${fact('Type', fields.type)}${fact('Priority', fields.priority)}${fact('Diagnosis', work.diagnosis)}${fact('Decision', work.decision)}${oneNote ? `${fact('Assigned to', work.assignedTo)}${fact('Ticket state', work.ticketState)}${fact('Resolution code', work.resolutionCode)}` : ''}</dl>

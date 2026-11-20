@@ -598,6 +598,9 @@ function hdProveEvent(type, detail) {
   const events = hdState.prove.events;
   events.push({ type, at:new Date().toISOString(), ...(detail || {}) });
   if (events.length > 400) events.splice(0, events.length - 400);
+  // A recorded action (a command, a search, a screen) is an edit too, so a
+  // reload never prefills a returned attempt's actions and laptop over it.
+  hdProveEdited();
 }
 function hdProveOpened(source, label) {
   if (!HD_PROVE || !hdState.prove || hdProveLocked() || hdState.prove.opened.includes(source)) return;
@@ -3576,6 +3579,10 @@ function hdProveFieldsCard(ticket, prove, locked) {
 function hdProveTicketView(ticket) {
   const prove = hdState.prove;
   const locked = hdProveLocked();
+  // The boxes are drawn from the saved text, which never holds a refused
+  // password, so a redraw (Assign to me, Resolve, a decision) clears the
+  // refusal too. passwordWritten stays set for the instructor.
+  Object.keys(hdProveRefused).forEach(field => { delete hdProveRefused[field]; });
   const off = locked ? 'disabled' : '';
   const steps = prove.order.path.map(id => ticket.pathPool.find(step => step.id === id)).filter(Boolean);
   return `${hdPageHeader(ticket.id, ticket.title, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/tickets')">← Queue</button>${locked || hdProveAssigned(ticket) ? '' : `<button id="hd-prove-assign" class="btn btn-primary" onclick="hdProveAssign('${ticket.id}')">Assign to me</button>`}`)}
@@ -3588,8 +3595,8 @@ function hdProveTicketView(ticket) {
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your diagnosis</strong></div><div class="card-body"><select id="hd-prove-diagnosis" class="select" ${off} onchange="hdProveChoose('diagnosis',this.value)"><option value="">Choose what this ticket is…</option>${prove.order.diagnosis.map(value => `<option ${prove.diagnosis === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></div></div>
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Steps you took</strong><span class="muted">Select every step you actually took.</span></div><div class="card-body"><div class="hd-path">${steps.map(step => `<label style="${hdProveChoiceStyle(prove.steps.includes(step.id))}"><input type="checkbox" ${off} onchange="hdProveToggleStep('${step.id}',this.checked);hdProveMark(this)" ${prove.steps.includes(step.id) ? 'checked' : ''}>${hdEsc(step.text)}</label>`).join('')}</div></div></div>
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your decision</strong></div><div class="card-body"><div class="hd-path">${['Resolve','Escalate'].map(value => `<label style="${hdProveChoiceStyle(prove.decision === value)}"><input type="radio" name="hd-prove-decision" ${off} onchange="hdProveChoose('decision','${value}');hdProveMark(this)" ${prove.decision === value ? 'checked' : ''}>${value}</label>`).join('')}</div></div></div>
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Work notes</strong><span class="muted">Reported / Tried / Result (+ Next action if it stays open or goes to another team)</span></div><div class="card-body"><textarea id="hd-prove-note" class="ipt hd-note-input" aria-label="Work note" rows="7" maxlength="4000" ${off} oninput="hdProveText('resolutionNote',this.value)">${hdEsc(prove.resolutionNote)}</textarea>${ticket.notes.length ? `<p class="muted">From an earlier attempt:</p><div class="hd-note-list">${ticket.notes.map(note => `<div><strong>${hdEsc(note.author)} · ${hdEsc(note.time)}</strong><p>${hdEsc(note.text)}</p></div>`).join('')}</div>` : ''}</div></div>
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Reply to the user</strong><span class="muted">Written to ${hdEsc(ticket.requester)}, in your own words.</span></div><div class="card-body"><textarea id="hd-prove-reply" class="ipt hd-note-input" rows="7" maxlength="4000" ${off} oninput="hdProveText('userReply',this.value)">${hdEsc(prove.userReply)}</textarea></div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Work notes</strong><span class="muted">Reported / Tried / Result (+ Next action if it stays open or goes to another team)</span></div><div class="card-body"><textarea id="hd-prove-note" class="ipt hd-note-input" aria-label="Work note" rows="7" maxlength="4000" ${off} oninput="hdProveText('resolutionNote',this.value)">${hdEsc(prove.resolutionNote)}</textarea>${ticket.notes.length ? `<p class="muted">Earlier notes:</p><div class="hd-note-list">${ticket.notes.map(note => `<div><strong>${hdEsc(note.author)} · ${hdEsc(note.time)}</strong><p>${hdEsc(note.text)}</p></div>`).join('')}</div>` : ''}</div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Reply to the user</strong><span class="muted">Written to ${hdEsc(ticket.requester)}, in your own words.</span></div><div class="card-body"><textarea id="hd-prove-reply" class="ipt hd-note-input" aria-label="Reply to the user" rows="7" maxlength="4000" ${off} oninput="hdProveText('userReply',this.value)">${hdEsc(prove.userReply)}</textarea></div></div>
       </div>
       <aside class="hd-ticket-side">
         ${hdProveFieldsCard(ticket, prove, locked)}
