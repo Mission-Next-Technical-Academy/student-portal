@@ -83,7 +83,7 @@ function testCatalogue() {
   assert.deepEqual(labs, [
     // In course order, so the program page lists Lab 1.1 before Lab 1.2.
     [GUIDED, 'Lab 1.1 · Guided Lab: A Day in the Life of an L1 Technician', 25, 'practice', [{ code: 'ITHD-101.1', minutes: 25 }]],
-    [PRACTICE, 'Lab 1.2 · Practice tickets (not graded)', 15, 'practice', [{ code: 'ITHD-101.1', minutes: 15 }]],
+    [PRACTICE, 'Lab 1.2 · Practice tickets', 15, 'practice', [{ code: 'ITHD-101.1', minutes: 15 }]],
     [PROVE, 'Prove It: Independent Ticket', 20, '', [{ code: 'ITHD-101.1', minutes: 20 }]],
   ]);
   // Module 1's 60 lab minutes under ITHD-101.1 are unchanged.
@@ -102,7 +102,16 @@ function testCatalogue() {
 // environment, no five-step mindset. Lesson titles and minutes unchanged.
 function testModuleOneCardText() {
   const module = HD.modules['its-01'];
-  assert.match(module.summary, /^Start with orientation, then learn what a Tier 1 technician does, the CompTIA troubleshooting method, how to verify a caller with KB-0024, how to search the knowledge base and how to write Reported \/ Tried \/ Result notes\. Practice in Lab 1\.1 · Guided Lab and Lab 1\.2 · Practice tickets, then work a new ticket on your own in the Prove It\.$/);
+  assert.equal(module.summary, 'Start with orientation, then learn what a Tier 1 technician does, the troubleshooting method, how to verify callers and search the knowledge base, and how to write clear ticket notes. Practice in two labs, then work a new ticket on your own.');
+  // "CompTIA" appears only in Module 1's reference documents, not its card or lesson records.
+  assert.doesNotMatch(module.summary, /CompTIA/);
+  module.curriculumItems.forEach((item) => assert.doesNotMatch(item.objective, /CompTIA/, `${item.key} objective`));
+  // Lab 1.2 names all four tickets; the Prove It objective no longer asks to categorize and prioritize.
+  const lab12 = run('LABS').find((lab) => lab.key === PRACTICE);
+  assert.match(lab12.objective, /^Work four tickets on your own/);
+  assert.match(lab12.description, /^Four unguided tickets .* Finish all four /);
+  assert.doesNotMatch(`${lab12.objective} ${lab12.description}`, /three/i);
+  assert.doesNotMatch(run('LABS').find((lab) => lab.key === PROVE).objective, /categorize|prioritize/i);
   assert.deepEqual(copy(module.curriculumItems.map((item) => [item.key, item.title, item.durationMinutes])), [
     ['its-01-lesson-01', 'Program Orientation, LMS Navigation & Professional Conduct', 60],
     ['its-01-lesson-02', 'The Help Desk Role: Workflow & the Troubleshooting Mindset', 60],
@@ -131,7 +140,7 @@ function testPageBeforeCompletion() {
   const user = hdUser();
   fresh(user);
   const html = moduleOne().view(user, HD);
-  assert.match(html, /<h2 id="its01-practice-tickets-title">Lab 1\.2 · Practice tickets \(not graded\)<\/h2>/);
+  assert.match(html, /<h2 id="its01-practice-tickets-title">Lab 1\.2 · Practice tickets<\/h2>/);
   assert.match(html, /<h2 id="its01-lab-1-2-title">Lab 1\.1 · Guided Lab: A Day in the Life of an L1 Technician<\/h2>/);
   assert.match(html, /data-its01-practice-launch[^>]*target="_blank" rel="opener"/, 'opened with an opener, so the simulator can report back');
   assert.equal(statusLine(html, PRACTICE), 'Finish all four tickets: resolve, escalate or route each one.');
@@ -298,7 +307,8 @@ function testInstructorSheets() {
   assert.ok(sheet.has({ lab_key: PRACTICE }), 'the practice tickets have a sheet');
   const row = { id: 'm01p-1', lab_key: PRACTICE, track_code: 'HDESK', student_id: 'synthetic', score: null, pass_threshold: 70, completed_at: '2026-11-10T15:00:00Z', result: { source: 'mnt-practice-complete', practiceSet: 'its-01', tickets: TICKETS } };
   const html = sheet.render(row);
-  assert.match(html, /Lab 1\.2 · Practice tickets \(not graded\)/);
+  assert.match(html, /Lab 1\.2 · Practice tickets/);
+  assert.doesNotMatch(html, /\(not graded\)/);
   assert.match(html, /Practice completion/);
   assert.match(html, /HD-2151, HD-2152, SEC-2153, HD-2154/);
   assert.match(html, /No: Practice It, no score and no answers saved/);

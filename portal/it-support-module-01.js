@@ -488,7 +488,7 @@ function its01Load(user) {
   const userId = user && user.userId;
   if (userId !== its01CheckAnswersUser) {
     its01CheckAnswersUser = userId;
-    Object.keys(its01CheckAnswers).forEach((key) => { its01CheckAnswers[key] = {}; its01CheckPicks[key] = {}; });
+    Object.keys(its01CheckAnswers).forEach((key) => { its01CheckAnswers[key] = {}; its01CheckPicks[key] = {}; its01CheckSaveFailed[key] = false; });
   }
   its01User = user;
   // Saved to the student's account (module_progress.case_state), so the
@@ -502,8 +502,8 @@ function its01Load(user) {
   return its01State;
 }
 
-function its01Save() {
-  if (its01User && its01State) LabRuntime.saveCaseState(ITS01_STATE_ID, 'its-01', its01User, its01State);
+function its01Save(onResult) {
+  if (its01User && its01State) LabRuntime.saveCaseState(ITS01_STATE_ID, 'its-01', its01User, its01State, onResult ? { onResult } : {});
 }
 
 function its01AupCurrent() {
@@ -586,30 +586,30 @@ const ITS01_CHECKS = {
   },
   learn: {
     title: 'Learn It knowledge check',
-    intro: 'Eight questions on the three readings. It’s complete when 6 of your first answers are right.',
+    intro: 'Eight questions in all, after the lessons they cover. It’s complete when 6 of your first answers are right.',
     questions: [
-      { q: 'A user calls with a problem Tier 1 can’t fix because it needs server access. What does escalating mean here?', choices: ['The technician failed', 'The problem goes to the tier with the right access, with the notes attached', 'The user must call back later', 'The ticket is closed'], answer: 1,
+      { reading: 1, q: 'A user calls with a problem Tier 1 can’t fix because it needs server access. What does escalating mean here?', choices: ['The technician failed', 'The problem goes to the tier with the right access, with the notes attached', 'The user must call back later', 'The ticket is closed'], answer: 1,
         why: 'Escalating isn’t failing: the ticket goes to the tier with the access or skills the problem needs, and your notes travel with it so the user never re-explains (Reading 1).',
         ifWrong: ['Escalating isn’t failing; it’s how the tiers are designed to work.', null, 'Asking the user to call back leaves the problem with nobody.', 'Closing it leaves the problem unfixed.'] },
-      { q: 'A caller gives their name and department and asks for an unlock. Under KB-0024, is that enough?', choices: ['Yes, if they sound sure', 'Yes, for executives', 'No: call back on the directory number and confirm the employee ID', 'No: ask for their current password'], answer: 2,
+      { reading: 3, q: 'A caller gives their name and department and asks for an unlock. Under KB-0024, is that enough?', choices: ['Yes, if they sound sure', 'Yes, for executives', 'No: call back on the directory number and confirm the employee ID', 'No: ask for their current password'], answer: 2,
         why: 'A name and department alone are not verification. KB-0024: call back on the number in the directory, never one the caller gives you, and confirm the employee ID. Never ask for a password (Reading 3).',
         ifWrong: ['Sounding sure proves nothing; anyone can learn a name and a department.', 'Executives are verified the same way, and they’re the most common target.', null, 'Never ask for a password, for any reason.'] },
-      { q: 'A user reads you the error on their screen: 0x80070005. Which is the best KB search?', choices: ['“computer broken”', '“0x80070005”', '“help”', '“Windows”'], answer: 1,
+      { reading: 3, q: 'A user reads you the error on their screen: 0x80070005. Which is the best KB search?', choices: ['“computer broken”', '“0x80070005”', '“help”', '“Windows”'], answer: 1,
         why: 'Search the KB by symptom words and error codes, not vague phrases. When the user gives you an error code, search with the exact code: it finds the article that covers it (Reading 3).',
         ifWrong: ['Vague words match too many articles or none; use the code the user gave you.', null, 'Vague words match too many articles or none; use the code the user gave you.', 'A product name matches hundreds of articles; the code narrows it to one.'] },
-      { q: 'A KB article says “Tier 2 only.” What should a Tier 1 technician do?', choices: ['Try the steps anyway', 'Escalate to Tier 2', 'Ask the user to try', 'Skip the article'], answer: 1,
+      { reading: 3, q: 'A KB article says “Tier 2 only.” What should a Tier 1 technician do?', choices: ['Try the steps anyway', 'Escalate to Tier 2', 'Ask the user to try', 'Skip the article'], answer: 1,
         why: '“Tier 2 only” means the steps need access or skills Tier 1 doesn’t have. Escalate with your notes instead of improvising (Reading 3).',
         ifWrong: ['“Tier 2 only” means the steps need access or skills Tier 1 doesn’t have; trying them can make it worse.', null, 'Users shouldn’t run Tier 2 steps either.', 'Skipping it leaves you improvising; the article tells you to escalate.'] },
-      { q: 'Which customer message is written correctly?', choices: ['“badPwdCount hit threshold; cleared.”', '“Your account was locked after too many wrong passwords. I’ve unlocked it.”', '“Fixed.”', '“Per KB-0024 step 3, unlocked.”'], answer: 1,
+      { reading: 3, q: 'Which customer message is written correctly?', choices: ['“badPwdCount hit threshold; cleared.”', '“Your account was locked after too many wrong passwords. I’ve unlocked it.”', '“Fixed.”', '“Per KB-0024 step 3, unlocked.”'], answer: 1,
         why: 'Use plain words that tell the user what happened and what you did. Codes, jargon and one-word replies don’t (Reading 3).',
         ifWrong: ['badPwdCount is internal jargon the user won’t understand.', null, '“Fixed” doesn’t say what happened or what to do next.', 'KB step numbers are internal; the user needs plain words.'] },
-      { q: 'A caller can’t be verified and refuses a callback, but insists on a reset. What does KB-0024 say to do?', choices: ['Reset it to avoid a complaint', 'Make no change; log it as Security › Suspicious request and assign it to the SOC', 'Hang up and do nothing', 'Email the new password to the account owner'], answer: 1,
+      { reading: 3, q: 'A caller can’t be verified and refuses a callback, but insists on a reset. What does KB-0024 say to do?', choices: ['Reset it to avoid a complaint', 'Make no change; log it as Security › Suspicious request and assign it to the SOC', 'Hang up and do nothing', 'Email the new password to the account owner'], answer: 1,
         why: 'No verification, no account change. KB-0024’s last step: log it as Security › Suspicious request, set Caller to Unverified, and assign it to Security Operations (SOC) with the caller’s exact words, number and time (Reading 3).',
         ifWrong: ['A threatened complaint is never a reason to skip verification; that pressure is a red flag.', null, 'Hanging up loses the evidence; log it and route it.', 'No verification means no account change, wherever the password would go.'] },
-      { q: 'Your first theory is confirmed. What comes next in the method?', choices: ['Document', 'Establish a plan of action and identify who else is affected', 'Escalate', 'Close the ticket'], answer: 1,
+      { reading: 2, q: 'Your first theory is confirmed. What comes next in the method?', choices: ['Document', 'Establish a plan of action and identify who else is affected', 'Escalate', 'Close the ticket'], answer: 1,
         why: 'After a confirmed theory comes step 4: plan the fix and ask who else it affects before you change anything (Reading 2).',
         ifWrong: ['Documenting comes last, after the fix is done and verified.', null, 'A theory you can fix at Tier 1 doesn’t need escalating; plan the fix first.', 'Closing now skips the plan, the fix and the check with the user.'] },
-      { q: 'Which part of a work note records what happened and how you confirmed it?', choices: ['Reported', 'Tried', 'Next action', 'Result'], answer: 3,
+      { reading: 2, q: 'Which part of a work note records what happened and how you confirmed it?', choices: ['Reported', 'Tried', 'Next action', 'Result'], answer: 3,
         why: 'Result is what happened and how you confirmed it. Reported is what the user said, Tried is what you checked and did, and Next action is who does what next (Reading 2).',
         ifWrong: ['Reported is what the user said, in their words.', 'Tried is what you checked and did.', 'Next action is who does what next, when the ticket stays open.', null] },
     ],
@@ -649,6 +649,8 @@ const ITS01_CHECK_SAVED = {
 //   its01CheckPicks: { questionIndex: [every pick, in order] }.
 const its01CheckAnswers = { orientation: {}, learn: {}, aplus: {} };
 const its01CheckPicks = { orientation: {}, learn: {}, aplus: {} };
+// Checks whose completion the account reported it didn't save (page memory).
+const its01CheckSaveFailed = { orientation: false, learn: false, aplus: false };
 let its01CheckAnswersUser = null;
 
 // Every question has a first pick: a full pass, ready to count.
@@ -687,7 +689,7 @@ function its01CheckQuestion(key, question, index) {
     : settled
       ? `<p class="its01-check-result is-right"><i class="ri-check-line" aria-hidden="true"></i> <strong>Correct.</strong></p>${why}`
       : `<p class="its01-check-result is-wrong"><i class="ri-close-line" aria-hidden="true"></i> <strong>Not quite.</strong> Try another answer.</p>${wrongLine}`;
-  return `<li class="its01-check-q">
+  return `<li class="its01-check-q" data-its01-q="${key}-${index}">
     <p class="its01-check-prompt" id="its01-${key}-q${index}">${esc(question.q)}</p>
     <div class="its01-choices" role="group" aria-labelledby="its01-${key}-q${index}">${choices}</div>
     <div class="its01-check-feedback" id="its01-${key}-q${index}-feedback" tabindex="-1" aria-live="polite">${feedback}</div>
@@ -695,18 +697,40 @@ function its01CheckQuestion(key, question, index) {
 }
 
 // The status line: a failed full pass asks for a retake (no score shown);
+// a completion the account didn't save asks to try the save again;
 // otherwise a saved completion shows with its date.
 function its01CheckFooter(key) {
   const anyAnswered = Object.keys(its01CheckAnswers[key]).length > 0;
   const reset = anyAnswered ? `<button type="button" class="its01-check-reset" data-its01-check-reset="${key}"><i class="ri-restart-line" aria-hidden="true"></i> Start again</button>` : '';
+  const retry = its01CheckSaveFailed[key] ? `<button type="button" class="its01-check-reset" data-its01-check-retry="${key}"><i class="ri-refresh-line" aria-hidden="true"></i> Try again</button>` : '';
   let status = '';
-  if (its01CheckDone(key) && !its01CheckPassed(key)) {
+  if (its01CheckSaveFailed[key]) {
+    status = '<i class="ri-error-warning-line" aria-hidden="true"></i> Your result didn’t save. Try again.';
+  } else if (its01CheckDone(key) && !its01CheckPassed(key)) {
     status = key === 'orientation' ? 'Some answers weren’t right. Press Start again to retake the check.' : 'Retake: you need 70%. Press Start again to retake the check.';
   } else if (its01CheckCompleted(key)) {
     const day = its01Day(its01State[ITS01_CHECK_SAVED[key][1]]);
     status = `<i class="ri-check-line" aria-hidden="true"></i> ${esc(ITS01_CHECKS[key].title)} complete${day ? ` (${esc(day)})` : ''}. You can retake it any time.`;
   }
-  return `<div class="its01-check-footer"><p class="its01-check-status" role="status">${status}</p>${reset}</div>`;
+  return `<div class="its01-check-footer" data-its01-check-footer="${key}"><p class="its01-check-status" role="status">${status}</p><span class="its01-check-actions">${retry}${reset}</span></div>`;
+}
+
+// The Learn It check's questions sit after the lesson they cover (each
+// question's reading). The array order, and so every question's index, stays
+// as it is; the list numbers run on from lesson to lesson.
+function its01LearnCheckPart(reading, last) {
+  const check = ITS01_CHECKS.learn;
+  const shown = [];
+  for (let r = 1; r <= reading; r += 1) check.questions.forEach((question, i) => { if (question.reading === r) shown.push({ r, question, i }); });
+  const mine = shown.filter((item) => item.r === reading);
+  if (!mine.length && !last) return '';
+  const first = shown.length - mine.length + 1;
+  return `<div class="its01-check its01-check-part" ${reading === 1 ? 'id="its01-check-learn" data-its01-check="learn"' : ''} data-its01-check-part="learn-${reading}">
+    <h3>Check: Lesson ${esc(ITS01_READING_LESSONS[reading - 1])}</h3>
+    ${reading === 1 ? `<p class="its01-instruction">${esc(check.intro)}</p>` : ''}
+    ${mine.length ? `<ol class="its01-check-list" start="${first}">${mine.map((item) => its01CheckQuestion('learn', item.question, item.i)).join('')}</ol>` : ''}
+    ${last ? its01CheckFooter('learn') : ''}
+  </div>`;
 }
 
 function its01Check(key) {
@@ -738,11 +762,40 @@ function its01Orientation() {
   </section>`;
 }
 
+// Lesson 1.2's entry (one id, its minutes) holds three readings. The page
+// shows each reading as its own lesson, 1.2 to 1.4, with that reading's
+// check questions after it. The lesson ids and minutes don't change.
+const ITS01_READING_LESSONS = ['1.2', '1.3', '1.4'];
+
+function its01ReadingParts(lesson) {
+  const parts = [];
+  lesson.blocks.forEach((block) => {
+    if (block.h && /^Reading \d+\./.test(block.h)) parts.push({ title: block.h, blocks: [] });
+    else if (parts.length) parts[parts.length - 1].blocks.push(block);
+  });
+  return parts;
+}
+
+function its01ReadingCard(lesson, part, index, last) {
+  return `<details class="its01-lesson" data-its01-lesson="${esc(lesson.id)}" data-its01-reading="${index + 1}">
+    <summary><span class="its01-lesson-icon"><i class="${esc(lesson.icon)}" aria-hidden="true"></i></span><span><strong>Lesson ${esc(ITS01_READING_LESSONS[index])} · ${esc(part.title)}</strong></span><i class="ri-arrow-down-s-line its01-chevron" aria-hidden="true"></i></summary>
+    <div class="its01-lesson-body">
+      ${its01Blocks(part.blocks)}
+      ${last && lesson.comingUp ? `<div class="its01-preview"><i class="ri-arrow-right-circle-line" aria-hidden="true"></i><span><strong>Coming up in your lab:</strong> ${esc(lesson.comingUp)}</span></div>` : ''}
+    </div>
+  </details>`;
+}
+
 function its01Learn() {
+  const lesson = ITS01_LESSONS[1];
+  const parts = its01ReadingParts(lesson);
   return `<section class="its01-section" id="its01-lessons" aria-labelledby="its01-lessons-title">
-    <div class="its01-section-heading"><span>L</span><div><p class="its01-kicker">Learn It</p><h2 id="its01-lessons-title">Three readings</h2></div></div>
-    <p class="its01-instruction">Open the lesson for the three readings and their diagrams, then try the checks below.</p>
-    <div class="its01-lesson-grid">${its01LessonCard(ITS01_LESSONS[1])}</div>
+    <div class="its01-section-heading"><span>L</span><div><p class="its01-kicker">Learn It</p><h2 id="its01-lessons-title">Lessons 1.2 to 1.4</h2></div></div>
+    <p class="its01-instruction">Three lessons, one reading each. Together they take 60 minutes. Open each lesson, then answer its check questions below it. A wrong answer tells you why it’s wrong, and you try again; a right one tells you why it’s right. Your first answer to each question is the one that counts. Not graded: your answers aren’t sent to your instructor.</p>
+    <h3 class="its01-learn-heading">What you’ll learn</h3>
+    <ul class="its01-learn-list">${lesson.learn.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>
+    ${parts.map((part, i) => `<div class="its01-lesson-grid">${its01ReadingCard(lesson, part, i, i === parts.length - 1)}</div>
+    ${its01LearnCheckPart(i + 1, i === parts.length - 1)}`).join('')}
   </section>`;
 }
 
@@ -750,7 +803,6 @@ function its01Checks() {
   return `<section class="its01-section" id="its01-checks" aria-labelledby="its01-checks-title">
     <div class="its01-section-heading"><span><i class="ri-question-line" aria-hidden="true"></i></span><div><p class="its01-kicker">Learn It · not graded</p><h2 id="its01-checks-title">Check your understanding</h2></div></div>
     <p class="its01-instruction">Choose an answer. A wrong answer tells you why it’s wrong, and you try again; a right one tells you why it’s right. Your first answer to each question is the one that counts. Not graded: your answers aren’t sent to your instructor.</p>
-    ${its01Check('learn')}
     ${its01Check('aplus')}
   </section>`;
 }
@@ -841,7 +893,7 @@ function its01Sources() {
 function its01NavSections(user) {
   return [
     { id: 'orientation', title: 'Orientation', type: 'lecture', phase: 'learn', isComplete: its01AupCurrent(), scrollId: 'its01-orientation' },
-    { id: 'orientation-check', title: 'Orientation check', type: 'quiz', phase: 'learn', isComplete: its01State.orientationCheckCompleted === true, scrollId: 'its01-check-orientation' },
+    { id: 'orientation-check', title: 'Orientation check', type: 'quiz', phase: 'learn', isComplete: its01State.orientationCheckCompleted === true, doneLabel: 'Complete', scrollId: 'its01-check-orientation' },
     { id: 'lessons', title: 'Readings', type: 'lecture', phase: 'learn', isComplete: true, scrollId: 'its01-lessons' },
     { id: 'service-desk', title: 'Service desk walkthrough', navTitle: 'Lab 1.1 · Guided Lab', type: 'lab', ...itsLabRail(user, [ITS01_LAB2_KEY]), scrollId: 'its01-lab-1-2' },
     // Counts toward the percent, but never locked: the practice tickets can
@@ -850,8 +902,8 @@ function its01NavSections(user) {
     // Named so the platform's generic Assessment Lab box isn't added
     // (normalizeModuleStages).
     { id: 'assessment', title: 'Assessment Lab', type: 'review', neverLocked: true, ...itsLabRail(user, [ITS01_PROVE_KEY]), scrollId: 'its01-prove-it' },
-    { id: 'learn-check', title: 'Learn It knowledge check', type: 'quiz', phase: 'learn', neverLocked: true, isComplete: its01CheckCompleted('learn'), scrollId: 'its01-check-learn' },
-    { id: 'aplus-check', title: 'A+ check', type: 'quiz', phase: 'learn', neverLocked: true, isComplete: its01CheckCompleted('aplus'), scrollId: 'its01-check-aplus' },
+    { id: 'learn-check', title: 'Learn It knowledge check', type: 'quiz', phase: 'learn', neverLocked: true, isComplete: its01CheckCompleted('learn'), doneLabel: 'Complete', scrollId: 'its01-check-learn' },
+    { id: 'aplus-check', title: 'A+ check', type: 'quiz', phase: 'learn', neverLocked: true, isComplete: its01CheckCompleted('aplus'), doneLabel: 'Complete', scrollId: 'its01-check-aplus' },
     { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'its01-sources', gated: false, supplemental: true },
   ];
 }
@@ -912,8 +964,12 @@ function its01RenderAup() {
 }
 
 function its01RenderCheck(key, focusIndex) {
-  const el = document.querySelector(`.its01-shell [data-its01-check="${key}"]`);
-  if (el) el.outerHTML = its01Check(key);
+  ITS01_CHECKS[key].questions.forEach((question, i) => {
+    const li = document.querySelector(`.its01-shell [data-its01-q="${key}-${i}"]`);
+    if (li) li.outerHTML = its01CheckQuestion(key, question, i);
+  });
+  const footer = document.querySelector(`.its01-shell [data-its01-check-footer="${key}"]`);
+  if (footer) footer.outerHTML = its01CheckFooter(key);
   if (focusIndex !== undefined) {
     const target = document.getElementById(`its01-${key}-q${focusIndex}-feedback`);
     if (target && typeof target.focus === 'function') target.focus({ preventScroll: true });
@@ -950,8 +1006,8 @@ function its01AcknowledgeAup() {
 // check). The first pick is the one that counts. A check is complete, and
 // saved as such (complete and its time only), the first time a full pass of
 // first picks passes. The save is the same debounced case-state write as the
-// policy acknowledgement: it only logs a failure, so the tick can show
-// before the save is confirmed.
+// policy acknowledgement. The tick shows at once; if the account reports the
+// save failed, the tick comes off and the page offers Try again.
 function its01Answer(key, index, choice) {
   const check = ITS01_CHECKS[key];
   if (!check || !check.questions[index] || !(choice >= 0 && choice < check.questions[index].choices.length)) return;
@@ -960,20 +1016,47 @@ function its01Answer(key, index, choice) {
   its01CheckPicks[key][index] = picks.concat(choice);
   if (its01CheckAnswers[key][index] === undefined) its01CheckAnswers[key][index] = choice;
   const [done, doneAt] = ITS01_CHECK_SAVED[key];
-  if (its01State && its01CheckDone(key) && its01CheckPassed(key) && its01State[done] !== true) {
-    its01State[done] = true;
-    its01State[doneAt] = new Date().toISOString();
-    its01Save();
-  }
+  if (its01State && its01CheckDone(key) && its01CheckPassed(key) && its01State[done] !== true) its01SaveCheckDone(key);
   its01RenderCheck(key, index);
+}
+
+// Ticks a check and saves it. Only an explicit false from the save takes the
+// tick off again (an unknown result leaves it), and only if the same student
+// still has the same completion (a render reloads its01State, so it's
+// matched by its time, not by object). The untick is saved the same way, so
+// this page, this browser's copy and the session's copy of the row agree.
+function its01SaveCheckDone(key) {
+  const [done, doneAt] = ITS01_CHECK_SAVED[key];
+  const userId = its01User && its01User.userId;
+  const at = new Date().toISOString();
+  its01State[done] = true;
+  its01State[doneAt] = at;
+  its01CheckSaveFailed[key] = false;
+  its01Save((ok) => {
+    const state = its01State;
+    if (ok !== false || !state || !its01User || its01User.userId !== userId || state[doneAt] !== at) return;
+    state[done] = false;
+    state[doneAt] = null;
+    its01CheckSaveFailed[key] = true;
+    its01Save();
+    its01RenderCheck(key);
+  });
+}
+
+// Try again: the answers are still in page memory, so save the pass again.
+function its01RetryCheckSave(key) {
+  if (!its01CheckSaveFailed[key] || !its01State || !its01CheckDone(key) || !its01CheckPassed(key)) return;
+  its01SaveCheckDone(key);
+  its01RenderCheck(key);
 }
 
 function its01ResetCheck(key) {
   if (!its01CheckAnswers[key]) return;
   its01CheckAnswers[key] = {};
   its01CheckPicks[key] = {};
+  its01CheckSaveFailed[key] = false;
   its01RenderCheck(key);
-  const first = document.querySelector(`.its01-shell [data-its01-check="${key}"] [data-its01-answer]`);
+  const first = document.querySelector(`.its01-shell [data-its01-answer][data-check="${key}"]`);
   if (first && typeof first.focus === 'function') first.focus({ preventScroll: true });
 }
 
@@ -1022,6 +1105,11 @@ function wireItsModuleOneLab() {
     const reset = event.target.closest('[data-its01-check-reset]');
     if (reset) {
       its01ResetCheck(reset.dataset.its01CheckReset);
+      return;
+    }
+    const retry = event.target.closest('[data-its01-check-retry]');
+    if (retry) {
+      its01RetryCheckSave(retry.dataset.its01CheckRetry);
       return;
     }
     const proveLaunch = event.target.closest('[data-its01-prove-launch]');

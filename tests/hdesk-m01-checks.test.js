@@ -64,6 +64,12 @@ const checkHtml = (html, key) => {
   assert.ok(start >= 0, `check ${key}`);
   return html.slice(start, html.indexOf('its01-check-footer', start) + 400);
 };
+// A check's status line and buttons (the Learn It check's sit after Lesson 1.4).
+const footerHtml = (html, key) => {
+  const start = html.indexOf(`data-its01-check-footer="${key}"`);
+  assert.ok(start >= 0, `footer ${key}`);
+  return html.slice(start, html.indexOf('</div>', start));
+};
 const questionHtml = (html, key, index) => {
   const start = html.indexOf(`id="its01-${key}-q${index}"`);
   assert.ok(start >= 0, `question ${key} ${index}`);
@@ -159,7 +165,7 @@ async function testBelowSeventyAsksForARetake() {
     const user = hdUser();
     page().view(user, HD);
     const html = await passWith(key, below, user);
-    const status = text(checkHtml(html, key));
+    const status = text(footerHtml(html, key));
     assert.match(status, /Retake: you need 70%\. Press Start again to retake the check\./, key);
     assert.doesNotMatch(status.replace('you need 70%', ''), /\d+ ?(of|\/) ?\d|score|%/i, `${key}: no score shown`);
     assert.notEqual(run(`its01State.${key}CheckCompleted`), true, `${key}: right after a wrong pick doesn't count`);

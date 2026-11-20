@@ -1504,14 +1504,17 @@ function itsLabCounterText(user, labKeys) {
 
 // Rail fields for a row covering labKeys: ticked only when every lab passed
 // (or, for Practice It, is practice complete); "Returned" or "In review"
-// (moduleUnifiedNav's reviewState) otherwise.
+// (moduleUnifiedNav's reviewState) otherwise. A ticked row also says
+// "Passed" (every lab passed its review) or "Complete" (Practice It), through
+// moduleUnifiedNav's doneLabel. Only Help Desk rows set doneLabel.
 function itsLabRail(user, labKeys) {
   const statuses = labKeys.map((key) => itsLabStatus(user, key));
   const isComplete = statuses.every((status) => status === 'passed' || status === 'practice');
   const reviewState = statuses.includes('returned') ? 'returned'
     : !isComplete && statuses.every((status) => status === 'waiting' || status === 'passed' || status === 'practice') ? 'review'
     : undefined;
-  return { isComplete, reviewState };
+  const doneLabel = !isComplete ? undefined : statuses.every((status) => status === 'passed') ? 'Passed' : 'Complete';
+  return { isComplete, reviewState, doneLabel };
 }
 
 // Walkthrough launch button: redo if any lab was returned, review once every

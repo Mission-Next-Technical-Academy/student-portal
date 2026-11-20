@@ -203,8 +203,15 @@ function officialLabStanding(labKey, attemptRows) {
   const passed = !!(newest && newest.reviewed_at && !newest.redo_requested && grade && grade.decision === 'approved'
     && grade.official_score !== null && grade.official_score !== undefined && (!mark || score >= mark));
   const critical = !!(newest && newest.reviewed_at && newest.redo_requested && grade && grade.critical_error === true);
-  return { newestId: newest ? newest.id : null, attempted: !!newest, passed, critical, score: passed ? score : null, decidedAt: passed ? grade.created_at : null };
+  // Staff labels only (officialAttemptRecord, adminModuleStatusHtml): the
+  // newest attempt is waiting for its review, or was sent back.
+  const awaiting = !!(newest && !newest.reviewed_at);
+  const returned = !!(newest && newest.reviewed_at && newest.redo_requested && !critical);
+  return { newestId: newest ? newest.id : null, attempted: !!newest, passed, critical, awaiting, returned, score: passed ? score : null, decidedAt: passed ? grade.created_at : null };
 }
+
+const OFFICIAL_AWAITING_REVIEW = 'Awaiting review';
+const OFFICIAL_RETURNED = 'Returned';
 
 // One attempt's line in the records, from the decision that stands.
 function officialAttemptRecord(row, standing) {
@@ -212,7 +219,11 @@ function officialAttemptRecord(row, standing) {
     ? { status: 'Pass', state: 'complete', score: standing.score, date: standing.decidedAt }
     : standing.critical && row.id === standing.newestId
       ? { status: OFFICIAL_CRITICAL_RESULT, state: 'in_progress', score: null, date: null }
-      : { status: 'In progress', state: 'in_progress', score: null, date: null };
+      : standing.awaiting && row.id === standing.newestId
+        ? { status: OFFICIAL_AWAITING_REVIEW, state: 'in_progress', score: null, date: null, awaiting: true }
+        : standing.returned && row.id === standing.newestId
+          ? { status: OFFICIAL_RETURNED, state: 'in_progress', score: null, date: null }
+          : { status: 'In progress', state: 'in_progress', score: null, date: null };
 }
 
 // A correction gives an attempt a second decision. The student sees only the
@@ -4425,15 +4436,17 @@ async function settlePendingCaseStateWrites() {
   await Promise.all(Array.from(moduleCaseStateQueues.values()));
 }
 
+// Resolves to true once the row holds this state, or false when it doesn't
+// (bad arguments, a failed read or write, or a throw). It never rejects.
 async function persistModuleCaseState(user, moduleKey, labId, state) {
-  if (!user || !user.userId || !user.trackCode || !moduleKey || !labId) return;
+  if (!user || !user.userId || !user.trackCode || !moduleKey || !labId) return false;
   const queueKey = `${user.userId}:${user.trackCode}:${moduleKey}`;
   const previous = moduleCaseStateQueues.get(queueKey) || Promise.resolve();
   const write = previous.catch(() => {}).then(async () => {
     const { data, error: readError } = await mntSupabase.from('module_progress')
       .select('case_state').eq('user_id', user.userId).eq('track_code', user.trackCode)
       .eq('module_key', moduleKey).maybeSingle();
-    if (readError) { console.error('module case_state read failed', moduleKey, readError); return; }
+    if (readError) { console.error('module case_state read failed', moduleKey, readError); return false; }
     const current = data && data.case_state && typeof data.case_state === 'object' ? data.case_state : {};
     const caseState = { ...current, [labId]: state };
     let writeResult;
@@ -4457,14 +4470,15 @@ async function persistModuleCaseState(user, moduleKey, labId, state) {
           .eq('user_id', user.userId).eq('track_code', user.trackCode).eq('module_key', moduleKey);
       }
     }
-    if (writeResult.error) { console.error('module case_state write failed', moduleKey, labId, writeResult.error); return; }
+    if (writeResult.error) { console.error('module case_state write failed', moduleKey, labId, writeResult.error); return false; }
     // LabRuntime.saveCaseState() already put every newer action from this
     // session in the in-session copy. Replacing it with this write's older
     // snapshot made the next load undo actions taken while it was in flight.
     const live = user.remoteCaseState && user.remoteCaseState[moduleKey];
     const liveLabs = live && typeof live === 'object' && !live.labId ? live : {};
     user.remoteCaseState = { ...(user.remoteCaseState || {}), [moduleKey]: { ...caseState, ...liveLabs } };
-  }).catch((err) => { console.error('module case_state persistence threw', moduleKey, labId, err); });
+    return true;
+  }).catch((err) => { console.error('module case_state persistence threw', moduleKey, labId, err); return false; });
   moduleCaseStateQueues.set(queueKey, write);
   return write;
 }
@@ -4904,7 +4918,9 @@ function truthfulLabStatusPanel(card) {
       ? 'The next module unlocks once every required lab is submitted and approved.'
       : card.waiting
         ? `The next module unlocks as soon as your instructor approves the remaining lab${card.waiting === 1 ? '' : 's'}.`
-        : 'Every required lab is approved. Open the module to finish its remaining steps.';
+        : card.state === 'complete'
+          ? 'You passed this module. Open it to review your work.'
+          : 'Every required lab is approved. Open the module to finish its remaining steps.';
   return `<div class="mb-3 rounded-lg border ${tone.box} px-3 py-2.5" data-module-lab-status>
           <p class="text-xs font-semibold ${tone.text} flex items-center gap-1.5"><i class="${tone.icon}" aria-hidden="true"></i>${card.submitted} of ${card.required} required lab${card.required === 1 ? '' : 's'} submitted</p>
           <ul class="mt-1.5 space-y-1 text-xs ${tone.text}">
@@ -6013,6 +6029,7 @@ function moduleUnifiedNav(sections, state = {}) {
       <span class="munified-row-label">${esc(navTitle)}</span>
       ${hasChildren ? `<span class="munified-row-sub">${childComplete}/${items.length}</span>` : ''}
       ${!hasChildren && !section.isComplete && section.reviewState ? `<span class="munified-row-sub">${section.reviewState === 'returned' ? 'Returned' : 'In review'}</span>` : ''}
+      ${!hasChildren && section.isComplete && section.doneLabel ? `<span class="munified-row-sub">${esc(section.doneLabel)}</span>` : ''}
       ${nav.locked ? '<i class="ri-lock-line mnav-lock-icon" aria-hidden="true"></i>' : ''}
       ${isGated && section.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
     </a>`;
@@ -6814,7 +6831,7 @@ function viewProgram(user, slug) {
           <p class="inline-flex items-center gap-2 text-gray-500 text-xs">
             <span class="w-2.5 h-2.5 rounded-full bg-[#22c55e] ring-4 ring-[#dcfce7]"></span>
             ${program.truthfulModuleStates === true
-              ? 'Green means Passed: every required lab reviewed and passed by your instructor.'
+              ? 'Green means you passed the module: your instructor approved its Prove It.'
               : 'Green means the content was opened and every module lab was completed'}
           </p>
         </div>
@@ -10635,6 +10652,18 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
     const detailPanels = [document.getElementById('student-detail-panel'), ...document.querySelectorAll('[data-admin-inline-detail]')];
     detailPanels.filter(Boolean).forEach((detailPanel) => {
       detailPanel.addEventListener('click', async (event) => {
+        // "Open attempt" on a lab awaiting review: switch to the Lab Attempts
+        // tab and open that attempt's pill.
+        const openAttemptBtn = event.target.closest('[data-admin-open-attempt]');
+        if (openAttemptBtn) {
+          const key = openAttemptBtn.getAttribute('data-admin-open-attempt');
+          const tab = document.querySelector('[data-admin-tab="grading"]');
+          if (tab) tab.click();
+          const chip = Array.from(document.querySelectorAll('[data-attempt-chip]')).find((el) => el.dataset.attemptChip === key);
+          if (chip && chip.getAttribute('aria-expanded') !== 'true') chip.click();
+          else if (chip) chip.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          return;
+        }
         const overrideBtn = event.target.closest('[data-admin-module-override]');
         if (overrideBtn) {
           const overrideValue = overrideBtn.getAttribute('data-override-value') === 'true';
@@ -10864,15 +10893,26 @@ function adminModuleStatusHtml(m, labRows) {
   const labKey = officialLabForModule(m.module_key);
   const standing = labKey ? officialLabStanding(labKey, labRows) : null;
   if (standing && standing.attempted) {
-    return `<span style="color:${adminStateColor(standing.passed ? 'complete' : 'in_progress')}">${standing.passed ? 'Pass' : 'In progress'}</span>`;
+    const label = standing.passed ? 'Pass'
+      : standing.awaiting ? OFFICIAL_AWAITING_REVIEW
+      : standing.returned || standing.critical ? OFFICIAL_RETURNED
+      : 'In progress';
+    return `<span style="color:${adminStateColor(standing.passed ? 'complete' : 'in_progress')}">${label}</span>`;
   }
   return `<span style="color:${adminStateColor(m.state)}">${adminStateLabel(m.state)}</span>`;
 }
 
-function adminLabRecordCells(l, labRows) {
+// student: the detail's row (student_id, track_code). An attempt awaiting
+// review links to its pill on the Lab Attempts tab, whose key is
+// `<student id>|<item name>` (adminLabAttemptsPanel).
+function adminLabRecordCells(l, labRows, student) {
   const record = labTakesOfficialGrade(l.lab_key) ? officialAttemptRecord(l, officialLabStanding(l.lab_key, labRows)) : null;
   if (record) {
-    return `<td class="px-4 py-2"><span style="color:${adminStateColor(record.state)}">${record.status}</span></td>
+    const attemptKey = record.awaiting && student && student.student_id
+      ? `${student.student_id}|${adminGradingLabMeta({ lab_key: l.lab_key, track_code: student.track_code }).itemName}`
+      : '';
+    const openLink = attemptKey ? ` <button type="button" class="ml-1 text-xs font-semibold text-[#1e3a5f] underline hover:text-[#f97316]" data-admin-open-attempt="${esc(attemptKey)}">Open attempt</button>` : '';
+    return `<td class="px-4 py-2"><span style="color:${adminStateColor(record.state)}">${record.status}</span>${openLink}</td>
                  <td class="px-4 py-2 text-gray-600">${adminScore(record.score)}</td>
                  <td class="px-4 py-2 text-gray-600">${record.date ? adminDate(record.date) : '—'}</td>`;
   }
@@ -10973,7 +11013,7 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
                  return `
                <tr class="border-b border-gray-100">
                  <td class="px-4 py-2 text-gray-900">${esc(adminLabLabel(l.lab_key))}${attemptLabel}</td>
-                 ${adminLabRecordCells(l, labRows)}
+                 ${adminLabRecordCells(l, labRows, row)}
                </tr>`;
                }).join('')}
            </tbody>
