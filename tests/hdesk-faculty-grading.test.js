@@ -115,6 +115,13 @@ function testCardOrderAndContent() {
   for (const c of rubric.competencies) assert.match(html, new RegExp(`data-its-prove-points="${c.id}"[^>]*/> / ${c.points}<`));
   assert.ok(html.includes('Line one.\n\nLine two.'), 'writing is whole');
   assert.match(html, /data-its-prove-decide="approved" disabled/, 'Approve starts unavailable');
+  // Approve is a solid button like Return, so it only looks faded while it
+  // is unavailable (disabled:opacity-50 on both).
+  const approve = html.match(/<button[^>]*data-its-prove-decide="approved"[^>]*>/)[0];
+  const ret = html.match(/<button[^>]*data-its-prove-decide="returned"[^>]*>/)[0];
+  assert.match(approve, /bg-green-700 hover:bg-green-800 text-white/);
+  assert.doesNotMatch(approve, /bg-green-50\b/);
+  [approve, ret].forEach((button) => assert.match(button, /disabled:opacity-50/));
   assert.match(html, /data-pass-mark="70"/, 'the pass mark comes from the attempt');
   assert.doesNotMatch(html, /Approve counts as a pass/);
   assert.doesNotMatch(html, /admin-grading-approve|admin-grading-send-back|No score/);
