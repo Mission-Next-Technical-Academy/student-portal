@@ -611,10 +611,103 @@ function testProveGetsNoneOfTheNewFeatures() {
   assert.equal(prove.run('hdState.tickets[0].slaClock'), undefined, 'no matrix fields in the Prove state');
 }
 
+// On a set's own clock, notes, customer updates, comments and history show
+// the shift's time; the shared shift, Module 1 and Prove It keep the
+// computer's time.
+const DAY_STAMP = /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat) \d{2}:\d{2}$/;
+const lastNote = (tab, id) => tab.run(`hdTicketById(${JSON.stringify(id)}).notes.slice(-1)[0]`);
+const lastHistory = (tab, id) => tab.run(`hdTicketById(${JSON.stringify(id)}).troubleshootingHistory.slice(-1)[0].time`);
+function testNotesUseTheShiftClock() {
+  const tab = guided();
+  assert.equal(tab.note('HD-9202', 'Reported: floor 9 Wi-Fi down. Tried: checked the AP. Result: still down.'), true);
+  assert.equal(lastNote(tab, 'HD-9202').time, 'Tue 08:35');
+  assert.equal(lastHistory(tab, 'HD-9202'), 'Tue 08:35');
+  tab.run("hdContactRequester('HD-9202')");
+  assert.deepEqual([lastNote(tab, 'HD-9202').author, lastNote(tab, 'HD-9202').time], ['Customer update', 'Tue 08:35']);
+  assert.equal(tab.run('hdConsoleTime()'), 'Tue 08:35');
+  assert.match(tab.open('HD-9202'), /Customer update · Tue 08:35/);
+  // A practice set's clock (Wednesday 13:00); a moved clock (what "Next day"
+  // saves) moves the next note.
+  const later = practice();
+  assert.equal(later.note('HD-9213', 'Reported: a. Tried: b. Result: c.'), true);
+  assert.equal(lastNote(later, 'HD-9213').time, 'Wed 13:00');
+  later.run("hdState.clockNow = '2026-08-20T08:00:00.000Z'");
+  later.note('HD-9213', 'Reported: a. Tried: b. Result: d.');
+  assert.equal(lastNote(later, 'HD-9213').time, 'Thu 08:00');
+  // The shared shift and a Module 1 ticket: the computer's time, as before.
+  const shared = sim();
+  for (const id of ['HD-2150', 'HD-2101']) {
+    shared.note(id, 'Reported: a. Tried: b. Result: c.');
+    assert.doesNotMatch(lastNote(shared, id).time, DAY_STAMP);
+    assert.match(lastNote(shared, id).time, /\d{1,2}:\d{2}/);
+  }
+  shared.run("hdContactRequester('HD-2150')");
+  assert.doesNotMatch(lastNote(shared, 'HD-2150').time, DAY_STAMP);
+  assert.doesNotMatch(shared.run('hdConsoleTime()'), DAY_STAMP);
+  // Prove It: no set clock.
+  const prove = sim({ url: 'https://academy.test/sim/?prove=its-01&student=student-m02-clock#/helpdesk/tickets' });
+  assert.doesNotMatch(prove.run('hdConsoleTime()'), DAY_STAMP);
+}
+
+// On a Module 2 ticket, the State chosen but not applied survives a redraw
+// (a resolution code, Impact): it is kept in memory only, never saved.
+const chosenState = (html) => (html.match(/<select id="hd-next-state"[\s\S]*?<\/select>/) || [''])[0].match(/<option selected>([^<]*)<\/option>/);
+function testResolutionCodeKeepsTheChosenState() {
+  const tab = guided();
+  tab.state('HD-9201', 'In Progress');
+  assert.equal(tab.ticket('HD-9201').status, 'In Progress');
+  let html = tab.open('HD-9201');
+  assert.match(html, /id="hd-next-state" class="select" onchange="hdKeepPendingState\('HD-9201','state',this.value\)" data-hd-field="state">/);
+  assert.equal(chosenState(html), null, 'nothing chosen yet');
+  tab.run("hdKeepPendingState('HD-9201', 'state', 'Resolved')");
+  tab.run("hdSetResolutionCode('HD-9201', 'Solution provided')");
+  html = tab.run("VIEWS['helpdesk/ticket']()");
+  assert.equal(chosenState(html)[1], 'Resolved', 'the resolution code keeps the chosen State');
+  assert.equal(tab.ticket('HD-9201').status, 'In Progress', 'nothing changes until Apply');
+  tab.impact('HD-9201', 3, 3);
+  assert.equal(chosenState(tab.run("VIEWS['helpdesk/ticket']()"))[1], 'Resolved');
+  // Never saved: not in the ticket, not in storage.
+  assert.doesNotMatch(JSON.stringify(tab.run('hdState')), /hdKeepPendingState|pendingState/);
+  assert.equal(tab.ticket('HD-9201').drafts && tab.ticket('HD-9201').drafts.state, undefined);
+  // Apply resolves it, and the choice is cleared.
+  tab.input('hd-next-state', 'Resolved');
+  tab.input('hd-resolution-notes', 'Sent the keyboard request to approval; caller confirmed.');
+  tab.run("hdApplyState('HD-9201')");
+  assert.deepEqual([tab.ticket('HD-9201').status, tab.ticket('HD-9201').closureCode], ['Resolved', 'Solution provided']);
+  assert.equal(tab.run("hdPendingState['HD-9201']"), undefined);
+  // Choosing the blank option drops it; opening a ticket again drops it too.
+  tab.run("hdKeepPendingState('HD-9202', 'state', 'Canceled')");
+  tab.run("hdKeepPendingState('HD-9202', 'state', '')");
+  assert.equal(tab.run("hdPendingState['HD-9202']"), undefined);
+  tab.run("hdKeepPendingState('HD-9202', 'state', 'Canceled')");
+  assert.equal(chosenState(tab.open('HD-9202')), null);
+  // The On Hold reason is kept with it, so Apply still works after a redraw.
+  tab.state('HD-9203', 'In Progress');
+  tab.run("hdSelectTicket('HD-9203')");
+  tab.run("hdKeepPendingState('HD-9203', 'state', 'On Hold'); hdKeepPendingState('HD-9203', 'hold', 'Awaiting Caller')");
+  tab.run("hdSetResolutionCode('HD-9203', 'Duplicate')");
+  html = tab.run("VIEWS['helpdesk/ticket']()");
+  assert.equal(chosenState(html)[1], 'On Hold');
+  assert.match(html, /id="hd-hold-reason"[\s\S]*?<option selected>Awaiting Caller<\/option>/);
+  tab.input('hd-next-state', 'On Hold'); tab.input('hd-hold-reason', 'Awaiting Caller');
+  tab.run("hdApplyState('HD-9203')");
+  assert.deepEqual([tab.ticket('HD-9203').status, tab.ticket('HD-9203').holdReason], ['On Hold', 'Awaiting Caller']);
+  assert.equal(tab.run("hdPendingState['HD-9203']"), undefined);
+  // An unknown field is ignored; a reset drops every pending choice.
+  tab.run("hdKeepPendingState('HD-9202', 'priority', 'P1')");
+  assert.equal(tab.run("hdPendingState['HD-9202']"), undefined);
+  tab.run("hdKeepPendingState('HD-9202', 'state', 'Canceled'); hdResetShift()");
+  assert.equal(tab.run('Object.keys(hdPendingState).length'), 0);
+  // Older tickets keep the list that applies on change, with no pending State.
+  const shared = sim();
+  for (const id of ['HD-2150', 'HD-2101']) assert.doesNotMatch(shared.open(id), /hdKeepPendingState/);
+}
+
 const tests = [
   testProveGetsNoneOfTheNewFeatures, testOldTicketsKeepTheOldClockAndStates, testImpactAndUrgencyCalculatePriority, testSlaRespondThenResolveOnTheSetClock,
   testPausedResolvedTimeAndNextDay, testServiceNowStates, testQueueViewColumnsAndSort, testWorkOrder, testConvertToRequest,
   testLinkingAndRewrite, testArrivalsCommentsAndKnowledge, testContactAttemptsAndCoachedSetGuard, testCoachedSetTicketsAreOwnSet,
+  testNotesUseTheShiftClock, testResolutionCodeKeepsTheChosenState,
 ];
 let failed = 0;
 for (const test of tests) {

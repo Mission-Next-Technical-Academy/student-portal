@@ -151,6 +151,11 @@ const HD_PRACTICE_REASONS = {
   'other-student': 'These tickets were opened for a different student, so your completion wasn\'t saved. Open them from your own course page.',
 };
 let hdPracticeSending = false;
+// The State (and On Hold reason) chosen but not yet applied, per ticket:
+// { state, hold }. A redraw (resolution code, Impact, Urgency...) keeps it.
+// Kept in memory only, never saved, so a reload, a reset or opening a ticket
+// again shows the ticket's real State.
+let hdPendingState = {};
 function hdPracticeClosed() {
   if (!HD_PRACTICE_SET || !hdState || !Array.isArray(hdState.tickets)) return false;
   // complete: the tickets the set needs closed (Module 2 keeps 2-B's related
@@ -348,7 +353,7 @@ function hdUseTicketSet(key) {
   const fresh = hdFreshSetState(hdCoachedSets()[key]);
   fresh.ticketSet = key;
   fresh.selectedTicketId = null;
-  hdState = fresh;
+  hdState = fresh; hdPendingState = {};
   hdSave();
   if (typeof render === 'function') render();
   return true;
@@ -635,13 +640,13 @@ function hdList(items, ordered) {
 function hdMetric(label, value, detail, tone) {
   return `<div class="card hd-metric ${tone || ''}"><div class="card-body"><span class="muted">${hdEsc(label)}</span><strong>${hdEsc(value)}</strong><small>${hdEsc(detail)}</small></div></div>`;
 }
-// On a set's own clock the history shows shift time (day and time, UTC).
 function hdHistory(ticket, action) {
-  ticket.troubleshootingHistory.push({ time:hdActiveSet() && hdActiveSet().now ? hdShiftTimeText(hdShiftNow()) : new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }), action });
+  ticket.troubleshootingHistory.push({ time:hdConsoleTime(), action });
 }
 
 function hdSelectTicket(id) {
   hdState.selectedTicketId = id;
+  hdPendingState = {};
   // A message can wait for a ticket to be opened (arrivals: when.opened).
   if (hdHasArrivals()) { const ticket = hdTicketById(id); if (ticket) ticket.opened = true; hdCheckArrivals(); }
   hdSave();
@@ -689,7 +694,7 @@ function hdAddNote(id) {
   const text = input && input.value.trim(); if (!ticket || !text) { toast('Enter a useful troubleshooting note first.'); return false; }
   // A password is never saved in a note, on any ticket.
   if (hdPasswordInText(text)) { toast(hdRefusePasswordText(ticket, 'work note')); return false; }
-  ticket.notes.push({ time:new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }), author:'Riley Morgan', text });
+  ticket.notes.push({ time:hdConsoleTime(), author:'Riley Morgan', text });
   hdClearDraft(ticket, 'note');
   hdProveEdited();
   hdHistory(ticket, 'Technician work note added.');
@@ -704,7 +709,7 @@ function hdAddNote(id) {
 function hdContactRequester(id) {
   const ticket = hdTicketById(id); if (!ticket) return;
   const message = `Contacted ${ticket.requester}: acknowledged the ticket, confirmed impact, and set the next update expectation.`;
-  ticket.notes.push({ time:new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }), author:'Customer update', text:message });
+  ticket.notes.push({ time:hdConsoleTime(), author:'Customer update', text:message });
   hdHistory(ticket, 'Requester contacted; impact and next-update time confirmed.');
   toast('Simulated requester contact recorded.'); hdRerender();
 }
@@ -774,6 +779,7 @@ function hdResetShift() {
   const coached = hdActiveSet() && hdState.ticketSet;
   if (coached) { const key = hdState.ticketSet; hdState = hdFreshSetState(hdCoachedSets()[key]); hdState.ticketSet = key; hdState.selectedTicketId = null; }
   else hdState = HD_PRACTICE_SET ? hdFreshPracticeSetState() : hdFreshState();
+  hdPendingState = {};
   // A practice set has no coach, and its shift isn't the coached lab's: the
   // coached lab's saved progress stays.
   if (!HD_PRACTICE_SET && typeof window.forgetModuleCoachProgress === 'function') window.forgetModuleCoachProgress();
@@ -1008,7 +1014,13 @@ function hdComments(ticket) {
   if (!Array.isArray(ticket.customerComments)) ticket.customerComments = [];
   return ticket.customerComments;
 }
-function hdConsoleTime() { return new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }); }
+// On a set's own clock (set.now), history, work notes, customer updates and
+// comments show shift time (day and time, UTC); every other shift, Prove It
+// included, keeps the computer's time, as before.
+function hdConsoleTime() {
+  const set = hdActiveSet();
+  return set && set.now ? hdShiftTimeText(hdShiftNow()) : new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+}
 // Escalated or waiting tickets stay open: their note needs a Next action.
 function hdTicketStaysOpen(ticket) {
   return ['Escalated', 'Pending User', 'Pending Vendor', 'On Hold'].includes(ticket.status) || ticket.category === 'Security Incident'
@@ -1904,6 +1916,7 @@ function hdMatrixRespond(ticket) {
 // clock: it closes an open stop and opens one for Resolved or for On Hold –
 // Awaiting Caller.
 function hdMatrixSetStatus(ticket, status, reason, at) {
+  delete hdPendingState[ticket.id];
   const clock = hdSlaClock(ticket); const now = at || hdShiftIso();
   clock.stops.forEach(stop => { if (!stop.to) stop.to = now; });
   ticket.status = status;
@@ -1977,6 +1990,12 @@ function hdMatrixTransition(id, status) {
   hdRerender();
 }
 
+function hdKeepPendingState(id, field, value) {
+  if (!['state', 'hold'].includes(field)) return;
+  const pending = { ...(hdPendingState[id] || {}) };
+  if (value) pending[field] = String(value); else delete pending[field];
+  if (Object.keys(pending).length) hdPendingState[id] = pending; else delete hdPendingState[id];
+}
 function hdApplyState(id) {
   const input = document.getElementById('hd-next-state');
   if (!input || !input.value) { toast('Choose the next state first.'); return; }
@@ -2136,7 +2155,7 @@ function hdCheckArrivals(quiet) {
       // at: the message's own shift time (a reply that came in before the
       // shift opened); otherwise now on the shift clock.
       const at = arrival.at && !Number.isNaN(Date.parse(arrival.at)) ? new Date(arrival.at).toISOString() : '';
-      state.arrived.push({ id:arrival.id, from:arrival.from || ticket.requester, text:arrival.text, time:at ? hdShiftTimeText(at) : hdActiveSet() && hdActiveSet().now ? hdShiftTimeText(hdShiftNow()) : hdConsoleTime() });
+      state.arrived.push({ id:arrival.id, from:arrival.from || ticket.requester, text:arrival.text, time:at ? hdShiftTimeText(at) : hdConsoleTime() });
       hdHistory(ticket, `Reply from ${arrival.from || ticket.requester} (customer-visible).`);
       if (arrival.reopen && ticket.status === 'Resolved') {
         hdMatrixSetStatus(ticket, 'In Progress', '', at); ticket.closureCode = ''; ticket.resolution = '';
@@ -2421,10 +2440,11 @@ function hdMatrixControls(ticket) {
   const select = (field, label) => `<label>${label}<select class="select" data-hd-field="${field}" ${closed ? 'disabled' : ''} onchange="hdSetImpact('${ticket.id}','${field}',this.value)"><option value="">Choose…</option>${['1', '2', '3'].map(value => `<option value="${value}" ${ticket[field] === value ? 'selected' : ''}>${HD_IMPACT_LABELS[value]}</option>`).join('')}</select></label>`;
   const priority = `<div class="hd-priority-preset" data-hd-priority="${hdEsc(ticket.priority || '')}"><span>Priority</span> ${ticket.priority ? `${hdBadge(ticket.priority, ticket.priority.toLowerCase())} ${hdEsc(HD_PRIORITY_NAMES[ticket.priority])}` : '<span class="muted">Not set</span>'}<p class="muted" style="margin:4px 0 0">Calculated from Impact × Urgency. You don't type it.</p></div>`;
   const next = HD_SN_STATUS_NEXT[ticket.status] || [];
+  const pending = hdPendingState[ticket.id] || {};
   // State first; the reason select is read when On Hold is chosen.
   // State and assignment group apply with a button, so moving through a
   // list with the arrow keys never changes the ticket.
-  const state = next.length ? `<label>State<select id="hd-next-state" class="select" data-hd-field="state"><option value="">${hdEsc(hdStatusText(ticket))}</option>${next.map(value => `<option>${value}</option>`).join('')}</select></label>${next.includes('On Hold') ? `<label>On Hold reason (only for On Hold)<select id="hd-hold-reason" class="select"><option value="">Choose…</option>${HD_HOLD_REASONS.map(reason => `<option ${ticket.holdReason === reason ? 'selected' : ''}>${reason}</option>`).join('')}</select></label>` : ''}<button type="button" class="btn btn-secondary" onclick="hdApplyState('${ticket.id}')">Apply state</button>` : `<div><span class="muted">State</span> ${hdStatusBadge(ticket)}</div>`;
+  const state = next.length ? `<label>State<select id="hd-next-state" class="select" onchange="hdKeepPendingState('${ticket.id}','state',this.value)" data-hd-field="state"><option value="">${hdEsc(hdStatusText(ticket))}</option>${next.map(value => `<option${pending.state === value ? ' selected' : ''}>${value}</option>`).join('')}</select></label>${next.includes('On Hold') ? `<label>On Hold reason (only for On Hold)<select id="hd-hold-reason" class="select" onchange="hdKeepPendingState('${ticket.id}','hold',this.value)"><option value="">Choose…</option>${HD_HOLD_REASONS.map(reason => `<option ${(pending.hold || ticket.holdReason) === reason ? 'selected' : ''}>${reason}</option>`).join('')}</select></label>` : ''}<button type="button" class="btn btn-secondary" onclick="hdApplyState('${ticket.id}')">Apply state</button>` : `<div><span class="muted">State</span> ${hdStatusBadge(ticket)}</div>`;
   const group = closed ? `<div><span class="muted">Assignment group</span> <strong>${hdEsc(ticket.assignmentGroup || HD_SERVICE_DESK)}</strong></div>` : `<label>Assignment group<select id="hd-assignment-group" class="select" data-hd-field="group">${HD_ASSIGNMENT_GROUPS.map(value => `<option ${(ticket.assignmentGroup || HD_SERVICE_DESK) === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label><button type="button" class="btn btn-secondary" onclick="hdApplyGroup('${ticket.id}')">Assign to group</button>`;
   const resolving = !closed ? `<label>Resolution notes (required to resolve)<textarea id="hd-resolution-notes" class="ipt" rows="4" maxlength="4000" oninput="hdKeepDraft('${ticket.id}','resolution',this.value)" placeholder="Why and how it was closed">${hdEsc(hdDraft(ticket, 'resolution'))}</textarea></label>` : '';
   return `${select('impact', 'Impact')}${select('urgency', 'Urgency')}${priority}${hdClassifyControls(ticket)}${group}${state}${hdConsoleResolutionControl(ticket)}${resolving}`;
@@ -3498,7 +3518,7 @@ window.hdRunPowerShell=hdRunPowerShell; window.hdPrinterAction=hdPrinterAction;
 window.hdSetEventFilter=hdSetEventFilter; window.hdClearEventFilter=hdClearEventFilter; window.hdM01Identity=hdM01Identity;
 window.hdM01Hint=hdM01Hint; window.hdM01AdLockoutDetails=hdM01AdLockoutDetails;
 window.hdKbSearch=hdKbSearch; window.hdKbOpen=hdKbOpen; window.hdChatAsk=hdChatAsk; window.hdVerify=hdVerify; window.hdKeepDraft=hdKeepDraft;
-window.hdConsoleUnlock=hdConsoleUnlock; window.hdAddComment=hdAddComment; window.hdSetResolutionCode=hdSetResolutionCode;
+window.hdConsoleUnlock=hdConsoleUnlock; window.hdAddComment=hdAddComment; window.hdSetResolutionCode=hdSetResolutionCode; window.hdKeepPendingState=hdKeepPendingState;
 window.hdConsoleAction=hdConsoleAction; window.hdConsoleOwner=hdConsoleOwner; window.hdConsoleCheckWork=hdConsoleCheckWork;
 
 // HD-2101 Practice: FinanceReportSync runs on its schedule while the page is
