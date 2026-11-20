@@ -43,20 +43,22 @@
     'hd-m07': ['HD-2119', 'HD-2120', 'HD-2121', 'HD-2122', 'HD-2123'],
     'hd-m08': ['HD-2110', 'HD-2111'],
     'hd-m09': ['SEC-2114', 'SEC-2115'],
-    'hd-m10': null,
+    'hd-m10': ['HD-2158', 'HD-2159', 'HD-2160', 'SR-2161', 'HD-2162', 'SEC-2163'],
     'hd-m11': ['HD-2113', 'HD-2124'],
   };
   function hdCollectCoachWork(coach) {
     if (typeof hdState === 'undefined' || !Array.isArray(hdState.tickets)) return null;
     const ids = HD_COACH_TICKET_IDS[coach && coach.id];
-    const tickets = hdState.tickets.filter((ticket) => ids
-      ? ids.includes(ticket.id)
-      : coach && coach.id === 'hd-m10' && ticket.priority === 'P1');
+    const tickets = hdState.tickets.filter((ticket) => Boolean(ids) && ids.includes(ticket.id));
+    // Module 2's guided queue: the student's work order lives on the shift.
+    const queue = coach && coach.id === 'hd-m10' && Array.isArray(hdState.workOrder)
+      ? { workOrder: hdState.workOrder.slice(0, 8), workOrderResult: String(hdState.workOrderResult || '').slice(0, 200) } : {};
     // HD-2101's investigation: outcomes, typed commands and key results.
     const investigation = ids && ids.includes('HD-2101') && typeof hdM01Investigation === 'function' ? hdM01Investigation() : null;
     return {
       version: 1,
       ...(investigation ? { investigation } : {}),
+      ...queue,
       selectedTicketId: hdState.selectedTicketId || '',
       tickets: tickets.map((ticket) => ({
         id: ticket.id,
@@ -100,7 +102,17 @@
   function hdCoachConsoleWork(ticket) {
     const progress = typeof hdConsoleProgress === 'function' ? hdConsoleProgress(ticket.id) : null;
     if (!progress) return {};
+    const state = typeof hdConsoleState === 'function' ? hdConsoleState(ticket) : {};
+    // Module 2: the student's rewrite and knowledge draft, word for word.
+    const writing = state.rewrite || state.kbDraft ? { writing: {
+      shortDescription: state.rewrite ? String(state.rewrite.short || '').slice(0, 160) : '',
+      description: state.rewrite ? String(state.rewrite.description || '').slice(0, 4000) : '',
+      kbDraftTitle: state.kbDraft ? String(state.kbDraft.title || '').slice(0, 160) : '',
+      kbDraftText: state.kbDraft ? String(state.kbDraft.text || '').slice(0, 4000) : '',
+    } } : {};
     return {
+      ...(ticket.number ? { number: String(ticket.number).slice(0, 16) } : {}),
+      ...writing,
       console: progress,
       customerComments: Array.isArray(ticket.customerComments) ? ticket.customerComments.slice(-20).map((comment) => ({
         author: String(comment.author || '').slice(0, 80),
@@ -645,55 +657,165 @@
       resolveBody: 'This is a confirmed malware indicator — outside what L1 resolves alone. Escalate it as a warm handoff to security.',
     }));
 
-  /* hd-m10 — Module 2 (key its-10): Ticketing, Service Management & SLAs. Full,
-   * unfiltered queue — this module is about ticket structure and
-   * prioritization across the whole queue, not fixing one ticket. Guides
-   * filtering to P1 and reading a real ticket's fields, no resolve step. */
+  /* hd-m10 — Module 2 (key its-10): Lab 2.1, the practice queue. Six tickets,
+   * ten steps, then Finish. Every check reads the saved ticket state, so it
+   * passes whatever order the student works in. Feedback only, no points. */
+  const HD10_ID = { sam: 'HD-2158', noah: 'HD-2159', luis: 'HD-2160', amir: 'SR-2161', priya: 'HD-2162', maya: 'SEC-2163' };
+  const hd10Ticket = (id) => (typeof hdTicketById === 'function' ? hdTicketById(id) : null);
+  const hd10Progress = (id) => (typeof hdConsoleProgress === 'function' ? hdConsoleProgress(id) : null);
+  const hd10State = (t) => (t && typeof hdConsoleState === 'function' ? hdConsoleState(t) : null);
+  const hd10Mine = (list) => (Array.isArray(list) ? list : []).filter((item) => item && item.author === 'Riley Morgan');
+  const hd10Arrived = (t) => { const s = hd10State(t); return Boolean(s) && Array.isArray(s.arrived) && s.arrived.some((a) => a && a.id === 'priya-reply'); };
+  const hd10Empty = (v) => !v || (Array.isArray(v) && v.length === 0);
+  // A saved run of the old four-step hd-m10 coach (before 2026-11-19) points
+  // at steps for a queue this shift doesn't hold, and ui/coach.js would
+  // resume it at the same step number. When the shift isn't the guided queue,
+  // forget it, so the next launch starts the new lab fresh (resetState).
+  // Only the coached lab's shift: a practice set or a Prove It has its own.
+  (function hd10ForgetOldWalkthrough() {
+    if ((typeof HD_PRACTICE_SET !== 'undefined' && HD_PRACTICE_SET) || (typeof HD_PROVE !== 'undefined' && HD_PROVE)) return;
+    if (typeof hdState === 'undefined' || !hdState || hdState.ticketSet === 'its-10-guided') return;
+    const stale = (raw) => { try { const saved = JSON.parse(raw || 'null'); return Boolean(saved && saved.id === 'hd-m10'); } catch { return false; } };
+    try { if (stale(localStorage.getItem('mnt.coach.resume'))) localStorage.removeItem('mnt.coach.resume'); } catch { /* storage blocked */ }
+    try { if (stale(sessionStorage.getItem('mnt.coach.state'))) sessionStorage.removeItem('mnt.coach.state'); } catch { /* storage blocked */ }
+  }());
   MODULE_COACHES.push({
-    id: 'hd-m10', module: 2, name: 'Working the Queue by Priority', role: 'Tier 1 Help Desk Technician',
-    summary: 'Filter the full ticket queue down to what actually needs attention first, then read a priority ticket the way a real shift starts.',
+    id: 'hd-m10', module: 2, name: 'Guided Lab: queue shift', role: 'Tier 1 Help Desk Technician',
+    summary: 'Work a six-ticket morning queue: add the columns, set impact and urgency on every ticket, convert a request, link two tickets about one outage, put the queue in order, send a security ticket to the SOC, pause a ticket while you wait on the caller, attach a knowledge article, write for two audiences, and resolve a ticket with a knowledge draft.',
     completionToken: 'hd-m10', home: '#/helpdesk/tickets',
-    resetState: () => hdResetTicketScope(null),
-    allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket'],
+    resetState: () => { if (typeof hdUseTicketSet === 'function') hdUseTicketSet('its-10-guided'); },
+    allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket', '#/helpdesk/knowledge-base'],
     steps: [
       {
         route: '#/helpdesk/tickets',
-        target: '.filterbar select[onchange*="hdSetPriorityFilter"]',
-        require: true,
-        title: 'Filter to what matters first',
-        instruction: 'Set the Priority filter to P1.',
-        body: 'Working tickets in arrival order is rarely the right call. Impact and urgency combined — priority — is what actually determines the order.',
-        waitLabel: 'Next Step: Filtered to P1',
-        nudge: 'Use the Priority dropdown and choose P1.',
-        check: () => typeof hdState !== 'undefined' && hdState.priorityFilter === 'P1',
+        target: 'input[data-hd-column]',
+        title: 'See the whole queue',
+        instruction: 'In the queue, open <strong>Columns</strong> and tick <strong>Priority</strong>, <strong>SLA due</strong>, <strong>Category</strong>, <strong>Caller</strong> and <strong>Created</strong>.',
+        body: 'Why: you can’t sequence what you can’t see. Success looks like: six rows, with the SLA due column visible. The priority and SLA due columns say “Not set” until you triage.',
+        waitLabel: 'Next Step: All five columns on',
+        check: () => {
+          if (typeof hdState === 'undefined' || !hdState.queueView || !Array.isArray(hdState.queueView.columns)) return false;
+          const cols = hdState.queueView.columns;
+          return ['priority', 'sla', 'category', 'caller', 'created'].every((c) => cols.includes(c));
+        },
       },
       {
-        target: '.hd-ticket-row',
-        require: true,
-        title: 'Open a P1 ticket',
-        instruction: 'Click any ticket now showing in the filtered queue.',
-        body: 'A P1 ticket carries the tightest SLA in this queue — that’s exactly why it sorts to the top of a real shift.',
-        waitLabel: 'Next Step: Opened a P1 ticket',
-        nudge: 'Click any row in the filtered queue to open it.',
-        check: () => typeof hdCurrentTicket === 'function' && hdCurrentTicket() && hdCurrentTicket().priority === 'P1',
+        route: '#/helpdesk/tickets',
+        target: 'select[data-hd-field="impact"], select[data-hd-field="urgency"], select[data-hd-field="category"], tr[data-hd-row]',
+        title: 'Triage every ticket',
+        instruction: 'Open each ticket in the order it arrived. Set <strong>Category</strong>, <strong>Configuration item</strong>, <strong>Impact</strong> and <strong>Urgency</strong> from the facts, not the caller’s tone. If the ticket doesn’t say which laptop it is, ask the caller in the chat. Then read the coach note that appears on the ticket once its priority is calculated.',
+        body: 'Why: priority is calculated from impact and urgency. You never type it. Success looks like: every ticket shows a priority, and the coach note on each ticket says whether your impact and urgency match the facts, and why. This is feedback only, with no points.',
+        waitLabel: 'Next Step: Every ticket has a priority',
+        check: () => Object.values(HD10_ID).every((id) => {
+          const t = hd10Ticket(id);
+          if (!t) return false;
+          const c = typeof hdClassification === 'function' ? hdClassification(t) : null;
+          return Boolean(t.priority) && Boolean(c) && Boolean(c.category) && Boolean(c.ci);
+        }),
       },
       {
-        route: '#/helpdesk/ticket',
-        target: '.hd-field-grid',
-        title: 'Read the fields that drive the SLA',
-        instruction: 'Read the business impact and SLA target before anything else.',
-        body: 'Business impact and SLA target are what actually justify the priority — not just a label someone assigned on intake.',
-        continueLabel: 'Got it',
+        route: '#/helpdesk/tickets',
+        target: '.hd-convert, tr[data-hd-row]',
+        title: 'Convert the request',
+        instruction: 'Find the request in the queue. Open it, click <strong>Convert to Request</strong> and choose the catalog item.',
+        body: 'Why: requests need approval and asset tracking, and an incident is the wrong record for them. Success looks like: the incident shows Canceled – Converted, and the request shows Approval = Approved, because the manager already approved it. (The request is INC0010161, from Amir Patel, who asked for a headset.) If you canceled or closed it by mistake, it can’t be converted: press <strong>Reset shift</strong> on the Dashboard to start the queue again.',
+        waitLabel: 'Next Step: Request converted',
+        check: () => { const t = hd10Ticket(HD10_ID.amir); return Boolean(t) && t.cancelReason === 'Converted' && Boolean(t.request) && t.request.approval === 'Approved'; },
       },
       {
-        target: '#hd-note-input, #hd-note-input ~ button',
-        require: true,
-        title: 'Note why this ticket sorts first',
-        instruction: 'Write one note explaining the impact and urgency that justify working this ticket first.',
-        body: '“It’s P1” is not a justification. Name the actual impact and the SLA deadline driving it.',
-        waitLabel: 'Next Step: Note added',
-        nudge: 'Type a note and click Add work note.',
-        check: () => typeof hdCurrentTicket === 'function' && hdCurrentTicket() && hdCurrentTicket().notes.length > 0,
+        target: '.hd-link,.hd-rewrite, select[data-hd-field="impact"], select[data-hd-field="urgency"]',
+        title: 'Link two tickets, rewrite the weak one',
+        instruction: 'Find the two tickets that describe one problem. On the weaker one, in <strong>Related tickets</strong>, choose the stronger one and click <strong>Link</strong>. Then rewrite its short description and description, and click <strong>Save and check</strong>. Linking does not change its priority, so set it to match its parent: <strong>Impact 1</strong> and <strong>Urgency 2</strong>, which gives <strong>P2</strong>.',
+        body: 'Why: two tickets, one cause. Fixing the cause fixes both, and a clear ticket saves the next technician a call. Success looks like: the weaker ticket is linked to its parent, the rewrite names who, what, where, when and the impact, and the priority is P2. (The pair is INC0010159 from Noah Williams, written well, and INC0010160 from Luis Ortega, “internet not working”. Luis is on floor 3, and his laptop says “No internet” since about 08:15.)',
+        waitLabel: 'Next Step: Linked, rewritten and rated P2',
+        check: () => {
+          const t = hd10Ticket(HD10_ID.luis);
+          if (!t || t.parentId !== HD10_ID.noah) return false;
+          const s = hd10State(t);
+          const rewritten = Boolean(s) && Boolean(s.rewrite) && Array.isArray(s.rewrite.missing) && s.rewrite.missing.length === 0;
+          return rewritten && String(t.impact) === '1' && String(t.urgency) === '2' && t.priority === 'P2';
+        },
+      },
+      {
+        route: '#/helpdesk/tickets',
+        target: '.hd-work-order',
+        title: 'Put the queue in order',
+        instruction: 'Sort the queue by <strong>Priority</strong>, then <strong>SLA due</strong>. Drag the rows into your work order, then click <strong>Check order</strong>.',
+        body: 'Why: priority comes first, then the clock. Sorting by Created alone gives the wrong order here. Success looks like: the checker accepts your order. If it does not, it names the ticket that is out of place, so move that one and check again.',
+        waitLabel: 'Next Step: Order accepted',
+        check: () => typeof hdState !== 'undefined' && hdState.workOrderResult === 'ok',
+      },
+      {
+        target: 'select[data-hd-field="category"], #hd-assignment-group, #hd-note-input',
+        title: 'Send the security ticket to the SOC',
+        instruction: 'On the security ticket, set <strong>Category</strong> to <strong>Security</strong> and set <strong>Assignment group</strong> to <strong>Security Operations (SOC)</strong>. Add a work note with the indicators.',
+        body: 'Why: security goes to the SOC. It never waits for “later”. Success looks like: the group is Security Operations (SOC) and your note names the sender’s address, the attachment name, what the user clicked and when, and which laptop. (The ticket is INC0010163 from Maya Chen. The attachment is Invoice_8841, and she clicked Enable content.) The ticket leaves your queue once it is assigned.',
+        waitLabel: 'Next Step: Assigned to the SOC with a note',
+        check: () => {
+          const t = hd10Ticket(HD10_ID.maya);
+          if (!t || t.assignmentGroup !== 'Security Operations (SOC)') return false;
+          const c = typeof hdClassification === 'function' ? hdClassification(t) : null;
+          return Boolean(c) && /security/i.test(c.category || '') && hd10Mine(t.notes).length > 0;
+        },
+      },
+      {
+        target: '.hd-comments, #hd-next-state, #hd-hold-reason',
+        title: 'Pause while you wait on the caller',
+        instruction: 'On <strong>INC0010162</strong>, the mouse ticket, ask a question in an <strong>Additional comment</strong>. For example, ask if the mouse is wireless and when its batteries were last changed. Then set the state to <strong>On Hold</strong> with the reason <strong>Awaiting Caller</strong>.',
+        body: 'Why: the SLA clock pauses only while you wait on the user. Success looks like: the state shows On Hold – Awaiting Caller and the SLA bar turns grey and says Paused. Priya’s reply may arrive later in the lab. If it has already arrived, this step is done. If you resolved or closed this ticket by mistake, it can’t go On Hold: press <strong>Reset shift</strong> on the Dashboard to start the queue again.',
+        waitLabel: 'Next Step: On Hold – Awaiting Caller',
+        check: () => {
+          const t = hd10Ticket(HD10_ID.priya);
+          if (!t) return false;
+          if (hd10Arrived(t)) return true;
+          const paused = typeof hdStatusText === 'function' && /On Hold\s*[–-]\s*Awaiting Caller/.test(hdStatusText(t));
+          return paused && hd10Mine(t.customerComments).length > 0;
+        },
+      },
+      {
+        target: '.hd-kb-search, .hd-related-knowledge',
+        title: 'Attach the Wi-Fi article',
+        instruction: 'On <strong>INC0010159</strong>, the Wi-Fi ticket, search the knowledge base for <strong>wifi no internet</strong>. Open the article and click <strong>Attach knowledge</strong>.',
+        body: 'Why: a linked article shows the next technician which fix was used. Success looks like: KB-0063 is listed under Related › Knowledge. The article says that when several people in one area lose Wi-Fi, the cause is the network: link the tickets to one parent and escalate it to Network Operations with the area, the start time and the business impact. Never restart network equipment yourself.',
+        waitLabel: 'Next Step: Article attached',
+        check: () => {
+          const t = hd10Ticket(HD10_ID.noah);
+          const s = hd10State(t); const p = hd10Progress(HD10_ID.noah);
+          return Boolean((s && Array.isArray(s.kbAttached) && s.kbAttached.includes('KB-0063')) || (p && Array.isArray(p.kbAttached) && p.kbAttached.includes('KB-0063')));
+        },
+      },
+      {
+        target: '#hd-note-input, .hd-comments, #hd-assignment-group',
+        title: 'Write for two audiences',
+        instruction: 'On <strong>INC0010158</strong>, the P1 ticket from Customer Service, add one <strong>work note</strong> that includes a line telling the <strong>Service Desk lead</strong>. Add one <strong>Additional comment</strong> for Sam. Set <strong>Assignment group</strong> to <strong>Messaging &amp; Collaboration</strong>, who own the phone app.',
+        body: 'Why: the work note is for IT staff and the comment is for the caller, so each has its own style. The SLA table says the Service Desk lead must be told about every P1. Success looks like: the comment check shows no jargon or internal names, and the ticket shows Escalated under Messaging &amp; Collaboration. Write the comment with four parts: thank Sam, say what is happening in plain words, say what Sam must do (if anything), and say when Sam hears from you next.',
+        waitLabel: 'Next Step: Note, comment and owner done',
+        check: () => {
+          const t = hd10Ticket(HD10_ID.sam);
+          const p = hd10Progress(HD10_ID.sam);
+          if (!t || !p || t.assignmentGroup !== 'Messaging & Collaboration') return false;
+          const lead = hd10Mine(t.notes).some((n) => /service desk lead/i.test(String((n && n.text) || '')));
+          return lead && hd10Mine(t.customerComments).length > 0 && hd10Empty(p.lastCommentJargon) && hd10Empty(p.lastCommentInternal);
+        },
+      },
+      {
+        target: '.hd-arrivals,#hd-resolution-code, #hd-next-state',
+        title: 'Resolve it and share the fix',
+        instruction: 'When Priya replies on <strong>INC0010162</strong>, read her message. Set a <strong>Resolution code</strong> and add resolution notes, then resolve the ticket. Click <strong>Create knowledge draft</strong> from it.',
+        body: 'Why: close with the how, and share it so the next technician can fix it faster. Success looks like: the state is Resolved and the knowledge draft is in Review. Priya’s reply arrives after you finish the P1 ticket and the mouse ticket is On Hold. If it has not arrived yet, finish the earlier steps first.',
+        waitLabel: 'Next Step: Resolved, with a knowledge draft',
+        check: () => {
+          const t = hd10Ticket(HD10_ID.priya);
+          const s = hd10State(t);
+          return Boolean(t) && (t.status === 'Resolved' || t.status === 'Closed') && Boolean(s && s.kbDraft && s.kbDraft.state === 'Review');
+        },
+      },
+      {
+        // Reached only after the last work step passes, so Finish never shows
+        // before then (ui/coach.js shows Finish on the last step).
+        title: 'Finish the lab',
+        instruction: 'Queue worked. Press <strong>Finish</strong> to send your work to your course page.',
+        body: 'Your work counts once your course page confirms it saved it: your triage, work order, notes, comments, link, rewrite and knowledge draft. There is no score.',
         finish: { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/2', 'hd-m10') },
       },
     ],

@@ -119,7 +119,7 @@ const LAB_1 = 'lab-its-01-practice-tickets';
 const LAB_2 = 'lab-its-01-ticket-triage';
 const RETIRED = 'lab-its-01-lms-validation';
 const PROVE = 'lab-its-01-prove-it';
-const TITLE_1 = 'Lab 1.2 · Practice tickets (not graded)';
+const TITLE_1 = 'Lab 1.2 · Practice tickets';
 const TITLE_2 = 'Lab 1.1 · Guided Lab: A Day in the Life of an L1 Technician';
 const PROVE_TITLE = 'Prove It: Independent Ticket';
 // course_module_labs rows with gates_completion as loaded by fetchUserDetails
@@ -237,6 +237,9 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
   assert.deepEqual(c.lines.map((l) => l[0]), ['passed', 'passed']);
   assert.match(c.panel, new RegExp(`data-lab-key="${LAB_1}">See your marked lab`));
   assert.match(c.html, /data-module-primary-action>Review Module</);
+  // A passed module says so, not that steps remain.
+  assert.match(c.panel, /You passed this module\. Open it to review your work\./);
+  assert.doesNotMatch(c.panel, /Every required lab is approved|finish its remaining steps/);
   // Module 2 (its-10, in course order) unlocks once Module 1 has passed;
   // its-02 is Module 4 and stays locked until Modules 2 and 3 are done.
   assert.equal(card(hdUser2({ remoteVerifiedModuleProgress: { 'its-01': true } }), 'its-10').state, 'not_started');
@@ -254,6 +257,7 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
   const c = card(hdUser2({ latestLabAttemptByKey: { [LAB_1]: approved(), [LAB_2]: approved() } }));
   assert.equal(c.state, 'in_progress');
   assert.match(c.panel, /Every required lab is approved\. Open the module to finish its remaining steps\./);
+  assert.doesNotMatch(c.panel, /You passed this module/);
 }
 
 // Locked beats everything, including a returned lab on the locked module.
@@ -482,9 +486,10 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
   await run('recordLabAttempt')(socUser, 'lab-soc-escalation', { state: 'complete' });
   assert.deepEqual(Object.keys(socUser.latestLabAttemptByKey), []);
 
-  // Curriculum legend: opted-in programs describe Passed; others keep the old text.
+  // Curriculum legend: opted-in programs (Help Desk) describe a passed
+  // module; others keep the old text.
   const OLD_LEGEND = 'Green means the content was opened and every module lab was completed';
-  const NEW_LEGEND = 'Green means Passed: every required lab reviewed and passed by your instructor.';
+  const NEW_LEGEND = 'Green means you passed the module: your instructor approved its Prove It.';
   const helpDeskPage = run('viewProgram')({ ...hdUser(), name: 'Test Student' }, 'it-support');
   assert.ok(helpDeskPage.includes(NEW_LEGEND));
   assert.ok(!helpDeskPage.includes(OLD_LEGEND));

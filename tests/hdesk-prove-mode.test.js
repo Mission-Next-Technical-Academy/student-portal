@@ -270,7 +270,12 @@ function testOnlyMeaningfulEventsAndThePackage() {
 
   const pkg = tab.run('hdProvePackage()');
   assert.deepEqual([...Object.keys(pkg)], ['version', 'kind', 'moduleKey', 'labKey', 'rubricVersion', 'ticketId', 'startedAt', 'fields', 'diagnosis',
-    'steps', 'stepTexts', 'decision', 'resolutionNote', 'userReply', 'workNotes', 'commands', 'events', 'machine', 'passwordTyped', 'passwordWritten']);
+    'steps', 'stepTexts', 'decision', 'resolutionNote', 'userReply', 'noteIsResolution', 'workNotes', 'assignedTo', 'ticketState', 'resolutionCode',
+    'commands', 'events', 'machine', 'passwordTyped', 'passwordWritten']);
+  // Assigning and closing are recorded as ticket state, not as events.
+  assert.equal(pkg.noteIsResolution, true);
+  assert.equal(pkg.assignedTo, 'Unassigned');
+  assert.equal(pkg.ticketState, 'New');
   assert.equal(pkg.passwordTyped, false);
   assert.equal(pkg.passwordWritten, false);
   assert.equal(pkg.labKey, 'lab-its-01-prove-it');
@@ -459,8 +464,9 @@ function testProveNeverRunsThePracticeNoteCheck() {
   const DASH_NOTE = 'Reported - wants admin rights to add the Finance printer. Tried - added NS-FIN-PRN01 from Settings. Result - user printed a test page.';
   const tab = sim(proveUrl('student-notedash01', '#/helpdesk/ticket'));
   tab.run('globalThis.noteChecks = 0; const realCheck = hdNoteMissingParts; hdNoteMissingParts = function () { globalThis.noteChecks += 1; return realCheck.apply(this, arguments); }');
-  tab.input('hd-note-input', DASH_NOTE);
-  assert.equal(tab.run(`hdAddNote('${PROVE_ID}')`), true);
+  // The one Work notes box (sent as resolutionNote).
+  assert.match(tab.view('helpdesk/ticket'), /id="hd-prove-note"/);
+  tab.run(`hdProveText('resolutionNote', ${JSON.stringify(DASH_NOTE)})`);
   tab.view('helpdesk/ticket');
   const pkg = tab.run('hdProvePackage()');
   assert.equal(tab.run('globalThis.noteChecks'), 0, 'no Prove It path calls the Practice note check');

@@ -30,7 +30,7 @@
     // Retired 2026-11-10; kept so its past attempts still open.
     'lab-its-01-lms-validation': 'Module 01 · LMS & Environment Validation',
     'lab-its-01-ticket-triage': 'Module 01 · Guided Ticket Triage',
-    'lab-its-01-practice-tickets': 'Module 01 · Lab 1.2 · Practice tickets (not graded)',
+    'lab-its-01-practice-tickets': 'Module 01 · Lab 1.2 · Practice tickets',
     'lab-its-02-vm-build': 'Module 04 · Build Your Windows Client VM',
     'lab-its-02-vm-snapshot-server': 'Module 04 · Snapshot, Recover & Connect',
     'lab-its-02-device-manager': 'Module 04 · The Misbehaving Peripheral',
@@ -42,7 +42,9 @@
     'lab-its-07-app-cert': 'Module 06 · Application and Certificate Support',
     'lab-its-08-unfamiliar-problems': 'Module 10 · Unfamiliar Problems',
     'lab-its-09-security-incidents': 'Module 11 · Security Incidents',
-    'lab-its-10-priority-queue': 'Module 02 · Working the Queue by Priority',
+    'lab-its-10-priority-queue': 'Module 02 · Lab 2.1 · Guided Lab: queue shift',
+    'lab-its-10-practice-tickets': 'Module 02 · Lab 2.2 · Practice tickets (not graded)',
+    'lab-its-10-prove-it': 'Module 02 · Prove It: queue shift',
     'lab-its-11-handoff-documentation': 'Module 03 · Handoff Documentation',
     'lab-its-12-capstone': 'Module 12 · IT Help Desk Capstone',
   };
@@ -99,6 +101,91 @@
       checks: [{ label: 'A P1 ticket has a priority justification', expected: 'Impact and SLA reasoning on the P1 ticket worked', test: () => tickets.length ? false : null, given: () => tickets.length ? 'No P1 ticket has a note' : null, fix: priorityFix }],
     }];
     return graded.concat(tickets.filter((ticket) => !worked.includes(ticket)).map(contextSection));
+  }
+
+  // Lab 2.1 from 2026-11-19 (Module 2, key its-10): the guided queue shift,
+  // six practice tickets the coach walks the student through. An attempt
+  // that saved one of them gets this sheet; an older attempt (the P1-note
+  // coach) keeps prioritySections. Practice It: the checks are feedback for
+  // the instructor's decision, never a score. The expected priorities are
+  // practice content (ui/helpdesk-data.js priorityCoach on each ticket;
+  // tests/hdesk-m02-guided-lab.test.js keeps the two in step), not a Prove
+  // It key.
+  const QUEUE_TICKETS = [
+    { id: 'HD-2158', priority: 'P1', focus: 'The understated P1: two audiences', prompt: 'A whole department can’t take customer calls, however calmly Sam asked. Look for the Service Desk lead being told, the hand-off to Messaging & Collaboration, a note with Reported / Tried / Result / Next action, and a comment in plain words with no internal names.' },
+    { id: 'HD-2159', priority: 'P2', focus: 'The Wi-Fi outage: knowledge', prompt: 'Several people in one area: the cause is the network. Look for KB-0063 attached and the outage handled as the parent.' },
+    { id: 'HD-2160', priority: 'P2', focus: 'The same outage told badly: link and rewrite', prompt: 'Look for the link to the parent and a rewrite a stranger could follow: who, what, where, when and impact.' },
+    { id: 'SEC-2163', priority: 'P2', focus: 'The security ticket', prompt: 'Security goes to the SOC at once. Look for Security Operations as the group and a work note with the indicators (sender, attachment name, what was clicked and when, which laptop).' },
+    { id: 'HD-2162', priority: 'P4', focus: 'The overstated low ticket: waiting on the caller', prompt: 'Capital letters aren’t urgency. Look for a question to Priya, On Hold – Awaiting Caller while waiting, then a resolution with a code and notes and a knowledge draft in Review.' },
+    { id: 'SR-2161', priority: 'P5', focus: 'The request logged as an incident', prompt: 'Nothing is broken: it is a request. Look for Convert to Request with the manager’s approval on the RITM.' },
+  ];
+  const QUEUE_IDS = QUEUE_TICKETS.map((entry) => entry.id);
+  const QUEUE_GROUPS = { 'HD-2158': 'Messaging & Collaboration', 'SEC-2163': 'Security Operations (SOC)' };
+  const queueLabel = (ticket, id) => (ticket && ticket.number) || id;
+  const listText = (value) => (Array.isArray(value) && value.length ? value.join(', ') : 'None');
+  function queueTicketSection(entry, ticket) {
+    const saved = Boolean(ticket);
+    const work = saved && ticket.console ? ticket.console : null;
+    const matrix = work && work.matrix ? work.matrix : null;
+    const cls = work && work.classification ? work.classification : null;
+    const writing = saved && ticket.writing ? ticket.writing : null;
+    const comments = saved && Array.isArray(ticket.customerComments) ? ticket.customerComments.filter((comment) => comment && comment.text) : [];
+    const id = entry.id;
+    const has = (value) => (saved ? value : null);
+    const checks = [{
+      label: 'Priority matches the facts (Impact × Urgency)', expected: entry.priority,
+      test: () => (matrix ? (matrix.priority ? matrix.priority === entry.priority : false) : null),
+      given: () => (matrix ? (matrix.priority ? `Impact ${matrix.impact} × Urgency ${matrix.urgency} = ${matrix.priority}` : 'Not set') : null),
+      fix: 'Set Impact from how much of the business is hurt and Urgency from how fast it grows, never from the caller’s tone, and let Priority calculate.',
+    }, {
+      label: 'Category and configuration item set', expected: 'Both set',
+      test: () => (cls ? (cls.category && cls.ci ? true : false) : null),
+      given: () => (cls ? `${[cls.category, cls.subcategory].filter(Boolean).join(' › ') || 'No category'} · ${cls.ci || 'No CI'}` : null),
+      fix: 'Set Category / Subcategory from the symptom and the configuration item the ticket is about.',
+    }];
+    if (id === 'SR-2161') checks.push({ label: 'Converted to a request with its approval', expected: 'Canceled – Converted; RITM Approval = Approved', test: () => (work ? Boolean(work.request && work.request.approval === 'Approved') : null), given: () => (work ? (work.request ? `${work.request.item} for ${work.request.requestedFor} · Approval ${work.request.approval}` : 'Not converted') : null), fix: 'Asking for something new is a request: Convert to Request and choose the catalog item.' });
+    if (id === 'HD-2160') {
+      checks.push({ label: 'Linked to the outage it belongs to', expected: 'Child of INC0010159', test: () => (work ? work.parent === 'HD-2159' : null), given: () => (work ? (work.parent ? `Child of ${work.parent === 'HD-2159' ? 'INC0010159' : work.parent}` : 'Not linked') : null), fix: 'Two tickets, one cause: link the weaker ticket to the stronger one as related.' });
+      checks.push({ label: 'Rewrite names who, what, where, when and impact', expected: 'Nothing missing', test: () => (work ? Array.isArray(work.rewriteMissing) && !work.rewriteMissing.length : null), given: () => (work ? (Array.isArray(work.rewriteMissing) ? (work.rewriteMissing.length ? `Missing: ${work.rewriteMissing.join(', ')}` : 'Every part') : 'Not rewritten') : null), fix: 'Rewrite the short description and description so a stranger can follow them: who, what, where, when and impact.' });
+    }
+    if (QUEUE_GROUPS[id]) checks.push({ label: `Assigned to ${QUEUE_GROUPS[id]}`, expected: QUEUE_GROUPS[id], test: () => (matrix ? matrix.assignmentGroup === QUEUE_GROUPS[id] : null), given: () => (matrix ? matrix.assignmentGroup || 'Service Desk (Tier 1)' : null), fix: id === 'SEC-2163' ? 'Security goes to Security Operations at once, with the indicators in the work note.' : 'The phone app belongs to Messaging & Collaboration: assign it there and tell the Service Desk lead.' });
+    if (id === 'HD-2159') checks.push({ label: 'KB-0063 attached', expected: 'Listed under Related › Knowledge', test: () => (work ? (work.kbAttached || []).includes('KB-0063') : null), given: () => (work ? listText(work.kbAttached) : null), fix: 'Search the KB for the symptom words, open the article that fits and click Attach knowledge.' });
+    if (id === 'HD-2162') {
+      checks.push({ label: 'Resolved with a resolution code after Priya’s reply', expected: 'Resolved', test: () => (matrix ? matrix.status === 'Resolved' || matrix.status === 'Closed' : null), given: () => (matrix ? `${matrix.status}${ticket.closureCode ? ` · ${ticket.closureCode}` : ''}` : null), fix: 'Ask by Additional comment, set On Hold – Awaiting Caller, and resolve with a code and notes once Priya replies.' });
+      checks.push({ label: 'Knowledge draft created', expected: 'State Review', test: () => (work ? work.kbDraft === 'Review' : null), given: () => (work ? work.kbDraft || 'No draft' : null), fix: 'After resolving, click Create knowledge draft so the next technician finds the fix.' });
+    }
+    if (id === 'HD-2158') checks.push({ label: 'Customer comment free of jargon and internal names', expected: 'None flagged', test: () => (work && comments.length ? !(work.lastCommentJargon || []).length && !(work.lastCommentInternal || []).length : work ? false : null), given: () => (work ? (comments.length ? listText([...(work.lastCommentJargon || []), ...(work.lastCommentInternal || [])]) : 'No comment') : null), fix: 'Write the customer comment in plain words: no internal team or system names, no P1 or SLA.' });
+    const notes = savedNotes(ticket).filter((note) => note.author === 'Riley Morgan' || !note.author);
+    const response = [
+      ...noteResponses(notes),
+      ...comments.map((comment) => ({ label: `Customer comment · ${comment.time || ''}`, text: comment.text })),
+      ...(saved && ticket.resolution ? [{ label: 'Resolution notes', text: ticket.resolution }] : []),
+      ...(writing && writing.shortDescription ? [{ label: 'Rewritten short description', text: writing.shortDescription }, { label: 'Rewritten description', text: writing.description || '(empty)' }] : []),
+      ...(writing && writing.kbDraftTitle ? [{ label: 'Knowledge draft title', text: writing.kbDraftTitle }, { label: 'Knowledge draft text', text: writing.kbDraftText || '(empty)' }] : []),
+    ];
+    return {
+      id: `queue-${id.toLowerCase()}`, title: `${entry.focus} · ${queueLabel(ticket, id)}`, recordedSince: '2026-11-19', mechanics: false,
+      instructorPrompt: `${entry.prompt} Practice It: these checks inform your decision; they are never a score.`,
+      answer: [
+        ['Caller', has(text(ticket && ticket.requester))], ['Reported', has(text(ticket && ticket.description))],
+        ['Impact × Urgency = Priority', matrix ? (matrix.priority ? `${matrix.impact} × ${matrix.urgency} = ${matrix.priority}` : 'Not set') : has(null)],
+        ['Classification', cls ? [cls.category, cls.subcategory, cls.ci, cls.contactType].filter(Boolean).join(' · ') || 'Not set' : has(null)],
+        ['State and SLA', matrix ? `${matrix.status} · ${matrix.assignmentGroup || 'Service Desk (Tier 1)'} · SLA ${matrix.sla || '—'}` : has(null)],
+      ],
+      response: response.length ? response : [{ label: 'Student work notes and comments', text: saved ? 'None' : null }],
+      checks,
+    };
+  }
+  function queueSections(tickets, result) {
+    const order = result.work && Array.isArray(result.work.workOrder) ? result.work.workOrder : null;
+    const orderResult = result.work ? text(result.work.workOrderResult) : null;
+    const byId = (id) => tickets.find((ticket) => ticket.id === id) || null;
+    return [{
+      id: 'queue-work-order', title: 'Work order', recordedSince: '2026-11-19',
+      instructorPrompt: 'Priority first, then the SLA clock: the P1 first, the three P2s in any order, then the P4, then the P5. Ask the learner why the order differs from arrival order. Practice It: never a score.',
+      answer: [['Student’s work order', order ? (order.length ? order.map((id, index) => `${index + 1}. ${queueLabel(byId(id), id)}`) : 'Not set') : null], ['Check order said', orderResult ? (orderResult === 'ok' ? 'This order works.' : orderResult) : order ? 'Not checked' : null]],
+      checks: [{ label: 'Check order accepted the work order', expected: 'This order works', test: () => (order ? orderResult === 'ok' : null), given: () => (orderResult ? (orderResult === 'ok' ? 'Accepted' : orderResult) : order ? 'Not checked' : null), fix: 'Re-sort by Priority, then SLA due, drag the rows into that order and click Check order.' }],
+    }].concat(QUEUE_TICKETS.map((entry) => queueTicketSection(entry, byId(entry.id))));
   }
 
   // HD-2101 (Lab 1.2) is worked on the simulated machines: the sheet reads its
@@ -219,7 +306,11 @@
     [result].concat(ctx.rows.map((row) => row && row.result)).forEach((saved) => workTickets(saved || {}).forEach((ticket) => {
       if (ticket && ticket.id && !tickets.some((other) => other.id === ticket.id)) tickets.push(ticket);
     }));
-    if (key === PRIORITY_KEY) return prioritySections(tickets);
+    if (key === PRIORITY_KEY) {
+      // Chosen from this attempt's own tickets: the card may also hold older attempts.
+      const own = workTickets(result);
+      return own.some((ticket) => QUEUE_IDS.includes(ticket.id)) ? queueSections(own, result) : prioritySections(tickets);
+    }
     // A card holding Lab 4.3 and Lab 4.4 grades both labs' tickets, in course order.
     const cardKeys = new Set([key].concat(ctx.rows.map((row) => row && row.lab_key)));
     const ticketsFor = (labKey) => {
@@ -327,7 +418,7 @@
     const tickets = Array.isArray(result.tickets) ? result.tickets.filter((id) => typeof id === 'string') : [];
     const completedAt = ctx && ctx.row && ctx.row.completed_at;
     return [{
-      id: 'practice-completion', title: 'Practice completion', required: false, instructorPrompt: 'Practice only, not graded. The student finished every practice ticket (resolved or escalated each one); no score and no answers are saved. Nothing to grade here: use the Module 1 Prove It for review.',
+      id: 'practice-completion', title: 'Practice completion', required: false, instructorPrompt: 'Practice only, not graded. The student finished every practice ticket (resolved or escalated each one); no score and no answers are saved. Nothing to grade here: use this module’s Prove It for review.',
       answer: [['Completed', completedAt ? new Date(completedAt).toLocaleString() : null], ['Tickets finished', tickets.length ? tickets.join(', ') : null], ['Graded', 'No: Practice It, no score and no answers saved']],
     }];
   }
@@ -386,10 +477,13 @@
     AdminSubmissionSheet.register(key, { title: TITLES[key], sections: evidenceSections });
   });
 
-  AdminSubmissionSheet.register('lab-its-01-practice-tickets', {
-    title: TITLES['lab-its-01-practice-tickets'],
-    caseId: (result) => (Array.isArray(result.tickets) ? result.tickets.filter((id) => typeof id === 'string').join(', ') : '') || null,
-    sections: practiceCompletionSections,
+  // Module 1's and Module 2's practice tickets: a completion record only.
+  ['lab-its-01-practice-tickets', 'lab-its-10-practice-tickets'].forEach((key) => {
+    AdminSubmissionSheet.register(key, {
+      title: TITLES[key],
+      caseId: (result) => (Array.isArray(result.tickets) ? result.tickets.filter((id) => typeof id === 'string').join(', ') : '') || null,
+      sections: practiceCompletionSections,
+    });
   });
 
   AdminSubmissionSheet.register('lab-its-12-capstone', {

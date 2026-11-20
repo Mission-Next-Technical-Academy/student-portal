@@ -170,3 +170,7 @@ p.its01-placeholder-inline { display: inline-block; margin: 6px 0 0; font: 600 1
   .its01-lesson-body { margin: 0 10px 14px; }
   .its01-dg { margin-inline: -4px; padding: 6px 0; background: transparent; border: 0; }
 }
+.its01-check-actions { display: inline-flex; flex-wrap: wrap; gap: 8px; }
+.its01-learn-heading { margin: 4px 0 6px; color: var(--its-navy); font-size: 15px; }
+.its01-learn-list { margin: 0 0 14px; padding-left: 20px; list-style: disc; color: #334155; font: 14px/1.6 Inter, sans-serif; }
+.its01-check-part + .its01-lesson-grid { margin-top: 22px; }

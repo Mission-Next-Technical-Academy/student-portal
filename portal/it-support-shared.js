@@ -528,7 +528,43 @@ function itsCleanConsoleWork(input) {
     noteMissing: list(input.noteMissing, 6, 24), resolutionCode: text(input.resolutionCode, 60),
     passwordWritten: input.passwordWritten === true, passwordAsked: input.passwordAsked === true,
     outcomes: outcomes ? Object.fromEntries(ITS_CONSOLE_OUTCOMES.map((key) => [key, outcomes[key] === true])) : null,
+    ...itsCleanMatrixWork(input),
   };
+}
+// Module 2 (key its-10) queue work on a matrix ticket (ui/helpdesk.js
+// hdMatrixProgress): triage, the request, the link, knowledge, contact
+// attempts and the rewrite check. Each key only when the ticket sent it, so
+// Module 1's saved work keeps its shape.
+function itsCleanMatrixWork(input) {
+  const text = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
+  const list = (value, max, size) => Array.isArray(value) ? value.slice(-max).map((item) => text(item, size)).filter(Boolean) : [];
+  const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+  const out = {};
+  const matrix = object(input.matrix);
+  if (matrix) {
+    out.matrix = {
+      impact: text(matrix.impact, 2), urgency: text(matrix.urgency, 2), priority: text(matrix.priority, 4), status: text(matrix.status, 60),
+      holdReason: text(matrix.holdReason, 40), assignmentGroup: text(matrix.assignmentGroup, 60), responded: matrix.responded === true,
+      sla: text(matrix.sla, 40), slaPhase: text(matrix.slaPhase, 20),
+    };
+  }
+  const classification = object(input.classification);
+  if (classification) out.classification = { category: text(classification.category, 60), subcategory: text(classification.subcategory, 60), ci: text(classification.ci, 60), contactType: text(classification.contactType, 30) };
+  if ('request' in input) {
+    const request = object(input.request);
+    out.request = request ? {
+      item: text(request.item, 80), requestedFor: text(request.requestedFor, 80), approval: text(request.approval, 20), state: text(request.state, 30),
+      fields: Array.isArray(request.fields) ? request.fields.slice(0, 6).map((field) => ({ id: text(field && field.id, 30), label: text(field && field.label, 60), value: text(field && field.value, 80) })) : [],
+    } : null;
+  }
+  if ('parent' in input) out.parent = text(input.parent, 16);
+  if ('arrived' in input) out.arrived = list(input.arrived, 6, 30);
+  if ('kbAttached' in input) out.kbAttached = list(input.kbAttached, 6, 16);
+  if ('kbDraft' in input) out.kbDraft = text(input.kbDraft, 20);
+  if ('contactAttempts' in input) out.contactAttempts = Number.isInteger(input.contactAttempts) && input.contactAttempts >= 0 ? Math.min(input.contactAttempts, 99) : 0;
+  if ('rewriteMissing' in input) out.rewriteMissing = Array.isArray(input.rewriteMissing) ? list(input.rewriteMissing, 8, 30) : null;
+  if ('lastCommentInternal' in input) out.lastCommentInternal = list(input.lastCommentInternal, 10, 60);
+  return out;
 }
 
 // postMessage data is student-controlled. Store only the small, known work
@@ -561,6 +597,13 @@ function itsCleanCoachWork(input) {
     })).filter((entry) => entry.action) : [],
     resolution: text(ticket.resolution, 1200),
     closureCode: text(ticket.closureCode, 120),
+    // Module 2: the number the student saw, and their rewrite and knowledge
+    // draft, word for word (only when the coach sent them).
+    ...(typeof ticket.number === 'string' ? { number: text(ticket.number, 16) } : {}),
+    ...(ticket.writing && typeof ticket.writing === 'object' ? { writing: {
+      shortDescription: text(ticket.writing.shortDescription, 160), description: text(ticket.writing.description, 4000),
+      kbDraftTitle: text(ticket.writing.kbDraftTitle, 160), kbDraftText: text(ticket.writing.kbDraftText, 4000),
+    } } : {}),
     ...(ticket.console && typeof ticket.console === 'object' ? {
       console: itsCleanConsoleWork(ticket.console),
       customerComments: Array.isArray(ticket.customerComments) ? ticket.customerComments.slice(-8).map((comment) => ({
@@ -570,6 +613,11 @@ function itsCleanCoachWork(input) {
   }));
   if (!tickets.length) return null;
   const work = { version: 1, selectedTicketId: text(input.selectedTicketId, 16), tickets };
+  // Module 2's guided queue: the student's work order and what Check order said.
+  if (Array.isArray(input.workOrder)) {
+    work.workOrder = input.workOrder.slice(0, 8).filter((id) => typeof id === 'string' && /^[A-Z]{2,4}-\d{4}$/.test(id));
+    work.workOrderResult = text(input.workOrderResult, 200);
+  }
   const investigation = itsCleanInvestigation(input.investigation);
   if (investigation) work.investigation = investigation;
   // Keep attempts comfortably below PostgREST's practical JSON payload limits.
@@ -600,6 +648,23 @@ const ITS_PROVE_MAX_BYTES = 96 * 1024;
 // screen rather than by command, e.g. adding a printer from Settings (label).
 const ITS_PROVE_EVENT_TYPES = ['evidence_opened', 'command_run', 'diagnosis_chosen', 'step_chosen', 'step_cleared', 'decision_chosen', 'kb_search', 'action_taken'];
 
+// The recorded actions and the laptop's end state, cleaned the same way for a
+// submit (itsCleanProveWork) and for a returned attempt's prefill.
+function itsProveShort(value, max) { return typeof value === 'string' ? value.slice(0, max) : ''; }
+function itsProveCleanEvents(value) {
+  const short = itsProveShort;
+  return (Array.isArray(value) ? value : []).filter((entry) => entry && typeof entry === 'object').slice(-400).filter((entry) => ITS_PROVE_EVENT_TYPES.includes(entry.type)).map((entry) => ({
+    type: entry.type, at: short(entry.at, 40), source: short(entry.source, 80), label: short(entry.label, 120), command: short(entry.command, 200),
+    computer: short(entry.computer, 40), value: short(entry.value, 300), step: short(entry.step, 16),
+  }));
+}
+function itsProveCleanMachine(value) {
+  try {
+    if (value && typeof value === 'object' && !Array.isArray(value) && JSON.stringify(value).length <= 4096) return JSON.parse(JSON.stringify(value));
+  } catch (_) { /* not readable: none */ }
+  return {};
+}
+
 function itsProveLaunchHref(moduleKey, user) {
   const student = typeof LabRuntime !== 'undefined' ? LabRuntime.anonymousStudentId(user) : '';
   return `${SIM_ORIGIN}?prove=${encodeURIComponent(moduleKey)}&student=${encodeURIComponent(student)}#/helpdesk/tickets`;
@@ -625,23 +690,22 @@ function itsCleanProveWork(input, moduleKey, labKey) {
   if (!Array.isArray(input.workNotes) || !input.workNotes.every((note) => typeof note === 'string')) return invalid;
   if (input.resolutionNote.length > 4000 || input.userReply.length > 4000 || input.workNotes.length > 30 || input.workNotes.some((note) => note.length > 2000)) return tooLarge;
 
-  const short = (value, max) => (typeof value === 'string' ? value.slice(0, max) : '');
+  const short = itsProveShort;
   const list = (value) => (Array.isArray(value) ? value.filter((entry) => entry && typeof entry === 'object') : []);
   const commands = list(input.commands).slice(-400).map((entry) => ({ command: short(entry.command, 200), computer: short(entry.computer, 40), at: short(entry.at, 40) })).filter((entry) => entry.command);
-  const events = list(input.events).slice(-400).filter((entry) => ITS_PROVE_EVENT_TYPES.includes(entry.type)).map((entry) => ({
-    type: entry.type, at: short(entry.at, 40), source: short(entry.source, 80), label: short(entry.label, 120), command: short(entry.command, 200),
-    computer: short(entry.computer, 40), value: short(entry.value, 300), step: short(entry.step, 16),
-  }));
-  let machine = {};
-  try {
-    if (input.machine && typeof input.machine === 'object' && !Array.isArray(input.machine) && JSON.stringify(input.machine).length <= 4096) machine = JSON.parse(JSON.stringify(input.machine));
-  } catch (_) { machine = {}; }
+  const events = itsProveCleanEvents(input.events);
+  const machine = itsProveCleanMachine(input.machine);
   const work = {
     version: 1, kind: 'hdesk-prove', moduleKey, labKey, rubricVersion: rubric.version, ticketId: input.ticketId, startedAt: input.startedAt,
     // Pre-set fields (Module 1) are the rubric's, never the message's.
     fields: rubric.presetFields ? { ...rubric.presetFields } : { category: fields.category, type: fields.type, priority: fields.priority },
     diagnosis: input.diagnosis, steps: input.steps.slice(), stepTexts: input.stepTexts.slice(), decision: input.decision,
     resolutionNote: input.resolutionNote, userReply: input.userReply, workNotes: input.workNotes.slice(),
+    // Since 2026-11-20: the one Work notes box is resolutionNote, and the
+    // ticket's assignment and close are recorded, never scored. Optional, so
+    // a simulator tab opened before then still submits.
+    noteIsResolution: input.noteIsResolution === true,
+    assignedTo: short(input.assignedTo, 40), ticketState: short(input.ticketState, 40), resolutionCode: short(input.resolutionCode, 80),
     commands, events, machine, logTrimmed: false, passwordTyped: input.passwordTyped === true, passwordWritten: input.passwordWritten === true,
   };
   while (JSON.stringify(work).length > ITS_PROVE_MAX_BYTES && (work.events.length || work.commands.length)) {
@@ -695,9 +759,11 @@ async function itsProveRefreshAttempt(user, moduleKey, labKey) {
   }
 }
 
-// What a returned attempt's form reopens with: the student's own choices and
-// writing from the saved package, field by field. Never the instructor's
-// scores or notes, which aren't in the package, and never anything else in it.
+// What a returned attempt's form reopens with: the student's own choices,
+// writing and recorded actions (events, the laptop's end state, the password
+// flags, the ticket's assignment and close) from the saved package, field by
+// field and cleaned as a submit is. Never the instructor's scores or notes,
+// which aren't in the package, and never anything else in it.
 function itsProvePrefillWork(row) {
   const work = row && row.result;
   if (!work || work.kind !== 'hdesk-prove' || !row.completed_at || !work.fields) return null;
@@ -708,6 +774,9 @@ function itsProvePrefillWork(row) {
     diagnosis: text(work.diagnosis), steps: Array.isArray(work.steps) ? work.steps.map(text) : [], decision: text(work.decision),
     resolutionNote: text(work.resolutionNote), userReply: text(work.userReply),
     workNotes: Array.isArray(work.workNotes) ? work.workNotes.map(text) : [],
+    events: itsProveCleanEvents(work.events), machine: itsProveCleanMachine(work.machine),
+    passwordTyped: work.passwordTyped === true, passwordWritten: work.passwordWritten === true,
+    assignedTo: itsProveShort(work.assignedTo, 40), ticketState: itsProveShort(work.ticketState, 40), resolutionCode: itsProveShort(work.resolutionCode, 80),
   };
 }
 
@@ -788,19 +857,23 @@ function itsProveReviewPanel(row) {
   const fact = (label, value) => `<div><dt class="text-xs font-semibold text-gray-600">${label}</dt><dd class="text-sm text-gray-900">${text(value) || '—'}</dd></div>`;
   const items = (values, empty) => (values.length ? `<ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-gray-900">${values.map((value) => `<li>${text(value)}</li>`).join('')}</ul>` : `<p class="mt-1 text-sm text-gray-500">${empty}</p>`);
   const array = (value) => (Array.isArray(value) ? value : []);
-  const opened = array(work.events).filter((entry) => entry && entry.type === 'evidence_opened').map((entry) => entry.label || entry.source);
+  // Since 2026-11-20 the work note is one box, sent as resolutionNote; an
+  // earlier attempt's work notes may still come with it.
+  const oneNote = work.noteIsResolution === true;
+  const notes = array(work.workNotes);
+  const opened =array(work.events).filter((entry) => entry && entry.type === 'evidence_opened').map((entry) => entry.label || entry.source);
   const searches = array(work.events).filter((entry) => entry && entry.type === 'kb_search' && entry.value).map((entry) => `“${entry.value}”`);
   const actions = array(work.events).filter((entry) => entry && entry.type === 'action_taken' && entry.label).map((entry) => `${entry.label}${entry.computer ? ` (on ${entry.computer})` : ''}`);
   const commands = array(work.commands).filter(Boolean).map((entry) => `${entry.command}${entry.computer ? ` (on ${entry.computer})` : ''}`);
   const machine = Object.entries(work.machine && typeof work.machine === 'object' ? work.machine : {}).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') || '(none)' : typeof value === 'object' ? JSON.stringify(value) : value}`);
   return `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" data-its-prove-panel="${esc(row.id)}">
     <h3 class="text-sm font-semibold text-[#1e3a5f]">Student's written work · ${text(work.ticketId)}</h3>
-    ${writing('Resolution note', work.resolutionNote)}
+    ${oneNote ? writing('Work note', work.resolutionNote) : writing('Resolution note', work.resolutionNote)}
     ${writing('Reply to the user', work.userReply)}
-    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Work notes</h4>
-    ${array(work.workNotes).length ? array(work.workNotes).map((note) => `<p class="mt-1 text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">${text(note)}</p>`).join('') : '<p class="mt-1 text-sm text-gray-500">No work notes.</p>'}
+    ${oneNote && !notes.length ? '' : `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">${oneNote ? 'Earlier work notes' : 'Work notes'}</h4>
+    ${notes.length ? notes.map((note) => `<p class="mt-1 text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">${text(note)}</p>`).join('') : '<p class="mt-1 text-sm text-gray-500">No work notes.</p>'}`}
     <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">Student's choices</h3>
-    <dl class="mt-1 grid gap-2 sm:grid-cols-3">${fact('Category', fields.category)}${fact('Type', fields.type)}${fact('Priority', fields.priority)}${fact('Diagnosis', work.diagnosis)}${fact('Decision', work.decision)}</dl>
+    <dl class="mt-1 grid gap-2 sm:grid-cols-3">${fact('Category', fields.category)}${fact('Type', fields.type)}${fact('Priority', fields.priority)}${fact('Diagnosis', work.diagnosis)}${fact('Decision', work.decision)}${oneNote ? `${fact('Assigned to', work.assignedTo)}${fact('Ticket state', work.ticketState)}${fact('Resolution code', work.resolutionCode)}` : ''}</dl>
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Steps the student says they took</h4>
     ${items(array(work.stepTexts), 'None selected.')}
     <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">What the student did in the simulator</h3>
@@ -1084,7 +1157,7 @@ function itsProveGradingCard(item, olderAttempt) {
       </label>
     </section>
     <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-      <button type="button" data-its-prove-decide="approved" disabled class="bg-green-50 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Approve</button>
+      <button type="button" data-its-prove-decide="approved" disabled class="bg-green-700 hover:bg-green-800 text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Approve</button>
       <button type="button" data-its-prove-decide="returned"${scored ? ' disabled' : ''} class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Return</button>
       <span data-its-prove-blocked class="text-xs text-gray-600"></span>
       <span data-grading-status class="text-xs text-gray-600" role="status"></span>
@@ -1456,14 +1529,17 @@ function itsLabCounterText(user, labKeys) {
 
 // Rail fields for a row covering labKeys: ticked only when every lab passed
 // (or, for Practice It, is practice complete); "Returned" or "In review"
-// (moduleUnifiedNav's reviewState) otherwise.
+// (moduleUnifiedNav's reviewState) otherwise. A ticked row also says
+// "Passed" (every lab passed its review) or "Complete" (Practice It), through
+// moduleUnifiedNav's doneLabel. Only Help Desk rows set doneLabel.
 function itsLabRail(user, labKeys) {
   const statuses = labKeys.map((key) => itsLabStatus(user, key));
   const isComplete = statuses.every((status) => status === 'passed' || status === 'practice');
   const reviewState = statuses.includes('returned') ? 'returned'
     : !isComplete && statuses.every((status) => status === 'waiting' || status === 'passed' || status === 'practice') ? 'review'
     : undefined;
-  return { isComplete, reviewState };
+  const doneLabel = !isComplete ? undefined : statuses.every((status) => status === 'passed') ? 'Passed' : 'Complete';
+  return { isComplete, reviewState, doneLabel };
 }
 
 // Walkthrough launch button: redo if any lab was returned, review once every
