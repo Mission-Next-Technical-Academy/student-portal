@@ -30,7 +30,7 @@
     // Retired 2026-11-10; kept so its past attempts still open.
     'lab-its-01-lms-validation': 'Module 01 · LMS & Environment Validation',
     'lab-its-01-ticket-triage': 'Module 01 · Guided Ticket Triage',
-    'lab-its-01-practice-tickets': 'Module 01 · Lab 1.2 · Practice tickets (not graded)',
+    'lab-its-01-practice-tickets': 'Module 01 · Lab 1.2 · Practice tickets',
     'lab-its-02-vm-build': 'Module 04 · Build Your Windows Client VM',
     'lab-its-02-vm-snapshot-server': 'Module 04 · Snapshot, Recover & Connect',
     'lab-its-02-device-manager': 'Module 04 · The Misbehaving Peripheral',

@@ -271,7 +271,7 @@ const PROGRAMS = [
     modules: {
       'its-01': { number: 1, week: 1, title: 'IT Support Fundamentals & Service Desk Operations', hours: '3 Hours', durationMinutes: 180, creditMinutes: 180, lessons: 2, labs: 2,
         status: 'authored',
-        summary: 'Start with orientation, then learn what a Tier 1 technician does, the CompTIA troubleshooting method, how to verify a caller with KB-0024, how to search the knowledge base and how to write Reported / Tried / Result notes. Practice in Lab 1.1 · Guided Lab and Lab 1.2 · Practice tickets, then work a new ticket on your own in the Prove It.',
+        summary: 'Start with orientation, then learn what a Tier 1 technician does, the troubleshooting method, how to verify callers and search the knowledge base, and how to write clear ticket notes. Practice in two labs, then work a new ticket on your own.',
         curriculumItems: [
           itsItem({ key: 'its-01-lesson-01', title: 'Program Orientation, LMS Navigation & Professional Conduct', durationMinutes: 60, parentAllocations: [allocation('ITHD-101.1', 60)],
             objective: 'Get oriented: how the program runs, finding your way around the LMS, technology setup, the Acceptable Use Policy and how to get help.',
@@ -279,8 +279,8 @@ const PROGRAMS = [
             practice: 'Find it in the LMS (not graded), then take the orientation check.',
             prove: 'Acknowledge the Acceptable Use Policy and complete the orientation check.' }),
           itsItem({ key: 'its-01-lesson-02', title: 'The Help Desk Role: Workflow & the Troubleshooting Mindset', durationMinutes: 60, parentAllocations: [allocation('ITHD-101.1', 60)],
-            objective: 'Three readings: what a Tier 1 technician does, the CompTIA troubleshooting method, and verifying callers with KB-0024 and searching the knowledge base.',
-            learn: 'The Tier 1 role and the support tiers; the CompTIA troubleshooting method; verifying a caller with KB-0024 and searching the knowledge base; writing Reported / Tried / Result notes.',
+            objective: 'Three readings: what a Tier 1 technician does, the troubleshooting method, and verifying callers with KB-0024 and searching the knowledge base.',
+            learn: 'The Tier 1 role and the support tiers; the troubleshooting method; verifying a caller with KB-0024 and searching the knowledge base; writing Reported / Tried / Result notes.',
             practice: 'The Learn It and A+ checks, then Lab 1.1 · Guided Lab and Lab 1.2 · Practice tickets.',
             prove: 'Work a new ticket on your own in the Prove It, reviewed by your instructor.' }),
         ],
@@ -2256,19 +2256,19 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.1', 25)], objective: 'Work a first account-lockout ticket end to end: verify the caller with KB-0024, unlock the account, confirm the user can sign in, tell them what to do if it happens again, and document it.',
     description: 'A coach-guided first ticket in the IT Service Desk simulator: Sam Rivera is locked out. Verify the caller with KB-0024, unlock the account, confirm with Sam that it works, then write the work note and the customer comment.',
     skills: ['Ticket Triage', 'Troubleshooting Mindset', 'Resolve/Escalate Judgment'], portalEntry: '#/program/it-support/module/1' }),
-  // Module 1's unguided practice tickets (HD-2151, HD-2152, SEC-2153): not
-  // graded, no score. The simulator reports when all three are closed and the
+  // Module 1's unguided practice tickets (HD-2151, HD-2152, SEC-2153, HD-2154):
+  // not graded, no score. The simulator reports when all four are finished and the
   // course page saves a completion record (it-support-module-01.js). No
   // course_module_labs row: it never gates completion.
-  itsLab({ key: 'lab-its-01-practice-tickets', module: 'its-01', title: 'Lab 1.2 · Practice tickets (not graded)', difficulty: 'Foundational', minutes: 15, phase: 'practice',
-    parentAllocations: [allocation('ITHD-101.1', 15)], objective: 'Work three tickets on your own: a forgotten password, a cracked laptop screen and a caller who can\'t be verified. Verify callers with KB-0024, choose who owns each ticket and document it.',
-    description: 'Three unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all three (resolve or escalate each one) and a completion record is saved to your account.',
+  itsLab({ key: 'lab-its-01-practice-tickets', module: 'its-01', title: 'Lab 1.2 · Practice tickets', difficulty: 'Foundational', minutes: 15, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.1', 15)], objective: 'Work four tickets on your own: a forgotten password, a cracked laptop screen, a caller who can\'t be verified and a new printer to add. Verify callers with KB-0024, choose who owns each ticket and document it.',
+    description: 'Four unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all four (resolve, escalate or route each one) and a completion record is saved to your account.',
     skills: ['Identity Verification', 'Resolve/Escalate Judgment', 'Documentation'], portalEntry: '#/program/it-support/module/1' }),
   // Module 1's Prove It, the only lab that gates its completion
   // (course_module_labs.gates_completion). The simulator's Submit saves it
   // (itsProveReceiveMessage, it-support-shared.js).
   itsLab({ key: 'lab-its-01-prove-it', module: 'its-01', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 20,
-    parentAllocations: [allocation('ITHD-101.1', 20)], objective: 'Independently work a new service desk ticket end to end: categorize and prioritize it, decide and act within policy, document the work, and explain the outcome to the user.',
+    parentAllocations: [allocation('ITHD-101.1', 20)], objective: 'Independently work a new service desk ticket end to end: decide and act within policy, document the work, and explain the outcome to the user.',
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
     skills: ['Ticket Triage', 'Policy Judgment', 'Documentation'], portalEntry: '#/program/it-support/module/1' }),
   itsLab({ key: 'lab-its-02-vm-build', module: 'its-02', title: 'Build Your Windows Client VM', difficulty: 'Foundational', minutes: 90,
