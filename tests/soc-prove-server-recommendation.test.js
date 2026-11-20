@@ -193,6 +193,13 @@ test('Score this attempt calls rescore_lab_attempt and redraws the box', async (
   assert.equal(failing.status.textContent, "Couldn't score it: You do not grade this course.");
   assert.equal(failing.buttons[0].disabled, false);
 
+  const rejected = slot('attempt-1');
+  run('socProveFillSlot')(rejected);
+  portal.supabaseRpcResponder = () => { throw new Error('Network unavailable'); };
+  assert.equal(await run('socProveRescore')(rejected.buttons[0], rejected), false);
+  assert.equal(rejected.status.textContent, "Couldn't score it: Network unavailable");
+  assert.equal(rejected.buttons[0].disabled, false, 'a rejected RPC can be retried');
+
   const decided = slot('attempt-1', true);
   run("socProveRecommendations.set('attempt-1', { status: 'no_key' })");
   run('socProveFillSlot')(decided);

@@ -105,15 +105,23 @@ async function socProveRescore(button, slot) {
   const status = slot.querySelector('[data-sheet-server-rescore-status]');
   button.disabled = true;
   if (status) status.textContent = 'Scoring…';
-  const { error } = await mntSupabase.rpc('rescore_lab_attempt', { p_attempt_id: id });
-  if (error) {
-    button.disabled = false;
-    if (status) status.textContent = `Couldn't score it: ${error.message || 'unknown error'}`;
+  try {
+    const { error } = await mntSupabase.rpc('rescore_lab_attempt', { p_attempt_id: id });
+    if (error) throw error;
+    await socProveLoadRecommendations([id], { force: true });
+    socProveFillSlot(slot);
+    return true;
+  } catch (error) {
+    console.error('rescore_lab_attempt failed', error);
+    if (status) status.textContent = `Couldn't score it: ${error && error.message || 'unknown error'}`;
     return false;
+  } finally {
+    // On success the slot is redrawn with the latest recommendation. On any
+    // failure, leave the button usable so staff can retry.
+    if (button.isConnected !== false && slot.contains?.(button) !== false && button.disabled) {
+      button.disabled = false;
+    }
   }
-  await socProveLoadRecommendations([id], { force: true });
-  socProveFillSlot(slot);
-  return true;
 }
 
 // Fills every "Server recommendation" box on the page.
