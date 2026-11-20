@@ -105,7 +105,7 @@ function testModuleOneCardText() {
   assert.equal(module.summary, 'Start with orientation, then learn what a Tier 1 technician does, the troubleshooting method, how to verify callers and search the knowledge base, and how to write clear ticket notes. Practice in two labs, then work a new ticket on your own.');
   // "CompTIA" appears only in Module 1's reference documents, not its card or lesson records.
   assert.doesNotMatch(module.summary, /CompTIA/);
-  module.curriculumItems.forEach((item) => assert.doesNotMatch(item.objective, /CompTIA/, `${item.key} objective`));
+  module.curriculumItems.forEach((item) => ['objective', 'learn'].forEach((field) => assert.doesNotMatch(item[field] || '', /CompTIA/, `${item.key} ${field}`)));
   // Lab 1.2 names all four tickets; the Prove It objective no longer asks to categorize and prioritize.
   const lab12 = run('LABS').find((lab) => lab.key === PRACTICE);
   assert.match(lab12.objective, /^Work four tickets on your own/);

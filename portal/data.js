@@ -280,7 +280,7 @@ const PROGRAMS = [
             prove: 'Acknowledge the Acceptable Use Policy and complete the orientation check.' }),
           itsItem({ key: 'its-01-lesson-02', title: 'The Help Desk Role: Workflow & the Troubleshooting Mindset', durationMinutes: 60, parentAllocations: [allocation('ITHD-101.1', 60)],
             objective: 'Three readings: what a Tier 1 technician does, the troubleshooting method, and verifying callers with KB-0024 and searching the knowledge base.',
-            learn: 'The Tier 1 role and the support tiers; the CompTIA troubleshooting method; verifying a caller with KB-0024 and searching the knowledge base; writing Reported / Tried / Result notes.',
+            learn: 'The Tier 1 role and the support tiers; the troubleshooting method; verifying a caller with KB-0024 and searching the knowledge base; writing Reported / Tried / Result notes.',
             practice: 'The Learn It and A+ checks, then Lab 1.1 · Guided Lab and Lab 1.2 · Practice tickets.',
             prove: 'Work a new ticket on your own in the Prove It, reviewed by your instructor.' }),
         ],
@@ -2256,8 +2256,8 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.1', 25)], objective: 'Work a first account-lockout ticket end to end: verify the caller with KB-0024, unlock the account, confirm the user can sign in, tell them what to do if it happens again, and document it.',
     description: 'A coach-guided first ticket in the IT Service Desk simulator: Sam Rivera is locked out. Verify the caller with KB-0024, unlock the account, confirm with Sam that it works, then write the work note and the customer comment.',
     skills: ['Ticket Triage', 'Troubleshooting Mindset', 'Resolve/Escalate Judgment'], portalEntry: '#/program/it-support/module/1' }),
-  // Module 1's unguided practice tickets (HD-2151, HD-2152, SEC-2153): not
-  // graded, no score. The simulator reports when all three are closed and the
+  // Module 1's unguided practice tickets (HD-2151, HD-2152, SEC-2153, HD-2154):
+  // not graded, no score. The simulator reports when all four are finished and the
   // course page saves a completion record (it-support-module-01.js). No
   // course_module_labs row: it never gates completion.
   itsLab({ key: 'lab-its-01-practice-tickets', module: 'its-01', title: 'Lab 1.2 · Practice tickets', difficulty: 'Foundational', minutes: 15, phase: 'practice',

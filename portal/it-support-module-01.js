@@ -702,9 +702,12 @@ function its01CheckQuestion(key, question, index) {
 function its01CheckFooter(key) {
   const anyAnswered = Object.keys(its01CheckAnswers[key]).length > 0;
   const reset = anyAnswered ? `<button type="button" class="its01-check-reset" data-its01-check-reset="${key}"><i class="ri-restart-line" aria-hidden="true"></i> Start again</button>` : '';
-  const retry = its01CheckSaveFailed[key] ? `<button type="button" class="its01-check-reset" data-its01-check-retry="${key}"><i class="ri-refresh-line" aria-hidden="true"></i> Try again</button>` : '';
+  // The failed-save message only while the answers still pass: after Start
+  // again (or a retake below 70%) the normal status shows instead.
+  const saveFailed = its01CheckSaveFailed[key] && its01CheckDone(key) && its01CheckPassed(key);
+  const retry = saveFailed ? `<button type="button" class="its01-check-reset" data-its01-check-retry="${key}"><i class="ri-refresh-line" aria-hidden="true"></i> Try again</button>` : '';
   let status = '';
-  if (its01CheckSaveFailed[key]) {
+  if (saveFailed) {
     status = '<i class="ri-error-warning-line" aria-hidden="true"></i> Your result didn’t save. Try again.';
   } else if (its01CheckDone(key) && !its01CheckPassed(key)) {
     status = key === 'orientation' ? 'Some answers weren’t right. Press Start again to retake the check.' : 'Retake: you need 70%. Press Start again to retake the check.';
@@ -712,7 +715,7 @@ function its01CheckFooter(key) {
     const day = its01Day(its01State[ITS01_CHECK_SAVED[key][1]]);
     status = `<i class="ri-check-line" aria-hidden="true"></i> ${esc(ITS01_CHECKS[key].title)} complete${day ? ` (${esc(day)})` : ''}. You can retake it any time.`;
   }
-  return `<div class="its01-check-footer" data-its01-check-footer="${key}"><p class="its01-check-status" role="status">${status}</p><span class="its01-check-actions">${retry}${reset}</span></div>`;
+  return `<div class="its01-check-footer" data-its01-check-footer="${key}"><p class="its01-check-status" role="status" tabindex="-1">${status}</p><span class="its01-check-actions">${retry}${reset}</span></div>`;
 }
 
 // The Learn It check's questions sit after the lesson they cover (each
@@ -968,8 +971,23 @@ function its01RenderCheck(key, focusIndex) {
     const li = document.querySelector(`.its01-shell [data-its01-q="${key}-${i}"]`);
     if (li) li.outerHTML = its01CheckQuestion(key, question, i);
   });
+  // The footer is updated in place: the status line keeps its element, so a
+  // screen reader announces its new text (a replaced live region often isn't).
   const footer = document.querySelector(`.its01-shell [data-its01-check-footer="${key}"]`);
-  if (footer) footer.outerHTML = its01CheckFooter(key);
+  if (footer) {
+    const next = document.createElement('div');
+    next.innerHTML = its01CheckFooter(key);
+    const status = footer.querySelector('.its01-check-status');
+    const actions = footer.querySelector('.its01-check-actions');
+    const nextStatus = next.querySelector('.its01-check-status');
+    const nextActions = next.querySelector('.its01-check-actions');
+    if (status && actions && nextStatus && nextActions) {
+      if (status.innerHTML !== nextStatus.innerHTML) status.innerHTML = nextStatus.innerHTML;
+      actions.replaceWith(nextActions);
+    } else {
+      footer.outerHTML = its01CheckFooter(key);
+    }
+  }
   if (focusIndex !== undefined) {
     const target = document.getElementById(`its01-${key}-q${focusIndex}-feedback`);
     if (target && typeof target.focus === 'function') target.focus({ preventScroll: true });
@@ -1039,8 +1057,18 @@ function its01SaveCheckDone(key) {
     state[doneAt] = null;
     its01CheckSaveFailed[key] = true;
     its01Save();
+    // Keep focus where it was, unless it was on a button this render removes.
+    const active = document.activeElement;
+    const footer = document.querySelector(`.its01-shell [data-its01-check-footer="${key}"]`);
+    const focusInFooter = Boolean(footer && active && footer.contains && footer.contains(active));
     its01RenderCheck(key);
+    if (focusInFooter) its01FocusCheckStatus(key);
   });
+}
+
+function its01FocusCheckStatus(key) {
+  const status = document.querySelector(`.its01-shell [data-its01-check-footer="${key}"] .its01-check-status`);
+  if (status && typeof status.focus === 'function') status.focus({ preventScroll: true });
 }
 
 // Try again: the answers are still in page memory, so save the pass again.
@@ -1048,6 +1076,7 @@ function its01RetryCheckSave(key) {
   if (!its01CheckSaveFailed[key] || !its01State || !its01CheckDone(key) || !its01CheckPassed(key)) return;
   its01SaveCheckDone(key);
   its01RenderCheck(key);
+  its01FocusCheckStatus(key);
 }
 
 function its01ResetCheck(key) {

@@ -196,6 +196,26 @@ async function testFailedSaveUnticksTheCheck() {
   assert.equal(plain(saved.payload.case_state[STATE_ID]).learnCheckCompleted, true);
 }
 
+// Start again while the save is pending, then the save fails: the tick comes
+// off, but there is no Try again (nothing to save); the normal status shows.
+async function testStartAgainDuringAFailedSave() {
+  const u = user();
+  fresh((call) => (call.op === 'select' ? { data: { case_state: {} }, error: null } : { data: null, error: { message: 'write failed' } }));
+  page().view(u, HD);
+  await passLearn(u);
+  run('its01ResetCheck')('learn');
+  await quiet(flush);
+  assert.notEqual(run('its01State.learnCheckCompleted'), true, 'unticked');
+  let html = page().view(u, HD);
+  assert.doesNotMatch(footer(html, 'learn'), /didn’t save|data-its01-check-retry/);
+  // A retake below 70% asks for a retake, not a save.
+  const qs = questions('learn');
+  qs.forEach((question, i) => run('its01Answer')('learn', i, i < 3 ? question.answer : (question.answer + 1) % question.choices.length));
+  html = page().view(u, HD);
+  assert.match(text(footer(html, 'learn')), /Retake: you need 70%/);
+  assert.doesNotMatch(footer(html, 'learn'), /didn’t save/);
+}
+
 async function testUnknownResultKeepsTheTick() {
   const u = user();
   fresh(existingRow);
@@ -264,7 +284,7 @@ function testRailLabels() {
 }
 
 (async () => {
-  const tests = [testPersistReportsItsResult, testSaveCaseStateResult, testFailedSaveUnticksTheCheck, testUnknownResultKeepsTheTick, testRailLabels];
+  const tests = [testPersistReportsItsResult, testSaveCaseStateResult, testFailedSaveUnticksTheCheck, testStartAgainDuringAFailedSave, testUnknownResultKeepsTheTick, testRailLabels];
   let failed = 0;
   for (const test of tests) {
     try { await test(); console.log(`ok   ${test.name}`); } catch (error) { failed += 1; console.log(`FAIL ${test.name}`); console.log(error); }

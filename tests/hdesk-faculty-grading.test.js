@@ -371,6 +371,8 @@ async function testCriticalErrorRecords() {
   // older, replaced attempt stays "In progress".
   assert.deepEqual(JSON.parse(JSON.stringify(resubmitted.evidence.labs.filter((lab) => lab.labKey === LAB).map((lab) => lab.completionStatus))), ['In progress', 'Awaiting review'],
     'only the standing (newest) attempt carries the label');
+  assert.deepEqual(JSON.parse(JSON.stringify(resubmitted.studentEvidence.labs.filter((lab) => lab.labKey === LAB).map((lab) => lab.completionStatus))), ['In progress', 'In progress'],
+    'the student\'s own download keeps "In progress"');
 }
 
 // After a correction the student sees only the newest decision's notes.
@@ -526,15 +528,19 @@ async function transcriptFor(slug, track, rows, modules) {
   };
   const identity = { userId: 'u', trackCode: track, program };
   const transcript = await prun('buildTranscriptData')('sid', identity);
-  const evidence = await prun('buildEvidencePacketData')('sid', identity);
+  // The staff download (staffLabels) and the student's own download.
+  const evidence = await prun('buildEvidencePacketData')('sid', { ...identity, staffLabels: true });
+  const studentEvidence = await prun('buildEvidencePacketData')('sid', identity);
   portal.supabaseResponder = () => ({ data: [], error: null });
-  return { transcript, evidence };
+  return { transcript, evidence, studentEvidence };
 }
 
 async function testRecordsUseTheStandingDecision() {
   const check = async (rows, expected, label) => {
-    const { transcript, evidence } = await transcriptFor('it-support', 'HDESK', rows, [moduleRow]);
+    const { transcript, evidence, studentEvidence } = await transcriptFor('it-support', 'HDESK', rows, [moduleRow]);
     const row = transcript.modules.find((m) => m.moduleKey === 'its-01');
+    // The student's own download never shows the staff labels.
+    assert.equal(studentEvidence.labs.filter((lab) => lab.labKey === LAB).pop().completionStatus, expected.grade, `${label}: student download status`);
     assert.equal(row.score, expected.score, `${label}: transcript score`);
     assert.equal(row.grade, expected.grade, `${label}: transcript grade`);
     assert.equal(row.completedAt, expected.date, `${label}: transcript date`);
@@ -633,7 +639,7 @@ function testStudentDetailUsesTheStandingDecision() {
   const moduleStatus = prun('adminModuleStatusHtml');
   assert.match(moduleStatus(moduleRow, [returned]), />Returned</);
   assert.match(moduleStatus(moduleRow, [waiting]), />Awaiting review</);
-  assert.match(moduleStatus(moduleRow, [critical]), />Returned</);
+  assert.match(moduleStatus(moduleRow, [critical]), />Critical Error - Not Passed</);
   assert.match(moduleStatus(moduleRow, [approved]), />Pass</);
   assert.match(moduleStatus(moduleRow, []), />Complete</, 'nothing attempted: as before');
 }

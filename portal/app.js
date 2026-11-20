@@ -203,8 +203,9 @@ function officialLabStanding(labKey, attemptRows) {
   const passed = !!(newest && newest.reviewed_at && !newest.redo_requested && grade && grade.decision === 'approved'
     && grade.official_score !== null && grade.official_score !== undefined && (!mark || score >= mark));
   const critical = !!(newest && newest.reviewed_at && newest.redo_requested && grade && grade.critical_error === true);
-  // Staff labels only (officialAttemptRecord, adminModuleStatusHtml): the
-  // newest attempt is waiting for its review, or was sent back.
+  // For staff labels only (officialAttemptRecord with staffLabels,
+  // adminModuleStatusHtml): the newest attempt is waiting for its review, or
+  // was sent back. Student views never read these.
   const awaiting = !!(newest && !newest.reviewed_at);
   const returned = !!(newest && newest.reviewed_at && newest.redo_requested && !critical);
   return { newestId: newest ? newest.id : null, attempted: !!newest, passed, critical, awaiting, returned, score: passed ? score : null, decidedAt: passed ? grade.created_at : null };
@@ -214,14 +215,17 @@ const OFFICIAL_AWAITING_REVIEW = 'Awaiting review';
 const OFFICIAL_RETURNED = 'Returned';
 
 // One attempt's line in the records, from the decision that stands.
-function officialAttemptRecord(row, standing) {
+// staffLabels (staff views only): the newest attempt says "Awaiting review"
+// or "Returned" instead of "In progress". Students' own downloads keep
+// "In progress".
+function officialAttemptRecord(row, standing, staffLabels = false) {
   return standing.passed && row.id === standing.newestId
     ? { status: 'Pass', state: 'complete', score: standing.score, date: standing.decidedAt }
     : standing.critical && row.id === standing.newestId
       ? { status: OFFICIAL_CRITICAL_RESULT, state: 'in_progress', score: null, date: null }
-      : standing.awaiting && row.id === standing.newestId
+      : staffLabels && standing.awaiting && row.id === standing.newestId
         ? { status: OFFICIAL_AWAITING_REVIEW, state: 'in_progress', score: null, date: null, awaiting: true }
-        : standing.returned && row.id === standing.newestId
+        : staffLabels && standing.returned && row.id === standing.newestId
           ? { status: OFFICIAL_RETURNED, state: 'in_progress', score: null, date: null }
           : { status: 'In progress', state: 'in_progress', score: null, date: null };
 }
@@ -3377,7 +3381,7 @@ async function fetchStudentProgressBundle(userId, trackCode) {
  * best lab_attempts score (LABS' `module` field maps lab_key -> module_key).
  * `result` (rubric-category breakdown jsonb) is kept on each lab attempt for
  * buildEvidencePacketData() — the old buildStudentExportRecord() dropped it. */
-function computeModuleScores(program, moduleProgressRows, labAttemptRows) {
+function computeModuleScores(program, moduleProgressRows, labAttemptRows, { staffLabels = false } = {}) {
   const moduleKeys = Object.keys(program.modules || {});
   return moduleKeys.map((moduleKey) => {
     const module = program.modules[moduleKey];
@@ -3413,7 +3417,7 @@ function computeModuleScores(program, moduleProgressRows, labAttemptRows) {
         completedAt: a.completed_at,
         rubricResult: a.result || null,
         officialGrade: a.official_grade || null,
-        officialRecord: standing && a.lab_key === officialLab ? officialAttemptRecord(a, standing) : null,
+        officialRecord: standing && a.lab_key === officialLab ? officialAttemptRecord(a, standing, staffLabels) : null,
       })),
     };
   });
@@ -3829,7 +3833,7 @@ async function buildEvidencePacketData(studentId, identity) {
   const { userId, trackCode, program } = identity;
   const generatedAt = new Date().toISOString();
   const bundle = await fetchStudentProgressBundle(userId, trackCode);
-  const moduleScores = program ? computeModuleScores(program, bundle.moduleProgressRows, bundle.labAttemptRows) : [];
+  const moduleScores = program ? computeModuleScores(program, bundle.moduleProgressRows, bundle.labAttemptRows, { staffLabels: identity.staffLabels === true }) : [];
   const capstoneRecord = program
     ? computeCapstoneRecord(program, bundle.labAttemptRows, bundle.capstoneSubmissionRows, bundle.scorecardRow, bundle.artifactRows, bundle.capstoneReviewRows)
     : { title: 'N/A', status: 'not_applicable', statusLabel: 'No program supplied', score: null, stages: [], scorecard: null, criticalErrorGate: null, rubricsApplied: [], review: { status: 'not_applicable', outcome: null, reviewedBy: null, reviewedAt: null, notes: null, supervisionMethod: null } };
@@ -10662,6 +10666,8 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
           const chip = Array.from(document.querySelectorAll('[data-attempt-chip]')).find((el) => el.dataset.attemptChip === key);
           if (chip && chip.getAttribute('aria-expanded') !== 'true') chip.click();
           else if (chip) chip.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          // The button is now in the hidden Progress tab: move focus to the pill.
+          if (chip) chip.focus({ preventScroll: true });
           return;
         }
         const overrideBtn = event.target.closest('[data-admin-module-override]');
@@ -10706,7 +10712,8 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
         trigger.textContent = 'Generating…';
         try {
           if (transcriptBtn) await downloadTranscriptPdf(studentId, identity);
-          else await downloadEvidencePdf(studentId, identity);
+          // Staff download: the newest attempt says "Awaiting review" or "Returned".
+          else await downloadEvidencePdf(studentId, { ...identity, staffLabels: true });
         } catch (err) {
           console.error('Per-student PDF generation failed', err);
           trigger.textContent = 'Failed — see console';
@@ -10895,7 +10902,8 @@ function adminModuleStatusHtml(m, labRows) {
   if (standing && standing.attempted) {
     const label = standing.passed ? 'Pass'
       : standing.awaiting ? OFFICIAL_AWAITING_REVIEW
-      : standing.returned || standing.critical ? OFFICIAL_RETURNED
+      : standing.critical ? OFFICIAL_CRITICAL_RESULT
+      : standing.returned ? OFFICIAL_RETURNED
       : 'In progress';
     return `<span style="color:${adminStateColor(standing.passed ? 'complete' : 'in_progress')}">${label}</span>`;
   }
@@ -10906,7 +10914,7 @@ function adminModuleStatusHtml(m, labRows) {
 // review links to its pill on the Lab Attempts tab, whose key is
 // `<student id>|<item name>` (adminLabAttemptsPanel).
 function adminLabRecordCells(l, labRows, student) {
-  const record = labTakesOfficialGrade(l.lab_key) ? officialAttemptRecord(l, officialLabStanding(l.lab_key, labRows)) : null;
+  const record = labTakesOfficialGrade(l.lab_key) ? officialAttemptRecord(l, officialLabStanding(l.lab_key, labRows), true) : null;
   if (record) {
     const attemptKey = record.awaiting && student && student.student_id
       ? `${student.student_id}|${adminGradingLabMeta({ lab_key: l.lab_key, track_code: student.track_code }).itemName}`
