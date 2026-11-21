@@ -46,8 +46,8 @@ $$;
 
 -- ------------------------------------------------------------ the map
 select pg_temp.check((select array_agg(lab_key order by lab_key) from public.course_module_labs where not gates_completion)
-    = array['lab-its-01-lms-validation', 'lab-its-01-ticket-triage'],
-  'only Module 1''s two Practice It labs have gates_completion = false');
+    = array['lab-its-01-lms-validation', 'lab-its-01-ticket-triage', 'lab-its-10-priority-queue'],
+  'only the Practice It labs (Module 1''s two, Module 2''s Lab 2.1 since 20261120213000) have gates_completion = false');
 select pg_temp.check((select array_agg(lab_key) from public.course_module_labs where track_code = 'HDESK' and module_key = 'its-01' and gates_completion)
     = array['lab-its-01-prove-it'],
   'Module 1 gates on lab-its-01-prove-it only');
