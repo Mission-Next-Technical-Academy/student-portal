@@ -85,7 +85,7 @@ function testCatalogue() {
   assert.deepEqual([m.number, m.week, m.durationMinutes, m.lessons, m.labs], [2, 1, 210, 2, 3]);
   const labs = copy(run('LABS').filter((l) => l.module === 'its-10'));
   assert.deepEqual(labs.map((l) => [l.key, l.title, l.instructionalMinutes, l.phase || null]), [
-    [GUIDED, 'Lab 2.1 · Guided Lab: queue shift', 35, null],
+    [GUIDED, 'Lab 2.1 · Guided Lab: queue shift', 35, 'practice'],
     [PRACTICE, 'Lab 2.2 · Practice tickets', 20, 'practice'],
     [PROVE, 'Prove It: queue shift', 20, null],
   ]);
@@ -128,17 +128,24 @@ function testLabCardsAndRail() {
   assert.match(practice, /\?practice=its-10&amp;student=/, 'Lab 2.2 opens practice set its-10');
   assert.equal(statusLine(html, PRACTICE), 'Finish all three tickets: resolve or escalate each one.');
   const prove = section(html, 'its10-prove-it');
-  assert.match(prove, /Opens soon/);
-  assert.doesNotMatch(prove, /<a |href=|\?prove=/, 'the Prove It card opens nothing');
+  // Since 2026-11-20 the Prove It opens the queue shift.
+  assert.match(prove, /\?prove=its-10&amp;student=/, 'the Prove It card opens the queue shift');
+  assert.match(prove, /Start the Prove It/);
+  assert.doesNotMatch(prove, /Opens soon/);
   assert.equal(railRow(html, 'its10-prove-it').locked, false);
+  assert.match(guided, /Practice: not graded/, 'Lab 2.1 says it is not graded');
   assert.equal(railRow(html, 'its10-check').locked, false, 'the check is never locked');
   assert.equal(railRow(html, 'its10-practice-tickets').locked, false, 'the practice tickets are never locked');
 
-  // Lab 2.1 still goes to the instructor: a saved attempt is waiting, not
-  // "practice complete".
+  // Lab 2.1 is Practice It: a saved attempt is never "waiting for
+  // instructor review".
   const waiting = hdUser({ [GUIDED]: submitted() });
   fresh(waiting);
-  assert.match(statusLine(page().view(waiting, HD), GUIDED), /waiting for instructor review/);
+  assert.doesNotMatch(statusLine(page().view(waiting, HD), GUIDED), /waiting for instructor review/);
+  // A submitted Prove It has nothing left to open.
+  const proved = hdUser({ [PROVE]: submitted() });
+  fresh(proved);
+  assert.doesNotMatch(section(page().view(proved, HD), 'its10-prove-it'), /\?prove=/, 'a submitted Prove It opens nothing');
 }
 
 /* -------------------------------------------------------- knowledge check */
@@ -234,7 +241,8 @@ async function testGuidedLabSave() {
   assert.equal(inserts().length, 1, 'only Lab 2.1');
   assert.equal(copy(inserts(GUIDED)[0].payload).result.work.tickets.find((t) => t.id === 'HD-2162').console.kbDraft, 'Review');
   assert.deepEqual(catcher.replies.map((r) => r.data.saved), [true]);
-  assert.match(statusLine(page().view(user, HD), GUIDED), /waiting for instructor review/);
+  // Practice It since 2026-11-20: complete once saved, no review wait.
+  assert.match(statusLine(page().view(user, HD), GUIDED), /^Lab 2\.1: Complete/);
 }
 
 /* ---------------------------------------------------------- Lab 2.2 save */

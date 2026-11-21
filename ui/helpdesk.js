@@ -369,6 +369,8 @@ function hdProvePreset() {
 // sets them) unless the ticket pre-sets them, and the option lists are
 // shuffled per attempt.
 function hdFreshProveState() {
+  // A queue shift (Module 2) has no single ticket, diagnosis or step pool.
+  if (HD_PROVE.shift.queue === true) return hdFreshProveQueueState();
   const shift = HD_PROVE.shift;
   const state = hdFreshState(shift.tickets);
   const requester = HD_USERS.find(user => user.name === shift.tickets[0].requester);
@@ -489,6 +491,11 @@ function hdScrubSavedCommands(state) {
     (Array.isArray(ticket.customerComments) ? ticket.customerComments : []).forEach(comment => scrubText(comment, 'text', owner));
   });
   if (state.prove) ['resolutionNote', 'userReply'].forEach(field => scrubText(state.prove, field, state.prove));
+  // A queue shift's writing: each ticket's reason and the rewrite.
+  if (state.prove && state.prove.shape === 'queue') {
+    (Array.isArray(state.tickets) ? state.tickets : []).forEach(ticket => scrubText(ticket, 'reason', state.prove));
+    if (state.prove.rewrite) ['shortDescription', 'description'].forEach(field => scrubText(state.prove.rewrite, field, state.prove));
+  }
   if (changed) { try { localStorage.setItem(hdStateKey(), JSON.stringify(state)); } catch (_) {} }
   return state;
 }
@@ -498,6 +505,9 @@ function hdScrubSavedCommands(state) {
 // (the step ids are new) and the laptop starts as the current fixture says.
 function hdProveUpgrade(saved) {
   if (!HD_PROVE || !saved || !saved.prove || saved.prove.rubricVersion === HD_PROVE.shift.rubricVersion) return saved;
+  // A queue shift has only one version so far: a draft that doesn't match
+  // it is not a queue draft, so it starts fresh.
+  if (HD_PROVE.shift.queue === true) { const fresh = hdFreshProveState(); try { localStorage.setItem(hdStateKey(), JSON.stringify(fresh)); } catch (_) {} return fresh; }
   const fresh = hdFreshProveState();
   const old = saved.prove;
   const text = value => (typeof value === 'string' ? value.slice(0, 4000) : '');
@@ -832,6 +842,8 @@ VIEWS['helpdesk/dashboard'] = () => {
 };
 
 VIEWS['helpdesk/tickets'] = () => {
+  // A queue Prove shift (Module 2) has its own list and work order.
+  if (hdProveQueue() && hdState.prove) return hdProveQueueView();
   // A set with queue: true gets the ServiceNow-style list instead.
   const set = hdActiveSet();
   if (set && set.queue) return `${hdPageHeader('Ticket Queue', 'Incidents assigned to your group. Add the columns you need, sort, then set your work order.', `${hdNextDayControl()}<button class="btn btn-secondary" onclick="hdResetShift()">Generate new shift</button>`)}${hdProveBlockedNotice()}${hdSetQueueHtml(set)}`;
@@ -848,6 +860,7 @@ VIEWS['helpdesk/tickets'] = () => {
 VIEWS['helpdesk/ticket'] = () => {
   const ticket = hdCurrentTicket();
   if (!ticket) return `${hdPageHeader('Ticket', 'No ticket selected.')}${hdProveBlockedNotice()}`;
+  if (hdProveQueue() && hdState.prove) return hdProveQueueTicketView(ticket);
   if (HD_PROVE && hdState.prove && ticket.pathPool) return hdProveTicketView(ticket);
   const sla = hdSlaState(ticket);
   const related = ticket.correlationKey ? hdState.tickets.filter(t => t.correlationKey === ticket.correlationKey) : [];
@@ -1789,6 +1802,8 @@ function hdActiveSet() {
 // The shift clock: a set's own fixed time (moved only by "Next day"), or
 // HD_SHIFT_NOW for every other shift, exactly as before.
 function hdShiftNow() {
+  // A queue Prove shift (Module 2) runs on its own fixed clock, never moved.
+  if (HD_PROVE && HD_PROVE.shift.queue === true && HD_PROVE.shift.now) return new Date(HD_PROVE.shift.now);
   const set = hdActiveSet();
   return set && set.now ? new Date(hdState.clockNow || set.now) : HD_SHIFT_NOW;
 }
@@ -3242,6 +3257,300 @@ VIEWS['helpdesk/knowledge-base'] = () => `${hdPageHeader('Knowledge Base', 'Use 
 VIEWS['helpdesk/remote-support'] = () => {const c=hdComputerByName(hdState.selectedComputer)||hdComputers()[0];return `${hdPageHeader('Remote Support', 'Obtain consent, explain actions, protect privacy, and leave the endpoint in a verified state.')}<div class="two-col"><div class="card"><div class="card-header"><strong>Session target</strong>${hdBadge(c.health,c.health==='Healthy'?'ok':'warn')}</div><div class="card-body"><select class="select" onchange="hdSelectComputer(this.value,'#/helpdesk/remote-support')">${hdComputers().map(x=>`<option ${x.name===c.name?'selected':''}>${x.name}</option>`).join('')}</select><dl class="hd-dl"><dt>User</dt><dd>${c.user}</dd><dt>Last seen</dt><dd>${c.lastSeen}</dd><dt>Address</dt><dd>${c.ip}</dd><dt>Domain trust</dt><dd>${c.trust}</dd></dl><button class="btn btn-primary" onclick="toast('Consent request sent to ${hdEsc(c.user)}.')">Request session consent</button></div></div><div class="card"><div class="card-header"><strong>Remote-support checklist</strong></div><div class="card-body">${hdList(['Verify the requester and ticket','Explain what you need to inspect','Ask before viewing personal or sensitive content','Narrate material actions','Stop if security indicators appear','Verify the fix with the user','End the session and document it'],true)}</div></div></div>`;};
 VIEWS['helpdesk/environment'] = () => `${hdPageHeader('Enterprise Map', `${HD_ORG.name} · persistent fictional training environment`)}<div class="three-col"><div class="card"><div class="card-header"><strong>Identity</strong></div><div class="card-body"><h2>${HD_USERS.length} users</h2><p>${HD_GROUPS.length} modeled groups · ${HD_ORG.domain}</p><button class="btn btn-secondary" onclick="navigate('#/helpdesk/active-directory')">Open directory</button></div></div><div class="card"><div class="card-header"><strong>Endpoints</strong></div><div class="card-body"><h2>${hdComputers().length} Windows devices</h2><p>Managed Windows 11 laptops and workstations</p><button class="btn btn-secondary" onclick="navigate('#/helpdesk/windows')">Open endpoints</button></div></div><div class="card"><div class="card-header"><strong>Infrastructure</strong></div><div class="card-body"><h2>${hdServers().length} servers</h2><p>AD DS, DNS, DHCP, file, print, and applications</p><button class="btn btn-secondary" onclick="navigate('#/helpdesk/server-manager')">Open servers</button></div></div></div><div class="card"><div class="card-header"><strong>Support model</strong></div><div class="table-wrap"><table><thead><tr><th>Tier</th><th>Owner</th><th>Typical scope</th></tr></thead><tbody>${HD_ORG.supportTiers.map(t=>`<tr><td><strong>${t.tier}</strong></td><td>${t.owner}</td><td>${t.scope}</td></tr>`).join('')}</tbody></table></div></div><div class="card"><div class="card-header"><strong>SLA model</strong></div><div class="table-wrap"><table><thead><tr><th>Priority</th><th>Respond within</th><th>Resolve within</th><th>Who must be told</th></tr></thead><tbody>${HD_ORG.slas.map(s=>`<tr><td>${hdBadge(s.priority,s.priority.toLowerCase())}</td><td>${s.response}</td><td>${s.resolve}</td><td>${s.tell}</td></tr>`).join('')}</tbody></table></div></div>`;
 
+/* ---------- Prove It: a queue shift (Module 2) ----------
+ * On when the Prove shift says queue: true. Several short tickets on the
+ * shift's fixed clock (hdShiftNow). On each ticket the student sets Impact and
+ * Urgency (Priority calculates, as in Lab 2.1), a Class, an optional parent
+ * ticket and a reason; they put the queue in work order with Move up and Move
+ * down, and rewrite the ticket the shift marks `rewrite`. A ticket with
+ * `arrives` joins the queue later (hdProveQueueArrive). The screens show only
+ * INC numbers, and the controls pass the number, never the internal id, so
+ * an id's prefix can't give the class away. No coach, no hints, no Check
+ * order and no feedback before Submit: nothing here says which choice is
+ * right. Module 1's one-ticket Prove It never comes here. */
+const HD_PROVE_CLASSES = ['Incident', 'Service request', 'Security incident'];
+const HD_PROVE_QUEUE_LIMITS = { reason:1000, shortDescription:160, description:4000 };
+function hdProveQueue() { return !!(HD_PROVE && HD_PROVE.shift && HD_PROVE.shift.queue === true); }
+// A queue ticket as the student first sees it: nothing set. The ticket
+// factory's defaults (priority, business impact, SLA text) are cleared so no
+// screen can show them.
+function hdProveQueueTicket(source) {
+  return hdTicket({
+    id:source.id, number:source.number, title:source.title, requester:source.requester, requesterTitle:source.requesterTitle,
+    department:source.department, contactType:source.contactType || '', description:source.description,
+    conversation:hdClone(source.conversation || []), category:'', subcategory:'', priority:'', businessImpact:'', sla:'',
+    createdTimestamp:new Date(source.createdAt || HD_PROVE.shift.now).toISOString(),
+    impact:'', urgency:'', ticketClass:'', parentId:'', reason:'',
+  });
+}
+function hdProveQueueByCreated(a, b) { return Date.parse(a.createdTimestamp) - Date.parse(b.createdTimestamp) || String(a.number).localeCompare(String(b.number)); }
+// A fresh queue attempt: the tickets that are there at the start, in the
+// order they came in (oldest first), which is the starting work order. A
+// ticket that arrives later is added at the bottom.
+function hdFreshProveQueueState() {
+  const shift = HD_PROVE.shift;
+  const tickets = shift.tickets.filter(source => !source.arrives).map(hdProveQueueTicket).sort(hdProveQueueByCreated);
+  return {
+    version:1, seed:1, mode:'prove', moduleKey:HD_PROVE.moduleKey, student:HD_PROVE.student,
+    tickets, selectedTicketId:null, queueFilter:'All', priorityFilter:'All', adTab:'users', selectedUserId:'u-1005',
+    selectedComputer:'NS-LT-0131', selectedServer:'NS-PRINT01', userOverrides:{}, computerOverrides:{}, printerOverrides:{}, machines:{},
+    powershell:[{ type:'system', text:'Northstar Enterprise Support Shell · training subset\nType Get-Help to list supported commands.' }],
+    prove:{
+      shape:'queue', rubricVersion:shift.rubricVersion, startedAt:new Date().toISOString(),
+      order:tickets.map(ticket => ticket.id), arrivals:[], rewrite:{ shortDescription:'', description:'' },
+      events:[], opened:[], passwordTyped:false, passwordWritten:false,
+    },
+  };
+}
+function hdProveQueueByNumber(number) { return hdState.tickets.find(ticket => ticket.number === number) || null; }
+function hdProveRewriteTicket() {
+  const source = HD_PROVE.shift.tickets.find(ticket => ticket.rewrite === true);
+  return source ? hdTicketById(source.id) || null : null;
+}
+// Triaged: Impact, Urgency and Class are set. Counted for an arrival rule.
+function hdProveTriaged(ticket) { return !!(ticket && ticket.impact && ticket.urgency && ticket.ticketClass); }
+// Adds every waiting ticket whose rule is met: `afterTriaged` tickets
+// triaged, or `afterMinutes` real minutes since the attempt started (so a
+// reload keeps the count). It is created at the shift clock. Not an edit of
+// the student's: it doesn't move editedAt.
+function hdProveQueueArrive(quiet) {
+  if (!hdProveQueue() || !hdState.prove || hdProveLocked()) return false;
+  const prove = hdState.prove;
+  const started = Date.parse(prove.startedAt) || Date.now();
+  const triaged = hdState.tickets.filter(hdProveTriaged).length;
+  let arrived = false;
+  HD_PROVE.shift.tickets.filter(source => source.arrives && !hdTicketById(source.id)).forEach(source => {
+    const rule = source.arrives;
+    const reason = Number.isInteger(rule.afterTriaged) && triaged >= rule.afterTriaged ? 'triaged'
+      : Number.isFinite(rule.afterMinutes) && Date.now() - started >= rule.afterMinutes * 60000 ? 'minutes' : '';
+    if (!reason) return;
+    const at = new Date().toISOString();
+    hdState.tickets.push(hdProveQueueTicket(source));
+    prove.order.push(source.id);
+    prove.arrivals.push({ ticketId:source.id, at, reason });
+    prove.events.push({ type:'ticket_arrived', at, source:source.number, value:reason });
+    arrived = true;
+  });
+  if (arrived) {
+    hdSave();
+    if (!quiet && typeof toast === 'function') toast('A new ticket arrived in the queue.');
+  }
+  return arrived;
+}
+// A redraw that keeps the student's place on the page.
+function hdProveQueueRender() {
+  const content = typeof document !== 'undefined' && document.getElementById ? document.getElementById('content') : null;
+  const top = content ? content.scrollTop : 0;
+  render();
+  if (content) content.scrollTop = top;
+}
+function hdProveQueueSet(number, field, value) {
+  const ticket = hdProveQueueByNumber(number);
+  if (hdProveLocked() || !hdProveQueue() || !ticket) return;
+  const text = String(value || '');
+  if (field === 'impact' || field === 'urgency') ticket[field] = ['1', '2', '3'].includes(text) ? text : '';
+  else if (field === 'ticketClass') ticket.ticketClass = HD_PROVE_CLASSES.includes(text) ? text : '';
+  else if (field === 'parent') {
+    const parent = hdProveQueueByNumber(text);
+    ticket.parentId = parent && parent.id !== ticket.id && parent.parentId !== ticket.id ? parent.id : '';
+  } else return;
+  ticket.priority = hdMatrixPriority(ticket.impact, ticket.urgency);
+  hdProveEvent('field_set', { source:ticket.number, label:field, value:field === 'parent' ? (hdTicketById(ticket.parentId) || {}).number || '' : ticket[field] });
+  hdSave();
+  hdProveQueueArrive();
+  hdProveQueueRender();
+}
+// Typing is saved, not recorded as events, and never redraws the page. A box
+// that holds a password isn't saved and holds Submit back, as on Module 1.
+function hdProveQueueText(number, field, value) {
+  if (hdProveLocked() || !hdProveQueue() || !HD_PROVE_QUEUE_LIMITS[field]) return;
+  const ticket = field === 'reason' ? hdProveQueueByNumber(number) : hdProveRewriteTicket();
+  if (!ticket || (field !== 'reason' && ticket.number !== number)) return;
+  const text = String(value || '').slice(0, HD_PROVE_QUEUE_LIMITS[field]);
+  const key = `${field}:${number}`;
+  if (hdPasswordInText(text)) {
+    if (!hdProveRefused[key]) hdProveRefused[key] = `${hdRefusePasswordText(null, field === 'reason' ? `reason on ${number}` : `rewrite of ${number}`)} Remove it to submit.`;
+    hdProveSyncSubmit();
+    return;
+  }
+  delete hdProveRefused[key];
+  if (field === 'reason') ticket.reason = text; else hdState.prove.rewrite[field] = text;
+  hdProveEdited();
+  hdSave();
+  hdProveSyncSubmit();
+}
+function hdProveQueueMove(number, delta) {
+  const ticket = hdProveQueueByNumber(number);
+  if (hdProveLocked() || !hdProveQueue() || !ticket || ![-1, 1].includes(delta)) return;
+  const order = hdState.prove.order;
+  const from = order.indexOf(ticket.id); const to = from + delta;
+  if (from < 0 || to < 0 || to >= order.length) return;
+  order.splice(to, 0, order.splice(from, 1)[0]);
+  hdProveEvent('order_changed', { source:number, value:String(to + 1) });
+  hdSave();
+  hdProveQueueRender();
+  // Keep the keyboard on the moved ticket's button.
+  const button = typeof document !== 'undefined' && document.querySelector ? document.querySelector(`[data-hd-prove-move="${delta < 0 ? 'up' : 'down'}:${number}"]`) : null;
+  if (button && !button.disabled && typeof button.focus === 'function') button.focus();
+}
+// Tickets that need a reason: the student's own top two, and any set to P1.
+function hdProveQueueNeedsReason() {
+  const order = hdState.prove.order;
+  return hdState.tickets.filter(ticket => order.indexOf(ticket.id) > -1 && order.indexOf(ticket.id) < 2 || ticket.priority === 'P1');
+}
+// Completeness only, as hdProveMissing: never whether a choice is right.
+function hdProveQueueMissing() {
+  const prove = hdState.prove;
+  const missing = [];
+  if (hdState.tickets.length < HD_PROVE.shift.tickets.length) missing.push('every ticket in the queue (one hasn\'t come in yet)');
+  hdState.tickets.slice().sort(hdProveQueueByCreated).forEach(ticket => {
+    const parts = [!ticket.impact && 'Impact', !ticket.urgency && 'Urgency', !ticket.ticketClass && 'Class'].filter(Boolean);
+    if (parts.length) missing.push(`${parts.join(', ')} on ${ticket.number}`);
+  });
+  hdProveQueueNeedsReason().forEach(ticket => { if (!String(ticket.reason || '').trim()) missing.push(`a reason on ${ticket.number}`); });
+  const rewrite = hdProveRewriteTicket();
+  if (rewrite && (!prove.rewrite.shortDescription.trim() || !prove.rewrite.description.trim())) missing.push(`the rewrite of ${rewrite.number}`);
+  return missing;
+}
+// The work the portal receives. position is each ticket's place in the work
+// order (1 is first), worked out from order; the portal works it out again.
+// Every reason is sent, also on a ticket that left the top two.
+function hdProveQueuePackage() {
+  const prove = hdState.prove;
+  const shift = HD_PROVE.shift;
+  const order = prove.order.filter(id => hdTicketById(id));
+  const tickets = {};
+  hdState.tickets.forEach(ticket => {
+    tickets[ticket.id] = { number:ticket.number, impact:ticket.impact, urgency:ticket.urgency, priority:ticket.priority, ticketClass:ticket.ticketClass,
+      parentId:ticket.parentId || '', position:order.indexOf(ticket.id) + 1, reason:ticket.reason || '' };
+  });
+  const rewrite = hdProveRewriteTicket();
+  const arrival = prove.arrivals[0];
+  return {
+    version:1, kind:'hdesk-prove', shape:'queue', moduleKey:HD_PROVE.moduleKey, labKey:shift.labKey, rubricVersion:shift.rubricVersion,
+    startedAt:prove.startedAt, elapsedSeconds:Math.max(0, Math.round((Date.now() - (Date.parse(prove.startedAt) || Date.now())) / 1000)),
+    interrupt:arrival ? { ticketId:arrival.ticketId, arrivedAt:arrival.at, reason:arrival.reason } : null,
+    tickets, order,
+    rewrite:{ ticketId:rewrite ? rewrite.id : '', shortDescription:prove.rewrite.shortDescription, description:prove.rewrite.description },
+    events:prove.events.slice(-400),
+    passwordTyped:prove.passwordTyped === true, passwordWritten:prove.passwordWritten === true,
+  };
+}
+// A returned attempt reopens with what the student last sent, only over a
+// draft older than it (as hdProvePrefill). Every ticket is there, the
+// arrival counts as done, and values the shift no longer offers stay empty.
+function hdProveQueuePrefill(work) {
+  const prove = hdState.prove;
+  const submitted = Date.parse(work && work.completedAt);
+  if (!prove || !work || work.shape !== 'queue' || !submitted || !work.tickets || typeof work.tickets !== 'object') return false;
+  if (prove.editedAt && Date.parse(prove.editedAt) > submitted) return false;
+  const sources = HD_PROVE.shift.tickets;
+  const ids = sources.map(source => source.id);
+  const tickets = sources.map(source => {
+    const ticket = hdProveQueueTicket(source);
+    const sent = work.tickets[source.id] && typeof work.tickets[source.id] === 'object' ? work.tickets[source.id] : {};
+    ticket.impact = ['1', '2', '3'].includes(sent.impact) ? sent.impact : '';
+    ticket.urgency = ['1', '2', '3'].includes(sent.urgency) ? sent.urgency : '';
+    ticket.priority = hdMatrixPriority(ticket.impact, ticket.urgency);
+    ticket.ticketClass = HD_PROVE_CLASSES.includes(sent.ticketClass) ? sent.ticketClass : '';
+    ticket.parentId = ids.includes(sent.parentId) && sent.parentId !== source.id ? sent.parentId : '';
+    ticket.reason = hdMaskPasswordText(String(sent.reason || '').slice(0, HD_PROVE_QUEUE_LIMITS.reason));
+    return ticket;
+  });
+  tickets.forEach(ticket => { const parent = tickets.find(item => item.id === ticket.parentId); if (parent && parent.parentId === ticket.id) ticket.parentId = ''; });
+  hdState.tickets = tickets.sort(hdProveQueueByCreated);
+  const sent = Array.isArray(work.order) ? work.order.filter((id, index, list) => ids.includes(id) && list.indexOf(id) === index) : [];
+  prove.order = [...sent, ...hdState.tickets.map(ticket => ticket.id).filter(id => !sent.includes(id))];
+  const interrupt = work.interrupt && typeof work.interrupt === 'object' ? work.interrupt : {};
+  prove.arrivals = sources.filter(source => source.arrives).map(source => ({ ticketId:source.id, at:typeof interrupt.arrivedAt === 'string' ? interrupt.arrivedAt.slice(0, 40) : work.completedAt, reason:['triaged', 'minutes'].includes(interrupt.reason) ? interrupt.reason : 'earlier-attempt' }));
+  const rewrite = work.rewrite && typeof work.rewrite === 'object' ? work.rewrite : {};
+  prove.rewrite = {
+    shortDescription:hdMaskPasswordText(String(rewrite.shortDescription || '').slice(0, HD_PROVE_QUEUE_LIMITS.shortDescription)),
+    description:hdMaskPasswordText(String(rewrite.description || '').slice(0, HD_PROVE_QUEUE_LIMITS.description)),
+  };
+  if (Array.isArray(work.events)) prove.events = work.events.filter(event => event && typeof event === 'object' && typeof event.type === 'string').slice(-400).map(event => ({ ...event }));
+  if (work.passwordTyped === true) prove.passwordTyped = true;
+  if (work.passwordWritten === true) prove.passwordWritten = true;
+  hdSave();
+  return true;
+}
+// A neutral line: how long the attempt has run against the time box. No
+// lock and no automatic submit.
+function hdProveTimeText() {
+  const minutes = Math.max(0, Math.floor((Date.now() - (Date.parse(hdState.prove && hdState.prove.startedAt) || Date.now())) / 60000));
+  return `Time used: ${minutes} min · time box ${HD_PROVE.shift.timeBoxMinutes || 20} min · shift clock ${hdShiftTimeText(hdShiftNow())}`;
+}
+function hdProveQueueSla(ticket) {
+  const sla = hdMatrixSla(ticket);
+  if (sla.notSet) return '<span class="muted" data-sla="not-set">Not set</span>';
+  return `<span data-sla="${hdEsc(sla.cls)}"><small class="muted">${hdEsc(sla.phase || '')} </small>${hdBadge(sla.label, sla.cls)}</span>`;
+}
+function hdProveQueuePriority(ticket) { return ticket.priority ? hdBadge(ticket.priority, ticket.priority.toLowerCase()) : '<span class="muted">Not set</span>'; }
+const HD_PROVE_QUEUE_INTRO = '<div class="callout info"><strong>Prove It.</strong> Work this queue on your own: there is no coach and no feedback before you submit. On every ticket set Impact, Urgency and Class. Link a ticket to its parent when two tickets are about one outage. Put the queue in the order you would work it, give a reason on your top two tickets and on any P1, and rewrite the ticket marked for a rewrite. Your instructor reviews your work.</div>';
+function hdProveQueueSubmitBlock() {
+  return `<div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Submit</strong></div><div class="card-body hd-control-stack"><p id="hd-prove-time" class="muted" role="status">${hdEsc(hdProveTimeText())}</p>${hdProveSubmitCard()}</div></div>`;
+}
+function hdProveQueueView() {
+  const prove = hdState.prove;
+  const locked = hdProveLocked();
+  Object.keys(hdProveRefused).forEach(field => { delete hdProveRefused[field]; });
+  const tickets = hdState.tickets.slice().sort(hdProveQueueByCreated);
+  const rows = tickets.map(ticket => {
+    const parent = ticket.parentId ? hdTicketById(ticket.parentId) : null;
+    const number = hdEsc(ticket.number);
+    return `<tr class="hd-ticket-row" data-hd-prove-row="${number}" tabindex="0" onclick="hdProveQueueOpen('${number}')" onkeydown="if(event.key==='Enter')hdProveQueueOpen('${number}')"><td><strong>${number}</strong>${parent ? `<small>Child of ${hdEsc(parent.number)}</small>` : ''}</td><td>${hdEsc(ticket.title)}</td><td><strong>${hdEsc(ticket.requester)}</strong><small>${hdEsc(ticket.department)}</small></td><td>${hdEsc(hdShiftTimeText(ticket.createdTimestamp))}</td><td>${hdProveQueuePriority(ticket)}</td><td>${hdProveQueueSla(ticket)}</td><td>${ticket.ticketClass ? hdEsc(ticket.ticketClass) : '<span class="muted">Not set</span>'}</td></tr>`;
+  }).join('') || '<tr><td colspan="7" class="muted">No tickets.</td></tr>';
+  const order = prove.order.map(id => hdTicketById(id)).filter(Boolean);
+  const items = order.map((ticket, index) => {
+    const number = hdEsc(ticket.number);
+    return `<li data-hd-prove-order="${number}" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px;border:1px solid #e4e7ec;border-radius:8px"><strong>${index + 1}. ${number}</strong>${hdProveQueuePriority(ticket)}${hdProveQueueSla(ticket)}<span style="flex:1 1 160px">${hdEsc(ticket.title)}</span><button type="button" class="btn btn-ghost btn-sm" data-hd-prove-move="up:${number}" aria-label="Move ${number} up" ${locked || index === 0 ? 'disabled' : ''} onclick="hdProveQueueMove('${number}',-1)">Move up</button><button type="button" class="btn btn-ghost btn-sm" data-hd-prove-move="down:${number}" aria-label="Move ${number} down" ${locked || index === order.length - 1 ? 'disabled' : ''} onclick="hdProveQueueMove('${number}',1)">Move down</button></li>`;
+  }).join('');
+  return `${hdPageHeader('Ticket Queue', 'Incidents assigned to your group › Unassigned')}${hdProveBlockedNotice()}${HD_PROVE.blocked ? '' : `${HD_PROVE_QUEUE_INTRO}
+    <div class="card"><div class="table-wrap"><table><thead><tr><th>Number</th><th>Short description</th><th>Caller</th><th>Created</th><th>Priority</th><th>SLA</th><th>Class</th></tr></thead><tbody>${rows}</tbody></table></div></div>
+    <div class="card hd-work-order"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your work order</strong><span class="muted">Use Move up and Move down. The first ticket is the one you work first.</span></div><div class="card-body"><ol style="list-style:none;margin:0;padding:0;display:grid;gap:6px">${items}</ol></div></div>
+    ${hdProveQueueSubmitBlock()}`}`;
+}
+function hdProveQueueOpen(number) { const ticket = hdProveQueueByNumber(number); if (ticket) hdSelectTicket(ticket.id); }
+function hdProveQueueSelect(ticket, field, label, options, value, locked) {
+  return `<label>${hdEsc(label)}<select class="select" data-hd-field="${field}" ${locked ? 'disabled' : ''} onchange="hdProveQueueSet('${hdEsc(ticket.number)}','${field}',this.value)"><option value="">Choose…</option>${options.map(([optionValue, text]) => `<option value="${hdEsc(optionValue)}" ${optionValue === value ? 'selected' : ''}>${hdEsc(text)}</option>`).join('')}</select></label>`;
+}
+function hdProveQueueTicketView(ticket) {
+  const prove = hdState.prove;
+  const locked = hdProveLocked();
+  Object.keys(hdProveRefused).forEach(field => { delete hdProveRefused[field]; });
+  const off = locked ? 'disabled' : '';
+  const number = hdEsc(ticket.number);
+  const levels = ['1', '2', '3'].map(value => [value, HD_IMPACT_LABELS[value]]);
+  const parents = hdState.tickets.filter(item => item.id !== ticket.id && item.parentId !== ticket.id).sort(hdProveQueueByCreated);
+  const parent = ticket.parentId ? hdTicketById(ticket.parentId) : null;
+  const children = hdState.tickets.filter(item => item.parentId === ticket.id);
+  const replies = ticket.conversation.length ? `<div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Ticket replies</strong></div><div class="card-body hd-note-list">${ticket.conversation.map(reply => `<div><strong>${hdEsc(reply.from)} · ${hdEsc(reply.role)}</strong><p>${hdEsc(reply.text)}</p></div>`).join('')}</div></div>` : '';
+  const rewriting = hdProveRewriteTicket();
+  const rewrite = rewriting && rewriting.id === ticket.id ? `<div class="card" data-hd-prove-rewrite><div class="card-header" ${HD_PROVE_HEADER}><strong>Rewrite this ticket</strong><span class="muted">Write it so the next technician can act on it without asking again.</span></div><div class="card-body hd-control-stack"><label>Short description<input id="hd-prove-rewrite-short" class="ipt" maxlength="${HD_PROVE_QUEUE_LIMITS.shortDescription}" ${off} value="${hdEsc(prove.rewrite.shortDescription)}" oninput="hdProveQueueText('${number}','shortDescription',this.value)"></label><label>Description<textarea id="hd-prove-rewrite-description" class="ipt hd-note-input" rows="7" maxlength="${HD_PROVE_QUEUE_LIMITS.description}" ${off} oninput="hdProveQueueText('${number}','description',this.value)">${hdEsc(prove.rewrite.description)}</textarea></label></div></div>` : '';
+  return `${hdPageHeader(ticket.number, ticket.title, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/tickets')">← Queue</button>`)}
+    ${HD_PROVE_QUEUE_INTRO}
+    <div class="hd-ticket-layout">
+      <div class="hd-ticket-main">
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Requester statement</strong>${hdBadge('New', 'new')}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid"><div><span>Caller</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Title</span><strong>${hdEsc(ticket.requesterTitle)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div><div><span>Created</span><strong>${hdEsc(hdShiftTimeText(ticket.createdTimestamp))}</strong></div><div><span>SLA</span><strong>${hdProveQueueSla(ticket)}</strong></div></div></div></div>
+        ${replies}
+        ${rewrite}
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Reason</strong><span class="muted">Needed on your top two tickets and on any P1: why this priority and this place in the queue.</span></div><div class="card-body"><textarea id="hd-prove-reason" class="ipt hd-note-input" aria-label="Reason for ${number}" rows="4" maxlength="${HD_PROVE_QUEUE_LIMITS.reason}" ${off} oninput="hdProveQueueText('${number}','reason',this.value)">${hdEsc(ticket.reason)}</textarea></div></div>
+      </div>
+      <aside class="hd-ticket-side">
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Ticket fields</strong></div><div class="card-body hd-control-stack">
+          ${hdProveQueueSelect(ticket, 'impact', 'Impact', levels, ticket.impact, locked)}
+          ${hdProveQueueSelect(ticket, 'urgency', 'Urgency', levels, ticket.urgency, locked)}
+          <div class="hd-priority-preset" data-hd-priority="${hdEsc(ticket.priority || '')}"><span>Priority</span> ${ticket.priority ? `${hdBadge(ticket.priority, ticket.priority.toLowerCase())} ${hdEsc(HD_PRIORITY_NAMES[ticket.priority])}` : '<span class="muted">Not set</span>'}<p class="muted" style="margin:4px 0 0">Calculated from Impact × Urgency. You don't type it.</p></div>
+          ${hdProveQueueSelect(ticket, 'ticketClass', 'Class', HD_PROVE_CLASSES.map(value => [value, value]), ticket.ticketClass, locked)}
+          ${hdProveQueueSelect(ticket, 'parent', 'Parent ticket (same outage)', parents.map(item => [item.number, `${item.number} · ${item.title}`]), parent ? parent.number : '', locked)}
+          ${children.length ? `<p class="muted">Parent of ${children.map(item => hdEsc(item.number)).join(', ')}</p>` : ''}
+        </div></div>
+        ${hdProveQueueSubmitBlock()}
+      </aside>
+    </div>`;
+}
+window.hdProveQueueSet=hdProveQueueSet; window.hdProveQueueText=hdProveQueueText; window.hdProveQueueMove=hdProveQueueMove; window.hdProveQueueOpen=hdProveQueueOpen;
+
 /* ---------- Prove It ticket ----------
  * One assigned ticket, worked with no coach and no feedback: the student sets
  * the ticket fields, chooses a diagnosis from a shuffled list and the steps
@@ -3366,6 +3675,7 @@ function hdProveText(field, value) {
 // load this simulator's data, so the instructor reads the steps from here.
 function hdProvePackage() {
   if (!HD_PROVE || !hdState.prove) return null;
+  if (hdProveQueue()) return hdProveQueuePackage();
   const prove = hdState.prove;
   const ticket = hdState.tickets[0];
   const shift = HD_PROVE.shift;
@@ -3389,6 +3699,7 @@ function hdProvePackage() {
 // Which required parts are still empty. Completeness only: nothing here looks
 // at what was chosen or written, so it can never hint at what is right.
 function hdProveMissing() {
+  if (hdProveQueue()) return hdProveQueueMissing();
   const prove = hdState.prove;
   const ticket = hdState.tickets[0];
   return [
@@ -3440,6 +3751,7 @@ function hdProveAsk(type, extra, done) {
 // that attempt: newer work in this browser stays. Values the ticket no longer
 // offers stay empty, and Submit asks for them.
 function hdProvePrefill(work) {
+  if (hdProveQueue()) return hdProveQueuePrefill(work);
   const prove = hdState.prove;
   const ticket = hdState.tickets[0];
   const submitted = Date.parse(work && work.completedAt);
@@ -3622,6 +3934,24 @@ if (HD_PROVE) {
     const view = VIEWS[route];
     if (typeof view === 'function') VIEWS[route] = (...args) => { hdProveOpened(`screen:${route}`, label); return view(...args); };
   });
+  // A queue shift: the dashboard is the queue (the dashboard would list the
+  // tickets by internal id). A ticket waiting to arrive is checked now and
+  // every 15 seconds, with the time-used line. A redraw waits while the
+  // student is typing or choosing.
+  if (hdProveQueue() && !HD_PROVE.blocked) {
+    VIEWS['helpdesk/dashboard'] = () => VIEWS['helpdesk/tickets']();
+    hdProveQueueArrive(true);
+    if (typeof setInterval === 'function') {
+      setInterval(() => {
+        const time = typeof document !== 'undefined' && document.getElementById ? document.getElementById('hd-prove-time') : null;
+        if (time) time.textContent = hdProveTimeText();
+        if (!hdProveQueueArrive()) return;
+        const active = typeof document !== 'undefined' ? document.activeElement : null;
+        if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName || '')) return;
+        hdProveQueueRender();
+      }, 15000);
+    }
+  }
 }
 
 window.hdSelectTicket=hdSelectTicket; window.hdSetQueueFilter=hdSetQueueFilter; window.hdSetPriorityFilter=hdSetPriorityFilter;

@@ -646,7 +646,11 @@ const ITS_PROVE_SUBMIT = 'mnt-prove-submit';
 const ITS_PROVE_MAX_BYTES = 96 * 1024;
 // kb_search: the words searched (value). action_taken: an action done on a
 // screen rather than by command, e.g. adding a printer from Settings (label).
-const ITS_PROVE_EVENT_TYPES = ['evidence_opened', 'command_run', 'diagnosis_chosen', 'step_chosen', 'step_cleared', 'decision_chosen', 'kb_search', 'action_taken'];
+// A queue shift (Module 2) adds field_set (a ticket's field, in label, and
+// its value), order_changed (the new place) and ticket_arrived; source holds
+// the ticket's INC number.
+const ITS_PROVE_EVENT_TYPES = ['evidence_opened', 'command_run', 'diagnosis_chosen', 'step_chosen', 'step_cleared', 'decision_chosen', 'kb_search', 'action_taken',
+  'field_set', 'order_changed', 'ticket_arrived'];
 
 // The recorded actions and the laptop's end state, cleaned the same way for a
 // submit (itsCleanProveWork) and for a returned attempt's prefill.
@@ -678,6 +682,10 @@ function itsCleanProveWork(input, moduleKey, labKey) {
   const rubric = typeof HDESK_PROVE_RUBRICS !== 'undefined' ? HDESK_PROVE_RUBRICS[labKey] : null;
   if (!rubric || !input || typeof input !== 'object' || input.version !== 1 || input.kind !== 'hdesk-prove') return invalid;
   if (input.moduleKey !== moduleKey || input.labKey !== labKey || input.rubricVersion !== rubric.version) return invalid;
+  // A queue shift (rubric shape 'queue') has its own package; a package and
+  // a rubric that disagree on the shape are refused.
+  if ((rubric.shape === 'queue') !== (input.shape === 'queue')) return invalid;
+  if (rubric.shape === 'queue') return itsCleanProveQueueWork(input, rubric, moduleKey, labKey);
   const isText = (value, max) => typeof value === 'string' && value.length <= max;
   const filled = (value, max) => isText(value, max) && value.trim() !== '';
   const fields = input.fields;
@@ -711,6 +719,69 @@ function itsCleanProveWork(input, moduleKey, labKey) {
   while (JSON.stringify(work).length > ITS_PROVE_MAX_BYTES && (work.events.length || work.commands.length)) {
     work.logTrimmed = true;
     if (work.events.length) work.events.shift(); else work.commands.shift();
+  }
+  return JSON.stringify(work).length > ITS_PROVE_MAX_BYTES ? tooLarge : { work };
+}
+
+/* A queue shift's package (Module 2), cleaned the same way: only known
+ * fields, writing that doesn't fit is refused and never cut, and the
+ * recorded actions can be trimmed. The course page works out each ticket's
+ * Priority (Impact × Urgency) and its position (its place in order, 1 first)
+ * itself; the browser's values are never kept. It checks the ticket count
+ * and the id pattern, never which tickets: this public file names no Prove
+ * It ticket. A reason is required on the top two and on every P1; every
+ * reason sent is kept. */
+const ITS_PROVE_QUEUE_CLASSES = ['Incident', 'Service request', 'Security incident'];
+const ITS_PROVE_MATRIX = { 1: { 1: 'P1', 2: 'P2', 3: 'P3' }, 2: { 1: 'P2', 2: 'P3', 3: 'P4' }, 3: { 1: 'P3', 2: 'P4', 3: 'P5' } };
+const ITS_PROVE_QUEUE_LIMITS = { reason: 1000, shortDescription: 160, description: 4000 };
+function itsCleanProveQueueWork(input, rubric, moduleKey, labKey) {
+  const invalid = { reason: 'invalid' };
+  const tooLarge = { reason: 'too-large' };
+  const tickets = input.tickets;
+  if (typeof input.startedAt !== 'string' || input.startedAt.length > 40 || !tickets || typeof tickets !== 'object' || Array.isArray(tickets)) return invalid;
+  const ids = Object.keys(tickets);
+  if (ids.length !== rubric.ticketCount || !ids.every((id) => /^[A-Z]{2,4}-\d{4}$/.test(id))) return invalid;
+  const order = Array.isArray(input.order) ? input.order : [];
+  if (order.length !== ids.length || new Set(order).size !== ids.length || !order.every((id) => ids.includes(id))) return invalid;
+  const clean = {};
+  let long = false;
+  for (const id of ids) {
+    const ticket = tickets[id];
+    if (!ticket || typeof ticket !== 'object') return invalid;
+    if (!['1', '2', '3'].includes(ticket.impact) || !['1', '2', '3'].includes(ticket.urgency) || !ITS_PROVE_QUEUE_CLASSES.includes(ticket.ticketClass)) return invalid;
+    if (!/^INC\d{7}$/.test(String(ticket.number || '')) || typeof ticket.reason !== 'string') return invalid;
+    const parentId = ticket.parentId === '' || ticket.parentId == null ? '' : ticket.parentId;
+    if (parentId !== '' && (!ids.includes(parentId) || parentId === id)) return invalid;
+    if (ticket.reason.length > ITS_PROVE_QUEUE_LIMITS.reason) long = true;
+    clean[id] = {
+      number: ticket.number, impact: ticket.impact, urgency: ticket.urgency, priority: ITS_PROVE_MATRIX[ticket.impact][ticket.urgency],
+      ticketClass: ticket.ticketClass, parentId, position: order.indexOf(id) + 1, reason: ticket.reason,
+    };
+  }
+  // Two tickets each other's parent: not a link the simulator can make.
+  if (ids.some((id) => clean[id].parentId && clean[clean[id].parentId].parentId === id)) return invalid;
+  if (ids.some((id) => (clean[id].position <= 2 || clean[id].priority === 'P1') && !clean[id].reason.trim())) return invalid;
+  const rewrite = input.rewrite;
+  if (!rewrite || typeof rewrite !== 'object' || !ids.includes(rewrite.ticketId)) return invalid;
+  if (typeof rewrite.shortDescription !== 'string' || !rewrite.shortDescription.trim() || typeof rewrite.description !== 'string' || !rewrite.description.trim()) return invalid;
+  if (rewrite.shortDescription.length > ITS_PROVE_QUEUE_LIMITS.shortDescription || rewrite.description.length > ITS_PROVE_QUEUE_LIMITS.description) long = true;
+  if (long) return tooLarge;
+  const sent = input.interrupt;
+  const interrupt = sent && typeof sent === 'object' && ids.includes(sent.ticketId)
+    ? { ticketId: sent.ticketId, arrivedAt: itsProveShort(sent.arrivedAt, 40), reason: ['triaged', 'minutes', 'earlier-attempt'].includes(sent.reason) ? sent.reason : '' }
+    : null;
+  const elapsed = Number(input.elapsedSeconds);
+  const work = {
+    version: 1, kind: 'hdesk-prove', shape: 'queue', moduleKey, labKey, rubricVersion: rubric.version, startedAt: input.startedAt,
+    elapsedSeconds: Number.isFinite(elapsed) && elapsed >= 0 ? Math.min(Math.round(elapsed), 7 * 24 * 3600) : 0,
+    interrupt, tickets: clean, order: order.slice(),
+    rewrite: { ticketId: rewrite.ticketId, shortDescription: rewrite.shortDescription, description: rewrite.description },
+    events: itsProveCleanEvents(input.events), logTrimmed: false,
+    passwordTyped: input.passwordTyped === true, passwordWritten: input.passwordWritten === true,
+  };
+  while (JSON.stringify(work).length > ITS_PROVE_MAX_BYTES && work.events.length) {
+    work.logTrimmed = true;
+    work.events.shift();
   }
   return JSON.stringify(work).length > ITS_PROVE_MAX_BYTES ? tooLarge : { work };
 }
@@ -766,8 +837,27 @@ async function itsProveRefreshAttempt(user, moduleKey, labKey) {
 // which aren't in the package, and never anything else in it.
 function itsProvePrefillWork(row) {
   const work = row && row.result;
-  if (!work || work.kind !== 'hdesk-prove' || !row.completed_at || !work.fields) return null;
   const text = (value) => (typeof value === 'string' ? value : '');
+  // A queue shift: each ticket's fields and reason, the order, the arrival
+  // and the rewrite. The simulator checks every value against its shift.
+  if (work && work.kind === 'hdesk-prove' && work.shape === 'queue' && row.completed_at && work.tickets && typeof work.tickets === 'object') {
+    const tickets = {};
+    Object.entries(work.tickets).forEach(([id, ticket]) => {
+      if (!ticket || typeof ticket !== 'object') return;
+      tickets[id] = { impact: text(ticket.impact), urgency: text(ticket.urgency), ticketClass: text(ticket.ticketClass), parentId: text(ticket.parentId), reason: text(ticket.reason) };
+    });
+    const rewrite = work.rewrite && typeof work.rewrite === 'object' ? work.rewrite : {};
+    const interrupt = work.interrupt && typeof work.interrupt === 'object' ? work.interrupt : {};
+    return {
+      completedAt: row.completed_at, shape: 'queue', tickets,
+      order: Array.isArray(work.order) ? work.order.map(text) : [],
+      interrupt: { arrivedAt: itsProveShort(interrupt.arrivedAt, 40), reason: itsProveShort(interrupt.reason, 20) },
+      rewrite: { shortDescription: text(rewrite.shortDescription), description: text(rewrite.description) },
+      events: itsProveCleanEvents(work.events),
+      passwordTyped: work.passwordTyped === true, passwordWritten: work.passwordWritten === true,
+    };
+  }
+  if (!work || work.kind !== 'hdesk-prove' || !row.completed_at || !work.fields) return null;
   return {
     completedAt: row.completed_at, ticketId: text(work.ticketId),
     fields: { category: text(work.fields.category), type: text(work.fields.type), priority: text(work.fields.priority) },
@@ -851,6 +941,7 @@ function itsProveReviewPanel(row) {
   if (work.kind !== 'hdesk-prove') {
     return `<div class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" data-its-prove-panel="${esc(row.id)}"><strong>No readable Prove It package.</strong> This attempt didn't come from the simulator's Submit. Return it rather than approving it.</div>`;
   }
+  if (work.shape === 'queue') return itsProveQueueReviewPanel(row, work);
   const text = (value) => esc(String(value == null ? '' : value));
   const writing = (label, value) => `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">${label}</h4><p class="mt-1 text-base text-gray-900 whitespace-pre-wrap leading-relaxed">${text(value) || '<span class="text-gray-500">Nothing written.</span>'}</p>`;
   const fields = work.fields || {};
@@ -890,6 +981,45 @@ function itsProveReviewPanel(row) {
     ${work.logTrimmed ? '<p class="mt-1 text-xs text-gray-500">The oldest recorded actions were left out to fit. All the student\'s writing is above.</p>' : ''}
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Laptop at submit</h4>
     ${items(machine, 'Not recorded.')}
+    ${itsProveDecisionsHtml(row)}
+  </div>`;
+}
+
+/* A queue shift's work for the instructor: the student's writing first, in
+ * full (the rewrite, then every reason), then each ticket's choices in the
+ * student's work order, the arrival and the recorded actions. Tickets show
+ * their INC number and internal id: staff only. */
+function itsProveQueueReviewPanel(row, work) {
+  const text = (value) => esc(String(value == null ? '' : value));
+  const writing = (label, value) => `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">${label}</h4><p class="mt-1 text-base text-gray-900 whitespace-pre-wrap leading-relaxed">${text(value) || '<span class="text-gray-500">Nothing written.</span>'}</p>`;
+  const tickets = work.tickets && typeof work.tickets === 'object' ? work.tickets : {};
+  const name = (id) => (tickets[id] ? `${tickets[id].number || ''} (${id})` : String(id || ''));
+  const order = (Array.isArray(work.order) ? work.order : []).filter((id) => tickets[id]);
+  const listed = [...order, ...Object.keys(tickets).filter((id) => !order.includes(id))];
+  const rewrite = work.rewrite && typeof work.rewrite === 'object' ? work.rewrite : {};
+  const reasons = listed.filter((id) => String(tickets[id].reason || '').trim());
+  const levels = { 1: '1 – High', 2: '2 – Medium', 3: '3 – Low' };
+  const rows = listed.map((id) => {
+    const ticket = tickets[id];
+    return `<tr class="border-t border-gray-200"><td class="py-1 pr-3 font-semibold">${text(ticket.position)}</td><td class="py-1 pr-3">${text(name(id))}</td><td class="py-1 pr-3">${text(ticket.ticketClass)}</td><td class="py-1 pr-3">${text(levels[ticket.impact] || ticket.impact)}</td><td class="py-1 pr-3">${text(levels[ticket.urgency] || ticket.urgency)}</td><td class="py-1 pr-3">${text(ticket.priority)}</td><td class="py-1 pr-3">${ticket.parentId ? text(name(ticket.parentId)) : '—'}</td></tr>`;
+  }).join('');
+  const events = (Array.isArray(work.events) ? work.events : []).filter((entry) => entry && typeof entry.type === 'string');
+  const moves = events.filter((entry) => entry.type === 'order_changed').length;
+  const minutes = Number.isFinite(Number(work.elapsedSeconds)) ? Math.round(Number(work.elapsedSeconds) / 60) : null;
+  const interrupt = work.interrupt && typeof work.interrupt === 'object' ? work.interrupt : null;
+  const arrival = interrupt ? `${name(interrupt.ticketId)} arrived ${interrupt.reason === 'triaged' ? 'after the student triaged enough tickets' : interrupt.reason === 'minutes' ? 'on the time rule' : 'in an earlier attempt'}${interrupt.arrivedAt ? ` (${new Date(interrupt.arrivedAt).toLocaleString()})` : ''}.` : 'Not recorded.';
+  return `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" data-its-prove-panel="${esc(row.id)}" data-its-prove-shape="queue">
+    <h3 class="text-sm font-semibold text-[#1e3a5f]">Student's written work · rewrite of ${text(name(rewrite.ticketId))}</h3>
+    ${writing('Rewritten short description', rewrite.shortDescription)}
+    ${writing('Rewritten description', rewrite.description)}
+    <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">Student's reasons</h3>
+    ${reasons.length ? reasons.map((id) => writing(`Reason on ${text(name(id))} (place ${text(tickets[id].position)})`, tickets[id].reason)).join('') : '<p class="mt-1 text-sm text-gray-500">No reasons written.</p>'}
+    <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">Student's queue, in their work order</h3>
+    <div class="mt-1 overflow-x-auto"><table class="w-full text-left text-sm text-gray-900"><thead><tr class="text-xs font-semibold text-gray-600"><th class="py-1 pr-3">Place</th><th class="py-1 pr-3">Ticket</th><th class="py-1 pr-3">Class</th><th class="py-1 pr-3">Impact</th><th class="py-1 pr-3">Urgency</th><th class="py-1 pr-3">Priority</th><th class="py-1 pr-3">Parent</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">What the student did in the simulator</h3>
+    <dl class="mt-1 grid gap-2 sm:grid-cols-3"><div><dt class="text-xs font-semibold text-gray-600">Time used</dt><dd class="text-sm text-gray-900">${minutes == null ? '—' : `${text(minutes)} min`}</dd></div><div><dt class="text-xs font-semibold text-gray-600">Work order moves</dt><dd class="text-sm text-gray-900">${text(moves)}</dd></div><div><dt class="text-xs font-semibold text-gray-600">New ticket</dt><dd class="text-sm text-gray-900">${text(arrival)}</dd></div></dl>
+    ${work.passwordWritten === true ? '<p class="mt-1 text-sm font-semibold text-amber-900" data-its-prove-password-written>The student wrote a password in a ticket field. It was refused and not saved.</p>' : ''}
+    ${work.logTrimmed ? '<p class="mt-1 text-xs text-gray-500">The oldest recorded actions were left out to fit. All the student\'s writing is above.</p>' : ''}
     ${itsProveDecisionsHtml(row)}
   </div>`;
 }
@@ -1140,7 +1270,7 @@ function itsProveGradingCard(item, olderAttempt) {
       <h3 class="text-sm font-semibold text-[#1e3a5f]">Rubric ${esc(rubric.version)}</h3>
       <p class="mt-1 text-sm text-gray-700">${esc(rubric.partialCredit)}</p>
       <div class="mt-3 space-y-3">${rubric.competencies.map(competencyBox).join('')}</div>
-      ${suggestedParts.length ? `<label class="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-gray-900"><input type="checkbox" data-its-prove-writing-ack class="mt-0.5" /> I have read the student's work note and reply to the user. Suggested scores: ${esc(suggestedParts.map((part) => String(part.suggested)).join(' and '))}${zeroed ? ' (critical error: automatic zero)' : ''}.</label>` : ''}
+      ${suggestedParts.length ? `<label class="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-gray-900"><input type="checkbox" data-its-prove-writing-ack class="mt-0.5" /> ${esc(rubric.writingAck || 'I have read the student\'s work note and reply to the user.')} Suggested scores: ${esc(suggestedParts.map((part) => String(part.suggested)).join(' and '))}${zeroed ? ' (critical error: automatic zero)' : ''}.</label>` : ''}
       ${(rubric.formative || []).map((entry) => `<label class="mt-3 block ${label}">${esc(entry.label)} feedback (earns no points)
         <textarea rows="2" data-its-prove-efficiency ${box}></textarea>
       </label>`).join('')}
