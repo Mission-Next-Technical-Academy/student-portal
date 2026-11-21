@@ -51,6 +51,11 @@ const HD_USERS = [
   { id:'u-1020', employeeId:'E-49748', phone:'ext. 4472', name:'Marcus Lee', username:'mlee', email:'marcus.lee@northstar.example', department:'Marketing', title:'Marketing Specialist', ou:'OU=Marketing,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:57, groups:['GG-Marketing-Users'], manager:'Owen Price', mfa:'Registered' },
   { id:'u-1021', employeeId:'E-50862', phone:'ext. 4105', name:'Ines Calder', username:'icalder', email:'ines.calder@northstar.example', department:'Front Desk', title:'Receptionist', ou:'OU=Front Desk,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:19, groups:['GG-FrontDesk-Users'], manager:'Caleb Wright', mfa:'Registered' },
   { id:'u-1022', employeeId:'E-51274', phone:'ext. 4229', name:'Monica Hall', username:'mhall', email:'monica.hall@northstar.example', department:'Logistics', title:'Logistics Manager', ou:'OU=Logistics,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:27, groups:['GG-Logistics-Users','GG-Warehouse-Print'], manager:'Caleb Wright', mfa:'Registered' },
+  { id:'u-1023', employeeId:'E-52146', phone:'ext. 4577', name:'Wes Turner', username:'wturner', email:'wes.turner@northstar.example', department:'Marketing', title:'Marketing Specialist', ou:'OU=Marketing,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:31, groups:['GG-Marketing-Users'], manager:'Owen Price', mfa:'Registered' },
+  { id:'u-1024', employeeId:'E-53259', phone:'ext. 4339', name:'Priya Nair', username:'pnair', email:'priya.nair@northstar.example', department:'Sales', title:'Account Executive', ou:'OU=Sales,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:14, groups:['GG-Sales-Users','GG-CRM-Users'], manager:'Tara Singh', mfa:'Registered' },
+  { id:'u-1025', employeeId:'E-54371', phone:'ext. 4502', name:'Karen Holt', username:'kholt', email:'karen.holt@northstar.example', department:'Executive Office', title:'Executive Assistant to the CFO', ou:'OU=Executive Office,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:22, groups:['GG-Executive-Users'], manager:'Martin Alvarez', mfa:'Registered' },
+  { id:'u-1026', employeeId:'E-55484', phone:'ext. 4620', name:'Teresa Vance', username:'tvance', email:'teresa.vance@northstar.example', department:'Information Technology', title:'Messaging & Collaboration Lead', ou:'OU=IT,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:38, groups:['GG-IT-Users'], manager:'Morgan Lee', mfa:'Registered' },
+  { id:'u-1027', employeeId:'E-56597', phone:'ext. 4631', name:'Jamie Ortiz', username:'jortiz', email:'jamie.ortiz@northstar.example', department:'Information Technology', title:'Collaboration Engineer', ou:'OU=IT,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:45, groups:['GG-IT-Users'], manager:'Teresa Vance', mfa:'Registered' },
 ];
 
 const HD_GROUPS = [
@@ -76,6 +81,8 @@ const HD_COMPUTERS = [
   { name:'NS-LT-0215', user:'Ravi Shah', os:'Windows 11 Enterprise 24H2', ip:'10.20.40.215', ou:'OU=Sales,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'12 minutes ago', health:'Healthy' },
   { name:'NS-LT-0188', user:'Hana Okafor', os:'Windows 11 Enterprise 24H2', ip:'10.20.60.188', ou:'OU=Customer Service,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'3 minutes ago', health:'Healthy' },
   { name:'NS-LT-0154', user:'Luis Ortega', os:'Windows 11 Enterprise 24H2', ip:'10.20.40.154', ou:'OU=Sales,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'5 minutes ago', health:'Healthy' },
+  { name:'NS-LT-0236', user:'Wes Turner', os:'Windows 11 Enterprise 24H2', ip:'10.20.70.236', ou:'OU=Marketing,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'7 minutes ago', health:'Disk warning' },
+  { name:'NS-LT-0291', user:'Priya Nair', os:'Windows 11 Enterprise 24H2', ip:'10.20.40.191', ou:'OU=Sales,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'2 minutes ago', health:'Healthy' },
 ];
 
 const HD_SERVERS = [
@@ -137,6 +144,9 @@ const HD_KB_ARTICLES = [
   { id:'KB-0059', title:'Add a department printer to a user\'s laptop', category:'Hardware', updated:'2026-11-15', audience:'Service Desk', practiceOnly:true, keywords:'add printer · printer missing · printer not in list · team printer · department printer · add device · Settings › Printers & scanners · NS-CS-PRN02', summary:'Department printers are added on the user\'s laptop from Settings. No admin rights are needed. 1. Ask which printer the user needs and what they see when they try to print. 2. On the user\'s laptop, open Settings › Printers & scanners and select Add device. 3. Choose the printer by its name. The Customer Service printer is NS-CS-PRN02. 4. Ask the user to print a test page and confirm it printed. 5. If the printer isn\'t in the list, stop there and escalate to Desktop Support (Tier 2) with the laptop\'s asset tag and the printer\'s name. Never ask for the user\'s password or sign in as the user.' },
   { id:'KB-0062', title:'Calendar delegate access', category:'Messaging', updated:'2026-11-19', audience:'Service Desk', practiceOnly:true, keywords:'calendar delegate access · delegate · assistant · calendar · book meetings · see calendar · meeting invitations · Editor (delegate) · mailbox owner approval', summary:'Tier 1 may grant delegate access once the mailbox owner approves the request. 1. Confirm the person never had access. That makes it a request, not a fault. 2. Convert it to the catalog item "Calendar delegate access" with Requested for, Mailbox and Permission. 3. Wait for the mailbox owner\'s approval on the request. An approval made in the portal while signed in needs no callback. A request by phone, chat or email is verified with KB-0024 first. 4. Grant the permission asked for and no more. Editor (delegate) lets the delegate see the calendar and book meetings. 5. Ask the owner whether the delegate should also receive meeting invitations. 6. Tell both people it can take up to an hour to appear, then confirm with the delegate.' },
   { id:'KB-0063', title:'Several people in one area lose Wi-Fi', category:'Networking', updated:'2026-11-19', audience:'Service Desk', practiceOnly:true, keywords:'wifi · Wi-Fi · wifi no internet · no internet · wireless · several people · whole floor · whole area · same area · network cable · Wi-Fi down', summary:'1. Ask whether other people in the same area have the same problem, and whether desks on a network cable still work. 2. One person only: have them turn Wi-Fi off and on and restart the laptop. If it still fails, escalate to Desktop Support with the laptop\'s asset tag. 3. Several people in one area: the cause is the network, not the laptops. Link the tickets to one parent and escalate the parent to Network Operations with the area, the start time and the business impact. 4. Never restart network equipment yourself.' },
+  { id:'KB-0064', title:'Outlook isn\'t sending: check Work Offline', category:'Messaging', updated:'2026-11-21', audience:'Service Desk', practiceOnly:true, keywords:'outlook not sending · outlook isn\'t sending · email not sending · emails stuck · Outbox · Working Offline · Work Offline · Send/Receive · Disconnected · new Outlook · proposal', summary:'1. Ask the user to look at the bottom of the Outlook window. If it says "Working Offline", Outlook has been switched to hold mail in the Outbox. 2. Classic Outlook: on the Send/Receive tab, the Work Offline button is highlighted. Have the user click it once to turn it off, then click Send/Receive All Folders. 3. New Outlook has no Work Offline button. If it shows "Disconnected", have the user sign out of Outlook and back in. If it still won\'t connect, escalate to Messaging & Collaboration. 4. Confirm: the Outbox empties, and a test email from the user reaches you. 5. Show the user where the button is, so they can fix it next time.' },
+  { id:'KB-0066', title:'Replacement laptops: standard models, lead times and approval', category:'Hardware', updated:'2026-11-21', audience:'Service Desk', practiceOnly:true, keywords:'replacement laptop · laptop lead time · lead time · replacement · broken laptop · lost laptop · new laptop · executive laptop · standard model · non-standard model · 16-inch · approval · VIP · catalog item', summary:'1. A broken or lost laptop is an incident. The replacement is a request: open the catalog item for it from the incident and keep both records open. 2. Standard models are kept in stock. Desktop Support sets one up in about 3 hours. Ask them before you tell the user a time: they set it. 3. A non-standard model needs the IT manager\'s approval on the request before it is ordered, and takes about 5 business days to arrive. 4. Offer the standard model now and the non-standard one later if it is approved. 5. An executive\'s ticket gets the VIP flag and a faster response. The steps are the same: verify before any device handover (KB-0024), and approvals still apply.' },
+  { id:'KB-0067', title:'Disk health warning on a laptop', category:'Hardware', updated:'2026-11-21', audience:'Service Desk', practiceOnly:true, keywords:'disk warning · disk health · Device health · health card · storage errors · slow laptop · laptop very slow · clicking noise · OneDrive backup · warm handoff', summary:'1. A disk health warning on a device\'s health card means the storage is reporting errors and may fail. Tier 1 doesn\'t repair it or run repair tools. 2. Check the card\'s OneDrive line: if the last backup isn\'t today, ask the user to stop saving new work to the laptop. 3. Escalate to Desktop Support (Tier 2) with the asset tag, when the slowness started and any deadline the user has. If the deadline is today, use a warm handoff. 4. Never promise a repair time: Desktop Support sets it.' },
 ];
 
 /* Practice scenario for HD-2101 (Module 1 Practice It). The evidence lives on
@@ -190,6 +200,12 @@ const HD_PRACTICE_SETS = {
   // Module 2 Lab 2.2: Wednesday 13:00 on a fixed clock that "Next day" moves.
   'its-10': { title:'Module 2 practice tickets', tickets:['HD-2155', 'HD-2156', 'HD-2184', 'HD-2185', 'HD-2157'], complete:['HD-2155', 'HD-2156', 'HD-2157'], now:'2026-08-19T13:00:00Z', queue:true, queueList:'mine',
     nextDay:{ unlock:[{ ticket:'HD-2155', done:['converted', 'resolved', 'escalated'] }, { ticket:'HD-2156', done:['resolved', 'escalated'] }, { ticket:'HD-2157', attempts:2 }] } },
+  // Module 3 Lab 3.2: each ticket runs on its own clock (console.now), so the
+  // set has none. HD-2165 counts as done when it is Resolved; the other two
+  // count as done by their rules (handed on, with the follow-up set).
+  'its-11': { title:'Module 3 practice tickets', tickets:['HD-2165', 'HD-2166', 'HD-2167'], complete:['HD-2165', 'HD-2166', 'HD-2167'], queue:true,
+    done:{ 'HD-2166':[{ group:'Desktop Support (Tier 2)' }, { requestOpen:true }, { handoffNote:true }, { commentTime:true }, { followUp:true }],
+      'HD-2167':[{ status:'Escalated' }, { teamMessage:'lead' }, { commentTime:true }, { followUp:true }] } },
 };
 
 // Coached ticket sets: Practice It content for a coach's guided lab, opened by
@@ -198,6 +214,8 @@ const HD_PRACTICE_SETS = {
 const HD_COACHED_SETS = {
   'its-10-guided': { title:'Lab 2.1 · Guided Lab: queue shift', tickets:['HD-2158', 'HD-2159', 'HD-2160', 'SEC-2163', 'HD-2162', 'SR-2161'], now:'2026-08-18T08:35:00Z', queue:true,
     workOrder:{ tickets:['HD-2158', 'HD-2159', 'HD-2160', 'SEC-2163', 'HD-2162', 'SR-2161'], groups:[['HD-2158'], ['HD-2159', 'HD-2160', 'SEC-2163'], ['HD-2162'], ['SR-2161']] } },
+  // Module 3 Lab 3.1: one live call on a fixed clock (Wednesday 10:10).
+  'its-11-guided': { title:'Lab 3.1 · Guided Lab: a frustrated caller', tickets:['HD-2164'], now:'2026-08-19T10:10:00Z' },
 };
 
 // Categories for the Module 2 queue tickets; each ticket adds its own CI list.
@@ -210,6 +228,19 @@ const HD_M02_CATEGORIES = {
   Access:['Password reset', 'Account unlock'],
   Printing:['Printer queue', 'Badge printer'],
 };
+
+// Categories for the Module 3 tickets; each ticket adds its own CI list.
+const HD_M03_CATEGORIES = {
+  Hardware:['Laptop', 'Laptop – damage', 'Monitor'],
+  Software:['Email (Outlook)', 'Browser', 'Phone app'],
+  Request:['Hardware', 'Software', 'Access'],
+  Messaging:['Shared calendar', 'Email'],
+  Access:['Password reset', 'Account unlock'],
+};
+// Module 3: a customer comment must name a time (a clock time or am/pm), and a
+// fix time Tier 1 does not control ("fixed by 3") is flagged. Regex sources.
+const HD_M03_TIME = '\\b\\d{1,2}:\\d{2}\\b|\\b\\d{1,2}\\s*(am|pm)\\b';
+const HD_M03_PROMISE = '\\b(fixed|working|ready|repaired|done)\\s+by\\s+\\d';
 
 const HD_TICKET_TEMPLATES = [
   hdTicket({ id:'HD-2101', requester:'Jordan Bell', department:'Finance', category:'Incident', subcategory:'Account lockout', priority:'P2', businessImpact:'Payroll analyst blocked', sla:'8 hours', createdMinutesAgo:86, description:'My account unlocks, then locks again a few minutes later.', symptoms:['Lockout repeats after successful sign-in','Other Finance users unaffected'], logs:[], systemState:['Account enabled','Password changed 3 days ago','Service desk unlocked the account at 08:09; it locked again at 08:11'], plausibleCauses:['User typing old password','Mobile mail cache','Scheduled task credential'], correctPath:['Verify identity','Trace caller computer','Inspect stored credentials','Correct approved task credential','Unlock once and monitor'], hiddenRootCause:'Scheduled task FinanceReportSync stores the previous password.', expectedResolution:'Update the task through the approved service credential workflow, unlock the account, and verify no new 4740 event.', escalationCriteria:['Unknown lockout source across multiple devices','Signs of credential compromise'] }),
@@ -637,6 +668,147 @@ const HD_TICKET_TEMPLATES = [
         { area:'Diagnosis', checks:[{ notePattern:'no (response|reply)|not (responded|replied|answered)|unreachable|voicemail|has not', missing:'Say in your note that the caller has not responded.' }], good:'You wrote that the caller has not responded.', fix:'The caller has not responded. Say so in your note.' },
         { area:'Action', checks:[{ attempts:3, missing:'Log three contact attempts before you close: use "Next day" to log attempt 3.' }, { code:'No response from caller', missing:'Resolve with the code "No response from caller".' }, { status:'Resolved', missing:'Resolve the ticket after attempt 3.' }], good:'You logged three attempts, then resolved with "No response from caller".', fix:'Log attempt 2 by phone today, attempt 3 on the next day, and only then resolve with "No response from caller".' },
         { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note that lists all three attempts.' }, { commentPattern:'reopen|reply', missing:'Tell Marcus in a comment how to reopen the ticket by replying.' }], good:'A complete note, and a comment that tells Marcus how to reopen the ticket.', fix:'Write a Reported / Tried / Result note with all three attempts. Tell Marcus in a comment how to reopen the ticket by replying.' },
+      ],
+    } }),
+  // Module 3 Practice It. Lab 3.1 (coach, HD_COACHED_SETS 'its-11-guided') is
+  // one live call; Lab 3.2 (HD_PRACTICE_SETS 'its-11') is three tickets, each
+  // on its own clock (console.now). Worked with the communication features in
+  // ui/helpdesk.js. No typed commands. Practice feedback only, never points.
+  hdTicket({ id:'HD-2164', ownSet:true, number:'INC0010440', requester:'Wes Turner', department:'Marketing', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T10:10:00Z', shortDescription:'Laptop very slow',
+    description:'Laptop very slow. The caller is on the line.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      matrix:{}, classify:{ categories:HD_M03_CATEGORIES, cis:['NS-LT-0236', 'NS-LT-0291', 'NS-LT-0215', 'Marketing shared drive'] },
+      priorityCoach:{ impact:'3', urgency:'1', line:'Wes is angry, and that isn\'t what makes this urgent. The 3:00 deadline is. One person (Impact 3) whose work has stopped with a deadline today (Urgency 1): P3.' },
+      kb:true,
+      conversation:{ name:'Wes Turner', style:'phone', mood:'Frustrated', stages:[
+        { id:'greet', prompt:'Answer the call.', choices:[
+          { id:'greeting', text:'Northstar Service Desk, this is Riley. May I have your name and a number to reach you if we get cut off?', pass:true, mood:0, reply:'Wes Turner, Marketing. Extension 4577.', line:'A professional start: he knows who he reached.' },
+          { id:'it', text:'IT.', line:'He doesn\'t know who he reached or whether you\'re the right person.' },
+          { id:'ticket', text:'Service Desk. What\'s your ticket number?', line:'He doesn\'t have a ticket yet. Start with who he is and how to reach him.' },
+        ] },
+        { id:'rant', prompt:'Let him finish, then acknowledge.', messages:[
+          'Finally. My laptop has been crawling since Monday. Every file takes minutes to open.',
+          'I restarted it twice myself and it\'s no better. I\'ve lost two days on this.',
+          'I\'ve got trade-show brochure files due at the print vendor by 3:00 today and I can\'t even open them. I need this fixed now.',
+        ], gapSeconds:4, interruptLine:'He hadn\'t finished. Let him get it all out first.', choices:[
+          { id:'empathy', text:'Wes, two days of this with a 3:00 deadline is a lot. I\'m sorry it\'s dragged on. Let\'s get it moving.', pass:true, mood:-1, line:'He hears that you understand the impact, and that something will happen next.' },
+          { id:'calm-down', text:'Sir, I need you to calm down so I can help you.', line:'"Calm down" tells him his reaction is the problem. Name the impact instead.' },
+          { id:'defensive', text:'Nobody reported this to us until today.', line:'True or not, it\'s blame. He needs to hear what happens next.' },
+          { id:'jargon', text:'It\'s probably disk I/O or a bad update. I\'ll check the SMART data.', line:'He hears words he doesn\'t know and still no acknowledgement.' },
+        ] },
+      ] },
+      caller:{ name:'Wes Turner', style:'phone', questions:[
+        { id:'when', text:'When did it start?', reply:'Monday morning. It was fine on Friday.' },
+        { id:'changed', text:'Did anything change, like new software or a new device?', reply:'Nothing. I haven\'t installed anything. It does make a clicking noise sometimes.' },
+        { id:'impact', text:'How is it affecting your work?', reply:'Everything takes minutes. The brochure files are due at the print vendor at 3:00 today and I can\'t work on them.' },
+      ] },
+      intake:{ caller:true, callback:true },
+      hold:{ seconds:120, ask:'May I put you on a short hold while I check your laptop\'s health record?', askReply:'Fine. Be quick.', back:'Thanks for holding, Wes.', unaskedLine:'You put him on hold without asking. Ask first, then hold.', overLine:'Two minutes of silence feels much longer to the person waiting.' },
+      evidence:[{ id:'device-health', title:'Device health · NS-LT-0236', rows:[
+        { label:'Disk health', value:'Warning. This laptop’s storage is reporting errors and may fail.' },
+        { label:'OneDrive', value:'Last backed up today 09:40' },
+      ] }],
+      explain:{ prompt:'Tell Wes the next step in plain words.', words:['SMART', 'S.M.A.R.T.', 'I/O', 'sector', 'SSD', 'HDD', 'reimage', 'image', 'Tier 2', 'escalate', 'escalating', 'P3', 'SLA', 'KB'], line:'He won\'t know \'{term}\'. Say what it means for him.', goodLine:'Plain words: he knows what is wrong and what happens next.' },
+      handoff:{}, warmHandoff:true, followUp:{ jump:true },
+      comments:{ timeCheck:{ time:HD_M03_TIME, promise:HD_M03_PROMISE, promiseLine:'That\'s a fix time, and Desktop Support controls it. Commit to when you\'ll update him.', noTimeLine:'Tell him when he\'ll hear from you next.', moodDown:true, goodLine:'He knows who has it and when he will hear from you.' } },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['SMART', 'I/O', 'SSD', 'HDD', 'reimage', 'Tier 2', 'P3', 'SLA', 'KB-0067', 'escalate', 'escalating', 'escalated'] },
+    } }),
+  hdTicket({ id:'HD-2165', ownSet:true, number:'INC0010447', requester:'Priya Nair', department:'Sales', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T13:02:00Z', shortDescription:'NOTHING WORKS!!!!',
+    description:'My email isn\'t sending, nothing is going out and I have a proposal due to a client by 2pm. I don\'t have time for this. Why does IT keep breaking my computer??',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      now:'2026-08-20T13:12:00Z', matrix:{}, classify:{ categories:HD_M03_CATEGORIES, cis:['NS-LT-0291', 'Outlook', 'NS-LT-0215'], preset:{ contactType:'Email' } },
+      priorityCoach:{ impact:'3', urgency:'1', line:'However angry the email is, it stays a P3. One person is affected (Impact 3), and the client deadline this afternoon makes it urgent (Urgency 1).' },
+      kb:true,
+      caller:{ name:'Priya Nair', style:'phone', questions:[
+        { id:'outbox', text:'Is anything sitting in your Outbox?', reply:'Yes, four emails, including the proposal.' },
+        { id:'status', text:'What does the bottom of the Outlook window say?', reply:'Working Offline.' },
+        { id:'receive', text:'Can you receive email?', reply:'Nothing new since this morning.' },
+      ] },
+      actions:[
+        { id:'work-offline', text:'Ask Priya to click Send/Receive › Work Offline, then Send/Receive All Folders', feedback:'Priya: “They\'re going! The Outbox is empty.”', history:'Asked Priya to turn off Work Offline, then Send/Receive All Folders, per KB-0064.' },
+        { id:'test-email', text:'Please send me a test email', feedback:'Sent. A test email from Priya shows on the ticket.', history:'Priya sent a test email, and it arrived.' },
+        { id:'blame', text:'Tell Priya the problem is something she clicked', critical:true, feedback:'Critical error. Never tell a caller the problem is their fault. Priya has a real deadline. Acknowledge it, then check Outlook with her.' },
+      ],
+      comments:true, resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['P1', 'P2', 'P3', 'SLA', 'Impact', 'Urgency', 'Tier 1', 'Tier 2', 'CI', 'KB-0064'] },
+      feedback:[
+        { area:'Triage', checks:[{ priority:'P3', missing:'Set Impact 3 (one person) and Urgency 1 (a client deadline this afternoon). That makes the ticket P3.' }], good:'The priority is P3, and it stays P3 however angry the email is.', fix:'Set Impact 3 (one person) and Urgency 1 (a client deadline this afternoon). The ticket is P3. Anger does not raise it to P1.' },
+        { area:'Investigation', checks:[{ kb:'KB-0064', missing:'Search the KB for "outlook not sending" and open KB-0064.' }, { chat:['outbox', 'status'], missing:'Ask Priya what is in her Outbox and what the bottom of the Outlook window says.' }], good:'You used KB-0064 and asked about the Outbox and the Outlook status bar.', fix:'Search the KB for "outlook not sending", open KB-0064, and ask Priya about her Outbox and the bottom of the Outlook window.' },
+        { area:'Diagnosis', checks:[{ chat:['status'], missing:'Ask Priya what the bottom of the Outlook window says. "Working Offline" is the cause.' }], good:'The status bar said "Working Offline". That is why the mail was held in the Outbox.', fix:'Ask Priya what the bottom of the Outlook window says. "Working Offline" holds mail in the Outbox.' },
+        { area:'Action', checks:[{ action:'work-offline', missing:'Ask Priya to turn off Work Offline, then Send/Receive All Folders (KB-0064).' }, { action:'test-email', missing:'Ask Priya for a test email to confirm it is fixed.' }, { status:'Resolved', missing:'Resolve the ticket once the test email arrives and Priya confirms.' }], good:'You fixed it with KB-0064, confirmed it with a test email, and resolved the ticket.', fix:'Follow KB-0064: turn off Work Offline, run Send/Receive All Folders, confirm with a test email, then resolve the ticket.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note with a Next action.' }, { comment:true, missing:'Write a comment for Priya in plain words, with no internal terms.' }], good:'A complete work note, and a plain-words comment for Priya.', fix:'Write a Reported / Tried / Result note. In your comment, say what was wrong, show where the button is and say sorry for the stress, with no blame.' },
+      ],
+    } }),
+  hdTicket({ id:'HD-2166', ownSet:true, number:'INC0010455', requester:'Karen Holt', department:'Executive Office', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T10:50:00Z', shortDescription:'NEW LAPTOP FOR MR. ALVAREZ – TOMORROW',
+    description:'Mr. Alvarez (CFO) dropped his laptop this morning. He needs a brand-new one set up with everything by 8am tomorrow, and he\'d like the new 16-inch model, not the standard one. Please confirm.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      now:'2026-08-20T11:05:00Z', vip:true, matrix:{}, classify:{ categories:HD_M03_CATEGORIES, cis:['Executive laptop (Martin Alvarez)', 'NS-LT-0215', 'NS-WS-0204'], preset:{ contactType:'Email' } },
+      priorityCoach:{ impact:'2', urgency:'2', line:'A VIP gets a faster response, not a higher priority. One executive is affected (Impact 2), and he has a desktop PC in his office he can use today (Urgency 2).' },
+      kb:true,
+      verification:{ prompt:'Karen Holt emailed to ask for a replacement laptop for the CFO. How do you verify it\'s really Karen before a device is handed over? (KB-0024)', options:[
+        { id:'name', text:'Accept it: the email is from Karen\'s address and names the CFO', critical:true, feedback:'Critical error. An email address and a name are not verification. KB-0024: call Karen back on the number in the User Directory and confirm her employee ID.' },
+        { id:'callback', text:'Call Karen back on the number in the User Directory and confirm her employee ID', pass:true, feedback:'Verified. You called Karen back on ext. 4502 from the User Directory, and Karen confirmed employee ID E-54371.', history:'Identity verified per KB-0024: called Karen back on the User Directory number (ext. 4502); employee ID E-54371 confirmed.' },
+      ] },
+      caller:{ name:'Karen Holt', style:'phone', questions:[
+        { id:'on', text:'Does the laptop still turn on?', reply:'It turns on, but the screen stays black.' },
+        { id:'glass', text:'Is any glass loose?', reply:'No.' },
+        { id:'files', text:'Are his files saved somewhere other than the laptop?', reply:'Everything\'s in OneDrive.' },
+      ] },
+      evidence:[{ id:'stock', title:'Hardware stock', rows:[
+        { label:'Standard executive laptop', value:'3 in stock' },
+        { label:'16-inch model', value:'Not stocked' },
+      ] }],
+      convert:{ keepIncident:true, number:'RITM0010101', items:[
+        { name:'Executive laptop replacement', approver:'IT manager', fields:[
+          { id:'model', label:'Model', options:['Standard executive laptop', '16-inch model'] },
+          { id:'approval', label:'Approval', options:['Requested', 'Not needed'] },
+        ] },
+      ] },
+      teamMessages:[{ id:'desk', to:'Desktop Support (Tier 2)', from:'Desktop Support', text:'Can you set up a standard executive laptop for 8:00 tomorrow?', reply:'Yes. It\'ll be ready by 7:30.' }],
+      actions:[
+        { id:'order-16', text:'Order the 16-inch model now', critical:true, feedback:'Critical error. A non-standard model needs the IT manager\'s approval on the request before it is ordered (KB-0066).' },
+      ],
+      handoff:{}, followUp:{},
+      comments:{ timeCheck:{ time:HD_M03_TIME, noTimeLine:'Tell Karen when she will hear from you next.' } },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['RITM', 'INC0010455', 'Tier 2', 'SLA', 'P3', 'Impact', 'Urgency', 'KB-0024', 'KB-0066', 'catalog item'] },
+      feedback:[
+        { area:'Triage', checks:[{ converted:true, missing:'Open the request "Executive laptop replacement" from the incident.' }, { requestOpen:true, missing:'Keep both records open: the incident for the broken laptop and the request for the new one.' }, { requestFor:'Martin Alvarez', missing:'Set Requested for to Martin Alvarez: the laptop is for him, not for Karen.' }], good:'Two records, both open: the incident for the broken laptop and the request for the new one.', fix:'A broken laptop is an incident. The replacement is a request. Open the request from the incident and keep both records open (KB-0066).' },
+        { area:'Investigation', checks:[{ verified:true, missing:'Verify Karen first: call her back on her directory number and confirm her employee ID (KB-0024).' }, { evidence:'stock', missing:'Open the Hardware stock card to see what is in stock.' }, { kb:'KB-0066', missing:'Search the KB for "replacement laptop" and open KB-0066.' }], good:'You verified Karen before any handover, checked the stock and used KB-0066.', fix:'Verify Karen first (KB-0024), open the Hardware stock card, and search the KB for "replacement laptop" (KB-0066).' },
+        { area:'Diagnosis', checks:[{ chat:['on', 'glass', 'files'], missing:'Ask Karen whether it still turns on, whether any glass is loose, and whether his files are saved in OneDrive (KB-0071).' }], good:'You asked the damaged laptop questions: it turns on, no loose glass, and his files are in OneDrive.', fix:'Ask Karen whether the laptop still turns on, whether any glass is loose, and whether his files are saved somewhere other than the laptop (KB-0071).' },
+        { area:'Action', checks:[{ requestField:{ id:'approval', value:'Requested' }, missing:'Set Approval to Requested on the request. The 16-inch model needs the IT manager\'s approval.' }, { teamMessage:'desk', missing:'Message Desktop Support and ask whether a standard laptop can be ready by 8:00. They set the time, not you.' }, { group:'Desktop Support (Tier 2)', missing:'Assign the incident to Desktop Support (Tier 2).' }, { followUp:true, missing:'Set a Follow-up for tonight, to confirm the laptop is ready.' }], good:'You asked for approval on the 16-inch model, got the 8:00 from Desktop Support, assigned the incident and set a follow-up.', fix:'Ask for the IT manager\'s approval on the 16-inch model, message Desktop Support for the 8:00, assign the incident to Desktop Support (Tier 2) and set a Follow-up for tonight.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note with a Next action.' }, { comment:true, missing:'Write a comment for Karen in plain words, with no internal terms.' }, { commentPattern:'desktop team|confirmed', missing:'Say in your comment that the desktop team confirmed the time. The 8:00 is theirs, not yours.' }], good:'A complete note, and a comment that says the desktop team confirmed the time.', fix:'Write a Reported / Tried / Result note. In your comment, say the desktop team confirmed the time, and say when Karen will hear from you next.' },
+      ],
+    } }),
+  hdTicket({ id:'HD-2167', ownSet:true, number:'INC0010388', requester:'Sofia Martin', department:'Operations', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-18T09:30:00Z', status:'Escalated', assignmentGroup:'Messaging & Collaboration', assignedTechnician:'Unassigned', shortDescription:'Shared calendar not updating',
+    description:'Our shared calendar is not updating for the shift team.',
+    notes:[{ time:'Tue 09:50', author:'Riley Morgan (Tue)', text:'Reported: the shared calendar is not updating for the shift team. Tried: checked with Sofia that it is still wrong after a restart; nothing more Tier 1 can do. Result: escalated to Messaging & Collaboration. Next action: Messaging & Collaboration finds the cause and updates Sofia.' }],
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      now:'2026-08-20T10:20:00Z', matrix:{ impact:'3', urgency:'2', respondedAt:'2026-08-18T09:50:00Z' },
+      conversation:{ name:'Sofia Martin', style:'chat', stages:[
+        { id:'chat', messages:['I opened a ticket TWO DAYS ago about my shared calendar and someone said it went to another team. Nobody has called me. Does anyone actually work there??'], choices:[
+          { id:'quick', text:'Checking now.', pass:true },
+          { id:'wait', text:'I\'ll look at it when I\'m free.', line:'She has waited two days already. Answer fast, even if the answer is just "checking now".' },
+        ] },
+        { id:'ack', choices:[
+          { id:'sorry', text:'Sofia, you\'re right to chase this. Two days without an update isn\'t good enough. Let me find out where it is right now.', pass:true },
+          { id:'slow', text:'That team is always slow, sorry.', line:'Never blame colleagues. Say sorry for the wait and say what you will do.' },
+        ] },
+      ] },
+      teamMessages:[{ id:'lead', to:'Messaging & Collaboration', from:'Teresa Vance', text:'INC0010388 has had no owner for two days and the user is chasing. Can someone pick it up today?', reply:'Sorry, that one slipped. Jamie Ortiz has it now and will call her by 3:00.', assign:'Jamie Ortiz' }],
+      duplicateMove:{ text:'Create new incident', feedback:'Critical error in a real shift: a second ticket splits the history and restarts the clock. INC0010388 already exists: add her chat to it.' },
+      followUp:{},
+      comments:{ timeCheck:{ time:HD_M03_TIME, promise:HD_M03_PROMISE, promiseLine:'A fix time is not yours to promise. Say who has the ticket and when they will call.', noTimeLine:'Tell Sofia when she will hear from the team.' } },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Tier 1', 'Tier 2', 'SLA', 'P3', 'P4', 'Impact', 'Urgency'] },
+      feedback:[
+        { area:'Triage', checks:[{ status:['Escalated'], missing:'Work on the existing ticket, INC0010388. Do not open a new incident.' }], good:'You used the existing ticket, INC0010388, so the history stays in one place.', fix:'Sofia already has a ticket: INC0010388. Add her chat to it. A second ticket splits the history and restarts the clock.' },
+        { area:'Investigation', checks:[{ call:true, missing:'Reply to Sofia in the chat. Answer fast, then acknowledge her.' }], good:'You answered fast and acknowledged her without blaming anyone.', fix:'Reply to Sofia quickly in the chat, then acknowledge the wait. Never blame the other team.' },
+        { area:'Diagnosis', checks:[{ notePattern:'no (person|owner|assignee|engineer|one)|not assigned|unassigned|group (only|with no)|only (to )?the group', missing:'Say in your note that the ticket is with the group but has no person, and that nothing was written since it was escalated.' }], good:'You wrote what stalled it: the ticket sat with the group and had no owner.', fix:'Check the record. The ticket is with the group but has no person, and nothing was written since it was escalated. Say so in your note.' },
+        { area:'Action', checks:[{ teamMessage:'lead', missing:'Message the Messaging & Collaboration lead and ask them to pick the ticket up today.' }, { followUp:true, missing:'Set a Follow-up for 15:15 today, to check that the call happened.' }], good:'You chased the team lead, got an owner and a time, and set a follow-up.', fix:'Message the Messaging & Collaboration lead and ask for an owner and a time. Then set a Follow-up for 15:15 to check the call happened.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note with a Next action.' }, { commentTime:true, missing:'Tell Sofia in a comment who has the ticket and when she will hear from them.' }, { commentPattern:'sorry|apolog', missing:'Say sorry in your comment, without blaming anyone.' }], good:'A complete note, and a comment that says sorry and gives Sofia a time.', fix:'Write a Reported / Tried / Result note. In your comment, say sorry without blaming anyone, say who has the ticket and say when Sofia will hear from them.' },
       ],
     } }),
 ];

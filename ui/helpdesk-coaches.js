@@ -44,7 +44,7 @@
     'hd-m08': ['HD-2110', 'HD-2111'],
     'hd-m09': ['SEC-2114', 'SEC-2115'],
     'hd-m10': ['HD-2158', 'HD-2159', 'HD-2160', 'SR-2161', 'HD-2162', 'SEC-2163'],
-    'hd-m11': ['HD-2113', 'HD-2124'],
+    'hd-m11': ['HD-2164'],
   };
   function hdCollectCoachWork(coach) {
     if (typeof hdState === 'undefined' || !Array.isArray(hdState.tickets)) return null;
@@ -821,33 +821,137 @@
     ],
   });
 
-  /* hd-m11 — Module 3 (key its-11): Customer Service, Documentation & Escalation. Two
-   * tickets. HD-2113 (also reachable unguided from Module 9's scope, coach hd-m04) whose
-   * 'Always' escalation criteria makes it a clean example of recognizing an
-   * escalation trigger and writing a handoff-quality note, rather than a
-   * fixable-by-L1 ticket. HD-2124 pairs that with the module's other half —
-   * an already-frustrated, repeat-contact user with a real, diagnosable
-   * technical cause — practicing calm, plain-language, expectation-setting
-   * communication under pressure (lesson 2's 'Updating Users Without
-   * Overpromising' / 'Setting Expectations From the Start'). */
-  hdRegisterSimpleCoach('hd-m11', 3, 'Writing the Handoff That Actually Helps', 'Work two real tickets end to end, focused on documentation, escalation, and communication under pressure: recognize an escalation trigger and write a note a stranger could act on, then diagnose while calmly setting expectations for an already-frustrated, repeat-contact user.', ['HD-2113', 'HD-2124']).steps =
-    hdTicketFlowSteps('HD-2113', {
-      opening: true, isLast: false, finalStatus: 'Escalated',
-      openBody: 'Kai’s VPN accepts MFA, connects for a few seconds, then drops — every time.',
-      evidenceBody: 'A certificate validation failure with a NotAfter date already in the past is the clue — and it’s the gateway’s certificate, not the user’s.',
-      pathBody: 'Capturing the client log and timing, then validating the certificate chain, comes before escalating — show your work, don’t just forward the ticket.',
-      diagnosisBody: 'A user certificate that’s valid, paired with an expired gateway certificate, points at the gateway — not the user’s password or home network.',
-      noteBody: 'This is the note a stranger has to act on: name the expired-certificate evidence, confirm other users are affected the same way, and state plainly that this needs a certificate renewal — not a per-user fix.',
-      resolveBody: 'A shared gateway certificate is outside what a technician replaces alone. Escalate it with a note complete enough that the next person isn’t starting from zero.',
-    }).concat(hdTicketFlowSteps('HD-2124', {
-      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/3', 'hd-m11'),
-      openBody: 'Tara is calling for the second time today — Outlook keeps demanding her password and failing, and she has a client proposal waiting. She’s frustrated, and that’s the point of this one: the fix has to happen while you keep her calm and informed, not after.',
-      evidenceBody: 'Teams and the browser already accept her new password — only Outlook fails. That split, plus a Credential Manager entry that’s weeks old, is the clue: something cached is still holding the old password.',
-      pathBody: 'Confirm the scope is Outlook-only before touching anything, then go straight to the stale credential — don’t make her repeat troubleshooting she’s effectively already done for you by mentioning Teams works fine.',
-      diagnosisBody: 'A password changed this morning, other Microsoft 365 apps working, and Outlook alone still failing point at one thing: a cached credential Outlook never updated.',
-      noteBody: 'Write the note the way you’d want it read if you picked this ticket up cold: name the stale Credential Manager entry as the cause, what you removed, and that send/receive was confirmed working — not just "Outlook fixed."',
-      resolveBody: 'Close this out the way you opened it: plainly, without jargon, and without promising more than you can back up — confirm send/receive works, tell her it’s resolved, and skip the corporate hedging. That’s what actually de-escalates a second call like this one.',
-    }));
+  /* hd-m11 — Module 3 (key its-11): Lab 3.1, a frustrated caller. One ticket,
+   * eight steps, then Finish. Wes Turner calls about a slow laptop with a
+   * deadline today. Every check reads the saved ticket state, so it passes
+   * whatever order the student works in. The mood meter is feedback only:
+   * no check reads it. Feedback only, no points. */
+  const HD11_ID = 'HD-2164';
+  const hd11Ticket = () => (typeof hdTicketById === 'function' ? hdTicketById(HD11_ID) : null);
+  const hd11Progress = () => (typeof hdConsoleProgress === 'function' ? hdConsoleProgress(HD11_ID) : null);
+  const hd11Rule = (rule) => { const t = hd11Ticket(); return Boolean(t) && typeof hdConsoleRule === 'function' && hdConsoleRule(t, rule) === true; };
+  const hd11Class = (t) => (t && typeof hdClassification === 'function' ? hdClassification(t) : null);
+  // A saved run of the old two-ticket hd-m11 coach (before 2026-11-21) points
+  // at steps for tickets this shift doesn't hold, and ui/coach.js would resume
+  // it at the same step number. When the shift isn't the guided call, forget
+  // it, so the next launch starts the new lab fresh (resetState).
+  // Only the coached lab's shift: a practice set or a Prove It has its own.
+  (function hd11ForgetOldWalkthrough() {
+    if ((typeof HD_PRACTICE_SET !== 'undefined' && HD_PRACTICE_SET) || (typeof HD_PROVE !== 'undefined' && HD_PROVE)) return;
+    if (typeof hdState === 'undefined' || !hdState || hdState.ticketSet === 'its-11-guided') return;
+    const stale = (raw) => { try { const saved = JSON.parse(raw || 'null'); return Boolean(saved && saved.id === 'hd-m11'); } catch { return false; } };
+    try { if (stale(localStorage.getItem('mnt.coach.resume'))) localStorage.removeItem('mnt.coach.resume'); } catch { /* storage blocked */ }
+    try { if (stale(sessionStorage.getItem('mnt.coach.state'))) sessionStorage.removeItem('mnt.coach.state'); } catch { /* storage blocked */ }
+  }());
+  MODULE_COACHES.push({
+    id: 'hd-m11', module: 3, name: 'Guided Lab: a frustrated caller', role: 'Tier 1 Help Desk Technician',
+    summary: 'Take a phone call from an angry colleague whose laptop is slow and whose work is due today. Greet him, let him finish, ask three questions, set the priority from the facts, put him on a short hold, explain the next step in plain words, hand the ticket to Desktop Support with a note, and keep your promise to update him.',
+    completionToken: 'hd-m11', home: '#/helpdesk/tickets',
+    resetState: () => {
+      if (typeof hdUseTicketSet === 'function') hdUseTicketSet('its-11-guided');
+      if (typeof hdState !== 'undefined' && hdState) hdState.selectedTicketId = HD11_ID;
+    },
+    allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket', '#/helpdesk/knowledge-base'],
+    steps: [
+      {
+        route: '#/helpdesk/ticket',
+        target: '.hd-call, .hd-intake',
+        title: 'Answer the call',
+        instruction: 'Open <strong>INC0010440</strong>. In the call panel, pick the greeting that gives your name and asks for his name and a callback number. Then set <strong>Caller</strong> to Wes Turner, set <strong>Contact type</strong> to <strong>Phone</strong> and type his callback number.',
+        body: 'Why: a professional start tells him who he reached, and the callback number lets you reach him if the call drops. Success looks like: the mood meter stays steady, and Caller, Contact type and the callback number are set. If you pick a poor greeting, read the line under the meter and choose again.',
+        waitLabel: 'Next Step: Caller, Contact type and callback set',
+        check: () => {
+          const t = hd11Ticket(); const p = hd11Progress();
+          const c = hd11Class(t);
+          return Boolean(t && p && p.call) && Number(p.call.stage) >= 1 && hd11Rule({ intakeCaller: 'Wes Turner' }) && hd11Rule({ callback: true }) && Boolean(c) && c.contactType === 'Phone';
+        },
+      },
+      {
+        route: '#/helpdesk/ticket',
+        target: '.hd-call',
+        title: 'Let him finish',
+        instruction: 'Wes will send three messages, a few seconds apart. Choose <strong>Keep listening</strong> until the third one arrives. Then pick the reply that acknowledges what this is costing him.',
+        body: 'Why: an upset caller who is cut off gets angrier, and “calm down” tells him his reaction is the problem. Name the impact instead. Success looks like: you picked an empathy line, not “Calm down”, and the meter went down one step. If you replied too early or picked a poor line, read why and choose again. Nothing is lost.',
+        waitLabel: 'Next Step: Acknowledgement chosen',
+        check: () => hd11Rule({ call: true }),
+      },
+      {
+        route: '#/helpdesk/ticket',
+        target: '.hd-chat, select[data-hd-field="impact"], select[data-hd-field="urgency"], select[data-hd-field="category"]',
+        title: 'Ask three questions, then triage',
+        instruction: 'Ask Wes <strong>when it started</strong>, <strong>whether anything changed</strong> and <strong>how it is affecting his work</strong>. Then set <strong>Category</strong>, <strong>Configuration item</strong>, <strong>Impact</strong> and <strong>Urgency</strong> from the facts.',
+        body: 'Why: you need the problem and the impact before you can rate it. Success looks like: all three answers are in the chat, the category and configuration item are set, and the ticket shows a priority. Read the coach note once the priority calculates: Wes is angry, and that isn’t what makes this urgent. The 3:00 deadline is. One person (Impact 3) whose work has stopped with a deadline today (Urgency 1) is P3. Never type the priority; it is calculated.',
+        waitLabel: 'Next Step: Three answers and a priority',
+        check: () => {
+          const t = hd11Ticket(); const c = hd11Class(t);
+          return Boolean(t) && hd11Rule({ chat: ['when', 'changed', 'impact'] }) && Boolean(c) && Boolean(c.category) && Boolean(c.ci) && Boolean(t.priority);
+        },
+      },
+      {
+        route: '#/helpdesk/ticket',
+        target: '.hd-hold, .hd-evidence-card, .hd-kb-search',
+        title: 'Hold, then check his laptop',
+        instruction: 'Ask Wes if you may put him on a short hold, and start the hold. While he waits, open the ticket’s <strong>Device health</strong> card. Then search the knowledge base for <strong>disk warning</strong> and open the article. Come back to Wes before two minutes pass.',
+        body: 'Why: asking first is basic hold manners, and two minutes of silence feels much longer to the person waiting. Success looks like: the hold ran under two minutes, you opened the Device health card, and you opened KB-0067. If the hold ran out or you started it without asking, start a new hold after you ask and check again.',
+        waitLabel: 'Next Step: Held, card and article opened',
+        check: () => hd11Rule({ held: true }) && hd11Rule({ evidence: 'device-health' }) && hd11Rule({ kb: 'KB-0067' }),
+      },
+      {
+        route: '#/helpdesk/ticket',
+        target: '.hd-explain',
+        title: 'Explain it in plain words',
+        instruction: 'Tell Wes what is wrong and what happens next, in words he would use. Type it in the explanation box and check it. Say what the problem means for his files and who will fix it.',
+        body: 'Why: he is not a technician, and a word he does not know feels like being brushed off. Success looks like: the checker finds no flagged terms. If it flags one, it names the word: say what it means for him and check again. A sentence like “your files are safe in OneDrive” helps him.',
+        waitLabel: 'Next Step: Explanation passes',
+        check: () => hd11Rule({ explained: true }),
+      },
+      {
+        route: '#/helpdesk/ticket',
+        target: '#hd-assignment-group, #hd-note-input, .hd-handoff, [data-hd-warm]',
+        title: 'Hand it to Desktop Support',
+        instruction: 'Set <strong>Assignment group</strong> to <strong>Desktop Support (Tier 2)</strong>. Write a <strong>work note</strong> with the four labels: Reported, Tried, Result and Next action. Then press <strong>Warm handoff</strong>.',
+        body: 'Why: a failing disk needs hands-on repair that Tier 1 cannot do, and the next team should not have to start from zero. Success looks like: the note has all four labels with his words and the deadline, what you checked and ruled out, where it stands, and the exact ask with a time. The history shows “Called Desktop Support”. A warm handoff because it is time-critical: the disk could fail before his 3:00 deadline. A routine ticket would go by reassignment with the note. If a label is missing, the feedback names it: add it and save again.',
+        waitLabel: 'Next Step: Assigned, noted and called',
+        check: () => hd11Rule({ group: 'Desktop Support (Tier 2)' }) && hd11Rule({ handoffNote: true }) && hd11Rule({ warmHandoff: true }),
+      },
+      {
+        route: '#/helpdesk/ticket',
+        target: '.hd-comments, [data-hd-follow-up]',
+        title: 'Tell Wes, and set the follow-up',
+        instruction: 'Post an <strong>Additional comment</strong> to Wes: who has his ticket, what happens next, and when he will hear from you. Then set a <strong>Follow-up</strong> at that time.',
+        body: 'Why: he needs to know who has it and when he will hear back. Success looks like: the comment names a time you control and the follow-up date is set. Do not promise a fix time; Desktop Support sets that. Promise when you will update him, even if there is no news. If the comment has no time, the feedback tells you: edit it and post again.',
+        waitLabel: 'Next Step: Comment posted, follow-up set',
+        check: () => hd11Rule({ commentTime: true }) && hd11Rule({ followUp: true }),
+      },
+      {
+        route: '#/helpdesk/ticket',
+        target: '[data-hd-follow-up], .hd-comments',
+        title: 'Keep your promise',
+        instruction: 'Press <strong>Go to follow-up time</strong>. The history shows no update from Desktop Support yet. Post an <strong>Additional comment</strong> to Wes anyway.',
+        body: 'Why: an update on time, even without news, is what keeps a caller’s trust. Success looks like: your update is posted within 10 minutes of the follow-up time. Say that the desktop team has his laptop next, that you have no finish time yet, and when you will update him again. If you posted before the clock moved, press the button and post a new one.',
+        waitLabel: 'Next Step: Update posted on time',
+        check: () => {
+          if (hd11Rule({ followUpUpdated: true })) return true;
+          // A student who set a second follow-up afterwards still finishes:
+          // the jump moved the shift clock, and an update posted at or after
+          // that clock time counts.
+          const t = hd11Ticket(); const p = hd11Progress();
+          if (!t || !p || !p.followUp || !p.followUp.visited || typeof hdShiftNow !== 'function') return false;
+          const due = hdShiftNow(t).getTime();
+          const list = typeof hdComments === 'function' ? hdComments(t) : (t.customerComments || []);
+          return !Number.isNaN(due) && (Array.isArray(list) ? list : []).some((c) => c && c.author === 'Riley Morgan' && Date.parse(c.at || '') >= due);
+        },
+      },
+      {
+        // Reached only after the last work step passes, so Finish never shows
+        // before then (ui/coach.js shows Finish on the last step).
+        title: 'Finish the lab',
+        instruction: 'Call done. Press <strong>Finish</strong> to send your work to your course page.',
+        body: 'The ticket stays open with Desktop Support, and that is right. You kept a promise you could control. That’s what he’ll remember. Your work counts once your course page confirms it saved it: your triage, hold, explanation, note, comments and follow-up. There is no score.',
+        finish: { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/3', 'hd-m11') },
+      },
+    ],
+  });
 
   // coach.js resets a coach's tickets (resetState) only when it starts it
   // fresh; a reload or a relaunch of an unfinished lab resumes the saved work.

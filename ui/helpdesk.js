@@ -1498,6 +1498,8 @@ function hdConsoleRule(ticket, rule) {
   if (rule.child) { const child = hdTicketById(rule.child); return !!(child && child.parentId === ticket.id); }
   if (rule.status) return [].concat(rule.status).some(value => value === ticket.status || value === hdStatusText(ticket));
   if (rule.group) return ticket.assignmentGroup === rule.group;
+  // Module 3: the ticket's calculated priority (3-A stays P3 however angry).
+  if (rule.priority) return ticket.priority === rule.priority;
   if (rule.attempts) return hdContactAttempts(ticket).length >= rule.attempts;
   if (rule.code) return (state.resolutionCode || ticket.closureCode) === rule.code;
   if (rule.rewrite) return !!(state.rewrite && !state.rewrite.missing.length);
