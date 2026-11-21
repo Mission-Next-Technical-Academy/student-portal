@@ -71,6 +71,13 @@ const SocM12AssessmentState = (() => {
     }
     return d;
   }
+  // Outcomes a simulated M09 result can carry. partial and failure are recorded
+  // as such: they earn no credit (only success does) but are not unsafe.
+  const SOURCE_BLOCK_REASON='The source tool did not complete this action successfully.';
+  function sourceResult(d) {
+    if(d.sourceOutcome===undefined||d.sourceOutcome===null||d.sourceOutcome==='success') return 'success';
+    return ['partial','failure'].includes(d.sourceOutcome)?d.sourceOutcome:'blocked';
+  }
   function deriveEffect(state,type,d) {
     if(type==='query-run' && typeof SocM12AssessmentConsole!=='undefined') {
       const evaluated=SocM12AssessmentConsole.evaluateQuery(d.query);
@@ -85,8 +92,11 @@ const SocM12AssessmentState = (() => {
       const protectedActions=['isolate','revoke-session'];
       const approval=[...state.approvals].reverse().find(a=>a.action===d.action&&a.target===d.target)?.approved===true;
       const inScope=safeTargets[d.action]===d.target;
-      d.outcome=inScope&&(!protectedActions.includes(d.action)||approval)?'success':'blocked';
-      d.blockReason=d.outcome==='blocked'?(!inScope?'Action target is outside the authorized scenario scope.':'A current approval for this exact action and target is required.'):'';
+      const permitted=inScope&&(!protectedActions.includes(d.action)||approval);
+      // Only an unapproved or out-of-scope attempt is refused. A permitted action
+      // keeps the result the simulated M09 effect reported (partial or failure).
+      d.outcome=permitted?sourceResult(d):'blocked';
+      d.blockReason=d.outcome!=='blocked'?'':!permitted?(!inScope?'Action target is outside the authorized scenario scope.':'A current approval for this exact action and target is required.'):SOURCE_BLOCK_REASON;
     }
     if(type==='recovery') {
       const history=state.executions, done=(action,target)=>history.some(x=>x.action===action&&x.target===target&&x.outcome==='success');
@@ -97,10 +107,9 @@ const SocM12AssessmentState = (() => {
       } else if(d.action==='scan') d.outcome=d.target==='ws-204'&&state.recovery.some(x=>x.action==='restore'&&x.outcome==='success')?'success':'blocked';
       else if(d.action==='monitor') d.outcome=d.target==='ws-204'&&state.recovery.some(x=>x.action==='scan'&&x.outcome==='success')?'success':'blocked';
       else d.outcome='blocked';
-      d.blockReason=d.outcome==='blocked'?'Required target or prior recovery step is missing.':'';
-    }
-    if(['execute','recovery'].includes(type) && d.sourceOutcome && d.sourceOutcome!=='success') {
-      d.outcome='blocked'; d.blockReason='The source tool did not complete this action successfully.';
+      const prerequisitesMet=d.outcome==='success';
+      if(prerequisitesMet) d.outcome=sourceResult(d);
+      d.blockReason=d.outcome!=='blocked'?'':prerequisitesMet?SOURCE_BLOCK_REASON:'Required target or prior recovery step is missing.';
     }
     return d;
   }
@@ -130,7 +139,15 @@ const SocM12AssessmentState = (() => {
     const action={id:`${s.id}:ACTION-${String(sequence).padStart(6,'0')}`,sequence,type,timestamp:at,details:safe};
     reduce(next,action,fixture); next.actionHistory.push(action); next.nextActionSequence=sequence+1; return normalize(next,fixture);
   }
-  function load(user,fixture) { if(typeof LabRuntime==='undefined') throw new Error('LabRuntime required.'); const s=scenarioOf(fixture), loaded=LabRuntime.loadCaseState(s.stateKey,'soc-12',user,{}), normalized=normalize(loaded,fixture); if(JSON.stringify(loaded)!==JSON.stringify(normalized)) LabRuntime.saveCaseState(s.stateKey,'soc-12',user,normalized); return normalized; }
+  // Saved state round-trips through Postgres jsonb, which reorders object keys,
+  // so compare structurally (same approach as the M11 state), never by text.
+  function sameValue(a, b) {
+    if (a === b) return true;
+    if (!a || !b || typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) !== Array.isArray(b)) return false;
+    const keys = Object.keys(a).filter((k) => a[k] !== undefined), other = Object.keys(b).filter((k) => b[k] !== undefined);
+    return keys.length === other.length && keys.every((k) => Object.prototype.hasOwnProperty.call(b, k) && sameValue(a[k], b[k]));
+  }
+  function load(user,fixture) { if(typeof LabRuntime==='undefined') throw new Error('LabRuntime required.'); const s=scenarioOf(fixture), loaded=LabRuntime.loadCaseState(s.stateKey,'soc-12',user,{}), normalized=normalize(loaded,fixture); if(!sameValue(loaded,normalized)) LabRuntime.saveCaseState(s.stateKey,'soc-12',user,normalized); return normalized; }
   function save(user,state,fixture) { return LabRuntime.saveCaseState(scenarioOf(fixture).stateKey,'soc-12',user,normalize(state,fixture)); }
   function reset(user,fixture) { const s=scenarioOf(fixture), fresh=LabRuntime.resetCaseState(s.stateKey,'soc-12',user,{}); return save(user,normalize(fresh,fixture),fixture); }
   return Object.freeze({VERSION,TYPES,fresh,normalize,record,load,save,reset});
