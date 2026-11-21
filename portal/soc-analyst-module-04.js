@@ -443,6 +443,22 @@ const MODULE_FOUR_CASE_ID = SocM04AssessmentData.scenario.caseId;
 // Saved as lab_attempts.rubric_version on the Prove It; the server-side
 // answer key for MODULE_FOUR_CATALOG_LAB_KEY is loaded under this version.
 const MODULE_FOUR_PROVE_RUBRIC_VERSION = 'soc-m04-prove-v1';
+// Each IOC's first/last seen as this browser's Date.parse() reads them (the
+// form takes free text, read in the student's local time zone), in
+// work.iocs order. Sent with the Prove It so the server compares the same
+// instants the browser scorer compared; null when a date does not parse.
+function moduleFourIocTimes(assessment) {
+  const at = (value) => {
+    if (typeof value !== 'string') return null;
+    const time = Date.parse(value);
+    return Number.isFinite(time) ? time : null;
+  };
+  return (Array.isArray(assessment?.iocs) ? assessment.iocs : []).map((ioc) => ({
+    id: ioc && typeof ioc === 'object' ? ioc.id ?? null : null,
+    firstSeen: at(ioc?.firstSeen),
+    lastSeen: at(ioc?.lastSeen),
+  }));
+}
 const MODULE_FOUR_DEPARTMENT_BOUNCE_THRESHOLD = 40;
 
 // Keep the submitted case selections anchored to the immutable assessment truth.
@@ -1954,6 +1970,8 @@ function wireModuleFourAssessmentLab() {
             // Additive (2026-11-19): the console state the scorer reads, as it
             // was scored (work_summary above is a shortened, readable copy).
             work: JSON.parse(JSON.stringify(moduleFourState.assessment)),
+            // Additive (2026-11-21): the IOC dates as the browser parsed them.
+            ioc_times: moduleFourIocTimes(moduleFourState.assessment),
             attempts: moduleFourState.attempts,
           },
         }, () => {

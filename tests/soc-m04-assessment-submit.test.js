@@ -143,6 +143,10 @@ assert.strictEqual(firstCatalogAttempt[2].result.kind, 'soc-prove', 'the Prove I
 assert.strictEqual(firstCatalogAttempt[2].rubricVersion, 'soc-m04-prove-v1', 'the attempt carries the rubric version the server key is loaded under');
 assert.deepStrictEqual(JSON.parse(JSON.stringify(firstCatalogAttempt[2].result.work)), first.assessment, 'result.work is the console state the scorer read');
 assert.notStrictEqual(firstCatalogAttempt[2].result.work, vm.runInContext('moduleFourState.assessment', context), 'result.work is a copy, not the live state');
+assert.deepStrictEqual(JSON.parse(JSON.stringify(firstCatalogAttempt[2].result.ioc_times)), (first.assessment.iocs || []).map((ioc) => ({ id: ioc.id, firstSeen: Date.parse(ioc.firstSeen), lastSeen: Date.parse(ioc.lastSeen) })),
+  'result.ioc_times carries each IOC date as the browser parsed it');
+assert.deepStrictEqual(JSON.parse(JSON.stringify(vm.runInContext(`moduleFourIocTimes({ iocs: [{ id: 'x', firstSeen: 'not a date', lastSeen: 5 }, null, { id: 'y', firstSeen: '2026-01-01T00:00:00Z', lastSeen: '2026-01-02' }] })`, context))),
+  [{ id: 'x', firstSeen: null, lastSeen: null }, { id: null, firstSeen: null, lastSeen: null }, { id: 'y', firstSeen: Date.parse('2026-01-01T00:00:00Z'), lastSeen: Date.parse('2026-01-02') }], 'unparseable or missing dates are null');
 assert.strictEqual(firstCatalogAttempt[2].result.case_record.caseId, 'CASE-044424');
 assert.strictEqual(firstCatalogAttempt[2].result.case_record.scenarioId, first.caseRecord.scenarioId,
   'instructor attempt case record carries the fixture case and scenario identity');
