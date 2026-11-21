@@ -625,6 +625,10 @@ async function signOut(reason = 'user_signed_out') {
   ACCOUNT_NAMES.ready = null;
   // The SOC Instructor Guide holds answer keys: drop it with the session.
   if (typeof SocInstructorGuide !== 'undefined') SocInstructorGuide.reset();
+  // Staff-only Prove It recommendations (SOC Submission Sheet, Help Desk
+  // grading card) go with the session too.
+  if (typeof socProveResetRecommendations === 'function') socProveResetRecommendations();
+  if (typeof itsProveResetStaffCaches === 'function') itsProveResetStaffCaches();
   // Purge defender-lab.* keys, or the next student on this browser inherits
   // the previous one's lab environment. PLATFORM_ARCHITECTURE.md §7.2.
   Object.keys(localStorage)
