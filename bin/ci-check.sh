@@ -77,6 +77,7 @@ node tests/live-refresh.test.js
 echo '== Lab evidence files =='
 node tests/hdesk-evidence-upload.test.js
 node tests/lab-attempt-evidence-panel.test.js
+node tests/soc-m12-capstone-risks.test.js
 
 echo '== Simulator route render and navigation =='
 node bin/render_all.js
