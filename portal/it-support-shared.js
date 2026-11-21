@@ -563,7 +563,7 @@ function itsCleanCommsWork(input) {
   if ('handoffMissing' in input) out.handoffMissing = Array.isArray(input.handoffMissing) ? list(input.handoffMissing, 6, 24) : null;
   if ('warmHandoffs' in input) out.warmHandoffs = Array.isArray(input.warmHandoffs) ? input.warmHandoffs.slice(-10).filter((entry) => object(entry)).map((entry) => ({ group: text(entry.group, 60), at: text(entry.at, 40) })) : [];
   const followUp = object(input.followUp);
-  if (followUp) out.followUp = { at: text(followUp.at, 40), visited: followUp.visited === true, updated: followUp.updated === true };
+  if (followUp) out.followUp = { at: text(followUp.at, 40), visited: followUp.visited === true, updated: followUp.updated === true, kept: followUp.kept === true };
   if ('commentChecks' in input) out.commentChecks = Array.isArray(input.commentChecks) ? input.commentChecks.slice(-20).filter((entry) => object(entry)).map((entry) => ({ hasTime: entry.hasTime === true, promise: entry.promise === true })) : [];
   if ('teamMessages' in input) out.teamMessages = list(input.teamMessages, 10, 30);
   if ('duplicateTried' in input) out.duplicateTried = input.duplicateTried === true;

@@ -215,9 +215,10 @@
     const notes = has ? savedNotes(ticket).filter((note) => note.author === 'Riley Morgan' || !note.author) : [];
     const yes = (value) => (value ? 'Yes' : 'No');
     const v = (value) => (has ? value : null);
-    // A second follow-up set after the update can clear "updated"; the jump
-    // plus a later comment still shows the update was posted.
-    const updated = follow ? follow.updated || (follow.visited && comments.length >= 2) : false;
+    // A second follow-up set after the update can clear "updated"; "kept"
+    // (the simulator's check that a comment came after the jump) still
+    // shows the update was posted.
+    const updated = follow ? follow.updated || follow.kept : false;
     return [
       {
         id: 'call-hd-2164', title: `The call · ${label}`, recordedSince: '2026-11-21', mechanics: false,

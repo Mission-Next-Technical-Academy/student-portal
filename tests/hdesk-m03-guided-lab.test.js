@@ -372,12 +372,17 @@ function testPortalAndSheet(work) {
   // A rough run: P2, no warm handoff, a note with no Next action, no update.
   const rough = plain(clean);
   const rc = rough.tickets[0].console;
-  rc.matrix.priority = 'P2'; rc.warmHandoffs = []; rc.handoffMissing = ['Next action']; rc.followUp.updated = false; rc.followUp.visited = false;
+  rc.matrix.priority = 'P2'; rc.warmHandoffs = []; rc.handoffMissing = ['Next action']; rc.followUp.updated = false; rc.followUp.visited = false; rc.followUp.kept = false;
   const roughSheet = sheet.evaluate({ ...row, id: 'm03g-2', result: { ...row.result, work: rough } });
   ['triage-hd-2164', 'handoff-hd-2164', 'updates-hd-2164'].forEach((id) => assert.notEqual(roughSheet.sections.find((s) => s.id === id).status, 'pass', id));
-  // A second follow-up after the update: still shown as updated.
-  const second = plain(clean); second.tickets[0].console.followUp = { at: '2026-08-19T13:00:00.000Z', visited: true, updated: false };
+  // A second follow-up after the update: still shown as updated, from the
+  // simulator's "kept" check, never from the number of comments.
+  assert.equal(c.followUp.kept, true);
+  const second = plain(clean); second.tickets[0].console.followUp = { at: '2026-08-19T13:00:00.000Z', visited: true, updated: false, kept: true };
   assert.equal(sheet.evaluate({ ...row, id: 'm03g-3', result: { ...row.result, work: second } }).sections.find((s) => s.id === 'updates-hd-2164').status, 'pass');
+  const early = plain(clean); early.tickets[0].console.followUp = { at: '2026-08-19T11:30:00.000Z', visited: true, updated: false, kept: false };
+  assert.ok(early.tickets[0].customerComments.length >= 2);
+  assert.notEqual(sheet.evaluate({ ...row, id: 'm03g-5', result: { ...row.result, work: early } }).sections.find((s) => s.id === 'updates-hd-2164').status, 'pass', 'two comments before the jump are not an update');
   // An attempt saved under the old coach keeps the generic sheet.
   const oldRow = { ...row, id: 'm03g-4', result: { source: 'mnt-coach-complete', work: { version: 1, tickets: [{ id: 'HD-2113', status: 'Escalated', notes: [{ author: 'Riley Morgan', time: '10:00', text: 'Gateway certificate expired.' }] }, { id: 'HD-2124', status: 'Resolved' }] } } };
   const oldIds = sheet.evaluate(oldRow).sections.map((s) => s.id);

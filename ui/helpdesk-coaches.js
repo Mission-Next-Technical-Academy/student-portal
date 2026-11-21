@@ -99,9 +99,24 @@
   }
   // A console ticket's work (ui/helpdesk.js hdConsoleProgress) and the
   // student's customer comments, word for word. Nothing for other tickets.
+  // Module 3: an update was posted at the follow-up time. "updated" reads the
+  // latest follow-up only, so a student who updates at 11:30 and then sets
+  // the next follow-up loses it; after "Go to follow-up time" the shift clock
+  // stays there, so a comment at or after that clock time was posted after
+  // the jump.
+  function hdFollowUpKept(ticket, progress) {
+    const follow = progress && progress.followUp;
+    if (!follow) return false;
+    if (follow.updated) return true;
+    if (!follow.visited || typeof hdShiftNow !== 'function') return false;
+    const due = hdShiftNow(ticket).getTime();
+    const list = typeof hdComments === 'function' ? hdComments(ticket) : (ticket.customerComments || []);
+    return (Array.isArray(list) ? list : []).some((c) => c && c.author === 'Riley Morgan' && Date.parse(c.at || '') >= due);
+  }
   function hdCoachConsoleWork(ticket) {
     const progress = typeof hdConsoleProgress === 'function' ? hdConsoleProgress(ticket.id) : null;
     if (!progress) return {};
+    if (progress.followUp) progress.followUp.kept = hdFollowUpKept(ticket, progress);
     const state = typeof hdConsoleState === 'function' ? hdConsoleState(ticket) : {};
     // Module 2: the student's rewrite and knowledge draft, word for word.
     const writing = state.rewrite || state.kbDraft ? { writing: {
@@ -931,15 +946,9 @@
         body: 'Why: an update on time, even without news, is what keeps a caller’s trust. Success looks like: your update is posted within 10 minutes of the follow-up time. Say that the desktop team has his laptop next, that you have no finish time yet, and when you will update him again. If you posted before the clock moved, press the button and post a new one.',
         waitLabel: 'Next Step: Update posted on time',
         check: () => {
-          if (hd11Rule({ followUpUpdated: true })) return true;
-          // A student who set a second follow-up afterwards still finishes:
-          // the jump moved the shift clock, and an update posted at or after
-          // that clock time counts.
-          const t = hd11Ticket(); const p = hd11Progress();
-          if (!t || !p || !p.followUp || !p.followUp.visited || typeof hdShiftNow !== 'function') return false;
-          const due = hdShiftNow(t).getTime();
-          const list = typeof hdComments === 'function' ? hdComments(t) : (t.customerComments || []);
-          return !Number.isNaN(due) && (Array.isArray(list) ? list : []).some((c) => c && c.author === 'Riley Morgan' && Date.parse(c.at || '') >= due);
+          // A student who set a second follow-up afterwards still finishes.
+          const t = hd11Ticket();
+          return Boolean(t) && hdFollowUpKept(t, hd11Progress());
         },
       },
       {
