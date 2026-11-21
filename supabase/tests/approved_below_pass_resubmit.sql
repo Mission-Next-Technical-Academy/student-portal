@@ -99,6 +99,21 @@ select pg_temp.expect_error($$select pg_temp.submit('d1000000-0000-0000-0000-000
   'already_approved', 'an approved passing attempt refuses a resubmit');
 select pg_temp.clear_claims();
 
+-- ------------------------------------------------------------ approved with a critical error
+-- A score of 90 with a critical error does not pass, so approval must not lock it.
+select pg_temp.act_as('d1000000-0000-0000-0000-000000000002', 'e1000000-0000-0000-0000-000000000002');
+select pg_temp.submit('d1000000-0000-0000-0000-000000000002', 'lab-its-02-vm-snapshot-server', 'complete', 90, '2026-11-21 10:00:00+00');
+select pg_temp.clear_claims();
+update public.lab_attempts set result = '{"critical_errors":["test critical error"]}'::jsonb
+  where user_id = 'd1000000-0000-0000-0000-000000000002' and lab_key = 'lab-its-02-vm-snapshot-server';
+select pg_temp.review('d1000000-0000-0000-0000-000000000002', 'lab-its-02-vm-snapshot-server', false);
+select pg_temp.act_as('d1000000-0000-0000-0000-000000000002', 'e1000000-0000-0000-0000-000000000002');
+select pg_temp.submit('d1000000-0000-0000-0000-000000000002', 'lab-its-02-vm-snapshot-server', 'complete', 88, '2026-11-21 11:00:00+00');
+select pg_temp.clear_claims();
+select pg_temp.check((select count(*) = 2 from public.lab_attempts
+    where user_id = 'd1000000-0000-0000-0000-000000000002' and lab_key = 'lab-its-02-vm-snapshot-server'),
+  'an approved attempt with a critical error allows a resubmit');
+
 -- ------------------------------------------------------------ Assessment Lab box
 select pg_temp.act_as('d1000000-0000-0000-0000-000000000001', 'e1000000-0000-0000-0000-000000000001');
 select pg_temp.submit('d1000000-0000-0000-0000-000000000001', 'its-02-assessment-module', 'submitted', null, '2026-11-21 12:00:00+00');

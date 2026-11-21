@@ -21,6 +21,10 @@
 --   state = 'complete'
 --   and (score is null or score >= coalesce(pass_threshold, 70))
 --   and coalesce(jsonb_array_length(result->'critical_errors'), 0) = 0
+-- The current view (20261030221555_faculty_official_lab_grades.sql) skips the
+-- score test on official-grade labs. That does not change this rule: the
+-- constraint lab_attempts_complete_needs_passing_score already refuses a
+-- 'complete' row that scores below the pass mark.
 --
 -- Kept from 20261029234710: the Assessment Lab box keys
 -- ('<module key>-assessment-module') are guarded too, and an approved box
