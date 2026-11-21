@@ -5491,6 +5491,8 @@ body.route-defender-device .page-header { margin: 0; }
 .hd-ticket-layout { align-items: start; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 300px; }
 .hd-ticket-main, .hd-ticket-side { display: grid; gap: 16px; min-width: 0; }
 .hd-ticket-main .card-header, .hd-ticket-side .card-header { gap: 8px; }
+/* Settings › Printers & scanners: the card headings get the card's padding. */
+.hd-settings-view .card-header { padding: 10px 14px; border-bottom: 1px solid var(--border); }
 .hd-ticket-side { position: sticky; top: 16px; }
 .hd-request { border-left: 4px solid var(--workload); color: var(--fg); font-size: 16px; line-height: 1.6; margin: 0 0 18px; padding: 6px 0 6px 16px; }
 .hd-field-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -5512,6 +5514,7 @@ body.route-defender-device .page-header { margin: 0; }
 .hd-note-list > div { background: var(--bg); border-left: 3px solid var(--workload); padding: 9px 11px; }
 .hd-note-list strong { font-size: 11px; }
 .hd-note-list p { font-size: 13px; margin: 4px 0 0; }
+textarea.hd-note-input { display: block; font-family: inherit; line-height: 1.5; margin-bottom: 10px; min-height: 80px; resize: vertical; }
 .hd-control-stack { display: grid; gap: 12px; }
 .hd-control-stack label { color: var(--fg-muted); display: grid; font-size: 11px; gap: 5px; text-transform: uppercase; }
 .hd-history { display: grid; gap: 10px; }
@@ -5729,6 +5732,11 @@ body.coach-bar-open { padding-bottom: 104px; }
 .coach-bar-why { margin-top: 4px; }
 .coach-bar-why summary { color: #1e3a5f; font-size: 11px; font-weight: 700; cursor: pointer; }
 .coach-bar-why p { margin: 6px 0 0; color: var(--fg-muted); font-size: 12px; line-height: 1.55; max-width: 90ch; }
+.coach-bar-alert {
+  margin: 6px 0 0; padding: 6px 10px; max-width: 90ch;
+  color: #7a1f1f; background: #fdecec; border: 1px solid #d13438; border-radius: 4px;
+  font-size: 12px; font-weight: 600; line-height: 1.45;
+}
 
 .coach-bar-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .coach-bar-waiting {

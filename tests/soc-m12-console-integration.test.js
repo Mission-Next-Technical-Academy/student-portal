@@ -26,6 +26,8 @@ assert.equal(vm.runInContext('SocM12AssessmentConsole.dataset().caseId', context
 const observed = vm.runInContext('SocM12AssessmentConsole.evaluateQuery("DeviceProcessEvents | where EventId == \\\"EP-301\\\"")', context);
 assert.equal(observed.outcome, 'narrow');
 assert.deepEqual(Array.from(observed.matchedEvidence), ['EP-301'], 'query outcome and evidence come from MnKql rows');
+const evidenceRows = vm.runInContext('SocM12AssessmentConsole.dataset().events.filter((row) => ["EM-212", "EP-301", "EP-303"].includes(row.EventId))', context);
+assert.ok(evidenceRows.every((row) => row.SourceIp === '—'), 'M12 evidence without a source address displays an em dash instead of undefined');
 vm.runInContext(read('portal/attack-catalog.js'), context, { filename: 'portal/attack-catalog.js' });
 vm.runInContext(read('portal/case-record.js'), context, { filename: 'portal/case-record.js' });
 vm.runInContext(read('portal/soc-analyst-module-12.js'), context, { filename: 'portal/soc-analyst-module-12.js' });
@@ -37,7 +39,7 @@ assert.match(html, /data-m12-submit-case/);
 for (const name of ['status','severity','affectedUser','affectedDevice','disposition','escalation','notes']) assert.match(html, new RegExp(`name="${name}"`));
 for (const name of ['priorityRationale','scopeStatement','executiveSummary','closureNote']) assert.match(html, new RegExp(`<textarea name="finding:${name}"`));
 assert.match(html, /minlength="180"/);
-assert.match(html, /No response action attempted yet/);
+assert.doesNotMatch(html, /No response action attempted yet|m01-requirements-list|ticket is ready/); // compact: requirements list never shown
 assert.doesNotMatch(html, /data-m12-assessment-action|data-m12-submit-capstone|m12-action-grid|m12-evidence-grid|is-correct|rubric|\d+ of \d+ points/);
 const moduleUi = read('portal/soc-analyst-module-12.js');
 assert.doesNotMatch(moduleUi, /m12-assessment-section|moduleTwelveAssessment\(|moduleTwelveFindingsHtml\(|MODULE_TWELVE_CONSOLES|MODULE_TWELVE_EVIDENCE|data-m12-hint|data-m12-assessment-action/);
@@ -48,9 +50,6 @@ const consoleUi = read('portal/soc-m12-assessment-console.js');
 for (const marker of ['data-m12-action="hypothesis"','data-m12-action="handoff"','data-m12-action="closure"','[\'technical\',\'executive\',\'lessons\']','data-m12-report="${kind}"']) {
   assert.ok(consoleUi.includes(marker), `${marker} is available in the cumulative Operations/Reporting workspaces`);
 }
-const emptyTracker = vm.runInContext('moduleTwelveMissionStatus()', context);
-assert.equal((emptyTracker.match(/<span>\d{2}<\/span>/g) || []).length, 12, 'the tracker renders all twelve mission requirements');
-assert.doesNotMatch(emptyTracker, /is-seen|· reviewed|· open/, 'mission outcomes never report per-item correctness or visits');
 vm.runInContext(`moduleTwelveState.status='pending'; moduleTwelveState.severity='high'; moduleTwelveState.affectedUser='acct-204'; moduleTwelveState.affectedDevice='ws-204'; moduleTwelveState.disposition='true-positive'; moduleTwelveState.escalation='required'; moduleTwelveState.escalateTo='tier2-soc';
 moduleTwelveState.notes='EP-301 and ID-402 support the confirmed scope and timeline. '+ 'Technical reasoning with supported sequence and remaining uncertainty. '.repeat(5);
 moduleTwelveState.findings={ priorityRationale: 'EP-301 and ID-402 demonstrate concurrent endpoint and identity exposure requiring timely response.', scopeStatement: 'EP-301 and ID-402 identify ws-204 and acct-204. NW-504 bounds the observed scope to the supplied telemetry; remaining devices need monitoring.', executiveSummary: 'The affected user and service require a containment decision. '+ 'Business impact remains bounded while the team preserves evidence and validates recovery. '.repeat(3), closureNote: 'Keep the incident open pending validated recovery and continued monitoring. The incident lead owns the remaining follow-up and residual risk.' };
@@ -71,9 +70,24 @@ const reviewHtml=vm.runInContext('adminCaseTicketSubmissionPanel(reviewRow)',con
 assert.match(reviewHtml,/Priority rationale|Scope statement|Executive summary|Closure note/);
 assert.match(reviewHtml,/whitespace-pre-wrap/);
 assert.ok(reviewHtml.includes(context.reviewRow.result.case_record.notes),'full analyst notes remain readable in faculty ticket review');
+context.reviewRow={result:{case_record:{notes:'',incidentResolutions:{parentClosed:true,children:{'INC-MN-517':{resolved:true,disposition:'true-positive',evidence:'A-5012, P-7001',note:'A-5012 confirms access; P-7001 confirms forwarding.'}}}}}};
+const childReviewHtml=vm.runInContext('adminCaseTicketSubmissionPanel(reviewRow)',context);
+assert.match(childReviewHtml,/Child incident resolutions · parent closed/);
+assert.match(childReviewHtml,/A-5012 confirms access; P-7001 confirms forwarding\./);
 vm.runInContext('moduleTwelveState.submitted=true',context);
 const lockedHtml=vm.runInContext('moduleTwelveTicketView()',context);
 assert.match(lockedHtml,/Submitted for faculty review/);
 assert.doesNotMatch(lockedHtml,/data-m12-submit-case|data-m12-save-case/);
 assert.match(lockedHtml,/<textarea[^>]*disabled/);
 console.log('M12 ticket tab contract, action-only requirements, narratives, immutable saves and faculty core review: passed');
+
+// UAT U40: Update Ticket must never overwrite a report or closure the student wrote on the Reporting tab.
+{
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'portal', 'soc-analyst-module-12.js'), 'utf8');
+  const assertU40 = require('assert');
+  assertU40.match(src, /const authoredElsewhere = \(entry\) => Boolean\(entry && !entry\.ticketField\);/);
+  assertU40.match(src, /record\('report', 'notes'/);
+  assertU40.match(src, /moduleTwelveState\.notes\.trim\(\) && !authoredElsewhere\(state\.reports\?\.technical\)\) record\('report', 'notes'/);
+  assertU40.match(src, /fields\.executiveSummary\?\.trim\(\) && !authoredElsewhere\(state\.reports\?\.executive\)\) record\('report', 'executiveSummary'/);
+  assertU40.match(src, /!authoredElsewhere\(state\.closure\)\) record\('closure'/);
+}

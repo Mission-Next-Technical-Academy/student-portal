@@ -26,7 +26,7 @@ const SocM12AssessmentConsole = (() => {
   function dataset() {
     const s=SocM12AssessmentData.scenario, day=s.start.slice(0,10);
     const d=SocM12AssessmentData;
-    const normalize=(row)=>({...row,Host:lc(row.Host),DeviceId:lc(row.DeviceId)});
+    const normalize=(row)=>({...row,Host:lc(row.Host),DeviceId:lc(row.DeviceId),SourceIp:row.SourceIp??'—'});
     const events=s.evidence.filter(e=>!(d.telemetry||[]).some(r=>r.EventId===e.id)).map((e)=>{
       const account=e.entityIds.find(id=>id.startsWith('acct-'))||'system';
       const host=e.entityIds.find(id=>id.startsWith('ws-'))||'idp-02';
@@ -65,7 +65,7 @@ const SocM12AssessmentConsole = (() => {
   }
   function fixtures(data) {
     const s=SocM12AssessmentData.scenario, id=s.id;
-    const m04=SocConsoleTools.m04Fixture({id,caseId:s.caseId,end:s.end,data,iocs:s.intelligence.map(i=>({id:i.id,type:/^\d/.test(i.indicator)?'ip':i.indicator.includes('…')?'file-hash':'domain',value:i.indicator,confidence:i.confidence==='high'?90:i.confidence==='medium'?60:50,status:'active',context:i.context,firstSeen:s.start,lastSeen:s.end,sourceReportId:''}))});
+    const m04=SocConsoleTools.m04Fixture({id,caseId:s.caseId,end:s.end,data,iocs:s.intelligence.map(i=>({id:i.id,type:i.indicator.includes('…')?'file-hash':/^\d/.test(i.indicator)?'ip':'domain',value:i.indicator,confidence:i.confidence==='high'?90:i.confidence==='medium'?60:50,status:'active',context:i.context,firstSeen:s.start,lastSeen:s.end,sourceReportId:''}))});
     const devices=[{id:'ws-204',hostname:'WS-204',platform:'Windows',role:'Finance workstation',owner:'acct-204',zone:'CORP',status:'investigation'},
       {id:'ws-118',hostname:'WS-118',platform:'Windows',role:'Workstation',owner:'system',zone:'CORP',status:'monitor'},
       {id:'ws-131',hostname:'WS-131',platform:'Windows',role:'Finance workstation',owner:'acct-157',zone:'CORP',status:'monitor'},
@@ -91,7 +91,7 @@ const SocM12AssessmentConsole = (() => {
       incidents:[{id:s.caseId,title:'Operation Amber Finch',findingIds:exposure.map(r=>r.EventId),summary:'Assess incident relevance from linked telemetry.'}],
       incidentEvidence:exposure.map(r=>({id:r.EventId,incidentId:s.caseId,findingId:r.EventId,kind:'inventory-context',observedAt:r.TimeGenerated,source:r.EventSource,detail:r.Detail})),escalationRoutes:[{id:'tier2',label:'Tier 2 Incident Response'}]});
     const artifacts=s.evidence.map((e,i)=>({id:e.id,type:e.source,time:e.at,host:e.entityIds.find(x=>x.startsWith('ws-'))||'IDP-02',account:e.entityIds.find(x=>x.startsWith('acct-'))||'soc-analyst',title:e.id,source:e.source,methods:['log_export'],sourceHash:String(i+1).repeat(64).slice(0,64),verificationHash:String(i+1).repeat(64).slice(0,64),detail:`${e.source} export: ${e.entityIds.join(', ')}`}));
-    const m09=SocConsoleTools.m09Fixture({id,stateKey:'m12-m09-tools-v1',start:s.start,end:s.end,incident:{id:s.caseId,title:'Operation Amber Finch',reportedAt:s.start,sourceEntityId:'ws-204',sourceEvidenceId:'EM-212',summary:'Investigate correlated email, endpoint, identity and network evidence.'},entities:[{id:'ws-204',type:'endpoint',hostname:'WS-204',ownerAccountId:'acct-204',status:'under_investigation'},{id:'acct-204',type:'identity',displayName:'acct-204',status:'active'},{id:'ws-118',type:'endpoint',hostname:'WS-118',status:'monitor'}, {id:'DEV-204',type:'device',hostname:'ws-204',linkedEntityId:'ws-204'}, {id:'SESSION-204',type:'session',accountId:'acct-204',deviceId:'DEV-204'}, {id:'IOC-204',type:'ioc',value:'203.0.113.72',linkedEntityId:'ws-204'}, {id:'PERSIST-204',type:'persistence',name:'PolicyUpdate',linkedEntityId:'ws-204'}],backups:s.backups.map(b=>({id:b.id,targetEntityId:'DEV-204',recoveryPointId:b.id,capturedAt:b.at,integrity:'verified',knownGood:b.trust==='verified-pre-incident',evidenceId:'EP-301',scope:'device'})),edges:[{from:s.caseId,to:'ws-204',relation:'execution',evidenceId:'EP-301'},{from:s.caseId,to:'acct-204',relation:'identity_session',evidenceId:'ID-402'}],evidence:s.evidence.map(e=>({id:e.id,type:e.source,time:e.at,entityId:e.entityIds[0],relatedEntityIds:e.entityIds.slice(1),summary:`${e.source} record ${e.id}`}))});
+    const m09=SocConsoleTools.m09Fixture({id,stateKey:'m12-m09-tools-v1',start:s.start,end:s.end,incident:{id:s.caseId,title:'Operation Amber Finch',reportedAt:s.start,sourceEntityId:'ws-204',sourceEvidenceId:'EM-212',summary:'Investigate correlated email, endpoint, identity and network evidence.'},entities:[{id:'ws-204',type:'endpoint',hostname:'WS-204',ownerAccountId:'acct-204',status:'under_investigation'},{id:'acct-204',type:'identity',displayName:'acct-204',status:'active'},{id:'ws-118',type:'endpoint',hostname:'WS-118',status:'monitor'}, {id:'DEV-204',type:'device',hostname:'ws-204',linkedEntityId:'ws-204'}, {id:'SESSION-204',type:'session',accountId:'acct-204',deviceId:'DEV-204'}, {id:'IOC-204',type:'ioc',value:'203.0.113.72',linkedEntityId:'ws-204'}, {id:'PERSIST-204',type:'persistence',name:'PolicyUpdate',linkedEntityId:'ws-204'}],backups:s.backups.map(b=>({id:b.id,targetEntityId:'DEV-204',recoveryPointId:b.id,capturedAt:b.at,integrity:b.trust==='verified-pre-incident'?'verified':'post-compromise',knownGood:b.trust==='verified-pre-incident',evidenceId:'EP-301',scope:'device'})),edges:[{from:s.caseId,to:'ws-204',relation:'execution',evidenceId:'EP-301'},{from:s.caseId,to:'acct-204',relation:'identity_session',evidenceId:'ID-402'}],evidence:s.evidence.map(e=>({id:e.id,type:e.source,time:e.at,entityId:e.entityIds[0],relatedEntityIds:e.entityIds.slice(1),summary:`${e.source} record ${e.id}`}))});
     const m10={schemaVersion:1,scenario:{id,caseId:s.caseId,incidentId:s.caseId,stateKey:'m12-m10-tools-v1',start:s.start,end:s.end,fixedAt:s.end,containedAt:s.start,request:{id:'REQ-M12',from:'Incident lead',receivedAt:s.start,text:'Preserve the linked records, verify integrity and document the bounded reconstruction.'},custodians:[{id:'soc-analyst',label:'SOC analyst'},{id:'forensics',label:'Digital Forensics'},{id:'legal',label:'Legal hold'}],artifacts}};
     return {m04,m05,m06,m07,m08,m09,m10};
   }
@@ -127,21 +127,25 @@ const SocM12AssessmentConsole = (() => {
   }
   function findingControls(row) {
     const domain=evidenceDomain(row.EventSource); if(!domain) return '';
+    const saved=(moduleTwelveState.assessmentState.investigations||[]).filter(item=>Array.isArray(item.evidenceIds)&&item.evidenceIds.includes(row.EventId));
+    const history=saved.length?`<section aria-label="Saved findings"><h5>Saved findings for ${esc(row.EventId)}</h5><ul>${saved.map(item=>`<li><strong>${esc(item.domain)} finding</strong>: ${esc(item.finding)}</li>`).join('')}</ul></section>`:'';
     return `<section class="m04-console-extra" data-m12-selected-evidence="${esc(row.EventId)}"><h4>Finding · ${esc(row.EventId)}</h4><p>${esc(row.TimeGenerated)} · ${esc(row.EventSource)} · ${esc(row.Host)} · ${esc(row.Account||'')}<br>${esc(row.Detail||'')}</p>
-      <form data-m12-context="finding" data-evidence-id="${esc(row.EventId)}"><label>Finding type<select name="domain" required><option value="">Choose…</option><option value="${domain}">${domain} analysis</option><option value="scope">Scope determination</option></select></label><label>Finding and reasoning<textarea name="finding" required minlength="20" maxlength="1000"></textarea></label><p class="m03e-muted">Recorded with selected evidence ${esc(row.EventId)}.</p><button type="submit">Record finding</button></form></section>`;
+      <form data-m12-context="finding" data-evidence-id="${esc(row.EventId)}"><label>Finding type<select name="domain" required><option value="">Choose…</option><option value="${domain}">${domain} analysis</option><option value="scope">Scope determination</option></select></label><label>Finding and reasoning<textarea name="finding" required minlength="20" maxlength="1000"></textarea></label><p class="m03e-muted">Recorded with selected evidence ${esc(row.EventId)}.</p><button type="submit">Record finding</button></form>${history}</section>`;
   }
   function contextualMarkup(tab, consoleState, data) {
     const scenario=SocM12AssessmentData.scenario, selected=consoleState.selected;
     if(tab==='alerts') {
       const alert=selected?.type==='alert' && data.alerts.find(a=>a.id===selected.id); if(!alert)return '';
+      const saved=moduleTwelveState.assessmentState.alertReviews?.[alert.id];
       return `<section class="m04-console-extra" data-m12-selected-alert="${esc(alert.id)}"><h4>Alert determination · ${esc(alert.id)}</h4>
         <form data-m12-context="alert" data-alert-id="${esc(alert.id)}"><label>Disposition<select name="disposition" required><option value="">Choose…</option>${['true-positive','benign-positive','false-positive','needs-investigation'].map(d=>`<option value="${d}">${d}</option>`).join('')}</select></label><label>Evidence and reasoning<textarea name="reason" required minlength="20" maxlength="1000"></textarea></label><button type="submit">Record alert determination</button></form>
-        <form data-m12-context="incident-link" data-alert-id="${esc(alert.id)}"><label>Incident ID<input name="incidentId" required maxlength="120"></label><button type="submit">Link selected alert</button></form></section>`;
+        ${saved?`<p role="status">Saved determination: ${esc(saved.disposition)}${saved.reason?` · ${esc(saved.reason)}`:''}</p>`:''}
+        <form data-m12-context="incident-link" data-alert-id="${esc(alert.id)}"><label>Incident in ${esc(scenario.parentCase.id)}<select name="incidentId" required><option value="">Choose…</option>${scenario.parentCase.incidents.map(i=>`<option value="${esc(i.id)}">${esc(i.id)} · ${esc(i.title)}</option>`).join('')}</select></label><button type="submit">Link selected alert</button></form></section>`;
     }
     if(tab==='intelligence') {
       const indicator=selected?.type==='intel'&&scenario.intelligence.find(i=>i.id===selected.id);
       return `<section class="m04-console-extra"><h4>Contextual indicator assessment</h4><div class="m03e-listing">${scenario.intelligence.map(i=>`<button type="button" data-m12-select-intel="${esc(i.id)}" aria-pressed="${indicator?.id===i.id}"><strong>${esc(i.indicator)}</strong><span>${esc(i.id)}</span></button>`).join('')}</div>
-        ${indicator?`<article data-m12-selected-indicator="${esc(indicator.id)}"><h5>${esc(indicator.indicator)}</h5><p>${esc(indicator.context)}</p><form data-m12-context="intel" data-indicator-id="${esc(indicator.id)}"><label>Verdict<select name="decision" required><option value="">Choose…</option>${['malicious','benign','unknown'].map(v=>`<option value="${v}">${v}</option>`).join('')}</select></label><label>Context and reasoning<textarea name="rationale" required minlength="20" maxlength="1000"></textarea></label><button type="submit">Record indicator verdict</button></form></article>`:'<p>Select an indicator to record its contextual verdict.</p>'}</section>`;
+        ${indicator?`<article data-m12-selected-indicator="${esc(indicator.id)}"><h5>${esc(indicator.indicator)}</h5><p>${esc(indicator.context)}</p><form data-m12-context="intel" data-indicator-id="${esc(indicator.id)}"><label>Verdict<select name="decision" required><option value="">Choose…</option>${['malicious','benign','unknown'].map(v=>`<option value="${v}">${v}</option>`).join('')}</select></label><label>Context and reasoning<textarea name="rationale" required minlength="20" maxlength="1000"></textarea></label><button type="submit">Record indicator verdict</button></form>${moduleTwelveState.assessmentState.intelligence?.[indicator.id]?`<p role="status">Saved verdict: ${esc(moduleTwelveState.assessmentState.intelligence[indicator.id].decision)} · ${esc(moduleTwelveState.assessmentState.intelligence[indicator.id].rationale)}</p>`:''}</article>`:'<p>Select an indicator to record its contextual verdict.</p>'}</section>`;
     }
     if(tab==='response') {
       // The same designer Module 09 renders; only the recorder differs.
@@ -228,7 +232,7 @@ const SocM12AssessmentConsole = (() => {
       refresh.m12Contextual=true;
       M03E_AFTER_RENDER.m12=refresh;
     }
-    const mounted=SocConsoleTools.mount('m12',{data,stateRoot:parent,save,title:'CUMULATIVE SOC CAPSTONE',ariaLabel:'Module 12 cumulative SOC capstone console',packs,
+    const mounted=SocConsoleTools.mount('m12',{data,stateRoot:parent,save,title:'CUMULATIVE SOC CAPSTONE',ariaLabel:'Module 12 cumulative SOC capstone console',packs,initialTab:'case',
       extraTabs:[['operations','Operations'],['reporting','Reporting']],views:{...contextualViews,operations:()=>operations({state:()=>moduleTwelveState.assessmentState}),reporting:()=>reporting({state:()=>moduleTwelveState.assessmentState})},
       caseView:()=>moduleTwelveTicketView(),
       caseBadge:()=>moduleTwelveState.submitted?' <i class="ri-checkbox-circle-fill" aria-label="Submitted"></i>':''});
@@ -249,18 +253,30 @@ const SocM12AssessmentConsole = (() => {
         else if(form.dataset.m12Action==='hypothesis') next=api.record(next,fixture,'hypothesis',{statement:v('statement'),entityIds:list('entityIds')});
         else if(form.dataset.m12Action==='handoff') next=api.record(next,fixture,'handoff',{text:v('text'),openRisks:list('openRisks')});
         else if(form.dataset.m12Action==='closure') next=api.record(next,fixture,'closure',{decision:v('decision'),rationale:v('rationale')});
+        else if(form.dataset.m12Action==='incident-update') next=api.record(next,fixture,'incident-update',{incidentId:form.dataset.incidentId,status:v('status'),disposition:v('disposition'),note:v('note')});
         moduleTwelveState.assessmentState=next;
         const stage=form.matches('[data-m12-report]')?'reporting':form.dataset.m12Action==='closure'?'closure':'query';
         moduleTwelveState.stageVisits=[...new Set([...moduleTwelveState.stageVisits,stage])];
-        moduleTwelveSave(); moduleTwelveRender();
+        moduleTwelveSave(); m03eRender('m12');
       } catch(error) { let status=form.querySelector('[role="alert"]'); if(!status){status=document.createElement('p');status.setAttribute('role','alert');form.append(status);} status.textContent=error.message; }
     });
     root.addEventListener('click',(event)=>{
+      // ITSM navigation: open a child incident's record (empty id = back to
+      // the CASE), or jump from an incident to one of its linked alerts.
+      const incidentNav=event.target.closest('[data-m12-open-incident], [data-m12-open-alert]');
+      if(incidentNav) {
+        event.stopPropagation();
+        const st=m03eState('m12');
+        if(incidentNav.hasAttribute('data-m12-open-alert')) { st.tab='alerts'; st.selected={type:'alert',id:incidentNav.dataset.m12OpenAlert}; }
+        else st.openIncident=incidentNav.dataset.m12OpenIncident||'';
+        moduleTwelveSave(); m03eRender('m12');
+        document.getElementById('m03e-console-m12')?.scrollIntoView({block:'start'}); return;
+      }
       const selection=event.target.closest('[data-m12-select-intel], [data-m12-select-record]');
       if(selection) {
         const st=m03eState('m12');
         st.selected={type:selection.dataset.m12SelectIntel?'intel':'record',id:selection.dataset.m12SelectIntel||selection.dataset.m12SelectRecord};
-        moduleTwelveSave(); moduleTwelveRender(); return;
+        moduleTwelveSave(); m03eRender('m12'); return;
       }
       const button=event.target.closest('[data-m03e-pin^="m12:"]'); if(!button)return;
       const id=button.dataset.m03ePin.split(':').slice(1).join(':');

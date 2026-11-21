@@ -48,4 +48,16 @@ assert.ok(fixtureJson.m09.scenario.evidence.some((item) => item.id === 'M11-REC-
 assert.ok(fixtureJson.m10.scenario.artifacts.some((item) => item.id === 'M11-REC-05'));
 assert.equal(vm.runInContext('Object.keys(SocM09AssessmentState.normalize({}, fixtureAdapters.m09).incidentWorkflows).length', context), 1);
 assert.equal(vm.runInContext('SocM10AssessmentState.normalize({}, fixtureAdapters.m10).scenarioId', context), fixtureJson.m10.scenario.id);
+// U38: an out-of-window due date explains itself instead of failing silently.
+{
+  const listeners = {};
+  const wireSrc = moduleJs.slice(moduleJs.indexOf('function moduleElevenWireConsole('), moduleJs.indexOf('\nfunction viewModuleEleven('));
+  vm.runInContext(`${wireSrc}\nthis.wireM11 = moduleElevenWireConsole;`, context);
+  context.wireM11({ addEventListener: (type, fn, capture) => { (listeners[type] ||= []).push({ fn, capture }); } }, {}, () => ({}), () => {}, () => {}, null);
+  assert.ok(listeners.invalid?.[0]?.capture, 'invalid does not bubble, so it is listened for in the capture phase');
+  const status = { textContent: '' };
+  const field = { name: 'dueDate', min: '2026-10-01', max: '2026-10-09', validationMessage: '', closest: (sel) => (sel === '[data-m11-operation]' ? { parentElement: { querySelector: () => status } } : null) };
+  listeners.invalid[0].fn({ target: field });
+  assert.equal(status.textContent, 'Due date must be between 2026-10-01 and 2026-10-09.');
+}
 console.log('M11 cumulative console and single scored-surface integration: passed');

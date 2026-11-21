@@ -93,4 +93,12 @@ const clickedCard = {
 };
 handlers.click({ target: clickedCard });
 assert.equal(selectedCard, 14, 'clicking a lesson card selects its walkthrough step');
+// Module 02's shell also carries .m01-shell and every module's wire() runs on
+// each render: Module 01 wiring that root first must not block Module 02's deck.
+const sharedClicks = [];
+const sharedRoot = { isConnected: true, addEventListener: (type, handler) => { if (type === 'click') sharedClicks.push(handler); }, querySelectorAll: () => [] };
+sandbox.window.LearnItCards.wire(sharedRoot, { prefix: 'm01' });
+sandbox.window.LearnItCards.wire(sharedRoot, { prefix: 'm02e' });
+sandbox.window.LearnItCards.wire(sharedRoot, { prefix: 'm02e' });
+assert.equal(sharedClicks.length, 2, 'one shared root is wired once per module prefix, not once in total');
 console.log('Learn It card deck lint and renderer: passed');

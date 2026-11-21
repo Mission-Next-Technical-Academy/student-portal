@@ -115,7 +115,7 @@ async function runPath(browser, pathName) {
   await page.locator('[data-m12-submit-case]').click();
   try { await page.waitForFunction(() => moduleTwelveState.submitted === true, undefined, { timeout: 5000 }); }
   catch (_) {
-    const missing = await page.evaluate(() => ({ visibleMissing: moduleTwelveState.showMissing, missing: caseRecordMissing(moduleTwelveState, moduleTwelveCaseSpec()), actionMissing: moduleTwelveActionMissing(), fields: moduleTwelveState.findings }));
+    const missing = await page.evaluate(() => ({ visibleMissing: moduleTwelveState.showMissing, missing: caseRecordMissing(moduleTwelveState, moduleTwelveCaseSpec()), fields: moduleTwelveState.findings }));
     throw new Error(`${pathName} submit did not finalize: ${JSON.stringify(missing)}`);
   }
   const result = await page.evaluate(() => {

@@ -331,7 +331,87 @@
     return true;
   }
 
+  // Account display names (first + last name beside an account number). M360
+  // pages do not load app.js, so they read the same public.students columns.
+  // Pre-migration databases lack the columns: show no names, never fail.
+  const NAME_PAGE = 1000;
+  const nameByStudent = new Map();
+  const nameByUser = new Map();
+  let namesPromise = null;
+
+  function nameColumnsMissing(error) {
+    if (!error) return false;
+    if (['42703', 'PGRST204'].includes(error.code)) return true;
+    const text = `${error.message || ''} ${error.details || ''}`;
+    return /first_name|last_name/i.test(text) && /does not exist|schema cache|could not find/i.test(text);
+  }
+
+  // Resolves true when names loaded. Never throws; await before rendering.
+  function loadNames(refresh = false) {
+    if (typeof mntSupabase === 'undefined') return Promise.resolve(false);
+    if (namesPromise && !refresh) return namesPromise;
+    namesPromise = (async () => {
+      try {
+        for (let from = 0; ; from += NAME_PAGE) {
+          const { data, error } = await mntSupabase
+            .from('students')
+            .select('student_id, user_id, first_name, last_name')
+            .order('student_id')
+            .range(from, from + NAME_PAGE - 1);
+          if (error) {
+            if (!nameColumnsMissing(error)) namesPromise = null;
+            return false;
+          }
+          (data || []).forEach(row => {
+            if (!row || !row.first_name || !row.last_name) return;
+            const entry = { first: row.first_name, last: row.last_name };
+            if (row.student_id) nameByStudent.set(row.student_id, entry);
+            if (row.user_id) nameByUser.set(row.user_id, entry);
+          });
+          if (!data || data.length < NAME_PAGE) break;
+        }
+        return true;
+      } catch (error) {
+        namesPromise = null;
+        return false;
+      }
+    })();
+    return namesPromise;
+  }
+
+  // "First Last" or "". Accepts a row ({student_id,user_id}) or a bare ID/uuid.
+  function nameParts(source) {
+    if (!source) return { first: '', last: '' };
+    if (typeof source === 'string') return nameByStudent.get(source) || nameByUser.get(source) || { first: '', last: '' };
+    if (source.first_name && source.last_name) return { first: source.first_name, last: source.last_name };
+    return nameByStudent.get(source.student_id || source.studentId || '') ||
+      nameByUser.get(source.user_id || source.userId || '') || { first: '', last: '' };
+  }
+
+  function nameText(source) {
+    const parts = nameParts(source);
+    return `${parts.first} ${parts.last}`.trim();
+  }
+
+  function escapeNameHtml(value) {
+    return String(value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  }
+
+  // Block form under the ID, or inline " · First Last"; "" when no name.
+  function nameHtml(source, inline = false) {
+    const text = nameText(source);
+    if (!text) return '';
+    const style = inline
+      ? 'font-size:.85em;font-weight:400;opacity:.75;text-transform:none;letter-spacing:0'
+      : 'display:block;font-size:.75em;font-weight:400;line-height:1.2;opacity:.75;text-transform:none;letter-spacing:0';
+    return `<span class="acct-name" style="${style}">${inline ? ' · ' : ''}${escapeNameHtml(text)}</span>`;
+  }
+
   window.M360Data = Object.freeze({
+    loadNames,
+    nameParts,
+    nameText,
+    nameHtml,
     ELIGIBLE_TRACKS,
     getReviewerTrackFilter,
     getContext,

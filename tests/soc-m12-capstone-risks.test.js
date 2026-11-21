@@ -3,7 +3,7 @@
 // Capstone risk fixes (docs/workstreams/CAPSTONE_SKILL_BACKFILL.md, "Capstone bugs / risks"
 // items 2, 4 and 6 of the list, plus the open-risk note on alert-disposition):
 // key-order-insensitive load, partial/failed M09 results on permitted actions,
-// and the retired alert-disposition type.
+// and the review-alert disposition type.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -111,17 +111,14 @@ const containment = (state) => rubric.extractV2(state, fixture).criteria.find((c
   assert.equal(rubric.extractV2(s, fixture).unsafeExecution, false);
 }
 
-// ---- Risk 1: alert-disposition is retired; review-alert is the one alert determination record.
+// ---- Risk 1 (updated 2026-11-21): master keeps alert-disposition accepted so saved v1/v2 attempts
+// replay unchanged; review-alert is the one record the UI writes and it sets the disposition.
 {
-  assert.throws(() => rec(api.fresh(fixture), 'alert-disposition', { alertId: 'AL-1201', disposition: 'true-positive', reason: 'x' }),
-    /invalid|Unsupported/, 'the retired type is refused');
-  assert.ok(!api.TYPES.includes('alert-disposition'));
   const review = rec(api.fresh(fixture), 'review-alert', { alertId: 'AL-1201', disposition: 'true-positive',
     reason: 'Process and network records corroborate the alert.' });
-  assert.equal(review.dispositions['AL-1201'], 'true-positive', 'review-alert still sets the disposition');
-  const legacy = clone(review);
-  legacy.actionHistory[0].type = 'alert-disposition';
-  assert.equal(api.normalize(legacy, fixture).actionHistory.length, 0, 'a persisted legacy alert-disposition entry is dropped on replay');
+  assert.equal(review.dispositions['AL-1201'], 'true-positive', 'review-alert sets the disposition');
+  const legacy = rec(api.fresh(fixture), 'alert-disposition', { alertId: 'AL-1201', disposition: 'true-positive', reason: 'x' });
+  assert.equal(legacy.dispositions['AL-1201'], 'true-positive', 'a legacy alert-disposition entry still replays');
 }
 
-console.log('M12 capstone risk fixes (load compare, partial/failed M09 results, retired alert-disposition): passed');
+console.log('M12 capstone risk fixes (load compare, partial/failed M09 results, review-alert disposition): passed');

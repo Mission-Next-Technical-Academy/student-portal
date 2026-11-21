@@ -100,6 +100,8 @@ assert.doesNotMatch(beforeSubmit, /data-m04-submitted-review|Assessment review|I
   'criterion-level review is absent before case submit');
 assert.doesNotMatch(beforeSubmit, /confirmedCompromisedAccounts|successfulAuthenticationEventIds|matchEventIds|excludeEventIds|maliciousSourceIp|targetedAccounts/,
   'pre-submit assessment artifact does not render fixture answer-key fields');
+assert.match(beforeSubmit, /record indicator verdicts, maintain the threat report and IOC, build and test a tuned rule, schedule and run it, review the resulting alerts, record bounded automation, and document the case/,
+  'before using the single submission, students are told the scored investigation areas beyond the ticket');
 const privatePayloadHtml = vm.runInContext(`moduleFourState.caseRecord.reviewPayload = { score: 100, criteria: [{ label: 'Intelligence corroboration' }] }; moduleFourState.caseRecord.submitted = false; moduleFourArtifact()`, context);
 assert.doesNotMatch(privatePayloadHtml, /data-m04-submitted-review|Intelligence corroboration/,
   'a persisted score payload remains hidden until submitted');

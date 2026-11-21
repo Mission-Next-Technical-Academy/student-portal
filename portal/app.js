@@ -92,11 +92,7 @@ async function buildCoreUserFromSession(session) {
   // roster below is the authority for its course scope.  Do not infer either
   // from a track code: student accounts have track codes too.
   const [studentResult, assignmentResult] = await Promise.all([
-    mntSupabase
-      .from('students')
-      .select('student_id, track_code, is_admin, is_instructor, is_enrolled, academy_orientation_completed_at')
-      .eq('user_id', userId)
-      .single(),
+    selectOwnStudentRow(userId),
     mntSupabase
       .from('faculty_course_assignments')
       .select('track_code')
@@ -105,6 +101,9 @@ async function buildCoreUserFromSession(session) {
   ]);
   const studentRow = studentResult.data;
   if (studentResult.error) console.error('Could not load account profile', studentResult.error);
+  // Warm the roster-wide name directory in the background; it never blocks
+  // sign-in and quietly stays empty against a database without the columns.
+  if (studentRow) loadAccountNames();
   if (assignmentResult.error) console.error('Could not load instructor course assignments', assignmentResult.error);
   const instructorTrackCodes = (assignmentResult.data || []).map((row) => row.track_code).filter((code) => !!adminTrackMeta(code));
 
@@ -134,6 +133,10 @@ async function buildCoreUserFromSession(session) {
     // see AcademyOrientation in orientation.js and the
     // 20260920100000_academy_orientation_state.sql migration.
     academyOrientationCompletedAt: studentRow ? studentRow.academy_orientation_completed_at : null,
+    // Display name beside the account number; null until the account-names
+    // migration is live and an admin has set one (see accountNameText()).
+    firstName: studentRow ? studentRow.first_name || null : null,
+    lastName: studentRow ? studentRow.last_name || null : null,
     enrollments,
     // userId/trackCode: added for the module_progress write path (docs/specs/architecture.md
     // §3 Sprint 2). Both come from the studentRow query above, already run for
@@ -157,6 +160,149 @@ async function buildCoreUserFromSession(session) {
 // The queries below don't depend on each other or on anything the security
 // chain in signIn() produces — only on trackCode from the core query — so
 // they run via Promise.all rather than sequentially.
+/* Official faculty grades (lab_attempt_grades, written by record_lab_grade).
+ * RLS gives staff their course's grades and a student their own reviewed
+ * attempts' grades. An attempt's newest row is its grade. */
+function labTakesOfficialGrade(labKey) {
+  return typeof HDESK_PROVE_RUBRICS !== 'undefined' && !!HDESK_PROVE_RUBRICS[labKey];
+}
+
+async function fetchOfficialGrades(attemptIds) {
+  const grades = new Map();
+  if (!attemptIds.length) return grades;
+  const { data, error } = await mntSupabase
+    .from('lab_attempt_grades')
+    .select('lab_attempt_id, decision, official_score, competency_scores, critical_error, critical_error_reason, efficiency_feedback, correction_reason, rubric_version, created_by, created_at')
+    .in('lab_attempt_id', attemptIds)
+    .order('created_at', { ascending: true });
+  if (error) console.error('lab_attempt_grades fetch failed', error);
+  (data || []).forEach((row) => grades.set(row.lab_attempt_id, row));
+  return grades;
+}
+
+/* Records (transcript, evidence bundle, student detail), official-grade labs
+ * only: the newest attempt's newest decision is the only one that stands. An
+ * approval at or above the pass mark shows its score and date; anything else
+ * shows no score and no date. A newest attempt returned with a critical error
+ * reads OFFICIAL_CRITICAL_RESULT instead of "In progress" (still no score).
+ * Never an older attempt's score, a withdrawn grade or a Fail. Every other
+ * lab's record is unchanged. */
+const OFFICIAL_CRITICAL_RESULT = 'Critical Error - Not Passed';
+
+function officialLabForModule(moduleKey) {
+  const lab = LABS.find((item) => item.module === moduleKey && labTakesOfficialGrade(item.key));
+  return lab ? lab.key : null;
+}
+
+function officialLabStanding(labKey, attemptRows) {
+  const newest = attemptRows.filter((row) => row.lab_key === labKey && row.completed_at)
+    .sort((a, b) => String(a.completed_at).localeCompare(String(b.completed_at))).pop() || null;
+  const grade = newest && newest.official_grade;
+  const score = grade ? Number(grade.official_score) : NaN;
+  const mark = newest ? Number(newest.pass_threshold) : NaN;
+  const passed = !!(newest && newest.reviewed_at && !newest.redo_requested && grade && grade.decision === 'approved'
+    && grade.official_score !== null && grade.official_score !== undefined && (!mark || score >= mark));
+  const critical = !!(newest && newest.reviewed_at && newest.redo_requested && grade && grade.critical_error === true);
+  // For staff labels only (officialAttemptRecord with staffLabels,
+  // adminModuleStatusHtml): the newest attempt is waiting for its review, or
+  // was sent back. Student views never read these.
+  const awaiting = !!(newest && !newest.reviewed_at);
+  const returned = !!(newest && newest.reviewed_at && newest.redo_requested && !critical);
+  return { newestId: newest ? newest.id : null, attempted: !!newest, passed, critical, awaiting, returned, score: passed ? score : null, decidedAt: passed ? grade.created_at : null };
+}
+
+const OFFICIAL_AWAITING_REVIEW = 'Awaiting review';
+const OFFICIAL_RETURNED = 'Returned';
+
+// One attempt's line in the records, from the decision that stands.
+// staffLabels (staff views only): the newest attempt says "Awaiting review"
+// or "Returned" instead of "In progress". Students' own downloads keep
+// "In progress".
+function officialAttemptRecord(row, standing, staffLabels = false) {
+  return standing.passed && row.id === standing.newestId
+    ? { status: 'Pass', state: 'complete', score: standing.score, date: standing.decidedAt }
+    : standing.critical && row.id === standing.newestId
+      ? { status: OFFICIAL_CRITICAL_RESULT, state: 'in_progress', score: null, date: null }
+      : staffLabels && standing.awaiting && row.id === standing.newestId
+        ? { status: OFFICIAL_AWAITING_REVIEW, state: 'in_progress', score: null, date: null, awaiting: true }
+        : staffLabels && standing.returned && row.id === standing.newestId
+          ? { status: OFFICIAL_RETURNED, state: 'in_progress', score: null, date: null }
+          : { status: 'In progress', state: 'in_progress', score: null, date: null };
+}
+
+// A correction gives an attempt a second decision. The student sees only the
+// newest decision's notes; earlier ones stay in the record and on the staff
+// views. record_lab_grade saves a decision's grade and notes in one
+// transaction, so they share a created_at.
+function latestDecisionNotes(feedback, grade) {
+  if (!grade || !grade.created_at) return feedback;
+  const decided = Date.parse(grade.created_at);
+  return feedback.filter((row) => !row.created_at || Date.parse(row.created_at) >= decided);
+}
+
+// Records and review lists: an official-grade lab reports the official score.
+// lab_attempts.score stays what it is on every other lab.
+async function applyOfficialLabGrades(rows) {
+  const graded = rows.filter((row) => row.id && labTakesOfficialGrade(row.lab_key));
+  const grades = await fetchOfficialGrades(graded.map((row) => row.id));
+  graded.forEach((row) => {
+    const grade = grades.get(row.id);
+    row.official_grade = grade || null;
+    row.score = grade ? grade.official_score : null;
+  });
+  return rows;
+}
+
+// Staff review: a note belongs to the decision saved with it. record_lab_grade
+// saves both in one transaction, so a note goes to the newest decision no later
+// than the note, or the oldest if it's older than them all. grades: newest first.
+function labDecisionsWithNotes(grades, notes) {
+  const decisions = grades.map((grade) => ({ ...grade, notes: [] }));
+  (notes || []).forEach((note) => {
+    const at = Date.parse(note.created_at);
+    const home = decisions.find((grade) => Date.parse(grade.created_at) <= at) || decisions[decisions.length - 1];
+    if (home) home.notes.push(note);
+  });
+  return decisions;
+}
+
+// Staff review: every decision on each official-grade attempt, newest first,
+// with its notes. Only Lab Attempts asks, and other labs make no extra read. If
+// a read fails the row has no history, and the panel says so.
+async function applyOfficialGradeHistory(rows) {
+  const graded = rows.filter((row) => row.id && row.official_grade && labTakesOfficialGrade(row.lab_key));
+  const gradesByAttempt = new Map();
+  const notesByAttempt = new Map();
+  const add = (map, row) => map.set(row.lab_attempt_id, [...(map.get(row.lab_attempt_id) || []), row]);
+  let complete = true;
+  for (let index = 0; index < graded.length; index += 100) {
+    const ids = graded.slice(index, index + 100).map((row) => row.id);
+    const { data: grades, error: gradesError } = await mntSupabase
+      .from('lab_attempt_grades')
+      .select('lab_attempt_id, decision, official_score, competency_scores, critical_error, critical_error_reason, efficiency_feedback, correction_reason, rubric_version, created_by, created_at')
+      .in('lab_attempt_id', ids)
+      .order('created_at', { ascending: false });
+    const { data: notes, error: notesError } = await mntSupabase
+      .from('lab_attempt_feedback')
+      .select('lab_attempt_id, item_label, comment, created_at')
+      .in('lab_attempt_id', ids)
+      .order('created_at', { ascending: true });
+    if (gradesError || notesError) {
+      console.error('official grade history fetch failed', gradesError || notesError);
+      complete = false;
+      break;
+    }
+    (grades || []).forEach((row) => add(gradesByAttempt, row));
+    (notes || []).forEach((row) => add(notesByAttempt, row));
+  }
+  graded.forEach((row) => {
+    row.official_grade_history = complete && gradesByAttempt.has(row.id)
+      ? labDecisionsWithNotes(gradesByAttempt.get(row.id), notesByAttempt.get(row.id))
+      : null;
+  });
+  return rows;
+}
+
 async function fetchUserDetails(userId, trackCode) {
   let remoteModuleProgress = {};
   let remoteVerifiedModuleProgress = {};
@@ -168,9 +314,16 @@ async function fetchUserDetails(userId, trackCode) {
   // "under review" (reviewed_at null) from "graded" without another query.
   let latestLabAttemptByKey = {};
   let reviewedLabFeedbackByLabKey = {};
+  // Instructor notes on each lab whose latest attempt was sent back, by lab
+  // key (openLabRedosByModuleKey keeps only one lab per module).
+  let openLabRedoFeedbackByLabKey = {};
+  // The required labs of each module, from course_module_labs: the same list
+  // student_verified_module_progress checks. null when the read failed, so
+  // callers fall back to the client's LABS catalogue.
+  let requiredLabsByModuleKey = null;
   let studentMessages = [];
   if (!trackCode) {
-    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, latestLabAttemptByKey, reviewedLabFeedbackByLabKey, studentMessages };
+    return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, openLabRedoFeedbackByLabKey, latestLabAttemptByKey, reviewedLabFeedbackByLabKey, requiredLabsByModuleKey, studentMessages };
   }
 
   const [
@@ -179,6 +332,7 @@ async function fetchUserDetails(userId, trackCode) {
     evidenceResult,
     { data: attemptRows, error: attemptsError },
     { data: messageRows, error: messagesError },
+    { data: requiredLabRows, error: requiredLabsError },
   ] = await Promise.all([
     mntSupabase.from('module_progress').select('module_key, state, detail, case_state').eq('user_id', userId).eq('track_code', trackCode),
     // This view is the institutional completion record.  It derives a
@@ -197,7 +351,7 @@ async function fetchUserDetails(userId, trackCode) {
     // redo clears on its own — no separate acknowledgment step needed.
     mntSupabase
       .from('lab_attempts')
-      .select('id, lab_key, completed_at, reviewed_at, redo_requested')
+      .select('id, lab_key, completed_at, reviewed_at, redo_requested, superseded_at')
       .eq('user_id', userId)
       .eq('track_code', trackCode)
       .not('completed_at', 'is', null)
@@ -210,6 +364,9 @@ async function fetchUserDetails(userId, trackCode) {
       .eq('student_id', userId)
       .eq('track_code', trackCode)
       .order('created_at', { ascending: true }),
+    // Only the labs that gate completion; Practice It rows (gates_completion
+    // false) still save and upload evidence but never make a module required.
+    mntSupabase.from('course_module_labs').select('module_key, lab_key').eq('track_code', trackCode).eq('gates_completion', true),
   ]);
 
   if (progressError) {
@@ -241,20 +398,34 @@ async function fetchUserDetails(userId, trackCode) {
       if (!latestByLabKey.has(row.lab_key)) latestByLabKey.set(row.lab_key, row);
     });
     latestByLabKey.forEach((row, labKey) => {
-      latestLabAttemptByKey[labKey] = { completedAt: row.completed_at, reviewedAt: row.reviewed_at || null, redoRequested: row.redo_requested === true };
+      latestLabAttemptByKey[labKey] = { completedAt: row.completed_at, reviewedAt: row.reviewed_at || null, redoRequested: row.redo_requested === true, supersededAt: row.superseded_at || null };
     });
+    // Only labs with official grades ask; every other lab makes no extra read.
+    const gradedLatest = Array.from(latestByLabKey.values()).filter((row) => row.reviewed_at && labTakesOfficialGrade(row.lab_key));
+    let latestGrades = new Map();
+    if (gradedLatest.length) {
+      const grades = await fetchOfficialGrades(gradedLatest.map((row) => row.id));
+      latestGrades = grades;
+      gradedLatest.forEach((row) => {
+        const grade = grades.get(row.id);
+        latestLabAttemptByKey[row.lab_key].officialScore = grade ? grade.official_score : null;
+        latestLabAttemptByKey[row.lab_key].criticalError = !!(grade && grade.critical_error);
+      });
+    }
     const openAttempts = Array.from(latestByLabKey.values()).filter((row) => row.redo_requested);
     // Notes left while approving were saved but never shown to the learner.
     const approvedAttempts = Array.from(latestByLabKey.values()).filter((row) => row.reviewed_at && !row.redo_requested);
     if (openAttempts.length || approvedAttempts.length) {
       const { data: feedbackRows, error: feedbackError } = await mntSupabase
         .from('lab_attempt_feedback')
-        .select('lab_attempt_id, item_label, comment')
+        .select('lab_attempt_id, item_label, comment, created_at')
         .in('lab_attempt_id', [...openAttempts, ...approvedAttempts].map((row) => row.id))
         .order('created_at', { ascending: true });
       if (feedbackError) console.error('fetchUserDetails: lab_attempt_feedback fetch failed', feedbackError);
       const feedbackByAttemptId = new Map();
-      (feedbackRows || []).forEach((row) => {
+      // A row with no comment is not a note (empty section boxes were saved
+      // as blank rows by the first per-section build on 2026-10-17).
+      (feedbackRows || []).filter((row) => String(row.comment || '').trim() && latestDecisionNotes([row], latestGrades.get(row.lab_attempt_id)).length).forEach((row) => {
         const list = feedbackByAttemptId.get(row.lab_attempt_id) || [];
         list.push(row);
         feedbackByAttemptId.set(row.lab_attempt_id, list);
@@ -264,8 +435,10 @@ async function fetchUserDetails(userId, trackCode) {
         if (items.length) reviewedLabFeedbackByLabKey[row.lab_key] = items;
       });
       openAttempts.forEach((row) => {
+        openLabRedoFeedbackByLabKey[row.lab_key] = feedbackByAttemptId.get(row.id) || [];
         const lab = LABS.find((l) => l.key === row.lab_key);
-        if (!lab) return; // stale/renamed lab key — nothing to point the student at
+        // Stale/renamed or retired lab key: nothing the student can redo.
+        if (!lab || lab.retired === true) return;
         openLabRedosByModuleKey[lab.module] = {
           labKey: row.lab_key,
           labTitle: lab.title,
@@ -281,7 +454,16 @@ async function fetchUserDetails(userId, trackCode) {
     studentMessages = messageRows || [];
   }
 
-  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, latestLabAttemptByKey, reviewedLabFeedbackByLabKey, studentMessages };
+  if (requiredLabsError) {
+    console.error('fetchUserDetails: course_module_labs fetch failed; module cards fall back to the LABS catalogue', requiredLabsError);
+  } else {
+    requiredLabsByModuleKey = {};
+    (requiredLabRows || []).forEach((row) => {
+      requiredLabsByModuleKey[row.module_key] = [...(requiredLabsByModuleKey[row.module_key] || []), row.lab_key];
+    });
+  }
+
+  return { remoteModuleProgress, remoteVerifiedModuleProgress, remoteModuleEvidence, remoteModuleDetail, remoteCaseState, openLabRedosByModuleKey, openLabRedoFeedbackByLabKey, latestLabAttemptByKey, reviewedLabFeedbackByLabKey, requiredLabsByModuleKey, studentMessages };
 }
 
 async function buildUserFromSession(session) {
@@ -289,6 +471,9 @@ async function buildUserFromSession(session) {
   // Faculty never load learner-only progress or their own inbox as if they
   // were a student. Their course dashboard performs its own scoped reads.
   if (core.isInstructor && !core.isAdmin) return core;
+  // Before anything reads browser-held progress: an admin may have reset
+  // this test account since this browser last saw it.
+  await applyPendingProgressReset(core);
   const details = await fetchUserDetails(core.userId, core.trackCode);
   return { ...core, ...details };
 }
@@ -364,6 +549,10 @@ async function signIn(identifier, password) {
   _cachedUserPromise = null;
   const core = await buildCoreUserFromSession(data.session);
   if (payload.login_event_id) recordLoginGeo(payload.login_event_id);
+  // Same check as buildUserFromSession: this path renders without a reload,
+  // so an admin's reset must clear this browser before details are read.
+  // It returns at once for admins and instructors.
+  await applyPendingProgressReset(core);
   const detailsPromise = core.isInstructor && !core.isAdmin
     ? Promise.resolve({})
     : fetchUserDetails(core.userId, core.trackCode);
@@ -410,6 +599,11 @@ async function signOut(reason = 'user_signed_out') {
   // 'idle_timeout' instead so the Activity Monitor can tell the two apart —
   // both are the only values the self-update RLS policy accepts
   // (20260901140000_site_sessions_idle_timeout.sql).
+  // Land any debounced lab work first: once the session is gone the write
+  // would fail RLS and the learner's last edits would be lost.
+  try { await settlePendingCaseStateWrites(); } catch (err) { console.error('pending case_state flush before sign-out failed', err); }
+  // No live-refresh probe may run against the session being closed.
+  if (portalLiveRefresh) portalLiveRefresh.stop();
   try {
     const outgoingUser = await currentUser();
     if (outgoingUser && outgoingUser.userId) {
@@ -426,6 +620,11 @@ async function signOut(reason = 'user_signed_out') {
   await mntSupabase.auth.signOut();
   _cachedUser = null;
   _cachedUserPromise = null;
+  ACCOUNT_NAMES.byStudentId.clear();
+  ACCOUNT_NAMES.byUserId.clear();
+  ACCOUNT_NAMES.ready = null;
+  // The SOC Instructor Guide holds answer keys: drop it with the session.
+  if (typeof SocInstructorGuide !== 'undefined') SocInstructorGuide.reset();
   // Purge defender-lab.* keys, or the next student on this browser inherits
   // the previous one's lab environment. PLATFORM_ARCHITECTURE.md §7.2.
   Object.keys(localStorage)
@@ -854,12 +1053,54 @@ function adminTrackAdministrationStrip(rows, activeTrackCode = null, gradingCoun
  * docs/workstreams/lab-grading-notification-system/). `olderAttempt` marks an
  * earlier submission the learner has since replaced; a decision applies to
  * every row of the item. */
-function adminAttemptReviewCard(item, olderAttempt) {
+// Attempts with an explicitly registered Submission Sheet definition
+// (portal/admin-submission-sheet.js plus portal/admin-sheets/) render in the
+// shared marked-up student-work layout. Other attempts keep the legacy view.
+function adminHasSubmissionSheet(row) {
+  return typeof AdminSubmissionSheet !== 'undefined' && AdminSubmissionSheet.has(row);
+}
+
+// Overall note + Approve / Send back for the sheet card. The per-section
+// teacher notes are rendered by AdminSubmissionSheet beside each section;
+// submitGradingDecision() reads every .feedback-item on the card.
+function adminGradingControlsHtml(attemptIds, { approveLabel, sendBackLabel, belowPass = false }) {
+  return `<div class="feedback-item mb-3" data-overall-note>
+      <input type="hidden" data-feedback-label value="Overall" />
+      <label class="block text-xs font-semibold text-gray-600 mb-1" for="admin-overall-note-${esc(attemptIds)}">Overall note (optional)</label>
+      <textarea id="admin-overall-note-${esc(attemptIds)}" data-feedback-comment rows="2" placeholder="Anything that is not about one section" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"></textarea>
+    </div>
+    <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
+      <button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(attemptIds)}" class="${belowPass ? 'bg-gray-50 hover:bg-gray-100 text-gray-700' : 'bg-green-50 hover:bg-green-100 text-green-700'} font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${esc(approveLabel)}</button>
+      <button type="button" data-action="admin-grading-send-back" data-attempt-id="${esc(attemptIds)}" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${esc(sendBackLabel)}</button>
+      <span data-grading-status class="text-xs text-gray-500"></span>
+    </div>`;
+}
+
+// Each section carries its own teacher note, prefilled where it needs work.
+function adminSubmissionSheetReviewCard(item, olderAttempt) {
   const row = item.lead;
+  const threshold = row.pass_threshold ?? 70;
+  const belowPassSubmission = row.score !== null && row.score !== undefined && Number(row.score) < Number(threshold);
+  const notesHtml = adminGradingControlsHtml(item.ids.join(','), { approveLabel: belowPassSubmission ? 'Approve (below pass mark: module stays locked)' : 'Approve submission', sendBackLabel: 'Return for remediation', belowPass: belowPassSubmission });
+  return `<article class="bg-white border border-gray-200 rounded-xl p-3 sm:p-4" data-grading-row="${esc(row.id)}">
+    ${olderAttempt ? '<p class="mb-2 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Older attempt — a newer submission of this lab is below</p>' : ''}
+    ${AdminSubmissionSheet.render(row, { item, notesHtml })}
+    ${typeof itsEvidenceReviewPanel === 'function' ? itsEvidenceReviewPanel(row) : ''}
+  </article>`;
+}
+
+function adminAttemptReviewCard(item, olderAttempt) {
+  const provingSheet = typeof itsProveGradingCard === 'function' ? itsProveGradingCard(item, olderAttempt) : '';
+  if (provingSheet) return provingSheet;
+  const row = item.lead;
+  // Inline guard (not adminHasSubmissionSheet) so this function still runs on
+  // its own in the node tests that load it in isolation.
+  if (typeof AdminSubmissionSheet !== 'undefined' && AdminSubmissionSheet.has(row)) return adminSubmissionSheetReviewCard(item, olderAttempt);
   const attemptIds = item.ids.join(',');
   const threshold = row.pass_threshold ?? 70;
   const hasScore = row.score !== null && row.score !== undefined;
   const passing = hasScore && Number(row.score) >= Number(threshold);
+  const belowPassSubmission = hasScore && Number(row.score) < Number(threshold);
   const resultJson = (() => { try { return JSON.stringify(row.result || {}, null, 2); } catch { return '{}'; } })();
   const resultBreakdown = row.result && typeof row.result.breakdown === 'object' && !Array.isArray(row.result.breakdown)
     ? Object.entries(row.result.breakdown)
@@ -945,7 +1186,7 @@ function adminAttemptReviewCard(item, olderAttempt) {
     <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
       <div class="min-w-0">
         <p class="text-sm font-semibold text-[#1e3a5f]">${esc(item.name)}${row.attempt ? ` <span class="font-normal text-gray-500">· ${esc(adminAttemptLabel(row))}</span>` : ''}</p>
-        <p class="text-xs text-gray-500 mt-0.5">${esc(item.labTitles.join(' · '))} <span class="text-gray-400">·</span> <span class="font-mono">${esc(row.student_id)}</span></p>
+        <p class="text-xs text-gray-500 mt-0.5">${esc(item.labTitles.join(' · '))} <span class="text-gray-400">·</span> <span class="font-mono">${esc(row.student_id)}</span>${accountNameHtml(row, true)}</p>
         ${olderAttempt ? '<p class="mt-1 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Older attempt — a newer submission of this lab is below</p>' : ''}
         <p class="text-xs text-gray-400 mt-0.5">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}</p>
       </div>
@@ -957,6 +1198,8 @@ function adminAttemptReviewCard(item, olderAttempt) {
     ${adminCapstoneReviewPanel(row)}
     ${adminResponseDesignReviewPanel(row)}
     ${adminModuleTwoAccessReviewPanel(row)}
+    ${typeof itsEvidenceReviewPanel === 'function' ? itsEvidenceReviewPanel(row) : ''}
+    ${typeof itsProveReviewPanel === 'function' ? itsProveReviewPanel(row) : ''}
     ${competencyPanel}
     ${readableResult}
     ${studentWorkPanel}
@@ -974,7 +1217,7 @@ function adminAttemptReviewCard(item, olderAttempt) {
     </div>
     <button type="button" data-action="admin-grading-add-item" class="text-xs font-semibold text-[#1e3a5f] hover:underline mb-3">+ Add another item</button>
     <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-      <button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(attemptIds)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${simulatorPerformance ? 'Approve submission' : 'Approve'}</button>
+      <button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(attemptIds)}" class="${belowPassSubmission ? 'bg-gray-50 hover:bg-gray-100 text-gray-700' : 'bg-green-50 hover:bg-green-100 text-green-700'} font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${belowPassSubmission ? 'Approve (below pass mark: module stays locked)' : simulatorPerformance ? 'Approve submission' : 'Approve'}</button>
       <button type="button" data-action="admin-grading-send-back" data-attempt-id="${esc(attemptIds)}" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">${simulatorPerformance ? 'Return for remediation' : 'Send back for redo'}</button>
       <span data-grading-status class="text-xs text-gray-500"></span>
     </div>
@@ -982,7 +1225,7 @@ function adminAttemptReviewCard(item, olderAttempt) {
 }
 
 function adminOpenRedoRequestsHtml(redoRows) {
-  return redoRows.length ? `<section class="mt-8 border-t border-gray-200 pt-6"><h3 class="text-lg font-bold text-[#1e3a5f]">Open redo requests</h3><p class="mt-1 mb-3 text-sm text-gray-500">These are the live redo notices learners can currently see. Use this only to reverse a faculty decision made in error; otherwise the learner must submit a new attempt.</p><div class="space-y-3">${redoRows.map((row) => `<article class="bg-amber-50 border border-amber-200 rounded-xl p-4" data-grading-row="${esc(row.id)}"><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p><p class="mt-0.5 text-sm text-gray-700">${esc(adminGradingLabMeta(row).moduleLabel)} <span class="text-gray-400">·</span> ${esc(adminGradingLabMeta(row).labTitle)} <span class="text-gray-400">·</span> sent back ${row.reviewed_at ? new Date(row.reviewed_at).toLocaleString() : '—'}</p><div class="mt-3 flex flex-wrap items-center gap-2"><button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(row.id)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Approve without resubmission</button><span data-grading-status class="text-xs text-gray-600"></span></div></article>`).join('')}</div></section>` : '';
+  return redoRows.length ? `<section class="mt-8 border-t border-gray-200 pt-6"><h3 class="text-lg font-bold text-[#1e3a5f]">Open redo requests</h3><p class="mt-1 mb-3 text-sm text-gray-500">These are the live redo notices learners can currently see. Use this only to reverse a faculty decision made in error; otherwise the learner must submit a new attempt.</p><div class="space-y-3">${redoRows.map((row) => `<article class="bg-amber-50 border border-amber-200 rounded-xl p-4" data-grading-row="${esc(row.id)}"><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}${accountNameHtml(row)}</p><p class="mt-0.5 text-sm text-gray-700">${esc(adminGradingLabMeta(row).moduleLabel)} <span class="text-gray-400">·</span> ${esc(adminGradingLabMeta(row).labTitle)} <span class="text-gray-400">·</span> sent back ${row.reviewed_at ? new Date(row.reviewed_at).toLocaleString() : '—'}</p><div class="mt-3 flex flex-wrap items-center gap-2">${labTakesOfficialGrade(row.lab_key) ? '<span class="text-xs text-gray-600">Waiting for the student\'s new attempt. This lab needs an official grade, so it can\'t be approved here.</span>' : `<button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(row.id)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Approve without resubmission</button>`}<span data-grading-status class="text-xs text-gray-600"></span></div></article>`).join('')}</div></section>` : '';
 }
 
 /* Lab Attempts tab (owner, 2026-10-05): replaces the Grading/Graded split.
@@ -993,6 +1236,15 @@ function adminOpenRedoRequestsHtml(redoRows) {
  * attempts awaiting review. */
 let adminOpenAttemptPanel = null; // reopened after a decision re-renders the tab
 
+// A tab can list official-grade labs and other labs together, so it names both
+// only when it does. A tab with no official-grade lab keeps its wording as it was.
+function adminLabAttemptsGuidance(rows) {
+  const official = rows.find((row) => labTakesOfficialGrade(row.lab_key));
+  if (!official) return "The score is the system's pregrade; your approval is what unlocks the next module.";
+  const mark = Number(official.pass_threshold);
+  return `On an official-grade lab, your grade on the grading sheet is the official score, and Approve is only available at ${mark ? `${mark} or more` : 'the pass mark or more'} with no critical error. On every other lab, the score is the system's pregrade; your approval is what unlocks the next module.`;
+}
+
 function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRows = [], autogradedRows = [], openRedoRows = [] } = {}) {
   const pending = new Set(pendingRows.map((row) => row.id));
   const superseded = new Set(supersededRows.map((row) => row.id));
@@ -1002,11 +1254,11 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
   const header = `<div class="mb-6">
       <h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Lab Attempts</h2>
       <div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div>
-      <p class="text-gray-500 text-sm">${pendingCount ? `<strong class="text-[#1e3a5f]">${pendingCount} awaiting your review.</strong> ` : 'Nothing awaiting review. '}Each pill is a module phase's latest attempt — click one to open it. The score is the system's pregrade; your approval is what unlocks the next module.</p>
+      <p class="text-gray-500 text-sm">${pendingCount ? `<strong class="text-[#1e3a5f]">${pendingCount} awaiting your review.</strong> ` : 'Nothing awaiting review. '}Each pill is a module phase's latest attempt — click one to open it. ${adminLabAttemptsGuidance([...pendingRows, ...gradedRows, ...supersededRows, ...autogradedRows])}</p>
       <div class="mt-3 flex flex-wrap gap-3 text-xs text-gray-500" aria-label="Status key">
         <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>Under review</span>
         <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>Passed</span>
-        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>Failed</span>
+        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>Returned / failed</span>
         <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-gray-300"></span>Not reviewed (replaced)</span>
       </div>
     </div>`;
@@ -1019,8 +1271,9 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
     const passing = hasScore && Number(row.score) >= Number(row.pass_threshold ?? 70);
     if (pending.has(row.id)) return { label: 'Under review', tone: 'bg-amber-50 text-amber-800 border-amber-300', dot: 'bg-amber-400' };
     if (superseded.has(row.id)) return { label: 'Not reviewed', tone: 'bg-gray-50 text-gray-600 border-gray-200', dot: 'bg-gray-300' };
-    const failed = autograded.has(row.id) ? hasScore && !passing : row.redo_requested;
-    return failed
+    // A faculty send-back is "Returned" (the student is redoing it), not a fail.
+    if (!autograded.has(row.id) && row.redo_requested) return { label: 'Returned', tone: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' };
+    return autograded.has(row.id) && hasScore && !passing
       ? { label: 'Failed', tone: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' }
       : { label: 'Passed', tone: 'bg-green-50 text-green-800 border-green-200', dot: 'bg-green-500' };
   };
@@ -1033,7 +1286,12 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
     const row = item.lead;
     const hasScore = row.score !== null && row.score !== undefined;
     const passing = hasScore && Number(row.score) >= Number(row.pass_threshold ?? 70);
-    const ticket = adminCaseTicketSubmissionPanel(row);
+    // Decided attempts show the same sheet, read-only, with the notes that
+    // were actually sent (row.sent_feedback, loaded with the graded rows).
+    const sheet = adminHasSubmissionSheet(row)
+      ? AdminSubmissionSheet.render(row, { item, readOnly: true, sentFeedback: superseded.has(row.id) || autograded.has(row.id) ? undefined : row.sent_feedback })
+      : '';
+    const ticket = sheet || adminCaseTicketSubmissionPanel(row);
     return `<details class="rounded-lg border border-gray-200 bg-white px-3 py-2.5" data-graded-row="${esc(row.id)}" ${open ? 'open' : ''}>
       <summary class="cursor-pointer list-none flex flex-wrap items-center justify-between gap-2 text-sm">
         <span class="font-medium text-[#1e3a5f]">${esc(item.name)}${row.attempt ? ` <span class="font-normal text-gray-500">· ${esc(adminAttemptLabel(row))}</span>` : ''}</span>
@@ -1042,6 +1300,9 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
       <p class="mt-2 text-xs text-gray-500">${esc(item.labTitles.join(' · '))}</p>
       <p class="mt-1 text-xs text-gray-500">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}${row.reviewed_at ? ` · Reviewed ${new Date(row.reviewed_at).toLocaleString()}` : ''}</p>
       ${ticket ? `<div class="mt-3">${ticket}</div>` : ''}
+      ${typeof itsEvidenceReviewPanel === 'function' ? itsEvidenceReviewPanel(row) : ''}
+      ${typeof itsProveReviewPanel === 'function' ? itsProveReviewPanel(row) : ''}
+      ${typeof itsProveReturnActionHtml === 'function' ? itsProveReturnActionHtml(row, open) : ''}
     </details>`;
   };
   const attemptHtml = (item, isLatest) => (pending.has(item.lead.id) ? adminAttemptReviewCard(item, !isLatest) : recordRow(item, isLatest));
@@ -1063,7 +1324,7 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
 
   const studentCard = (student) => `<section class="bg-white border ${student.pendingItems ? 'border-amber-200' : 'border-gray-200'} rounded-xl px-5 py-4" data-grading-student="${esc(student.studentId)}">
       <div class="flex flex-wrap items-baseline justify-between gap-2">
-        <p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(student.studentId)}</p>
+        <p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(student.studentId)}${accountNameHtml(student.studentId)}</p>
         <p class="text-xs text-gray-500">${student.pendingItems ? `<span class="font-semibold text-amber-700">${student.pendingItems} under review</span> · ` : ''}${student.items.length - student.pendingItems} graded</p>
       </div>
       <div class="mt-3 grid gap-1.5" style="grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));">${student.phases.map((phase) => {
@@ -1139,6 +1400,10 @@ function adminCaseTicketSubmissionPanel(row) {
     ['Scope', handoff.scope],
     ['Requested next action', handoff.nextAction],
   ].filter(([, value]) => typeof value === 'string' && value.trim());
+  const incidentResolutions = record.incidentResolutions && typeof record.incidentResolutions === 'object' ? record.incidentResolutions : null;
+  const childResolutions = incidentResolutions?.children && typeof incidentResolutions.children === 'object'
+    ? Object.entries(incidentResolutions.children).filter(([, value]) => value && typeof value === 'object' && (value.resolved || value.note || value.disposition || value.evidence))
+    : [];
 
   return `<section class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-3" aria-label="Student submitted case ticket">
     <div class="flex flex-wrap items-baseline justify-between gap-2 mb-2"><p class="text-sm font-semibold text-[#1e3a5f]">Student-submitted case ticket</p><span class="text-xs text-gray-500">Use the note below to grade communication.</span></div>
@@ -1147,7 +1412,15 @@ function adminCaseTicketSubmissionPanel(row) {
     </dl>
     <div class="mt-3 rounded-lg border border-[#bfdbfe] bg-white p-3"><p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Analyst work notes · student response</p><p class="whitespace-pre-wrap text-sm text-gray-800">${esc(record.notes || 'Not provided')}</p></div>
     ${handoffFields.length ? `<div class="mt-3 grid sm:grid-cols-2 gap-2">${handoffFields.map(([label, value]) => `<div class="rounded-lg border border-[#bfdbfe] bg-white p-3"><p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">${esc(label)}</p><p class="whitespace-pre-wrap text-sm text-gray-800">${esc(value)}</p></div>`).join('')}</div>` : ''}
+    ${incidentResolutions ? `<div class="mt-3 rounded-lg border border-[#bfdbfe] bg-white p-3"><p class="text-sm font-semibold text-[#1e3a5f]">Child incident resolutions · parent ${incidentResolutions.parentClosed ? 'closed' : 'open'}</p>${childResolutions.length ? `<div class="mt-2 space-y-2">${childResolutions.map(([id, item]) => `<article class="rounded border border-gray-200 p-3"><p class="font-semibold text-sm">${esc(id)} · ${esc(item.resolved ? 'Resolved' : 'Open')} · ${esc(display('disposition', item.disposition))}</p><p class="mt-1 text-xs text-gray-600"><strong>Evidence:</strong> ${esc(item.evidence || 'Not provided')}</p><p class="mt-1 whitespace-pre-wrap text-sm text-gray-800"><strong>Student resolution note:</strong> ${esc(item.note || 'Not provided')}</p></article>`).join('')}</div>` : '<p class="mt-2 text-sm text-gray-500">No child incident resolutions recorded.</p>'}</div>` : ''}
   </section>`;
+}
+
+// Nested determinations/actions as escaped lists instead of a JSON dump
+// (AdminSubmissionSheet.readableHtml; plain escaped text if it is absent).
+function adminReadableValueHtml(value) {
+  if (typeof AdminSubmissionSheet !== 'undefined') return AdminSubmissionSheet.readableHtml(value);
+  return `<p class="whitespace-pre-wrap">${esc(value && typeof value === 'object' ? Object.keys(value).join(', ') : String(value ?? ''))}</p>`;
 }
 
 // Module 12's scorer artifact is deliberately rendered as a readable review
@@ -1174,7 +1447,10 @@ function adminCapstoneReviewPanel(row) {
     ${explanation.length ? `<ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">${explanation.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>` : ''}
     <details class="mt-3 rounded-lg border border-gray-200 bg-white p-3"><summary class="cursor-pointer text-sm font-semibold text-[#1e3a5f]">Evidence, determinations, and actions</summary>
       <p class="mt-2 text-sm"><strong>Selected evidence:</strong> ${esc(evidence.join(', ') || 'None')}</p>
-      <pre class="mt-2 overflow-x-auto whitespace-pre-wrap text-xs text-gray-700">${esc(JSON.stringify({ determinations, actions }, null, 2))}</pre>
+      <div class="mt-2 grid gap-3 text-xs text-gray-700 lg:grid-cols-2">
+        <div><p class="mb-1 font-semibold text-[#1e3a5f]">Determinations</p>${adminReadableValueHtml(determinations)}</div>
+        <div><p class="mb-1 font-semibold text-[#1e3a5f]">Actions (${esc(String(actions.length))})</p>${actions.length ? `<ol class="list-decimal space-y-1 pl-5">${actions.map((action) => `<li><strong>${esc(String(action?.type || 'action').replace(/[-_]/g, ' '))}</strong>${action?.details && typeof action.details === 'object' ? adminReadableValueHtml(action.details) : action?.details ? ` ${esc(String(action.details))}` : ''}</li>`).join('')}</ol>` : '<p class="text-gray-500">None recorded.</p>'}</div>
+      </div>
     </details>
   </section>`;
 }
@@ -1238,8 +1514,8 @@ function adminMessageInboxPanel(messageRows) {
   const list = Array.from(threads.entries()).sort(([, a], [, b]) => (b.rows[b.rows.length - 1]?.created_at || '').localeCompare(a.rows[a.rows.length - 1]?.created_at || ''));
   if (!list.length) return `<div class="mb-6"><h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Instructor inbox</h2><div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div></div><div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">No messages in this course workspace yet.</p></div>`;
   return `<div class="mb-6"><h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Instructor inbox</h2><div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div><p class="text-gray-500 text-sm">Messages stay inside the portal. Replying also clears the student's unread message cue for this conversation.</p></div><div class="space-y-4">${list.map(([threadId, thread]) => `<article class="bg-white border border-gray-200 rounded-xl p-5" data-faculty-message-thread="${esc(threadId)}">
-    <div class="flex flex-wrap items-start justify-between gap-3 mb-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(thread.studentId)}</p><h3 class="text-sm text-gray-700 mt-1">${esc(thread.subject)}</h3></div></div>
-    <div class="space-y-2 mb-4">${thread.rows.map((message) => `<div class="rounded-lg px-3 py-2 ${message.sender_role === 'student' ? 'bg-[#f0f7ff] border border-[#bfdbfe]' : 'bg-gray-50 border border-gray-100'}"><div class="flex justify-between gap-3 text-xs mb-1"><strong class="text-[#1e3a5f]">${esc(messageSenderLabel(message, thread.studentId))}</strong><span class="text-gray-500">${esc(message.created_at ? new Date(message.created_at).toLocaleString() : '—')}</span></div><p class="text-sm text-gray-700 whitespace-pre-wrap">${esc(message.body)}</p></div>`).join('')}</div>
+    <div class="flex flex-wrap items-start justify-between gap-3 mb-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(thread.studentId)}${accountNameHtml({ student_id: thread.studentId, user_id: thread.userId })}</p><h3 class="text-sm text-gray-700 mt-1">${esc(thread.subject)}</h3></div></div>
+    <div class="space-y-2 mb-4">${thread.rows.map((message) => `<div class="rounded-lg px-3 py-2 ${message.sender_role === 'student' ? 'bg-[#f0f7ff] border border-[#bfdbfe]' : 'bg-gray-50 border border-gray-100'}"><div class="flex justify-between gap-3 text-xs mb-1"><strong class="text-[#1e3a5f]">${esc(messageSenderLabel(message, thread.studentId))}${message.sender_role === 'student' ? accountNameHtml({ student_id: thread.studentId, user_id: thread.userId }, true) : ''}</strong><span class="text-gray-500">${esc(message.created_at ? new Date(message.created_at).toLocaleString() : '—')}</span></div><p class="text-sm text-gray-700 whitespace-pre-wrap">${esc(message.body)}</p></div>`).join('')}</div>
     <form data-faculty-message-reply data-thread-id="${esc(threadId)}" data-student-user-id="${esc(thread.userId)}" data-track-code="${esc(thread.trackCode)}" data-subject="${esc(thread.subject)}"><label class="block text-sm font-semibold text-[#1e3a5f]">Reply<textarea required rows="3" maxlength="10000" name="body" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Write a plain-text reply."></textarea></label><div class="mt-2 flex items-center gap-3"><button type="submit" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg">Send reply</button><span data-faculty-message-status class="text-xs text-gray-500" aria-live="polite"></span></div></form>
   </article>`).join('')}</div>`;
 }
@@ -1279,7 +1555,7 @@ function adminProgramRoster(rows) {
     // first-glance data. renderStudentDetail() below presents the readiness
     // fields inside the expanded record.
     const detailId = `admin-inline-detail-${row.student_id}`;
-    return `<article class="bg-white border border-gray-200 rounded-xl p-5 ${row.enrolled === false ? 'opacity-70' : ''}"><div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p><p class="text-sm text-gray-500 mt-1">${esc((adminTrackMeta(row.track_code) || {}).eyebrow || row.track_code)} · ${esc(academicStatusLabel(deriveAcademicStatus(row)))}</p></div><button type="button" data-admin-progress-detail="${esc(row.student_id)}" aria-controls="${esc(detailId)}" aria-expanded="false" class="inline-flex items-center gap-1 text-sm font-semibold text-[#1e3a5f] hover:underline">View details <i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div><div class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full rounded-full bg-[#f97316]" style="width:${percent}%"></div></div><div class="flex flex-wrap items-center justify-between gap-2 mt-2"><span class="text-sm font-semibold text-[#1e3a5f]">Coursework ${completed} / ${required}</span><span class="text-xs font-semibold rounded-full px-2.5 py-1 bg-[#eef4fa] text-[#1e3a5f]">${esc(m360ProgressStatus(row))}</span></div><div class="mt-3 flex flex-wrap gap-1.5">${technicalChip}${m360Chip}</div><div id="${esc(detailId)}" data-admin-inline-detail="${esc(row.student_id)}" class="grid transition-all duration-300 ease-out" style="grid-template-rows:0fr"><div class="overflow-hidden"><div class="pt-5"></div></div></div></article>`;
+    return `<article class="bg-white border border-gray-200 rounded-xl p-5 ${row.enrolled === false ? 'opacity-70' : ''}"><div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}${accountNameHtml(row)}</p><p class="text-sm text-gray-500 mt-1">${esc((adminTrackMeta(row.track_code) || {}).eyebrow || row.track_code)} · ${esc(academicStatusLabel(deriveAcademicStatus(row)))}</p></div><button type="button" data-admin-progress-detail="${esc(row.student_id)}" aria-controls="${esc(detailId)}" aria-expanded="false" class="inline-flex items-center gap-1 text-sm font-semibold text-[#1e3a5f] hover:underline">View details <i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div><div class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full rounded-full bg-[#f97316]" style="width:${percent}%"></div></div><div class="flex flex-wrap items-center justify-between gap-2 mt-2"><span class="text-sm font-semibold text-[#1e3a5f]">Coursework ${completed} / ${required}</span><span class="text-xs font-semibold rounded-full px-2.5 py-1 bg-[#eef4fa] text-[#1e3a5f]">${esc(m360ProgressStatus(row))}</span></div><div class="mt-3 flex flex-wrap gap-1.5">${technicalChip}${m360Chip}</div><div id="${esc(detailId)}" data-admin-inline-detail="${esc(row.student_id)}" class="grid transition-all duration-300 ease-out" style="grid-template-rows:0fr"><div class="overflow-hidden"><div class="pt-5"></div></div></div></article>`;
   }).join('')}</div></section>`;
 }
 
@@ -1388,6 +1664,7 @@ function evaluateReportingCompliance(rows, context) {
       requiredFields: ['student_id', 'program', 'credential', 'enrollment_date', 'scheduled_start_date', 'completion_date', 'academic_status', 'student name or documented lawful substitute'],
       dynamicallyPresent: [
         { field: 'Student ID', get: (r) => r.student_id },
+        { field: 'Student name (stored first and last name)', get: (r) => r.firstName && r.lastName ? `${r.firstName} ${r.lastName}` : accountNameText(r) },
         { field: 'Program', get: (r) => r.program_slug },
         { field: 'Credential', get: (r) => r.credentialName || r.credential_name },
         { field: 'Enrollment date', get: (r) => r.enrollmentDate },
@@ -1395,9 +1672,9 @@ function evaluateReportingCompliance(rows, context) {
         { field: 'Completion date', get: (r) => r.completionDate },
         { field: 'Academic status', get: (r) => r.status },
       ],
-      staticallyMissing: ['Student name (or an approved documented substitute) — students are currently tracked by an anonymized ID only, and a verified identity record has not been integrated yet'],
+      staticallyMissing: [],
       sourceTables: ['students', 'enrollment_periods', 'program_versions', 'admin_student_progress (view)'],
-      note: 'Credential, planned start date, and program-version data are now available from the academy\'s enrollment records. This report does not substitute a student ID for a verified identity record.',
+      note: 'Credential, planned start date, and program-version data are now available from the academy\'s enrollment records. Student name is the first and last name an administrator entered on the account (account display names); it is not a verified identity record, and an account with no stored name is reported as missing the field.',
     }),
     req({
       id: 'clock_hours_attendance',
@@ -1654,6 +1931,8 @@ function buildCohortReportData(rows, options) {
       const status = deriveAcademicStatus(row);
       return {
         studentId: row.student_id,
+        firstName: (accountNameParts(row) || {}).first_name || null,
+        lastName: (accountNameParts(row) || {}).last_name || null,
         track: row.track_code,
         program: row.program_slug || '—',
         enrolled: row.enrolled !== false,
@@ -2264,9 +2543,10 @@ async function renderCohortPdf(cohortData, reportId) {
     doc.autoTable({
       startY: cursorY + 6,
       margin: { left: marginX, right: marginX, bottom: 60 },
-      head: [['Student ID', 'Track', 'Program', 'Academic Status', 'Enrolled', 'Modules', '% Complete', 'Capstone Score', 'Last Active']],
+      head: [['Student ID', 'Name', 'Track', 'Program', 'Academic Status', 'Enrolled', 'Modules', '% Complete', 'Capstone Score', 'Last Active']],
       body: cohortData.students.map((st) => [
         st.studentId,
+        st.firstName && st.lastName ? `${st.firstName} ${st.lastName}` : '—',
         st.track || '—',
         st.program,
         st.progressState,
@@ -2312,9 +2592,11 @@ async function renderCohortPdf(cohortData, reportId) {
     doc.autoTable({
       startY: cursorY,
       margin: { left: marginX, right: marginX, bottom: 60 },
-      head: [['Student ID', 'Credential', 'Enrollment Date', 'Scheduled Start Date', 'Completion Date']],
+      head: [['Student ID', 'First Name', 'Last Name', 'Credential', 'Enrollment Date', 'Scheduled Start Date', 'Completion Date']],
       body: cohortData.students.map((st) => [
         st.studentId,
+        st.firstName || '—',
+        st.lastName || '—',
         st.credential || '—',
         st.enrollmentDate ? new Date(st.enrollmentDate).toLocaleDateString() : '—',
         st.scheduledStartDate ? new Date(st.scheduledStartDate).toLocaleDateString() : '—',
@@ -2398,9 +2680,11 @@ async function renderProgressSnapshotPdf(scopedRows, options, reportId) {
     doc.autoTable({
       startY: cursorY,
       margin: { left: marginX, right: marginX, bottom: 60 },
-      head: [['Student ID', 'Track', 'Program', 'Enrollment', '% Complete', 'Modules', 'Capstone Score', 'Last Active']],
+      head: [['Student ID', 'First Name', 'Last Name', 'Track', 'Program', 'Enrollment', '% Complete', 'Modules', 'Capstone Score', 'Last Active']],
       body: scopedRows.map((row) => [
         row.student_id,
+        (accountNameParts(row) || {}).first_name || '—',
+        (accountNameParts(row) || {}).last_name || '—',
         row.track_code || '—',
         row.program_slug || '—',
         row.adminStateLabel || (row.enrolled !== false ? 'Enrolled' : 'Disenrolled'),
@@ -2595,8 +2879,8 @@ async function renderTranscriptPdf(transcriptData, reportId) {
 
   const programTitle = transcriptData.program ? transcriptData.program.title : 'No program on file';
   applyPdfMetadata(doc, {
-    title: `Mission Next Technical Academy — Academic Transcript — ${transcriptData.studentId}`,
-    subject: `Individual academic transcript for student ${transcriptData.studentId} (${programTitle})`,
+    title: `Mission Next Technical Academy — Academic Transcript — ${transcriptData.studentId}${transcriptData.firstName && transcriptData.lastName ? ` (${transcriptData.firstName} ${transcriptData.lastName})` : ''}`,
+    subject: `Individual academic transcript for student ${transcriptData.studentId}${transcriptData.firstName && transcriptData.lastName ? ` ${transcriptData.firstName} ${transcriptData.lastName}` : ''} (${programTitle})`,
     reportId,
   });
 
@@ -2640,7 +2924,7 @@ async function renderTranscriptPdf(transcriptData, reportId) {
 
   const leftPairs = [
     ['Student Identifier', transcriptData.studentId],
-    ['Student Name', 'Not available — this system identifies students by anonymized ID only'],
+    ['Student Name', transcriptData.firstName && transcriptData.lastName ? `${transcriptData.firstName} ${transcriptData.lastName}` : 'Not on file — no first and last name has been entered for this account'],
     ['Track / Program', `${fmtVal(transcriptData.track)} — ${programTitle}`],
     ['Credential', transcriptData.program ? fmtVal(transcriptData.program.credential, 'Not recorded') : 'Not recorded'],
   ];
@@ -2834,8 +3118,8 @@ async function renderEvidencePdf(evidenceData, reportId) {
   const marginX = 40;
 
   applyPdfMetadata(doc, {
-    title: `Mission Next Technical Academy — Supporting Evidence Record — ${evidenceData.studentId}`,
-    subject: `Lab/competency supporting-evidence record for student ${evidenceData.studentId}`,
+    title: `Mission Next Technical Academy — Supporting Evidence Record — ${evidenceData.studentId}${evidenceData.firstName && evidenceData.lastName ? ` (${evidenceData.firstName} ${evidenceData.lastName})` : ''}`,
+    subject: `Lab/competency supporting-evidence record for student ${evidenceData.studentId}${evidenceData.firstName && evidenceData.lastName ? ` ${evidenceData.firstName} ${evidenceData.lastName}` : ''}`,
     reportId,
   });
 
@@ -2845,6 +3129,7 @@ async function renderEvidencePdf(evidenceData, reportId) {
     metaLines: [
       `Record ID: ${reportId}`,
       `Student ID: ${evidenceData.studentId}`,
+      ...(evidenceData.firstName && evidenceData.lastName ? [`Student Name: ${evidenceData.firstName} ${evidenceData.lastName}`] : []),
       `Track: ${fmtVal(evidenceData.track)}`,
       `Generated: ${formatGeneratedTimestamp(evidenceData.generatedAt)}`,
     ],
@@ -3081,7 +3366,7 @@ async function fetchStudentProgressBundle(userId, trackCode) {
   return {
     error: errors.length ? errors.join('; ') : null,
     moduleProgressRows: moduleRes.data || [],
-    labAttemptRows: labRes.data || [],
+    labAttemptRows: await applyOfficialLabGrades(labRes.data || []),
     capstoneSubmissionRows: capstoneRes.data || [],
     scorecardRow: scorecardRes.data || null,
     artifactRows: artifactRes.data || [],
@@ -3098,7 +3383,7 @@ async function fetchStudentProgressBundle(userId, trackCode) {
  * best lab_attempts score (LABS' `module` field maps lab_key -> module_key).
  * `result` (rubric-category breakdown jsonb) is kept on each lab attempt for
  * buildEvidencePacketData() — the old buildStudentExportRecord() dropped it. */
-function computeModuleScores(program, moduleProgressRows, labAttemptRows) {
+function computeModuleScores(program, moduleProgressRows, labAttemptRows, { staffLabels = false } = {}) {
   const moduleKeys = Object.keys(program.modules || {});
   return moduleKeys.map((moduleKey) => {
     const module = program.modules[moduleKey];
@@ -3111,7 +3396,10 @@ function computeModuleScores(program, moduleProgressRows, labAttemptRows) {
       return aScore > bestScore ? a : best;
     }, null);
     const state = progressRow ? progressRow.state : 'not_started';
+    const officialLab = officialLabForModule(moduleKey);
+    const standing = officialLab ? officialLabStanding(officialLab, attemptsForModule) : null;
     return {
+      official: standing,
       moduleKey,
       title: module.title,
       state,
@@ -3121,7 +3409,7 @@ function computeModuleScores(program, moduleProgressRows, labAttemptRows) {
       completedAt: progressRow ? progressRow.completed_at : null,
       completed: state === 'complete',
       creditMinutes: Number(module.creditMinutes || module.durationMinutes || 0),
-      bestLabScore: bestAttempt && bestAttempt.score !== null && bestAttempt.score !== undefined ? Number(bestAttempt.score) : null,
+      bestLabScore: standing ? standing.score : bestAttempt && bestAttempt.score !== null && bestAttempt.score !== undefined ? Number(bestAttempt.score) : null,
       labAttempts: attemptsForModule.map((a) => ({
         labKey: a.lab_key,
         title: adminLabLabel(a.lab_key),
@@ -3130,6 +3418,8 @@ function computeModuleScores(program, moduleProgressRows, labAttemptRows) {
         startedAt: a.started_at,
         completedAt: a.completed_at,
         rubricResult: a.result || null,
+        officialGrade: a.official_grade || null,
+        officialRecord: standing && a.lab_key === officialLab ? officialAttemptRecord(a, standing, staffLabels) : null,
       })),
     };
   });
@@ -3379,7 +3669,10 @@ function assessProgressGradesCompletion(program, moduleScores, capstoneRecord, h
     moduleKey: m.moduleKey,
     title: m.title,
     score: m.bestLabScore,
-    grade: m.bestLabScore === null ? 'Not attempted' : (m.bestLabScore >= passingThreshold ? 'Pass' : 'Fail'),
+    grade: m.official && m.official.passed ? 'Pass'
+      : m.official && m.official.critical ? OFFICIAL_CRITICAL_RESULT
+      : m.official && m.official.attempted ? 'In progress'
+      : m.bestLabScore === null ? 'Not attempted' : (m.bestLabScore >= passingThreshold ? 'Pass' : 'Fail'),
   }));
 
   const hasCapstone = capstoneRecord.status !== 'not_applicable';
@@ -3389,7 +3682,9 @@ function assessProgressGradesCompletion(program, moduleScores, capstoneRecord, h
   // required-labs table) — documented as a known limitation rather than
   // inventing a stricter check this data can't actually support.
   const requiredLabsComplete = requiredModulesComplete;
-  const requiredAssessmentsPassed = moduleGrades.every((g) => g.grade !== 'Fail');
+  // A critical error on an official-grade lab never counts as passed, even if
+  // an admin override keeps its module complete.
+  const requiredAssessmentsPassed = moduleGrades.every((g) => g.grade !== 'Fail' && g.grade !== OFFICIAL_CRITICAL_RESULT);
   const capstonePassed = hasCapstone ? capstoneRecord.status === 'passed' : true;
   const zeroCriticalErrors = hasCapstone
     ? !(capstoneRecord.criticalErrorGate
@@ -3473,6 +3768,8 @@ async function buildTranscriptData(studentId, identity) {
     asOf: generatedAt,
     institution: { name: 'Mission Next Technical Academy' },
     studentId,
+    firstName: (accountNameParts(studentId) || {}).first_name || null,
+    lastName: (accountNameParts(studentId) || {}).last_name || null,
     track: trackCode || null,
     program: program ? {
       slug: program.slug,
@@ -3497,8 +3794,8 @@ async function buildTranscriptData(studentId, identity) {
       moduleKey: m.moduleKey,
       title: m.title,
       startedAt: m.startedAt,
-      completedAt: m.completedAt,
-      progressState: m.status,
+      completedAt: m.official ? m.official.decidedAt || (m.official.attempted ? null : m.completedAt) : m.completedAt,
+      progressState: m.official && m.official.attempted ? (m.official.passed ? m.status : m.official.critical ? OFFICIAL_CRITICAL_RESULT : 'In progress') : m.status,
       percentComplete: m.percent,
       attemptedHours: (fixedCreditHours.modules.find((h) => h.moduleKey === m.moduleKey) || {}).attemptedHours || 0,
       attendedHours: (fixedCreditHours.modules.find((h) => h.moduleKey === m.moduleKey) || {}).creditedHours || 0,
@@ -3538,7 +3835,7 @@ async function buildEvidencePacketData(studentId, identity) {
   const { userId, trackCode, program } = identity;
   const generatedAt = new Date().toISOString();
   const bundle = await fetchStudentProgressBundle(userId, trackCode);
-  const moduleScores = program ? computeModuleScores(program, bundle.moduleProgressRows, bundle.labAttemptRows) : [];
+  const moduleScores = program ? computeModuleScores(program, bundle.moduleProgressRows, bundle.labAttemptRows, { staffLabels: identity.staffLabels === true }) : [];
   const capstoneRecord = program
     ? computeCapstoneRecord(program, bundle.labAttemptRows, bundle.capstoneSubmissionRows, bundle.scorecardRow, bundle.artifactRows, bundle.capstoneReviewRows)
     : { title: 'N/A', status: 'not_applicable', statusLabel: 'No program supplied', score: null, stages: [], scorecard: null, criticalErrorGate: null, rubricsApplied: [], review: { status: 'not_applicable', outcome: null, reviewedBy: null, reviewedAt: null, notes: null, supervisionMethod: null } };
@@ -3554,16 +3851,16 @@ async function buildEvidencePacketData(studentId, identity) {
       labKey: a.labKey,
       labTitle: a.title,
       state: a.state,
-      completionStatus: adminStateLabel(a.state),
+      completionStatus: a.officialRecord ? a.officialRecord.status : adminStateLabel(a.state),
       startedAt: a.startedAt,
-      completedAt: a.completedAt,
-      score: a.score,
+      completedAt: a.officialRecord ? a.officialRecord.date : a.completedAt,
+      score: a.officialRecord ? a.officialRecord.score : a.score,
       rubricBreakdown: a.rubricResult,
       competenciesEvaluated: a.rubricResult && typeof a.rubricResult === 'object' ? Object.keys(a.rubricResult) : [],
       submittedArtifactReference: (() => { const artifact = bundle.artifactRows.find((x) => x.lab_key === a.labKey); return artifact ? `Portfolio artifact ${artifact.id}` : 'No durable artifact recorded for this attempt'; })(),
       artifactIntegrityMetadata: (() => { const artifact = bundle.artifactRows.find((x) => x.lab_key === a.labKey); return artifact && artifact.content_sha256 ? `SHA-256 ${artifact.content_sha256}` : 'Not available'; })(),
-      evaluatorReviewer: a.labKey === capstoneRecord.labKey ? capstoneRecord.review.reviewedBy : 'Not applicable — optional faculty review begins with capstone',
-      reviewDate: a.labKey === capstoneRecord.labKey ? capstoneRecord.review.reviewedAt : null,
+      evaluatorReviewer: a.officialGrade ? a.officialGrade.created_by : a.labKey === capstoneRecord.labKey ? capstoneRecord.review.reviewedBy : 'Not applicable — optional faculty review begins with capstone',
+      reviewDate: a.officialGrade ? a.officialGrade.created_at : a.labKey === capstoneRecord.labKey ? capstoneRecord.review.reviewedAt : null,
       reviewNotes: a.labKey === capstoneRecord.labKey ? capstoneRecord.review.notes : null,
       supervisionMethod: a.labKey === capstoneRecord.labKey ? capstoneRecord.review.supervisionMethod : 'Automated scoring; no faculty review required for this module',
     }))
@@ -3574,6 +3871,8 @@ async function buildEvidencePacketData(studentId, identity) {
     generatedAt,
     asOf: generatedAt,
     studentId,
+    firstName: (accountNameParts(studentId) || {}).first_name || null,
+    lastName: (accountNameParts(studentId) || {}).last_name || null,
     track: trackCode || null,
     labs,
     capstone: {
@@ -3619,6 +3918,8 @@ async function exportStudentRecord(user, program) {
     _label: 'Machine-readable data export — NOT the official transcript. See transcript.reportType for the individual academic transcript data, and evidence.reportType for the supporting-evidence record.',
     exportedAt: new Date().toISOString(),
     studentId: user.username,
+    firstName: user.firstName || null,
+    lastName: user.lastName || null,
     email: user.email,
     track: user.trackCode,
     program: program.slug,
@@ -3675,6 +3976,8 @@ async function buildStudentSnapshotRecord(studentId, identity) {
     _label: 'Admin-captured recoverable progress snapshot — paste into docs/ADMIN_RESET_FLOW.md\'s agent prompt to restore this student if a disenrollment was a mistake.',
     capturedAt: new Date().toISOString(),
     studentId,
+    firstName: (accountNameParts(studentId) || {}).first_name || null,
+    lastName: (accountNameParts(studentId) || {}).last_name || null,
     track: identity ? identity.trackCode : null,
     transcript,
     evidence,
@@ -3700,6 +4003,399 @@ async function downloadStudentSnapshot(studentId, identity) {
   return record;
 }
 
+/* ------------------------------------------- test-account progress reset */
+/* Admin-only (never instructors). An admin marks an account as a TEST
+ * account with the roster's "Test account" checkbox, then "Reset Progress"
+ * erases either all of its coursework or only the selected modules.
+ * Every rule that matters (admin only, test accounts only, never an admin or
+ * instructor identity) is enforced in SQL by admin_set_test_account() /
+ * admin_reset_test_progress(),
+ * supabase/migrations/20261110120000_test_account_progress_reset.sql, and
+ * 20261112120000_test_account_flag_rpc_only.sql makes those functions the
+ * only way to change the flag. The reset does not download a progress file:
+ * an admin who wants a copy uses the roster's Save Progress File first (the
+ * dialog says so). Against a database without the migration, the roster
+ * quietly shows no test-account controls (TEST_ACCOUNTS.available). */
+const TEST_ACCOUNTS = { available: null };
+
+function isMissingTestAccountSchema(error) {
+  if (!error) return false;
+  const text = `${error.message || ''} ${error.details || ''}`;
+  if (['42703', '42883', 'PGRST204', 'PGRST202'].includes(error.code)) return true;
+  return /is_test_account|progress_reset|admin_set_test_account|admin_reset_test_progress/i.test(text)
+    && /does not exist|schema cache|could not find/i.test(text);
+}
+
+// Adds is_test_account to each roster row (admin roster only).
+async function mergeTestAccountFlags(rows) {
+  if (!rows || !rows.length || TEST_ACCOUNTS.available === false) return;
+  const { data, error } = await mntSupabase.from('students').select('student_id, is_test_account');
+  if (error) {
+    if (isMissingTestAccountSchema(error)) TEST_ACCOUNTS.available = false;
+    else console.error('Could not load test-account flags', error);
+    return;
+  }
+  TEST_ACCOUNTS.available = true;
+  const flags = new Map((data || []).map((r) => [r.student_id, r.is_test_account === true]));
+  rows.forEach((row) => { row.is_test_account = flags.get(row.student_id) === true; });
+}
+
+async function setTestAccountRemote(studentId, isTest) {
+  const { error } = await mntSupabase.rpc('admin_set_test_account', { p_student_id: studentId, p_is_test: isTest });
+  return error || null;
+}
+
+// The modules of a roster row's program, in course order.
+function testResetModulesForRow(row) {
+  const slug = row.program_slug || TRACK_CODE_TO_PROGRAM_SLUG[row.track_code];
+  const program = PROGRAMS.find((p) => p.slug === slug);
+  if (!program || !program.modules) return { program: null, modules: [] };
+  const modules = Object.values(program.modules).sort((a, b) => a.number - b.number);
+  return { program, modules };
+}
+
+// Every lab key the portal knows belongs to these modules (portal/data.js
+// LABS[].module). The SQL function also matches course_module_labs and the
+// lab-<module>- naming convention, so this list only needs to add to those.
+function testResetLabKeysForModules(moduleKeys) {
+  const wanted = new Set(moduleKeys);
+  return (typeof LABS !== 'undefined' ? LABS : [])
+    .filter((lab) => lab && lab.key && wanted.has(lab.module))
+    .map((lab) => lab.key);
+}
+
+async function resetTestProgressRemote(row, moduleKeys) {
+  const { modules } = testResetModulesForRow(row);
+  const includeCapstone = !!moduleKeys && modules.some((m) => m.isCapstone && moduleKeys.includes(m.key));
+  const { data, error } = await mntSupabase.rpc('admin_reset_test_progress', {
+    p_student_id: row.student_id,
+    p_module_keys: moduleKeys || null,
+    p_lab_keys: moduleKeys ? testResetLabKeysForModules(moduleKeys) : null,
+    p_include_capstone: includeCapstone,
+  });
+  return { data, error };
+}
+
+// Deletes the test account's uploaded evidence files (bucket lab-evidence)
+// through the Storage API: all of them, or only the selected modules'
+// folders. Storage refuses direct SQL deletes, so this runs after the reset
+// RPC. Storage policies allow it only inside a test account's own folder.
+async function removeTestEvidenceFiles(row, moduleKeys) {
+  const { data, error } = await mntSupabase.rpc('admin_test_evidence_paths', {
+    p_student_id: row.student_id,
+    p_module_keys: moduleKeys || null,
+  });
+  if (error) return { found: 0, removed: 0, error };
+  const paths = (data || []).map((item) => (typeof item === 'string' ? item : item && item.admin_test_evidence_paths)).filter(Boolean);
+  const bucket = mntSupabase.storage.from(typeof ITS_EVIDENCE_BUCKET !== 'undefined' ? ITS_EVIDENCE_BUCKET : 'lab-evidence');
+  let removed = 0;
+  for (let i = 0; i < paths.length; i += 100) {
+    const batch = paths.slice(i, i + 100);
+    const result = await bucket.remove(batch);
+    if (result.error) return { found: paths.length, removed, error: result.error };
+    removed += Array.isArray(result.data) ? result.data.length : batch.length;
+  }
+  return { found: paths.length, removed, error: null };
+}
+
+function testResetSummaryText(result) {
+  const deleted = (result && result.deleted) || {};
+  const labels = {
+    module_progress: 'module records',
+    lab_attempts: 'lab attempts',
+    module_completion_evidence: 'completion evidence items',
+    portfolio_artifacts: 'portfolio items',
+    capstone_reviews: 'capstone reviews',
+    capstone_submissions: 'capstone submissions',
+    student_course_hour_awards: 'hour awards',
+    sim_state: 'saved lab environments',
+  };
+  const parts = Object.entries(labels)
+    .filter(([key]) => Number(deleted[key]) > 0)
+    .map(([key, label]) => `${deleted[key]} ${label}`);
+  const evidence = result && result.evidence;
+  if (evidence && evidence.removed > 0) parts.push(`${evidence.removed} evidence file${evidence.removed === 1 ? '' : 's'}`);
+  let text = parts.length ? `Erased ${parts.join(', ')}.` : 'There was no saved progress to erase.';
+  if (evidence && evidence.error) {
+    const left = Math.max((evidence.found || 0) - (evidence.removed || 0), 0);
+    text += ` Could not delete ${left ? `${left} ` : ''}uploaded evidence file${left === 1 ? '' : 's'} (${evidence.error.message || 'Storage refused'}); run Reset Progress again to retry.`;
+  }
+  return text;
+}
+
+// The roster's test-account controls (admin roster only): the "Test account"
+// checkbox and a red "Reset Progress" button, present on every row so the
+// checkbox can show or hide it at once, but `hidden` unless the row is a
+// test account. Keep display utilities (inline-flex, block, …) off the
+// button: in the bundled Tailwind they override the `hidden` attribute and
+// the button would show on real students. Nothing renders on the instructor
+// dashboard or against a database without the migration.
+function testAccountRosterControlsHtml(row, instructorDashboard) {
+  if (instructorDashboard || !TEST_ACCOUNTS.available) return '';
+  const id = esc(row.student_id);
+  return `
+                             <div class="mt-2 flex items-center gap-3">
+                               <label class="inline-flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer" title="Only test accounts can have their progress reset">
+                                 <input type="checkbox" data-admin-test-account="${id}" ${row.is_test_account ? 'checked' : ''} aria-label="Test account: ${id}" />
+                                 Test account
+                               </label>
+                               <button type="button" data-admin-reset-progress="${id}" ${row.is_test_account ? '' : 'hidden'} class="rounded-md bg-[#b91c1c] hover:bg-[#991b1b] px-2.5 py-1 text-xs font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#b91c1c] focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed" title="Erase this test account's progress">Reset Progress</button>
+                             </div>`;
+}
+
+// The reset dialog asks for a fixed word, not the student ID; the heading
+// still names the account, and the server accepts only test accounts.
+const TEST_RESET_CONFIRM_WORD = 'RESET';
+// No automatic progress file: the admin saves one from the roster if wanted.
+const TEST_RESET_WARNING = "This can't be undone. To keep a copy first, use Save Progress File on the roster. Uploaded evidence screenshots are deleted too. Progress saved in the student's own browser is cleared the next time they open the portal.";
+function testResetConfirmed(value) {
+  return String(value == null ? '' : value).trim() === TEST_RESET_CONFIRM_WORD;
+}
+
+// The reset dialog. onDone runs after a successful reset (re-renders the roster).
+async function openTestResetModal(row, trigger, onDone) {
+  document.getElementById('test-reset-modal')?.remove();
+  const { modules } = testResetModulesForRow(row);
+  const label = accountLabelText(row.student_id);
+
+  // Current state per module, so the admin can see what each one holds.
+  const stateByModule = new Map();
+  const progressResult = await mntSupabase
+    .from('module_progress')
+    .select('module_key, state')
+    .eq('user_id', row.user_id);
+  if (progressResult.error) console.error('test reset: module_progress read failed', progressResult.error);
+  (progressResult.data || []).forEach((r) => stateByModule.set(r.module_key, r.state));
+  const stateLabel = (key) => {
+    const state = stateByModule.get(key);
+    if (state === 'complete') return '<span class="text-[#15803d]">Complete</span>';
+    if (state) return '<span class="text-[#c2410c]">In progress</span>';
+    return '<span class="text-gray-400">Not started</span>';
+  };
+
+  const pane = document.createElement('div');
+  pane.id = 'test-reset-modal';
+  pane.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/50';
+  pane.innerHTML = `
+    <section role="dialog" aria-modal="true" aria-labelledby="test-reset-title" class="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
+      <div class="flex items-center justify-between gap-4 border-b border-gray-200 px-6 py-4">
+        <div>
+          <h2 id="test-reset-title" class="text-xl font-bold text-[#1e3a5f]">Reset test account progress</h2>
+          <p class="mt-0.5 text-sm text-gray-600"><span class="font-mono">${esc(row.student_id)}</span>${accountNameText(row) ? ` · ${esc(accountNameText(row))}` : ''} <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-50 text-violet-700 border border-violet-200">TEST</span></p>
+        </div>
+        <button type="button" data-test-reset-close aria-label="Close" class="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-[#1e3a5f]"><i class="ri-close-line text-xl" aria-hidden="true"></i></button>
+      </div>
+      <form data-test-reset-form class="space-y-4 px-6 py-5">
+        <fieldset class="space-y-2">
+          <legend class="text-sm font-semibold text-[#1e3a5f] mb-1">What should be erased?</legend>
+          <label class="flex items-start gap-3 rounded-lg border border-gray-200 px-3 py-2.5 cursor-pointer" data-test-reset-option>
+            <input type="radio" name="scope" value="all" class="mt-1" checked />
+            <span><span class="block text-sm font-semibold text-gray-900">Erase all progress</span>
+            <span class="block text-xs text-gray-600">Every module, lab attempt, grade, uploaded evidence file, portfolio item and capstone submission for this student.</span></span>
+          </label>
+          <label class="flex items-start gap-3 rounded-lg border border-gray-200 px-3 py-2.5 cursor-pointer" data-test-reset-option>
+            <input type="radio" name="scope" value="modules" class="mt-1" />
+            <span><span class="block text-sm font-semibold text-gray-900">Erase selected modules only</span>
+            <span class="block text-xs text-gray-600">Only the modules you tick below. Other modules, including later ones, stay as they are.</span></span>
+          </label>
+        </fieldset>
+        <div data-test-reset-modules hidden class="rounded-lg border border-gray-200">
+          <div class="flex items-center justify-between border-b border-gray-100 px-3 py-2">
+            <span class="text-xs font-semibold text-gray-600">Modules</span>
+            <button type="button" data-test-reset-select-started class="text-xs font-semibold text-[#1e3a5f] hover:underline">Tick all with progress</button>
+          </div>
+          <ul class="max-h-60 overflow-y-auto divide-y divide-gray-100">
+            ${modules.map((m) => `
+              <li><label class="flex items-center gap-3 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+                <input type="checkbox" name="module" value="${esc(m.key)}" />
+                <span class="flex-1 text-gray-900">Module ${m.number}: ${esc(m.title || m.key)}${m.isCapstone ? ' <span class="text-xs text-gray-500">(capstone)</span>' : ''}</span>
+                <span class="text-xs whitespace-nowrap">${stateLabel(m.key)}</span>
+              </label></li>`).join('') || '<li class="px-3 py-2 text-sm text-gray-500">No modules found for this program.</li>'}
+          </ul>
+        </div>
+        <p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">${esc(TEST_RESET_WARNING)}</p>
+        <label class="block text-sm font-semibold text-[#1e3a5f]">Type <span class="font-mono">${TEST_RESET_CONFIRM_WORD}</span> to confirm
+          <input name="confirm" autocomplete="off" spellcheck="false" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono" />
+        </label>
+        <div class="flex items-center justify-between gap-3">
+          <p data-test-reset-status class="text-sm text-gray-700" aria-live="polite"></p>
+          <button type="submit" disabled class="shrink-0 bg-[#b91c1c] hover:bg-[#991b1b] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold text-sm px-4 py-2 rounded-lg">Erase progress</button>
+        </div>
+      </form>
+    </section>`;
+
+  const form = pane.querySelector('[data-test-reset-form]');
+  const statusEl = pane.querySelector('[data-test-reset-status]');
+  const modulesBox = pane.querySelector('[data-test-reset-modules]');
+  const submit = form.querySelector('button[type="submit"]');
+  let busy = false;
+  const close = () => {
+    if (busy) return;
+    pane.remove();
+    trigger?.focus();
+  };
+  const scope = () => form.querySelector('input[name="scope"]:checked').value;
+  const selectedModules = () => [...form.querySelectorAll('input[name="module"]:checked')].map((el) => el.value);
+  const refresh = () => {
+    modulesBox.hidden = scope() !== 'modules';
+    // Highlight the chosen option (the bundled Tailwind 3.0 has no has-[] variant).
+    pane.querySelectorAll('[data-test-reset-option]').forEach((option) => {
+      const on = option.querySelector('input').checked;
+      option.style.borderColor = on ? '#f97316' : '';
+      option.style.backgroundColor = on ? '#fff7ed' : '';
+    });
+    const confirmed = testResetConfirmed(form.elements.confirm.value);
+    const hasTarget = scope() === 'all' || selectedModules().length > 0;
+    submit.disabled = busy || !confirmed || !hasTarget;
+    submit.textContent = scope() === 'all'
+      ? 'Erase all progress'
+      : `Erase ${selectedModules().length || ''} module${selectedModules().length === 1 ? '' : 's'}`.replace('  ', ' ');
+  };
+
+  pane.querySelector('[data-test-reset-close]').addEventListener('click', close);
+  pane.addEventListener('click', (event) => { if (event.target === pane) close(); });
+  pane.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
+  form.addEventListener('input', refresh);
+  form.addEventListener('change', refresh);
+  pane.querySelector('[data-test-reset-select-started]').addEventListener('click', () => {
+    form.querySelectorAll('input[name="module"]').forEach((el) => { el.checked = stateByModule.has(el.value); });
+    refresh();
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (submit.disabled) return;
+    const moduleKeys = scope() === 'all' ? null : selectedModules();
+    busy = true;
+    refresh();
+    try {
+      statusEl.textContent = 'Erasing progress…';
+      const { data, error } = await resetTestProgressRemote(row, moduleKeys);
+      if (error) throw new Error(error.message || 'Supabase rejected the reset.');
+      statusEl.textContent = 'Deleting uploaded evidence files…';
+      let evidence;
+      try {
+        evidence = await removeTestEvidenceFiles(row, moduleKeys);
+      } catch (err) {
+        evidence = { found: 0, removed: 0, error: err };
+      }
+      if (evidence.error) console.error('test reset: evidence file removal failed', evidence.error);
+      busy = false;
+      pane.remove();
+      if (typeof onDone === 'function') await onDone(`${label}: ${testResetSummaryText({ ...(data || {}), evidence })}`);
+    } catch (err) {
+      busy = false;
+      statusEl.textContent = err && err.message ? err.message : String(err);
+      statusEl.className = 'text-sm text-[#b91c1c]';
+      refresh();
+    }
+  });
+
+  document.body.appendChild(pane);
+  refresh();
+  requestAnimationFrame(() => form.querySelector('input[name="scope"]').focus());
+}
+
+/* Student side: Module 1 and several labs keep progress in the student's own
+ * browser, which the admin reset cannot reach. The reset stamps
+ * students.progress_reset_at (+ progress_reset_modules, null = all); on the
+ * next sign-in or reload this compares it with a per-account local marker
+ * and clears the matching browser state once. Never throws; does nothing
+ * against a database without the columns. */
+const PROGRESS_RESET_SEEN_PREFIX = 'mnt-portal.progress-reset-seen.v1';
+const LAB_STATE_PREFIX = 'mnt-portal.lab-state.v1.';
+
+function clearLocalProgressForReset(user, moduleKeys) {
+  const anon = LabRuntime.anonymousStudentId(user);
+  const programSlug = TRACK_CODE_TO_PROGRAM_SLUG[user.trackCode];
+  const all = !Array.isArray(moduleKeys);
+  const mods = all ? [] : moduleKeys;
+  const compact = mods.map((mk) => mk.replace('-', ''));
+  const remove = (store, test) => Object.keys(store).filter(test).forEach((k) => store.removeItem(k));
+
+  // Per-lab runtime state: mnt-portal.lab-state.v1.<labId>.<anon>; labIds
+  // look like 'aim01-cli-utility-v1' (module key without its hyphen).
+  remove(localStorage, (k) => k.startsWith(LAB_STATE_PREFIX) && k.endsWith(`.${anon}`)
+    && (all || compact.some((c) => k.slice(LAB_STATE_PREFIX.length).startsWith(c))));
+
+  // Simulator state (defender-lab.*). The simulator names a student's own
+  // saved work after the anonymous id the portal sends in every launch
+  // (student=, the same LabRuntime.anonymousStudentId as `anon` here):
+  // defender-lab.helpdesk.prove.v1.<module>.<student-…> and
+  // defender-lab.helpdesk.practice.v1.<set>.<student-…>. Another student's
+  // key is never touched. Keys with no student id are shared by everyone on
+  // this browser: erase-all clears them, a module reset clears those that
+  // name the module.
+  const otherStudentsKey = (k) => {
+    const owner = /\.(student-[A-Za-z0-9_-]+)$/.exec(k);
+    return !!owner && owner[1] !== anon;
+  };
+  [localStorage, sessionStorage].forEach((store) => remove(store, (k) => k.startsWith('defender-lab.')
+    && !otherStudentsKey(k)
+    && (all || mods.some((mk) => k.includes(`.${mk}.`)))));
+
+  // Opened modules / completed labs engagement list.
+  const engagementKey = moduleEngagementKey(user);
+  if (all) {
+    localStorage.removeItem(engagementKey);
+  } else {
+    const engagement = loadModuleEngagement(user);
+    const prefixes = mods.map((mk) => moduleEngagementId(programSlug, mk));
+    const keep = (id) => !prefixes.some((p) => id === p || String(id).startsWith(`${p}:`));
+    saveModuleEngagement(user, {
+      openedModules: engagement.openedModules.filter(keep),
+      completedLabs: engagement.completedLabs.filter(keep),
+    });
+  }
+
+  // Imported Mission Next lab player progress, bucketed per module.
+  try {
+    if (all) {
+      localStorage.removeItem('mission_next_progress_ext');
+    } else {
+      const ext = JSON.parse(localStorage.getItem('mission_next_progress_ext') || 'null');
+      if (ext && typeof ext === 'object') {
+        mods.forEach((mk) => { delete ext[`guest_learner_${mk}`]; });
+        localStorage.setItem('mission_next_progress_ext', JSON.stringify(ext));
+      }
+    }
+  } catch (_) { /* unreadable: leave it */ }
+
+  // The coach's resume record (ui/coach.js) is one key per browser that
+  // names its student inside. Clear it only when it is this account's, or
+  // names no one (a launch from an older course page).
+  if (all) {
+    let resumeStudent = '';
+    try {
+      const resume = JSON.parse(localStorage.getItem('mnt.coach.resume') || 'null');
+      resumeStudent = (resume && typeof resume.student === 'string') ? resume.student : '';
+    } catch (_) { /* unreadable: nobody's, clear it */ }
+    if (!resumeStudent || resumeStudent === anon) localStorage.removeItem('mnt.coach.resume');
+  }
+}
+
+async function applyPendingProgressReset(core) {
+  if (!core || !core.userId || core.isAdmin || core.isInstructor) return;
+  try {
+    const { data, error } = await mntSupabase
+      .from('students')
+      .select('progress_reset_at, progress_reset_modules')
+      .eq('user_id', core.userId)
+      .maybeSingle();
+    if (error) {
+      if (!isMissingTestAccountSchema(error)) console.error('Could not check for a progress reset', error);
+      return;
+    }
+    if (!data || !data.progress_reset_at) return;
+    const seenKey = `${PROGRESS_RESET_SEEN_PREFIX}.${core.userId}`;
+    if (localStorage.getItem(seenKey) === data.progress_reset_at) return;
+    clearLocalProgressForReset(core, data.progress_reset_modules);
+    localStorage.setItem(seenKey, data.progress_reset_at);
+  } catch (err) {
+    console.error('Could not apply a progress reset to this browser', err);
+  }
+}
+
 /* ---------------------------------------------- module_progress (Supabase) */
 /* Additive write path alongside the localStorage engagement tracking above
  * (docs/specs/architecture.md §3 Sprint 2). localStorage stays the source of truth the
@@ -3710,8 +4406,8 @@ async function downloadStudentSnapshot(studentId, identity) {
  * user.userId/user.trackCode, which are only populated on a real Supabase
  * Auth session (buildUserFromSession) — no session, no write, no throw. */
 
-async function upsertModuleProgress(user, moduleKey, fields) {
-  if (!user || !user.userId || !user.trackCode) return;
+async function upsertModuleProgress(user, moduleKey, fields, { insertOnly = false } = {}) {
+  if (!user || !user.userId || !user.trackCode) return false;
   try {
     const { error } = await mntSupabase.from('module_progress').upsert(
       {
@@ -3720,11 +4416,15 @@ async function upsertModuleProgress(user, moduleKey, fields) {
         track_code: user.trackCode,
         ...fields,
       },
-      { onConflict: 'user_id,module_key' }
+      // insertOnly: ON CONFLICT DO NOTHING, so a row another tab or device
+      // created since our read keeps its values.
+      { onConflict: 'user_id,module_key', ignoreDuplicates: insertOnly }
     );
     if (error) console.error('module_progress upsert failed', moduleKey, fields, error);
+    return !error;
   } catch (err) {
     console.error('module_progress upsert threw', moduleKey, fields, err);
+    return false;
   }
 }
 
@@ -3732,21 +4432,36 @@ async function upsertModuleProgress(user, moduleKey, fields) {
  * Read/merge/write preserves sibling labs in that module's single row. The
  * cache is origin-scoped; this authenticated row is the cross-origin source. */
 const moduleCaseStateQueues = new Map();
+
+/* Send every debounced case_state save now and wait for all of them to land.
+ * render() calls this before it re-fetches the learner's rows: otherwise the
+ * fetch can return the row as it was before the learner's last action, and
+ * Object.assign() would replace the newer in-session copy with it. */
+async function settlePendingCaseStateWrites() {
+  if (typeof LabRuntime !== 'undefined' && typeof LabRuntime.flushAllCaseStateWrites === 'function') LabRuntime.flushAllCaseStateWrites();
+  await Promise.all(Array.from(moduleCaseStateQueues.values()));
+}
+
+// Resolves to true once the row holds this state, or false when it doesn't
+// (bad arguments, a failed read or write, or a throw). It never rejects.
 async function persistModuleCaseState(user, moduleKey, labId, state) {
-  if (!user || !user.userId || !user.trackCode || !moduleKey || !labId) return;
+  if (!user || !user.userId || !user.trackCode || !moduleKey || !labId) return false;
   const queueKey = `${user.userId}:${user.trackCode}:${moduleKey}`;
   const previous = moduleCaseStateQueues.get(queueKey) || Promise.resolve();
   const write = previous.catch(() => {}).then(async () => {
     const { data, error: readError } = await mntSupabase.from('module_progress')
       .select('case_state').eq('user_id', user.userId).eq('track_code', user.trackCode)
       .eq('module_key', moduleKey).maybeSingle();
-    if (readError) { console.error('module case_state read failed', moduleKey, readError); return; }
+    if (readError) { console.error('module case_state read failed', moduleKey, readError); return false; }
     const current = data && data.case_state && typeof data.case_state === 'object' ? data.case_state : {};
     const caseState = { ...current, [labId]: state };
     let writeResult;
+    // True when the last write was an update: it returns the changed row.
+    let wasUpdate = false;
     if (data) {
+      wasUpdate = true;
       writeResult = await mntSupabase.from('module_progress').update({ case_state: caseState })
-        .eq('user_id', user.userId).eq('track_code', user.trackCode).eq('module_key', moduleKey);
+        .eq('user_id', user.userId).eq('track_code', user.trackCode).eq('module_key', moduleKey).select('module_key');
     } else {
       writeResult = await mntSupabase.from('module_progress').insert({
         user_id: user.userId, module_key: moduleKey, track_code: user.trackCode,
@@ -3760,41 +4475,83 @@ async function persistModuleCaseState(user, moduleKey, labId, state) {
           .eq('module_key', moduleKey).maybeSingle();
         if (racedReadError) throw racedReadError;
         const racedState = racedRow?.case_state && typeof racedRow.case_state === 'object' ? racedRow.case_state : {};
+        wasUpdate = true;
         writeResult = await mntSupabase.from('module_progress').update({ case_state: { ...racedState, [labId]: state } })
-          .eq('user_id', user.userId).eq('track_code', user.trackCode).eq('module_key', moduleKey);
+          .eq('user_id', user.userId).eq('track_code', user.trackCode).eq('module_key', moduleKey).select('module_key');
       }
     }
-    if (writeResult.error) { console.error('module case_state write failed', moduleKey, labId, writeResult.error); return; }
+    if (writeResult.error) { console.error('module case_state write failed', moduleKey, labId, writeResult.error); return false; }
+    // An update that matches no row returns no error: it saved nothing (the
+    // row went away after the read, or the update was refused). The updates
+    // return the changed row, so no row back means no save.
+    if (wasUpdate && !(Array.isArray(writeResult.data) && writeResult.data.length > 0)) { console.error('module case_state update changed no row', moduleKey, labId); return false; }
     // LabRuntime.saveCaseState() already put every newer action from this
     // session in the in-session copy. Replacing it with this write's older
     // snapshot made the next load undo actions taken while it was in flight.
     const live = user.remoteCaseState && user.remoteCaseState[moduleKey];
     const liveLabs = live && typeof live === 'object' && !live.labId ? live : {};
     user.remoteCaseState = { ...(user.remoteCaseState || {}), [moduleKey]: { ...caseState, ...liveLabs } };
-  }).catch((err) => { console.error('module case_state persistence threw', moduleKey, labId, err); });
+    return true;
+  }).catch((err) => { console.error('module case_state persistence threw', moduleKey, labId, err); return false; });
   moduleCaseStateQueues.set(queueKey, write);
   return write;
 }
 
 /* Only ever writes 'in_progress', and only when this module's row isn't
- * already 'complete' — a read-before-write, chosen over a conditional upsert
- * because supabase-js has no clean way to express an upsert with a WHERE
- * predicate on the existing row. This is the sole guard against regressing a
- * completed module back to in_progress; markModuleCompleteRemote below never
- * needs a symmetric check since going TO complete is never a regression. */
+ * already 'in_progress' or 'complete' — a read-before-write, chosen over a
+ * conditional upsert because supabase-js has no clean way to express an upsert
+ * with a WHERE predicate on the existing row. This is the sole guard against
+ * regressing a completed module back to in_progress (and against resetting
+ * started_at); markModuleCompleteRemote below never needs a symmetric check
+ * since going TO complete is never a regression. Updates the in-session copy
+ * of the row so later opens this session skip the round trip. */
+const moduleInProgressWrites = new Set();
 function markModuleInProgressRemote(user, moduleKey) {
-  if (!user || !user.userId || !user.trackCode) return;
-  mntSupabase
+  if (!user || !user.userId || !user.trackCode) return Promise.resolve(false);
+  const writeKey = `${user.userId}:${user.trackCode}:${moduleKey}`;
+  if (moduleInProgressWrites.has(writeKey)) return Promise.resolve(false);
+  moduleInProgressWrites.add(writeKey);
+  const remember = (state) => { user.remoteModuleProgress = { ...(user.remoteModuleProgress || {}), [moduleKey]: state }; };
+  return mntSupabase
     .from('module_progress')
     .select('state')
     .eq('user_id', user.userId)
+    .eq('track_code', user.trackCode)
     .eq('module_key', moduleKey)
     .maybeSingle()
     .then(({ data, error }) => {
-      if (error) { console.error('module_progress read failed', moduleKey, error); return; }
-      if (data && data.state === 'complete') return;
-      upsertModuleProgress(user, moduleKey, { state: 'in_progress', started_at: new Date().toISOString() });
-    });
+      if (error) { console.error('module_progress read failed', moduleKey, error); return false; }
+      if (data && (data.state === 'complete' || data.state === 'in_progress')) { remember(data.state); return true; }
+      const fields = { state: 'in_progress', started_at: new Date().toISOString() };
+      // No row yet: insert only. Two tabs or devices opening the module at
+      // once both see "no row"; the second insert is ignored instead of
+      // resetting the first one's started_at.
+      if (!data) {
+        return upsertModuleProgress(user, moduleKey, fields, { insertOnly: true })
+          .then((saved) => { if (saved) remember('in_progress'); return saved; });
+      }
+      // A not_started row (e.g. one an admin override created): update it
+      // only while it still says not_started, so a second tab that read the
+      // same row can't overwrite the first tab's started_at.
+      return mntSupabase
+        .from('module_progress')
+        .update(fields)
+        .eq('user_id', user.userId)
+        .eq('track_code', user.trackCode)
+        .eq('module_key', moduleKey)
+        .eq('state', 'not_started')
+        .select('state')
+        .then(({ data: updated, error: updateError }) => {
+          if (updateError) { console.error('module_progress in_progress update failed', moduleKey, updateError); return false; }
+          // No row matched: another tab or device moved it on first; the next
+          // open reads whatever it wrote.
+          if (!updated || !updated.length) return false;
+          remember('in_progress');
+          return true;
+        });
+    })
+    .catch((err) => { console.error('module_progress in_progress write threw', moduleKey, err); return false; })
+    .finally(() => moduleInProgressWrites.delete(writeKey));
 }
 
 function markModuleCompleteRemote(user, moduleKey) {
@@ -3850,6 +4607,14 @@ function recordModuleCompletionEvidence(user, moduleKey, evidenceKeys) {
   }).catch((err) => { console.error('module completion evidence insert threw', moduleKey, err); return null; });
 }
 
+/* The browser flag still feeds the card of programs without
+ * truthfulModuleStates. The database write used to sit inside that flag's
+ * first-time check: when the card trusted this browser, the row was only a
+ * copy for admin reports, and skipping it saved a read and a write on every
+ * open. A failed write, or a first open on another device, then left no row
+ * at all. The row is now the record, so it is written whenever this
+ * session's copy of the database has no in_progress/complete row for the
+ * module, whatever this browser remembers. */
 function markModuleContentOpened(user, programSlug, moduleKey) {
   if (!user) return;
   const engagement = loadModuleEngagement(user);
@@ -3857,8 +4622,9 @@ function markModuleContentOpened(user, programSlug, moduleKey) {
   if (!engagement.openedModules.includes(id)) {
     engagement.openedModules.push(id);
     saveModuleEngagement(user, engagement);
-    markModuleInProgressRemote(user, moduleKey);
   }
+  const remoteState = (user.remoteModuleProgress || {})[moduleKey];
+  if (remoteState !== 'in_progress' && remoteState !== 'complete') markModuleInProgressRemote(user, moduleKey);
 }
 
 function markModuleLabComplete(user, programSlug, moduleKey, labKey, completed = true) {
@@ -3901,33 +4667,57 @@ function markModuleLabComplete(user, programSlug, moduleKey, labKey, completed =
  * call. Same fire-and-forget/guard/error-logging convention as
  * upsertModuleProgress above: no session or no track_code silently skips the
  * write so local LabRuntime/engagement behavior is never affected. */
-function recordLabAttempt(user, labKey, { state, score = null, result = {}, submittedAt = null } = {}) {
+function recordLabAttempt(user, labKey, {
+  id = null, state, score = null, result = {}, submittedAt = null,
+  rubricVersion = 'soc-analyst-rubric-v1',
+  scoringEngineVersion = 'portal-client-scorer-v1',
+  passThreshold = 70,
+} = {}) {
   if (!user || !user.userId || !user.trackCode) return Promise.resolve(false);
   const now = submittedAt || new Date().toISOString();
-  return mntSupabase
-    .from('lab_attempts')
-    .insert({
-      user_id: user.userId,
-      lab_key: labKey,
-      track_code: user.trackCode,
-      state,
-      score,
-      result,
-      rubric_version: 'soc-analyst-rubric-v1',
-      scoring_engine_version: 'portal-client-scorer-v1',
-      pass_threshold: 70,
-      started_at: now,
-      completed_at: state === 'complete' ? now : null,
-    })
+  const savedState = state === 'complete' && typeof score === 'number' && score < passThreshold ? 'submitted' : state;
+  const notifySaveFailure = (error) => window.dispatchEvent(new CustomEvent('mnt:lab-attempt-save-failed', {
+    detail: { labKey, code: error && error.code || '', message: error && error.message || '' },
+  }));
+  return Promise.resolve()
+    .then(() => mntSupabase
+      .from('lab_attempts')
+      .insert({
+        // Optional: a caller that stored files under an attempt folder first
+        // (Help Desk evidence, it-support-shared.js) supplies that folder's id.
+        ...(id ? { id } : {}),
+        user_id: user.userId,
+        lab_key: labKey,
+        track_code: user.trackCode,
+        state: savedState,
+        score,
+        result,
+        rubric_version: rubricVersion,
+        scoring_engine_version: scoringEngineVersion,
+        pass_threshold: passThreshold,
+        started_at: now,
+        completed_at: savedState === 'complete' || savedState === 'submitted' ? now : null,
+      }))
     .then(({ error }) => {
-      if (error) { console.error('lab_attempts insert failed', labKey, error); return false; }
+      if (error) {
+        console.error('lab_attempts insert failed', labKey, error);
+        notifySaveFailure(error);
+        return false;
+      }
       const lab = LABS.find((item) => item.key === labKey);
+      // Opted-in module cards read lab_attempts as loaded at sign-in; record
+      // this saved row in that copy so the program page is current without a
+      // reload. Other programs' module pages keep their own copies.
+      const labProgram = lab && PROGRAMS.find((p) => p.modules && p.modules[lab.module]);
+      if (labProgram && labProgram.truthfulModuleStates && (savedState === 'complete' || savedState === 'submitted')) {
+        user.latestLabAttemptByKey = { ...(user.latestLabAttemptByKey || {}), [labKey]: { completedAt: now, reviewedAt: null, redoRequested: false, supersededAt: null } };
+      }
       // The insert's database trigger updates the verified read model. Fetch
       // that result after the successful write instead of promoting local
       // storage to an academic completion fact.
       return refreshVerifiedModuleProgress(user, lab && lab.module).then(() => true);
     })
-    .catch((err) => { console.error('lab_attempts insert threw', labKey, err); return false; });
+    .catch((err) => { console.error('lab_attempts insert threw', labKey, err); notifySaveFailure(err); return false; });
 }
 
 /* An artifact is an immutable, server-stored snapshot of a submission.  This
@@ -4040,6 +4830,122 @@ function moduleCompletion(program, moduleKey, user) {
   return { complete, contentOpened, allLabsComplete, fixtureState, module };
 }
 
+/* ---------------------------------------------- database-only module card */
+/* Programs with `truthfulModuleStates: true` (portal/data.js) derive a module
+ * card's state only from database rows fetchUserDetails() loaded: the
+ * verified record, course_module_labs, lab_attempts and module_progress.
+ * Nothing here reads browser storage, so every device shows the same card. */
+
+// The module's required labs: its course_module_labs rows, the list
+// student_verified_module_progress checks. If that read failed, the LABS
+// catalogue's non-optional, non-practice labs stand in (they matched the
+// registry for every Help Desk module when this was written).
+function moduleRequiredLabKeys(program, moduleKey, user) {
+  const registry = user && user.requiredLabsByModuleKey;
+  if (registry) return registry[moduleKey] || [];
+  return programLabs(program)
+    .filter((lab) => lab.module === moduleKey && lab.optional !== true && lab.phase !== 'practice')
+    .map((lab) => lab.key);
+}
+
+// Practice labs are only those a lab record explicitly marks
+// `phase: 'practice'` and not retired. Help Desk Module 1's guided lab and
+// practice tickets are, so Module 1 can show Practice Submitted.
+function modulePracticeLabKeys(program, moduleKey) {
+  return programLabs(program)
+    .filter((lab) => lab.module === moduleKey && lab.optional !== true && lab.phase === 'practice')
+    .map((lab) => lab.key);
+}
+
+function requiredLabStatus(attempt) {
+  if (!attempt || !attempt.completedAt || attempt.supersededAt) return 'not_submitted';
+  if (attempt.redoRequested) return 'returned';
+  if (attempt.reviewedAt) return 'passed';
+  return 'waiting';
+}
+
+/* State order: locked, draft, needs_redo, complete, awaiting_approval,
+ * practice_submitted, in_progress, not_started. */
+function moduleCardState(program, moduleKey, user, unlocked) {
+  const module = program.modules[moduleKey];
+  const attempts = (user && user.latestLabAttemptByKey) || {};
+  const notes = (user && user.openLabRedoFeedbackByLabKey) || {};
+  const labs = moduleRequiredLabKeys(program, moduleKey, user).map((key) => {
+    const record = LABS.find((lab) => lab.key === key);
+    const status = requiredLabStatus(attempts[key]);
+    return { key, title: record ? record.title : key, status, feedback: status === 'returned' ? (notes[key] || []) : [],
+      criticalError: status === 'returned' && attempts[key].criticalError === true };
+  });
+  const submitted = labs.filter((lab) => lab.status === 'waiting' || lab.status === 'passed').length;
+  const waiting = labs.filter((lab) => lab.status === 'waiting').length;
+  const summary = { labs, required: labs.length, submitted, waiting };
+  const practiceKeys = modulePracticeLabKeys(program, moduleKey);
+  const hasAttempt = (key) => !!(attempts[key] && attempts[key].completedAt);
+  // Started: any attempt on any of the module's labs, retired ones included,
+  // so an older attempt still counts as activity.
+  const moduleLabKeys = [...labs.map((lab) => lab.key), ...practiceKeys,
+    ...LABS.filter((lab) => lab.module === moduleKey).map((lab) => lab.key),
+    `${moduleKey}-knowledge-check`];
+  const state = !unlocked ? 'locked'
+    : module.status === 'draft' ? 'draft'
+    : labs.some((lab) => lab.status === 'returned') ? 'needs_redo'
+    : moduleCompletion(program, moduleKey, user).complete ? 'complete'
+    : labs.length && submitted === labs.length && waiting > 0 ? 'awaiting_approval'
+    : practiceKeys.length && practiceKeys.every(hasAttempt) && labs.every((lab) => !attempts[lab.key]) ? 'practice_submitted'
+    : Object.prototype.hasOwnProperty.call((user && user.remoteModuleProgress) || {}, moduleKey)
+      || moduleLabKeys.some(hasAttempt) ? 'in_progress'
+    : 'not_started';
+  return { state, ...summary };
+}
+
+const TRUTHFUL_DOT_LABELS = {
+  complete: 'Module Passed: all required labs passed and reviewed by your instructor.',
+  incomplete: 'Module not passed yet: complete the module and submit every required lab for review by your instructor.',
+};
+
+function truthfulLabLine(lab) {
+  if (lab.status === 'passed') return `${esc(lab.title)} passed. ${markedLabLinkHtml(lab.key)}`;
+  if (lab.status === 'returned' && lab.criticalError) return `${esc(lab.title)}: ${OFFICIAL_CRITICAL_RESULT}, returned for revision. ${markedLabLinkHtml(lab.key)}`;
+  if (lab.status === 'returned') return `${esc(lab.title)} returned for revision. ${markedLabLinkHtml(lab.key)}`;
+  if (lab.status === 'waiting') return `${esc(lab.title)}: waiting on your instructor.`;
+  return `${esc(lab.title)}: not submitted yet.`;
+}
+
+// The per-lab panel under the card summary. Only promises the next module
+// unlocks on approval once every required lab is in.
+function truthfulLabStatusPanel(card) {
+  // Completed modules keep the panel so the student can reopen a marked lab.
+  const showFor = ['needs_redo', 'awaiting_approval', 'in_progress', 'complete'];
+  if (!showFor.includes(card.state) || !card.required) return '';
+  if (card.state === 'in_progress' && !card.labs.some((lab) => lab.status !== 'not_submitted')) return '';
+  if (card.state === 'complete' && !card.labs.some((lab) => lab.status === 'passed')) return '';
+  const tone = card.state === 'needs_redo'
+    ? { box: 'border-red-200 bg-red-50', text: 'text-red-700', icon: 'ri-error-warning-line' }
+    : card.state === 'awaiting_approval'
+      ? { box: 'border-[#bfdbfe] bg-[#eff6ff]', text: 'text-[#1d4ed8]', icon: 'ri-time-line' }
+      : card.state === 'complete'
+        ? { box: 'border-green-200 bg-green-50', text: 'text-green-800', icon: 'ri-checkbox-circle-line' }
+        : { box: 'border-gray-200 bg-gray-50', text: 'text-gray-700', icon: 'ri-flask-line' };
+  const footer = card.state === 'needs_redo'
+    ? 'See your marked lab for your instructor’s notes on each section, then open the module to resubmit.'
+    : card.submitted < card.required
+      ? 'The next module unlocks once every required lab is submitted and approved.'
+      : card.waiting
+        ? `The next module unlocks as soon as your instructor approves the remaining lab${card.waiting === 1 ? '' : 's'}.`
+        : card.state === 'complete'
+          ? 'You passed this module. Open it to review your work.'
+          : 'Every required lab is approved. Open the module to finish its remaining steps.';
+  return `<div class="mb-3 rounded-lg border ${tone.box} px-3 py-2.5" data-module-lab-status>
+          <p class="text-xs font-semibold ${tone.text} flex items-center gap-1.5"><i class="${tone.icon}" aria-hidden="true"></i>${card.submitted} of ${card.required} required lab${card.required === 1 ? '' : 's'} submitted</p>
+          <ul class="mt-1.5 space-y-1 text-xs ${tone.text}">
+            ${card.labs.map((lab) => `<li data-lab-status="${lab.status}">${truthfulLabLine(lab)}${lab.feedback.length
+              ? ` <span class="opacity-90">(${lab.feedback.length} note${lab.feedback.length === 1 ? '' : 's'} from your instructor)</span>`
+              : ''}</li>`).join('')}
+          </ul>
+          <p class="mt-1.5 text-xs ${tone.text} opacity-90">${footer}</p>
+        </div>`;
+}
+
 function programProgress(user, program) {
   const keys = Object.keys(program.modules || {});
   if (!keys.length) return { done: 0, total: 0, percent: 0 };
@@ -4060,14 +4966,185 @@ function isBuilt(program) {
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/* ------------------------------------------------------ account display names
+ * First + last name shown beside an account number (docs/workstreams/
+ * ACCOUNT_DISPLAY_NAMES.md). Names live in public.students.first_name /
+ * last_name (migration 20261102120000). The students table is already
+ * RLS-scoped to exactly who may see an account number (admin: all, instructor:
+ * their course's students, student: self), so one directory query gives every
+ * render site the names it is allowed to show, keyed by student_id and user_id.
+ *
+ * Graceful before the migration is pushed: if the columns or RPC are missing
+ * the old query runs instead and no name renders. That verdict is cached for
+ * the page session (ACCOUNT_NAMES.available === false) so it is never retried
+ * on every call.
+ */
+const ACCOUNT_NAMES = {
+  available: null, // null = unknown, true = columns exist, false = DB lacks them
+  rpcAvailable: null,
+  byStudentId: new Map(),
+  byUserId: new Map(),
+  ready: null, // in-flight/finished loadAccountNames() promise
+};
+const ACCOUNT_NAMES_PAGE = 1000;
+
+// PostgREST/Postgres signals for "the column or function is not there yet":
+// 42703 undefined column, 42883 undefined function, PGRST204 column missing in
+// the schema cache, PGRST202 function missing in the schema cache.
+function isMissingAccountNameSchema(error) {
+  if (!error) return false;
+  if (['42703', '42883', 'PGRST204', 'PGRST202'].includes(error.code)) return true;
+  return /first_name|last_name|admin_set_account_name/i.test(`${error.message || ''} ${error.details || ''}`)
+    && /does not exist|schema cache|could not find/i.test(`${error.message || ''} ${error.details || ''}`);
+}
+
+function rememberAccountName(row) {
+  if (!row || !(row.first_name && row.last_name)) return;
+  const entry = { first_name: row.first_name, last_name: row.last_name };
+  if (row.student_id) ACCOUNT_NAMES.byStudentId.set(row.student_id, entry);
+  if (row.user_id) ACCOUNT_NAMES.byUserId.set(row.user_id, entry);
+}
+
+// The signed-in user's own students row, with names when the DB has them.
+async function selectOwnStudentRow(userId) {
+  const base = 'student_id, track_code, is_admin, is_instructor, is_enrolled, academy_orientation_completed_at';
+  const query = (cols) => mntSupabase.from('students').select(cols).eq('user_id', userId).single();
+  if (ACCOUNT_NAMES.available !== false) {
+    const result = await query(`${base}, first_name, last_name`);
+    if (!result.error) {
+      ACCOUNT_NAMES.available = true;
+      rememberAccountName({ ...result.data, user_id: userId });
+      return result;
+    }
+    if (!isMissingAccountNameSchema(result.error)) return result;
+    ACCOUNT_NAMES.available = false;
+  }
+  return query(base);
+}
+
+// Loads (once; pass force to refresh) the name directory for every account the
+// viewer may see. Resolves to true when names are available. Never throws.
+function loadAccountNames(force = false) {
+  if (ACCOUNT_NAMES.available === false) return Promise.resolve(false);
+  if (ACCOUNT_NAMES.ready && !force) return ACCOUNT_NAMES.ready;
+  ACCOUNT_NAMES.ready = (async () => {
+    try {
+      for (let from = 0; ; from += ACCOUNT_NAMES_PAGE) {
+        const { data, error } = await mntSupabase
+          .from('students')
+          .select('student_id, user_id, first_name, last_name')
+          .order('student_id')
+          .range(from, from + ACCOUNT_NAMES_PAGE - 1);
+        if (error) {
+          if (isMissingAccountNameSchema(error)) ACCOUNT_NAMES.available = false;
+          else ACCOUNT_NAMES.ready = null; // transient: allow a later retry
+          return false;
+        }
+        (data || []).forEach(rememberAccountName);
+        if (!data || data.length < ACCOUNT_NAMES_PAGE) break;
+      }
+      ACCOUNT_NAMES.available = true;
+      window.dispatchEvent(new CustomEvent('mnt:account-names-loaded'));
+      return true;
+    } catch (err) {
+      console.error('Could not load account names', err);
+      ACCOUNT_NAMES.ready = null;
+      return false;
+    }
+  })();
+  return ACCOUNT_NAMES.ready;
+}
+
+// Resolves a name from a profile-like row ({first_name,last_name}), a row with
+// student_id / user_id / username, or a bare account number string.
+function accountNameParts(p) {
+  if (!p) return null;
+  if (typeof p === 'object' && p.first_name && p.last_name) return p;
+  if (typeof p === 'object' && p.firstName && p.lastName) return { first_name: p.firstName, last_name: p.lastName };
+  const sid = typeof p === 'string' ? p : (p.student_id || p.studentId || p.username);
+  const uid = typeof p === 'object' ? (p.user_id || p.userId) : null;
+  return (sid && ACCOUNT_NAMES.byStudentId.get(sid)) || (uid && ACCOUNT_NAMES.byUserId.get(uid)) || null;
+}
+
+// "First Last", or "" when there is no name (pre-migration DB, or not loaded).
+function accountNameText(p) {
+  const n = accountNameParts(p);
+  return n ? `${n.first_name} ${n.last_name}`.trim() : '';
+}
+
+// <span class="acct-name">First Last</span> (escaped), or "" when no name.
+// Pass inline = true for run-in text: renders " · First Last" on one line.
+function accountNameHtml(p, inline = false) {
+  const text = accountNameText(p);
+  if (!text) return '';
+  return `<span class="acct-name${inline ? ' acct-name--inline' : ''}">${esc(text)}</span>`;
+}
+
+// Signed-in header/topbar chip: account number with the first + last name
+// stacked directly under it (no truncation to a stub, shown at every width
+// the chip itself is shown).
+function accountChipHtml(id, p) {
+  const name = accountNameText(p);
+  return `<span class="acct-chip"><span class="acct-chip-id">${esc(id)}</span>${name ? `<span class="acct-name acct-chip-name" title="${esc(name)}">${esc(name)}</span>` : ''}</span>`;
+}
+
+// Avatar initials: from the stored first + last name when there is one,
+// otherwise from the account label as before.
+function accountInitials(user) {
+  const label = accountNameText(user) || String((user && user.name) || '');
+  return label.split(' ').filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
+}
+
+// Plain-text label for status/confirm strings: "ID (First Last)" or just "ID".
+function accountLabelText(p) {
+  const id = typeof p === 'string' ? p : (p && (p.student_id || p.studentId || p.username)) || '';
+  const name = accountNameText(p);
+  return name ? `${id} (${name})` : id;
+}
+
+// Admin-only. Resolves { ok, unavailable, error }; unavailable = the RPC is not
+// deployed yet (non-blocking for callers, who show a warning).
+async function setAccountName(userId, firstName, lastName) {
+  if (ACCOUNT_NAMES.rpcAvailable === false) return { ok: false, unavailable: true };
+  const { error } = await mntSupabase.rpc('admin_set_account_name', {
+    p_user_id: userId,
+    p_first_name: firstName,
+    p_last_name: lastName,
+  });
+  if (error) {
+    if (isMissingAccountNameSchema(error)) {
+      ACCOUNT_NAMES.rpcAvailable = false;
+      return { ok: false, unavailable: true, error };
+    }
+    return { ok: false, unavailable: false, error };
+  }
+  ACCOUNT_NAMES.rpcAvailable = true;
+  ACCOUNT_NAMES.available = true;
+  await loadAccountNames(true);
+  return { ok: true };
+}
+
+Object.assign(window, { accountNameText, accountNameHtml, accountLabelText, loadAccountNames, setAccountName });
+
+window.addEventListener('mnt:lab-attempt-save-failed', () => {
+  if (document.getElementById('mnt-lab-attempt-save-failed')) return;
+  document.body.insertAdjacentHTML('afterbegin', `<div id="mnt-lab-attempt-save-failed" role="alert" style="z-index:1000" class="fixed top-0 inset-x-0 bg-red-50 border-b border-red-200 text-red-900 px-4 py-3 shadow-sm"><div class="max-w-7xl mx-auto flex items-start justify-between gap-4"><p class="text-sm font-medium">${esc('Your submission did not reach your instructor. Nothing was lost on this page: check your connection and submit again. If it keeps happening, use Message Instructor.')}</p><button type="button" data-dismiss-lab-save-failed aria-label="Dismiss submission error" class="shrink-0 rounded px-2 py-1 text-red-800 hover:bg-red-100">Dismiss</button></div></div>`);
+});
+document.addEventListener('click', (event) => {
+  if (event.target.closest('[data-dismiss-lab-save-failed]')) document.getElementById('mnt-lab-attempt-save-failed')?.remove();
+});
+
 function chip(text, compact) {
   const size = compact ? 'text-xs px-2.5 py-1 rounded-lg' : 'text-sm px-4 py-2 rounded-xl';
   return `<span class="bg-gray-50 border border-gray-200 text-gray-600 font-medium ${size}">${esc(text)}</span>`;
 }
 
+// A program's live labs. A lab record marked `retired: true` (Help Desk
+// Module 1's old LMS & Environment Validation) is left out: it stays in LABS
+// only so past attempts keep their title and module.
 function programLabs(program) {
   const moduleKeys = new Set(Object.keys((program && program.modules) || {}));
-  return LABS.filter((lab) => moduleKeys.has(lab.module));
+  return LABS.filter((lab) => moduleKeys.has(lab.module) && lab.retired !== true);
 }
 
 function formatInstructionalMinutes(minutes) {
@@ -4187,9 +5264,9 @@ function header(user, options = {}) {
                  }
                  <span class="hidden md:inline-flex items-center gap-2 text-sm text-gray-500 px-3">
                    <span class="w-8 h-8 rounded-full bg-[#1e3a5f]/8 text-[#1e3a5f] font-semibold text-xs flex items-center justify-center">
-                     ${esc(user.name.split(' ').map((p) => p[0]).join(''))}
+                     ${esc(accountInitials(user))}
                    </span>
-                   ${esc(user.name)}
+                   ${accountChipHtml(user.name, user)}
                  </span>
                  <button data-action="signout" class="bg-[#f97316] hover:bg-[#ea580c] text-white text-sm font-semibold px-5 py-2 rounded-xl transition-colors whitespace-nowrap cursor-pointer">
                    Sign Out
@@ -4481,9 +5558,9 @@ function moduleTopbar(user, program, options = {}) {
           </div>
           <span class="text-xs font-semibold text-gray-500 whitespace-nowrap">${progress.percent}%</span>
         </div>
-        <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600 whitespace-nowrap" aria-label="Signed in as ${esc(user.username || user.name || 'student')}">
+        <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600 whitespace-nowrap" aria-label="Signed in as ${esc(user.username || user.name || 'student')}${accountNameText(user) ? ` (${esc(accountNameText(user))})` : ''}">
           <i class="ri-user-line text-sm" aria-hidden="true"></i>
-          ${esc(user.username || user.name || 'Student')}
+          ${accountChipHtml(user.username || user.name || 'Student', user)}
         </span>
         <button data-action="signout" class="bg-[#f97316] hover:bg-[#ea580c] text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer">
           Sign Out
@@ -4631,6 +5708,98 @@ function moduleAssessmentState(moduleKey, user) {
   return LabRuntime.load(labId, user, { rationale: '', submittedAt: '', attempts: 0 });
 }
 
+function moduleAssessmentLabKey(moduleKey) {
+  return `${moduleKey}-assessment-module`;
+}
+
+// The box's review status comes only from the student's newest attempt on
+// the server (user.latestLabAttemptByKey, loaded at sign-in), never from
+// browser storage, so clearing site data or another browser can't unlock it.
+// 'open' (none yet), 'pending', 'returned' (one new submission) or 'approved'.
+function moduleAssessmentReviewStatus(attempt) {
+  if (!attempt || !attempt.completedAt) return 'open';
+  if (attempt.redoRequested === true) return 'returned';
+  return attempt.reviewedAt ? 'approved' : 'pending';
+}
+
+const MODULE_ASSESSMENT_LOCKED_TEXT = {
+  pending: 'Submitted. Your assessment is waiting for instructor review.',
+  approved: 'Approved by your instructor.',
+};
+
+// Rationale already stored as an artifact for a submission whose lab attempt
+// then failed, so a retry with the same text doesn't store it twice.
+const moduleAssessmentStoredArtifacts = new Map();
+
+// Reads the student's newest attempt for this box from the server into
+// user.latestLabAttemptByKey and returns its review status, or null when the
+// read fails.
+async function refreshModuleAssessmentStatus(user, labKey) {
+  try {
+    const { data, error } = await mntSupabase.from('lab_attempts')
+      .select('completed_at, reviewed_at, redo_requested')
+      .eq('user_id', user.userId)
+      .eq('track_code', user.trackCode)
+      .eq('lab_key', labKey)
+      .not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false })
+      .limit(1);
+    if (error) throw error;
+    const latest = data && data[0];
+    if (latest) {
+      user.latestLabAttemptByKey = { ...(user.latestLabAttemptByKey || {}), [labKey]: {
+        completedAt: latest.completed_at, reviewedAt: latest.reviewed_at || null, redoRequested: latest.redo_requested === true, supersededAt: null,
+      } };
+    }
+    return moduleAssessmentReviewStatus(user.latestLabAttemptByKey && user.latestLabAttemptByKey[labKey]);
+  } catch (err) {
+    console.error('Assessment Lab: could not check the latest attempt', labKey, err);
+    return null;
+  }
+}
+
+/* Saves one Assessment Lab submission: the artifact first, the lab attempt
+ * last, so an instructor's queue never holds an attempt without its saved
+ * work. Both save helpers return a falsy value instead of throwing, so each
+ * result is checked. Re-reads the newest attempt first: the sign-in copy can
+ * be stale (another tab or browser, or a reply lost after an insert landed).
+ * The database's one-pending rule refuses a second waiting attempt from a
+ * concurrent tab; a refused save re-reads so that tab shows it waiting.
+ * Resolves { ok, status }: ok only when both rows were stored. */
+async function submitModuleAssessment(user, { moduleKey, programSlug, rationale, attempt }) {
+  if (!user || !user.userId || !user.trackCode) return { ok: false, status: 'open' };
+  const labKey = moduleAssessmentLabKey(moduleKey);
+  const current = await refreshModuleAssessmentStatus(user, labKey);
+  if (!current) return { ok: false, status: 'open' };
+  if (current === 'pending' || current === 'approved') return { ok: false, status: current };
+
+  const storedKey = `${user.userId}|${labKey}`;
+  if (moduleAssessmentStoredArtifacts.get(storedKey) !== rationale) {
+    const artifact = await persistPortfolioArtifact(user, {
+      moduleKey, labKey, kind: 'module_assessment',
+      title: `${programSlug} ${moduleKey} Assessment Lab`, content: rationale,
+      rubricVersion: 'academy-module-assessment-v1', scoringEngineVersion: 'instructor-review-v1',
+    });
+    if (!artifact) return { ok: false, status: current };
+    moduleAssessmentStoredArtifacts.set(storedKey, rationale);
+  }
+  // 'submitted' puts the attempt in the instructor's Lab Attempts queue; it
+  // never completes the module (this key is not in course_module_labs).
+  const saved = await recordLabAttempt(user, labKey, {
+    state: 'submitted', score: null,
+    result: { rationale, attested: true, attempt, assessmentType: 'instructor_review' },
+  });
+  if (!saved) {
+    const after = await refreshModuleAssessmentStatus(user, labKey);
+    return { ok: false, status: after === 'pending' || after === 'approved' ? after : current };
+  }
+  moduleAssessmentStoredArtifacts.delete(storedKey);
+  user.latestLabAttemptByKey = { ...(user.latestLabAttemptByKey || {}), [labKey]: {
+    completedAt: new Date().toISOString(), reviewedAt: null, redoRequested: false, supersededAt: null,
+  } };
+  return { ok: true, status: 'pending' };
+}
+
 /* The common Prove It surface is intentionally a reviewable artifact rather
  * than another completion checkbox.  Module authors can (and do) add richer,
  * domain-specific scored exercises above it; this guarantees that every
@@ -4642,7 +5811,16 @@ function moduleAssessmentModule(user, program, moduleKey, options = {}) {
   const guidedId = standardModuleStageId(moduleKey, 'guided-lab');
   const foundationsId = standardModuleStageId(moduleKey, 'foundations');
   const state = moduleAssessmentState(moduleKey, user);
-  const submitted = Boolean(state.submittedAt);
+  const labKey = moduleAssessmentLabKey(moduleKey);
+  const reviewStatus = moduleAssessmentReviewStatus(((user && user.latestLabAttemptByKey) || {})[labKey]);
+  const locked = reviewStatus === 'pending' || reviewStatus === 'approved';
+  const returnNotes = reviewStatus === 'returned' ? (((user && user.openLabRedoFeedbackByLabKey) || {})[labKey] || []) : [];
+  const pill = {
+    open: ['bg-amber-100 text-amber-800', 'Assessment required'],
+    pending: ['bg-amber-100 text-amber-800', 'Waiting for review'],
+    returned: ['bg-red-100 text-red-800', 'Returned for revision'],
+    approved: ['bg-emerald-100 text-emerald-800', 'Approved'],
+  }[reviewStatus];
   const objective = Array.isArray(module.objectives) && module.objectives[0]
     ? module.objectives[0]
     : `Apply the module skill in ${module.title || 'this module'}.`;
@@ -4668,16 +5846,20 @@ function moduleAssessmentModule(user, program, moduleKey, options = {}) {
           <h2 id="${esc(assessmentId)}-title" class="mt-2 text-2xl font-bold text-[#1e3a5f]">Independent evidence submission</h2>
           <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Use evidence from the Guided Lab to explain your independent decision. This submission is retained as an instructor-reviewable assessment artifact; it is not practice work.</p>
         </div>
-        <span class="rounded-full ${submitted ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'} px-3 py-1 text-xs font-bold">${submitted ? 'Submitted for review' : 'Assessment required'}</span>
+        <span class="rounded-full ${pill[0]} px-3 py-1 text-xs font-bold" data-module-assessment-pill>${pill[1]}</span>
       </div>
       <div class="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-700"><strong class="text-[#1e3a5f]">Assessment focus:</strong> ${esc(objective)}</div>
-      <form class="mt-5 space-y-4" data-module-assessment-form data-module-key="${esc(moduleKey)}" data-program-slug="${esc(program.slug)}">
+      ${reviewStatus === 'returned' ? `<div class="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900" data-module-assessment-returned>
+        <strong>Your instructor returned this assessment.</strong> Revise your rationale and submit it once more.
+        ${returnNotes.length ? `<ul class="mt-2 list-disc space-y-1 pl-5">${returnNotes.map((note) => `<li>${note.item_label ? `<strong>${esc(note.item_label)}:</strong> ` : ''}${esc(note.comment)}</li>`).join('')}</ul>` : ''}
+      </div>` : ''}
+      ${locked ? `<p class="mt-5 text-sm font-semibold text-[#1e3a5f]" data-module-assessment-status aria-live="polite">${MODULE_ASSESSMENT_LOCKED_TEXT[reviewStatus]}</p>` : `<form class="mt-5 space-y-4" data-module-assessment-form data-module-key="${esc(moduleKey)}" data-program-slug="${esc(program.slug)}">
         <label class="block text-sm font-semibold text-[#1e3a5f]" for="${esc(assessmentId)}-rationale">Evidence-backed rationale
           <textarea id="${esc(assessmentId)}-rationale" name="rationale" required minlength="120" rows="5" class="mt-2 w-full rounded-xl border border-slate-300 p-3 font-normal text-slate-800" placeholder="State the evidence you used, the decision you made, and why that decision is appropriately scoped.">${esc(state.rationale || '')}</textarea>
         </label>
-        <label class="flex items-start gap-3 text-sm text-slate-700"><input name="attestation" required type="checkbox" class="mt-1" ${submitted ? 'checked' : ''} /><span>This is my independent work and the rationale is supported by the module evidence.</span></label>
-        <div class="flex flex-wrap items-center gap-3"><button type="submit" class="rounded-xl bg-[#1e3a5f] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#16324a]">${submitted ? 'Submit updated assessment' : 'Submit assessment for review'}</button><p class="text-sm text-slate-600" data-module-assessment-status aria-live="polite">${submitted ? `Submitted ${esc(new Date(state.submittedAt).toLocaleString())}. Instructor review is pending.` : 'A rationale of at least 120 characters and your attestation are required.'}</p></div>
-      </form>
+        <label class="flex items-start gap-3 text-sm text-slate-700"><input name="attestation" required type="checkbox" class="mt-1" /><span>This is my independent work and the rationale is supported by the module evidence.</span></label>
+        <div class="flex flex-wrap items-center gap-3"><button type="submit" class="rounded-xl bg-[#1e3a5f] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#16324a] disabled:cursor-not-allowed disabled:opacity-50">${reviewStatus === 'returned' ? 'Resubmit assessment' : 'Submit assessment for review'}</button><p class="text-sm text-slate-600" data-module-assessment-status aria-live="polite">A rationale of at least 120 characters and your attestation are required.</p></div>
+      </form>`}
     </div>
   </section>`;
 }
@@ -4749,6 +5931,9 @@ function moduleNavStatuses(rows, titleOf = (row) => row.title) {
     if (!gated(row)) return { statusClass: 'munified-row-ungated', locked: false };
     if (row.isComplete) return { statusClass: 'mnav-chip-complete', locked: false };
     if (blockerIndex >= 0 && blockerIndex < index) {
+      // Help Desk Module 1's Prove It: recommended after Practice It, never
+      // locked behind it. It still counts toward the rail's percent.
+      if (row.neverLocked) return { statusClass: 'munified-row-ungated', locked: false };
       return { statusClass: 'mnav-chip-locked', locked: true, reason: titleOf(blocker), target: blocker.scrollId };
     }
     return { statusClass: 'mnav-chip-current', locked: false };
@@ -4802,8 +5987,10 @@ function moduleUnifiedNav(sections, state = {}) {
   const hasGeneratedAssessment = sections.some((section) => section.standardStage === 'assessment');
   const reviewMode = state.reviewMode || false;
 
-  // Display title for a row; also what a locked row's message names.
-  const navTitleFor = (section) => section.standardStage === 'assessment'
+  // Display title for a row; also what a locked row's message names. A row's
+  // own `navTitle` wins (Help Desk Module 1 numbers its two Practice It labs).
+  const navTitleFor = (section) => section.navTitle ? section.navTitle
+    : section.standardStage === 'assessment'
     ? 'Assessment Lab'
     : section.standardStage === 'guided'
       ? 'Guided Lab'
@@ -4856,6 +6043,7 @@ function moduleUnifiedNav(sections, state = {}) {
       <span class="munified-row-label">${esc(navTitle)}</span>
       ${hasChildren ? `<span class="munified-row-sub">${childComplete}/${items.length}</span>` : ''}
       ${!hasChildren && !section.isComplete && section.reviewState ? `<span class="munified-row-sub">${section.reviewState === 'returned' ? 'Returned' : 'In review'}</span>` : ''}
+      ${!hasChildren && section.isComplete && section.doneLabel ? `<span class="munified-row-sub">${esc(section.doneLabel)}</span>` : ''}
       ${nav.locked ? '<i class="ri-lock-line mnav-lock-icon" aria-hidden="true"></i>' : ''}
       ${isGated && section.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
     </a>`;
@@ -5242,6 +6430,8 @@ const STATE_STYLES = {
   in_progress: { label: 'In Progress', icon: 'ri-progress-4-line',      cls: 'bg-[#fff7ed] border-[#fed7aa] text-[#c2410c]' },
   needs_redo:  { label: 'Redo Requested', icon: 'ri-error-warning-line', cls: 'bg-[#fef2f2] border-[#fecaca] text-[#b91c1c]' },
   awaiting_approval: { label: 'Awaiting Approval', icon: 'ri-time-line', cls: 'bg-[#eff6ff] border-[#bfdbfe] text-[#1d4ed8]' },
+  // Reached only by programs with truthfulModuleStates (moduleCardState()).
+  practice_submitted: { label: 'Practice Submitted', icon: 'ri-flask-line', cls: 'bg-[#f0fdfa] border-[#99f6e4] text-[#0f766e]' },
   not_started: { label: 'Not Started', icon: 'ri-circle-line',          cls: 'bg-gray-50 border-gray-200 text-gray-500' },
   locked:      { label: 'Locked',      icon: 'ri-lock-line',            cls: 'bg-gray-50 border-gray-200 text-gray-400' },
   draft:       { label: 'In Development', icon: 'ri-tools-line',        cls: 'bg-gray-50 border-gray-200 text-gray-400' },
@@ -5296,20 +6486,20 @@ function moduleCard(program, key, user) {
     const attempt = (user.latestLabAttemptByKey || {})[lab.key];
     return attempt && attempt.completedAt && !attempt.reviewedAt;
   });
-  const state = !unlocked ? 'locked'
+  const truthful = program.truthfulModuleStates === true ? moduleCardState(program, key, user, unlocked) : null;
+  const state = truthful ? truthful.state
+              : !unlocked ? 'locked'
               : m.status === 'draft' ? 'draft'
               : openRedo ? 'needs_redo'
               : completion.complete ? 'complete'
               : awaitingApproval ? 'awaiting_approval'
               : completion.contentOpened || completion.fixtureState !== 'not_started' ? 'in_progress'
               : 'not_started';
-  const s = STATE_STYLES[state];
+  const s = { ...STATE_STYLES[state], label: (program.stateLabels || {})[state] || STATE_STYLES[state].label };
   const curriculumItems = Array.isArray(m.curriculumItems) ? m.curriculumItems : [];
   const parentRecords = moduleParentRecords(program, m, labs);
-  const completionLabel = completion.complete
-    ? 'Module complete: module content opened and every lab completed'
-    : 'Module not complete: open the module content and complete every lab';
-  const moduleActionLabel = state === 'complete' ? 'Review Module' : state === 'in_progress' || state === 'needs_redo' || state === 'awaiting_approval' ? 'Continue Module' : 'Start Module';
+  const completionLabel = moduleCompletionDotLabel(program, completion.complete);
+  const moduleActionLabel = state === 'complete' ? 'Review Module' : ['in_progress', 'needs_redo', 'awaiting_approval', 'practice_submitted'].includes(state) ? 'Continue Module' : 'Start Module';
 
   return `
   <div id="sec-module-${m.number}" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden scroll-mt-32 ${unlocked ? '' : 'mnt-locked'}" data-module-card>
@@ -5329,11 +6519,11 @@ function moduleCard(program, key, user) {
         </div>
         <h3 class="text-[#1e3a5f] font-bold text-base leading-snug mb-2">${esc(m.title)}</h3>
         <p class="text-gray-500 text-sm leading-relaxed mb-3">${esc(m.summary)}</p>
-        ${openRedo ? `<div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
+        ${truthful ? truthfulLabStatusPanel(truthful) : ''}${!truthful && openRedo ? `<div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
           <p class="text-xs font-semibold text-red-700 flex items-center gap-1.5"><i class="ri-error-warning-line" aria-hidden="true"></i>Redo requested: ${esc(openRedo.labTitle)}</p>
-          ${openRedo.feedback.length ? `<ul class="mt-1.5 space-y-1 text-xs text-red-700/90 list-disc list-inside">${openRedo.feedback.map((f) => `<li>${f.item_label ? `<strong>${esc(f.item_label)}:</strong> ` : ''}${esc(f.comment)}</li>`).join('')}</ul>` : `<p class="mt-1 text-xs text-red-700/80">Your instructor sent this back — open the module to see what to redo.</p>`}
+          <p class="mt-1 text-xs text-red-700/90">${openRedo.feedback.length ? `Your instructor left ${openRedo.feedback.length} note${openRedo.feedback.length === 1 ? '' : 's'}.` : 'Your instructor sent this back.'} ${markedLabLinkHtml(openRedo.labKey)}</p>
         </div>` : ''}
-        ${state === 'awaiting_approval' ? `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#eff6ff] px-3 py-2.5">
+        ${!truthful && state === 'awaiting_approval' ? `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#eff6ff] px-3 py-2.5">
           <p class="text-xs font-semibold text-[#1d4ed8] flex items-center gap-1.5"><i class="ri-time-line" aria-hidden="true"></i>Submitted for instructor review</p>
           <p class="mt-1 text-xs text-[#1d4ed8]/90">The next module unlocks as soon as your instructor approves this lab.</p>
         </div>` : ''}
@@ -5458,6 +6648,13 @@ function moduleCard(program, key, user) {
   </div>`;
 }
 
+function moduleCompletionDotLabel(program, complete) {
+  if (program.truthfulModuleStates === true) return complete ? TRUTHFUL_DOT_LABELS.complete : TRUTHFUL_DOT_LABELS.incomplete;
+  return complete
+    ? 'Module complete: module content opened and every lab completed'
+    : 'Module not complete: open the module content and complete every lab';
+}
+
 function refreshModuleCompletionDot(button, user) {
   const program = PROGRAMS.find((item) => item.slug === button.dataset.program);
   if (!program || !program.modules[button.dataset.module]) return;
@@ -5468,9 +6665,7 @@ function refreshModuleCompletionDot(button, user) {
   dot.classList.toggle('ring-[#dcfce7]', complete);
   dot.classList.toggle('bg-gray-300', !complete);
   dot.classList.toggle('ring-gray-100', !complete);
-  const label = complete
-    ? 'Module complete: module content opened and every lab completed'
-    : 'Module not complete: open the module content and complete every lab';
+  const label = moduleCompletionDotLabel(program, complete);
   dot.setAttribute('aria-label', label);
   dot.title = label;
 }
@@ -5506,18 +6701,6 @@ function viewProgram(user, slug) {
   // exportStudentRecord() at click time (Sprint F, docs/specs/architecture.md).
   window.__mntCurrentUser = user;
   window.__mntCurrentProgram = program;
-  // The lab catalogue is per-track. Tracks whose labs are not authored yet get
-  // no Capstone section at all, rather than an empty grid.
-  const trackLabs = programLabs(program);
-  const capstoneEntry = Object.entries(program.modules).find(([, module]) => module.isCapstone);
-  const capstoneModuleKey = capstoneEntry && capstoneEntry[0];
-  const capstoneModule = capstoneEntry && capstoneEntry[1];
-  const capstoneLab = capstoneModuleKey && trackLabs.find((lab) => lab.module === capstoneModuleKey && lab.isCapstone);
-  const hasCapstone = Boolean(capstoneModule && capstoneLab);
-  const capstonePrerequisites = Object.keys(program.modules)
-    .filter((key) => !program.modules[key].isCapstone);
-  const capstoneReady = hasCapstone && hasModuleAccess(user, slug, capstoneModuleKey)
-    && capstonePrerequisites.every((key) => moduleCompletion(program, key, user).complete);
   const displayTitle = (program.compliance && program.compliance.programName) || program.title;
   // Progress already states the module count, and the compliance summary owns
   // approved/lab hours. Keep the at-a-glance card to the distinct essentials.
@@ -5641,7 +6824,6 @@ function viewProgram(user, slug) {
       <div class="max-w-7xl mx-auto px-8 flex gap-1 overflow-x-auto" style="scrollbar-width: none">
         ${[
           ['Curriculum', 'curriculum'],
-          ...(hasCapstone ? [['Capstone', 'capstone']] : []),
           [program.careerReadiness ? 'M360 Companion' : 'Career Readiness', 'career-readiness'],
         ].map(([label, anchor]) => `
           <a href="#sec-${anchor}" data-section-jump="sec-${anchor}"
@@ -5662,7 +6844,9 @@ function viewProgram(user, slug) {
           <p class="text-gray-500 text-base">6 Weeks · 12 Modules</p>
           <p class="inline-flex items-center gap-2 text-gray-500 text-xs">
             <span class="w-2.5 h-2.5 rounded-full bg-[#22c55e] ring-4 ring-[#dcfce7]"></span>
-            Green means the content was opened and every module lab was completed
+            ${program.truthfulModuleStates === true
+              ? 'Green means you passed the module: your instructor approved its Prove It.'
+              : 'Green means the content was opened and every module lab was completed'}
           </p>
         </div>
 
@@ -5678,64 +6862,6 @@ function viewProgram(user, slug) {
           </div>`).join('')}
       </div>
     </section>
-
-    <!-- capstone -->
-    ${!hasCapstone ? '' : `
-    <section id="sec-capstone" class="relative py-16 px-8 overflow-hidden scroll-mt-32"
-             style="background: linear-gradient(135deg, #0a1628 0%, #1e3a5f 45%, #0f2440 100%)">
-      <div class="mnt-stars"></div>
-      <div class="relative z-10 max-w-7xl mx-auto">
-        <div class="inline-flex items-center gap-2 bg-white/10 text-white/80 text-xs font-semibold px-4 py-1.5 rounded-full uppercase tracking-widest mb-6 border border-white/15">
-          <span class="w-1.5 h-1.5 rounded-full bg-[#f97316]"></span>Module ${String(capstoneModule.number).padStart(2, '0')} · ${formatInstructionalMinutes(capstoneLab.instructionalMinutes || capstoneLab.minutes)} · Final Assessment
-        </div>
-        <h2 class="text-3xl font-bold text-white mb-3">${esc(capstoneModule.title)}</h2>
-        <div class="w-12 h-1 bg-[#f97316] rounded-full mb-6"></div>
-        <p class="text-white/55 text-base max-w-2xl mb-10">
-          ${esc((program.capstone && program.capstone.intro) || 'A full integrated assessment that draws on everything taught in the modules before it. This is the program\'s only Prove assessment.')}
-        </p>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
-          ${((program.capstone && program.capstone.capabilities) || []).map((capability) => `
-            <div class="flex items-center gap-4 bg-white/[0.06] border border-white/10 rounded-xl px-5 py-4">
-              <span class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg bg-[#f97316]/20 text-[#f97316]" aria-hidden="true">
-                <i class="ri-checkbox-blank-circle-line"></i>
-              </span>
-              <span class="text-white/80 font-medium text-sm">${esc(capability)}</span>
-            </div>`).join('')}
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-          <div class="bg-white/[0.06] border border-white/10 rounded-xl px-6 py-5">
-            <p class="text-white/60 text-xs font-semibold uppercase tracking-widest mb-2">Rubric scoring</p>
-            <p class="text-white text-sm leading-relaxed">
-              ${esc((program.capstone && program.capstone.rubricSummary) || `Pass requires at least ${capstoneLab.instructionalMinutes ? '70%' : '70 points'} against the program's capstone rubric.`)}
-            </p>
-          </div>
-          <div class="bg-white/[0.06] border border-white/10 rounded-xl px-6 py-5">
-            <p class="text-white/60 text-xs font-semibold uppercase tracking-widest mb-2">Prior instruction trace</p>
-            <p class="text-white text-sm leading-relaxed">
-              ${esc((program.capstone && program.capstone.priorTrace) || `Draws on competencies from every module before Module ${String(capstoneModule.number).padStart(2, '0')}.`)}
-            </p>
-          </div>
-        </div>
-
-        <div class="mt-10">
-          ${
-            capstoneReady
-              ? `<a href="#/program/${esc(slug)}/module/${capstoneModule.number}"
-                    class="inline-flex items-center gap-2 bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold px-8 py-3.5
-                           rounded-xl transition-all hover:-translate-y-0.5 whitespace-nowrap cursor-pointer">
-                   <i class="ri-flag-line"></i> Begin Capstone
-                 </a>`
-              : `<span class="inline-flex items-center gap-2 border border-white/20 text-white/50 font-semibold px-8 py-3.5 rounded-xl">
-                   <i class="ri-lock-line"></i> Complete ${capstonePrerequisites.length} prerequisite modules to unlock
-                 </span>`
-          }
-        </div>
-      </div>
-    </section>
-
-    `}
 
     <!-- separately accounted career readiness -->
     <section id="sec-career-readiness" class="py-16 px-8 scroll-mt-32">
@@ -6056,6 +7182,11 @@ async function toggleCredentialsPanel(studentId, btn, trackCode) {
   btn.setAttribute('aria-expanded', 'true');
   if (chevron) chevron.style.transform = 'rotate(90deg)';
   if (!inner.dataset.loaded) {
+    // Rotate password lives inside the expanded panel, away from the row's
+    // chevron, so it can't be hit by accident. Admins only.
+    const rotateButton = btn.dataset.canRotate === '1'
+      ? `<button type="button" data-rotate-password="${esc(studentId)}" class="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-sans font-semibold text-gray-500 bg-white border border-gray-200 hover:text-[#f97316] hover:border-[#f97316]" title="Generate a new password for this account and sign out its sessions"><i class="ri-key-2-line"></i>Rotate password</button>`
+      : '';
     inner.innerHTML = '<p class="text-sm text-gray-400">Loading credentials…</p>';
     panel.style.maxHeight = '48px';
     const { data, error } = await mntSupabase
@@ -6067,12 +7198,18 @@ async function toggleCredentialsPanel(studentId, btn, trackCode) {
     if (error) {
       inner.innerHTML = `<p class="text-sm text-red-600">Could not load credentials — ${esc(error.message)}</p>`;
     } else if (!data) {
-      inner.innerHTML = '<p class="text-sm text-gray-500">No stored password for this account — it was likely created before this feature existed, or the write failed at creation time.</p>';
+      inner.innerHTML = `<div class="flex items-center gap-6">
+        <p class="text-sm text-gray-500">No stored password for this account — it was likely created before this feature existed, or the write failed at creation time.</p>
+        ${rotateButton}
+      </div>`;
     } else {
       inner.innerHTML = `
         <p class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-2">Login Credentials</p>
-        <pre data-select-all tabindex="0" class="inline-block bg-white border border-gray-200 rounded-lg p-3 text-sm font-mono text-gray-900 cursor-text overflow-x-auto" title="Click to select all">Student ID: ${esc(studentId)}
+        <div class="flex items-center gap-6">
+        <pre data-select-all tabindex="0" class="inline-block bg-white border border-gray-200 rounded-lg p-3 text-sm font-mono text-gray-900 cursor-text overflow-x-auto" title="Click to select all">Student ID: ${esc(studentId)}${accountNameText(studentId) ? `\nName:       ${esc(accountNameText(studentId))}` : ''}
 Password:   ${esc(data.password)}</pre>
+        ${rotateButton}
+        </div>
         <p class="text-xs text-gray-400 mt-2">Generated ${new Date(data.created_at).toLocaleDateString()}</p>`;
       wireSelectAllBlocks(inner);
     }
@@ -6086,7 +7223,7 @@ Password:   ${esc(data.password)}</pre>
       const deleteButton = offboard.querySelector('[data-delete-instructor]');
       const deleteStatus = offboard.querySelector('[data-delete-instructor-status]');
       deleteButton.addEventListener('click', async () => {
-        if (!window.confirm(`Permanently delete ${studentId}? This cannot be undone.`)) return;
+        if (!window.confirm(`Permanently delete ${accountLabelText(studentId)}? This cannot be undone.`)) return;
         deleteButton.disabled = true;
         deleteStatus.textContent = 'Deleting instructor account…';
         try {
@@ -6115,7 +7252,8 @@ Password:   ${esc(data.password)}</pre>
  * within 5s rotates via admin-provision's rotate_password action, then
  * admin_force_sign_out() revokes sessions opened with the old password. The
  * new password is shown by reloading the row's credentials panel. */
-async function rotateAccountPassword(btn) {
+async function rotateAccountPassword(rotateBtn) {
+  let btn = rotateBtn;
   const studentId = btn.getAttribute('data-rotate-password');
   if (btn.dataset.armed !== '1') {
     btn.dataset.armed = '1';
@@ -6149,6 +7287,7 @@ async function rotateAccountPassword(btn) {
       delete inner.dataset.loaded;
       if (credBtn.getAttribute('aria-expanded') === 'true') credBtn.setAttribute('aria-expanded', 'false');
       await toggleCredentialsPanel(studentId, credBtn, credBtn.getAttribute('data-credential-track'));
+      btn = inner.querySelector('[data-rotate-password]') || btn;
     }
     btn.innerHTML = '<i class="ri-check-line"></i>Rotated';
     btn.classList.remove('text-red-700', 'border-red-300');
@@ -6161,7 +7300,7 @@ async function rotateAccountPassword(btn) {
   }
   btn.title = note;
   const status = document.getElementById('admin-report-status');
-  if (status) status.textContent = `${studentId}: ${note}`;
+  if (status) status.textContent = `${accountLabelText(studentId)}: ${note}`;
 }
 
 /* Readable "3h 20m" formatting for a single admin_site_sessions row's own
@@ -6211,12 +7350,17 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   // Grading and Graded are one "Lab Attempts" tab now (data key 'grading').
   const requestedTab = requestedAdminTab === 'graded' ? 'grading' : requestedAdminTab;
   let activeTab = (!activeTrackCode && requestedTab === 'grading') ? 'progress' : requestedTab;
-  if (instructorDashboard && !['progress', 'grading', 'graded', 'messages'].includes(activeTab)) activeTab = 'progress';
+  if (instructorDashboard && !['progress', 'grading', 'graded', 'messages', 'guide'].includes(activeTab)) activeTab = 'progress';
   const activeTrack = activeTrackCode ? adminTrackMeta(activeTrackCode) : null;
   // Administrators supervise every course workspace. Instructors remain
   // limited to their explicit faculty_course_assignments.
   const canManageTrackMessages = Boolean(activeTrackCode && (user.isAdmin || facultyMessageTrackCodes.has(activeTrackCode)));
   if (!canManageTrackMessages && activeTab === 'messages') activeTab = 'progress';
+  // The Instructor Guide tab exists only in the SOC Analyst workspace. Its
+  // content is read from public.instructor_guides, which RLS limits to admins
+  // and that course's assigned instructors (soc-instructor-guide.js).
+  const showInstructorGuide = canManageTrackMessages && typeof SocInstructorGuide !== 'undefined' && activeTrackCode === SocInstructorGuide.track;
+  if (!showInstructorGuide && activeTab === 'guide') activeTab = 'progress';
   const rosterRows = normalizedTrackData.rosterRows || filterByTrack(rows, activeTrackCode);
   // The All Students workspace intentionally retains its cross-track detail
   // picker. A track workspace must not expose another track's student record.
@@ -6313,6 +7457,9 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
           </button>
 ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${tabIsActive('messages')}" data-admin-tab="messages" class="${tabBtnClass('messages')} inline-flex items-center gap-1.5" aria-label="Course messages${(unreadMessageCountsByTrack.get(activeTrackCode) || 0) ? `, ${unreadMessageCountsByTrack.get(activeTrackCode)} unread` : ''}">
             <i class="ri-notification-3-line" aria-hidden="true"></i> Messages${(unreadMessageCountsByTrack.get(activeTrackCode) || 0) ? ` <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">${unreadMessageCountsByTrack.get(activeTrackCode)}</span>` : ''}
+          </button>` : ''}
+${showInstructorGuide ? `<button type="button" role="tab" aria-selected="${tabIsActive('guide')}" data-admin-tab="guide" class="${tabBtnClass('guide')} inline-flex items-center gap-1.5">
+            <i class="ri-book-open-line" aria-hidden="true"></i> Instructor Guide
           </button>` : ''}` : ''}
         </div>
 
@@ -6395,6 +7542,14 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                     <div><div class="bg-white border border-gray-200 rounded-xl p-4 mb-3">
                      <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate Account</h3>
                      <p class="text-xs text-gray-500 mb-3">Create a student account or an instructor account. Student accounts begin unassigned and not enrolled. An instructor is assigned to exactly the course selected below and can only open that course dashboard. The password is shown once — copy it now.</p>
+                     <div class="grid sm:grid-cols-2 gap-3 mb-3">
+                       <label class="text-xs font-semibold text-gray-600">First name
+                         <input id="gen-user-first-name" type="text" required maxlength="80" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                       </label>
+                       <label class="text-xs font-semibold text-gray-600">Last name
+                         <input id="gen-user-last-name" type="text" required maxlength="80" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                       </label>
+                     </div>
                      <div class="grid sm:grid-cols-4 gap-3 items-end">
                        <label class="text-xs font-semibold text-gray-600">Account type
                          <select id="gen-user-role" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
@@ -6469,23 +7624,14 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                    <div id="admin-generate-diploma-panel" class="acc-body">
                     <div><div class="bg-white border border-gray-200 rounded-xl p-4 mb-3">
                      <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate Diploma</h3>
-                     <p class="text-xs text-gray-500 mb-3">Renders a printable diploma for one student, titled to match their track. Only enrolled students who have completed every technical module (including the module 12 capstone) and, on M360-required tracks, every M360 requirement are eligible. The name below is used only to render this one diploma — it is never saved to the student's account or any database.</p>
+                     <p class="text-xs text-gray-500 mb-3">Renders a printable diploma for one student, titled to match their track. Only enrolled students who have completed every technical module (including the module 12 capstone) and, on M360-required tracks, every M360 requirement are eligible. The name printed on the diploma is the student's stored first and last name (use Edit name in the student detail panel to set or correct it).</p>
                      <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 items-end mb-3">
                        <label class="text-xs font-semibold text-gray-600 xl:col-span-2">Student
                          <select id="diploma-student-select" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
                            <option value="">Select a student…</option>
-                           ${rows.filter((r) => r.enrolled !== false && r.program_requirements_complete).map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)}</option>`).join('')}
+                           ${rows.filter((r) => r.enrolled !== false && r.program_requirements_complete).map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${accountNameText(r) ? `${esc(accountNameText(r))} — ` : ''}${esc(r.program_slug || r.track_code)}</option>`).join('')}
                          </select>
                          ${rows.filter((r) => r.enrolled !== false && r.program_requirements_complete).length === 0 ? '<span class="block mt-1 text-xs text-gray-400">No enrolled student has completed every technical module and M360 requirement yet.</span>' : ''}
-                       </label>
-                       <label class="text-xs font-semibold text-gray-600">First name
-                         <input id="diploma-first-name" type="text" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
-                       </label>
-                       <label class="text-xs font-semibold text-gray-600">Middle name (optional)
-                         <input id="diploma-middle-name" type="text" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
-                       </label>
-                       <label class="text-xs font-semibold text-gray-600">Last name
-                         <input id="diploma-last-name" type="text" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
                        </label>
                        <button type="button" data-action="admin-generate-diploma-submit" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Generate Diploma</button>
                      </div>
@@ -6501,7 +7647,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                        <label class="text-xs font-semibold text-gray-600">Student
                          <select id="admin-planning-student" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
                            <option value="">Select an active student…</option>
-                           ${rows.filter((r) => r.enrolled !== false).map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)}</option>`).join('')}
+                           ${rows.filter((r) => r.enrolled !== false).map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)}${accountNameText(r) ? ` — ${esc(accountNameText(r))}` : ''} — ${esc(r.program_slug || r.track_code)}</option>`).join('')}
                          </select>
                        </label>
                        <label class="text-xs font-semibold text-gray-600">Scheduled start
@@ -6558,11 +7704,11 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="studentId">Student ID<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="track">Track<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="program">Program<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
-                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="enrollment">Enrollment<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="progress">Progress<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="modules">Coursework<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="capstone">Capstone<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="lastActive">Last Active<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
+                         <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f] cursor-pointer select-none hover:text-[#f97316]" data-sort-key="enrollment">Enrollment<span data-sort-arrow class="ml-1 text-xs text-gray-400"></span></th>
                          <th class="text-left px-6 py-3 text-sm font-semibold text-[#1e3a5f]"></th>
                        </tr>
                      </thead>
@@ -6573,28 +7719,16 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                          <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors admin-table-row ${row.enrolled === false ? 'opacity-65' : ''}"
                              data-track="${esc(row.track_code)}" data-progress="${programmeProgress.percent}" data-started="${(programmeProgress.completed > 0 || (row.modules_in_progress || 0) > 0) ? '1' : '0'}" data-enrolled="${row.enrolled !== false ? '1' : '0'}">
                            <td class="px-6 py-4 text-sm text-gray-900 font-mono">
-                             <button type="button" data-view-credentials="${esc(row.student_id)}" data-credential-track="${esc(row.track_code)}" aria-expanded="false" class="inline-flex items-center gap-1 hover:text-[#f97316] cursor-pointer group" title="View login credentials">
+                             <button type="button" data-view-credentials="${esc(row.student_id)}" data-credential-track="${esc(row.track_code)}"${instructorDashboard ? '' : ' data-can-rotate="1"'} aria-expanded="false" class="inline-flex items-center gap-1 hover:text-[#f97316] cursor-pointer group" title="View login credentials">
                                <i class="ri-arrow-right-s-line text-gray-400 group-hover:text-[#f97316] transition-transform" data-cred-chevron="${esc(row.student_id)}"></i>
                                ${esc(row.student_id)}
                              </button>
-                             ${instructorDashboard ? '' : `<button type="button" data-rotate-password="${esc(row.student_id)}" class="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-sans font-semibold text-gray-500 border border-gray-200 hover:text-[#f97316] hover:border-[#f97316]" title="Generate a new password for this account and sign out its sessions"><i class="ri-key-2-line"></i>Rotate password</button>`}
+                             ${!instructorDashboard && row.is_test_account ? '<span data-test-badge class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-50 text-violet-700 border border-violet-200">TEST</span>' : ''}
                              ${cheatingFlagsByStudentId.has(row.student_id) ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 cursor-help" title="${esc(cheatingFlagsByStudentId.get(row.student_id).join(' · '))}">Review</span>` : ''}
+                             ${accountNameHtml(row)}
                            </td>
                            <td class="px-6 py-4 text-sm text-gray-600">${esc(row.track_code)}</td>
                            <td class="px-6 py-4 text-sm text-gray-600">${esc(row.program_slug || '—')}</td>
-                           <td class="px-6 py-4 text-sm">
-                             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${row.enrolled !== false ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}">
-                               <span class="w-1.5 h-1.5 rounded-full ${row.enrolled !== false ? 'bg-green-500' : 'bg-gray-400'}"></span>
-                               ${row.adminStateLabel}
-                             </span>
-                             ${
-                               row.enrolled !== false && row.enrollmentDate
-                                 ? `<div class="text-xs text-gray-400 mt-1">Since ${new Date(row.enrollmentDate).toLocaleDateString()}</div>`
-                                 : (row.enrolled === false && row.withdrawalDate
-                                     ? `<div class="text-xs text-gray-400 mt-1">Since ${new Date(row.withdrawalDate).toLocaleDateString()}</div>`
-                                     : '')
-                             }
-                           </td>
                            <td class="px-6 py-4 text-sm">
                              <div class="flex items-center gap-2">
                                <div class="h-1.5 w-24 bg-gray-100 rounded-full overflow-hidden">
@@ -6610,15 +7744,21 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                              <label class="inline-flex items-center gap-2 cursor-pointer">
                                <input type="checkbox" class="sr-only peer" data-admin-enrollment="${esc(row.student_id)}" ${row.enrolled !== false ? 'checked' : ''} aria-label="Enrollment for ${esc(row.student_id)}" />
                                <span class="relative w-10 h-5 rounded-full bg-gray-300 peer-checked:bg-[#22c55e] transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:bg-white after:rounded-full after:shadow after:transition-transform peer-checked:after:translate-x-5"></span>
-                               <span class="text-xs font-semibold text-gray-600">${row.adminStateLabel}</span>
+                               <span class="text-xs font-semibold text-gray-600">${esc(row.adminStateLabel)}</span>
                              </label>
+                             ${row.enrolled !== false && row.enrollmentDate
+                               ? `<div class="ml-12 text-xs text-gray-400 mt-1">Since ${new Date(row.enrollmentDate).toLocaleDateString()}</div>`
+                               : (row.enrolled === false && row.withdrawalDate
+                                   ? `<div class="ml-12 text-xs text-gray-400 mt-1">Since ${new Date(row.withdrawalDate).toLocaleDateString()}</div>`
+                                   : '')}
                            </td>
                            <td class="px-6 py-4 text-sm whitespace-nowrap">
                              <button type="button" data-admin-snapshot="${esc(row.student_id)}" class="text-xs font-semibold text-[#1e3a5f] hover:underline" title="Download a recoverable progress snapshot for this student">Save Progress File</button>
+                             ${testAccountRosterControlsHtml(row, instructorDashboard)}
                            </td>
                          </tr>
                          <tr class="admin-cred-row" data-cred-row="${esc(row.student_id)}">
-                           <td colspan="10" class="p-0 border-b border-gray-100">
+                           <td colspan="9" class="p-0 border-b border-gray-100">
                              <div class="overflow-hidden transition-[max-height] duration-300 ease-out" style="max-height: 0" data-cred-panel="${esc(row.student_id)}">
                                <div class="px-6 py-4 bg-[#f9fbfd]" data-cred-panel-inner="${esc(row.student_id)}"></div>
                              </div>
@@ -6653,7 +7793,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                             <option value="">Choose a student…</option>
                             ${detailStudents.map((r) => {
                               const programmeProgress = programWorkItemProgress(r);
-                              return `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)} (${programmeProgress.completed}/${programmeProgress.required} coursework${programmeProgress.completed === 0 && (r.modules_in_progress || 0) > 0 ? ', in progress' : ''})</option>`;
+                              return `<option value="${esc(r.student_id)}">${esc(r.student_id)}${accountNameText(r) ? ` — ${esc(accountNameText(r))}` : ''} — ${esc(r.program_slug || r.track_code)} (${programmeProgress.completed}/${programmeProgress.required} coursework${programmeProgress.completed === 0 && (r.modules_in_progress || 0) > 0 ? ', in progress' : ''})</option>`;
                             }).join('')}
                           </select>
                         </div>
@@ -6723,6 +7863,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                            <td class="px-6 py-3 text-sm text-gray-900 font-mono">
                              ${esc(ev.student_id || '—')}
                              ${cheatingFlagsByStudentId.has(ev.student_id) ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 cursor-help" title="${esc(cheatingFlagsByStudentId.get(ev.student_id).join(' · '))}">Review</span>` : ''}
+                             ${accountNameHtml(ev)}
                            </td>
                            <td class="px-6 py-3 text-sm text-gray-600">${esc(ev.track_code || '—')}</td>
                            <td class="px-6 py-3 text-sm text-gray-600" ${ev.ip_address ? `title="${esc(ev.ip_address)}"` : ''}>${esc(formatLoginLocation(ev))}</td>
@@ -6730,7 +7871,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                            <td class="px-6 py-3 text-sm text-gray-600">${siteSession ? (siteSession.ended_at ? new Date(siteSession.ended_at).toLocaleString() : '<span class="text-green-600 font-semibold">Still signed in</span>') : '—'}</td>
                            <td class="px-6 py-3 text-sm text-gray-600">${siteSession ? esc(formatSiteMinutes(siteSession.duration_minutes)) : '—'}</td>
                            <td class="px-6 py-3 text-sm whitespace-nowrap">
-                             ${canForceSignOut ? `<button type="button" data-force-signout="${esc(ev.user_id)}" data-force-signout-student="${esc(ev.student_id || 'this student')}" class="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Sign out</button>` : ''}
+                             ${canForceSignOut ? `<button type="button" data-force-signout="${esc(ev.user_id)}" data-force-signout-student="${esc(ev.student_id ? accountLabelText(ev) : 'this student')}" class="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Sign out</button>` : ''}
                            </td>
                          </tr>`;
                        }).join('')}
@@ -6806,7 +7947,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
               ? `<div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">No archived students yet.</p></div>`
               : `<div>
                    <label for="archived-student-search" class="block text-xs font-semibold uppercase tracking-widest text-gray-600 mb-1.5">Search archived records</label>
-                   <input id="archived-student-search" type="search" autocomplete="off" placeholder="Student ID, cohort, track, program, or status…" class="w-full sm:max-w-xl border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 mb-4" />
+                   <input id="archived-student-search" type="search" autocomplete="off" placeholder="Student ID, name, cohort, track, program, or status…" class="w-full sm:max-w-xl border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 mb-4" />
                    <p id="archived-student-search-status" class="text-xs text-gray-500 mb-3">${archivedStudents.length} archived record${archivedStudents.length === 1 ? '' : 's'}</p>
                    <div class="overflow-x-auto">
                    <table class="w-full border-collapse">
@@ -6825,8 +7966,8 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                      </thead>
                      <tbody>
                        ${archivedStudents.map((r) => `
-                         <tr data-archived-student-row data-archive-search="${esc([r.student_id, r.cohort_name, r.track_code, r.program_slug, r.status_at_archive].filter(Boolean).join(' ').toLowerCase())}" class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                           <td class="px-6 py-3 text-sm text-gray-900 font-mono">${esc(r.student_id)}</td>
+                         <tr data-archived-student-row data-archive-search="${esc([r.student_id, accountNameText(r), r.cohort_name, r.track_code, r.program_slug, r.status_at_archive].filter(Boolean).join(' ').toLowerCase())}" class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                           <td class="px-6 py-3 text-sm text-gray-900 font-mono">${esc(r.student_id)}${accountNameHtml(r)}</td>
                            <td class="px-6 py-3 text-sm text-gray-600">${esc(r.cohort_name || '—')}</td>
                            <td class="px-6 py-3 text-sm text-gray-600">${esc(r.track_code || '—')}</td>
                            <td class="px-6 py-3 text-sm text-gray-600">${esc(r.program_slug || '—')}</td>
@@ -6848,6 +7989,9 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
         ${activeTrackCode ? `<div id="admin-tab-panel-messages" ${tabIsActive('messages') ? '' : 'hidden'}>
           ${adminMessageInboxPanel(trackFacultyMessageRows)}
         </div>` : ''}
+        ${showInstructorGuide ? `<div id="admin-tab-panel-guide" ${tabIsActive('guide') ? '' : 'hidden'}>
+          ${SocInstructorGuide.panel()}
+        </div>` : ''}
 
         ${!instructorDashboard ? `<div class="mt-8">
           <a href="#/portal" class="inline-block bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold px-6 py-3 rounded-xl transition-colors">
@@ -6858,6 +8002,191 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
     </section>
   </main>
   ${footer()}`;
+}
+
+/* ----------------------------------------------------------- live refresh */
+/* Owner request (UAT 2026-10-17): every signed-in view picks up other
+ * people's changes without a manual reload — learners see approvals,
+ * returns, unlocks and instructor messages; faculty see new submissions,
+ * grading badges, progress and messages. One shared controller
+ * (portal/live-refresh.js); each route registers a cheap probe at the end
+ * of render(). Polling, not Supabase Realtime: the portal has no realtime
+ * subscriptions or publication, and the faculty queues are views, which
+ * postgres_changes cannot watch. */
+const LIVE_REFRESH_LEARNER_PENDING_MS = 30 * 1000; // a submission is awaiting review
+const LIVE_REFRESH_LEARNER_IDLE_MS = 120 * 1000;   // nothing pending: messages/overrides only
+const LIVE_REFRESH_FACULTY_MS = 60 * 1000;
+const portalLiveRefresh = typeof LiveRefresh !== 'undefined' && typeof document !== 'undefined'
+  ? LiveRefresh.create({ win: window, doc: document })
+  : null;
+
+// Only what changes because of someone else: staff decisions (inserts are
+// always unreviewed, guard_lab_attempt_write), verified completion (unlocks,
+// admin overrides) and faculty messages. The learner's own new submissions
+// only set `pending`, which speeds the poll up.
+function learnerLiveSnapshot(attemptRows = [], verifiedRows = [], facultyMessageRows = []) {
+  const decisions = {};
+  let pending = false;
+  (attemptRows || []).forEach((row) => {
+    if (row.reviewed_at) decisions[row.id] = { labKey: row.lab_key, reviewedAt: row.reviewed_at, redo: row.redo_requested === true };
+    else if (!row.superseded_at) pending = true;
+  });
+  const complete = (verifiedRows || []).filter((row) => row.complete === true).map((row) => row.module_key).sort();
+  const facultyMessages = (facultyMessageRows || []).map((row) => row.id).sort();
+  return {
+    signature: LiveRefresh.stableSignature({ decisions, complete, facultyMessages }),
+    pending,
+    decisions,
+    complete,
+    facultyMessages,
+  };
+}
+
+async function probeLearnerLiveState(user) {
+  if (!user || !user.userId || !user.trackCode) return null;
+  const [attempts, verified, messages] = await Promise.all([
+    mntSupabase.from('lab_attempts')
+      .select('id, lab_key, reviewed_at, redo_requested, superseded_at')
+      .eq('user_id', user.userId)
+      .eq('track_code', user.trackCode)
+      .not('completed_at', 'is', null),
+    mntSupabase.from('student_verified_module_progress').select('module_key, complete').eq('track_code', user.trackCode),
+    mntSupabase.from('student_messages').select('id')
+      .eq('student_id', user.userId)
+      .eq('track_code', user.trackCode)
+      .eq('sender_role', 'faculty'),
+  ]);
+  const failed = [attempts, verified, messages].find((result) => !result || result.error);
+  if (failed) {
+    if (failed && failed.error) console.error('live refresh: learner probe failed', failed.error);
+    return null;
+  }
+  return learnerLiveSnapshot(attempts.data, verified.data, messages.data);
+}
+
+function liveModuleLabel(moduleKey) {
+  const program = PROGRAMS.find((p) => p.modules && p.modules[moduleKey]);
+  const module = program && program.modules[moduleKey];
+  return module ? { program, module, label: `Module ${module.number}` } : null;
+}
+
+// Plain-language lines for the notice, from what changed between snapshots.
+function describeLearnerLiveChange(previous, next) {
+  const lines = [];
+  const before = (previous && previous.decisions) || {};
+  Object.entries((next && next.decisions) || {}).forEach(([id, decision]) => {
+    const old = before[id];
+    if (old && old.reviewedAt === decision.reviewedAt && old.redo === decision.redo) return;
+    const lab = LABS.find((item) => item.key === decision.labKey);
+    const where = lab ? liveModuleLabel(lab.module) : null;
+    const subject = where ? `${where.label}${lab.title ? `: ${lab.title}` : ''}` : 'your submission';
+    lines.push(decision.redo
+      ? `Your instructor returned ${subject} with notes to revise.`
+      : `Your instructor approved ${subject}.`);
+  });
+  const wasComplete = new Set((previous && previous.complete) || []);
+  ((next && next.complete) || []).filter((key) => !wasComplete.has(key)).forEach((key) => {
+    const where = liveModuleLabel(key);
+    if (!where) return;
+    const following = Object.values(where.program.modules).find((m) => m.number === where.module.number + 1);
+    lines.push(following ? `Module ${following.number} is now open.` : `${where.label} is complete.`);
+  });
+  const hadMessages = new Set((previous && previous.facultyMessages) || []);
+  if (((next && next.facultyMessages) || []).some((id) => !hadMessages.has(id))) lines.push('You have a new message from your instructor.');
+  return lines;
+}
+
+function facultyLiveSnapshot({ queueRows = [], redoRows = [], unreadRows = [], rosterRows = [], messageRows = [] } = {}) {
+  const queue = (queueRows || []).map((row) => row.id).sort();
+  const redos = (redoRows || []).map((row) => `${row.id}|${row.reviewed_at || ''}`).sort();
+  const unread = (unreadRows || []).map((row) => row.id).sort();
+  const progress = (rosterRows || []).map((row) => `${row.user_id}|${row.track_code}|${row.technical_completed || 0}|${row.technical_in_progress || 0}`).sort();
+  const messages = (messageRows || []).map((row) => row.id).sort();
+  return { signature: LiveRefresh.stableSignature({ queue, redos, unread, progress, messages }), pending: queue.length > 0, queue, unread, messages };
+}
+
+async function probeFacultyLiveState(user, trackCode) {
+  const scoped = user.isInstructor && !user.isAdmin;
+  const withTrack = (query) => (trackCode ? query.eq('track_code', trackCode) : query);
+  const reads = [
+    withTrack(mntSupabase.from(scoped ? 'faculty_grading_queue' : 'admin_grading_queue').select('id')),
+    withTrack(mntSupabase.from(scoped ? 'faculty_open_lab_redos' : 'admin_open_lab_redos').select('id, reviewed_at')),
+    mntSupabase.from('admin_unread_student_messages').select('id'),
+    withTrack(mntSupabase.from(scoped ? 'faculty_course_student_progress' : 'admin_student_program_progress').select('user_id, track_code, technical_completed, technical_in_progress')),
+    trackCode ? mntSupabase.from('student_messages').select('id').eq('track_code', trackCode) : Promise.resolve({ data: [], error: null }),
+  ];
+  const [queue, redos, unread, roster, messages] = await Promise.all(reads);
+  const failed = [queue, redos, unread, roster, messages].find((result) => !result || result.error);
+  if (failed) {
+    if (failed && failed.error) console.error('live refresh: faculty probe failed', failed.error);
+    return null;
+  }
+  return facultyLiveSnapshot({ queueRows: queue.data, redoRows: redos.data, unreadRows: unread.data, rosterRows: roster.data, messageRows: messages.data });
+}
+
+// Besides typing and drafts (LiveRefresh.busyState), something the person
+// opened on the page (an attempt panel, a student row, a curriculum list) is
+// 'viewing': the update waits behind an "Update now" notice instead of
+// reshuffling what they are reading.
+function portalLiveBusy() {
+  const busy = LiveRefresh.busyState(document);
+  if (busy) return busy;
+  return document.querySelector('#app [aria-expanded="true"]') ? 'viewing' : null;
+}
+
+function liveRefreshDeferredNotice(message, { applyNow, busy }) {
+  // An unsent draft is never thrown away for an update; otherwise the person
+  // may take it now.
+  LiveRefresh.showNotice(document, busy === 'draft'
+    ? { message: `${message} They will load once your unsent text is saved or sent.` }
+    : { message, actionLabel: 'Update now', onAction: applyNow });
+}
+
+/* Called at the end of every signed-in render(). Learner program/portal
+ * pages update in place on their own; module and lab pages offer the update
+ * instead, so a lab in progress is never rebuilt under the learner. */
+function startLiveRefreshForRoute(user, hash, { adminTrackCode = null } = {}) {
+  if (!portalLiveRefresh) return;
+  if (!user) { portalLiveRefresh.stop(); return; }
+  if (user.isAdmin || user.isInstructor) {
+    portalLiveRefresh.watch({
+      key: `faculty:${user.userId}:${hash}`,
+      intervalMs: LIVE_REFRESH_FACULTY_MS,
+      probe: () => probeFacultyLiveState(user, adminTrackCode),
+      isBusy: portalLiveBusy,
+      apply: () => render({ silent: true, preserveView: true }),
+      onDeferred: (change, info) => liveRefreshDeferredNotice('New submissions, messages or progress are available.', info),
+    });
+    return;
+  }
+  const onModulePage = /^#\/program\/[a-z0-9-]+\/module\//.test(hash);
+  portalLiveRefresh.watch({
+    key: `learner:${user.userId}:${hash}`,
+    intervalMs: (snapshot) => (snapshot && snapshot.pending ? LIVE_REFRESH_LEARNER_PENDING_MS : LIVE_REFRESH_LEARNER_IDLE_MS),
+    probe: () => probeLearnerLiveState(user),
+    isBusy: portalLiveBusy,
+    autoApply: !onModulePage,
+    // On a module page a completion with no staff decision or message is the
+    // learner's own work, which that page already shows.
+    isRelevant: (change) => !onModulePage || describeLearnerLiveChange(change.previous, change.next).some((line) => !/ is now open\.$| is complete\.$/.test(line)),
+    apply: async (change, { forced } = {}) => {
+      const lines = describeLearnerLiveChange(change.previous, change.next);
+      await render({ silent: true, preserveView: true });
+      if (lines.length) LiveRefresh.showNotice(document, { message: lines.join(' '), autoHideMs: forced ? 8000 : 15000, setTimer: setTimeout });
+    },
+    onDeferred: (change, info) => {
+      const lines = describeLearnerLiveChange(change.previous, change.next);
+      const message = lines.length ? lines.join(' ') : 'Your instructor updated your coursework.';
+      if (!onModulePage) { liveRefreshDeferredNotice(message, info); return; }
+      // Module and lab pages: the learner chooses when. render() flushes
+      // their saved lab work first (settlePendingCaseStateWrites).
+      LiveRefresh.showNotice(document, {
+        message: info.busy === 'draft' ? `${message} Finish what you are typing, then update the page.` : message,
+        actionLabel: 'Update page',
+        onAction: info.applyNow,
+      });
+    },
+  });
 }
 
 /* ------------------------------------------------------------------ router */
@@ -6964,6 +8293,12 @@ function completeRouteLoading(generation) {
   return true;
 }
 
+function captureLiveView(app, options = {}) {
+  return options.silent && options.preserveView && typeof LiveRefresh !== 'undefined'
+    ? LiveRefresh.captureView(app, window)
+    : null;
+}
+
 async function render(options = {}) {
   const app = document.getElementById('app');
   let hash = location.hash || '#/login';
@@ -6985,7 +8320,7 @@ async function render(options = {}) {
   // A route may have changed while session restoration was in flight.
   if (!isCurrentRouteRender(renderGeneration)) return;
 
-  // In-page anchors (#sec-capstone) share the hash with the router.
+  // In-page anchors (#sec-curriculum etc.) share the hash with the router.
   // Only hashes beginning '#/' are routes; everything else is the browser
   // scrolling within the current view and must not trigger a re-render.
   if (hash && !hash.startsWith('#/') && hasRenderedRouteContent(app)) {
@@ -7002,8 +8337,13 @@ async function render(options = {}) {
     app.innerHTML = viewLogin();
     app.setAttribute('aria-busy', 'false');
     wireLogin();
+    startLiveRefreshForRoute(null, hash);
     return;
   }
+  // Names beside account numbers: wait briefly (never fail) so the first
+  // paint already carries them; an unavailable/slow directory just means none.
+  await Promise.race([loadAccountNames(), new Promise((resolve) => setTimeout(resolve, 2500))]);
+  if (!isCurrentRouteRender(renderGeneration)) return;
   // Signed in but sitting on the login route: replace the entry rather than
   // pushing a new one, so Back never lands on a login screen that just bounces
   // the student forward again.
@@ -7021,6 +8361,7 @@ async function render(options = {}) {
   // profile and enrollment data remains intact.
   const isLearnerReturnRoute = hash === '#/portal' || /^#\/program\//.test(hash);
   if (isLearnerReturnRoute && !user.isAdmin && !user.isInstructor) {
+    await settlePendingCaseStateWrites();
     const refreshedDetails = await fetchUserDetails(user.userId, user.trackCode);
     if (!isCurrentRouteRender(renderGeneration)) return;
     Object.assign(user, refreshedDetails);
@@ -7057,6 +8398,8 @@ async function render(options = {}) {
   let facultyMessageRows = [];
   let facultyMessageTrackCodes = [];
   let normalizedTrackData = null;
+  // A live-refresh re-render (preserveView) keeps scroll and open disclosures.
+  let liveView = null;
   if (hash === '#/admin' || adminTrackMatch) {
     if (!user.isAdmin && !user.isInstructor) {
       history.replaceState(null, '', '#/portal');
@@ -7115,6 +8458,8 @@ async function render(options = {}) {
           return bActive - aActive;
         });
         dashboardRows = normalizeAdminProgramProgressRows(sorted);
+        // Admin only: faculty never see or set test-account flags.
+        if (user.isAdmin) await mergeTestAccountFlags(dashboardRows);
         adminRosterSnapshot = { route: hash, dashboardRows };
       }
 
@@ -7165,6 +8510,26 @@ async function render(options = {}) {
         if (gradedResult.error) console.error('graded lab attempts fetch failed', gradedResult.error);
         const gradedStudentIdByUserId = new Map(dashboardRows.map((row) => [row.user_id, row.student_id]));
         gradedRows = (gradedResult.data || []).map((row) => ({ ...row, student_id: gradedStudentIdByUserId.get(row.user_id) || 'Unknown student' }));
+        await applyOfficialLabGrades(gradedRows);
+        await applyOfficialGradeHistory(gradedRows);
+
+        // Read-only Submission Sheets show the notes actually sent with each
+        // decision. Read-only select (existing admin / assigned-instructor
+        // RLS); only rows that render a sheet, in chunks to keep URLs short.
+        const sheetRows = gradedRows.filter(adminHasSubmissionSheet);
+        if (sheetRows.length) {
+          const sentByAttempt = new Map();
+          for (let index = 0; index < sheetRows.length; index += 100) {
+            const { data: feedbackRows, error: feedbackError } = await mntSupabase
+              .from('lab_attempt_feedback')
+              .select('lab_attempt_id, item_label, comment, created_at')
+              .in('lab_attempt_id', sheetRows.slice(index, index + 100).map((row) => row.id))
+              .order('created_at', { ascending: true });
+            if (feedbackError) { console.error('graded lab attempt feedback fetch failed', feedbackError); break; }
+            (feedbackRows || []).forEach((entry) => sentByAttempt.set(entry.lab_attempt_id, [...(sentByAttempt.get(entry.lab_attempt_id) || []), entry]));
+          }
+          sheetRows.forEach((row) => { row.sent_feedback = sentByAttempt.get(row.id) || []; });
+        }
 
         // Unreviewed attempts a newer submission replaced (superseded_at,
         // 20261005210000_one_pending_prove_it_submission.sql). The grading
@@ -7216,6 +8581,7 @@ async function render(options = {}) {
         cheatingFlagsByUserId = buildCheatingReviewFlags(dashboardRows, adminLazyTabData.activity.completedRows || []);
       }
       normalizedTrackData = normalizeAdminTrackData({ rows: dashboardRows, activeTrackCode, activeStudents, gradingQueueRows, openLabRedoRows, gradedRows, supersededRows, facultyMessageRows });
+      liveView = captureLiveView(app, options);
       app.innerHTML = viewAdmin(user, dashboardRows, error, activeStudents, applyAdminLazyData({
         cheatingFlagsByUserId,
         activeTab: adminActiveTab,
@@ -7234,7 +8600,9 @@ async function render(options = {}) {
     const wiredActiveStudents = normalizedTrackData ? normalizedTrackData.detailStudents : filterByTrack(activeStudents, activeTrackCode);
     wireAdmin(wiredRows, wiredActiveStudents, cheatingFlagsByUserId, gradingQueueRows, facultyMessageRows);
     app.setAttribute('aria-busy', 'false');
-    window.scrollTo(0, 0);
+    if (liveView) LiveRefresh.restoreView(app, window, liveView);
+    else window.scrollTo(0, 0);
+    startLiveRefreshForRoute(user, hash, { adminTrackCode: activeTrackCode });
     return;
   }
 
@@ -7247,6 +8615,7 @@ async function render(options = {}) {
   // has no interactive surface built yet, so it falls through to the program
   // overview the same way it always did.
   if (!completeRouteLoading(renderGeneration)) return;
+  liveView = captureLiveView(app, options);
   if (labModule) {
     const program = PROGRAMS.find((item) => item.slug === labMatch[1]);
     app.innerHTML = hasModuleAccess(user, program.slug, labModule.moduleKey)
@@ -7265,7 +8634,9 @@ async function render(options = {}) {
   }
   app.setAttribute('aria-busy', 'false');
   wireCommon();
-  window.scrollTo(0, 0);
+  if (liveView) LiveRefresh.restoreView(app, window, liveView);
+  else window.scrollTo(0, 0);
+  startLiveRefreshForRoute(user, hash);
   // Universal Academy first-login orientation (orientation.js). Admin never
   // sees it — that whole route branch already returned above. A no-op when
   // the student has already completed it or no tour is in progress.
@@ -7499,36 +8870,35 @@ function wireCommon() {
       const user = await currentUser();
       const moduleKey = form.dataset.moduleKey;
       const programSlug = form.dataset.programSlug;
+      // The draft text is kept locally; the submit time and attempt number
+      // are recorded only once the server has the submission.
       const state = moduleAssessmentState(moduleKey, user);
       state.rationale = rationale;
-      state.attempts = Number(state.attempts || 0) + 1;
-      state.submittedAt = new Date().toISOString();
       LabRuntime.save(`academy-assessment-${moduleKey}`, user, state);
       submit.disabled = true;
       if (status) status.textContent = 'Saving your assessment artifact…';
-      const labKey = `${moduleKey}-assessment-module`;
-      try {
-        await Promise.all([
-          recordLabAttempt(user, labKey, {
-            // progress_state is deliberately limited to not_started /
-            // in_progress / complete.  Faculty acceptance, not this student
-            // submission, is what may later produce a completed assessment.
-            state: 'in_progress', score: null,
-            result: { rationale, attested: true, attempt: state.attempts, assessmentType: 'instructor_review' },
-          }),
-          persistPortfolioArtifact(user, {
-            moduleKey, labKey, kind: 'module_assessment',
-            title: `${programSlug} ${moduleKey} Assessment Lab`, content: rationale,
-            rubricVersion: 'academy-module-assessment-v1', scoringEngineVersion: 'instructor-review-v1',
-          }),
-        ]);
-        if (status) status.textContent = 'Submitted for instructor review. Your submitted rationale has been retained.';
-      } catch (error) {
-        // The local durable draft is already saved.  Give the learner a clear
-        // retry path if the remote append-only record is temporarily offline.
-        submit.disabled = false;
-        if (status) status.textContent = 'Your assessment is saved locally, but it could not be sent for review. Please submit again.';
+      const attempt = Number(state.attempts || 0) + 1;
+      const outcome = await submitModuleAssessment(user, { moduleKey, programSlug, rationale, attempt });
+      if (outcome.ok) {
+        state.attempts = attempt;
+        state.submittedAt = new Date().toISOString();
+        LabRuntime.save(`academy-assessment-${moduleKey}`, user, state);
       }
+      if (outcome.ok || MODULE_ASSESSMENT_LOCKED_TEXT[outcome.status]) {
+        // Waiting for review (or already approved): nothing more to submit.
+        Array.from(form.elements).forEach((el) => { el.disabled = true; });
+        const pill = form.closest('section')?.querySelector('[data-module-assessment-pill]');
+        if (pill) {
+          pill.className = `rounded-full ${outcome.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'} px-3 py-1 text-xs font-bold`;
+          pill.textContent = outcome.status === 'approved' ? 'Approved' : 'Waiting for review';
+        }
+        if (status) status.textContent = outcome.ok ? 'Submitted for instructor review. Your submitted rationale has been retained.' : MODULE_ASSESSMENT_LOCKED_TEXT[outcome.status];
+        return;
+      }
+      // The local draft is already saved.  Give the learner a clear retry
+      // path if the remote record could not be stored.
+      submit.disabled = false;
+      if (status) status.textContent = 'Your assessment is saved locally, but it could not be sent for review. Please submit again.';
     });
   });
 
@@ -7612,6 +8982,84 @@ document.addEventListener('click', (event) => {
 document.addEventListener('click', (event) => {
   if (event.target.closest('a[href^="#/"]')) saveModulePosition();
 }, true);
+
+/* The student's marked lab: their latest graded attempt of one lab, section
+ * by section, with the teacher note beside each section
+ * (AdminSubmissionSheet.renderStudent). Opened from any
+ * [data-action="open-marked-lab"] link; reads only the signed-in student's
+ * own rows (lab_attempts / lab_attempt_feedback student RLS). */
+function markedLabLinkHtml(labKey, label = 'See your marked lab') {
+  return `<button type="button" class="mnt-marked-lab-link" data-action="open-marked-lab" data-lab-key="${esc(labKey)}">${esc(label)} <i class="ri-arrow-right-line" aria-hidden="true"></i></button>`;
+}
+
+async function openMarkedLab(labKey, trigger) {
+  document.getElementById('marked-lab-dialog')?.remove();
+  const backdrop = document.createElement('div');
+  backdrop.id = 'marked-lab-dialog';
+  backdrop.className = 'mnt-marked-lab-backdrop';
+  backdrop.innerHTML = `<div class="mnt-marked-lab-dialog" role="dialog" aria-modal="true" aria-label="Your marked lab">
+      <button type="button" class="mnt-marked-lab-close" data-close-marked-lab>Close</button>
+      <div data-marked-lab-body><p class="mnt-marked-lab-status">Loading your marked lab…</p></div>
+    </div>`;
+  const close = () => {
+    backdrop.remove();
+    document.removeEventListener('keydown', onKey);
+    if (trigger && typeof trigger.focus === 'function') trigger.focus();
+  };
+  const onKey = (event) => { if (event.key === 'Escape') close(); };
+  backdrop.addEventListener('click', (event) => {
+    if (event.target === backdrop || event.target.closest('[data-close-marked-lab]')) close();
+  });
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(backdrop);
+  backdrop.querySelector('[data-close-marked-lab]').focus();
+  const body = backdrop.querySelector('[data-marked-lab-body]');
+  const fail = (message) => { body.innerHTML = `<p class="mnt-marked-lab-status">${esc(message)}</p>`; };
+  try {
+    const { data: { session } } = await mntSupabase.auth.getSession();
+    const userId = session && session.user && session.user.id;
+    if (!userId) return fail('Sign in again to see your marked lab.');
+    const { data: attempts, error } = await mntSupabase
+      .from('lab_attempts')
+      .select('id, lab_key, track_code, score, pass_threshold, result, completed_at, reviewed_at, redo_requested')
+      .eq('user_id', userId)
+      .eq('lab_key', labKey)
+      .not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false })
+      .limit(1);
+    if (error) throw error;
+    const row = attempts && attempts[0];
+    if (!row) return fail('No submission of this lab was found.');
+    if (!row.reviewed_at) return fail('Your instructor has not marked this lab yet. It will appear here once they have.');
+    const { data: feedback, error: feedbackError } = await mntSupabase
+      .from('lab_attempt_feedback')
+      .select('item_label, comment, created_at')
+      .eq('lab_attempt_id', row.id)
+      .order('created_at', { ascending: true });
+    if (feedbackError) throw feedbackError;
+    if (labTakesOfficialGrade(labKey) && typeof itsProveMarkedLabHtml === 'function') {
+      const graded = itsProveMarkedLabHtml(row, (await fetchOfficialGrades([row.id])).get(row.id), feedback || []);
+      if (graded) { body.innerHTML = graded; return; }
+    }
+    const sheet = typeof AdminSubmissionSheet !== 'undefined' ? AdminSubmissionSheet.renderStudent(row, { feedback: feedback || [] }) : '';
+    if (sheet) { body.innerHTML = sheet; return; }
+    // Labs without a sheet definition: the notes as a list.
+    const lab = LABS.find((entry) => entry.key === labKey);
+    body.innerHTML = `<div class="mnt-marked-lab-status"><p class="font-semibold text-[#1e3a5f]">${esc(lab ? lab.title : labKey)}: ${row.redo_requested ? 'returned for revision' : 'approved'}</p>${(feedback || []).length
+      ? `<ul class="mt-2 list-disc pl-5 space-y-1">${feedback.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment)}</li>`).join('')}</ul>`
+      : '<p class="mt-1 text-gray-600">Your instructor did not leave written notes.</p>'}</div>`;
+  } catch (err) {
+    console.error('openMarkedLab failed', err);
+    fail('Your marked lab could not be loaded. Try again in a moment.');
+  }
+}
+
+document.addEventListener('click', (event) => {
+  const link = event.target.closest('[data-action="open-marked-lab"]');
+  if (!link) return;
+  event.preventDefault();
+  openMarkedLab(link.dataset.labKey, link);
+});
 
 function openInstructorMessagePane(trigger) {
   document.getElementById('instructor-message-pane')?.remove();
@@ -8073,7 +9521,10 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
     grading: document.getElementById('admin-tab-panel-grading'),
     graded: document.getElementById('admin-tab-panel-graded'),
     messages: document.getElementById('admin-tab-panel-messages'),
+    guide: document.getElementById('admin-tab-panel-guide'),
   };
+  const mountInstructorGuide = () => { if (tabPanels.guide && !tabPanels.guide.hidden && typeof SocInstructorGuide !== 'undefined') SocInstructorGuide.mount(); };
+  mountInstructorGuide();
   tabButtons.forEach((btn) => {
     btn.addEventListener('click', async () => {
       const target = btn.dataset.adminTab;
@@ -8087,6 +9538,7 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
         b.classList.toggle('text-gray-500', !active);
       });
       Object.entries(tabPanels).forEach(([key, panel]) => { if (panel) panel.hidden = key !== target; });
+      if (target === 'guide') { mountInstructorGuide(); return; }
       if (!['progress', 'grading', 'graded', 'messages'].includes(target) && (!adminLazyTabData[target] || (target === 'activity' && adminLazyTabData.activity.activityLoadError))) {
         await ensureAdminLazyTab(target);
         await render({ reuseAdminRoster: true });
@@ -8219,26 +9671,18 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
 
   /* "Generate Diploma": looks up the selected student's track_code (already
    * in dashboardRows — no extra fetch) to pick the matching diploma title,
-   * then hands the typed name straight to openDiplomaCertificate() and
-   * clears the fields immediately after. Nothing here is written to
-   * Supabase or browser storage. */
+   * then hands the student's stored first/last name (account display names)
+   * to openDiplomaCertificate(). Nothing here is written to Supabase or
+   * browser storage. */
   const generateDiplomaSubmitBtn = document.querySelector('[data-action="admin-generate-diploma-submit"]');
   if (generateDiplomaSubmitBtn) {
     generateDiplomaSubmitBtn.addEventListener('click', () => {
       const studentSelect = document.getElementById('diploma-student-select');
-      const firstInput = document.getElementById('diploma-first-name');
-      const middleInput = document.getElementById('diploma-middle-name');
-      const lastInput = document.getElementById('diploma-last-name');
       const statusEl = document.getElementById('admin-generate-diploma-status');
-      if (!studentSelect || !firstInput || !lastInput) return;
+      if (!studentSelect) return;
 
       const studentId = studentSelect.value;
-      const first = firstInput.value.trim();
-      const middle = middleInput ? middleInput.value.trim() : '';
-      const last = lastInput.value.trim();
-
       if (!studentId) { if (statusEl) statusEl.textContent = 'Select a student first.'; return; }
-      if (!first || !last) { if (statusEl) statusEl.textContent = 'First and last name are required.'; return; }
 
       const row = dashboardRows.find((r) => r.student_id === studentId);
       // Re-check eligibility against the live dashboard rows, not just the
@@ -8253,13 +9697,16 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
         return;
       }
       const diplomaTitle = (row && DIPLOMA_TITLES_BY_TRACK[row.track_code]) || 'Diploma of Completion';
-      const fullName = [first, middle, last].filter(Boolean).join(' ');
+      const fullName = accountNameText(studentId);
+      if (!fullName) {
+        if (statusEl) statusEl.textContent = ACCOUNT_NAMES.available === false
+          ? 'Student names are not available yet (the account-name database update has not been applied), so a diploma cannot be generated.'
+          : `${studentId} has no stored first and last name. Open the student's detail panel and use Edit name, then generate the diploma.`;
+        return;
+      }
 
       openDiplomaCertificate({ fullName, diplomaTitle, studentId });
       if (statusEl) statusEl.textContent = '';
-      firstInput.value = '';
-      if (middleInput) middleInput.value = '';
-      lastInput.value = '';
     });
   }
 
@@ -8293,7 +9740,16 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
       const cohortSelect = document.getElementById('gen-user-cohort');
       const resultEl = document.getElementById('admin-generate-user-result');
       const statusEl = document.getElementById('admin-generate-user-status');
+      const firstNameInput = document.getElementById('gen-user-first-name');
+      const lastNameInput = document.getElementById('gen-user-last-name');
       if (!trackSelect || !resultEl) return;
+      const firstName = firstNameInput ? firstNameInput.value.trim() : '';
+      const lastName = lastNameInput ? lastNameInput.value.trim() : '';
+      if (!firstName || !lastName) {
+        if (statusEl) statusEl.textContent = 'First name and last name are required.';
+        (firstName ? lastNameInput : firstNameInput)?.focus();
+        return;
+      }
       generateUserSubmitBtn.disabled = true;
       if (statusEl) statusEl.textContent = 'Creating account…';
       resultEl.innerHTML = '';
@@ -8307,15 +9763,34 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
             track_code: trackSelect.value,
             cohort_id: cohortSelect && cohortSelect.value ? cohortSelect.value : null,
           });
+        // admin-provision does not return the new user's uuid (and is not
+        // redeployed by this feature), so resolve it from the students row.
+        // Any failure here is a non-blocking warning: the account exists.
+        let nameWarning = '';
+        let savedName = '';
+        try {
+          const { data: created, error: lookupError } = await mntSupabase
+            .from('students').select('user_id').eq('student_id', account.student_id).single();
+          if (lookupError || !created) throw lookupError || new Error('lookup failed');
+          const nameResult = await setAccountName(created.user_id, firstName, lastName);
+          if (nameResult.ok) savedName = `${firstName} ${lastName}`;
+          else if (nameResult.unavailable) nameWarning = 'The name could not be saved: account names are not available on this database yet. Set it later with Edit name once the update is applied.';
+          else nameWarning = `The account was created but the name could not be saved (${nameResult.error && nameResult.error.message ? nameResult.error.message : 'unknown error'}). Use Edit name on the student detail panel.`;
+        } catch (nameErr) {
+          nameWarning = 'The account was created but the name could not be saved. Use Edit name on the student detail panel.';
+        }
         if (statusEl) statusEl.textContent = '';
         resultEl.innerHTML = `
           <div class="bg-green-50 border border-green-200 rounded-lg p-4">
             <p class="text-xs font-semibold text-green-800 mb-2">${instructor ? 'Instructor account created — it opens only its assigned course dashboard.' : 'Account created'} Copy this now; it is not shown again.</p>
-            <pre data-select-all tabindex="0" class="bg-white border border-green-200 rounded-lg p-3 text-sm font-mono text-gray-900 cursor-text overflow-x-auto" title="Click to select all">Student ID: ${esc(account.student_id)}
+            <pre data-select-all tabindex="0" class="bg-white border border-green-200 rounded-lg p-3 text-sm font-mono text-gray-900 cursor-text overflow-x-auto" title="Click to select all">Student ID: ${esc(account.student_id)}${savedName ? `\nName:       ${esc(savedName)}` : ''}
 Password:   ${esc(account.password)}
 Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackSelect.options[trackSelect.selectedIndex].text)}` : ''}</pre>
+            ${nameWarning ? `<p class="mt-2 text-xs font-semibold text-amber-700" role="status">${esc(nameWarning)}</p>` : ''}
           </div>`;
         wireSelectAllBlocks(resultEl);
+        if (firstNameInput) firstNameInput.value = '';
+        if (lastNameInput) lastNameInput.value = '';
       } catch (err) {
         if (statusEl) statusEl.textContent = '';
         resultEl.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">${esc(err && err.message ? err.message : String(err))}</div>`;
@@ -8443,6 +9918,10 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
     });
   });
 
+  // Post-render text analyzers on Submission Sheet narrative fields (S6
+  // spelling registers one). No-op until an analyzer is registered.
+  if (typeof AdminSubmissionSheet !== 'undefined') AdminSubmissionSheet.runTextAnalyzers(document);
+
   async function submitGradingDecision(attemptIdList, article, { redo }) {
     const attemptIds = String(attemptIdList).split(',').filter(Boolean);
     const statusEl = article.querySelector('[data-grading-status]');
@@ -8454,15 +9933,24 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       const adminUserId = session && session.user && session.user.id;
       if (!adminUserId) throw new Error('No active admin session. Sign in again and retry.');
 
-      const feedbackItems = Array.from(article.querySelectorAll('[data-feedback-items] .feedback-item'))
-        .map((row) => ({
-          item_label: row.querySelector('[data-feedback-label]').value.trim(),
-          comment: row.querySelector('[data-feedback-comment]').value.trim(),
-        }))
-        .filter((item) => item.item_label || item.comment);
+      // Legacy cards keep their items in [data-feedback-items]; Submission
+      // Sheets put one beside each section plus the overall note.
+      const feedbackItems = Array.from(article.querySelectorAll('.feedback-item'))
+        .map((row) => {
+          const label = row.querySelector('[data-feedback-label]');
+          return {
+            item_label: label.value.trim(),
+            comment: row.querySelector('[data-feedback-comment]').value.trim(),
+            // Section and overall notes carry their label in a hidden input,
+            // so an empty box beside a passing section is not a note.
+            labelTyped: label.type !== 'hidden',
+          };
+        })
+        .filter((item) => item.comment || (item.labelTyped && item.item_label))
+        .map(({ item_label, comment }) => ({ item_label, comment }));
 
       if (redo && feedbackItems.length === 0) {
-        throw new Error('Add at least one feedback item before sending back — the student needs to know what to redo and why.');
+        throw new Error('Write at least one teacher note before sending back — the student needs to know what to redo and why.');
       }
 
       if (feedbackItems.length > 0) {
@@ -8493,6 +9981,10 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       if (statusEl) statusEl.textContent = `Failed: ${err && err.message ? err.message : String(err)}`;
     }
   }
+
+  if (typeof itsProveWireGrading === 'function') itsProveWireGrading(() => render({ reuseAdminRoster: true }));
+  // SOC Prove It sheets: fill each "Server recommendation" box (staff only).
+  if (typeof socProveWireRecommendations === 'function') socProveWireRecommendations();
 
   document.querySelectorAll('[data-grading-filter]').forEach((input) => {
     const panel = input.closest('[id^="admin-tab-panel-"]') || document;
@@ -8749,7 +10241,7 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       return;
     }
     savePlanningButton.disabled = true;
-    if (status) status.textContent = `Saving the current enrollment planning record for ${studentId}...`;
+    if (status) status.textContent = `Saving the current enrollment planning record for ${accountLabelText(studentId)}...`;
     const error = await updateAdminEnrollmentPlanRemote(studentId, {
       scheduledStartDate: planningStart && planningStart.value,
       scheduledCompletionDate: planningCompletion && planningCompletion.value,
@@ -8763,7 +10255,7 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
     }
     await render();
     const nextStatus = document.getElementById('admin-report-status');
-    if (nextStatus) nextStatus.textContent = `Saved the current enrollment planning record for ${studentId}.`;
+    if (nextStatus) nextStatus.textContent = `Saved the current enrollment planning record for ${accountLabelText(studentId)}.`;
   });
 
   function identityForRow(row) {
@@ -8788,6 +10280,22 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
         await rotateAccountPassword(rotateBtn);
         return;
       }
+      const resetBtn = event.target.closest('[data-admin-reset-progress]');
+      if (resetBtn) {
+        const resetRow = dashboardRows.find((item) => item.student_id === resetBtn.getAttribute('data-admin-reset-progress'));
+        if (!resetRow || !resetRow.is_test_account) return;
+        resetBtn.disabled = true;
+        try {
+          await openTestResetModal(resetRow, resetBtn, async (summary) => {
+            await render({ reuseAdminRoster: false });
+            const status = document.getElementById('admin-report-status');
+            if (status) status.textContent = summary;
+          });
+        } finally {
+          resetBtn.disabled = false;
+        }
+        return;
+      }
       const snapshotBtn = event.target.closest('[data-admin-snapshot]');
       if (!snapshotBtn) return;
       const studentId = snapshotBtn.getAttribute('data-admin-snapshot');
@@ -8795,16 +10303,47 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       const message = document.getElementById('admin-report-status');
       if (!row) return;
       snapshotBtn.disabled = true;
-      if (message) message.textContent = `Saving progress file for ${studentId}...`;
+      if (message) message.textContent = `Saving progress file for ${accountLabelText(studentId)}...`;
       try {
         await downloadStudentSnapshot(studentId, identityForRow(row));
-        if (message) message.textContent = `Progress file saved for ${studentId}.`;
+        if (message) message.textContent = `Progress file saved for ${accountLabelText(studentId)}.`;
       } catch (err) {
         console.error('downloadStudentSnapshot failed', err);
-        if (message) message.textContent = `Could not save the progress file for ${studentId} — see console for details.`;
+        if (message) message.textContent = `Could not save the progress file for ${accountLabelText(studentId)} — see console for details.`;
       } finally {
         snapshotBtn.disabled = false;
       }
+    });
+
+    tableBody.addEventListener('change', async (event) => {
+      const testToggle = event.target.closest('[data-admin-test-account]');
+      if (!testToggle) return;
+      const studentId = testToggle.getAttribute('data-admin-test-account');
+      const row = dashboardRows.find((item) => item.student_id === studentId);
+      const message = document.getElementById('admin-report-status');
+      if (!row) return;
+      const desired = testToggle.checked;
+      testToggle.disabled = true;
+      const error = await setTestAccountRemote(studentId, desired);
+      testToggle.disabled = false;
+      if (error) {
+        testToggle.checked = !desired;
+        if (message) message.textContent = `Could not update the test-account flag for ${accountLabelText(studentId)}: ${error.message || 'Supabase rejected the update.'}`;
+        return;
+      }
+      row.is_test_account = desired;
+      const resetBtn = tableBody.querySelector(`[data-admin-reset-progress="${CSS.escape(studentId)}"]`);
+      if (resetBtn) resetBtn.hidden = !desired;
+      const idCell = testToggle.closest('tr')?.querySelector('td');
+      const badge = idCell?.querySelector('[data-test-badge]');
+      if (desired && idCell && !badge) {
+        idCell.querySelector('[data-view-credentials]')?.insertAdjacentHTML('afterend', '<span data-test-badge class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-50 text-violet-700 border border-violet-200">TEST</span>');
+      } else if (!desired && badge) {
+        badge.remove();
+      }
+      if (message) message.textContent = desired
+        ? `${accountLabelText(studentId)} is now a test account. Its progress can be reset.`
+        : `${accountLabelText(studentId)} is no longer a test account.`;
     });
 
     tableBody.addEventListener('change', async (event) => {
@@ -8826,25 +10365,25 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       // snapshot can't be captured, the disenroll does not proceed.
       if (!desired) {
         toggle.disabled = true;
-        if (message) message.textContent = `Saving progress file for ${studentId} before disenrolling...`;
+        if (message) message.textContent = `Saving progress file for ${accountLabelText(studentId)} before disenrolling...`;
         try {
           await downloadStudentSnapshot(studentId, identityForRow(row));
         } catch (err) {
           console.error('Pre-disenroll snapshot failed', err);
           toggle.disabled = false;
           toggle.checked = true;
-          if (message) message.textContent = `Could not save a progress file for ${studentId} — disenrollment cancelled. See console for details.`;
+          if (message) message.textContent = `Could not save a progress file for ${accountLabelText(studentId)} — disenrollment cancelled. See console for details.`;
           return;
         }
       }
 
       toggle.disabled = true;
-      if (message) message.textContent = `Saving enrollment for ${studentId}...`;
+      if (message) message.textContent = `Saving enrollment for ${accountLabelText(studentId)}...`;
       const error = await updateAdminEnrollmentRemote(studentId, desired);
       toggle.disabled = false;
       if (error) {
         toggle.checked = !desired;
-        if (message) message.textContent = `Could not save enrollment for ${studentId}: ${error.message || 'Supabase rejected the update.'}`;
+        if (message) message.textContent = `Could not save enrollment for ${accountLabelText(studentId)}: ${error.message || 'Supabase rejected the update.'}`;
         return;
       }
 
@@ -8854,8 +10393,8 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       render();
       const nextMessage = document.getElementById('admin-report-status');
       if (nextMessage) nextMessage.textContent = desired
-        ? `${studentId} is now enrolled.`
-        : `${studentId} is now disenrolled. Progress file saved.`;
+        ? `${accountLabelText(studentId)} is now enrolled.`
+        : `${accountLabelText(studentId)} is now disenrolled. Progress file saved.`;
     });
   }
 
@@ -9000,7 +10539,7 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
         const snapshots = [];
         for (let i = 0; i < scopedRows.length; i++) {
           const row = scopedRows[i];
-          if (status) status.textContent = `Preparing progress files for ${i + 1} of ${scopedRows.length}: ${row.student_id}…`;
+          if (status) status.textContent = `Preparing progress files for ${i + 1} of ${scopedRows.length}: ${accountLabelText(row)}…`;
           snapshots.push(await buildStudentSnapshotRecord(row.student_id, identityForRow(row)));
         }
         const capturedAt = new Date().toISOString();
@@ -9033,14 +10572,19 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
     panel.innerHTML = `<div class="text-sm text-gray-400 py-6">Loading student record…</div>`;
     const [moduleRes, labRes, capstoneRes, scorecardRes, artifactRes, reviewRes] = await Promise.all([
       mntSupabase.from('module_progress').select('module_key, state, percent, started_at, completed_at, admin_override, admin_override_at').eq('user_id', row.user_id).eq('track_code', row.track_code),
-      mntSupabase.from('lab_attempts').select('lab_key, state, score, started_at, completed_at, result').eq('user_id', row.user_id).eq('track_code', row.track_code),
+      mntSupabase.from('lab_attempts').select('id, lab_key, state, score, started_at, completed_at, result, reviewed_at, redo_requested, pass_threshold').eq('user_id', row.user_id).eq('track_code', row.track_code),
       mntSupabase.from('capstone_submissions').select('stage, score, submitted_at, answers').eq('user_id', row.user_id).eq('track_code', row.track_code).order('stage', { ascending: true }),
       mntSupabase.from('capstone_scorecard').select('overall_score, investigation_accuracy, detection_score, threat_hunting_score, incident_response_score, vulnerability_score, reporting_score, stages_submitted').eq('user_id', row.user_id).eq('track_code', row.track_code).maybeSingle(),
       mntSupabase.from('portfolio_artifacts').select('id, lab_key, submitted_at, content_sha256').eq('user_id', row.user_id).eq('track_code', row.track_code).order('submitted_at', { ascending: false }),
       mntSupabase.from('capstone_reviews').select('id, artifact_id, review_status, official_outcome, reviewed_by, reviewed_at, reviewer_notes, supervision_method').eq('user_id', row.user_id).eq('track_code', row.track_code).order('created_at', { ascending: false }),
     ]);
+    await applyOfficialLabGrades(labRes.data || []);
     if (panel.dataset.studentId !== studentId) return;
-    panel.innerHTML = renderStudentDetail(row, moduleRes.data || [], labRes.data || [], capstoneRes.data || [], scorecardRes.data || null, artifactRes.data || [], reviewRes.data || [], cheatingFlagsByUserId.get(row.user_id) || []);
+    // Edit name is admin-only (admin_set_account_name enforces it server-side
+    // too) and hidden while the DB has no account-name columns/RPC.
+    const detailViewer = await currentUser();
+    const canEditName = !!(detailViewer && detailViewer.isAdmin) && ACCOUNT_NAMES.available !== false && ACCOUNT_NAMES.rpcAvailable !== false;
+    panel.innerHTML = renderStudentDetail(row, moduleRes.data || [], labRes.data || [], capstoneRes.data || [], scorecardRes.data || null, artifactRes.data || [], reviewRes.data || [], cheatingFlagsByUserId.get(row.user_id) || [], canEditName);
   }
 
   const archivedSearch = document.getElementById('archived-student-search');
@@ -9079,6 +10623,48 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       detailSelect.dispatchEvent(new Event('change'));
     });
   });
+  // Admin "Edit name" in the student detail panel (account display names).
+  // Delegated per panel, outside the detailSelect block, so inline track-card
+  // panels work too. setAccountName() refreshes the directory; a full render
+  // then redraws every place the name shows.
+  [document.getElementById('student-detail-panel'), ...document.querySelectorAll('[data-admin-inline-detail]')].filter(Boolean).forEach((namePanel) => {
+    namePanel.addEventListener('click', (event) => {
+      const editBtn = event.target.closest('[data-edit-name]');
+      const cancelBtn = event.target.closest('[data-edit-name-cancel]');
+      if (!editBtn && !cancelBtn) return;
+      const wrap = (editBtn || cancelBtn).closest('div');
+      const form = wrap.querySelector('[data-edit-name-form]');
+      const toggle = wrap.querySelector('[data-edit-name]');
+      if (!form) return;
+      form.hidden = !editBtn;
+      if (toggle) toggle.setAttribute('aria-expanded', String(!!editBtn));
+      if (editBtn) { const first = form.querySelector('input[name="first"]'); if (first) first.focus(); }
+    });
+    namePanel.addEventListener('submit', async (event) => {
+      const form = event.target.closest('[data-edit-name-form]');
+      if (!form) return;
+      event.preventDefault();
+      const studentId = form.getAttribute('data-edit-name-form');
+      const target = activeStudents.find((r) => r.student_id === studentId);
+      const statusEl = form.querySelector('[data-edit-name-status]');
+      const submit = form.querySelector('button[type="submit"]');
+      const first = form.elements.first.value.trim();
+      const last = form.elements.last.value.trim();
+      if (!target) return;
+      if (!first || !last) { if (statusEl) statusEl.textContent = 'First name and last name are required.'; return; }
+      if (submit) submit.disabled = true;
+      if (statusEl) statusEl.textContent = 'Saving…';
+      const result = await setAccountName(target.user_id, first, last);
+      if (result.ok) { await render({ reuseAdminRoster: true }); return; }
+      if (submit) submit.disabled = false;
+      if (statusEl) {
+        statusEl.textContent = result.unavailable
+          ? 'Account names are not available on this database yet.'
+          : `Could not save the name: ${result.error && result.error.message ? result.error.message : 'unknown error'}`;
+      }
+    });
+  });
+
   if (detailSelect) {
     detailSelect.addEventListener('change', async () => {
       const panel = document.getElementById('student-detail-panel');
@@ -9097,6 +10683,20 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
     const detailPanels = [document.getElementById('student-detail-panel'), ...document.querySelectorAll('[data-admin-inline-detail]')];
     detailPanels.filter(Boolean).forEach((detailPanel) => {
       detailPanel.addEventListener('click', async (event) => {
+        // "Open attempt" on a lab awaiting review: switch to the Lab Attempts
+        // tab and open that attempt's pill.
+        const openAttemptBtn = event.target.closest('[data-admin-open-attempt]');
+        if (openAttemptBtn) {
+          const key = openAttemptBtn.getAttribute('data-admin-open-attempt');
+          const tab = document.querySelector('[data-admin-tab="grading"]');
+          if (tab) tab.click();
+          const chip = Array.from(document.querySelectorAll('[data-attempt-chip]')).find((el) => el.dataset.attemptChip === key);
+          if (chip && chip.getAttribute('aria-expanded') !== 'true') chip.click();
+          else if (chip) chip.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          // The button is now in the hidden Progress tab: move focus to the pill.
+          if (chip) chip.focus({ preventScroll: true });
+          return;
+        }
         const overrideBtn = event.target.closest('[data-admin-module-override]');
         if (overrideBtn) {
           const overrideValue = overrideBtn.getAttribute('data-override-value') === 'true';
@@ -9104,8 +10704,8 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
           const moduleKey = overrideBtn.getAttribute('data-module-key');
           const label = adminModuleLabel(overrideBtn.getAttribute('data-track-code'), moduleKey);
           const confirmed = confirm(overrideValue
-            ? `Mark ${label} complete for ${studentId} regardless of lab/quiz status? This shows green everywhere for this student immediately and survives future grading-rule changes.`
-            : `Remove the admin override on ${label} for ${studentId}? The module's status will go back to whatever the real lab/quiz records support.`);
+            ? `Mark ${label} complete for ${accountLabelText(studentId)} regardless of lab/quiz status? This shows green everywhere for this student immediately and survives future grading-rule changes.`
+            : `Remove the admin override on ${label} for ${accountLabelText(studentId)}? The module's status will go back to whatever the real lab/quiz records support.`);
           if (!confirmed) return;
           overrideBtn.disabled = true;
           const originalText = overrideBtn.textContent;
@@ -9139,7 +10739,8 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
         trigger.textContent = 'Generating…';
         try {
           if (transcriptBtn) await downloadTranscriptPdf(studentId, identity);
-          else await downloadEvidencePdf(studentId, identity);
+          // Staff download: the newest attempt says "Awaiting review" or "Returned".
+          else await downloadEvidencePdf(studentId, { ...identity, staffLabels: true });
         } catch (err) {
           console.error('Per-student PDF generation failed', err);
           trigger.textContent = 'Failed — see console';
@@ -9185,6 +10786,16 @@ function adminModuleLabel(trackCode, moduleKey) {
   return module ? module.title : moduleKey;
 }
 
+// A module's display number, for listing modules in course order. Help Desk
+// numbers differ from key order (its-10 is Module 2), so sort by this, not
+// by key. A key not in the catalogue sorts last.
+function adminModuleOrder(trackCode, moduleKey) {
+  const slug = TRACK_CODE_TO_PROGRAM_SLUG[trackCode];
+  const program = PROGRAMS.find((p) => p.slug === slug);
+  const module = program && program.modules && program.modules[moduleKey];
+  return module && Number.isFinite(module.number) ? module.number : Infinity;
+}
+
 function adminLabLabel(labKey) {
   const lab = LABS.find((l) => l.key === labKey);
   return lab ? lab.title : labKey;
@@ -9216,9 +10827,11 @@ function adminGradingLabMeta(row) {
   // (guided lab), Prove It (assessment lab or capstone).
   // Outside SOC every catalogued lab is the module's instructor-approved
   // assessment (course_module_labs maps all HDESK/AIENG labs), so it is a
-  // Prove It, not an unlabelled "LAB".
+  // Prove It, not an unlabelled "LAB", unless its record marks it
+  // `phase: 'practice'` (Help Desk Module 1's Labs 1.1 and 1.2).
   const kind = knowledgeCheck ? 'LEARN IT'
     : (lab && lab.kind === 'capstone') || ADMIN_PROVE_IT_LAB_KEYS.has(row.lab_key) ? 'PROVE IT'
+    : lab && lab.phase === 'practice' ? 'PRACTICE IT'
     : slug === 'soc-analyst' ? 'PRACTICE IT' : lab ? 'PROVE IT' : 'LAB';
   return {
     moduleKey: module ? moduleKey : 'other',
@@ -9309,6 +10922,40 @@ function adminSplitSupersededAttempts(pendingRows, gradedRows) {
   return { pending, superseded };
 }
 
+// Student detail: official-grade labs read the decision that stands.
+function adminModuleStatusHtml(m, labRows) {
+  const labKey = officialLabForModule(m.module_key);
+  const standing = labKey ? officialLabStanding(labKey, labRows) : null;
+  if (standing && standing.attempted) {
+    const label = standing.passed ? 'Pass'
+      : standing.awaiting ? OFFICIAL_AWAITING_REVIEW
+      : standing.critical ? OFFICIAL_CRITICAL_RESULT
+      : standing.returned ? OFFICIAL_RETURNED
+      : 'In progress';
+    return `<span style="color:${adminStateColor(standing.passed ? 'complete' : 'in_progress')}">${label}</span>`;
+  }
+  return `<span style="color:${adminStateColor(m.state)}">${adminStateLabel(m.state)}</span>`;
+}
+
+// student: the detail's row (student_id, track_code). An attempt awaiting
+// review links to its pill on the Lab Attempts tab, whose key is
+// `<student id>|<item name>` (adminLabAttemptsPanel).
+function adminLabRecordCells(l, labRows, student) {
+  const record = labTakesOfficialGrade(l.lab_key) ? officialAttemptRecord(l, officialLabStanding(l.lab_key, labRows), true) : null;
+  if (record) {
+    const attemptKey = record.awaiting && student && student.student_id
+      ? `${student.student_id}|${adminGradingLabMeta({ lab_key: l.lab_key, track_code: student.track_code }).itemName}`
+      : '';
+    const openLink = attemptKey ? ` <button type="button" class="ml-1 text-xs font-semibold text-[#1e3a5f] underline hover:text-[#f97316]" data-admin-open-attempt="${esc(attemptKey)}">Open attempt</button>` : '';
+    return `<td class="px-4 py-2"><span style="color:${adminStateColor(record.state)}">${record.status}</span>${openLink}</td>
+                 <td class="px-4 py-2 text-gray-600">${adminScore(record.score)}</td>
+                 <td class="px-4 py-2 text-gray-600">${record.date ? adminDate(record.date) : '—'}</td>`;
+  }
+  return `<td class="px-4 py-2"><span style="color:${adminStateColor(l.state)}">${adminStateLabel(l.state)}</span></td>
+                 <td class="px-4 py-2 text-gray-600">${adminScore(l.score)}</td>
+                 <td class="px-4 py-2 text-gray-600">${adminDate(l.completed_at)}</td>`;
+}
+
 function adminStateLabel(state) {
   return state === 'complete' ? 'Complete' : state === 'in_progress' ? 'In Progress' : 'Not Started';
 }
@@ -9325,7 +10972,7 @@ function adminDate(value) {
   return value ? new Date(value).toLocaleDateString() : '—';
 }
 
-function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRow, artifactRows = [], reviewRows = [], reviewFlagReasons = []) {
+function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRow, artifactRows = [], reviewRows = [], reviewFlagReasons = [], canEditName = false) {
   const m360Detail = row.m360_required
     ? `<section class="mt-8"><h3 class="text-base font-semibold text-[#1e3a5f] mb-3">M360 Career Readiness</h3><div class="grid grid-cols-2 md:grid-cols-3 gap-3"><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Accepted weeks</p><p class="text-lg font-semibold text-[#1e3a5f]">${Number(row.m360_accepted_weeks || 0)} / ${Number(row.m360_required_weeks || 6)}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Final grade</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_final_grade == null ? '—' : esc(Number(row.m360_final_grade).toFixed(1))}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Start Here</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_start_here_complete ? 'Complete' : 'Not started'}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Networking confidence</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.networking_comfort == null ? '— / 5' : `${Number(row.networking_comfort)} / 5`}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Interview readiness</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.interview_readiness == null ? '— / 5' : `${Number(row.interview_readiness)} / 5`}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Course status</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_course_complete ? 'Complete' : 'In progress'}</p></div></div><p class="text-xs text-gray-500 mt-3">M360 is a separate career-readiness course record. It appears on the student transcript but is not technical-module credit.</p></section>`
     : '';
@@ -9350,10 +10997,10 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
              </tr>
            </thead>
            <tbody>
-             ${moduleRows.slice().sort((a, b) => String(a.module_key).localeCompare(String(b.module_key))).map((m) => `
+             ${moduleRows.slice().sort((a, b) => (adminModuleOrder(row.track_code, a.module_key) - adminModuleOrder(row.track_code, b.module_key)) || String(a.module_key).localeCompare(String(b.module_key))).map((m) => `
                <tr class="border-b border-gray-100">
                  <td class="px-4 py-2 text-gray-900">${esc(adminModuleLabel(row.track_code, m.module_key))}</td>
-                 <td class="px-4 py-2"><span style="color:${adminStateColor(m.state)}">${adminStateLabel(m.state)}</span>${m.admin_override ? ' <span class="text-xs font-semibold text-amber-700">(admin override)</span>' : ''}</td>
+                 <td class="px-4 py-2">${adminModuleStatusHtml(m, labRows)}${m.admin_override ? ' <span class="text-xs font-semibold text-amber-700">(admin override)</span>' : ''}</td>
                  <td class="px-4 py-2 text-gray-600">${m.percent}%</td>
                  <td class="px-4 py-2">
                    <button type="button"
@@ -9401,9 +11048,7 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
                  return `
                <tr class="border-b border-gray-100">
                  <td class="px-4 py-2 text-gray-900">${esc(adminLabLabel(l.lab_key))}${attemptLabel}</td>
-                 <td class="px-4 py-2"><span style="color:${adminStateColor(l.state)}">${adminStateLabel(l.state)}</span></td>
-                 <td class="px-4 py-2 text-gray-600">${adminScore(l.score)}</td>
-                 <td class="px-4 py-2 text-gray-600">${adminDate(l.completed_at)}</td>
+                 ${adminLabRecordCells(l, labRows, row)}
                </tr>`;
                }).join('')}
            </tbody>
@@ -9489,7 +11134,19 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
       ${reviewFlagSection}
       <div class="mb-6 pb-4 border-b border-gray-100 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p class="font-mono text-sm text-gray-900">${esc(row.student_id)}</p>
+          <p class="font-mono text-sm text-gray-900">${esc(row.student_id)}${accountNameHtml(row)}</p>
+          ${canEditName ? `<button type="button" data-edit-name="${esc(row.student_id)}" aria-expanded="false" class="mt-1 text-xs font-semibold text-[#1e3a5f] hover:underline cursor-pointer">Edit name</button>
+          <form data-edit-name-form="${esc(row.student_id)}" hidden class="mt-2 flex flex-wrap items-end gap-2">
+            <label class="text-xs font-semibold text-gray-600">First name
+              <input type="text" name="first" required maxlength="80" autocomplete="off" value="${esc((accountNameParts(row) || {}).first_name || '')}" class="block mt-1 w-40 border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-normal text-gray-900" />
+            </label>
+            <label class="text-xs font-semibold text-gray-600">Last name
+              <input type="text" name="last" required maxlength="80" autocomplete="off" value="${esc((accountNameParts(row) || {}).last_name || '')}" class="block mt-1 w-40 border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-normal text-gray-900" />
+            </label>
+            <button type="submit" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-3 py-1.5 rounded-lg text-xs cursor-pointer">Save</button>
+            <button type="button" data-edit-name-cancel class="text-xs font-semibold text-gray-600 hover:underline cursor-pointer">Cancel</button>
+            <span data-edit-name-status class="basis-full text-xs text-gray-500" role="status"></span>
+          </form>` : ''}
           <p class="text-xs text-gray-500 mt-1">${esc(row.program_slug || row.track_code)} · ${row.modules_complete}/${row.modules_total} modules · ${row.percent_complete}% complete</p>
         </div>
         <div class="flex flex-wrap gap-2">

@@ -95,6 +95,7 @@
     try {
       if (!(await requireAdmin())) return;
       const students = await eligibleStudents();
+      await M360Data.loadNames();
       const ids = students.map(s => s.user_id).filter(Boolean);
       let records = [];
       if (ids.length) {
@@ -119,7 +120,7 @@
         const supportHeadline = support ? supportReason(payload) : valueOrDash(payload.supportNeed);
         const supportDetail = support ? `Top support need: ${valueOrDash(payload.supportNeed)}` : 'Top support need';
         return `<article class="course-state-card">
-          <div class="course-state-student"><strong>${escapeHtml(student.student_id || student.user_id)}</strong><span>${escapeHtml(student.track_code)}</span></div>
+          <div class="course-state-student"><strong>${escapeHtml(student.student_id || student.user_id)}</strong>${M360Data.nameHtml(student)}<span>${escapeHtml(student.track_code)}</span></div>
           <div class="course-state-current ${complete ? 'complete' : ''}"><strong>${complete ? 'Start Here Complete' : 'Not complete'}</strong><span>${complete ? escapeHtml(new Date(record.start_here_completed_at).toLocaleString()) : 'Baseline still pending'}</span></div>
           <div class="course-state-current ${support ? 'support' : ''}"><strong>${escapeHtml(supportHeadline)}</strong><span>${escapeHtml(supportDetail)}${support ? ' · Early support signal' : ''}</span></div>
           <div class="course-state-current"><strong>Networking ${escapeHtml(valueOrDash(payload.networkingComfort))} / 5 · Interview ${escapeHtml(valueOrDash(payload.interviewReadiness))} / 5</strong><span>${complete ? '<span class="complete-pill">Baseline captured</span>' : 'Readiness baseline'}</span></div>
@@ -160,6 +161,7 @@
     try {
       if (!(await requireAdmin())) return;
       const students = await eligibleStudents();
+      await M360Data.loadNames();
       const ids = students.map(s => s.user_id).filter(Boolean);
       let courseRecords = [], week6Records = [];
       if (ids.length) {
@@ -186,7 +188,7 @@
         const reference = record.career_spotlight_presentation_reference || '';
         const assignment = week6 && week6.accepted_artifact_payload ? 'Week 6 · Portfolio Ready' : week6 && week6.review_status === 'submitted' ? 'Week 6 · Submitted' : week6 && week6.review_status === 'needs_revision' ? 'Week 6 · Needs Revision' : 'Week 6 · Not accepted';
         return `<article class="course-state-card" data-spotlight-user="${escapeHtml(student.user_id)}" data-changed="false">
-          <div class="course-state-student"><strong>${escapeHtml(student.student_id || student.user_id)}</strong><span>${escapeHtml(student.track_code)}</span></div>
+          <div class="course-state-student"><strong>${escapeHtml(student.student_id || student.user_id)}</strong>${M360Data.nameHtml(student)}<span>${escapeHtml(student.track_code)}</span></div>
           <div class="course-state-current ${status !== 'not_completed' ? 'complete' : ''}"><strong>${escapeHtml(statusLabels[status] || status)}</strong><span>${escapeHtml(assignment)}</span></div>
           <label class="course-state-field"><span>Presentation status</span><select data-spotlight-status data-initial="${escapeHtml(status)}"><option value="not_completed" ${status === 'not_completed' ? 'selected' : ''}>Not yet completed</option><option value="presented_live" ${status === 'presented_live' ? 'selected' : ''}>Presented live</option><option value="approved_makeup_completed" ${status === 'approved_makeup_completed' ? 'selected' : ''}>Approved makeup completed</option><option value="approved_exception_completed" ${status === 'approved_exception_completed' ? 'selected' : ''}>Approved recording/link exception completed</option></select></label>
           <label class="course-state-field"><span>Makeup or exception reference <small>Optional; use when applicable</small></span><input data-spotlight-reference data-initial="${escapeHtml(reference)}" type="text" value="${escapeHtml(reference)}" placeholder="Approved makeup / exception reference" /></label>

@@ -52,6 +52,39 @@ function consoleGuideCard(spec) {
 // arrow nor "Next explanation" ever leaves it offscreen.
 if (typeof document !== 'undefined' && typeof window !== 'undefined' && !window.consoleGuideCenterOnToggleBound) {
   window.consoleGuideCenterOnToggleBound = true;
+  const focusCollapseState = new WeakMap();
+  const isFormControl = (node) => node && /^(INPUT|TEXTAREA|SELECT)$/.test(node.tagName);
+  const overlaps = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+  document.addEventListener('focusin', (event) => {
+    if (!isFormControl(event.target)) return;
+    const host = event.target.closest('.m03e-console-host, .m03e-console, .m02e-console, [data-console-shell]');
+    const tip = host?.querySelector('.m02e-learn-tip:not(.is-collapsed)');
+    if (!tip || !overlaps(tip.getBoundingClientRect(), event.target.getBoundingClientRect())) return;
+    const toggle = tip.querySelector('[data-console-guide-toggle]');
+    focusCollapseState.set(tip, { wasCollapsed: false, toggleText: toggle?.querySelector('.m02e-tip-toggle-text')?.textContent });
+    tip.classList.add('is-collapsed');
+    if (toggle) {
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.title = 'Show guide at the current evidence';
+      const text = toggle.querySelector('.m02e-tip-toggle-text');
+      if (text) text.textContent = 'Show guide';
+    }
+  });
+  document.addEventListener('focusout', (event) => {
+    const tip = event.target.closest('.m03e-console-host, .m03e-console, .m02e-console, [data-console-shell]')?.querySelector('.m02e-learn-tip.is-collapsed');
+    if (!tip || tip.contains(event.relatedTarget)) return;
+    const state = focusCollapseState.get(tip);
+    if (!state) return;
+    tip.classList.toggle('is-collapsed', state.wasCollapsed);
+    const toggle = tip.querySelector('[data-console-guide-toggle]');
+    if (toggle) {
+      toggle.setAttribute('aria-expanded', String(!state.wasCollapsed));
+      toggle.title = state.wasCollapsed ? 'Show guide at the current evidence' : 'Return guide to the console banner';
+      const text = toggle.querySelector('.m02e-tip-toggle-text');
+      if (text) text.textContent = state.toggleText || (state.wasCollapsed ? 'Show guide' : 'Minimize');
+    }
+    focusCollapseState.delete(tip);
+  });
   document.addEventListener('click', (event) => {
     const toggle = event.target.closest('[data-console-guide-toggle]');
     const next = !toggle && event.target.closest('.m02e-guide-next');

@@ -40,9 +40,11 @@ product-architecture planning, explicitly classified as historical-only by
   `OBJECTIVES_DELTA.md` — completed content-gap audit sessions from
   2026-06-28 through 2026-07-07.
 - `LAB_MANAGEMENT.md` — a 2026-07-06 dev-process handoff for the old `ui/`
-  simulator, superseded by `PROJECT_GUIDE_FOR_AI.md` and `HANDOFF.md`.
-- `AGENTS.md` — inherited per-agent task checklist; all current planning uses
-  the root handoff and workstream state documents instead.
+  simulator, superseded by `historical-plans/PROJECT_GUIDE_FOR_AI.md` (itself
+  archived 2026-11-14; current rules: root `CLAUDE.md`) and `HANDOFF.md`.
+- `AGENTS.legacy.md` (renamed from `AGENTS.md` 2026-11-14 so Codex no longer
+  auto-loads it) — inherited per-agent task checklist; all current planning
+  uses the root handoff and workstream state documents instead.
 - `PRODUCT_ARCHITECTURE_PLAN.md` (2026-08-05) and `PLATFORM_ARCHITECTURE.md`
   (2026-08-17, still headed "draft v1, no implementation started" even
   though the portal/simulator unification and backend simplification it
@@ -51,9 +53,23 @@ product-architecture planning, explicitly classified as historical-only by
 
 ## `completed-feature-notes/`
 
+- `CAPSTONE_SKILL_BACKFILL.md` — completed the earlier-module Practice It and
+  Prove It homes for all 43 mechanics graded by the SOC Analyst M12 capstone.
+  Focused checks pass and the traceability map has no gaps. Browser verification
+  of the new tasks and PR publication remain separate release steps; the local
+  portal was found targeting production, so no production UAT was performed.
+
 Feature/fix write-ups and progress snapshots for work that finished and is
 live, each already self-marked done or all-checkboxes-complete at the time
 of archiving:
+
+- `UAT_2026-10-17_MODULES_04-12_PARITY_PROGRESS.md` — completed M03–M12
+  student/instructor assessment parity work. PR #72 shipped the parity fixes;
+  PR #75 corrected the missed M03 raw-event ID, event chronology, and incident
+  guide consistency issues. CI, staging sync/deployment, and production Pages
+  deployment passed. The broader UAT handoff remains active at
+  `docs/handoffs/UAT_2026-10-17_SECTION_NOTES.md` because it tracks separate
+  owner tasks.
 
 - `M12_INTEGRATED_CLICKTHROUGH.md` — completed local S5 acceptance report:
   304 console tabs, Module 1/12 interaction sweeps, three scored M12 browser

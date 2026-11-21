@@ -128,11 +128,41 @@ t('the guide bar renders the new needs-investigation step', () => {
   assert.match(bar, /Alert dispositions/);
 });
 
+console.log('Alert-to-incident association');
+t('guided practice teaches the supported link and warns against linking the benign alert', () => {
+  reset();
+  const step = run("M03E_GUIDE_STEPS.find((s) => s.id === 'incident-link')");
+  assert.ok(step.title.includes('incident'));
+  assert.ok(step.body.includes('ALT-3102'));
+  run("m03eState('practice').incidentLinks.push({alertId:'ALT-3101',incidentId:'INC-MN-428-PRACTICE'})");
+  assert.ok(stepOk('incident-link'));
+  const panel = run("m03eIncidentAssociationPanel('practice', M03E_DATA.practice.alerts.find((a) => a.id === 'ALT-3102'))");
+  assert.ok(panel.includes('Link this alert to incident'));
+  run("m03eState('practice').incidentLinks.push({alertId:'ALT-3102',incidentId:'INC-MN-428-PRACTICE'})");
+  assert.ok(run("m03eIncidentAssociationPanel('practice', M03E_DATA.practice.alerts.find((a) => a.id === 'ALT-3102'))").includes('leave it unlinked'));
+});
+t('Prove It scores supported alert links, deducts an unrelated link, and accepts alternate exploration volume', () => {
+  const base = { determination: {}, pins: [], queryLog: [] };
+  const scoreLinks = (incidentLinks) => run(`moduleThreeScoreAssessment(${JSON.stringify({ ...base, incidentLinks })}).competencies.find((c) => c.id === 'incident-association')`);
+  const none = scoreLinks([]);
+  const supported = scoreLinks([{ alertId: 'ALT-5170', incidentId: 'INC-MN-517' }, { alertId: 'ALT-5171', incidentId: 'INC-MN-517' }]);
+  const wrong = scoreLinks([{ alertId: 'ALT-5174', incidentId: 'INC-MN-517' }]);
+  const mixed = scoreLinks([{ alertId: 'ALT-5170', incidentId: 'INC-MN-517' }, { alertId: 'ALT-5171', incidentId: 'INC-MN-517' }, { alertId: 'ALT-5174', incidentId: 'INC-MN-517' }]);
+  const moreExplore = scoreLinks([{ alertId: 'ALT-5170', incidentId: 'INC-MN-517' }, { alertId: 'ALT-5171', incidentId: 'INC-MN-517' }, ...Array.from({ length: 8 }, (_, i) => ({ alertId: `OTHER-${i}`, incidentId: 'INC-MN-517' }))]);
+  assert.equal(none.earned, 0);
+  assert.equal(supported.earned, 5);
+  assert.equal(wrong.earned, 0);
+  assert.ok(wrong.deductions.some((d) => d.includes('l.brooks')));
+  assert.equal(mixed.earned, 3);
+  assert.ok(mixed.deductions.some((d) => d.includes('l.brooks')));
+  assert.equal(moreExplore.earned, supported.earned);
+});
+
 console.log('Backward compatibility');
 t('old practice state (no dispositions) loads with an empty map', () => {
   reset({ tab: 'search', pins: ['A-1006'], guideStep: 3, guideVersion: 2, determination: {} });
   const st = run("m03eState('practice')");
-  assert.deepStrictEqual(st.dispositions, {}); assert.strictEqual(st.guideStep, 3); assert.strictEqual(st.guideVersion, 3);
+  assert.deepStrictEqual(st.dispositions, {}); assert.strictEqual(st.guideStep, 3); assert.strictEqual(st.guideVersion, 5);
 });
 t('a saved guide position at or after the old handoff step keeps its place', () => {
   reset({ guideStep: 12, guideVersion: 2, determination: {} });

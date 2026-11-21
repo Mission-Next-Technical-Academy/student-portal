@@ -123,7 +123,7 @@ function caseRecordFields(state, spec) {
       ${entities}
       ${caseRecordSelect('disposition', 'Disposition', disposition, dispositionOptions, disabled, isCorrect('disposition', disposition))}
       ${caseRecordSelect('escalation', 'Escalation required', state.escalation, CASE_RECORD_ESCALATION_OPTIONS, disabled, isCorrect('escalation', state.escalation))}
-      ${state.escalation === 'required' ? caseRecordSelect('escalateTo', 'Route to Department', state.escalateTo, departmentOptions, disabled, isCorrect('escalateTo', state.escalateTo)) : ''}
+      ${departmentOptions.length ? `<div class="m01-ticket-routing">${caseRecordSelect('escalateTo', 'Route to Department (if escalation is required)', state.escalateTo, departmentOptions, disabled, isCorrect('escalateTo', state.escalateTo))}<small>Choose a receiving team when you set Escalation required to Required.</small></div>` : ''}
       ${(spec.findings || []).filter((field) => field.type !== 'textarea').map((field) => caseRecordSelect(`finding:${field.name}`, field.label, findings[field.name], field.options, disabled)).join('')}
     </div>
     ${(spec.findings || []).filter((field) => field.type === 'textarea').map((field) => `<label class="m01-ticket-field m01-ticket-notes"><span>${esc(field.label)}${field.minLength ? ` · at least ${field.minLength} characters` : ''}</span><textarea name="finding:${esc(field.name)}" rows="${field.rows || 4}" minlength="${field.minLength || 1}" maxlength="${field.maxLength || 5000}" ${disabled ? 'disabled' : ''}>${esc(findings[field.name] || '')}</textarea></label>`).join('')}
@@ -216,13 +216,21 @@ function caseRecordGradedFeedback() {
     .filter((item) => { const key = `${item.item_label}\u0000${item.comment}`; if (seen.has(key)) return false; seen.add(key); return true; });
 }
 
+// Each note is labelled with its section; the marked-lab view (portal/app.js)
+// shows them beside the student's answers.
 function caseRecordGradedFeedbackHtml(notes = caseRecordGradedFeedback()) {
-  return notes.length ? `<div class="m01-graded-feedback" role="note"><strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong><ul>${notes.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul></div>` : '';
+  if (!notes.length) return '';
+  const context = typeof activeModuleRenderContext === 'function' ? activeModuleRenderContext() : null;
+  const byLab = context?.user?.reviewedLabFeedbackByLabKey || {};
+  const labKeys = Object.keys(byLab).filter((key) => (byLab[key] || []).some((item) => notes.includes(item)));
+  const links = typeof markedLabLinkHtml === 'function' && labKeys.length ? `<p>${labKeys.map((key) => markedLabLinkHtml(key)).join(' ')}</p>` : '';
+  return `<div class="m01-graded-feedback" role="note"><strong><i class="ri-feedback-line" aria-hidden="true"></i> Instructor feedback</strong><ul>${notes.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>${links}</div>`;
 }
 
 // spec: { panelId, missing, submitted, reviewStatus, redoRequested,
 //         redoHtml, showMissing, lockedMessage, practiceSubmitted,
-//         practiceScored, practiceResult }
+//         practiceScored, practiceResult, compactRequirements }
+// compactRequirements: true hides the missing list + help line unless showMissing flags it.
 function caseRecordPanel(spec) {
   const missing = spec.missing || [];
   const submitted = spec.submitted === true;
@@ -231,9 +239,10 @@ function caseRecordPanel(spec) {
   const result = practice ? spec.practiceResult : null;
   const failedPractice = !submitted && result && !result.passed;
   const flagMissing = !submitted && spec.showMissing && missing.length;
+  const hideMissing = spec.compactRequirements === true && !flagMissing && missing.length > 0;
   const title = practice && submitted ? (result ? 'Practice passed' : 'Practice submitted') : graded ? 'Lab graded' : submitted ? 'Submitted for faculty review' : flagMissing ? 'Not ready to submit yet' : failedPractice ? 'Practice not passed yet' : spec.redoRequested ? 'Returned for remediation' : 'Incident ticket';
   const body = graded ? 'Your instructor has reviewed this case.'
-    : submitted ? (practice ? (result ? 'Your practice score is recorded. Prove It · Assessment Lab is now open.' : 'Your ungraded practice ticket is recorded.') : spec.lockedMessage || 'The next module stays locked until your instructor approves the submission.')
+    : submitted ? (practice ? (result ? 'Your practice score is recorded. Prove It · Assessment Lab is now open.' : 'Your practice ticket is recorded. Prove It · Assessment Lab is now open.') : spec.lockedMessage || 'The next module stays locked until your instructor approves the submission.')
       : failedPractice ? 'Finish the items marked below, update the ticket, and submit again. A passing practice score opens Prove It.'
         : spec.redoRequested ? 'Review your instructor feedback, then work the case again and resubmit.'
           : practice ? `Use the console evidence to complete the incident ticket. ${spec.practiceScored ? `Submit Lab scores your practice instantly; ${PRACTICE_PASS_PERCENT}% opens Prove It.` : 'Submit Lab completes this Guided Lab and opens Prove It.'}`
@@ -244,8 +253,8 @@ function caseRecordPanel(spec) {
     ${result && !flagMissing ? practiceResultHtml(result) : ''}
     ${graded ? caseRecordGradedFeedbackHtml(spec.gradedFeedback || caseRecordGradedFeedback()) : ''}
     ${!submitted ? (spec.redoHtml || '') : ''}
-    ${!submitted && missing.length ? `<ul class="m01-requirements-list">${missing.map((item) => `<li><i class="ri-checkbox-blank-circle-line" aria-hidden="true"></i><span>${esc(item)}</span></li>`).join('')}</ul>` : ''}
-    ${!submitted ? `<p class="m01-help">${missing.length ? `Complete the items above, then press Submit Lab. Analyst work notes need at least ${spec.notesMin || CASE_RECORD_NOTES_MIN} characters.` : practice ? `Your ITSM ticket is ready. ${spec.practiceScored ? 'Submit Lab scores your practice now.' : 'Submit Lab completes this Guided Lab.'}` : 'Your ITSM ticket is ready. Use Submit Lab to send it for faculty review.'}</p>` : ''}
+    ${!submitted && missing.length && !hideMissing ? `<ul class="m01-requirements-list">${missing.map((item) => `<li><i class="ri-checkbox-blank-circle-line" aria-hidden="true"></i><span>${esc(item)}</span></li>`).join('')}</ul>` : ''}
+    ${!submitted && !hideMissing ? `<p class="m01-help">${missing.length ? `Complete the items above, then press Submit Lab. Analyst work notes need at least ${spec.notesMin || CASE_RECORD_NOTES_MIN} characters.` : practice ? `Your ITSM ticket is ready. ${spec.practiceScored ? 'Submit Lab scores your practice now.' : 'Submit Lab completes this Guided Lab.'}` : 'Your ITSM ticket is ready. Use Submit Lab to send it for faculty review.'}</p>` : ''}
   </div>`;
 }
 
@@ -267,6 +276,9 @@ function caseRecordPane(state, spec) {
 // lab_attempts payload as `result.case_display` so the instructor Grading
 // view (app.js adminCaseTicketSubmissionPanel) can show any module's ticket,
 // including its findings and department names, without knowing its option ids.
+// Affected user / device show the roster label the student picked (2026-10-17;
+// earlier attempts stored the raw option id here). The ids stay in
+// `result.case_record` for scoring.
 function caseRecordDisplay(state, spec = {}) {
   const label = (options, id) => (options || []).find((option) => option.id === id)?.text || id || 'Not provided';
   const dispositions = (spec.dispositionOptions || CASE_RECORD_DISPOSITION_OPTIONS).map((option) => ({ id: option.id, text: CASE_RECORD_DISPOSITION_LABELS[option.id] || option.text }));
@@ -275,8 +287,8 @@ function caseRecordDisplay(state, spec = {}) {
     ...(caseRecordIncidentIds(spec).length ? [['Linked incidents', caseRecordIncidentIds(spec).join(', ')]] : []),
     ['Status', label(CASE_RECORD_STATUS_OPTIONS, state.status)],
     ['Severity', label(CASE_RECORD_SEVERITY_OPTIONS, caseRecordSeverity(state))],
-    ['Affected user', state.affectedUser || 'Not provided'],
-    ['Affected device', state.affectedDevice || 'Not provided'],
+    ['Affected user', label(spec.userOptions, state.affectedUser)],
+    ['Affected device', label(spec.deviceOptions, state.affectedDevice)],
     ['Disposition', label(dispositions, caseRecordDisposition(state))],
     ['Escalation required', label(CASE_RECORD_ESCALATION_OPTIONS, state.escalation)],
     ['Route to department', state.escalation === 'required' ? label(spec.departmentOptions || CASE_RECORD_DEFAULT_DEPARTMENTS, state.escalateTo) : 'Not applicable'],
@@ -293,8 +305,8 @@ function caseRecordSummary(state, spec = {}) {
     ...(caseRecordIncidentIds(spec).length ? [`Linked incidents: ${caseRecordIncidentIds(spec).join(', ')}`] : []),
     `Status: ${label(CASE_RECORD_STATUS_OPTIONS, state.status)}`,
     `Severity: ${label(CASE_RECORD_SEVERITY_OPTIONS, caseRecordSeverity(state))}`,
-    `Affected User: ${state.affectedUser || '—'}`,
-    `Affected Device: ${state.affectedDevice || '—'}`,
+    `Affected User: ${label(spec.userOptions, state.affectedUser)}`,
+    `Affected Device: ${label(spec.deviceOptions, state.affectedDevice)}`,
     `Disposition: ${label(spec.dispositionOptions || CASE_RECORD_DISPOSITION_OPTIONS, caseRecordDisposition(state))}`,
     `Escalation: ${label(CASE_RECORD_ESCALATION_OPTIONS, state.escalation)}${state.escalation === 'required' ? ` → ${label(spec.departmentOptions || CASE_RECORD_DEFAULT_DEPARTMENTS, state.escalateTo)}` : ''}`,
     ...(spec.findings || []).map((field) => `${field.label}: ${label(field.options, (state.findings || {})[field.name])}`),

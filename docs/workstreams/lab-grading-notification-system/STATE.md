@@ -1,5 +1,7 @@
 # STATE — Lab Grading & Notification System (read this first, in this directory)
 
+> **Correction (2026-11-14):** There is now an instructor role (`is_course_instructor()`, `faculty_course_assignments`). The "real write" described below was made on a training account.
+
 **Last updated:** 2026-09-23.
 **Status: code written, NOT yet pushed.** A new migration
 (`20260923100000_module_progress_admin_override.sql`) plus `portal/app.js`

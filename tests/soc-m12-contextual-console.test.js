@@ -53,12 +53,25 @@ for(const tab of ['rules','automation','endpoint','hunting','attack','incident',
 }
 for(const id of ['TI-601','TI-603','TI-602','TI-604','TI-605'])assert.match(render('intelligence',null),new RegExp(`data-m12-select-intel="${id}"`));
 let state=api.fresh(fixture);
-const record=(kind,values,selection,tab)=>{state=ui.recordContextual(state,{tab,selected:selection},data,kind,values);};
+const record=(kind,values,selection,tab)=>{state=ui.recordContextual(state,{tab,selected:selection},data,kind,values);context.moduleTwelveState.assessmentState=state;};
 for(const id of ['AL-1201','AL-1202'])record('alert',{contextId:id,disposition:'true-positive',reason:'The alert is supported by the correlated process, identity and network evidence.'},{type:'alert',id},'alerts');
+state=api.normalize(state,fixture);context.moduleTwelveState.assessmentState=state;
+const savedAlertHtml=ui.contextualMarkup('alerts',{tab:'alerts',selected:{type:'alert',id:'AL-1201'}},data);
+assert.match(savedAlertHtml,/Saved determination: true-positive/,'saved alert disposition is visible after state reload');
+assert.match(savedAlertHtml,/supported by the correlated process, identity and network evidence/,'saved alert reasoning is visible after state reload');
 record('incident-link',{contextId:'AL-1201',incidentId:'INC-4821'},{type:'alert',id:'AL-1201'},'alerts');
 record('intel',{contextId:'TI-601',decision:'malicious',rationale:'The feed indicator matches the destination in NW-501 and unfamiliar client in ID-402.'},{type:'intel',id:'TI-601'},'intelligence');
+state=api.normalize(state,fixture);context.moduleTwelveState.assessmentState=state;
+const savedIntelHtml=ui.contextualMarkup('intelligence',{tab:'intelligence',selected:{type:'intel',id:'TI-601'}},data);
+assert.match(savedIntelHtml,/Saved verdict: malicious/,'saved threat-intelligence verdict is visible after state reload');
+assert.match(savedIntelHtml,/matches the destination in NW-501 and unfamiliar client in ID-402/,'saved threat-intelligence reasoning is visible after state reload');
 for(const [domain,id] of [['identity','ID-402'],['email','EM-212'],['endpoint','EP-301'],['network','NW-501'],['exposure','VX-701']])record('finding',{contextId:id,domain,finding:`${id} records the observed ${domain} behavior and establishes context for this investigation.`},{type:'record',id},'search');
 record('finding',{contextId:'EM-212',domain:'scope',finding:'EM-212 identifies acct-204 and ws-204 in the correlated email investigation scope.'},{type:'record',id:'EM-212'},'email');
+state=api.normalize(state,fixture);context.moduleTwelveState.assessmentState=state;
+const savedFindingHtml=ui.contextualMarkup('email',{tab:'email',selected:{type:'record',id:'EM-212'}},data);
+assert.match(savedFindingHtml,/Saved findings for EM-212/,'saved finding history is visible after state reload');
+assert.match(savedFindingHtml,/scope finding/,'saved finding retains its type after state reload');
+assert.match(savedFindingHtml,/identifies acct-204 and ws-204/,'saved finding text is visible after state reload');
 record('workflow',{name:'Scoped incident response',nodes:['preserve','approval','isolate'],edges:'preserve>approval\napproval>isolate'},null,'response');
 assert.deepEqual(JSON.parse(JSON.stringify(state.actionHistory.at(-1).details)).edges,[{from:'preserve',to:'approval'},{from:'approval',to:'isolate'}],'workflow-design keeps its recorded from/to shape');
 assert.throws(()=>ui.recordContextual(state,{tab:'response',selected:null},data,'workflow',{name:'Bad',nodes:['preserve','approval'],edges:'preserve approval'}),/from>to pair/);
