@@ -19,6 +19,13 @@ insert into public.students (student_id, user_id, track_code, is_enrolled, is_ad
   ('9900000003-SOCANINST', 'a0000000-0000-0000-0000-000000000003', 'SOCANINST', true, false, true);
 insert into public.faculty_course_assignments (user_id, track_code, active)
   values ('a0000000-0000-0000-0000-000000000003', 'SOCAN', true);
+-- Every authenticated write needs a registered site session bound to the
+-- JWT's session_id (20261005230000_session_bound_login.sql), exactly as
+-- secure-login creates one in the app.
+insert into public.site_sessions (user_id, track_code, auth_session_id) values
+  ('a0000000-0000-0000-0000-000000000001', 'SOCAN',     'e5000000-0000-0000-0000-000000000001'),
+  ('a0000000-0000-0000-0000-000000000002', 'ADMIN',     'e5000000-0000-0000-0000-000000000002'),
+  ('a0000000-0000-0000-0000-000000000003', 'SOCANINST', 'e5000000-0000-0000-0000-000000000003');
 
 -- Expect a statement to fail with insufficient_privilege (42501).
 create function pg_temp.expect_denied(p_sql text, p_label text) returns void language plpgsql as $$
@@ -45,7 +52,7 @@ grant execute on all functions in schema pg_temp to authenticated, anon;
 
 -- ================================================================ student
 set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated","session_id":"e5000000-0000-0000-0000-000000000001"}', true);
 
 -- The full-course forgery that worked before the fix.
 insert into public.lab_attempts (user_id, lab_key, track_code, state, score, result, pass_threshold, completed_at, reviewed_at, reviewed_by, redo_requested)
@@ -88,7 +95,7 @@ select pg_temp.expect_denied($$delete from public.portfolio_artifacts where user
   'student cannot delete a submitted artifact');
 
 -- ============================================================ instructor
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000003","role":"authenticated","session_id":"e5000000-0000-0000-0000-000000000003"}', true);
 
 select pg_temp.expect_denied($$update public.lab_attempts set score = 0 where track_code = 'SOCAN'$$,
   'instructor cannot rewrite a learner score');
@@ -119,9 +126,9 @@ set local role anon;
 select pg_temp.expect_denied($$select public.close_idle_site_sessions()$$, 'anon cannot run close_idle_site_sessions');
 select pg_temp.expect_denied($$select public.archive_expired_cohorts()$$, 'anon cannot run archive_expired_cohorts');
 set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated","session_id":"e5000000-0000-0000-0000-000000000001"}', true);
 select pg_temp.expect_error($$select public.close_idle_site_sessions()$$, 'student cannot run close_idle_site_sessions');
-select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002","role":"authenticated","session_id":"e5000000-0000-0000-0000-000000000002"}', true);
 select public.archive_expired_cohorts();
 select pg_temp.check(true, 'admin can still run the archive sweep');
 
