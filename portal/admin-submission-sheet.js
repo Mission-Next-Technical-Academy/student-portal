@@ -33,6 +33,7 @@
  *     freeText: (result, ctx) => ['notes', …],       // strings searched by ctx.mentions()
  *     rubric: { labels, max, criticalLabels } | (result, ctx) => rows,
  *     displayOptions: { 'Affected user': (result, ctx) => [{ id, text }] }, // optional: maps ids in older case_display rows to labels
+ *     serverRecommendation: true,                    // optional: a slot for the database's staff-only recommendation
  *     sections: [{
  *       id, title,
  *       instructorPrompt: 'Instructor-only guidance beside the section',
@@ -545,6 +546,18 @@ const AdminSubmissionSheet = (() => {
     </section>`;
   }
 
+  /* A place for the database's recommendation (staff only), for definitions
+   * that set `serverRecommendation: true`. The track's own script fills it
+   * after the page draws (portal/admin-sheets/soc-prove-recommendation.js);
+   * the student view (renderStudent) never has it. */
+  function serverRecommendationSlotHtml(sheet) {
+    if (!sheet.definition.serverRecommendation || !sheet.ctx.row.id) return '';
+    return `<section class="ass-rubric" data-sheet-server-rec="${esc(sheet.ctx.row.id)}" data-sheet-server-rec-decided="${sheet.ctx.row.reviewed_at ? '1' : '0'}" aria-label="Server recommendation">
+      <h4 class="text-sm font-semibold text-[#1e3a5f]">Server recommendation</h4>
+      <p class="mt-1 text-xs text-gray-600" data-sheet-server-rec-status="loading">Loading the server's recommendation…</p>
+    </section>`;
+  }
+
   // -------------------------------------------------------------- readable
 
   /* Nested objects/arrays as definition lists and bullet lists, every value
@@ -755,6 +768,7 @@ const AdminSubmissionSheet = (() => {
       ${LEGEND}
       <ol class="ass-sections">${sheet.sections.map((section, index) => sectionHtml(section, index, notesFor(section))).join('')}</ol>
       ${rubricHtml(sheet)}
+      ${serverRecommendationSlotHtml(sheet)}
       ${options.readOnly ? sentFeedbackHtml(options.sentFeedback, sent ? sent.overall : []) : (editable ? `<section class="ass-notes" data-sheet-notes aria-label="Decision"><h4 class="text-sm font-semibold text-[#1e3a5f]">Your decision</h4><p class="mt-0.5 mb-2 text-xs text-gray-500">The teacher note beside each section goes to the student with that section. Sections that need work are prefilled; edit or clear them before you decide. Add an overall note here if you want one.</p>${options.notesHtml}</section>` : '')}
       ${debugHtml(row)}
     </section>`;
