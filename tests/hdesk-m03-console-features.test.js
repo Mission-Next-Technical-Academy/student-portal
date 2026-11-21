@@ -210,6 +210,9 @@ function testTicketClocksAndFollowUp() {
   const ownNow = () => clocks.run("hdShiftNow(hdTicketById('HD-9322')).toISOString()");
   assert.equal(setNow(), new Date(at(WED, '13:00')).toISOString());
   assert.equal(ownNow(), new Date(at(THU, '09:00')).toISOString());
+  // The picker opens on each ticket's own shift time, not the computer's date.
+  assert.match(clocks.open('HD-9322'), /id="hd-follow-up-input" class="ipt" type="datetime-local" value="2026-08-20T09:00"/);
+  assert.match(clocks.open('HD-9321'), /id="hd-follow-up-input" class="ipt" type="datetime-local" value="2026-08-19T13:00"/);
   // A follow-up earlier than the ticket's own now is refused.
   clocks.input('hd-follow-up-input', `${THU}T08:00`); clocks.run("hdFollowUpSet('HD-9322')");
   assert.match(clocks.lastToast(), /later than now/);
@@ -305,6 +308,11 @@ function testConversationAndMoodMeter() {
   const saved = JSON.stringify(progress);
   assert.doesNotMatch(saved, /mood|Calm|Tense|Frustrated|Angry|TEST empathy line/);
   assert.equal(reloaded.run(`hdCallMood('HD-2150')`), '');
+  // Every move shows a reason, even where the ticket gave none (the greeting
+  // with mood 0 made no move; an interruption and wrong picks have lines).
+  assert.ok(reloaded.run(`hdTicketById('${id}').consoleState.mood.moves.every((m) => m.line.length > 0)`));
+  reloaded.run(`hdMoodMove(hdTicketById('${id}'), 1, '')`);
+  assert.equal(reloaded.run(`hdTicketById('${id}').consoleState.mood.moves.slice(-1)[0].line`), "That didn't help the caller.");
 }
 
 function testCallerDetailsHoldAndPlainWords() {

@@ -2702,10 +2702,13 @@ function hdMood(ticket) {
 function hdMoodMove(ticket, delta, line) {
   const mood = hdMood(ticket); if (!mood || !delta) return;
   mood.level = Math.max(0, Math.min(HD_MOODS.length - 1, mood.level + (delta > 0 ? 1 : -1)));
-  mood.moves.push({ delta:delta > 0 ? 1 : -1, line:String(line || '').slice(0, 300) });
+  // Every move shows a reason: the ticket's line, else a plain default.
+  const reason = String(line || '').trim() || (delta > 0 ? 'That didn\'t help the caller.' : 'That helped the caller.');
+  mood.moves.push({ delta:delta > 0 ? 1 : -1, line:reason.slice(0, 300) });
   if (mood.moves.length > 60) mood.moves.splice(0, mood.moves.length - 60);
 }
-// For a coach's step check: the meter's level name, or '' (never saved).
+// For a coach's hint: the meter's level name, or '' (never saved). Hints
+// only: a coach step must never need a mood level to complete.
 function hdCallMood(id) { const ticket = hdTicketById(id); const mood = ticket && hdMood(ticket); return mood ? HD_MOODS[mood.level] : ''; }
 
 // The live conversation.
@@ -3116,7 +3119,9 @@ function hdFollowUpControl(ticket) {
   const config = hdConsole(ticket).followUp; if (!config) return '';
   const state = hdConsoleState(ticket);
   const open = hdCommsOpen(ticket);
-  const value = hdDraft(ticket, 'followUp') || hdFollowUpValue(state.followUp);
+  // With nothing set, the picker opens on the ticket's shift time (never the
+  // computer's date), so only the time needs changing.
+  const value = hdDraft(ticket, 'followUp') || hdFollowUpValue(state.followUp || hdShiftIso(ticket));
   const set = open ? `<label>Follow-up (date and time on the shift clock)<input id="hd-follow-up-input" class="ipt" type="datetime-local" value="${hdEsc(value)}" oninput="hdKeepDraft('${ticket.id}','followUp',this.value)"></label><button type="button" class="btn btn-secondary" onclick="hdFollowUpSet('${ticket.id}')">Set follow-up</button>` : '';
   const shown = state.followUp ? `<p class="muted" style="margin:0">Follow-up: ${hdEsc(hdShiftTimeText(state.followUp))} · now ${hdEsc(hdShiftTimeText(hdShiftNow(ticket)))}</p>` : '';
   const jump = hdFollowUpCanJump(ticket) ? `<button type="button" class="btn btn-secondary" onclick="hdFollowUpGo('${ticket.id}')">Go to follow-up time</button>` : '';
