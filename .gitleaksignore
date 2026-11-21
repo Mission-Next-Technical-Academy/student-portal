@@ -14,3 +14,11 @@ bin/m360-synthetic-complete.js:generic-api-key:29
 # a code-sample object key `observed.404Count` in a fictional test-fixture
 # snippet, not a credential. Third-party doc content, not authored here.
 portal/imported-labs/mission-next-labs/BUILD_PLAN.md:generic-api-key:80
+
+# 2026-11-21: generic-api-key false positives. `ITS02_LAB21_KEY` is the
+# constant holding a Help Desk lab key name (a lab id, not a credential), and
+# 'hdesk-its-01-prove-v2' is a rubric version label in a test. Neither is a
+# secret.
+portal/it-support-module-02.js:generic-api-key:244
+portal/it-support-module-02.js:generic-api-key:245
+tests/hdesk-prove-auto-score-sheet.test.js:generic-api-key:221

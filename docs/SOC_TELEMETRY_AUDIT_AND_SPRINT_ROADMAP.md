@@ -56,8 +56,8 @@ Every change is data-first and local (not pushed). The full `tests/*.test.js` su
 
 **Open items:**
 1. **M01 identity (55 violations), which needs owner coordination.** The rows live in the shared `portal/data.js`. The work is display-only: lower-case the device names, drop `(unmanaged)` from Host, and fix the `—` empty hosts. The answer key has `LAP-442`.
-2. **CI `--strict`.** Enable it once M01 is clean; until then it would fail CI.
-3. **Lint vs contract.** The contract allows a null Host or Account on non-host or alert-queue rows. The lint flags null Host (H4) and empty AlertQueue Account (A4). M09 and M11 sidestepped this, either by omitting the key or by using real tokens. Reconcile the lint before `--strict`.
+2. **CI `--strict`: done 2026-10-09.** `bin/ci-check.sh` runs `node scripts/soc-entity-identity-lint.js --strict --no-write`. M01 is excluded through `STRICT_EXEMPT_MODULES` in the lint (its 55 violations are still in the report). Remove M01 from that set once its identity fix lands.
+3. **Lint vs contract: done 2026-10-09.** The contract has one rule for null fields. A `Host` may be null only on non-host rows (alert queue, shift log, email, identity), so the lint's `HOST_EXEMPT_EMPTY` now includes `AlertQueue` and `ShiftLog`. Elsewhere an empty Host is H4. `Account` stays required on every table except the network/unauthenticated set, per the contract's "When Account may be empty". Alert-queue rows must use a service principal, not blank, so A4 stays. No M02–M12 fixture had a null or empty Host or Account, so no data changed.
 4. **Event ceilings in older sprint tests.** The Sprint 4 test caps M09 at 100 (now 97), and the Sprint 5 test caps M11 non-queue events at 120 (now 117). Raise those bands before any further top-up.
 5. **Learner console queries are not migrated.** A query typed before this change (for example `Host == "WKSTN-19"`) now returns 0 rows, because `==` is case-sensitive. These queries are not scored.
 6. **Needs Alex:** M04: decide whether the below-threshold decoy groups belong in `truth.rule.excludeEventIds`.

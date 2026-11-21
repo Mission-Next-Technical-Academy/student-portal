@@ -20,6 +20,8 @@ const context = {
   markModuleLabComplete: (...args) => attempts.push({ progress: args }),
   missionNextAllLabsComplete: () => true,
   recordLabAttempt: (...args) => { attempts.push({ catalog: args }); return Promise.resolve(true); },
+  // Mirrors app.js recordProveItAttempt(): marks the lab under review, then saves.
+  recordProveItAttempt: (user, key, fields) => { user.latestLabAttemptByKey = { ...(user.latestLabAttemptByKey || {}), [key]: { completedAt: fields.submittedAt, reviewedAt: null, redoRequested: false } }; attempts.push({ catalog: [user, key, fields] }); return Promise.resolve(true); },
   createQuizAttempt: () => ({ selectedQuestions: [], answers: {} }),
   MODULE_FOUR_FLAG: 'm04-complete',
   MODULE_FOUR_CATALOG_LAB_KEY: 'lab-detection-rule',
@@ -34,6 +36,7 @@ const context = {
   requestAnimationFrame: (fn) => fn(),
   console,
 };
+context.caseRecordAttemptStatus = (a) => (a?.reviewedAt && !a.redoRequested ? 'graded' : 'review');
 vm.createContext(context);
 for (const filename of [
   'soc-assessment-scorer.js', 'soc-assessment-evolution.js', 'soc-console-core.js', 'soc-alert-queue-ui.js',

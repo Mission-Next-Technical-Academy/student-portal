@@ -301,7 +301,9 @@ async function testOrientationCheckRetake() {
   assert.ok(!Number.isNaN(Date.parse(saved.orientationCheckCompletedAt)));
   // LabRuntime adds its own standard fields to every saved state (labId,
   // attempts, score: null, ...); the page adds only these, and no answers.
-  const runtime = Object.keys(plain(LabRuntime.load('its01-probe', hdUser(), {})));
+  // LabRuntime.saveCaseState() also stamps savedAt on every save (PR #79, B9
+  // lost-edit recovery), so it is a runtime field too.
+  const runtime = [...Object.keys(plain(LabRuntime.load('its01-probe', hdUser(), {}))), 'savedAt'];
   assert.deepEqual(Object.keys(saved).filter((k) => !runtime.includes(k)).sort(), ['aplusCheckCompleted', 'aplusCheckCompletedAt', 'aupAcknowledged', 'aupAcknowledgedAt', 'aupReadVersion', 'aupVersion', 'consoleCompleted', 'consoleStarted', 'learnCheckCompleted', 'learnCheckCompletedAt', 'orientationCheckCompleted', 'orientationCheckCompletedAt']);
   assert.equal(saved.score, 0, 'the runtime default; the page never sets a score');
   assert.equal(calls('lab_attempts').length, 0, 'no lab attempt');
