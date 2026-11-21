@@ -193,6 +193,18 @@ function testSubmitWaitsAndPackage() {
   tab.ctx.hdProveQueueText(top, 'reason', '  ');
   assert.match(tab.run('hdProveMissing().join(" | ")'), new RegExp(`a reason on ${top}`));
   tab.ctx.hdProveQueueText(top, 'reason', 'Arbitrary reason again.');
+  // Off the top two, a reason is needed only on a P1 or P2: the student's own rating decides.
+  const fourth = tab.run('hdTicketById(hdState.prove.order[3])');
+  tab.ctx.hdProveQueueText(fourth.number, 'reason', '');
+  tab.ctx.hdProveQueueSet(fourth.number, 'impact', '1');
+  tab.ctx.hdProveQueueSet(fourth.number, 'urgency', '2');
+  assert.match(tab.run('hdProveMissing().join(" | ")'), new RegExp(`a reason on ${fourth.number}`), 'a P2 off the top two needs a reason');
+  tab.ctx.hdProveQueueSet(fourth.number, 'impact', '3');
+  tab.ctx.hdProveQueueSet(fourth.number, 'urgency', '3');
+  same(tab.run('hdProveMissing()').slice(), [], 'a P5 off the top two needs no reason');
+  tab.ctx.hdProveQueueSet(fourth.number, 'impact', fourth.impact);
+  tab.ctx.hdProveQueueSet(fourth.number, 'urgency', fourth.urgency);
+  tab.ctx.hdProveQueueText(fourth.number, 'reason', fourth.reason);
   // A password in a reason is refused and holds Submit back.
   tab.ctx.hdProveQueueText(top, 'reason', 'password: Hunter22');
   assert.equal(tab.run('hdState.prove.passwordWritten'), true);
@@ -285,10 +297,15 @@ function testPortalCleaner(work) {
   const overReason = JSON.parse(JSON.stringify(work));
   overReason.tickets[work.order[3]].reason = 'r'.repeat(1001);
   assert.equal(clean(overReason, 'its-10', LAB).reason, 'too-large');
+  // Off the top two, a P5 with no reason is accepted.
+  const lowNoReason = JSON.parse(JSON.stringify(work));
+  Object.assign(lowNoReason.tickets[work.order[3]], { impact: '3', urgency: '3', reason: '' });
+  assert.equal(clean(lowNoReason, 'its-10', LAB).reason, undefined, 'a P5 off the top two needs no reason');
   // Refused: a missing top-two reason, a wrong count, a bad order, a bad value,
   // a self link, a missing rewrite, a Module 1 package, another module.
   const broken = [
     (w) => { w.tickets[w.order[0]].reason = ' '; },
+    (w) => { Object.assign(w.tickets[w.order[3]], { impact: '1', urgency: '2', reason: ' ' }); },
     (w) => { delete w.tickets[w.order[5]]; w.order.pop(); },
     (w) => { w.order[1] = w.order[0]; },
     (w) => { w.tickets[w.order[2]].urgency = 2; },
