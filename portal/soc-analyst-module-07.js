@@ -432,7 +432,7 @@ function moduleSevenProveItRedoRequested() {
 function moduleSevenProveItReviewStatus() {
   if (!moduleSevenState?.caseRecord?.submitted) return '';
   const attempt = moduleSevenUser?.latestLabAttemptByKey?.[MODULE_SEVEN_PRIMARY_CATALOG_KEY];
-  return attempt?.reviewedAt && !attempt.redoRequested ? 'graded' : 'review';
+  return caseRecordAttemptStatus(attempt);
 }
 
 function moduleSevenProveItRedoFeedback() {
@@ -515,6 +515,16 @@ function moduleSevenProveItPerformance() {
   };
 }
 
+// A Prove It submit whose lab_attempts row never saved (recordProveItAttempt
+// rollback, or proveItLatchIsStale on load): unlock the ticket so the student
+// can send it again.
+function moduleSevenReopenUnsavedAssessment() {
+  moduleSevenState.caseRecord.submitted = false;
+  moduleSevenState.caseRecord.submittedAt = '';
+  moduleSevenState.completed = false;
+  moduleSevenSave();
+}
+
 function moduleSevenLoad(user) {
   if (moduleSevenUser?.email !== user?.email) moduleSevenQuizForceRetake = false;
   if (moduleSevenUser?.email !== user?.email) moduleSevenLearnItViewed = null;
@@ -557,6 +567,8 @@ function moduleSevenLoad(user) {
     moduleSevenState.caseRecord.submitted = false;
     moduleSevenState.caseRecord.submittedAt = '';
     moduleSevenSave();
+  } else if (moduleSevenState.caseRecord.submitted === true && (typeof proveItLatchIsStale === 'function' && proveItLatchIsStale(moduleSevenUser, MODULE_SEVEN_CATALOG_LAB_KEYS))) {
+    moduleSevenReopenUnsavedAssessment();
   }
 
   // Initialize quiz state
@@ -1405,7 +1417,7 @@ function moduleSevenFinalizeProveIt() {
   moduleSevenState.notes = moduleSevenState.caseRecord.notes;
   if (!moduleSevenState.flags.includes(MODULE_SEVEN_FLAG)) moduleSevenState.flags.push(MODULE_SEVEN_FLAG);
   moduleSevenSave();
-  if (typeof recordLabAttempt === 'function') {
+  if (typeof recordProveItAttempt === 'function') {
     const caseSpec = moduleSevenProveItSpec();
     const attemptFields = {
       state: 'complete',
@@ -1425,7 +1437,12 @@ function moduleSevenFinalizeProveIt() {
         assessment_work: moduleSevenAssessmentWork(huntState),
       },
     };
-    MODULE_SEVEN_CATALOG_LAB_KEYS.forEach((labKey) => recordLabAttempt(moduleSevenUser, labKey, attemptFields));
+    recordProveItAttempt(moduleSevenUser, MODULE_SEVEN_CATALOG_LAB_KEYS, attemptFields, () => {
+      moduleSevenReopenUnsavedAssessment();
+      const status = document.getElementById('m07-status');
+      if (status) status.textContent = 'In progress';
+      moduleSevenRenderAssessmentPanel();
+    });
   }
   moduleSevenMarkCatalogLabs(true);
   const status = document.getElementById('m07-status');
@@ -1460,6 +1477,7 @@ function wireModuleSevenAssessmentLab() {
     if (field.tagName === 'TEXTAREA' && field.name === 'notes' && field.closest('#m07-assessment-form') && !moduleSevenState.caseRecord.submitted) {
       moduleSevenState.caseRecord.notes = field.value;
       moduleSevenSave();
+      caseRecordRefreshPanel(moduleSevenCaseTicket());
     }
   });
 }

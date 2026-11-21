@@ -112,7 +112,10 @@
       const v = step.validation;
       const key = v.field || v.path;
       const expected = v.expected != null ? v.expected : v.value;
-      const got = getByPath(simState, `observed.${key}`);
+      // Shells log observations under flat dotted keys (e.g. 'ma4.keylogFile'),
+      // so read that key first; getByPath() would split it into nested segments.
+      const flat = simState && simState.observed ? simState.observed[key] : undefined;
+      const got = flat != null ? flat : getByPath(simState, `observed.${key}`);
       if (got == null) return { ok: false, reason: `No observation logged for ${key}.` };
       if (expected == null) return { ok: true };  // mere presence is enough
       if (Array.isArray(expected)) return expected.includes(got) ? { ok: true } : { ok: false, reason: `${got} not in expected set.` };

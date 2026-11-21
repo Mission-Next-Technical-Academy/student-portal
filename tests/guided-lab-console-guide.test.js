@@ -78,7 +78,7 @@ const m02ShellStart = m02Environment.indexOf('// -------------------------------
 assert.ok(m02AssessmentSubmitStart >= 0 && m02ShellStart > m02AssessmentSubmitStart, 'M02 Assessment Lab submit exists');
 const m02AssessmentSubmit = m02Environment.slice(m02AssessmentSubmitStart, m02ShellStart);
 assert.match(m02AssessmentSubmit, /caseScore\(cr\)/);
-assert.match(m02AssessmentSubmit, /recordLabAttempt\(user, LAB_KEY/);
+assert.match(m02AssessmentSubmit, /recordProveItAttempt\(user, LAB_KEY/);
 assert.match(m02AssessmentSubmit, /state\.practice\.caseRecord/);
 assert.match(m02Environment, /\$\{practicePanel\(\)\}/, 'M02 page continues to mount Assessment Lab');
 
