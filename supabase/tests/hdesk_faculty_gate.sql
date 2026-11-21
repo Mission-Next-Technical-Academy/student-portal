@@ -87,8 +87,8 @@ $$;
 grant execute on all functions in schema pg_temp to authenticated;
 
 -- ------------------------------------------------------------ scope
-select pg_temp.check((select array_agg(lab_key) from public.course_module_labs where requires_official_score) = array['lab-its-01-prove-it'],
-  'exactly one lab requires an official score');
+select pg_temp.check((select array_agg(lab_key order by lab_key) from public.course_module_labs where requires_official_score) = array['lab-its-01-prove-it', 'lab-its-10-prove-it'],
+  'only the Help Desk Prove Its (Module 1, and Module 2 since 20261120213000) require an official score');
 select pg_temp.check(public.lab_pass_mark() = 70, 'the pass mark is 70');
 
 -- ------------------------------------------------------------ a waiting attempt
@@ -242,6 +242,11 @@ alter table public.module_progress disable trigger module_progress_guard_complet
 insert into public.lab_attempts (user_id, track_code, lab_key, state, score, result, started_at, completed_at, reviewed_at, reviewed_by)
   select 'f0000000-0000-0000-0000-000000000003', r.track_code, r.lab_key, 'complete', 85, '{}'::jsonb, now(), now(), now(), 'f0000000-0000-0000-0000-000000000004'
   from public.course_module_labs r where r.track_code = 'HDESK' and r.gates_completion and r.module_key <> 'its-01';
+-- Module 2 gates on an official-grade Prove It since 20261120213000, so an
+-- approved attempt alone no longer completes it: set it up directly too.
+insert into public.module_progress (user_id, track_code, module_key, state, percent, started_at, completed_at)
+  values ('f0000000-0000-0000-0000-000000000003', 'HDESK', 'its-10', 'complete', 100, now(), now())
+  on conflict (user_id, module_key) do update set state = 'complete', percent = 100, completed_at = now();
 alter table public.module_progress enable trigger module_progress_guard_completion;
 select pg_temp.check((select count(*) = 11 from public.module_progress where user_id = 'f0000000-0000-0000-0000-000000000003' and state = 'complete'), 'eleven modules complete for the records check');
 select pg_temp.act_clear();
@@ -364,7 +369,8 @@ select pg_temp.check(not exists (
      select user_id, track_code, module_key, complete from old_view)),
   'every unflagged lab of every track computes exactly what it did before');
 select pg_temp.check((select bool_and(complete) from public.student_verified_module_progress v join matrix_students m using (user_id, track_code)
-    where m.k = 5 and not (v.track_code = 'HDESK' and v.module_key = 'its-01') and v.module_key <> 'soc-01'),
+    where m.k = 5 and not exists (select 1 from public.course_module_labs r where r.track_code = v.track_code and r.module_key = v.module_key and r.requires_official_score)
+      and v.module_key <> 'soc-01'),
   'on an unflagged lab, an approved attempt with an empty score still counts (no track flips)');
 
 -- Direct review writes stay open on an unflagged lab.

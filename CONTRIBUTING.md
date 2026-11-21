@@ -1,16 +1,19 @@
 # Working on the student portal
 
-Updated 2026-11-14. Agent rules: `CLAUDE.md`. Merge and staging steps: `.claude/rules/staging-deploy.md`.
+Updated 2026-11-21. Agent rules: `CLAUDE.md`. Merge and staging steps: `.claude/rules/staging-deploy.md`.
 
 | Area | Owner | Branch prefix |
 | --- | --- | --- |
-| SOC modules, imported labs, range tools | @cyberdude88 | `soc/` |
-| M360 | @randy608 | `m360/` |
+| SOC modules, imported labs, range tools | @cyberdude88 | `shared/` for Staging test branch |
+| M360 | @randy608 | `shared/` for Staging test branch |
 | Help Desk (`portal/it-support-*`, `ui/helpdesk*`) | @mcorreira | `hdesk/` |
 | Shared portal shell, data, module lab helpers, CI | All three maintainers | `shared/` |
 
 `.github/CODEOWNERS` requests review from these owners. It does not enforce
 approval; only GitHub branch protection can.
+
+The Staging test branch workflow accepts only `hdesk/` and `shared/` branches.
+Use `shared/` for SOC or M360 work when it needs a Staging test branch run.
 
 ## Start a task
 

@@ -16,6 +16,24 @@
  * rescore_lab_attempt): nothing here changes a grade.
  */
 const socProveRecommendations = new Map(); // attempt id -> row | null (none) | { status: 'not_enabled' | 'unavailable' }
+// Bumped by socProveResetRecommendations(): a read that lands after sign-out
+// is dropped instead of filling the emptied cache.
+let socProveCacheEpoch = 0;
+
+// Sign-out takes the staff-only recommendations out of the page, so the next
+// person on this browser tab can't read them from the console. Called by
+// signOut() in app.js and on Supabase Auth's SIGNED_OUT (below), which also
+// covers sign-out in another tab, an expired login and a dropped session.
+function socProveResetRecommendations() {
+  socProveCacheEpoch += 1;
+  socProveRecommendations.clear();
+}
+
+if (typeof mntSupabase !== 'undefined' && mntSupabase.auth && typeof mntSupabase.auth.onAuthStateChange === 'function') {
+  mntSupabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session)) socProveResetRecommendations();
+  });
+}
 
 function socProveEsc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
@@ -34,7 +52,9 @@ function socProveTableMissing(error) {
 async function socProveLoadRecommendations(ids, { force = false } = {}) {
   const wanted = [...new Set(ids)].filter((id) => id && (force || !socProveRecommendations.has(id)));
   if (!wanted.length || typeof mntSupabase === 'undefined') return [];
+  const epoch = socProveCacheEpoch;
   const { data, error } = await mntSupabase.from('lab_attempt_recommendations').select('*').in('lab_attempt_id', wanted);
+  if (epoch !== socProveCacheEpoch) return []; // signed out while the read was out
   if (socProveTableMissing(error)) {
     wanted.forEach((id) => socProveRecommendations.set(id, { status: 'not_enabled' }));
   } else if (error) {

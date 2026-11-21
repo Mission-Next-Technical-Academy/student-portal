@@ -204,6 +204,7 @@ function itswWatchSignOut() {
     itswDraftRestoring.clear();
     itswDraftLookedUp.clear();
     itswForgetAllDraftFiles();
+    if (typeof itsProveResetStaffCaches === 'function') itsProveResetStaffCaches();
   });
 }
 
@@ -1125,6 +1126,20 @@ const itsProveRecommendations = new Map();
 const itsProveReviews = new Map(); // attempt id -> lab_attempt_grade_reviews rows
 const itsProveCards = new Map(); // attempt id -> { item, olderAttempt } as last drawn
 const itsProvePanelRows = new Map(); // attempt id -> row its review panel was drawn from
+// Bumped by itsProveResetStaffCaches(): a read that lands after sign-out is
+// dropped instead of filling the emptied caches.
+let itsProveCacheEpoch = 0;
+
+// Sign-out takes staff-only recommendations and decision reviews out of the
+// page, so the next person on this browser tab can't read them from the
+// console. Called by signOut() in app.js and on Supabase Auth's SIGNED_OUT.
+function itsProveResetStaffCaches() {
+  itsProveCacheEpoch += 1;
+  itsProveRecommendations.clear();
+  itsProveReviews.clear();
+  itsProveCards.clear();
+  itsProvePanelRows.clear();
+}
 
 function itsProveDay(value) {
   return value ? new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
@@ -1197,10 +1212,12 @@ function itsProveScoringTablesMissing(error) {
 async function itsProveLoadRecommendations(ids) {
   const wanted = ids.filter((id) => !itsProveRecommendations.has(id));
   if (!wanted.length || typeof mntSupabase === 'undefined') return [];
+  const epoch = itsProveCacheEpoch;
   const [recs, reviews] = await Promise.all([
     mntSupabase.from('lab_attempt_recommendations').select('*').in('lab_attempt_id', wanted),
     mntSupabase.from('lab_attempt_grade_reviews').select('*').in('lab_attempt_id', wanted),
   ]);
+  if (epoch !== itsProveCacheEpoch) return []; // signed out while the read was out
   if (itsProveScoringTablesMissing(recs.error) || itsProveScoringTablesMissing(reviews.error)) {
     wanted.forEach((id) => { itsProveRecommendations.set(id, { status: 'not_enabled' }); itsProveReviews.set(id, []); });
     return wanted;

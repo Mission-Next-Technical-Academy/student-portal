@@ -6,7 +6,8 @@
  * violation counts per module and per rule, with example rows and a phase-2 fix plan.
  *
  *   node scripts/soc-entity-identity-lint.js            write docs/telemetry/ENTITY_IDENTITY_LINT.md, print summary, exit 0
- *   node scripts/soc-entity-identity-lint.js --strict   same, but exit 1 when any violation exists
+ *   node scripts/soc-entity-identity-lint.js --strict   same, but exit 1 when any violation exists in a
+ *                                                       module that is not in STRICT_EXEMPT_MODULES
  *   node scripts/soc-entity-identity-lint.js --no-write print only (no markdown file)
  *
  * Fixtures are loaded exactly like scripts/soc-telemetry-inventory.js (it is required, not
@@ -49,7 +50,14 @@ const ACCOUNT_OPTIONAL = new Set(['FirewallEvents', 'NetworkSessionEvents', 'Dns
 // Derived or lookup copies are not source rows; skip so rows are not double counted.
 const SKIP_TABLES = new Set(['UnifiedEvents', 'IpIntel']);
 // Tables that carry no Host concept: a missing Host key is fine and an empty Host is not checked.
-const HOST_EXEMPT_EMPTY = new Set(['EmailEvents', 'EmailUrlEvents', 'EmailAttachmentEvents', 'IdentityInfo']);
+// Contract (SOC_TELEMETRY_SCHEMA.md, "Non-host rows"): alert queue, shift log and email rows are not
+// about a host, so Host may be null. Identity rows are not host-bound either. Every other table
+// with a Host key must carry a real hostname token.
+const HOST_EXEMPT_EMPTY = new Set(['EmailEvents', 'EmailUrlEvents', 'EmailAttachmentEvents', 'IdentityInfo', 'AlertQueue', 'ShiftLog']);
+// Modules excluded from --strict only. Their violations are still written to the report.
+// M01: 55 violations in the shared portal/data.js (M01 log pane). Identity fix needs owner
+// coordination, so M01 is excluded until that is done. Remove 1 from this set once it is clean.
+const STRICT_EXEMPT_MODULES = new Set([1]);
 
 const isEmpty = (v) => v === undefined || v === null || v === '' || v === '—' || v === '-';
 const s = (v) => String(v);
@@ -256,7 +264,7 @@ function fixPlan(mods, ids) {
   L.push('1. Change the fixture value and every string that references it (truth ids, rubric, scorer, UI helper, test) in the same session; never half-migrate a module.');
   L.push('2. Keep the native value: where a native form is meaningful (`CORP\\user`, `M05-DEV-005`, `SYSTEM`), move it to an additive field (`AccountDomain`, `AssetId`, `RawEvent`) instead of deleting it.');
   L.push('3. Re-run `node scripts/soc-entity-identity-lint.js`, `node scripts/soc-telemetry-inventory.js` (entity counts must not collapse) and `for f in tests/*.test.js; do node "$f" >/dev/null 2>&1 || echo "FAIL $f"; done`.');
-  L.push('4. When all modules are clean, add `--strict` to CI.', '');
+  L.push(`4. \`--strict\` runs in \`bin/ci-check.sh\`. Modules in \`STRICT_EXEMPT_MODULES\` (currently M01) are excluded until they are clean; then remove them from the set.`, '');
   return L;
 }
 
@@ -273,8 +281,10 @@ function main() {
   }
   out.push(['all', '', ...RULE_IDS.map((r) => total[r] || 0), totalViol].join('\t'));
   if (WRITE) out.push(`Wrote ${path.relative(ROOT, OUT)}`);
+  const strictViol = ids.filter((m) => !STRICT_EXEMPT_MODULES.has(m)).reduce((n, m) => n + RULE_IDS.reduce((k, r) => k + (mods[m].counts[r] || 0), 0), 0);
+  if (STRICT) out.push(`--strict: ${strictViol} violation(s) outside exempt modules [${[...STRICT_EXEMPT_MODULES].map((m) => 'M' + String(m).padStart(2, '0')).join(', ')}]`);
   console.log(out.join('\n'));
-  if (STRICT && totalViol > 0) process.exit(1);
+  if (STRICT && strictViol > 0) process.exit(1);
 }
 
 if (require.main === module) main();

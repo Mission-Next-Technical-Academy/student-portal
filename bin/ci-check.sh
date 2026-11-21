@@ -63,6 +63,7 @@ node tests/hdesk-prove-auto-score-sheet.test.js
 
 echo '== SOC Prove It: server recommendation on the Submission Sheet =='
 node tests/soc-prove-server-recommendation.test.js
+node tests/signout-prove-caches.test.js
 
 echo '== Help Desk curriculum minutes =='
 node bin/its-curriculum-check.js
@@ -115,9 +116,13 @@ node tests/admin-submission-sheet.test.js
 echo '== Lab evidence files =='
 node tests/hdesk-evidence-upload.test.js
 node tests/lab-attempt-evidence-panel.test.js
+node tests/soc-m12-capstone-risks.test.js
 
 echo '== Simulator route render and navigation =='
 node bin/render_all.js
+
+echo '== SOC entity identity lint (strict, read-only) =='
+node scripts/soc-entity-identity-lint.js --strict --no-write
 
 echo '== Staging automation scripts and workflow boundaries (offline, throwaway git repos) =='
 node tests/staging-sync-scripts.test.js

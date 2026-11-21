@@ -532,6 +532,8 @@ function actionsRun(name, script, env, cwd = ROOT) {
   assert.doesNotMatch(text, /deploy _shared/);
   assert.match(text, /Rollback note/);
   assert.match(text, /functions_deployed/);
+  assert.match(text, /supabase db push --linked --project-ref xbblgtrfwgeiyttdlbue --dry-run/);
+  assert.doesNotMatch(text, /db push.*has no `--project-ref` option/);
   assert.equal(res.summary.trim(), text.trim(), 'the job summary carries the same checklist');
 
   // No migrations or functions: still a checklist, saying so.

@@ -26,7 +26,7 @@ Scope: every console table for M01-M12 (guided + assessment) except derived `Uni
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | M01 | 55 | 42 | 9 | 0 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 55 | 55 |
 | M02 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| M03 | 79 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| M03 | 80 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | M04 | 90 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | M05 | 120 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | M06 | 140 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -34,9 +34,9 @@ Scope: every console table for M01-M12 (guided + assessment) except derived `Uni
 | M08 | 192 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | M09 | 215 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | M10 | 218 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| M11 | 266 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| M11 | 274 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | M12 | 181 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **All** | 1725 | 42 | 9 | 0 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 55 | 55 |
+| **All** | 1734 | 42 | 9 | 0 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 55 | 55 |
 
 ## Examples (up to 3 per module and rule)
 
@@ -110,5 +110,5 @@ Offending values (hosts, device ids, accounts that break the contract) found in 
 1. Change the fixture value and every string that references it (truth ids, rubric, scorer, UI helper, test) in the same session; never half-migrate a module.
 2. Keep the native value: where a native form is meaningful (`CORP\user`, `M05-DEV-005`, `SYSTEM`), move it to an additive field (`AccountDomain`, `AssetId`, `RawEvent`) instead of deleting it.
 3. Re-run `node scripts/soc-entity-identity-lint.js`, `node scripts/soc-telemetry-inventory.js` (entity counts must not collapse) and `for f in tests/*.test.js; do node "$f" >/dev/null 2>&1 || echo "FAIL $f"; done`.
-4. When all modules are clean, add `--strict` to CI.
+4. `--strict` runs in `bin/ci-check.sh`. Modules in `STRICT_EXEMPT_MODULES` (currently M01) are excluded until they are clean; then remove them from the set.
 

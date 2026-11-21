@@ -9,6 +9,15 @@
 \set ON_ERROR_STOP on
 \o /dev/null
 begin;
+-- No migration grants the API roles table-level UPDATE on students. They get
+-- it from Supabase's default privileges on new public tables, the premise of
+-- 20261112120000 ("an administrator can update any column"). Some local
+-- Postgres images (e.g. 17.6.1.139, checked 2026-11-21) default to only
+-- TRUNCATE/REFERENCES/TRIGGER/MAINTAIN, so every direct update was refused by
+-- a missing grant instead. Grant those privileges here, inside the rolled-back
+-- transaction, so the guard trigger is what each refusal below exercises.
+grant update on public.students to authenticated;
+grant select, update on public.students to service_role;
 insert into auth.users (id, instance_id, aud, role, email) values
   ('d1000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000000','authenticated','authenticated','flag-admin@test.local'),
   ('d1000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000000','authenticated','authenticated','flag-test@test.local'),
