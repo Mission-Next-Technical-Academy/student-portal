@@ -74,7 +74,7 @@ const SETS = {
   coached: { 'test-call': { title: 'Test call', tickets: ['HD-9301'], now: at(WED, '10:10') } },
   practice: {
     'test-comms': { title: 'Test communication tickets', tickets: PRACTICE.map((t) => t.id), queue: true, complete: PRACTICE.map((t) => t.id),
-      done: { 'HD-9312': [{ group: DESK2 }, { requestOpen: true }, { commentTime: true }, { followUp: true }], 'HD-9313': [{ teamMessage: 'lead' }, { commentTime: true }, { followUp: true }] } },
+      done: { 'HD-9312': [{ group: DESK2 }, { requestOpen: true }, { commentTime: true }, { followUp: true }], 'HD-9313': [{ status: 'Escalated' }, { teamMessage: 'lead' },{ commentTime: true }, { followUp: true }] } },
     'test-clocks': { title: 'Test clocks', tickets: CLOCKS.map((t) => t.id), now: at(WED, '13:00'), nextDay: { unlock: [] } },
   },
 };
@@ -243,9 +243,16 @@ function testTicketClocksAndFollowUp() {
 function testConversationAndMoodMeter() {
   const tab = coached();
   const id = 'HD-9301';
+  tab.setNow(T0 - 30000);
+  // Nothing starts the call before the student opens the ticket.
+  assert.equal(tab.run('hdCommsTick()'), false);
+  assert.equal(tab.progress(id).call.stage, 0);
+  assert.equal(tab.rule(id, { call: true }), false);
+  assert.equal(tab.run(`hdTicketById('${id}').consoleState.call.startedAt`), undefined);
   tab.setNow(T0);
-  assert.equal(tab.run('hdCommsTick()'), false, 'the first look only notes what is shown');
   let html = tab.open(id);
+  assert.equal(tab.run(`hdTicketById('${id}').consoleState.call.startedAt`), T0);
+  assert.equal(tab.run('hdCommsTick()'), false, 'the first look only notes what is shown');
   assert.match(html, /<strong>Phone call<\/strong>/);
   assert.match(html, /data-hd-mood="Frustrated"/);
   assert.match(html, /TEST answer the call/);

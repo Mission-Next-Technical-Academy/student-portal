@@ -1109,7 +1109,7 @@ function hdDraft(ticket, kind) {
   return drafts && typeof drafts[kind] === 'string' ? drafts[kind] : '';
 }
 function hdKeepDraft(id, kind, value) {
-  const ticket = hdTicketById(id); if (!ticket || !['note', 'comment', 'resolution', 'rewriteShort', 'rewriteDesc', 'kbTitle', 'kbText', 'callback', 'explain', 'followUp'].includes(kind)) return;
+  const ticket = hdTicketById(id); if (!ticket || !['note', 'comment', 'resolution', 'rewriteShort', 'rewriteDesc', 'kbTitle', 'kbText', 'caller', 'callback', 'explain', 'followUp'].includes(kind)) return;
   const text = String(value || '').slice(0, HD_DRAFT_MAX);
   ticket.drafts = { ...(ticket.drafts || {}) };
   if (!text || hdPasswordInText(text)) delete ticket.drafts[kind]; else ticket.drafts[kind] = text;
@@ -2673,8 +2673,12 @@ function hdMatrixProgress(ticket) {
  *                                  a "Create new incident" move on a ticket
  *                                  that already exists: recorded as a
  *                                  critical error, shown as feedback
+ * A followUp ticket needs a clock (console.now or its set's now): on the
+ * fixed default clock an update can never reach the follow-up time.
  * A practice set may set done:{ id:[rule] }: that ticket counts as done for
- * the set's completion when every rule holds (hdPracticeClosed). Rules for
+ * the set's completion when every rule holds (hdPracticeClosed), in place of
+ * the state test, so each list should include a state rule (status or
+ * requestOpen). Rules for
  * this work (hdCommsRule): call, intakeCaller, callback, held, explained,
  * evidence, handoffNote, warmHandoff, followUp, followUpUpdated,
  * commentTime, teamMessage, requestOpen. */
@@ -2705,7 +2709,10 @@ function hdMoodMove(ticket, delta, line) {
 function hdCallMood(id) { const ticket = hdTicketById(id); const mood = ticket && hdMood(ticket); return mood ? HD_MOODS[mood.level] : ''; }
 
 // The live conversation.
-function hdCall(ticket, now = hdNowMs()) {
+// The call starts (its first stage's clock) when the student first sees it or
+// answers: start false only reads it, so the tick, a coach's check and the
+// work snapshot never start a call the student hasn't opened.
+function hdCall(ticket, now = hdNowMs(), start = true) {
   const config = hdConsole(ticket).conversation; if (!config || !Array.isArray(config.stages)) return null;
   const state = hdConsoleState(ticket);
   const call = state.call = state.call || {};
@@ -2713,16 +2720,16 @@ function hdCall(ticket, now = hdNowMs()) {
   call.log = Array.isArray(call.log) ? call.log : [];
   call.tries = Array.isArray(call.tries) ? call.tries : [];
   call.interruptions = call.interruptions || 0;
-  if (typeof call.startedAt !== 'number') call.startedAt = now;
+  if (typeof call.startedAt !== 'number' && start) call.startedAt = now;
   call.done = call.stage >= config.stages.length;
   return call;
 }
-function hdCallStage(ticket) { const call = hdCall(ticket); return call && !call.done ? hdConsole(ticket).conversation.stages[call.stage] : null; }
+function hdCallStage(ticket) { const call = hdCall(ticket, hdNowMs(), false); return call && !call.done ? hdConsole(ticket).conversation.stages[call.stage] : null; }
 // How many of the stage's messages have arrived, from its start time.
 function hdCallArrived(ticket, now = hdNowMs()) {
-  const call = hdCall(ticket, now); const stage = hdCallStage(ticket);
+  const call = hdCall(ticket, now, false); const stage = hdCallStage(ticket);
   const messages = stage && Array.isArray(stage.messages) ? stage.messages : [];
-  if (!messages.length) return 0;
+  if (!messages.length || typeof call.startedAt !== 'number') return 0;
   const gap = (Number(stage.gapSeconds) > 0 ? Number(stage.gapSeconds) : HD_CALL_GAP_SECONDS) * 1000;
   return Math.min(messages.length, Math.floor(Math.max(0, now - call.startedAt) / gap) + 1);
 }
@@ -2844,7 +2851,7 @@ function hdIntakeSave(id) {
   if (hdPasswordInText(callback)) { toast(hdRefusePasswordText(ticket, 'callback number')); return; }
   if (config.caller) intake.caller = caller;
   if (config.callback) intake.callback = callback;
-  hdClearDraft(ticket, 'callback');
+  hdClearDraft(ticket, 'callback'); hdClearDraft(ticket, 'caller');
   hdHistory(ticket, [config.caller ? `Caller set to ${caller}` : '', config.callback ? `callback number ${callback}` : ''].filter(Boolean).join('; ') + '.');
   hdPracticeEvent('intake_saved', { ticket:ticket.id });
   hdRerender();
@@ -2988,7 +2995,7 @@ function hdDuplicateMove(id) {
 // for a rule that isn't one of these.
 function hdCommsRule(ticket, rule) {
   const state = hdConsoleState(ticket);
-  if (rule.call) { const call = hdCall(ticket); return !!(call && call.done); }
+  if (rule.call) { const call = hdCall(ticket, hdNowMs(), false); return !!(call && call.done); }
   if (rule.intakeCaller) { const intake = hdIntake(ticket); return !!(intake && intake.caller === rule.intakeCaller); }
   if (rule.callback) { const intake = hdIntake(ticket); return !!(intake && intake.callback); }
   if (rule.held) { const hold = hdHold(ticket); return !!(hold && hold.holds.some(entry => entry.asked && !entry.over)); }
@@ -3007,7 +3014,7 @@ function hdCommsRule(ticket, rule) {
 // ticket that turns a feature on). Never the mood meter.
 function hdCommsProgress(ticket) {
   const config = hdConsole(ticket); const state = hdConsoleState(ticket); const out = {};
-  if (config.conversation) { const call = hdCall(ticket); if (call) out.call = { stage:call.stage, done:call.done, interruptions:call.interruptions, wrong:call.tries.filter(entry => !entry.pass).map(entry => entry.choice) }; }
+  if (config.conversation) { const call = hdCall(ticket, hdNowMs(), false); if (call) out.call = { stage:call.stage, done:call.done, interruptions:call.interruptions, wrong:call.tries.filter(entry => !entry.pass).map(entry => entry.choice) }; }
   if (config.intake) out.intake = { ...hdIntake(ticket) };
   if (config.hold) { const hold = hdHold(ticket); out.hold = { asked:hold.asked, onHold:!!hold.startedAt, unasked:hold.unasked === true, holds:hold.holds.map(entry => ({ ...entry })) }; }
   if (config.explain) out.explain = state.explain ? { passed:state.explain.passed, tries:state.explain.tries.length, flagged:(state.explain.flagged || []).slice(), text:state.explain.text } : { passed:false, tries:0, flagged:[], text:'' };
@@ -3047,7 +3054,8 @@ function hdIntakeCard(ticket) {
   const config = hdConsole(ticket).intake; if (!config) return '';
   const intake = hdIntake(ticket);
   const callback = hdDraft(ticket, 'callback') || intake.callback;
-  const caller = config.caller ? `<label>Caller<select id="hd-intake-caller" class="select" data-hd-field="caller"><option value="">Choose…</option>${HD_USERS.map(user => `<option ${intake.caller === user.name ? 'selected' : ''}>${hdEsc(user.name)}</option>`).join('')}</select></label>` : '';
+  const chosen = hdDraft(ticket, 'caller') || intake.caller;
+  const caller = config.caller ? `<label>Caller<select id="hd-intake-caller" class="select" data-hd-field="caller" onchange="hdKeepDraft('${ticket.id}','caller',this.value)"><option value="">Choose…</option>${HD_USERS.map(user => `<option ${chosen === user.name ? 'selected' : ''}>${hdEsc(user.name)}</option>`).join('')}</select></label>` : '';
   const number = config.callback ? `<label>Callback number<input id="hd-intake-callback" class="ipt" maxlength="${HD_CALLBACK_MAX}" value="${hdEsc(callback)}" oninput="hdKeepDraft('${ticket.id}','callback',this.value)" placeholder="e.g. ext. 1234"></label>` : '';
   return `<div class="card hd-intake" data-hd-intake><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Caller details</strong><span class="muted">Get these first, in case the call drops.</span></div><div class="card-body" style="display:grid;gap:8px">${caller}${number}<div><button type="button" class="btn btn-secondary" onclick="hdIntakeSave('${ticket.id}')">Save caller details</button></div></div></div>`;
 }
@@ -3129,8 +3137,10 @@ function hdCommsTick(now = hdNowMs()) {
   hdState.tickets.forEach(ticket => {
     const config = hdConsole(ticket);
     if (config.hold && hdHoldCheckOver(ticket, now)) changed = true;
-    if (!config.conversation) return;
-    const call = hdCall(ticket, now);
+    // Only the open ticket's call, once it has started, asks for a redraw.
+    if (!config.conversation || ticket.id !== hdState.selectedTicketId) return;
+    const call = hdCall(ticket, now, false);
+    if (typeof call.startedAt !== 'number') return;
     const key = `${call.stage}:${hdCallArrived(ticket, now)}`;
     if (hdCommsSeen[ticket.id] !== undefined && hdCommsSeen[ticket.id] !== key) changed = true;
     hdCommsSeen[ticket.id] = key;
@@ -4561,8 +4571,10 @@ if (!HD_PROVE && typeof setInterval === 'function') {
     hdHoldTimerRefresh();
     if (!hdCommsTick()) return;
     hdSave();
+    // Any focused field waits, empty or not (a date and time picker reads
+    // empty until both parts are set); the next action redraws.
     const active = typeof document !== 'undefined' ? document.activeElement : null;
-    if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName || '') && active.value) return;
+    if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName || '')) return;
     const content = typeof document !== 'undefined' && document.getElementById ? document.getElementById('content') : null;
     const top = content ? content.scrollTop : 0;
     render();
