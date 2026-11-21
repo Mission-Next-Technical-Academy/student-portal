@@ -253,49 +253,39 @@ const PROGRAMS = [
         'Customer communication', 'Documentation', 'Knowledge base authoring', 'After-action review',
       ],
       rubricSummary: 'Seven scored domains (Triage & Prioritization 15, Technical Accuracy 20, Communication 15, Escalation Judgment 15, Security Judgment 10, KB Article Quality 15, After-Action Review 10) totaling 100 points. Pass requires 70 points.',
-      priorTrace: 'Draws on competencies from all 11 prior modules: service desk fundamentals and the troubleshooting mindset (M01), lab environment and hardware/peripheral triage (M02), Windows OS support (M03), networking fundamentals (M04), Windows Server & Active Directory (M05), identity and access management (M06), software and endpoint management (M07), troubleshooting methodology (M08), security fundamentals (M09), ticketing and SLAs (M10), and customer service and documentation (M11).',
+      priorTrace: 'Draws on competencies from all 11 prior modules: service desk fundamentals and the troubleshooting mindset (M01), ticketing and SLAs (M02), customer service and documentation (M03), lab environment and hardware/peripheral triage (M04), Windows OS support (M05), software and endpoint management (M06), Windows Server & Active Directory (M07), identity and access management (M08), networking fundamentals (M09), troubleshooting methodology (M10), and security fundamentals (M11).',
     },
     // Aligned to CompTIA A+ domains and ITIL 4 service management practice.
-    weekGroups: weekGroups([
-      'IT Support Foundations',
-      'Lab Environment, Hardware & Windows Support',
-      'Networking & Server Administration',
-      'Identity & Endpoint Management',
-      'Troubleshooting & Security',
-      'Service Management & Capstone',
-    ], 'its'),
+    // Written out, not built by weekGroups(): Help Desk modules run in the
+    // rebuilt course order (ITHD-101.1 to 101.9), so each module's display
+    // number and week differ from its key. Keys never change; the explicit
+    // module entries below hold each module's number and week.
+    weekGroups: [
+      { number: 1, label: 'Week 1 — IT Support Foundations & Ticketing', modules: ['its-01', 'its-10'] },
+      { number: 2, label: 'Week 2 — Communication, Virtualization & Hardware', modules: ['its-11', 'its-02'] },
+      { number: 3, label: 'Week 3 — Windows Client & Software', modules: ['its-03', 'its-07'] },
+      { number: 4, label: 'Week 4 — Server, Active Directory & Identity', modules: ['its-05', 'its-06'] },
+      { number: 5, label: 'Week 5 — Networking & Remote Support', modules: ['its-04', 'its-08'] },
+      { number: 6, label: 'Week 6 — Security & Capstone', modules: ['its-09', 'its-12'] },
+    ],
     modules: {
-      ...skeleton('its', [
-        [1, 1, 'IT Support Fundamentals & Service Desk Operations'],
-        [2, 1, 'Building Your Lab Environment & Supporting Hardware, Devices & Peripherals'],
-        [3, 2, 'Windows Operating System Support'],
-        [4, 2, 'Networking Fundamentals for Support'],
-        [5, 3, 'Windows Server & Active Directory Administration'],
-        [6, 3, 'Identity, Accounts & Access Management'],
-        [7, 4, 'Software, Applications & Endpoint Management'],
-        [8, 4, 'Troubleshooting Methodology & Diagnostics'],
-        [9, 5, 'Security Fundamentals for IT Support'],
-        [10, 5, 'Ticketing, Service Management & SLAs'],
-        [11, 6, 'Customer Service, Documentation & Escalation'],
-        [12, 6, 'IT Support Capstone'],
-      ]),
       'its-01': { number: 1, week: 1, title: 'IT Support Fundamentals & Service Desk Operations', hours: '3 Hours', durationMinutes: 180, creditMinutes: 180, lessons: 2, labs: 2,
         status: 'authored',
-        summary: 'Get set up in the LMS and your lab environment, then build the five-step troubleshooting mindset used in every module that follows.',
+        summary: 'Start with orientation, then learn what a Tier 1 technician does, the troubleshooting method, how to verify callers and search the knowledge base, and how to write clear ticket notes. Practice in two labs, then work a new ticket on your own.',
         curriculumItems: [
           itsItem({ key: 'its-01-lesson-01', title: 'Program Orientation, LMS Navigation & Professional Conduct', durationMinutes: 60, parentAllocations: [allocation('ITHD-101.1', 60)],
-            objective: 'Navigate the LMS and lab environment, submit evidence correctly, and describe the professional-conduct and credential-handling expectations for this program.',
-            learn: 'Locate LMS navigation, grading, and instructor contact; read the Acceptable Use Policy in full; understand the two-login credential model.',
-            practice: 'Complete the LMS scavenger hunt: locate Module 2, the Acceptable Use Policy, instructor contact, the gradebook, and the evidence-upload location.',
-            prove: 'Confirm both the LMS and lab-environment logins work, submit a test file through the evidence-upload workflow, and formally acknowledge the Acceptable Use Policy.' }),
+            objective: 'Get oriented: how the program runs, finding your way around the LMS, technology setup, the Acceptable Use Policy and how to get help.',
+            learn: 'How the program runs; LMS navigation; technology setup; the Acceptable Use Policy; getting help and the chain of command; policies you need to know; the course calendar.',
+            practice: 'Find it in the LMS (not graded), then take the orientation check.',
+            prove: 'Acknowledge the Acceptable Use Policy and complete the orientation check.' }),
           itsItem({ key: 'its-01-lesson-02', title: 'The Help Desk Role: Workflow & the Troubleshooting Mindset', durationMinutes: 60, parentAllocations: [allocation('ITHD-101.1', 60)],
-            objective: 'Apply the five-step troubleshooting mindset to categorize a ticket and make a supported resolve-or-escalate decision.',
-            learn: 'Distinguish Tier 1, 2, and 3 support; follow a ticket\'s journey from queue to close; learn the five-step mindset (gather, reproduce, isolate, resolve or escalate, verify and document).',
-            practice: 'Categorize three sample tickets, write a first question for each, and decide resolve or escalate.',
-            prove: 'Work a five-ticket simulated queue: categorize, state a first diagnostic step, and make a resolve-or-escalate call with reasoning for each.' }),
+            objective: 'Three readings: what a Tier 1 technician does, the troubleshooting method, and verifying callers with KB-0024 and searching the knowledge base.',
+            learn: 'The Tier 1 role and the support tiers; the troubleshooting method; verifying a caller with KB-0024 and searching the knowledge base; writing Reported / Tried / Result notes.',
+            practice: 'The Learn It and A+ checks, then Lab 1.1 · Guided Lab and Lab 1.2 · Practice tickets.',
+            prove: 'Work a new ticket on your own in the Prove It, reviewed by your instructor.' }),
         ],
         skills: ['Service Desk Operations', 'Ticket Triage', 'Troubleshooting Mindset', 'Professional Conduct'] },
-      'its-02': { number: 2, week: 1, title: 'Building Your Lab Environment & Supporting Hardware, Devices & Peripherals', hours: '11 Hours', durationMinutes: 660, creditMinutes: 660, lessons: 4, labs: 4,
+      'its-02': { number: 4, week: 2, title: 'Building Your Lab Environment & Supporting Hardware, Devices & Peripherals', hours: '11 Hours', durationMinutes: 660, creditMinutes: 660, lessons: 4, labs: 4,
         status: 'authored',
         summary: 'Build your own virtual lab environment from scratch, then put it to work on two of the most common ticket types in the industry: device/driver problems and printer issues.',
         curriculumItems: [
@@ -321,7 +311,7 @@ const PROGRAMS = [
             prove: 'Clear a stuck job, restart the spooler, fix the offline flag, and verify with a successful test print — in the correct order.' }),
         ],
         skills: ['Virtualization', 'VirtualBox', 'VM Snapshots', 'Device Manager', 'Driver Troubleshooting', 'Print Spooler'] },
-      'its-03': { number: 3, week: 2, title: 'Windows Operating System Support', hours: '3 Hours', durationMinutes: 180, creditMinutes: 180, lessons: 2, labs: 1,
+      'its-03': { number: 5, week: 3, title: 'Windows Operating System Support', hours: '3 Hours', durationMinutes: 180, creditMinutes: 180, lessons: 2, labs: 1,
         status: 'authored',
         summary: 'Go deeper into Windows itself — efficient navigation, account and profile management, and diagnosing problems with the operating system\'s own built-in tools.',
         curriculumItems: [
@@ -331,7 +321,7 @@ const PROGRAMS = [
             objective: 'Use core command-line tools and the right boot-troubleshooting order to isolate an application-specific problem from a system-wide one.' }),
         ],
         skills: ['Windows Support', 'Task Manager', 'Event Viewer', 'Command-Line Tools'] },
-      'its-04': { number: 4, week: 2, title: 'Networking Fundamentals for Support', hours: '8 Hours', durationMinutes: 480, creditMinutes: 480, lessons: 4, labs: 1,
+      'its-04': { number: 9, week: 5, title: 'Networking Fundamentals for Support', hours: '8 Hours', durationMinutes: 480, creditMinutes: 480, lessons: 4, labs: 1,
         status: 'authored',
         summary: 'Figure out why something won\'t connect, and explain it in plain language.',
         curriculumItems: [
@@ -345,7 +335,7 @@ const PROGRAMS = [
             objective: 'Identify the common causes of a failed domain join and translate a technical network diagnosis into a plain-language explanation.' }),
         ],
         skills: ['Networking Fundamentals', 'IP Addressing', 'DNS', 'DHCP', 'Domain Join'] },
-      'its-05': { number: 5, week: 3, title: 'Windows Server & Active Directory Administration', hours: '12 Hours', durationMinutes: 720, creditMinutes: 720, lessons: 4, labs: 1,
+      'its-05': { number: 7, week: 4, title: 'Windows Server & Active Directory Administration', hours: '12 Hours', durationMinutes: 720, creditMinutes: 720, lessons: 4, labs: 1,
         status: 'authored',
         summary: 'Configure the Windows Server VM you built earlier, and start managing the directory structure that controls who has access to what across an organization.',
         curriculumItems: [
@@ -359,7 +349,7 @@ const PROGRAMS = [
             objective: 'Explain how domains, OUs, users, groups, and computer objects relate to each other and create a new OU and user account.' }),
         ],
         skills: ['Windows Server', 'Server Manager', 'Active Directory', 'Organizational Units'] },
-      'its-06': { number: 6, week: 3, title: 'Identity, Accounts & Access Management', hours: '6 Hours', durationMinutes: 360, creditMinutes: 360, lessons: 3, labs: 1,
+      'its-06': { number: 8, week: 4, title: 'Identity, Accounts & Access Management', hours: '6 Hours', durationMinutes: 360, creditMinutes: 360, lessons: 3, labs: 1,
         status: 'authored',
         summary: 'Put Active Directory structure to work solving the identity tickets you\'ll see more than almost any other type, from password resets to modern cloud-identity scenarios.',
         curriculumItems: [
@@ -371,7 +361,7 @@ const PROGRAMS = [
             objective: 'Describe how Entra ID relates to on-premises Active Directory and work an MFA reset or shared-mailbox access request at the L1 level.' }),
         ],
         skills: ['Identity Management', 'Account Troubleshooting', 'Group Membership', 'Entra ID'] },
-      'its-07': { number: 7, week: 4, title: 'Software, Applications & Endpoint Management', hours: '2 Hours', durationMinutes: 120, creditMinutes: 120, lessons: 2, labs: 1,
+      'its-07': { number: 6, week: 3, title: 'Software, Applications & Endpoint Management', hours: '2 Hours', durationMinutes: 120, creditMinutes: 120, lessons: 2, labs: 1,
         status: 'authored',
         summary: 'Round out the picture with the software layer: installing it, updating it, and diagnosing it when it misbehaves.',
         curriculumItems: [
@@ -381,7 +371,7 @@ const PROGRAMS = [
             objective: 'Work a vague "computer is slow" ticket through a systematic diagnostic sequence and describe endpoint security hygiene at the L1 level.' }),
         ],
         skills: ['Software Management', 'Application Troubleshooting', 'Endpoint Hygiene'] },
-      'its-08': { number: 8, week: 4, title: 'Troubleshooting Methodology & Diagnostics', hours: '2 Hours', durationMinutes: 120, creditMinutes: 120, lessons: 2, labs: 1,
+      'its-08': { number: 10, week: 5, title: 'Troubleshooting Methodology & Diagnostics', hours: '2 Hours', durationMinutes: 120, creditMinutes: 120, lessons: 2, labs: 1,
         status: 'authored',
         summary: 'Connect to a user\'s machine responsibly, and apply a consistent method to any problem you haven\'t seen before.',
         curriculumItems: [
@@ -391,7 +381,7 @@ const PROGRAMS = [
             objective: 'Apply the five-step troubleshooting mindset to an unfamiliar problem and recognize the point where escalation is the right call.' }),
         ],
         skills: ['Remote Support', 'Troubleshooting Methodology', 'Escalation Judgment'] },
-      'its-09': { number: 9, week: 5, title: 'Security Fundamentals for IT Support', hours: '2 Hours', durationMinutes: 120, creditMinutes: 120, lessons: 2, labs: 1,
+      'its-09': { number: 11, week: 6, title: 'Security Fundamentals for IT Support', hours: '2 Hours', durationMinutes: 120, creditMinutes: 120, lessons: 2, labs: 1,
         status: 'authored',
         summary: 'Build the judgment to recognize when something isn\'t right — and know exactly what to do about it.',
         curriculumItems: [
@@ -401,17 +391,19 @@ const PROGRAMS = [
             objective: 'Apply credential-handling discipline and explain least privilege and MFA in plain language to a user.' }),
         ],
         skills: ['Security Awareness', 'Phishing Recognition', 'Credential Handling', 'MFA'] },
-      'its-10': { number: 10, week: 5, title: 'Ticketing, Service Management & SLAs', hours: '3.5 Hours', durationMinutes: 210, creditMinutes: 210, lessons: 2, labs: 1,
+      // Lesson 2.2 holds Readings 2 and 3 and the knowledge check on the page;
+      // both share this lesson's filed minutes (it-support-module-10.js).
+      'its-10': { number: 2, week: 1, title: 'Ticketing, Service Management & SLAs', hours: '3.5 Hours', durationMinutes: 210, creditMinutes: 210, lessons: 2, labs: 3,
         status: 'authored',
-        summary: 'Learn the structure underneath every ticket — the fields, the priorities, the service-level expectations — so you can move through a queue with confidence instead of guesswork.',
+        summary: 'Log, categorize and prioritize tickets with Impact × Urgency, keep them inside their SLA, tell an incident from a request, and write work notes and customer comments to the Northstar standard.',
         curriculumItems: [
           itsItem({ key: 'its-10-lesson-01', title: 'Anatomy of a Ticket: Fields, Categories & Status', durationMinutes: 60, parentAllocations: [allocation('ITHD-101.2', 60)],
-            objective: 'Identify the fields a complete ticket needs and explain what each status value implies for next action and ownership.' }),
+            objective: 'Fill in a ticket’s fields, tell an incident from a request, and move a ticket through its states, saying whose move each state is.' }),
           itsItem({ key: 'its-10-lesson-02', title: 'Impact, Urgency, Priority & SLAs', durationMinutes: 75, parentAllocations: [allocation('ITHD-101.2', 75)],
-            objective: 'Combine impact and urgency into a priority call and sequence a mixed queue against SLA deadlines.' }),
+            objective: 'Set a ticket’s priority from Impact × Urgency, order a queue by priority and SLA time left, and write a work note and a customer comment for the same ticket.' }),
         ],
         skills: ['Ticket Management', 'SLAs', 'Queue Prioritization'] },
-      'its-11': { number: 11, week: 6, title: 'Customer Service, Documentation & Escalation', hours: '3.5 Hours', durationMinutes: 210, creditMinutes: 210, lessons: 2, labs: 1,
+      'its-11': { number: 3, week: 2, title: 'Customer Service, Documentation & Escalation', hours: '3.5 Hours', durationMinutes: 210, creditMinutes: 210, lessons: 2, labs: 1,
         status: 'authored',
         summary: 'The technical fix is only half the job — write it down well, communicate it clearly, and hand it off cleanly when it\'s not yours to finish.',
         curriculumItems: [
@@ -1187,6 +1179,12 @@ PROGRAMS.forEach((p) => {
   Object.entries(p.modules).forEach(([key, m]) => {
     p.modules[key] = mod({ key, status: p.isPublished ? 'published' : 'draft', ...m });
   });
+  // Keep the module map in display-number order, so every list built from
+  // it (grades, exports, progress) runs in course order. Help Desk is the
+  // only program whose numbers differ from key order (its-10 is Module 2);
+  // the sort is stable, so the others keep their order exactly.
+  p.modules = Object.fromEntries(Object.entries(p.modules)
+    .sort(([, a], [, b]) => (a.number || 0) - (b.number || 0)));
 });
 
 const MODULE_ONE_ALERT_ORIENTATION = {
@@ -2245,73 +2243,103 @@ const LABS = [
   /* IT Help Desk lab catalogue. Only Modules 1, 2, and 12 have a built,
    * scored lab — see the compliance.sourceNotes on the it-support program
    * entry above for why Modules 3–11 don't have LABS rows yet. */
-  itsLab({ key: 'lab-its-01-lms-validation', module: 'its-01', title: 'LMS & Environment Validation', difficulty: 'Foundational', minutes: 15, phase: 'practice',
-    parentAllocations: [allocation('ITHD-101.1', 15)], objective: 'Confirm LMS and lab-environment access, submit a test file through the evidence workflow, and acknowledge the Acceptable Use Policy.',
+  // Retired 2026-11-10: the Module 1 page no longer offers it. The record
+  // stays so past attempts keep their title and module (Lab Attempts, the
+  // instructor sheet, notices). Retired labs leave the program's lab lists
+  // (programLabs, portal/app.js) and carry no minutes; its 15 minutes moved
+  // to the practice tickets below.
+  itsLab({ key: 'lab-its-01-lms-validation', module: 'its-01', title: 'LMS & Environment Validation', difficulty: 'Foundational', minutes: 0, phase: 'practice', retired: true,
+    parentAllocations: [], objective: 'Confirm LMS and lab-environment access, submit a test file through the evidence workflow, and acknowledge the Acceptable Use Policy.',
     description: 'Log into both the LMS and the separate lab-sandbox environment, upload a test file as evidence, and formally acknowledge the Acceptable Use Policy.',
     skills: ['LMS Navigation', 'Credential Discipline', 'Policy Acknowledgment'], portalEntry: '#/program/it-support/module/1' }),
-  itsLab({ key: 'lab-its-01-ticket-triage', module: 'its-01', title: 'A Day in the Life of an L1 Technician', difficulty: 'Foundational', minutes: 25, phase: 'practice',
-    parentAllocations: [allocation('ITHD-101.1', 25)], objective: 'Resolve a real account-lockout ticket end to end: read the evidence, work the troubleshooting path, diagnose against the log, document it, and resolve it.',
-    description: 'A coach-guided walkthrough of ticket HD-2101 (an account lockout) in the IT Service Desk simulator, applying the five-step troubleshooting mindset to a real ticket rather than a written scenario.',
+  itsLab({ key: 'lab-its-01-ticket-triage', module: 'its-01', title: 'Lab 1.1 · Guided Lab: A Day in the Life of an L1 Technician', difficulty: 'Foundational', minutes: 25, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.1', 25)], objective: 'Work a first account-lockout ticket end to end: verify the caller with KB-0024, unlock the account, confirm the user can sign in, tell them what to do if it happens again, and document it.',
+    description: 'A coach-guided first ticket in the IT Service Desk simulator: Sam Rivera is locked out. Verify the caller with KB-0024, unlock the account, confirm with Sam that it works, then write the work note and the customer comment.',
     skills: ['Ticket Triage', 'Troubleshooting Mindset', 'Resolve/Escalate Judgment'], portalEntry: '#/program/it-support/module/1' }),
+  // Module 1's unguided practice tickets (HD-2151, HD-2152, SEC-2153, HD-2154):
+  // not graded, no score. The simulator reports when all four are finished and the
+  // course page saves a completion record (it-support-module-01.js). No
+  // course_module_labs row: it never gates completion.
+  itsLab({ key: 'lab-its-01-practice-tickets', module: 'its-01', title: 'Lab 1.2 · Practice tickets', difficulty: 'Foundational', minutes: 15, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.1', 15)], objective: 'Work four tickets on your own: a forgotten password, a cracked laptop screen, a caller who can\'t be verified and a new printer to add. Verify callers with KB-0024, choose who owns each ticket and document it.',
+    description: 'Four unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all four (resolve, escalate or route each one) and a completion record is saved to your account.',
+    skills: ['Identity Verification', 'Resolve/Escalate Judgment', 'Documentation'], portalEntry: '#/program/it-support/module/1' }),
   // Module 1's Prove It, the only lab that gates its completion
   // (course_module_labs.gates_completion). The simulator's Submit saves it
   // (itsProveReceiveMessage, it-support-shared.js).
   itsLab({ key: 'lab-its-01-prove-it', module: 'its-01', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 20,
-    parentAllocations: [allocation('ITHD-101.1', 20)], objective: 'Independently work a new service desk ticket end to end: categorize and prioritize it, decide and act within policy, document the work, and explain the outcome to the user.',
+    parentAllocations: [allocation('ITHD-101.1', 20)], objective: 'Independently work a new service desk ticket end to end: decide and act within policy, document the work, and explain the outcome to the user.',
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
     skills: ['Ticket Triage', 'Policy Judgment', 'Documentation'], portalEntry: '#/program/it-support/module/1' }),
   itsLab({ key: 'lab-its-02-vm-build', module: 'its-02', title: 'Build Your Windows Client VM', difficulty: 'Foundational', minutes: 90,
     parentAllocations: [allocation('ITHD-101.3', 90)], objective: 'Install VirtualBox and build a working Windows 11 client VM meeting the program\'s minimum resource spec.',
     description: 'Physical, evidence-based lab performed on the student\'s own device: install VirtualBox, build a Windows 11 client VM, and submit evidence of the finished build.',
-    skills: ['Virtualization', 'VirtualBox', 'VM Resource Allocation'], portalEntry: '#/program/it-support/module/2' }),
+    skills: ['Virtualization', 'VirtualBox', 'VM Resource Allocation'], portalEntry: '#/program/it-support/module/4' }),
   itsLab({ key: 'lab-its-02-vm-snapshot-server', module: 'its-02', title: 'Snapshot, Recover & Connect Client to Server', difficulty: 'Foundational', minutes: 90,
     parentAllocations: [allocation('ITHD-101.3', 90)], objective: 'Demonstrate a full snapshot-and-restore cycle and establish working network communication between a client and server VM.',
     description: 'Physical, evidence-based lab performed on the student\'s own device: snapshot and restore a VM, build a Windows Server VM, and confirm cross-VM connectivity.',
-    skills: ['VM Snapshots', 'Windows Server', 'VM Networking'], portalEntry: '#/program/it-support/module/2' }),
+    skills: ['VM Snapshots', 'Windows Server', 'VM Networking'], portalEntry: '#/program/it-support/module/4' }),
   itsLab({ key: 'lab-its-02-device-manager', module: 'its-02', title: 'The Misbehaving Peripheral', difficulty: 'Foundational', minutes: 30,
     parentAllocations: [allocation('ITHD-101.4', 30)], objective: 'Diagnose a print-driver crash against the evidence and apply the correct fix rather than the first available option.',
     description: 'A coach-guided walkthrough of ticket HD-2106 (a label printer stuck mid-job) in the IT Service Desk simulator — trace a driver crash through the print-service log and resolve it under change control.',
-    skills: ['Driver Troubleshooting', 'Evidence-Based Diagnosis'], portalEntry: '#/program/it-support/module/2' }),
+    skills: ['Driver Troubleshooting', 'Evidence-Based Diagnosis'], portalEntry: '#/program/it-support/module/4' }),
   itsLab({ key: 'lab-its-02-print-spooler', module: 'its-02', title: 'The Stuck Queue and the Offline Printer', difficulty: 'Foundational', minutes: 30,
     parentAllocations: [allocation('ITHD-101.4', 30)], objective: 'Resolve a crashing Print Spooler service by tracing it back to the same driver root cause and verify the fix.',
     description: 'A coach-guided walkthrough of ticket HD-2112 (a Print Spooler service crash on the print server) in the IT Service Desk simulator, continuing directly from HD-2106 in the same walkthrough.',
-    skills: ['Print Spooler', 'Change Control'], portalEntry: '#/program/it-support/module/2' }),
+    skills: ['Print Spooler', 'Change Control'], portalEntry: '#/program/it-support/module/4' }),
   itsLab({ key: 'lab-its-03-blank-desktop', module: 'its-03', title: 'The Blank Desktop', difficulty: 'Foundational', minutes: 60,
     parentAllocations: [allocation('ITHD-101.4', 60)], objective: 'Diagnose a corrupted Windows profile against the evidence and resolve it using the approved runbook.',
     description: 'A coach-guided walkthrough of ticket HD-2109 (a blank desktop after sign-in) in the IT Service Desk simulator.',
-    skills: ['Windows Profiles', 'Evidence-Based Diagnosis'], portalEntry: '#/program/it-support/module/3' }),
+    skills: ['Windows Profiles', 'Evidence-Based Diagnosis'], portalEntry: '#/program/it-support/module/5' }),
   itsLab({ key: 'lab-its-04-connectivity', module: 'its-04', title: 'Connected But Nothing Works', difficulty: 'Foundational', minutes: 180,
     parentAllocations: [allocation('ITHD-101.7', 180)], objective: 'Diagnose and resolve two real connectivity tickets using ipconfig/ping/nslookup-style evidence.',
     description: 'A coach-guided walkthrough of tickets HD-2104 (APIPA/DHCP) and HD-2105 (DNS) in the IT Service Desk simulator; HD-2113 (VPN gateway certificate) remains reachable for free practice.',
-    skills: ['Networking Fundamentals', 'DHCP', 'DNS'], portalEntry: '#/program/it-support/module/4' }),
+    skills: ['Networking Fundamentals', 'DHCP', 'DNS'], portalEntry: '#/program/it-support/module/9' }),
   itsLab({ key: 'lab-its-05-server-ad', module: 'its-05', title: 'The Missing Drive & The Vanishing Free Space', difficulty: 'Foundational', minutes: 255,
     parentAllocations: [allocation('ITHD-101.5', 165), allocation('ITHD-101.6', 90)], objective: 'Diagnose and resolve a Group Policy/OU scope issue and a file-server disk-space incident.',
     description: 'A coach-guided walkthrough of tickets HD-2108 (Group Policy/OU) and HD-2117 (disk space) in the IT Service Desk simulator.',
-    skills: ['Server Manager', 'Active Directory', 'Group Policy'], portalEntry: '#/program/it-support/module/5' }),
+    skills: ['Server Manager', 'Active Directory', 'Group Policy'], portalEntry: '#/program/it-support/module/7' }),
   itsLab({ key: 'lab-its-06-identity-access', module: 'its-06', title: 'Restoring Access the Right Way', difficulty: 'Foundational', minutes: 135,
     parentAllocations: [allocation('ITHD-101.6', 135)], objective: 'Verify authorization and resolve two real identity/access tickets correctly.',
     description: 'A coach-guided walkthrough of tickets SR-2107 (approved group-membership restore) and HD-2118 (missing NTFS permission) in the IT Service Desk simulator.',
-    skills: ['Identity Management', 'Group Membership', 'Access Troubleshooting'], portalEntry: '#/program/it-support/module/6' }),
+    skills: ['Identity Management', 'Group Membership', 'Access Troubleshooting'], portalEntry: '#/program/it-support/module/8' }),
   itsLab({ key: 'lab-its-07-app-cert', module: 'its-07', title: 'The Purchasing App Everyone’s Locked Out Of', difficulty: 'Foundational', minutes: 30,
     parentAllocations: [allocation('ITHD-101.4', 30)], objective: 'Recognize a correlated incident pattern and escalate a shared application certificate expiry.',
     description: 'A coach-guided walkthrough of ticket HD-2119 (one of five correlated tickets) in the IT Service Desk simulator.',
-    skills: ['Application Troubleshooting', 'Incident Correlation'], portalEntry: '#/program/it-support/module/7' }),
+    skills: ['Application Troubleshooting', 'Incident Correlation'], portalEntry: '#/program/it-support/module/6' }),
   itsLab({ key: 'lab-its-08-unfamiliar-problems', module: 'its-08', title: 'Two Problems You Haven’t Seen Before', difficulty: 'Foundational', minutes: 30,
     parentAllocations: [allocation('ITHD-101.8', 30)], objective: 'Apply the five-step troubleshooting method to two genuinely unfamiliar-shaped tickets.',
     description: 'A coach-guided walkthrough of tickets HD-2110 (broken domain trust) and HD-2111 (BitLocker recovery) in the IT Service Desk simulator.',
-    skills: ['Troubleshooting Methodology', 'Domain Trust', 'BitLocker'], portalEntry: '#/program/it-support/module/8' }),
+    skills: ['Troubleshooting Methodology', 'Domain Trust', 'BitLocker'], portalEntry: '#/program/it-support/module/10' }),
   itsLab({ key: 'lab-its-09-security-incidents', module: 'its-09', title: 'Two Calls You Escalate, Not Fix', difficulty: 'Foundational', minutes: 30,
     parentAllocations: [allocation('ITHD-101.8', 30)], objective: 'Recognize two real security incidents and escalate them correctly rather than attempting to resolve them at L1.',
     description: 'A coach-guided walkthrough of tickets SEC-2114 (credential phishing) and SEC-2115 (malware alert) in the IT Service Desk simulator.',
-    skills: ['Security Awareness', 'Phishing Recognition', 'Incident Escalation'], portalEntry: '#/program/it-support/module/9' }),
-  itsLab({ key: 'lab-its-10-priority-queue', module: 'its-10', title: 'Working the Queue by Priority', difficulty: 'Foundational', minutes: 75,
-    parentAllocations: [allocation('ITHD-101.2', 75)], objective: 'Filter the full ticket queue by priority and justify why a P1 ticket sorts to the top of the shift.',
-    description: 'A coach-guided walkthrough of the real, full ticket queue in the IT Service Desk simulator, filtering to P1 and documenting priority reasoning.',
-    skills: ['Ticket Management', 'Prioritization', 'SLAs'], portalEntry: '#/program/it-support/module/10' }),
+    skills: ['Security Awareness', 'Phishing Recognition', 'Incident Escalation'], portalEntry: '#/program/it-support/module/11' }),
+  // Module 2's guided lab. Students see it as Lab 2.1; the key is older than
+  // that numbering. Since 2026-11-20 Module 2's Prove It gates completion
+  // (20261120213000_hdesk_its10_prove_queue.sql) and this lab is Practice It.
+  itsLab({ key: 'lab-its-10-priority-queue', module: 'its-10', title: 'Lab 2.1 · Guided Lab: queue shift', difficulty: 'Foundational', minutes: 35, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.2', 35)], objective: 'Work a six-ticket morning queue: set Impact and Urgency on every ticket, convert a request, link two tickets about one outage, order the queue, route a security ticket, pause a ticket while waiting on the caller, and write for two audiences.',
+    description: 'A coach-guided queue shift in the IT Service Desk simulator: six practice tickets, each step with a why and what success looks like. Feedback only, no score.',
+    skills: ['Ticket Management', 'Prioritization', 'SLAs'], portalEntry: '#/program/it-support/module/2' }),
+  // Module 2's unguided practice tickets (2-A to 2-C): not graded, no score.
+  // The simulator reports when all three are closed and the course page saves
+  // a completion record (it-support-module-10.js). No course_module_labs row:
+  // it never gates completion.
+  itsLab({ key: 'lab-its-10-practice-tickets', module: 'its-10', title: 'Lab 2.2 · Practice tickets', difficulty: 'Foundational', minutes: 20, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.2', 20)], objective: 'Work three tickets on your own: convert a request and wait for the owner’s approval, reopen a ticket and link the related ones, and follow the three-attempt contact policy before closing.',
+    description: 'Three unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all three and a completion record is saved to your account.',
+    skills: ['Incident vs Request', 'Ticket States', 'Documentation'], portalEntry: '#/program/it-support/module/2' }),
+  // Module 2's Prove It: the queue shift (?prove=its-10), scored on the
+  // server and graded by the instructor. It gates Module 2's completion.
+  itsLab({ key: 'lab-its-10-prove-it', module: 'its-10', title: 'Prove It: queue shift', difficulty: 'Foundational', minutes: 20,
+    parentAllocations: [allocation('ITHD-101.2', 20)], objective: 'Independently work a new ticket queue: classify and prioritize every ticket, link tickets about one outage, order the queue by priority and SLA time left, and document the work.',
+    description: 'An independent Prove It on a queue you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
+    skills: ['Ticket Triage', 'Prioritization', 'Documentation'], portalEntry: '#/program/it-support/module/2' }),
   itsLab({ key: 'lab-its-11-handoff-documentation', module: 'its-11', title: 'Writing the Handoff That Actually Helps', difficulty: 'Foundational', minutes: 75,
     parentAllocations: [allocation('ITHD-101.2', 75)], objective: 'Recognize an escalation trigger and write a complete, stranger-actionable handoff note; diagnose and resolve a real ticket while calmly setting expectations for an already-frustrated user.',
     description: 'A coach-guided walkthrough of tickets HD-2113 (expired VPN gateway certificate) and HD-2124 (a repeat-contact user blocked by a stale Outlook credential) in the IT Service Desk simulator, focused on documentation, escalation, and communication under pressure.',
-    skills: ['Documentation', 'Escalation', 'Customer Communication'], portalEntry: '#/program/it-support/module/11' }),
+    skills: ['Documentation', 'Escalation', 'Customer Communication'], portalEntry: '#/program/it-support/module/3' }),
   itsLab({ key: 'lab-its-12-capstone', module: 'its-12', title: 'IT Support Capstone', difficulty: 'Advanced', minutes: 210, isCapstone: true,
     parentAllocations: [allocation('ITHD-101.9', 210)], objective: 'Prioritize and resolve or escalate a realistic multi-category L1 ticket queue, then produce a KB article and after-action review.',
     description: 'A six-ticket integrated scenario spanning identity, endpoint, network, peripheral, server, and security issues, scored across triage, technical accuracy, communication, escalation judgment, security judgment, documentation, and reflection.',

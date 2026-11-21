@@ -3,11 +3,12 @@
 // supabase/tests/hdesk_faculty_gate.sql; the sheet only says what is missing.
 //
 //   - The writing comes first, then choices and actions, then the rubric.
-//   - The total adds up on its own, and a critical error caps it below the pass mark.
+//   - The total adds up on its own, and a critical error is an automatic zero.
 //   - Approve is unavailable below the pass mark or with a critical error.
 //   - Partial credit needs a justification; a return needs only a note.
 //   - A failed save keeps the work and says so.
 //   - The student sees no score until a decision, and a return shows no pass/fail.
+//   - A critical error shows "Critical Error - Not Passed" wherever a score would show.
 //   - Records report the official score, on this lab only.
 //   - SOC cards and other Help Desk labs keep their existing review card.
 //
@@ -62,13 +63,23 @@ function testTotalAndApproveRules() {
   assert.match(s.blocked, /Use Return|use Return/);
 
   s = state(rubric, 70, { points: full, why, critical: true, criticalReason: 'A reason.' });
-  assert.equal(s.total, 100);
-  assert.equal(s.score, 69, 'the critical error caps it one below the pass mark');
+  assert.equal(s.score, 0, 'a critical error is an automatic zero, whatever the points');
+  assert.equal(s.total, 0);
+  assert.deepEqual(Array.from(s.rows, (r) => r.earned), [0, 0, 0, 0, 0], 'every competency is 0');
+  assert.equal(s.totalLine, 'Critical error: automatic zero · Final 0');
   assert.equal(s.canApprove, false);
+  assert.equal(s.canReturn, true);
   assert.match(s.blocked, /critical error/i);
 
+  s = state(rubric, 70, { points: { triage: '5' }, why: {}, critical: true, criticalReason: 'A reason.' });
+  assert.equal(s.score, 0, 'typed or missing points are ignored');
+  assert.deepEqual(Array.from(s.missingWhy), [], 'the zeroed competencies need no justification');
+  assert.equal(s.canReturn, true);
+
   s = state(rubric, 80, { points: { ...full, documentation: '20' }, why, critical: true });
-  assert.equal(s.score, 79, 'the cap follows the pass mark; it is not a copied number');
+  assert.equal(s.score, 0);
+  assert.equal(s.blocked, 'Give the reason for the critical error.', 'a reason is still required');
+  assert.equal(s.canReturn, false);
 
   s = state(rubric, 70, { points: { ...full, documentation: '20' }, why: { ...why, documentation: '  ' } });
   assert.deepEqual(Array.from(s.missingWhy), ['Documentation and communication'], 'partial credit needs a justification');
@@ -95,8 +106,8 @@ function testCardOrderAndContent() {
   const at = (text) => { const i = html.indexOf(text); assert.ok(i >= 0, text); return i; };
   assert.ok(at("Student's written work") < at("Student's choices"), 'writing first');
   assert.ok(at("Student's choices") < at('What the student did in the simulator'), 'then choices and actions');
-  assert.ok(at('What the student did in the simulator') < at('Rubric hdesk-its-01-prove-v1'), 'then the rubric');
-  assert.ok(at('Rubric hdesk-its-01-prove-v1') < at('Efficiency feedback (earns no points)'));
+  assert.ok(at('What the student did in the simulator') < at('Rubric hdesk-its-01-prove-v2'), 'then the rubric');
+  assert.ok(at('Rubric hdesk-its-01-prove-v2') < at('Efficiency feedback (earns no points)'));
   assert.ok(at('Efficiency feedback') < at('data-its-prove-critical'));
   assert.ok(at('data-its-prove-critical') < at('data-its-prove-total'));
   assert.ok(at('data-its-prove-total') < at('data-its-prove-decide="approved"'));
@@ -104,6 +115,13 @@ function testCardOrderAndContent() {
   for (const c of rubric.competencies) assert.match(html, new RegExp(`data-its-prove-points="${c.id}"[^>]*/> / ${c.points}<`));
   assert.ok(html.includes('Line one.\n\nLine two.'), 'writing is whole');
   assert.match(html, /data-its-prove-decide="approved" disabled/, 'Approve starts unavailable');
+  // Approve is a solid button like Return, so it only looks faded while it
+  // is unavailable (disabled:opacity-50 on both).
+  const approve = html.match(/<button[^>]*data-its-prove-decide="approved"[^>]*>/)[0];
+  const ret = html.match(/<button[^>]*data-its-prove-decide="returned"[^>]*>/)[0];
+  assert.match(approve, /bg-green-700 hover:bg-green-800 text-white/);
+  assert.doesNotMatch(approve, /bg-green-50\b/);
+  [approve, ret].forEach((button) => assert.match(button, /disabled:opacity-50/));
   assert.match(html, /data-pass-mark="70"/, 'the pass mark comes from the attempt');
   assert.doesNotMatch(html, /Approve counts as a pass/);
   assert.doesNotMatch(html, /admin-grading-approve|admin-grading-send-back|No score/);
@@ -171,7 +189,7 @@ async function testSubmitSendsTheGradeOnce() {
   assert.equal(args.p_attempt_id, 'attempt-1');
   assert.equal(args.p_decision, 'approved');
   assert.equal(args.p_efficiency, 'Quick.');
-  assert.equal(args.p_rubric_version, 'hdesk-its-01-prove-v1');
+  assert.equal(args.p_rubric_version, 'hdesk-its-01-prove-v2');
   assert.deepEqual(Array.from(args.p_competencies, (c) => [c.id, c.points, c.earned]), [['triage', 22, 22], ['investigation', 11, 11], ['diagnosis', 11, 11], ['action', 28, 28], ['documentation', 28, 20]]);
   assert.equal(Object.keys(args).includes('p_total'), false, 'the server adds up the total');
   assert.equal(saved, 1);
@@ -250,6 +268,118 @@ function testStudentResult() {
   const waiting = prun('itsLabStatusHtml')(student, LAB, { label: 'Prove It', prefix: 'its01', pendingText: 'x' });
   assert.match(waiting, /waiting for instructor review/);
   assert.doesNotMatch(waiting, /%/, 'nothing about a score while it waits');
+}
+
+// A critical error: "Critical Error - Not Passed" instead of 0% and the
+// competency points, everywhere a student would see a score. The critical
+// error's student line and the instructor's notes still show.
+const CRITICAL = 'Critical Error - Not Passed';
+const criticalGrade = { decision: 'returned', official_score: 0, critical_error: true, critical_error_reason: 'A student-facing critical line.',
+  competency_scores: [{ id: 'triage', label: 'Triage', points: 22, earned: 0, justification: 'Check who owns it.' }], created_at: '2026-10-30T11:00:00Z' };
+const criticalNotes = [
+  { item_label: 'Triage', comment: 'Check who owns it.', created_at: '2026-10-30T11:00:00Z' },
+  { item_label: 'Critical error', comment: 'A student-facing critical line.', created_at: '2026-10-30T11:00:00Z' },
+  { item_label: 'Overall', comment: 'Redo it the approved way.', created_at: '2026-10-30T11:00:00Z' },
+];
+const criticalStudent = () => ({ userId: 's', trackCode: 'HDESK',
+  latestLabAttemptByKey: { [LAB]: { completedAt: '2026-10-30T10:00:00Z', reviewedAt: '2026-10-30T11:00:00Z', redoRequested: true, supersededAt: null, officialScore: 0, criticalError: true } },
+  openLabRedoFeedbackByLabKey: { [LAB]: criticalNotes } });
+
+function testCriticalErrorMarkedLab() {
+  const html = prun('itsProveMarkedLabHtml')(row({ redo_requested: true }), criticalGrade, criticalNotes);
+  assert.match(html, new RegExp(`: ${CRITICAL}</p>`));
+  assert.match(html, /data-its-prove-marked="critical"/);
+  assert.doesNotMatch(html, /0%|\d+ \/ \d+|Your instructor's score|Your score|: Passed</, 'no 0% and no competency points');
+  assert.match(html, /Critical error:<\/strong> A student-facing critical line\./, 'the critical error\'s student line');
+  assert.match(html, /Triage:<\/strong> Check who owns it\./, 'the instructor\'s notes');
+  assert.match(html, /Redo it the approved way\./);
+  // Without a critical error, a return is shown as before.
+  const plain = prun('itsProveMarkedLabHtml')(row({ redo_requested: true }), { ...criticalGrade, critical_error: false, official_score: 40 }, criticalNotes);
+  assert.match(plain, /Returned for revision/);
+  assert.match(plain, /Your instructor's score: <strong>40%/);
+  assert.doesNotMatch(plain, new RegExp(CRITICAL));
+}
+
+function testCriticalErrorModulePageAndNotice() {
+  const user = criticalStudent();
+  const status = prun('itsLabStatusHtml')(user, LAB, { label: 'Prove It', prefix: 'its01', pendingText: 'x' });
+  assert.match(status, new RegExp(`Prove It: ${CRITICAL}`));
+  assert.match(status, /data-status="returned"/);
+  assert.doesNotMatch(status, /%/);
+  const notice = prun('itsRedoNoticeHtml')(user, [{ key: LAB, action: 'Reopen the Prove It.' }]);
+  assert.match(notice, new RegExp(`${CRITICAL}\\. Returned for revision`));
+  assert.match(notice, /Critical error:<\/strong> A student-facing critical line\./);
+  assert.doesNotMatch(notice, /%/);
+  // The Module 1 course page's Prove It section.
+  portal.__criticalUser = user;
+  prun('its01User = __criticalUser');
+  const section = prun('its01Prove()');
+  assert.match(section, new RegExp(`Prove It: ${CRITICAL}`));
+  assert.match(section, new RegExp(`${CRITICAL}\\. Returned for revision`));
+  assert.doesNotMatch(section, /0%|See your score/);
+  // A return without a critical error keeps its wording.
+  user.latestLabAttemptByKey[LAB].criticalError = false;
+  assert.match(prun('itsLabStatusHtml')(user, LAB, { label: 'Prove It', prefix: 'its01', pendingText: 'x' }), /Prove It returned for revision/);
+  assert.match(prun('itsRedoNoticeHtml')(user, [{ key: LAB, action: 'x' }]), /Returned for revision: /);
+}
+
+function testCriticalErrorProgramCard() {
+  const line = prun('truthfulLabLine');
+  assert.match(line({ key: LAB, title: 'Prove It', status: 'returned', criticalError: true }), new RegExp(`Prove It: ${CRITICAL}, returned for revision\\.`));
+  assert.match(line({ key: LAB, title: 'Prove It', status: 'returned', criticalError: false }), /Prove It returned for revision\./);
+  const program = prun(`PROGRAMS.find((p) => p.slug === 'it-support')`);
+  const user = { ...criticalStudent(), requiredLabsByModuleKey: { 'its-01': [LAB] }, remoteModuleProgress: {} };
+  const card = prun('moduleCardState')(program, 'its-01', user, true);
+  assert.equal(card.state, 'needs_redo');
+  assert.equal(card.labs.find((lab) => lab.key === LAB).criticalError, true);
+}
+
+async function testCriticalErrorLoadedAtSignIn() {
+  portal.supabaseResponder = (call) => {
+    if (call.table === 'lab_attempts') return { data: [{ id: 'a1', lab_key: LAB, completed_at: '2026-10-30T10:00:00Z', reviewed_at: '2026-10-30T11:00:00Z', redo_requested: true, superseded_at: null }], error: null };
+    if (call.table === 'lab_attempt_grades') return { data: [{ lab_attempt_id: 'a1', decision: 'returned', official_score: 0, critical_error: true, created_at: '2' }], error: null };
+    return { data: [], error: null };
+  };
+  const details = await prun('fetchUserDetails')('student-1', 'HDESK');
+  assert.equal(details.latestLabAttemptByKey[LAB].criticalError, true);
+  // And when the course page re-reads the newest attempt.
+  const user = { userId: 'student-1', trackCode: 'HDESK', latestLabAttemptByKey: {} };
+  assert.equal(await prun('itsProveRefreshAttempt')(user, 'its-01', LAB), 'returned');
+  assert.equal(user.latestLabAttemptByKey[LAB].criticalError, true);
+  portal.supabaseResponder = () => ({ data: [], error: null });
+}
+
+async function testCriticalErrorRecords() {
+  const { transcript, evidence } = await transcriptFor('it-support', 'HDESK',
+    [recordRow({ redo_requested: true, official_grade: graded('returned', 0, '2026-10-30T12:00:00Z', { critical_error: true }) })], [moduleRow]);
+  const moduleOne = transcript.modules.find((m) => m.moduleKey === 'its-01');
+  assert.equal(moduleOne.grade, CRITICAL);
+  assert.equal(moduleOne.score, null, 'no 0 on the transcript');
+  assert.equal(moduleOne.completedAt, null);
+  const newest = evidence.labs.filter((lab) => lab.labKey === LAB).pop();
+  assert.equal(newest.completionStatus, CRITICAL);
+  assert.equal(newest.score, null);
+  // Never "assessments passed", even if an admin override keeps the module complete.
+  const gate = prun('assessProgressGradesCompletion');
+  const program = prun(`PROGRAMS.find((p) => p.slug === 'it-support')`);
+  const capstone = { status: 'not_applicable' };
+  const modules = [{ moduleKey: 'its-01', title: 'M1', completed: true, bestLabScore: null, official: { attempted: true, passed: false, critical: true } }];
+  assert.equal(gate(program, modules, capstone, null).programCompletionAssessment.conditions.requiredAssessmentsPassed, false);
+  modules[0].official = { attempted: true, passed: true, critical: false };
+  modules[0].bestLabScore = 82;
+  assert.equal(gate(program, modules, capstone, null).programCompletionAssessment.conditions.requiredAssessmentsPassed, true);
+  // A resubmission after the critical error is in progress again.
+  const resubmitted = await transcriptFor('it-support', 'HDESK', [
+    recordRow({ id: 'old', redo_requested: true, official_grade: graded('returned', 0, '2026-10-30T12:00:00Z', { critical_error: true }) }),
+    recordRow({ id: 'new', completed_at: '2026-10-30T15:00:00Z', reviewed_at: null }),
+  ], [moduleRow]);
+  assert.equal(resubmitted.transcript.modules.find((m) => m.moduleKey === 'its-01').grade, 'In progress');
+  // The staff evidence record says the resubmission is awaiting review; the
+  // older, replaced attempt stays "In progress".
+  assert.deepEqual(JSON.parse(JSON.stringify(resubmitted.evidence.labs.filter((lab) => lab.labKey === LAB).map((lab) => lab.completionStatus))), ['In progress', 'Awaiting review'],
+    'only the standing (newest) attempt carries the label');
+  assert.deepEqual(JSON.parse(JSON.stringify(resubmitted.studentEvidence.labs.filter((lab) => lab.labKey === LAB).map((lab) => lab.completionStatus))), ['In progress', 'In progress'],
+    'the student\'s own download keeps "In progress"');
 }
 
 // After a correction the student sees only the newest decision's notes.
@@ -405,35 +535,42 @@ async function transcriptFor(slug, track, rows, modules) {
   };
   const identity = { userId: 'u', trackCode: track, program };
   const transcript = await prun('buildTranscriptData')('sid', identity);
-  const evidence = await prun('buildEvidencePacketData')('sid', identity);
+  // The staff download (staffLabels) and the student's own download.
+  const evidence = await prun('buildEvidencePacketData')('sid', { ...identity, staffLabels: true });
+  const studentEvidence = await prun('buildEvidencePacketData')('sid', identity);
   portal.supabaseResponder = () => ({ data: [], error: null });
-  return { transcript, evidence };
+  return { transcript, evidence, studentEvidence };
 }
 
 async function testRecordsUseTheStandingDecision() {
   const check = async (rows, expected, label) => {
-    const { transcript, evidence } = await transcriptFor('it-support', 'HDESK', rows, [moduleRow]);
+    const { transcript, evidence, studentEvidence } = await transcriptFor('it-support', 'HDESK', rows, [moduleRow]);
     const row = transcript.modules.find((m) => m.moduleKey === 'its-01');
+    // The student's own download never shows the staff labels.
+    assert.equal(studentEvidence.labs.filter((lab) => lab.labKey === LAB).pop().completionStatus, expected.grade, `${label}: student download status`);
     assert.equal(row.score, expected.score, `${label}: transcript score`);
     assert.equal(row.grade, expected.grade, `${label}: transcript grade`);
     assert.equal(row.completedAt, expected.date, `${label}: transcript date`);
     const newest = evidence.labs.filter((lab) => lab.labKey === LAB).pop();
     assert.equal(newest.score, expected.score, `${label}: evidence score`);
-    assert.equal(newest.completionStatus, expected.grade, `${label}: evidence status`);
+    // The staff evidence record names a waiting or returned attempt; the
+    // transcript keeps "In progress".
+    assert.equal(newest.completionStatus, expected.evidence || expected.grade, `${label}: evidence status`);
     assert.equal(newest.completedAt, expected.date, `${label}: evidence date`);
     return row;
   };
   const inProgress = { score: null, grade: 'In progress', date: null };
-  await check([recordRow({ redo_requested: true, official_grade: graded('returned', 58) })], inProgress, 'returned 58');
+  const returnedRecord = { ...inProgress, evidence: 'Returned' };
+  await check([recordRow({ redo_requested: true, official_grade: graded('returned', 58) })], returnedRecord, 'returned 58');
   await check([recordRow({ official_grade: graded('approved', 83) })], { score: 83, grade: 'Pass', date: '2026-10-30T12:00:00Z' }, 'approved 83');
-  await check([recordRow({ redo_requested: true, official_grade: graded('returned', null, '2026-10-30T13:00:00Z', { correction_reason: 'Approved by mistake.' }) })], inProgress, 'approved 100, then corrected');
-  await check([recordRow({ reviewed_at: null })], inProgress, 'waiting');
+  await check([recordRow({ redo_requested: true, official_grade: graded('returned', null, '2026-10-30T13:00:00Z', { correction_reason: 'Approved by mistake.' }) })], returnedRecord, 'approved 100, then corrected');
+  await check([recordRow({ reviewed_at: null })], { ...inProgress, evidence: 'Awaiting review' }, 'waiting');
   // Never reach back to an older attempt, or a practice lab in the same module.
   await check([
     recordRow({ id: 'old', official_grade: graded('approved', 83) }),
     recordRow({ id: 'new', completed_at: '2026-10-30T15:00:00Z', redo_requested: true, official_grade: graded('returned', 58, '2026-10-30T16:00:00Z') }),
     { id: 'practice', lab_key: 'lab-its-01-ticket-triage', state: 'complete', score: 100, started_at: '2026-10-29T09:00:00Z', completed_at: '2026-10-29T10:00:00Z', result: {} },
-  ], inProgress, 'older approval, newer return');
+  ], returnedRecord, 'older approval, newer return');
   // A higher returned score doesn't beat the newer approval; the older row shows nothing.
   const { evidence } = await transcriptFor('it-support', 'HDESK', [
     recordRow({ id: 'old', redo_requested: true, official_grade: graded('returned', 91) }),
@@ -479,14 +616,37 @@ function testStudentDetailUsesTheStandingDecision() {
   const cells = prun('adminLabRecordCells');
   const returned = recordRow({ redo_requested: true, official_grade: graded('returned', 58), score: 58 });
   const html = cells(returned, [returned]);
-  assert.match(html, />In progress</);
-  assert.doesNotMatch(html, /58|Complete|Fail/);
+  assert.match(html, />Returned</);
+  assert.doesNotMatch(html, /58|Complete|Fail|Awaiting review|data-admin-open-attempt/);
+  // A submission waiting for its review says so, with a link to its pill on
+  // the Lab Attempts tab (key: student id | item name).
+  const student = { student_id: 'MNT-HD-0001', track_code: 'HDESK', user_id: 'u' };
+  const waiting = recordRow({ id: 'w', reviewed_at: null });
+  const waitingHtml = cells(waiting, [waiting], student);
+  assert.match(waitingHtml, />Awaiting review</);
+  assert.ok(waitingHtml.includes('data-admin-open-attempt="MNT-HD-0001|Module 1 · PROVE IT"'), waitingHtml);
+  assert.match(waitingHtml, />Open attempt</);
+  assert.doesNotMatch(cells(waiting, [waiting]), /data-admin-open-attempt/, 'no student row, no link');
+  // The link's key is the pill the Lab Attempts tab shows for that attempt.
+  const panel = prun('adminLabAttemptsPanel')({ pendingRows: [{ ...waiting, user_id: 'u', student_id: 'MNT-HD-0001', track_code: 'HDESK' }] });
+  assert.ok(panel.includes('data-attempt-chip="MNT-HD-0001|Module 1 · PROVE IT"'), 'the Lab Attempts tab has the same pill');
+  // An older attempt replaced by a newer submission stays "In progress", with no link.
+  const older = recordRow({ id: 'o', redo_requested: true, official_grade: graded('returned', 58) });
+  const newer = recordRow({ id: 'n', completed_at: '2026-10-30T15:00:00Z', reviewed_at: null });
+  assert.match(cells(older, [older, newer], student), />In progress</);
+  assert.doesNotMatch(cells(older, [older, newer], student), /data-admin-open-attempt/);
+  assert.match(cells(newer, [older, newer], student), />Awaiting review</);
+  // A critical error keeps its own label.
+  const critical = recordRow({ redo_requested: true, official_grade: graded('returned', 0, '2026-10-30T12:00:00Z', { critical_error: true }) });
+  assert.match(cells(critical, [critical], student), />Critical Error - Not Passed</);
   const approved = recordRow({ official_grade: graded('approved', 83), score: 83 });
   const passed = cells(approved, [approved]);
   assert.match(passed, />Pass</);
   assert.match(passed, /83\.0/);
   const moduleStatus = prun('adminModuleStatusHtml');
-  assert.match(moduleStatus(moduleRow, [returned]), />In progress</);
+  assert.match(moduleStatus(moduleRow, [returned]), />Returned</);
+  assert.match(moduleStatus(moduleRow, [waiting]), />Awaiting review</);
+  assert.match(moduleStatus(moduleRow, [critical]), />Critical Error - Not Passed</);
   assert.match(moduleStatus(moduleRow, [approved]), />Pass</);
   assert.match(moduleStatus(moduleRow, []), />Complete</, 'nothing attempted: as before');
 }
@@ -495,6 +655,7 @@ const tests = [
   testRubricIsTheApprovedOne, testTotalAndApproveRules, testCardOrderAndContent, testOtherLabsKeepTheirCard,
   testSubmitSendsTheGradeOnce, testReturnWithNoScoreSendsNone, testIncompleteScoresStayInTheBrowser, testFailedSaveKeepsTheWork,
   testDecidedRecordAndReturnButton, testStudentResult, testStudentSeesOnlyTheLatestDecisionsNotes, testPanelShowsEveryDecisionWithItsNotes, testHistoryReadsOnlyForOfficialGradeLabs, testLabAttemptsInstructions, testRecordsUseTheStandingDecision, testOtherLabsRecordsAreUnchanged, testStudentDetailUsesTheStandingDecision, testStudentReadsTheScoreFromTheServerAtSignIn, testRecordsReportTheOfficialScore,
+  testCriticalErrorMarkedLab, testCriticalErrorModulePageAndNotice, testCriticalErrorProgramCard, testCriticalErrorLoadedAtSignIn, testCriticalErrorRecords,
 ];
 (async () => {
   let failed = 0;

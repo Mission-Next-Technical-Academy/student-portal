@@ -199,6 +199,37 @@ function testRelaunchSameStudentResumes() {
   assert.equal(relaunched.location.search, '?coach=hd-m03');
 }
 
+// hd-m01's steps were reordered on 2026-11-15 (Verify caller moved from step
+// 4 to step 2). A run saved under the old order at step 3 or 4 hasn't
+// verified yet and resumes at step 2; every other step is unchanged. The
+// remap runs once per shift, so a run in the new order is never moved back.
+function testHdM01OldStepOrderResumesOnAValidStep() {
+  const expected = { 0: 0, 1: 1, 2: 2, 3: 2, 4: 2, 5: 5, 6: 6, 7: 7, 8: 8 };
+  for (const [old, want] of Object.entries(expected)) {
+    const local = store();
+    const first = sim(launchUrl('hd-m01'), { local });
+    assert.equal(first.hd().coachOrder, 2, 'a fresh lab runs the new order');
+    // A shift saved before the reorder, with the coach part way through.
+    first.run('delete hdState.coachOrder; hdSave()');
+    local.setItem('mnt.coach.resume', JSON.stringify({ id: 'hd-m01', step: Number(old), student: STUDENT_A }));
+    const relaunched = sim(launchUrl('hd-m01'), { local });
+    assert.equal(relaunched.coachState().step, want, `old step ${old} resumes at ${want}`);
+    assert.equal(relaunched.hd().coachOrder, 2, 'the shift is marked, so the remap runs once');
+  }
+  // The new order, saved at step 4 (the KB): never moved back.
+  const local = store();
+  sim(launchUrl('hd-m01'), { local });
+  local.setItem('mnt.coach.resume', JSON.stringify({ id: 'hd-m01', step: 4, student: STUDENT_A }));
+  assert.equal(sim(launchUrl('hd-m01'), { local }).coachState().step, 4);
+  // A reload (sessionStorage) is remapped the same way.
+  const tabLocal = store();
+  const tab = sim(launchUrl('hd-m01'), { local: tabLocal });
+  tab.run('delete hdState.coachOrder; hdSave()');
+  tab.run(`sessionStorage.setItem('mnt.coach.state', ${JSON.stringify(JSON.stringify({ id: 'hd-m01', step: 3, student: STUDENT_A }))})`);
+  tabLocal.setItem('mnt.coach.resume', JSON.stringify({ id: 'hd-m01', step: 3, student: STUDENT_A }));
+  assert.equal(tab.reload().coachState().step, 2);
+}
+
 function testRelaunchDifferentStudentStartsFresh() {
   const local = store();
   const tab = workHdM03ToPath(sim(launchUrl('hd-m03'), { local }));
@@ -376,7 +407,8 @@ function testOlderCoursePageResumesAfterReload() {
 // The message names no button: a returned lab's button says "Redo".
 function testPortalClosedMessageFitsEveryModule() {
   const local = store();
-  local.setItem('mnt.coach.resume', JSON.stringify({ id: 'hd-m01', step: 6, student: STUDENT_A }));
+  // hd-m01's last step (index 9) is its Finish step.
+  local.setItem('mnt.coach.resume', JSON.stringify({ id: 'hd-m01', step: 9, student: STUDENT_A }));
   const tab = sim(launchUrl('hd-m01'), { local });
   tab.finish();
   assert.ok(tab.panelHtml().includes(PORTAL_CLOSED));
@@ -424,7 +456,71 @@ function testSocM01FinishUnchanged() {
   assert.equal(tab.ctx.closed, true);
 }
 
+/* ----------------------------------- a launch that didn't ask for a coach */
+
+// Staging, Nov 16: Lab 1.1's Finish couldn't reach the course page, so the
+// hd-m01 coach stayed on its last step in that tab's sessionStorage.
+// "Coursework" then turned the tab into the course page, and Lab 1.2 opened
+// from it in a new tab, which starts with a copy of the tab's sessionStorage.
+// The practice set showed the Lab 1.1 coach panel, also after a reload.
+const PRACTICE_URL = `${SIM_URL}?practice=its-01&student=${STUDENT_A}#/helpdesk/tickets`;
+const panelOpen = (tab) => Boolean(tab.ctx.document.getElementById('coach-panel')) && !tab.ctx.document.getElementById('coach-panel').hidden;
+
+function hdM01LeftOnFinish(local) {
+  const lab11 = sim(launchUrl('hd-m01'), { local });
+  const last = lab11.run("MODULE_COACHES.find((c) => c.id === 'hd-m01').steps.length - 1");
+  const saved = JSON.stringify({ id: 'hd-m01', step: last, student: STUDENT_A });
+  lab11.ctx.sessionStorage.setItem('mnt.coach.state', saved);
+  local.setItem('mnt.coach.resume', saved);
+  return { last, session: store(lab11.ctx.sessionStorage.map) };
+}
+
+function testPracticeLaunchShowsNoCoach() {
+  const local = store();
+  const { last, session } = hdM01LeftOnFinish(local);
+  const practice = sim(PRACTICE_URL, { local, session, opener: fakeOpener() });
+  assert.equal(practice.coachState(), null, 'the practice set runs with no coach');
+  assert.equal(panelOpen(practice), false, 'no coach panel over the practice tickets');
+  assert.equal(practice.location.search, '?practice=its-01', 'student leaves the address bar, as before');
+  // Lab 1.1's module number came along too; left there, the corner dock
+  // offered SOC Module 1's "Take the tour", which opens another coach panel.
+  assert.equal(practice.ctx.sessionStorage.getItem('mnt.coach.lastModule'), null, 'no module number left for the tour button');
+
+  const reloaded = practice.reload();
+  assert.equal(reloaded.coachState(), null, 'still no coach after a reload');
+  assert.equal(panelOpen(reloaded), false);
+
+  // Lab 1.1 wasn't saved, so reopening it still resumes on its Finish step.
+  assert.deepEqual(practice.resume(), { id: 'hd-m01', step: last, student: STUDENT_A }, 'the in-progress record is kept');
+  const lab11 = sim(launchUrl('hd-m01'), { local, opener: fakeOpener() });
+  assert.equal(lab11.coachState().step, last, 'Lab 1.1 resumes where it stopped');
+  assert.equal(panelOpen(lab11), true);
+}
+
+// A Help Desk coach always runs with ?coach=<id> in the address, and a reload
+// keeps it, so a load without it never brings one back.
+function testHelpDeskCoachNeedsItsLaunch() {
+  const local = store();
+  const { session } = hdM01LeftOnFinish(local);
+  const plain = sim(`${SIM_URL}#/helpdesk/tickets`, { local, session });
+  assert.equal(plain.coachState(), null, 'a plain simulator load shows no Help Desk coach');
+  assert.equal(panelOpen(plain), false);
+  assert.equal(plain.reload().coachState(), null);
+}
+
+// SOC's orientation tour starts inside the simulator with no ?coach, so a
+// reload brings it back from sessionStorage, as before.
+function testSocTourReloadKeepsStep() {
+  const session = store([['mnt.coach.state', JSON.stringify({ id: 'm01-orientation', step: 2 })]]);
+  const tab = sim(`${SIM_URL}#/defender/alerts`, { local: store(), session });
+  assert.equal(tab.coachState().step, 2, 'the tour resumes on its step');
+  assert.equal(panelOpen(tab), true);
+}
+
 const tests = [
+  testPracticeLaunchShowsNoCoach,
+  testHelpDeskCoachNeedsItsLaunch,
+  testSocTourReloadKeepsStep,
   testFirstLaunchStartsFreshAndCleansAddress,
   testReloadKeepsWork,
   testRelaunchSameStudentResumes,
@@ -438,6 +534,7 @@ const tests = [
   testPortalClosedMessageFitsEveryModule,
   testFinishOtherStudentKeepsWork,
   testOlderCoursePageResumesAfterReload,
+  testHdM01OldStepOrderResumesOnAValidStep,
   testSocM01LaunchStillStartsFresh,
   testSocM01ReloadKeepsFilterAndStep,
   testSocM01FinishUnchanged,

@@ -123,6 +123,7 @@ test('writing mechanics heuristics', () => {
   assert.equal(ids('Use the default, i.e. the playbook.')['lowercase-i'], undefined, 'i.e. is skipped');
 
   assert.equal(ids('I checked the the logs.')['repeated-word'].example, 'the the');
+  assert.equal(ids('The session; session ended.')['repeated-word'], undefined, 'a repeat across punctuation is not flagged');
   assert.equal(ids('Hosts 10.0.0.1 10.0.0.1 both beaconed.')['repeated-word'], undefined, 'repeated IPs are skipped');
 
   const long = `The analyst ${Array.from({ length: 45 }, () => 'reviewed').join(' and ')}.`;

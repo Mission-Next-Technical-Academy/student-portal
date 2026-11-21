@@ -25,7 +25,7 @@ const SocConsoleTools = (() => {
   // engines expect: rules run over the same tables as Log Search, and
   // enrichment/preservation match the case's own records.
   function m04Fixture({ id, caseId, end, reports = [], iocs = [], data }) {
-    const eventTables = Object.fromEntries(Object.entries(data.tables).filter(([name, rows]) => name !== 'UnifiedEvents' && rows.length && rows[0].TimeGenerated && rows[0].EventId));
+    const eventTables = Object.fromEntries(Object.entries(data.tables).filter(([, rows]) => rows.length && rows[0].TimeGenerated && rows[0].EventId));
     const telemetry = Object.values(data.records).map((row) => ({
       ...row, id: row.EventId, time: row.TimeGenerated, type: row.EventType, account: row.Account,
       sourceIp: row.SourceIp, result: row.Result, device: row.Host,
@@ -98,7 +98,7 @@ const SocConsoleTools = (() => {
           if (nameField) assessment.queryName = nameField.value;
           try {
             const test = SocM04RulesUi.test(assessment, ctx.fixture, query, timestamp);
-            if (!test.succeeded) throw new Error(`Analytics rules run over the AuthLog table: ${test.error}`);
+            if (!test.succeeded) throw new Error(SocM04RulesUi.queryRejection(ctx.fixture, test.error));
             SocM04RulesUi.saveQuery(assessment, query, timestamp, assessment.queryName || 'Learner query');
             assessment.queryActionError = '';
             ctx.console().tab = 'rules';
@@ -195,7 +195,7 @@ const SocConsoleTools = (() => {
                 const mode = runRuleNow.matches('[data-m04-rule-run-scheduled]') ? 'scheduled' : 'manual';
                 const execution = SocM04RulesUi.recordExecution(assessment, form.dataset.ruleId, timestamp, mode);
                 SocM04RulesUi.completePendingExecution(assessment, execution.id, ctx.fixture);
-                ctx.console().tab = 'alerts';
+                if (SocM04RulesUi.shouldNavigateToAlerts(mode)) ctx.console().tab = 'alerts';
               }
             }
           } catch (error) {
@@ -238,6 +238,7 @@ const SocConsoleTools = (() => {
               form.elements.summary.value = record.summary;
             } else {
               ['type', 'value', 'confidence', 'firstSeen', 'lastSeen', 'campaign', 'status', 'sourceReportId', 'context'].forEach((key) => { form.elements[key].value = record[key] ?? ''; });
+              form.elements.campaign.value = SocM04IntelligenceUi.campaignForEdit(record, ctx.assessment().reports);
             }
           }
           form.querySelector('[data-m04-form-title]').textContent = `${record ? 'Edit' : 'New'} ${kind === 'ioc' ? 'IOC' : 'report'}`;
@@ -295,7 +296,23 @@ const SocConsoleTools = (() => {
         if (verdictForm) {
           event.preventDefault();
           try {
-            SocM04IntelligenceUi.recordVerdict(ctx.assessment(), ctx.fixture, verdictForm.dataset.indicatorId, verdictForm.elements.decision.value, verdictForm.elements.rationale.value, new Date().toISOString());
+            const assessment = ctx.assessment();
+            const indicatorId = verdictForm.dataset.indicatorId;
+            const drafts = { ...(assessment.intelVerdictDrafts || {}) };
+            [...(root.querySelectorAll('[data-m04-verdict-form]') || [])].forEach((form) => {
+              const draftId = form.dataset.indicatorId;
+              if (draftId === indicatorId) return;
+              const decision = String(form.elements.decision.value || '');
+              const rationale = String(form.elements.rationale.value || '');
+              const recorded = assessment.intelVerdicts?.[draftId];
+              if (decision !== (recorded?.decision || '') || rationale !== (recorded?.rationale || '')) {
+                if (decision || rationale) drafts[draftId] = { decision, rationale };
+                else delete drafts[draftId];
+              } else delete drafts[draftId];
+            });
+            SocM04IntelligenceUi.recordVerdict(assessment, ctx.fixture, indicatorId, verdictForm.elements.decision.value, verdictForm.elements.rationale.value, new Date().toISOString());
+            delete drafts[indicatorId];
+            assessment.intelVerdictDrafts = drafts;
             ctx.save();
             ctx.rerender();
           } catch (error) {
@@ -327,7 +344,7 @@ const SocConsoleTools = (() => {
 
   // Adapt a later module's console dataset into the M05 endpoint fixture
   // shape: devices plus the case's device-linked records.
-  function m05Fixture({ id, stateKey, devices = [], data, expectedTruth = null }) {
+  function m05Fixture({ id, stateKey, devices = [], data, expectedTruth = null, start = null, end = null }) {
     const telemetry = Object.values(data.records).filter((row) => row.DeviceId).map((row) => ({
       id: row.EventId, time: row.TimeGenerated, eventType: row.EndpointEventType || row.EventType, deviceId: row.DeviceId,
       host: row.Host, user: row.Account, processId: row.ProcessId || null, parentProcessId: row.ParentProcessId || null,
@@ -335,7 +352,12 @@ const SocConsoleTools = (() => {
       registryPath: row.RegistryPath || null, action: row.Action || row.EventType, result: row.Result, source: row.EventSource,
       url: row.Url || null, signer: row.Signer, prevalence: row.Prevalence, reputation: row.Reputation,
     })).sort((a, b) => a.time.localeCompare(b.time));
-    return { schemaVersion: 1, scenario: { id, stateKey, devices, telemetry, expectedTruth } };
+    // The Endpoint view only lists events inside scenario.start..end (SocM05AssessmentDeviceUi.timelineEvents);
+    // without a window every device showed "No telemetry events available" (UAT U33). Default to the telemetry span.
+    const times = telemetry.map((event) => Date.parse(event.time)).filter(Number.isFinite);
+    const windowStart = start || (times.length ? new Date(Math.min(...times)).toISOString() : null);
+    const windowEnd = end || (times.length ? new Date(Math.max(...times)).toISOString() : null);
+    return { schemaVersion: 1, scenario: { id, stateKey, start: windowStart, end: windowEnd, devices, telemetry, expectedTruth } };
   }
 
   const m05SelectedDevice = (ctx, state) => {
@@ -663,7 +685,7 @@ const SocConsoleTools = (() => {
           event.preventDefault();
           run('[data-m06-related-search] [role=status]', (state, fixture) => {
             const values = data();
-            return SocM06AssessmentRelatedSearch.search(state, fixture, { startTime: values.get('startTime'), endTime: values.get('endTime'), entityType: values.get('entityType'), entityValue: values.get('entityType') === 'all' ? 'all' : values.get('entityValue') }, String(values.get('query') || ''), now()).state;
+            return SocM06AssessmentRelatedSearch.search(state, fixture, SocM06AssessmentRelatedSearch.scopeFromForm(values), String(values.get('query') || ''), now()).state;
           });
           return;
         }
@@ -747,7 +769,7 @@ const SocConsoleTools = (() => {
         const runSaved = event.target.closest('[data-m06-run-saved-query]');
         if (runSaved) {
           const values = new FormData(root.querySelector('[data-m06-save-query-form]'));
-          const scope = { startTime: values.get('startTime'), endTime: values.get('endTime'), entityType: values.get('entityType'), entityValue: values.get('entityValue') };
+          const scope = SocM06AssessmentRelatedSearch.scopeFromForm(values);
           run('[data-m06-query-feedback]', (state, fixture) => SocM06AssessmentRelatedSearch.runSavedQuery(state, fixture, scope, runSaved.dataset.m06RunSavedQuery, now()).state);
           return;
         }
@@ -796,6 +818,18 @@ const SocConsoleTools = (() => {
       network: () => `<section class="m04-console-extra m07-console-extra" data-m07-console-workspace="network">${SocM07AssessmentNetworkUi.render(ctx.fixture, ctx.box.state, ctx.ui.networkFilters || {})}</section>`,
     }),
     wire(root, ctx) {
+      const rerender = () => {
+        const openEmailSections = [...root.querySelectorAll('[data-m07-message-id]')].flatMap((article) =>
+          [...article.querySelectorAll('details')].flatMap((detail, index) => detail.open
+            ? [{ messageId: article.dataset.m07MessageId, index }] : []));
+        ctx.rerender();
+        openEmailSections.forEach(({ messageId, index }) => {
+          const article = [...root.querySelectorAll('[data-m07-message-id]')]
+            .find((item) => item.dataset.m07MessageId === messageId);
+          const detail = article?.querySelectorAll('details')[index];
+          if (detail) detail.open = true;
+        });
+      };
       root.addEventListener('submit', (event) => {
         const incidentForm = event.target.closest('[data-m07-incident-form]');
         if (incidentForm && ctx.box.state) {
@@ -820,7 +854,7 @@ const SocConsoleTools = (() => {
               'incident_link', new Date(ctx.fixture.scenario.fixedAt).toISOString(), details,
               ctx.fixture);
             ctx.store(ctx.box.state);
-            ctx.rerender();
+            rerender();
           } catch (error) {
             const status = incidentForm.querySelector('[data-m07-incident-status]');
             if (status) status.textContent = error.message;
@@ -832,7 +866,7 @@ const SocConsoleTools = (() => {
           event.preventDefault();
           const eventId = String(packetForm.elements.eventId?.value || '').slice(0, 40);
           ctx.ui.networkFilters = { ...(ctx.ui.networkFilters || {}), pcapEventId: eventId };
-          ctx.rerender();
+          rerender();
           return;
         }
         const networkForm = event.target.closest('[data-m07-network-search]');
@@ -843,7 +877,7 @@ const SocConsoleTools = (() => {
             type: networkForm.elements.type?.value || 'all',
             device: String(networkForm.elements.device?.value || '').slice(0, 40),
           };
-          ctx.rerender();
+          rerender();
           return;
         }
         const form = event.target.closest('[data-m07-recipient-search]');
@@ -862,7 +896,7 @@ const SocConsoleTools = (() => {
           'recipient_search', new Date(ctx.fixture.scenario.fixedAt).toISOString(), details,
           ctx.fixture);
         ctx.store(ctx.box.state);
-        ctx.rerender();
+        rerender();
       });
       root.addEventListener('click', (event) => {
         const evidenceButton = event.target.closest('[data-m07-evidence-toggle]');
@@ -874,7 +908,7 @@ const SocConsoleTools = (() => {
               operation: selected ? 'remove' : 'add', eventId, reason: selected ? 'Removed from learner evidence tray' : 'Selected from assessment evidence view',
             }, ctx.fixture);
           ctx.store(ctx.box.state);
-          ctx.rerender();
+          rerender();
           return;
         }
         const networkReview = event.target.closest('[data-m07-review-network]');
@@ -884,7 +918,7 @@ const SocConsoleTools = (() => {
           ctx.box.state = SocM07AssessmentActions.append(ctx.box.state,
             'network_review', new Date(ctx.fixture.scenario.fixedAt).toISOString(), { eventId, reviewed }, ctx.fixture);
           ctx.store(ctx.box.state);
-          ctx.rerender();
+          rerender();
           return;
         }
         const networkPivot = event.target.closest('[data-m07-network-pivot-from]');
@@ -895,7 +929,7 @@ const SocConsoleTools = (() => {
             ctx.box.state = SocM07AssessmentActions.append(ctx.box.state,
               'pivot', new Date(ctx.fixture.scenario.fixedAt).toISOString(), details, ctx.fixture);
             ctx.store(ctx.box.state);
-            ctx.rerender();
+            rerender();
           }
           return;
         }
@@ -911,7 +945,7 @@ const SocConsoleTools = (() => {
             ctx.fixture,
           );
           ctx.store(ctx.box.state);
-          ctx.rerender();
+          rerender();
           return;
         }
         const reviewButton = event.target.closest('[data-m07-review-message]');
@@ -926,7 +960,7 @@ const SocConsoleTools = (() => {
             ctx.fixture,
           );
           ctx.store(ctx.box.state);
-          ctx.rerender();
+          rerender();
           return;
         }
       });
@@ -1175,14 +1209,16 @@ const SocConsoleTools = (() => {
     const workflow = state.incidentWorkflows[m09Incident(ctx)];
     const memberships = new Set(state.incidentMemberships || []);
     const inScope = (entity) => memberships.has(entity.id) || memberships.has(entity.linkedEntityId) || memberships.has(entity.accountId);
-    const targets = s.entities.filter((entity) => Object.values(M09_ACTION_TARGETS).includes(entity.type) && inScope(entity));
+    const targetTypes = new Set(actionTypes.map((type) => M09_ACTION_TARGETS[type]));
+    const initialTargetType = M09_ACTION_TARGETS[actionTypes[0]];
+    const targets = s.entities.filter((entity) => targetTypes.has(entity.type) && inScope(entity));
     const approvalOpen = workflow.approvalStatus === 'pending';
     const approved = workflow.approvalStatus === 'approved' && actionTypes.includes(workflow.approvalActionType);
     return `<section class="m09-approval"><h5>Approval gate · ${esc(workflow.approvalStatus)}${workflow.approvalActionType ? ` · ${esc(M09_ACTION_LABELS[workflow.approvalActionType] || workflow.approvalActionType)} → ${esc(workflow.approvalTargetId)}` : ''}</h5>
-      <form data-m09-approval-request><label>Action<select name="actionType">${actionTypes.map((type) => `<option value="${esc(type)}">${esc(M09_ACTION_LABELS[type])}</option>`).join('')}</select></label>
-        <label>Target<select name="targetId">${targets.map((entity) => `<option value="${esc(entity.id)}">${esc(entity.id)} · ${esc(entity.type)}</option>`).join('')}</select></label>
+      <form data-m09-approval-request><label>Action<select name="actionType" data-m09-approval-action>${actionTypes.map((type) => `<option value="${esc(type)}">${esc(M09_ACTION_LABELS[type])}</option>`).join('')}</select></label>
+        <label>Target<select name="targetId" data-m09-approval-target>${targets.map((entity) => `<option value="${esc(entity.id)}" data-target-type="${esc(entity.type)}"${entity.type === initialTargetType ? '' : ' disabled'}>${esc(entity.id)} · ${esc(entity.type)}</option>`).join('')}</select></label>
         <label>Justification<input name="reason" maxlength="500" required></label><button type="submit"${approvalOpen ? ' disabled' : ''}>Request approval</button></form>
-      ${approvalOpen ? `<form data-m09-approval-decision><label>Approver ID<input name="approver" maxlength="64" required placeholder="ir-lead-morgan" pattern="ir-(lead|analyst)-[a-z0-9-]+" title="Incident-response ID: ir-lead-… or ir-analyst-… (lowercase)"><small>Incident lead or analyst ID, e.g. ir-lead-morgan</small></label><label>Decision reason<input name="reason" maxlength="500" required></label><button type="submit" name="decision" value="approved">Approve</button><button type="submit" name="decision" value="rejected">Reject</button></form>` : ''}
+      ${approvalOpen ? `<form data-m09-approval-decision><label>Approver ID<input name="approver" maxlength="64" required placeholder="ir-lead-morgan" pattern="ir-(lead|analyst)-(?:[a-z0-9]|-)+" title="Incident-response ID: ir-lead-… or ir-analyst-… (lowercase)"><small>Incident lead or analyst ID, e.g. ir-lead-morgan</small></label><label>Decision reason<input name="reason" maxlength="500" required></label><button type="submit" name="decision" value="approved">Approve</button><button type="submit" name="decision" value="rejected">Reject</button></form>` : ''}
       ${approved && workflow.approvalActionType !== 'restore_backup' ? `<button type="button" data-m09-execute>Execute approved action</button>` : ''}
     </section>`;
   }
@@ -1270,8 +1306,8 @@ const SocConsoleTools = (() => {
     }) : '';
     const attempts = (state.unsafeAttempts || []).slice().reverse().map((attempt) => `<li><strong>${esc(M09_ACTION_LABELS[attempt.actionType] || attempt.actionType)}</strong> → ${esc(attempt.targetId)} · <b>${esc(attempt.outcome)}</b> · ${esc({ no_approval: 'no matching approval recorded', out_of_scope: 'target outside the incident scope', wrong_target_type: 'wrong target type for this action' }[attempt.reason] || attempt.reason)} · ${esc(attempt.timestamp.slice(11, 19))}</li>`).join('');
     const attemptForm = ctx.attemptForm ? `<section class="m09-attempt" data-m09-attempt><h5>Attempt a response action</h5>
-      <form data-m09-attempt-form><label>Action<select name="actionType" required><option value="">Choose…</option>${Object.keys(M09_ACTION_TARGETS).map((type) => `<option value="${esc(type)}">${esc(M09_ACTION_LABELS[type])}</option>`).join('')}</select></label>
-        <label>Target<select name="targetId" required><option value="">Choose…</option>${s.entities.map((entity) => `<option value="${esc(entity.id)}">${esc(entity.id)} · ${esc(entity.type)}</option>`).join('')}</select></label>
+      <form data-m09-attempt-form><label>Action<select name="actionType" required data-m09-attempt-action><option value="">Choose…</option>${Object.keys(M09_ACTION_TARGETS).map((type) => `<option value="${esc(type)}">${esc(M09_ACTION_LABELS[type])}</option>`).join('')}</select></label>
+        <label>Target<select name="targetId" required data-m09-attempt-target><option value="">Choose an action first…</option>${s.entities.map((entity) => `<option value="${esc(entity.id)}" data-target-type="${esc(entity.type)}" disabled>${esc(entity.id)} · ${esc(entity.type)}</option>`).join('')}</select></label>
         <button type="submit">Attempt response action</button></form>
       <p class="m03e-muted">The range records every attempt and checks scope and recorded approval.</p>
       ${ctx.practice ? m09AttemptCoach(state) : ''}
@@ -1321,6 +1357,21 @@ const SocConsoleTools = (() => {
       };
       const workflow = (changes) => run((state, at) => SocM09AssessmentState.updateIncidentWorkflow(state, incidentId(), changes, at, ctx.fixture));
       root.addEventListener('change', (event) => {
+        const action = event.target.closest('[data-m09-attempt-action], [data-m09-approval-action]');
+        if (action) {
+          const isApproval = action.matches('[data-m09-approval-action]');
+          const form = action.closest(isApproval ? '[data-m09-approval-request]' : '[data-m09-attempt-form]');
+          const targets = form?.querySelector(isApproval ? '[data-m09-approval-target]' : '[data-m09-attempt-target]');
+          if (!targets) return;
+          let selectedTargetIsValid = false;
+          Array.from(targets.options).forEach((option) => {
+            if (!option.value) return;
+            option.disabled = option.dataset.targetType !== M09_ACTION_TARGETS[action.value];
+            if (!option.disabled && option.value === targets.value) selectedTargetIsValid = true;
+          });
+          if (!selectedTargetIsValid) targets.value = '';
+          return;
+        }
         const box = event.target.closest('[data-m09-review-evidence]');
         if (!box) return;
         run((state) => {

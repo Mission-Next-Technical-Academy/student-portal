@@ -11,8 +11,17 @@ find portal ui -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 echo '== Portal module render =='
 node bin/portal-check.js
 
+echo '== Test-account progress reset (admin RPC calls, browser-state clearing) =='
+node tests/test-account-reset.test.js
+
 echo '== Module card states =='
 node tests/module-card-state.test.js
+
+echo '== SOC Instructor Guide tab (no guide content shipped; SOC staff only) =='
+node tests/soc-instructor-guide.test.js
+
+echo '== Help Desk module order (display numbers and weeks) =='
+node tests/hdesk-module-order.test.js
 
 echo '== Help Desk returned-lab resubmit =='
 node tests/hdesk-returned-lab-resubmit.test.js
@@ -24,6 +33,25 @@ node tests/module-assessment-submit.test.js
 
 echo '== Coach labs survive reload and relaunch (Help Desk + SOC Module 1) =='
 node tests/coach-reload-resume.test.js
+node tests/coach-step-advance-race.test.js
+
+echo '== Help Desk HD-2101 scenario (regression test; kept for Module 8) =='
+node tests/hdesk-m01-practice.test.js
+
+echo '== Help Desk console features: off by default, each one on per ticket =='
+node tests/hdesk-console-features.test.js
+node tests/hdesk-m02-console-features.test.js
+node tests/hdesk-m02-guided-lab.test.js
+node tests/hdesk-m02-practice-tickets.test.js
+node tests/hdesk-m02-page.test.js
+node tests/hdesk-m02-prove.test.js
+node tests/hdesk-m01-guided-lab.test.js
+node tests/hdesk-m01-practice-tickets.test.js
+node tests/hdesk-m01-ticket-1d.test.js
+node tests/hdesk-m01-orientation.test.js
+node tests/hdesk-m01-checks.test.js
+node tests/hdesk-m01-practice-lab.test.js
+node tests/case-state-save-result.test.js
 
 echo '== Help Desk Prove It mode: no coach, no answers, machine state =='
 node tests/hdesk-prove-mode.test.js
@@ -31,6 +59,10 @@ node tests/hdesk-prove-mode.test.js
 echo '== Help Desk Prove It Submit: honest save, faculty review, no score =='
 node tests/hdesk-prove-submit.test.js
 node tests/hdesk-faculty-grading.test.js
+node tests/hdesk-prove-auto-score-sheet.test.js
+
+echo '== SOC Prove It: server recommendation on the Submission Sheet =='
+node tests/soc-prove-server-recommendation.test.js
 
 echo '== Help Desk curriculum minutes =='
 node bin/its-curriculum-check.js
@@ -86,6 +118,9 @@ node tests/lab-attempt-evidence-panel.test.js
 
 echo '== Simulator route render and navigation =='
 node bin/render_all.js
+
+echo '== Staging automation scripts and workflow boundaries (offline, throwaway git repos) =='
+node tests/staging-sync-scripts.test.js
 
 echo '== Diff whitespace =='
 git diff --check

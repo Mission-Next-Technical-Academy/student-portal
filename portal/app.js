@@ -92,11 +92,7 @@ async function buildCoreUserFromSession(session) {
   // roster below is the authority for its course scope.  Do not infer either
   // from a track code: student accounts have track codes too.
   const [studentResult, assignmentResult] = await Promise.all([
-    mntSupabase
-      .from('students')
-      .select('student_id, track_code, is_admin, is_instructor, is_enrolled, academy_orientation_completed_at')
-      .eq('user_id', userId)
-      .single(),
+    selectOwnStudentRow(userId),
     mntSupabase
       .from('faculty_course_assignments')
       .select('track_code')
@@ -105,6 +101,9 @@ async function buildCoreUserFromSession(session) {
   ]);
   const studentRow = studentResult.data;
   if (studentResult.error) console.error('Could not load account profile', studentResult.error);
+  // Warm the roster-wide name directory in the background; it never blocks
+  // sign-in and quietly stays empty against a database without the columns.
+  if (studentRow) loadAccountNames();
   if (assignmentResult.error) console.error('Could not load instructor course assignments', assignmentResult.error);
   const instructorTrackCodes = (assignmentResult.data || []).map((row) => row.track_code).filter((code) => !!adminTrackMeta(code));
 
@@ -134,6 +133,10 @@ async function buildCoreUserFromSession(session) {
     // see AcademyOrientation in orientation.js and the
     // 20260920100000_academy_orientation_state.sql migration.
     academyOrientationCompletedAt: studentRow ? studentRow.academy_orientation_completed_at : null,
+    // Display name beside the account number; null until the account-names
+    // migration is live and an admin has set one (see accountNameText()).
+    firstName: studentRow ? studentRow.first_name || null : null,
+    lastName: studentRow ? studentRow.last_name || null : null,
     enrollments,
     // userId/trackCode: added for the module_progress write path (docs/specs/architecture.md
     // §3 Sprint 2). Both come from the studentRow query above, already run for
@@ -180,8 +183,12 @@ async function fetchOfficialGrades(attemptIds) {
 /* Records (transcript, evidence bundle, student detail), official-grade labs
  * only: the newest attempt's newest decision is the only one that stands. An
  * approval at or above the pass mark shows its score and date; anything else
- * shows no score and no date. Never an older attempt's score, a withdrawn grade
- * or a Fail. Every other lab's record is unchanged. */
+ * shows no score and no date. A newest attempt returned with a critical error
+ * reads OFFICIAL_CRITICAL_RESULT instead of "In progress" (still no score).
+ * Never an older attempt's score, a withdrawn grade or a Fail. Every other
+ * lab's record is unchanged. */
+const OFFICIAL_CRITICAL_RESULT = 'Critical Error - Not Passed';
+
 function officialLabForModule(moduleKey) {
   const lab = LABS.find((item) => item.module === moduleKey && labTakesOfficialGrade(item.key));
   return lab ? lab.key : null;
@@ -195,14 +202,32 @@ function officialLabStanding(labKey, attemptRows) {
   const mark = newest ? Number(newest.pass_threshold) : NaN;
   const passed = !!(newest && newest.reviewed_at && !newest.redo_requested && grade && grade.decision === 'approved'
     && grade.official_score !== null && grade.official_score !== undefined && (!mark || score >= mark));
-  return { newestId: newest ? newest.id : null, attempted: !!newest, passed, score: passed ? score : null, decidedAt: passed ? grade.created_at : null };
+  const critical = !!(newest && newest.reviewed_at && newest.redo_requested && grade && grade.critical_error === true);
+  // For staff labels only (officialAttemptRecord with staffLabels,
+  // adminModuleStatusHtml): the newest attempt is waiting for its review, or
+  // was sent back. Student views never read these.
+  const awaiting = !!(newest && !newest.reviewed_at);
+  const returned = !!(newest && newest.reviewed_at && newest.redo_requested && !critical);
+  return { newestId: newest ? newest.id : null, attempted: !!newest, passed, critical, awaiting, returned, score: passed ? score : null, decidedAt: passed ? grade.created_at : null };
 }
 
+const OFFICIAL_AWAITING_REVIEW = 'Awaiting review';
+const OFFICIAL_RETURNED = 'Returned';
+
 // One attempt's line in the records, from the decision that stands.
-function officialAttemptRecord(row, standing) {
+// staffLabels (staff views only): the newest attempt says "Awaiting review"
+// or "Returned" instead of "In progress". Students' own downloads keep
+// "In progress".
+function officialAttemptRecord(row, standing, staffLabels = false) {
   return standing.passed && row.id === standing.newestId
     ? { status: 'Pass', state: 'complete', score: standing.score, date: standing.decidedAt }
-    : { status: 'In progress', state: 'in_progress', score: null, date: null };
+    : standing.critical && row.id === standing.newestId
+      ? { status: OFFICIAL_CRITICAL_RESULT, state: 'in_progress', score: null, date: null }
+      : staffLabels && standing.awaiting && row.id === standing.newestId
+        ? { status: OFFICIAL_AWAITING_REVIEW, state: 'in_progress', score: null, date: null, awaiting: true }
+        : staffLabels && standing.returned && row.id === standing.newestId
+          ? { status: OFFICIAL_RETURNED, state: 'in_progress', score: null, date: null }
+          : { status: 'In progress', state: 'in_progress', score: null, date: null };
 }
 
 // A correction gives an attempt a second decision. The student sees only the
@@ -388,6 +413,7 @@ async function fetchUserDetails(userId, trackCode) {
       gradedLatest.forEach((row) => {
         const grade = grades.get(row.id);
         latestLabAttemptByKey[row.lab_key].officialScore = grade ? grade.official_score : null;
+        latestLabAttemptByKey[row.lab_key].criticalError = !!(grade && grade.critical_error);
       });
     }
     const openAttempts = Array.from(latestByLabKey.values()).filter((row) => row.redo_requested);
@@ -415,7 +441,8 @@ async function fetchUserDetails(userId, trackCode) {
       openAttempts.forEach((row) => {
         openLabRedoFeedbackByLabKey[row.lab_key] = feedbackByAttemptId.get(row.id) || [];
         const lab = LABS.find((l) => l.key === row.lab_key);
-        if (!lab) return; // stale/renamed lab key — nothing to point the student at
+        // Stale/renamed or retired lab key: nothing the student can redo.
+        if (!lab || lab.retired === true) return;
         openLabRedosByModuleKey[lab.module] = {
           labKey: row.lab_key,
           labTitle: lab.title,
@@ -448,6 +475,9 @@ async function buildUserFromSession(session) {
   // Faculty never load learner-only progress or their own inbox as if they
   // were a student. Their course dashboard performs its own scoped reads.
   if (core.isInstructor && !core.isAdmin) return core;
+  // Before anything reads browser-held progress: an admin may have reset
+  // this test account since this browser last saw it.
+  await applyPendingProgressReset(core);
   const details = await fetchUserDetails(core.userId, core.trackCode);
   return { ...core, ...details };
 }
@@ -523,6 +553,10 @@ async function signIn(identifier, password) {
   _cachedUserPromise = null;
   const core = await buildCoreUserFromSession(data.session);
   if (payload.login_event_id) recordLoginGeo(payload.login_event_id);
+  // Same check as buildUserFromSession: this path renders without a reload,
+  // so an admin's reset must clear this browser before details are read.
+  // It returns at once for admins and instructors.
+  await applyPendingProgressReset(core);
   const detailsPromise = core.isInstructor && !core.isAdmin
     ? Promise.resolve({})
     : fetchUserDetails(core.userId, core.trackCode);
@@ -605,6 +639,11 @@ async function signOut(reason = 'user_signed_out') {
   await mntSupabase.auth.signOut();
   _cachedUser = null;
   _cachedUserPromise = null;
+  ACCOUNT_NAMES.byStudentId.clear();
+  ACCOUNT_NAMES.byUserId.clear();
+  ACCOUNT_NAMES.ready = null;
+  // The SOC Instructor Guide holds answer keys: drop it with the session.
+  if (typeof SocInstructorGuide !== 'undefined') SocInstructorGuide.reset();
   // Purge defender-lab.* keys, or the next student on this browser inherits
   // the previous one's lab environment. PLATFORM_ARCHITECTURE.md §7.2.
   Object.keys(localStorage)
@@ -1167,7 +1206,7 @@ function adminAttemptReviewCard(item, olderAttempt) {
     <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
       <div class="min-w-0">
         <p class="text-sm font-semibold text-[#1e3a5f]">${esc(item.name)}${row.attempt ? ` <span class="font-normal text-gray-500">· ${esc(adminAttemptLabel(row))}</span>` : ''}</p>
-        <p class="text-xs text-gray-500 mt-0.5">${esc(item.labTitles.join(' · '))} <span class="text-gray-400">·</span> <span class="font-mono">${esc(row.student_id)}</span></p>
+        <p class="text-xs text-gray-500 mt-0.5">${esc(item.labTitles.join(' · '))} <span class="text-gray-400">·</span> <span class="font-mono">${esc(row.student_id)}</span>${accountNameHtml(row, true)}</p>
         ${olderAttempt ? '<p class="mt-1 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Older attempt — a newer submission of this lab is below</p>' : ''}
         <p class="text-xs text-gray-400 mt-0.5">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}</p>
       </div>
@@ -1206,7 +1245,7 @@ function adminAttemptReviewCard(item, olderAttempt) {
 }
 
 function adminOpenRedoRequestsHtml(redoRows) {
-  return redoRows.length ? `<section class="mt-8 border-t border-gray-200 pt-6"><h3 class="text-lg font-bold text-[#1e3a5f]">Open redo requests</h3><p class="mt-1 mb-3 text-sm text-gray-500">These are the live redo notices learners can currently see. Use this only to reverse a faculty decision made in error; otherwise the learner must submit a new attempt.</p><div class="space-y-3">${redoRows.map((row) => `<article class="bg-amber-50 border border-amber-200 rounded-xl p-4" data-grading-row="${esc(row.id)}"><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p><p class="mt-0.5 text-sm text-gray-700">${esc(adminGradingLabMeta(row).moduleLabel)} <span class="text-gray-400">·</span> ${esc(adminGradingLabMeta(row).labTitle)} <span class="text-gray-400">·</span> sent back ${row.reviewed_at ? new Date(row.reviewed_at).toLocaleString() : '—'}</p><div class="mt-3 flex flex-wrap items-center gap-2">${labTakesOfficialGrade(row.lab_key) ? '<span class="text-xs text-gray-600">Waiting for the student\'s new attempt. This lab needs an official grade, so it can\'t be approved here.</span>' : `<button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(row.id)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Approve without resubmission</button>`}<span data-grading-status class="text-xs text-gray-600"></span></div></article>`).join('')}</div></section>` : '';
+  return redoRows.length ? `<section class="mt-8 border-t border-gray-200 pt-6"><h3 class="text-lg font-bold text-[#1e3a5f]">Open redo requests</h3><p class="mt-1 mb-3 text-sm text-gray-500">These are the live redo notices learners can currently see. Use this only to reverse a faculty decision made in error; otherwise the learner must submit a new attempt.</p><div class="space-y-3">${redoRows.map((row) => `<article class="bg-amber-50 border border-amber-200 rounded-xl p-4" data-grading-row="${esc(row.id)}"><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}${accountNameHtml(row)}</p><p class="mt-0.5 text-sm text-gray-700">${esc(adminGradingLabMeta(row).moduleLabel)} <span class="text-gray-400">·</span> ${esc(adminGradingLabMeta(row).labTitle)} <span class="text-gray-400">·</span> sent back ${row.reviewed_at ? new Date(row.reviewed_at).toLocaleString() : '—'}</p><div class="mt-3 flex flex-wrap items-center gap-2">${labTakesOfficialGrade(row.lab_key) ? '<span class="text-xs text-gray-600">Waiting for the student\'s new attempt. This lab needs an official grade, so it can\'t be approved here.</span>' : `<button type="button" data-action="admin-grading-approve" data-attempt-id="${esc(row.id)}" class="bg-green-50 hover:bg-green-100 text-green-700 font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Approve without resubmission</button>`}<span data-grading-status class="text-xs text-gray-600"></span></div></article>`).join('')}</div></section>` : '';
 }
 
 /* Lab Attempts tab (owner, 2026-10-05): replaces the Grading/Graded split.
@@ -1319,7 +1358,7 @@ function adminLabAttemptsPanel({ pendingRows = [], gradedRows = [], supersededRo
 
   const studentCard = (student) => `<section class="bg-white border ${student.pendingItems ? 'border-amber-200' : 'border-gray-200'} rounded-xl px-5 py-4" data-grading-student="${esc(student.studentId)}">
       <div class="flex flex-wrap items-baseline justify-between gap-2">
-        <p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(student.studentId)}</p>
+        <p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(student.studentId)}${accountNameHtml(student.studentId)}</p>
         <p class="text-xs text-gray-500">${student.pendingItems ? `<span class="font-semibold text-amber-700">${student.pendingItems} under review</span> · ` : ''}${student.items.length - student.pendingItems} graded</p>
       </div>
       <div class="mt-3 grid gap-1.5" style="grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));">${student.phases.map((phase) => {
@@ -1509,8 +1548,8 @@ function adminMessageInboxPanel(messageRows) {
   const list = Array.from(threads.entries()).sort(([, a], [, b]) => (b.rows[b.rows.length - 1]?.created_at || '').localeCompare(a.rows[a.rows.length - 1]?.created_at || ''));
   if (!list.length) return `<div class="mb-6"><h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Instructor inbox</h2><div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div></div><div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">No messages in this course workspace yet.</p></div>`;
   return `<div class="mb-6"><h2 class="text-2xl font-bold text-[#1e3a5f] mb-2">Instructor inbox</h2><div class="w-10 h-1 bg-[#f97316] rounded-full mb-3"></div><p class="text-gray-500 text-sm">Messages stay inside the portal. Replying also clears the student's unread message cue for this conversation.</p></div><div class="space-y-4">${list.map(([threadId, thread]) => `<article class="bg-white border border-gray-200 rounded-xl p-5" data-faculty-message-thread="${esc(threadId)}">
-    <div class="flex flex-wrap items-start justify-between gap-3 mb-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(thread.studentId)}</p><h3 class="text-sm text-gray-700 mt-1">${esc(thread.subject)}</h3></div></div>
-    <div class="space-y-2 mb-4">${thread.rows.map((message) => `<div class="rounded-lg px-3 py-2 ${message.sender_role === 'student' ? 'bg-[#f0f7ff] border border-[#bfdbfe]' : 'bg-gray-50 border border-gray-100'}"><div class="flex justify-between gap-3 text-xs mb-1"><strong class="text-[#1e3a5f]">${esc(messageSenderLabel(message, thread.studentId))}</strong><span class="text-gray-500">${esc(message.created_at ? new Date(message.created_at).toLocaleString() : '—')}</span></div><p class="text-sm text-gray-700 whitespace-pre-wrap">${esc(message.body)}</p></div>`).join('')}</div>
+    <div class="flex flex-wrap items-start justify-between gap-3 mb-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(thread.studentId)}${accountNameHtml({ student_id: thread.studentId, user_id: thread.userId })}</p><h3 class="text-sm text-gray-700 mt-1">${esc(thread.subject)}</h3></div></div>
+    <div class="space-y-2 mb-4">${thread.rows.map((message) => `<div class="rounded-lg px-3 py-2 ${message.sender_role === 'student' ? 'bg-[#f0f7ff] border border-[#bfdbfe]' : 'bg-gray-50 border border-gray-100'}"><div class="flex justify-between gap-3 text-xs mb-1"><strong class="text-[#1e3a5f]">${esc(messageSenderLabel(message, thread.studentId))}${message.sender_role === 'student' ? accountNameHtml({ student_id: thread.studentId, user_id: thread.userId }, true) : ''}</strong><span class="text-gray-500">${esc(message.created_at ? new Date(message.created_at).toLocaleString() : '—')}</span></div><p class="text-sm text-gray-700 whitespace-pre-wrap">${esc(message.body)}</p></div>`).join('')}</div>
     <form data-faculty-message-reply data-thread-id="${esc(threadId)}" data-student-user-id="${esc(thread.userId)}" data-track-code="${esc(thread.trackCode)}" data-subject="${esc(thread.subject)}"><label class="block text-sm font-semibold text-[#1e3a5f]">Reply<textarea required rows="3" maxlength="10000" name="body" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Write a plain-text reply."></textarea></label><div class="mt-2 flex items-center gap-3"><button type="submit" class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg">Send reply</button><span data-faculty-message-status class="text-xs text-gray-500" aria-live="polite"></span></div></form>
   </article>`).join('')}</div>`;
 }
@@ -1550,7 +1589,7 @@ function adminProgramRoster(rows) {
     // first-glance data. renderStudentDetail() below presents the readiness
     // fields inside the expanded record.
     const detailId = `admin-inline-detail-${row.student_id}`;
-    return `<article class="bg-white border border-gray-200 rounded-xl p-5 ${row.enrolled === false ? 'opacity-70' : ''}"><div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}</p><p class="text-sm text-gray-500 mt-1">${esc((adminTrackMeta(row.track_code) || {}).eyebrow || row.track_code)} · ${esc(academicStatusLabel(deriveAcademicStatus(row)))}</p></div><button type="button" data-admin-progress-detail="${esc(row.student_id)}" aria-controls="${esc(detailId)}" aria-expanded="false" class="inline-flex items-center gap-1 text-sm font-semibold text-[#1e3a5f] hover:underline">View details <i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div><div class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full rounded-full bg-[#f97316]" style="width:${percent}%"></div></div><div class="flex flex-wrap items-center justify-between gap-2 mt-2"><span class="text-sm font-semibold text-[#1e3a5f]">Coursework ${completed} / ${required}</span><span class="text-xs font-semibold rounded-full px-2.5 py-1 bg-[#eef4fa] text-[#1e3a5f]">${esc(m360ProgressStatus(row))}</span></div><div class="mt-3 flex flex-wrap gap-1.5">${technicalChip}${m360Chip}</div><div id="${esc(detailId)}" data-admin-inline-detail="${esc(row.student_id)}" class="grid transition-all duration-300 ease-out" style="grid-template-rows:0fr"><div class="overflow-hidden"><div class="pt-5"></div></div></div></article>`;
+    return `<article class="bg-white border border-gray-200 rounded-xl p-5 ${row.enrolled === false ? 'opacity-70' : ''}"><div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div><p class="font-mono text-sm font-semibold text-[#1e3a5f]">${esc(row.student_id)}${accountNameHtml(row)}</p><p class="text-sm text-gray-500 mt-1">${esc((adminTrackMeta(row.track_code) || {}).eyebrow || row.track_code)} · ${esc(academicStatusLabel(deriveAcademicStatus(row)))}</p></div><button type="button" data-admin-progress-detail="${esc(row.student_id)}" aria-controls="${esc(detailId)}" aria-expanded="false" class="inline-flex items-center gap-1 text-sm font-semibold text-[#1e3a5f] hover:underline">View details <i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div><div class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full rounded-full bg-[#f97316]" style="width:${percent}%"></div></div><div class="flex flex-wrap items-center justify-between gap-2 mt-2"><span class="text-sm font-semibold text-[#1e3a5f]">Coursework ${completed} / ${required}</span><span class="text-xs font-semibold rounded-full px-2.5 py-1 bg-[#eef4fa] text-[#1e3a5f]">${esc(m360ProgressStatus(row))}</span></div><div class="mt-3 flex flex-wrap gap-1.5">${technicalChip}${m360Chip}</div><div id="${esc(detailId)}" data-admin-inline-detail="${esc(row.student_id)}" class="grid transition-all duration-300 ease-out" style="grid-template-rows:0fr"><div class="overflow-hidden"><div class="pt-5"></div></div></div></article>`;
   }).join('')}</div></section>`;
 }
 
@@ -1659,6 +1698,7 @@ function evaluateReportingCompliance(rows, context) {
       requiredFields: ['student_id', 'program', 'credential', 'enrollment_date', 'scheduled_start_date', 'completion_date', 'academic_status', 'student name or documented lawful substitute'],
       dynamicallyPresent: [
         { field: 'Student ID', get: (r) => r.student_id },
+        { field: 'Student name (stored first and last name)', get: (r) => r.firstName && r.lastName ? `${r.firstName} ${r.lastName}` : accountNameText(r) },
         { field: 'Program', get: (r) => r.program_slug },
         { field: 'Credential', get: (r) => r.credentialName || r.credential_name },
         { field: 'Enrollment date', get: (r) => r.enrollmentDate },
@@ -1666,9 +1706,9 @@ function evaluateReportingCompliance(rows, context) {
         { field: 'Completion date', get: (r) => r.completionDate },
         { field: 'Academic status', get: (r) => r.status },
       ],
-      staticallyMissing: ['Student name (or an approved documented substitute) — students are currently tracked by an anonymized ID only, and a verified identity record has not been integrated yet'],
+      staticallyMissing: [],
       sourceTables: ['students', 'enrollment_periods', 'program_versions', 'admin_student_progress (view)'],
-      note: 'Credential, planned start date, and program-version data are now available from the academy\'s enrollment records. This report does not substitute a student ID for a verified identity record.',
+      note: 'Credential, planned start date, and program-version data are now available from the academy\'s enrollment records. Student name is the first and last name an administrator entered on the account (account display names); it is not a verified identity record, and an account with no stored name is reported as missing the field.',
     }),
     req({
       id: 'clock_hours_attendance',
@@ -1925,6 +1965,8 @@ function buildCohortReportData(rows, options) {
       const status = deriveAcademicStatus(row);
       return {
         studentId: row.student_id,
+        firstName: (accountNameParts(row) || {}).first_name || null,
+        lastName: (accountNameParts(row) || {}).last_name || null,
         track: row.track_code,
         program: row.program_slug || '—',
         enrolled: row.enrolled !== false,
@@ -2535,9 +2577,10 @@ async function renderCohortPdf(cohortData, reportId) {
     doc.autoTable({
       startY: cursorY + 6,
       margin: { left: marginX, right: marginX, bottom: 60 },
-      head: [['Student ID', 'Track', 'Program', 'Academic Status', 'Enrolled', 'Modules', '% Complete', 'Capstone Score', 'Last Active']],
+      head: [['Student ID', 'Name', 'Track', 'Program', 'Academic Status', 'Enrolled', 'Modules', '% Complete', 'Capstone Score', 'Last Active']],
       body: cohortData.students.map((st) => [
         st.studentId,
+        st.firstName && st.lastName ? `${st.firstName} ${st.lastName}` : '—',
         st.track || '—',
         st.program,
         st.progressState,
@@ -2583,9 +2626,11 @@ async function renderCohortPdf(cohortData, reportId) {
     doc.autoTable({
       startY: cursorY,
       margin: { left: marginX, right: marginX, bottom: 60 },
-      head: [['Student ID', 'Credential', 'Enrollment Date', 'Scheduled Start Date', 'Completion Date']],
+      head: [['Student ID', 'First Name', 'Last Name', 'Credential', 'Enrollment Date', 'Scheduled Start Date', 'Completion Date']],
       body: cohortData.students.map((st) => [
         st.studentId,
+        st.firstName || '—',
+        st.lastName || '—',
         st.credential || '—',
         st.enrollmentDate ? new Date(st.enrollmentDate).toLocaleDateString() : '—',
         st.scheduledStartDate ? new Date(st.scheduledStartDate).toLocaleDateString() : '—',
@@ -2669,9 +2714,11 @@ async function renderProgressSnapshotPdf(scopedRows, options, reportId) {
     doc.autoTable({
       startY: cursorY,
       margin: { left: marginX, right: marginX, bottom: 60 },
-      head: [['Student ID', 'Track', 'Program', 'Enrollment', '% Complete', 'Modules', 'Capstone Score', 'Last Active']],
+      head: [['Student ID', 'First Name', 'Last Name', 'Track', 'Program', 'Enrollment', '% Complete', 'Modules', 'Capstone Score', 'Last Active']],
       body: scopedRows.map((row) => [
         row.student_id,
+        (accountNameParts(row) || {}).first_name || '—',
+        (accountNameParts(row) || {}).last_name || '—',
         row.track_code || '—',
         row.program_slug || '—',
         row.adminStateLabel || (row.enrolled !== false ? 'Enrolled' : 'Disenrolled'),
@@ -2866,8 +2913,8 @@ async function renderTranscriptPdf(transcriptData, reportId) {
 
   const programTitle = transcriptData.program ? transcriptData.program.title : 'No program on file';
   applyPdfMetadata(doc, {
-    title: `Mission Next Technical Academy — Academic Transcript — ${transcriptData.studentId}`,
-    subject: `Individual academic transcript for student ${transcriptData.studentId} (${programTitle})`,
+    title: `Mission Next Technical Academy — Academic Transcript — ${transcriptData.studentId}${transcriptData.firstName && transcriptData.lastName ? ` (${transcriptData.firstName} ${transcriptData.lastName})` : ''}`,
+    subject: `Individual academic transcript for student ${transcriptData.studentId}${transcriptData.firstName && transcriptData.lastName ? ` ${transcriptData.firstName} ${transcriptData.lastName}` : ''} (${programTitle})`,
     reportId,
   });
 
@@ -2911,7 +2958,7 @@ async function renderTranscriptPdf(transcriptData, reportId) {
 
   const leftPairs = [
     ['Student Identifier', transcriptData.studentId],
-    ['Student Name', 'Not available — this system identifies students by anonymized ID only'],
+    ['Student Name', transcriptData.firstName && transcriptData.lastName ? `${transcriptData.firstName} ${transcriptData.lastName}` : 'Not on file — no first and last name has been entered for this account'],
     ['Track / Program', `${fmtVal(transcriptData.track)} — ${programTitle}`],
     ['Credential', transcriptData.program ? fmtVal(transcriptData.program.credential, 'Not recorded') : 'Not recorded'],
   ];
@@ -3105,8 +3152,8 @@ async function renderEvidencePdf(evidenceData, reportId) {
   const marginX = 40;
 
   applyPdfMetadata(doc, {
-    title: `Mission Next Technical Academy — Supporting Evidence Record — ${evidenceData.studentId}`,
-    subject: `Lab/competency supporting-evidence record for student ${evidenceData.studentId}`,
+    title: `Mission Next Technical Academy — Supporting Evidence Record — ${evidenceData.studentId}${evidenceData.firstName && evidenceData.lastName ? ` (${evidenceData.firstName} ${evidenceData.lastName})` : ''}`,
+    subject: `Lab/competency supporting-evidence record for student ${evidenceData.studentId}${evidenceData.firstName && evidenceData.lastName ? ` ${evidenceData.firstName} ${evidenceData.lastName}` : ''}`,
     reportId,
   });
 
@@ -3116,6 +3163,7 @@ async function renderEvidencePdf(evidenceData, reportId) {
     metaLines: [
       `Record ID: ${reportId}`,
       `Student ID: ${evidenceData.studentId}`,
+      ...(evidenceData.firstName && evidenceData.lastName ? [`Student Name: ${evidenceData.firstName} ${evidenceData.lastName}`] : []),
       `Track: ${fmtVal(evidenceData.track)}`,
       `Generated: ${formatGeneratedTimestamp(evidenceData.generatedAt)}`,
     ],
@@ -3369,7 +3417,7 @@ async function fetchStudentProgressBundle(userId, trackCode) {
  * best lab_attempts score (LABS' `module` field maps lab_key -> module_key).
  * `result` (rubric-category breakdown jsonb) is kept on each lab attempt for
  * buildEvidencePacketData() — the old buildStudentExportRecord() dropped it. */
-function computeModuleScores(program, moduleProgressRows, labAttemptRows) {
+function computeModuleScores(program, moduleProgressRows, labAttemptRows, { staffLabels = false } = {}) {
   const moduleKeys = Object.keys(program.modules || {});
   return moduleKeys.map((moduleKey) => {
     const module = program.modules[moduleKey];
@@ -3405,7 +3453,7 @@ function computeModuleScores(program, moduleProgressRows, labAttemptRows) {
         completedAt: a.completed_at,
         rubricResult: a.result || null,
         officialGrade: a.official_grade || null,
-        officialRecord: standing && a.lab_key === officialLab ? officialAttemptRecord(a, standing) : null,
+        officialRecord: standing && a.lab_key === officialLab ? officialAttemptRecord(a, standing, staffLabels) : null,
       })),
     };
   });
@@ -3656,6 +3704,7 @@ function assessProgressGradesCompletion(program, moduleScores, capstoneRecord, h
     title: m.title,
     score: m.bestLabScore,
     grade: m.official && m.official.passed ? 'Pass'
+      : m.official && m.official.critical ? OFFICIAL_CRITICAL_RESULT
       : m.official && m.official.attempted ? 'In progress'
       : m.bestLabScore === null ? 'Not attempted' : (m.bestLabScore >= passingThreshold ? 'Pass' : 'Fail'),
   }));
@@ -3667,7 +3716,9 @@ function assessProgressGradesCompletion(program, moduleScores, capstoneRecord, h
   // required-labs table) — documented as a known limitation rather than
   // inventing a stricter check this data can't actually support.
   const requiredLabsComplete = requiredModulesComplete;
-  const requiredAssessmentsPassed = moduleGrades.every((g) => g.grade !== 'Fail');
+  // A critical error on an official-grade lab never counts as passed, even if
+  // an admin override keeps its module complete.
+  const requiredAssessmentsPassed = moduleGrades.every((g) => g.grade !== 'Fail' && g.grade !== OFFICIAL_CRITICAL_RESULT);
   const capstonePassed = hasCapstone ? capstoneRecord.status === 'passed' : true;
   const zeroCriticalErrors = hasCapstone
     ? !(capstoneRecord.criticalErrorGate
@@ -3751,6 +3802,8 @@ async function buildTranscriptData(studentId, identity) {
     asOf: generatedAt,
     institution: { name: 'Mission Next Technical Academy' },
     studentId,
+    firstName: (accountNameParts(studentId) || {}).first_name || null,
+    lastName: (accountNameParts(studentId) || {}).last_name || null,
     track: trackCode || null,
     program: program ? {
       slug: program.slug,
@@ -3776,7 +3829,7 @@ async function buildTranscriptData(studentId, identity) {
       title: m.title,
       startedAt: m.startedAt,
       completedAt: m.official ? m.official.decidedAt || (m.official.attempted ? null : m.completedAt) : m.completedAt,
-      progressState: m.official && m.official.attempted ? (m.official.passed ? m.status : 'In progress') : m.status,
+      progressState: m.official && m.official.attempted ? (m.official.passed ? m.status : m.official.critical ? OFFICIAL_CRITICAL_RESULT : 'In progress') : m.status,
       percentComplete: m.percent,
       attemptedHours: (fixedCreditHours.modules.find((h) => h.moduleKey === m.moduleKey) || {}).attemptedHours || 0,
       attendedHours: (fixedCreditHours.modules.find((h) => h.moduleKey === m.moduleKey) || {}).creditedHours || 0,
@@ -3816,7 +3869,7 @@ async function buildEvidencePacketData(studentId, identity) {
   const { userId, trackCode, program } = identity;
   const generatedAt = new Date().toISOString();
   const bundle = await fetchStudentProgressBundle(userId, trackCode);
-  const moduleScores = program ? computeModuleScores(program, bundle.moduleProgressRows, bundle.labAttemptRows) : [];
+  const moduleScores = program ? computeModuleScores(program, bundle.moduleProgressRows, bundle.labAttemptRows, { staffLabels: identity.staffLabels === true }) : [];
   const capstoneRecord = program
     ? computeCapstoneRecord(program, bundle.labAttemptRows, bundle.capstoneSubmissionRows, bundle.scorecardRow, bundle.artifactRows, bundle.capstoneReviewRows)
     : { title: 'N/A', status: 'not_applicable', statusLabel: 'No program supplied', score: null, stages: [], scorecard: null, criticalErrorGate: null, rubricsApplied: [], review: { status: 'not_applicable', outcome: null, reviewedBy: null, reviewedAt: null, notes: null, supervisionMethod: null } };
@@ -3852,6 +3905,8 @@ async function buildEvidencePacketData(studentId, identity) {
     generatedAt,
     asOf: generatedAt,
     studentId,
+    firstName: (accountNameParts(studentId) || {}).first_name || null,
+    lastName: (accountNameParts(studentId) || {}).last_name || null,
     track: trackCode || null,
     labs,
     capstone: {
@@ -3897,6 +3952,8 @@ async function exportStudentRecord(user, program) {
     _label: 'Machine-readable data export — NOT the official transcript. See transcript.reportType for the individual academic transcript data, and evidence.reportType for the supporting-evidence record.',
     exportedAt: new Date().toISOString(),
     studentId: user.username,
+    firstName: user.firstName || null,
+    lastName: user.lastName || null,
     email: user.email,
     track: user.trackCode,
     program: program.slug,
@@ -3953,6 +4010,8 @@ async function buildStudentSnapshotRecord(studentId, identity) {
     _label: 'Admin-captured recoverable progress snapshot — paste into docs/ADMIN_RESET_FLOW.md\'s agent prompt to restore this student if a disenrollment was a mistake.',
     capturedAt: new Date().toISOString(),
     studentId,
+    firstName: (accountNameParts(studentId) || {}).first_name || null,
+    lastName: (accountNameParts(studentId) || {}).last_name || null,
     track: identity ? identity.trackCode : null,
     transcript,
     evidence,
@@ -3976,6 +4035,399 @@ async function downloadStudentSnapshot(studentId, identity) {
   const record = await buildStudentSnapshotRecord(studentId, identity);
   downloadJsonFile(record, `student-progress-snapshot-${studentId}-${new Date().toISOString().slice(0, 10)}.json`);
   return record;
+}
+
+/* ------------------------------------------- test-account progress reset */
+/* Admin-only (never instructors). An admin marks an account as a TEST
+ * account with the roster's "Test account" checkbox, then "Reset Progress"
+ * erases either all of its coursework or only the selected modules.
+ * Every rule that matters (admin only, test accounts only, never an admin or
+ * instructor identity) is enforced in SQL by admin_set_test_account() /
+ * admin_reset_test_progress(),
+ * supabase/migrations/20261110120000_test_account_progress_reset.sql, and
+ * 20261112120000_test_account_flag_rpc_only.sql makes those functions the
+ * only way to change the flag. The reset does not download a progress file:
+ * an admin who wants a copy uses the roster's Save Progress File first (the
+ * dialog says so). Against a database without the migration, the roster
+ * quietly shows no test-account controls (TEST_ACCOUNTS.available). */
+const TEST_ACCOUNTS = { available: null };
+
+function isMissingTestAccountSchema(error) {
+  if (!error) return false;
+  const text = `${error.message || ''} ${error.details || ''}`;
+  if (['42703', '42883', 'PGRST204', 'PGRST202'].includes(error.code)) return true;
+  return /is_test_account|progress_reset|admin_set_test_account|admin_reset_test_progress/i.test(text)
+    && /does not exist|schema cache|could not find/i.test(text);
+}
+
+// Adds is_test_account to each roster row (admin roster only).
+async function mergeTestAccountFlags(rows) {
+  if (!rows || !rows.length || TEST_ACCOUNTS.available === false) return;
+  const { data, error } = await mntSupabase.from('students').select('student_id, is_test_account');
+  if (error) {
+    if (isMissingTestAccountSchema(error)) TEST_ACCOUNTS.available = false;
+    else console.error('Could not load test-account flags', error);
+    return;
+  }
+  TEST_ACCOUNTS.available = true;
+  const flags = new Map((data || []).map((r) => [r.student_id, r.is_test_account === true]));
+  rows.forEach((row) => { row.is_test_account = flags.get(row.student_id) === true; });
+}
+
+async function setTestAccountRemote(studentId, isTest) {
+  const { error } = await mntSupabase.rpc('admin_set_test_account', { p_student_id: studentId, p_is_test: isTest });
+  return error || null;
+}
+
+// The modules of a roster row's program, in course order.
+function testResetModulesForRow(row) {
+  const slug = row.program_slug || TRACK_CODE_TO_PROGRAM_SLUG[row.track_code];
+  const program = PROGRAMS.find((p) => p.slug === slug);
+  if (!program || !program.modules) return { program: null, modules: [] };
+  const modules = Object.values(program.modules).sort((a, b) => a.number - b.number);
+  return { program, modules };
+}
+
+// Every lab key the portal knows belongs to these modules (portal/data.js
+// LABS[].module). The SQL function also matches course_module_labs and the
+// lab-<module>- naming convention, so this list only needs to add to those.
+function testResetLabKeysForModules(moduleKeys) {
+  const wanted = new Set(moduleKeys);
+  return (typeof LABS !== 'undefined' ? LABS : [])
+    .filter((lab) => lab && lab.key && wanted.has(lab.module))
+    .map((lab) => lab.key);
+}
+
+async function resetTestProgressRemote(row, moduleKeys) {
+  const { modules } = testResetModulesForRow(row);
+  const includeCapstone = !!moduleKeys && modules.some((m) => m.isCapstone && moduleKeys.includes(m.key));
+  const { data, error } = await mntSupabase.rpc('admin_reset_test_progress', {
+    p_student_id: row.student_id,
+    p_module_keys: moduleKeys || null,
+    p_lab_keys: moduleKeys ? testResetLabKeysForModules(moduleKeys) : null,
+    p_include_capstone: includeCapstone,
+  });
+  return { data, error };
+}
+
+// Deletes the test account's uploaded evidence files (bucket lab-evidence)
+// through the Storage API: all of them, or only the selected modules'
+// folders. Storage refuses direct SQL deletes, so this runs after the reset
+// RPC. Storage policies allow it only inside a test account's own folder.
+async function removeTestEvidenceFiles(row, moduleKeys) {
+  const { data, error } = await mntSupabase.rpc('admin_test_evidence_paths', {
+    p_student_id: row.student_id,
+    p_module_keys: moduleKeys || null,
+  });
+  if (error) return { found: 0, removed: 0, error };
+  const paths = (data || []).map((item) => (typeof item === 'string' ? item : item && item.admin_test_evidence_paths)).filter(Boolean);
+  const bucket = mntSupabase.storage.from(typeof ITS_EVIDENCE_BUCKET !== 'undefined' ? ITS_EVIDENCE_BUCKET : 'lab-evidence');
+  let removed = 0;
+  for (let i = 0; i < paths.length; i += 100) {
+    const batch = paths.slice(i, i + 100);
+    const result = await bucket.remove(batch);
+    if (result.error) return { found: paths.length, removed, error: result.error };
+    removed += Array.isArray(result.data) ? result.data.length : batch.length;
+  }
+  return { found: paths.length, removed, error: null };
+}
+
+function testResetSummaryText(result) {
+  const deleted = (result && result.deleted) || {};
+  const labels = {
+    module_progress: 'module records',
+    lab_attempts: 'lab attempts',
+    module_completion_evidence: 'completion evidence items',
+    portfolio_artifacts: 'portfolio items',
+    capstone_reviews: 'capstone reviews',
+    capstone_submissions: 'capstone submissions',
+    student_course_hour_awards: 'hour awards',
+    sim_state: 'saved lab environments',
+  };
+  const parts = Object.entries(labels)
+    .filter(([key]) => Number(deleted[key]) > 0)
+    .map(([key, label]) => `${deleted[key]} ${label}`);
+  const evidence = result && result.evidence;
+  if (evidence && evidence.removed > 0) parts.push(`${evidence.removed} evidence file${evidence.removed === 1 ? '' : 's'}`);
+  let text = parts.length ? `Erased ${parts.join(', ')}.` : 'There was no saved progress to erase.';
+  if (evidence && evidence.error) {
+    const left = Math.max((evidence.found || 0) - (evidence.removed || 0), 0);
+    text += ` Could not delete ${left ? `${left} ` : ''}uploaded evidence file${left === 1 ? '' : 's'} (${evidence.error.message || 'Storage refused'}); run Reset Progress again to retry.`;
+  }
+  return text;
+}
+
+// The roster's test-account controls (admin roster only): the "Test account"
+// checkbox and a red "Reset Progress" button, present on every row so the
+// checkbox can show or hide it at once, but `hidden` unless the row is a
+// test account. Keep display utilities (inline-flex, block, …) off the
+// button: in the bundled Tailwind they override the `hidden` attribute and
+// the button would show on real students. Nothing renders on the instructor
+// dashboard or against a database without the migration.
+function testAccountRosterControlsHtml(row, instructorDashboard) {
+  if (instructorDashboard || !TEST_ACCOUNTS.available) return '';
+  const id = esc(row.student_id);
+  return `
+                             <div class="mt-2 flex items-center gap-3">
+                               <label class="inline-flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer" title="Only test accounts can have their progress reset">
+                                 <input type="checkbox" data-admin-test-account="${id}" ${row.is_test_account ? 'checked' : ''} aria-label="Test account: ${id}" />
+                                 Test account
+                               </label>
+                               <button type="button" data-admin-reset-progress="${id}" ${row.is_test_account ? '' : 'hidden'} class="rounded-md bg-[#b91c1c] hover:bg-[#991b1b] px-2.5 py-1 text-xs font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#b91c1c] focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed" title="Erase this test account's progress">Reset Progress</button>
+                             </div>`;
+}
+
+// The reset dialog asks for a fixed word, not the student ID; the heading
+// still names the account, and the server accepts only test accounts.
+const TEST_RESET_CONFIRM_WORD = 'RESET';
+// No automatic progress file: the admin saves one from the roster if wanted.
+const TEST_RESET_WARNING = "This can't be undone. To keep a copy first, use Save Progress File on the roster. Uploaded evidence screenshots are deleted too. Progress saved in the student's own browser is cleared the next time they open the portal.";
+function testResetConfirmed(value) {
+  return String(value == null ? '' : value).trim() === TEST_RESET_CONFIRM_WORD;
+}
+
+// The reset dialog. onDone runs after a successful reset (re-renders the roster).
+async function openTestResetModal(row, trigger, onDone) {
+  document.getElementById('test-reset-modal')?.remove();
+  const { modules } = testResetModulesForRow(row);
+  const label = accountLabelText(row.student_id);
+
+  // Current state per module, so the admin can see what each one holds.
+  const stateByModule = new Map();
+  const progressResult = await mntSupabase
+    .from('module_progress')
+    .select('module_key, state')
+    .eq('user_id', row.user_id);
+  if (progressResult.error) console.error('test reset: module_progress read failed', progressResult.error);
+  (progressResult.data || []).forEach((r) => stateByModule.set(r.module_key, r.state));
+  const stateLabel = (key) => {
+    const state = stateByModule.get(key);
+    if (state === 'complete') return '<span class="text-[#15803d]">Complete</span>';
+    if (state) return '<span class="text-[#c2410c]">In progress</span>';
+    return '<span class="text-gray-400">Not started</span>';
+  };
+
+  const pane = document.createElement('div');
+  pane.id = 'test-reset-modal';
+  pane.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/50';
+  pane.innerHTML = `
+    <section role="dialog" aria-modal="true" aria-labelledby="test-reset-title" class="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
+      <div class="flex items-center justify-between gap-4 border-b border-gray-200 px-6 py-4">
+        <div>
+          <h2 id="test-reset-title" class="text-xl font-bold text-[#1e3a5f]">Reset test account progress</h2>
+          <p class="mt-0.5 text-sm text-gray-600"><span class="font-mono">${esc(row.student_id)}</span>${accountNameText(row) ? ` · ${esc(accountNameText(row))}` : ''} <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-50 text-violet-700 border border-violet-200">TEST</span></p>
+        </div>
+        <button type="button" data-test-reset-close aria-label="Close" class="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-[#1e3a5f]"><i class="ri-close-line text-xl" aria-hidden="true"></i></button>
+      </div>
+      <form data-test-reset-form class="space-y-4 px-6 py-5">
+        <fieldset class="space-y-2">
+          <legend class="text-sm font-semibold text-[#1e3a5f] mb-1">What should be erased?</legend>
+          <label class="flex items-start gap-3 rounded-lg border border-gray-200 px-3 py-2.5 cursor-pointer" data-test-reset-option>
+            <input type="radio" name="scope" value="all" class="mt-1" checked />
+            <span><span class="block text-sm font-semibold text-gray-900">Erase all progress</span>
+            <span class="block text-xs text-gray-600">Every module, lab attempt, grade, uploaded evidence file, portfolio item and capstone submission for this student.</span></span>
+          </label>
+          <label class="flex items-start gap-3 rounded-lg border border-gray-200 px-3 py-2.5 cursor-pointer" data-test-reset-option>
+            <input type="radio" name="scope" value="modules" class="mt-1" />
+            <span><span class="block text-sm font-semibold text-gray-900">Erase selected modules only</span>
+            <span class="block text-xs text-gray-600">Only the modules you tick below. Other modules, including later ones, stay as they are.</span></span>
+          </label>
+        </fieldset>
+        <div data-test-reset-modules hidden class="rounded-lg border border-gray-200">
+          <div class="flex items-center justify-between border-b border-gray-100 px-3 py-2">
+            <span class="text-xs font-semibold text-gray-600">Modules</span>
+            <button type="button" data-test-reset-select-started class="text-xs font-semibold text-[#1e3a5f] hover:underline">Tick all with progress</button>
+          </div>
+          <ul class="max-h-60 overflow-y-auto divide-y divide-gray-100">
+            ${modules.map((m) => `
+              <li><label class="flex items-center gap-3 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
+                <input type="checkbox" name="module" value="${esc(m.key)}" />
+                <span class="flex-1 text-gray-900">Module ${m.number}: ${esc(m.title || m.key)}${m.isCapstone ? ' <span class="text-xs text-gray-500">(capstone)</span>' : ''}</span>
+                <span class="text-xs whitespace-nowrap">${stateLabel(m.key)}</span>
+              </label></li>`).join('') || '<li class="px-3 py-2 text-sm text-gray-500">No modules found for this program.</li>'}
+          </ul>
+        </div>
+        <p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">${esc(TEST_RESET_WARNING)}</p>
+        <label class="block text-sm font-semibold text-[#1e3a5f]">Type <span class="font-mono">${TEST_RESET_CONFIRM_WORD}</span> to confirm
+          <input name="confirm" autocomplete="off" spellcheck="false" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono" />
+        </label>
+        <div class="flex items-center justify-between gap-3">
+          <p data-test-reset-status class="text-sm text-gray-700" aria-live="polite"></p>
+          <button type="submit" disabled class="shrink-0 bg-[#b91c1c] hover:bg-[#991b1b] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold text-sm px-4 py-2 rounded-lg">Erase progress</button>
+        </div>
+      </form>
+    </section>`;
+
+  const form = pane.querySelector('[data-test-reset-form]');
+  const statusEl = pane.querySelector('[data-test-reset-status]');
+  const modulesBox = pane.querySelector('[data-test-reset-modules]');
+  const submit = form.querySelector('button[type="submit"]');
+  let busy = false;
+  const close = () => {
+    if (busy) return;
+    pane.remove();
+    trigger?.focus();
+  };
+  const scope = () => form.querySelector('input[name="scope"]:checked').value;
+  const selectedModules = () => [...form.querySelectorAll('input[name="module"]:checked')].map((el) => el.value);
+  const refresh = () => {
+    modulesBox.hidden = scope() !== 'modules';
+    // Highlight the chosen option (the bundled Tailwind 3.0 has no has-[] variant).
+    pane.querySelectorAll('[data-test-reset-option]').forEach((option) => {
+      const on = option.querySelector('input').checked;
+      option.style.borderColor = on ? '#f97316' : '';
+      option.style.backgroundColor = on ? '#fff7ed' : '';
+    });
+    const confirmed = testResetConfirmed(form.elements.confirm.value);
+    const hasTarget = scope() === 'all' || selectedModules().length > 0;
+    submit.disabled = busy || !confirmed || !hasTarget;
+    submit.textContent = scope() === 'all'
+      ? 'Erase all progress'
+      : `Erase ${selectedModules().length || ''} module${selectedModules().length === 1 ? '' : 's'}`.replace('  ', ' ');
+  };
+
+  pane.querySelector('[data-test-reset-close]').addEventListener('click', close);
+  pane.addEventListener('click', (event) => { if (event.target === pane) close(); });
+  pane.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
+  form.addEventListener('input', refresh);
+  form.addEventListener('change', refresh);
+  pane.querySelector('[data-test-reset-select-started]').addEventListener('click', () => {
+    form.querySelectorAll('input[name="module"]').forEach((el) => { el.checked = stateByModule.has(el.value); });
+    refresh();
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (submit.disabled) return;
+    const moduleKeys = scope() === 'all' ? null : selectedModules();
+    busy = true;
+    refresh();
+    try {
+      statusEl.textContent = 'Erasing progress…';
+      const { data, error } = await resetTestProgressRemote(row, moduleKeys);
+      if (error) throw new Error(error.message || 'Supabase rejected the reset.');
+      statusEl.textContent = 'Deleting uploaded evidence files…';
+      let evidence;
+      try {
+        evidence = await removeTestEvidenceFiles(row, moduleKeys);
+      } catch (err) {
+        evidence = { found: 0, removed: 0, error: err };
+      }
+      if (evidence.error) console.error('test reset: evidence file removal failed', evidence.error);
+      busy = false;
+      pane.remove();
+      if (typeof onDone === 'function') await onDone(`${label}: ${testResetSummaryText({ ...(data || {}), evidence })}`);
+    } catch (err) {
+      busy = false;
+      statusEl.textContent = err && err.message ? err.message : String(err);
+      statusEl.className = 'text-sm text-[#b91c1c]';
+      refresh();
+    }
+  });
+
+  document.body.appendChild(pane);
+  refresh();
+  requestAnimationFrame(() => form.querySelector('input[name="scope"]').focus());
+}
+
+/* Student side: Module 1 and several labs keep progress in the student's own
+ * browser, which the admin reset cannot reach. The reset stamps
+ * students.progress_reset_at (+ progress_reset_modules, null = all); on the
+ * next sign-in or reload this compares it with a per-account local marker
+ * and clears the matching browser state once. Never throws; does nothing
+ * against a database without the columns. */
+const PROGRESS_RESET_SEEN_PREFIX = 'mnt-portal.progress-reset-seen.v1';
+const LAB_STATE_PREFIX = 'mnt-portal.lab-state.v1.';
+
+function clearLocalProgressForReset(user, moduleKeys) {
+  const anon = LabRuntime.anonymousStudentId(user);
+  const programSlug = TRACK_CODE_TO_PROGRAM_SLUG[user.trackCode];
+  const all = !Array.isArray(moduleKeys);
+  const mods = all ? [] : moduleKeys;
+  const compact = mods.map((mk) => mk.replace('-', ''));
+  const remove = (store, test) => Object.keys(store).filter(test).forEach((k) => store.removeItem(k));
+
+  // Per-lab runtime state: mnt-portal.lab-state.v1.<labId>.<anon>; labIds
+  // look like 'aim01-cli-utility-v1' (module key without its hyphen).
+  remove(localStorage, (k) => k.startsWith(LAB_STATE_PREFIX) && k.endsWith(`.${anon}`)
+    && (all || compact.some((c) => k.slice(LAB_STATE_PREFIX.length).startsWith(c))));
+
+  // Simulator state (defender-lab.*). The simulator names a student's own
+  // saved work after the anonymous id the portal sends in every launch
+  // (student=, the same LabRuntime.anonymousStudentId as `anon` here):
+  // defender-lab.helpdesk.prove.v1.<module>.<student-…> and
+  // defender-lab.helpdesk.practice.v1.<set>.<student-…>. Another student's
+  // key is never touched. Keys with no student id are shared by everyone on
+  // this browser: erase-all clears them, a module reset clears those that
+  // name the module.
+  const otherStudentsKey = (k) => {
+    const owner = /\.(student-[A-Za-z0-9_-]+)$/.exec(k);
+    return !!owner && owner[1] !== anon;
+  };
+  [localStorage, sessionStorage].forEach((store) => remove(store, (k) => k.startsWith('defender-lab.')
+    && !otherStudentsKey(k)
+    && (all || mods.some((mk) => k.includes(`.${mk}.`)))));
+
+  // Opened modules / completed labs engagement list.
+  const engagementKey = moduleEngagementKey(user);
+  if (all) {
+    localStorage.removeItem(engagementKey);
+  } else {
+    const engagement = loadModuleEngagement(user);
+    const prefixes = mods.map((mk) => moduleEngagementId(programSlug, mk));
+    const keep = (id) => !prefixes.some((p) => id === p || String(id).startsWith(`${p}:`));
+    saveModuleEngagement(user, {
+      openedModules: engagement.openedModules.filter(keep),
+      completedLabs: engagement.completedLabs.filter(keep),
+    });
+  }
+
+  // Imported Mission Next lab player progress, bucketed per module.
+  try {
+    if (all) {
+      localStorage.removeItem('mission_next_progress_ext');
+    } else {
+      const ext = JSON.parse(localStorage.getItem('mission_next_progress_ext') || 'null');
+      if (ext && typeof ext === 'object') {
+        mods.forEach((mk) => { delete ext[`guest_learner_${mk}`]; });
+        localStorage.setItem('mission_next_progress_ext', JSON.stringify(ext));
+      }
+    }
+  } catch (_) { /* unreadable: leave it */ }
+
+  // The coach's resume record (ui/coach.js) is one key per browser that
+  // names its student inside. Clear it only when it is this account's, or
+  // names no one (a launch from an older course page).
+  if (all) {
+    let resumeStudent = '';
+    try {
+      const resume = JSON.parse(localStorage.getItem('mnt.coach.resume') || 'null');
+      resumeStudent = (resume && typeof resume.student === 'string') ? resume.student : '';
+    } catch (_) { /* unreadable: nobody's, clear it */ }
+    if (!resumeStudent || resumeStudent === anon) localStorage.removeItem('mnt.coach.resume');
+  }
+}
+
+async function applyPendingProgressReset(core) {
+  if (!core || !core.userId || core.isAdmin || core.isInstructor) return;
+  try {
+    const { data, error } = await mntSupabase
+      .from('students')
+      .select('progress_reset_at, progress_reset_modules')
+      .eq('user_id', core.userId)
+      .maybeSingle();
+    if (error) {
+      if (!isMissingTestAccountSchema(error)) console.error('Could not check for a progress reset', error);
+      return;
+    }
+    if (!data || !data.progress_reset_at) return;
+    const seenKey = `${PROGRESS_RESET_SEEN_PREFIX}.${core.userId}`;
+    if (localStorage.getItem(seenKey) === data.progress_reset_at) return;
+    clearLocalProgressForReset(core, data.progress_reset_modules);
+    localStorage.setItem(seenKey, data.progress_reset_at);
+  } catch (err) {
+    console.error('Could not apply a progress reset to this browser', err);
+  }
 }
 
 /* ---------------------------------------------- module_progress (Supabase) */
@@ -4025,21 +4477,26 @@ async function settlePendingCaseStateWrites() {
   await Promise.all([flushed, ...Array.from(moduleCaseStateQueues.values())]);
 }
 
+// Resolves to true once the row holds this state, or false when it doesn't
+// (bad arguments, a failed read or write, or a throw). It never rejects.
 async function persistModuleCaseState(user, moduleKey, labId, state) {
-  if (!user || !user.userId || !user.trackCode || !moduleKey || !labId) return;
+  if (!user || !user.userId || !user.trackCode || !moduleKey || !labId) return false;
   const queueKey = `${user.userId}:${user.trackCode}:${moduleKey}`;
   const previous = moduleCaseStateQueues.get(queueKey) || Promise.resolve();
   const write = previous.catch(() => {}).then(async () => {
     const { data, error: readError } = await mntSupabase.from('module_progress')
       .select('case_state').eq('user_id', user.userId).eq('track_code', user.trackCode)
       .eq('module_key', moduleKey).maybeSingle();
-    if (readError) { console.error('module case_state read failed', moduleKey, readError); return; }
+    if (readError) { console.error('module case_state read failed', moduleKey, readError); return false; }
     const current = data && data.case_state && typeof data.case_state === 'object' ? data.case_state : {};
     const caseState = { ...current, [labId]: state };
     let writeResult;
+    // True when the last write was an update: it returns the changed row.
+    let wasUpdate = false;
     if (data) {
+      wasUpdate = true;
       writeResult = await mntSupabase.from('module_progress').update({ case_state: caseState })
-        .eq('user_id', user.userId).eq('track_code', user.trackCode).eq('module_key', moduleKey);
+        .eq('user_id', user.userId).eq('track_code', user.trackCode).eq('module_key', moduleKey).select('module_key');
     } else {
       writeResult = await mntSupabase.from('module_progress').insert({
         user_id: user.userId, module_key: moduleKey, track_code: user.trackCode,
@@ -4053,11 +4510,16 @@ async function persistModuleCaseState(user, moduleKey, labId, state) {
           .eq('module_key', moduleKey).maybeSingle();
         if (racedReadError) throw racedReadError;
         const racedState = racedRow?.case_state && typeof racedRow.case_state === 'object' ? racedRow.case_state : {};
+        wasUpdate = true;
         writeResult = await mntSupabase.from('module_progress').update({ case_state: { ...racedState, [labId]: state } })
-          .eq('user_id', user.userId).eq('track_code', user.trackCode).eq('module_key', moduleKey);
+          .eq('user_id', user.userId).eq('track_code', user.trackCode).eq('module_key', moduleKey).select('module_key');
       }
     }
-    if (writeResult.error) { console.error('module case_state write failed', moduleKey, labId, writeResult.error); return; }
+    if (writeResult.error) { console.error('module case_state write failed', moduleKey, labId, writeResult.error); return false; }
+    // An update that matches no row returns no error: it saved nothing (the
+    // row went away after the read, or the update was refused). The updates
+    // return the changed row, so no row back means no save.
+    if (wasUpdate && !(Array.isArray(writeResult.data) && writeResult.data.length > 0)) { console.error('module case_state update changed no row', moduleKey, labId); return false; }
     // LabRuntime.saveCaseState() already put every newer action from this
     // session in the in-session copy. Replacing it with this write's older
     // snapshot made the next load undo actions taken while it was in flight.
@@ -4065,7 +4527,7 @@ async function persistModuleCaseState(user, moduleKey, labId, state) {
     const liveLabs = live && typeof live === 'object' && !live.labId ? live : {};
     user.remoteCaseState = { ...(user.remoteCaseState || {}), [moduleKey]: { ...caseState, ...liveLabs } };
     return true;
-  }).catch((err) => { console.error('module case_state persistence threw', moduleKey, labId, err); });
+  }).catch((err) => { console.error('module case_state persistence threw', moduleKey, labId, err); return false; });
   moduleCaseStateQueues.set(queueKey, write);
   return write;
 }
@@ -4486,8 +4948,8 @@ function moduleRequiredLabKeys(program, moduleKey, user) {
 }
 
 // Practice labs are only those a lab record explicitly marks
-// `phase: 'practice'`. Since 2026-10-30 Help Desk Module 1's Labs 1.1 and 1.2
-// are, so Module 1 can show Practice Submitted.
+// `phase: 'practice'` and not retired. Help Desk Module 1's guided lab and
+// practice tickets are, so Module 1 can show Practice Submitted.
 function modulePracticeLabKeys(program, moduleKey) {
   return programLabs(program)
     .filter((lab) => lab.module === moduleKey && lab.optional !== true && lab.phase === 'practice')
@@ -4510,15 +4972,18 @@ function moduleCardState(program, moduleKey, user, unlocked) {
   const labs = moduleRequiredLabKeys(program, moduleKey, user).map((key) => {
     const record = LABS.find((lab) => lab.key === key);
     const status = requiredLabStatus(attempts[key]);
-    return { key, title: record ? record.title : key, status, feedback: status === 'returned' ? (notes[key] || []) : [] };
+    return { key, title: record ? record.title : key, status, feedback: status === 'returned' ? (notes[key] || []) : [],
+      criticalError: status === 'returned' && attempts[key].criticalError === true };
   });
   const submitted = labs.filter((lab) => lab.status === 'waiting' || lab.status === 'passed').length;
   const waiting = labs.filter((lab) => lab.status === 'waiting').length;
   const summary = { labs, required: labs.length, submitted, waiting };
   const practiceKeys = modulePracticeLabKeys(program, moduleKey);
   const hasAttempt = (key) => !!(attempts[key] && attempts[key].completedAt);
+  // Started: any attempt on any of the module's labs, retired ones included,
+  // so an older attempt still counts as activity.
   const moduleLabKeys = [...labs.map((lab) => lab.key), ...practiceKeys,
-    ...programLabs(program).filter((lab) => lab.module === moduleKey).map((lab) => lab.key),
+    ...LABS.filter((lab) => lab.module === moduleKey).map((lab) => lab.key),
     `${moduleKey}-knowledge-check`];
   const state = !unlocked ? 'locked'
     : module.status === 'draft' ? 'draft'
@@ -4539,6 +5004,7 @@ const TRUTHFUL_DOT_LABELS = {
 
 function truthfulLabLine(lab) {
   if (lab.status === 'passed') return `${esc(lab.title)} passed. ${markedLabLinkHtml(lab.key)}`;
+  if (lab.status === 'returned' && lab.criticalError) return `${esc(lab.title)}: ${OFFICIAL_CRITICAL_RESULT}, returned for revision. ${markedLabLinkHtml(lab.key)}`;
   if (lab.status === 'returned') return `${esc(lab.title)} returned for revision. ${markedLabLinkHtml(lab.key)}`;
   if (lab.status === 'waiting') return `${esc(lab.title)}: waiting on your instructor.`;
   return `${esc(lab.title)}: not submitted yet.`;
@@ -4565,7 +5031,9 @@ function truthfulLabStatusPanel(card) {
       ? 'The next module unlocks once every required lab is submitted and approved.'
       : card.waiting
         ? `The next module unlocks as soon as your instructor approves the remaining lab${card.waiting === 1 ? '' : 's'}.`
-        : 'Every required lab is approved. Open the module to finish its remaining steps.';
+        : card.state === 'complete'
+          ? 'You passed this module. Open it to review your work.'
+          : 'Every required lab is approved. Open the module to finish its remaining steps.';
   return `<div class="mb-3 rounded-lg border ${tone.box} px-3 py-2.5" data-module-lab-status>
           <p class="text-xs font-semibold ${tone.text} flex items-center gap-1.5"><i class="${tone.icon}" aria-hidden="true"></i>${card.submitted} of ${card.required} required lab${card.required === 1 ? '' : 's'} submitted</p>
           <ul class="mt-1.5 space-y-1 text-xs ${tone.text}">
@@ -4597,6 +5065,166 @@ function isBuilt(program) {
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/* ------------------------------------------------------ account display names
+ * First + last name shown beside an account number (docs/workstreams/
+ * ACCOUNT_DISPLAY_NAMES.md). Names live in public.students.first_name /
+ * last_name (migration 20261102120000). The students table is already
+ * RLS-scoped to exactly who may see an account number (admin: all, instructor:
+ * their course's students, student: self), so one directory query gives every
+ * render site the names it is allowed to show, keyed by student_id and user_id.
+ *
+ * Graceful before the migration is pushed: if the columns or RPC are missing
+ * the old query runs instead and no name renders. That verdict is cached for
+ * the page session (ACCOUNT_NAMES.available === false) so it is never retried
+ * on every call.
+ */
+const ACCOUNT_NAMES = {
+  available: null, // null = unknown, true = columns exist, false = DB lacks them
+  rpcAvailable: null,
+  byStudentId: new Map(),
+  byUserId: new Map(),
+  ready: null, // in-flight/finished loadAccountNames() promise
+};
+const ACCOUNT_NAMES_PAGE = 1000;
+
+// PostgREST/Postgres signals for "the column or function is not there yet":
+// 42703 undefined column, 42883 undefined function, PGRST204 column missing in
+// the schema cache, PGRST202 function missing in the schema cache.
+function isMissingAccountNameSchema(error) {
+  if (!error) return false;
+  if (['42703', '42883', 'PGRST204', 'PGRST202'].includes(error.code)) return true;
+  return /first_name|last_name|admin_set_account_name/i.test(`${error.message || ''} ${error.details || ''}`)
+    && /does not exist|schema cache|could not find/i.test(`${error.message || ''} ${error.details || ''}`);
+}
+
+function rememberAccountName(row) {
+  if (!row || !(row.first_name && row.last_name)) return;
+  const entry = { first_name: row.first_name, last_name: row.last_name };
+  if (row.student_id) ACCOUNT_NAMES.byStudentId.set(row.student_id, entry);
+  if (row.user_id) ACCOUNT_NAMES.byUserId.set(row.user_id, entry);
+}
+
+// The signed-in user's own students row, with names when the DB has them.
+async function selectOwnStudentRow(userId) {
+  const base = 'student_id, track_code, is_admin, is_instructor, is_enrolled, academy_orientation_completed_at';
+  const query = (cols) => mntSupabase.from('students').select(cols).eq('user_id', userId).single();
+  if (ACCOUNT_NAMES.available !== false) {
+    const result = await query(`${base}, first_name, last_name`);
+    if (!result.error) {
+      ACCOUNT_NAMES.available = true;
+      rememberAccountName({ ...result.data, user_id: userId });
+      return result;
+    }
+    if (!isMissingAccountNameSchema(result.error)) return result;
+    ACCOUNT_NAMES.available = false;
+  }
+  return query(base);
+}
+
+// Loads (once; pass force to refresh) the name directory for every account the
+// viewer may see. Resolves to true when names are available. Never throws.
+function loadAccountNames(force = false) {
+  if (ACCOUNT_NAMES.available === false) return Promise.resolve(false);
+  if (ACCOUNT_NAMES.ready && !force) return ACCOUNT_NAMES.ready;
+  ACCOUNT_NAMES.ready = (async () => {
+    try {
+      for (let from = 0; ; from += ACCOUNT_NAMES_PAGE) {
+        const { data, error } = await mntSupabase
+          .from('students')
+          .select('student_id, user_id, first_name, last_name')
+          .order('student_id')
+          .range(from, from + ACCOUNT_NAMES_PAGE - 1);
+        if (error) {
+          if (isMissingAccountNameSchema(error)) ACCOUNT_NAMES.available = false;
+          else ACCOUNT_NAMES.ready = null; // transient: allow a later retry
+          return false;
+        }
+        (data || []).forEach(rememberAccountName);
+        if (!data || data.length < ACCOUNT_NAMES_PAGE) break;
+      }
+      ACCOUNT_NAMES.available = true;
+      window.dispatchEvent(new CustomEvent('mnt:account-names-loaded'));
+      return true;
+    } catch (err) {
+      console.error('Could not load account names', err);
+      ACCOUNT_NAMES.ready = null;
+      return false;
+    }
+  })();
+  return ACCOUNT_NAMES.ready;
+}
+
+// Resolves a name from a profile-like row ({first_name,last_name}), a row with
+// student_id / user_id / username, or a bare account number string.
+function accountNameParts(p) {
+  if (!p) return null;
+  if (typeof p === 'object' && p.first_name && p.last_name) return p;
+  if (typeof p === 'object' && p.firstName && p.lastName) return { first_name: p.firstName, last_name: p.lastName };
+  const sid = typeof p === 'string' ? p : (p.student_id || p.studentId || p.username);
+  const uid = typeof p === 'object' ? (p.user_id || p.userId) : null;
+  return (sid && ACCOUNT_NAMES.byStudentId.get(sid)) || (uid && ACCOUNT_NAMES.byUserId.get(uid)) || null;
+}
+
+// "First Last", or "" when there is no name (pre-migration DB, or not loaded).
+function accountNameText(p) {
+  const n = accountNameParts(p);
+  return n ? `${n.first_name} ${n.last_name}`.trim() : '';
+}
+
+// <span class="acct-name">First Last</span> (escaped), or "" when no name.
+// Pass inline = true for run-in text: renders " · First Last" on one line.
+function accountNameHtml(p, inline = false) {
+  const text = accountNameText(p);
+  if (!text) return '';
+  return `<span class="acct-name${inline ? ' acct-name--inline' : ''}">${esc(text)}</span>`;
+}
+
+// Signed-in header/topbar chip: account number with the first + last name
+// stacked directly under it (no truncation to a stub, shown at every width
+// the chip itself is shown).
+function accountChipHtml(id, p) {
+  const name = accountNameText(p);
+  return `<span class="acct-chip"><span class="acct-chip-id">${esc(id)}</span>${name ? `<span class="acct-name acct-chip-name" title="${esc(name)}">${esc(name)}</span>` : ''}</span>`;
+}
+
+// Avatar initials: from the stored first + last name when there is one,
+// otherwise from the account label as before.
+function accountInitials(user) {
+  const label = accountNameText(user) || String((user && user.name) || '');
+  return label.split(' ').filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
+}
+
+// Plain-text label for status/confirm strings: "ID (First Last)" or just "ID".
+function accountLabelText(p) {
+  const id = typeof p === 'string' ? p : (p && (p.student_id || p.studentId || p.username)) || '';
+  const name = accountNameText(p);
+  return name ? `${id} (${name})` : id;
+}
+
+// Admin-only. Resolves { ok, unavailable, error }; unavailable = the RPC is not
+// deployed yet (non-blocking for callers, who show a warning).
+async function setAccountName(userId, firstName, lastName) {
+  if (ACCOUNT_NAMES.rpcAvailable === false) return { ok: false, unavailable: true };
+  const { error } = await mntSupabase.rpc('admin_set_account_name', {
+    p_user_id: userId,
+    p_first_name: firstName,
+    p_last_name: lastName,
+  });
+  if (error) {
+    if (isMissingAccountNameSchema(error)) {
+      ACCOUNT_NAMES.rpcAvailable = false;
+      return { ok: false, unavailable: true, error };
+    }
+    return { ok: false, unavailable: false, error };
+  }
+  ACCOUNT_NAMES.rpcAvailable = true;
+  ACCOUNT_NAMES.available = true;
+  await loadAccountNames(true);
+  return { ok: true };
+}
+
+Object.assign(window, { accountNameText, accountNameHtml, accountLabelText, loadAccountNames, setAccountName });
+
 window.addEventListener('mnt:lab-attempt-save-failed', () => {
   if (document.getElementById('mnt-lab-attempt-save-failed')) return;
   document.body.insertAdjacentHTML('afterbegin', `<div id="mnt-lab-attempt-save-failed" role="alert" style="z-index:1000" class="fixed top-0 inset-x-0 bg-red-50 border-b border-red-200 text-red-900 px-4 py-3 shadow-sm"><div class="max-w-7xl mx-auto flex items-start justify-between gap-4"><p class="text-sm font-medium">${esc('Your submission did not reach your instructor. Nothing was lost on this page: check your connection and submit again. If it keeps happening, use Message Instructor.')}</p><button type="button" data-dismiss-lab-save-failed aria-label="Dismiss submission error" class="shrink-0 rounded px-2 py-1 text-red-800 hover:bg-red-100">Dismiss</button></div></div>`);
@@ -4610,9 +5238,12 @@ function chip(text, compact) {
   return `<span class="bg-gray-50 border border-gray-200 text-gray-600 font-medium ${size}">${esc(text)}</span>`;
 }
 
+// A program's live labs. A lab record marked `retired: true` (Help Desk
+// Module 1's old LMS & Environment Validation) is left out: it stays in LABS
+// only so past attempts keep their title and module.
 function programLabs(program) {
   const moduleKeys = new Set(Object.keys((program && program.modules) || {}));
-  return LABS.filter((lab) => moduleKeys.has(lab.module));
+  return LABS.filter((lab) => moduleKeys.has(lab.module) && lab.retired !== true);
 }
 
 function formatInstructionalMinutes(minutes) {
@@ -4732,9 +5363,9 @@ function header(user, options = {}) {
                  }
                  <span class="hidden md:inline-flex items-center gap-2 text-sm text-gray-500 px-3">
                    <span class="w-8 h-8 rounded-full bg-[#1e3a5f]/8 text-[#1e3a5f] font-semibold text-xs flex items-center justify-center">
-                     ${esc(user.name.split(' ').map((p) => p[0]).join(''))}
+                     ${esc(accountInitials(user))}
                    </span>
-                   ${esc(user.name)}
+                   ${accountChipHtml(user.name, user)}
                  </span>
                  <button data-action="signout" class="bg-[#f97316] hover:bg-[#ea580c] text-white text-sm font-semibold px-5 py-2 rounded-xl transition-colors whitespace-nowrap cursor-pointer">
                    Sign Out
@@ -5026,9 +5657,9 @@ function moduleTopbar(user, program, options = {}) {
           </div>
           <span class="text-xs font-semibold text-gray-500 whitespace-nowrap">${progress.percent}%</span>
         </div>
-        <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600 whitespace-nowrap" aria-label="Signed in as ${esc(user.username || user.name || 'student')}">
+        <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600 whitespace-nowrap" aria-label="Signed in as ${esc(user.username || user.name || 'student')}${accountNameText(user) ? ` (${esc(accountNameText(user))})` : ''}">
           <i class="ri-user-line text-sm" aria-hidden="true"></i>
-          ${esc(user.username || user.name || 'Student')}
+          ${accountChipHtml(user.username || user.name || 'Student', user)}
         </span>
         <button data-action="signout" class="bg-[#f97316] hover:bg-[#ea580c] text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer">
           Sign Out
@@ -5524,8 +6155,10 @@ function moduleUnifiedNav(sections, state = {}) {
   const hasGeneratedAssessment = sections.some((section) => section.standardStage === 'assessment');
   const reviewMode = state.reviewMode || false;
 
-  // Display title for a row; also what a locked row's message names.
-  const navTitleFor = (section) => section.standardStage === 'assessment'
+  // Display title for a row; also what a locked row's message names. A row's
+  // own `navTitle` wins (Help Desk Module 1 numbers its two Practice It labs).
+  const navTitleFor = (section) => section.navTitle ? section.navTitle
+    : section.standardStage === 'assessment'
     ? 'Assessment Lab'
     : section.standardStage === 'guided'
       ? 'Guided Lab'
@@ -5578,6 +6211,7 @@ function moduleUnifiedNav(sections, state = {}) {
       <span class="munified-row-label">${esc(navTitle)}</span>
       ${hasChildren ? `<span class="munified-row-sub">${childComplete}/${items.length}</span>` : ''}
       ${!hasChildren && (section.reviewLabel || (!section.isComplete && section.reviewState)) ? `<span class="munified-row-sub">${esc(section.reviewLabel || (section.reviewState === 'returned' ? 'Returned' : 'In review'))}</span>` : ''}
+      ${!hasChildren && section.isComplete && section.doneLabel && !section.reviewLabel ? `<span class="munified-row-sub">${esc(section.doneLabel)}</span>` : ''}
       ${nav.locked ? '<i class="ri-lock-line mnav-lock-icon" aria-hidden="true"></i>' : ''}
       ${isGated && section.isComplete ? '<i class="ri-check-fill" aria-hidden="true"></i>' : ''}
     </a>`;
@@ -6379,7 +7013,7 @@ function viewProgram(user, slug) {
           <p class="inline-flex items-center gap-2 text-gray-500 text-xs">
             <span class="w-2.5 h-2.5 rounded-full bg-[#22c55e] ring-4 ring-[#dcfce7]"></span>
             ${program.truthfulModuleStates === true
-              ? 'Green means Passed: every required lab reviewed and passed by your instructor.'
+              ? 'Green means you passed the module: your instructor approved its Prove It.'
               : 'Green means the content was opened and every module lab was completed'}
           </p>
         </div>
@@ -6740,7 +7374,7 @@ async function toggleCredentialsPanel(studentId, btn, trackCode) {
       inner.innerHTML = `
         <p class="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-2">Login Credentials</p>
         <div class="flex items-center gap-6">
-        <pre data-select-all tabindex="0" class="inline-block bg-white border border-gray-200 rounded-lg p-3 text-sm font-mono text-gray-900 cursor-text overflow-x-auto" title="Click to select all">Student ID: ${esc(studentId)}
+        <pre data-select-all tabindex="0" class="inline-block bg-white border border-gray-200 rounded-lg p-3 text-sm font-mono text-gray-900 cursor-text overflow-x-auto" title="Click to select all">Student ID: ${esc(studentId)}${accountNameText(studentId) ? `\nName:       ${esc(accountNameText(studentId))}` : ''}
 Password:   ${esc(data.password)}</pre>
         ${rotateButton}
         </div>
@@ -6757,7 +7391,7 @@ Password:   ${esc(data.password)}</pre>
       const deleteButton = offboard.querySelector('[data-delete-instructor]');
       const deleteStatus = offboard.querySelector('[data-delete-instructor-status]');
       deleteButton.addEventListener('click', async () => {
-        if (!window.confirm(`Permanently delete ${studentId}? This cannot be undone.`)) return;
+        if (!window.confirm(`Permanently delete ${accountLabelText(studentId)}? This cannot be undone.`)) return;
         deleteButton.disabled = true;
         deleteStatus.textContent = 'Deleting instructor account…';
         try {
@@ -6834,7 +7468,7 @@ async function rotateAccountPassword(rotateBtn) {
   }
   btn.title = note;
   const status = document.getElementById('admin-report-status');
-  if (status) status.textContent = `${studentId}: ${note}`;
+  if (status) status.textContent = `${accountLabelText(studentId)}: ${note}`;
 }
 
 /* Readable "3h 20m" formatting for a single admin_site_sessions row's own
@@ -6883,12 +7517,17 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   // Grading and Graded are one "Lab Attempts" tab now (data key 'grading').
   const requestedTab = requestedAdminTab === 'graded' ? 'grading' : requestedAdminTab;
   let activeTab = (!activeTrackCode && requestedTab === 'grading') ? 'progress' : requestedTab;
-  if (instructorDashboard && !['progress', 'grading', 'graded', 'messages'].includes(activeTab)) activeTab = 'progress';
+  if (instructorDashboard && !['progress', 'grading', 'graded', 'messages', 'guide'].includes(activeTab)) activeTab = 'progress';
   const activeTrack = activeTrackCode ? adminTrackMeta(activeTrackCode) : null;
   // Administrators supervise every course workspace. Instructors remain
   // limited to their explicit faculty_course_assignments.
   const canManageTrackMessages = Boolean(activeTrackCode && (user.isAdmin || facultyMessageTrackCodes.has(activeTrackCode)));
   if (!canManageTrackMessages && activeTab === 'messages') activeTab = 'progress';
+  // The Instructor Guide tab exists only in the SOC Analyst workspace. Its
+  // content is read from public.instructor_guides, which RLS limits to admins
+  // and that course's assigned instructors (soc-instructor-guide.js).
+  const showInstructorGuide = canManageTrackMessages && typeof SocInstructorGuide !== 'undefined' && activeTrackCode === SocInstructorGuide.track;
+  if (!showInstructorGuide && activeTab === 'guide') activeTab = 'progress';
   const rosterRows = normalizedTrackData.rosterRows || filterByTrack(rows, activeTrackCode);
   // The All Students workspace intentionally retains its cross-track detail
   // picker. A track workspace must not expose another track's student record.
@@ -6986,6 +7625,9 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
           </button>
 ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${tabIsActive('messages')}" data-admin-tab="messages" class="${tabBtnClass('messages')} inline-flex items-center gap-1.5" aria-label="Course messages${(unreadMessageCountsByTrack.get(activeTrackCode) || 0) ? `, ${unreadMessageCountsByTrack.get(activeTrackCode)} unread` : ''}">
             <i class="ri-notification-3-line" aria-hidden="true"></i> Messages${(unreadMessageCountsByTrack.get(activeTrackCode) || 0) ? ` <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">${unreadMessageCountsByTrack.get(activeTrackCode)}</span>` : ''}
+          </button>` : ''}
+${showInstructorGuide ? `<button type="button" role="tab" aria-selected="${tabIsActive('guide')}" data-admin-tab="guide" class="${tabBtnClass('guide')} inline-flex items-center gap-1.5">
+            <i class="ri-book-open-line" aria-hidden="true"></i> Instructor Guide
           </button>` : ''}` : ''}
         </div>
 
@@ -7068,6 +7710,14 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                     <div><div class="bg-white border border-gray-200 rounded-xl p-4 mb-3">
                      <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate Account</h3>
                      <p class="text-xs text-gray-500 mb-3">Create a student account or an instructor account. Student accounts begin unassigned and not enrolled. An instructor is assigned to exactly the course selected below and can only open that course dashboard. The password is shown once — copy it now.</p>
+                     <div class="grid sm:grid-cols-2 gap-3 mb-3">
+                       <label class="text-xs font-semibold text-gray-600">First name
+                         <input id="gen-user-first-name" type="text" required maxlength="80" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                       </label>
+                       <label class="text-xs font-semibold text-gray-600">Last name
+                         <input id="gen-user-last-name" type="text" required maxlength="80" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
+                       </label>
+                     </div>
                      <div class="grid sm:grid-cols-4 gap-3 items-end">
                        <label class="text-xs font-semibold text-gray-600">Account type
                          <select id="gen-user-role" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
@@ -7142,23 +7792,14 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                    <div id="admin-generate-diploma-panel" class="acc-body">
                     <div><div class="bg-white border border-gray-200 rounded-xl p-4 mb-3">
                      <h3 class="text-sm font-bold text-[#1e3a5f] mb-1">Generate Diploma</h3>
-                     <p class="text-xs text-gray-500 mb-3">Renders a printable diploma for one student, titled to match their track. Only enrolled students who have completed every technical module (including the module 12 capstone) and, on M360-required tracks, every M360 requirement are eligible. The name below is used only to render this one diploma — it is never saved to the student's account or any database.</p>
+                     <p class="text-xs text-gray-500 mb-3">Renders a printable diploma for one student, titled to match their track. Only enrolled students who have completed every technical module (including the module 12 capstone) and, on M360-required tracks, every M360 requirement are eligible. The name printed on the diploma is the student's stored first and last name (use Edit name in the student detail panel to set or correct it).</p>
                      <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 items-end mb-3">
                        <label class="text-xs font-semibold text-gray-600 xl:col-span-2">Student
                          <select id="diploma-student-select" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
                            <option value="">Select a student…</option>
-                           ${rows.filter((r) => r.enrolled !== false && r.program_requirements_complete).map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)}</option>`).join('')}
+                           ${rows.filter((r) => r.enrolled !== false && r.program_requirements_complete).map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${accountNameText(r) ? `${esc(accountNameText(r))} — ` : ''}${esc(r.program_slug || r.track_code)}</option>`).join('')}
                          </select>
                          ${rows.filter((r) => r.enrolled !== false && r.program_requirements_complete).length === 0 ? '<span class="block mt-1 text-xs text-gray-400">No enrolled student has completed every technical module and M360 requirement yet.</span>' : ''}
-                       </label>
-                       <label class="text-xs font-semibold text-gray-600">First name
-                         <input id="diploma-first-name" type="text" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
-                       </label>
-                       <label class="text-xs font-semibold text-gray-600">Middle name (optional)
-                         <input id="diploma-middle-name" type="text" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
-                       </label>
-                       <label class="text-xs font-semibold text-gray-600">Last name
-                         <input id="diploma-last-name" type="text" autocomplete="off" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900" />
                        </label>
                        <button type="button" data-action="admin-generate-diploma-submit" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Generate Diploma</button>
                      </div>
@@ -7174,7 +7815,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                        <label class="text-xs font-semibold text-gray-600">Student
                          <select id="admin-planning-student" class="block mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-normal text-gray-900">
                            <option value="">Select an active student…</option>
-                           ${rows.filter((r) => r.enrolled !== false).map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)}</option>`).join('')}
+                           ${rows.filter((r) => r.enrolled !== false).map((r) => `<option value="${esc(r.student_id)}">${esc(r.student_id)}${accountNameText(r) ? ` — ${esc(accountNameText(r))}` : ''} — ${esc(r.program_slug || r.track_code)}</option>`).join('')}
                          </select>
                        </label>
                        <label class="text-xs font-semibold text-gray-600">Scheduled start
@@ -7250,7 +7891,9 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                                <i class="ri-arrow-right-s-line text-gray-400 group-hover:text-[#f97316] transition-transform" data-cred-chevron="${esc(row.student_id)}"></i>
                                ${esc(row.student_id)}
                              </button>
+                             ${!instructorDashboard && row.is_test_account ? '<span data-test-badge class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-50 text-violet-700 border border-violet-200">TEST</span>' : ''}
                              ${cheatingFlagsByStudentId.has(row.student_id) ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 cursor-help" title="${esc(cheatingFlagsByStudentId.get(row.student_id).join(' · '))}">Review</span>` : ''}
+                             ${accountNameHtml(row)}
                            </td>
                            <td class="px-6 py-4 text-sm text-gray-600">${esc(row.track_code)}</td>
                            <td class="px-6 py-4 text-sm text-gray-600">${esc(row.program_slug || '—')}</td>
@@ -7279,6 +7922,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                            </td>
                            <td class="px-6 py-4 text-sm whitespace-nowrap">
                              <button type="button" data-admin-snapshot="${esc(row.student_id)}" class="text-xs font-semibold text-[#1e3a5f] hover:underline" title="Download a recoverable progress snapshot for this student">Save Progress File</button>
+                             ${testAccountRosterControlsHtml(row, instructorDashboard)}
                            </td>
                          </tr>
                          <tr class="admin-cred-row" data-cred-row="${esc(row.student_id)}">
@@ -7317,7 +7961,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                             <option value="">Choose a student…</option>
                             ${detailStudents.map((r) => {
                               const programmeProgress = programWorkItemProgress(r);
-                              return `<option value="${esc(r.student_id)}">${esc(r.student_id)} — ${esc(r.program_slug || r.track_code)} (${programmeProgress.completed}/${programmeProgress.required} coursework${programmeProgress.completed === 0 && (r.modules_in_progress || 0) > 0 ? ', in progress' : ''})</option>`;
+                              return `<option value="${esc(r.student_id)}">${esc(r.student_id)}${accountNameText(r) ? ` — ${esc(accountNameText(r))}` : ''} — ${esc(r.program_slug || r.track_code)} (${programmeProgress.completed}/${programmeProgress.required} coursework${programmeProgress.completed === 0 && (r.modules_in_progress || 0) > 0 ? ', in progress' : ''})</option>`;
                             }).join('')}
                           </select>
                         </div>
@@ -7387,6 +8031,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                            <td class="px-6 py-3 text-sm text-gray-900 font-mono">
                              ${esc(ev.student_id || '—')}
                              ${cheatingFlagsByStudentId.has(ev.student_id) ? `<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 cursor-help" title="${esc(cheatingFlagsByStudentId.get(ev.student_id).join(' · '))}">Review</span>` : ''}
+                             ${accountNameHtml(ev)}
                            </td>
                            <td class="px-6 py-3 text-sm text-gray-600">${esc(ev.track_code || '—')}</td>
                            <td class="px-6 py-3 text-sm text-gray-600" ${ev.ip_address ? `title="${esc(ev.ip_address)}"` : ''}>${esc(formatLoginLocation(ev))}</td>
@@ -7394,7 +8039,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                            <td class="px-6 py-3 text-sm text-gray-600">${siteSession ? (siteSession.ended_at ? new Date(siteSession.ended_at).toLocaleString() : '<span class="text-green-600 font-semibold">Still signed in</span>') : '—'}</td>
                            <td class="px-6 py-3 text-sm text-gray-600">${siteSession ? esc(formatSiteMinutes(siteSession.duration_minutes)) : '—'}</td>
                            <td class="px-6 py-3 text-sm whitespace-nowrap">
-                             ${canForceSignOut ? `<button type="button" data-force-signout="${esc(ev.user_id)}" data-force-signout-student="${esc(ev.student_id || 'this student')}" class="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Sign out</button>` : ''}
+                             ${canForceSignOut ? `<button type="button" data-force-signout="${esc(ev.user_id)}" data-force-signout-student="${esc(ev.student_id ? accountLabelText(ev) : 'this student')}" class="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Sign out</button>` : ''}
                            </td>
                          </tr>`;
                        }).join('')}
@@ -7470,7 +8115,7 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
               ? `<div class="bg-gray-50 border border-gray-200 rounded-xl p-12 text-center"><p class="text-gray-500 text-base">No archived students yet.</p></div>`
               : `<div>
                    <label for="archived-student-search" class="block text-xs font-semibold uppercase tracking-widest text-gray-600 mb-1.5">Search archived records</label>
-                   <input id="archived-student-search" type="search" autocomplete="off" placeholder="Student ID, cohort, track, program, or status…" class="w-full sm:max-w-xl border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 mb-4" />
+                   <input id="archived-student-search" type="search" autocomplete="off" placeholder="Student ID, name, cohort, track, program, or status…" class="w-full sm:max-w-xl border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20 mb-4" />
                    <p id="archived-student-search-status" class="text-xs text-gray-500 mb-3">${archivedStudents.length} archived record${archivedStudents.length === 1 ? '' : 's'}</p>
                    <div class="overflow-x-auto">
                    <table class="w-full border-collapse">
@@ -7489,8 +8134,8 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
                      </thead>
                      <tbody>
                        ${archivedStudents.map((r) => `
-                         <tr data-archived-student-row data-archive-search="${esc([r.student_id, r.cohort_name, r.track_code, r.program_slug, r.status_at_archive].filter(Boolean).join(' ').toLowerCase())}" class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                           <td class="px-6 py-3 text-sm text-gray-900 font-mono">${esc(r.student_id)}</td>
+                         <tr data-archived-student-row data-archive-search="${esc([r.student_id, accountNameText(r), r.cohort_name, r.track_code, r.program_slug, r.status_at_archive].filter(Boolean).join(' ').toLowerCase())}" class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                           <td class="px-6 py-3 text-sm text-gray-900 font-mono">${esc(r.student_id)}${accountNameHtml(r)}</td>
                            <td class="px-6 py-3 text-sm text-gray-600">${esc(r.cohort_name || '—')}</td>
                            <td class="px-6 py-3 text-sm text-gray-600">${esc(r.track_code || '—')}</td>
                            <td class="px-6 py-3 text-sm text-gray-600">${esc(r.program_slug || '—')}</td>
@@ -7511,6 +8156,9 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
         </div>` : ''}
         ${activeTrackCode ? `<div id="admin-tab-panel-messages" ${tabIsActive('messages') ? '' : 'hidden'}>
           ${adminMessageInboxPanel(trackFacultyMessageRows)}
+        </div>` : ''}
+        ${showInstructorGuide ? `<div id="admin-tab-panel-guide" ${tabIsActive('guide') ? '' : 'hidden'}>
+          ${SocInstructorGuide.panel()}
         </div>` : ''}
 
         ${!instructorDashboard ? `<div class="mt-8">
@@ -7860,6 +8508,10 @@ async function render(options = {}) {
     startLiveRefreshForRoute(null, hash);
     return;
   }
+  // Names beside account numbers: wait briefly (never fail) so the first
+  // paint already carries them; an unavailable/slow directory just means none.
+  await Promise.race([loadAccountNames(), new Promise((resolve) => setTimeout(resolve, 2500))]);
+  if (!isCurrentRouteRender(renderGeneration)) return;
   // Signed in but sitting on the login route: replace the entry rather than
   // pushing a new one, so Back never lands on a login screen that just bounces
   // the student forward again.
@@ -7974,6 +8626,8 @@ async function render(options = {}) {
           return bActive - aActive;
         });
         dashboardRows = normalizeAdminProgramProgressRows(sorted);
+        // Admin only: faculty never see or set test-account flags.
+        if (user.isAdmin) await mergeTestAccountFlags(dashboardRows);
         adminRosterSnapshot = { route: hash, dashboardRows };
       }
 
@@ -9035,7 +9689,10 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
     grading: document.getElementById('admin-tab-panel-grading'),
     graded: document.getElementById('admin-tab-panel-graded'),
     messages: document.getElementById('admin-tab-panel-messages'),
+    guide: document.getElementById('admin-tab-panel-guide'),
   };
+  const mountInstructorGuide = () => { if (tabPanels.guide && !tabPanels.guide.hidden && typeof SocInstructorGuide !== 'undefined') SocInstructorGuide.mount(); };
+  mountInstructorGuide();
   tabButtons.forEach((btn) => {
     btn.addEventListener('click', async () => {
       const target = btn.dataset.adminTab;
@@ -9049,6 +9706,7 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
         b.classList.toggle('text-gray-500', !active);
       });
       Object.entries(tabPanels).forEach(([key, panel]) => { if (panel) panel.hidden = key !== target; });
+      if (target === 'guide') { mountInstructorGuide(); return; }
       if (!['progress', 'grading', 'graded', 'messages'].includes(target) && (!adminLazyTabData[target] || (target === 'activity' && adminLazyTabData.activity.activityLoadError))) {
         await ensureAdminLazyTab(target);
         await render({ reuseAdminRoster: true });
@@ -9181,26 +9839,18 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
 
   /* "Generate Diploma": looks up the selected student's track_code (already
    * in dashboardRows — no extra fetch) to pick the matching diploma title,
-   * then hands the typed name straight to openDiplomaCertificate() and
-   * clears the fields immediately after. Nothing here is written to
-   * Supabase or browser storage. */
+   * then hands the student's stored first/last name (account display names)
+   * to openDiplomaCertificate(). Nothing here is written to Supabase or
+   * browser storage. */
   const generateDiplomaSubmitBtn = document.querySelector('[data-action="admin-generate-diploma-submit"]');
   if (generateDiplomaSubmitBtn) {
     generateDiplomaSubmitBtn.addEventListener('click', () => {
       const studentSelect = document.getElementById('diploma-student-select');
-      const firstInput = document.getElementById('diploma-first-name');
-      const middleInput = document.getElementById('diploma-middle-name');
-      const lastInput = document.getElementById('diploma-last-name');
       const statusEl = document.getElementById('admin-generate-diploma-status');
-      if (!studentSelect || !firstInput || !lastInput) return;
+      if (!studentSelect) return;
 
       const studentId = studentSelect.value;
-      const first = firstInput.value.trim();
-      const middle = middleInput ? middleInput.value.trim() : '';
-      const last = lastInput.value.trim();
-
       if (!studentId) { if (statusEl) statusEl.textContent = 'Select a student first.'; return; }
-      if (!first || !last) { if (statusEl) statusEl.textContent = 'First and last name are required.'; return; }
 
       const row = dashboardRows.find((r) => r.student_id === studentId);
       // Re-check eligibility against the live dashboard rows, not just the
@@ -9215,13 +9865,16 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
         return;
       }
       const diplomaTitle = (row && DIPLOMA_TITLES_BY_TRACK[row.track_code]) || 'Diploma of Completion';
-      const fullName = [first, middle, last].filter(Boolean).join(' ');
+      const fullName = accountNameText(studentId);
+      if (!fullName) {
+        if (statusEl) statusEl.textContent = ACCOUNT_NAMES.available === false
+          ? 'Student names are not available yet (the account-name database update has not been applied), so a diploma cannot be generated.'
+          : `${studentId} has no stored first and last name. Open the student's detail panel and use Edit name, then generate the diploma.`;
+        return;
+      }
 
       openDiplomaCertificate({ fullName, diplomaTitle, studentId });
       if (statusEl) statusEl.textContent = '';
-      firstInput.value = '';
-      if (middleInput) middleInput.value = '';
-      lastInput.value = '';
     });
   }
 
@@ -9255,7 +9908,16 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
       const cohortSelect = document.getElementById('gen-user-cohort');
       const resultEl = document.getElementById('admin-generate-user-result');
       const statusEl = document.getElementById('admin-generate-user-status');
+      const firstNameInput = document.getElementById('gen-user-first-name');
+      const lastNameInput = document.getElementById('gen-user-last-name');
       if (!trackSelect || !resultEl) return;
+      const firstName = firstNameInput ? firstNameInput.value.trim() : '';
+      const lastName = lastNameInput ? lastNameInput.value.trim() : '';
+      if (!firstName || !lastName) {
+        if (statusEl) statusEl.textContent = 'First name and last name are required.';
+        (firstName ? lastNameInput : firstNameInput)?.focus();
+        return;
+      }
       generateUserSubmitBtn.disabled = true;
       if (statusEl) statusEl.textContent = 'Creating account…';
       resultEl.innerHTML = '';
@@ -9269,15 +9931,34 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
             track_code: trackSelect.value,
             cohort_id: cohortSelect && cohortSelect.value ? cohortSelect.value : null,
           });
+        // admin-provision does not return the new user's uuid (and is not
+        // redeployed by this feature), so resolve it from the students row.
+        // Any failure here is a non-blocking warning: the account exists.
+        let nameWarning = '';
+        let savedName = '';
+        try {
+          const { data: created, error: lookupError } = await mntSupabase
+            .from('students').select('user_id').eq('student_id', account.student_id).single();
+          if (lookupError || !created) throw lookupError || new Error('lookup failed');
+          const nameResult = await setAccountName(created.user_id, firstName, lastName);
+          if (nameResult.ok) savedName = `${firstName} ${lastName}`;
+          else if (nameResult.unavailable) nameWarning = 'The name could not be saved: account names are not available on this database yet. Set it later with Edit name once the update is applied.';
+          else nameWarning = `The account was created but the name could not be saved (${nameResult.error && nameResult.error.message ? nameResult.error.message : 'unknown error'}). Use Edit name on the student detail panel.`;
+        } catch (nameErr) {
+          nameWarning = 'The account was created but the name could not be saved. Use Edit name on the student detail panel.';
+        }
         if (statusEl) statusEl.textContent = '';
         resultEl.innerHTML = `
           <div class="bg-green-50 border border-green-200 rounded-lg p-4">
             <p class="text-xs font-semibold text-green-800 mb-2">${instructor ? 'Instructor account created — it opens only its assigned course dashboard.' : 'Account created'} Copy this now; it is not shown again.</p>
-            <pre data-select-all tabindex="0" class="bg-white border border-green-200 rounded-lg p-3 text-sm font-mono text-gray-900 cursor-text overflow-x-auto" title="Click to select all">Student ID: ${esc(account.student_id)}
+            <pre data-select-all tabindex="0" class="bg-white border border-green-200 rounded-lg p-3 text-sm font-mono text-gray-900 cursor-text overflow-x-auto" title="Click to select all">Student ID: ${esc(account.student_id)}${savedName ? `\nName:       ${esc(savedName)}` : ''}
 Password:   ${esc(account.password)}
 Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackSelect.options[trackSelect.selectedIndex].text)}` : ''}</pre>
+            ${nameWarning ? `<p class="mt-2 text-xs font-semibold text-amber-700" role="status">${esc(nameWarning)}</p>` : ''}
           </div>`;
         wireSelectAllBlocks(resultEl);
+        if (firstNameInput) firstNameInput.value = '';
+        if (lastNameInput) lastNameInput.value = '';
       } catch (err) {
         if (statusEl) statusEl.textContent = '';
         resultEl.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">${esc(err && err.message ? err.message : String(err))}</div>`;
@@ -9475,6 +10156,8 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
   }
 
   if (typeof itsProveWireGrading === 'function') itsProveWireGrading(() => render({ reuseAdminRoster: true }));
+  // SOC Prove It sheets: fill each "Server recommendation" box (staff only).
+  if (typeof socProveWireRecommendations === 'function') socProveWireRecommendations();
 
   document.querySelectorAll('[data-grading-filter]').forEach((input) => {
     const panel = input.closest('[id^="admin-tab-panel-"]') || document;
@@ -9731,7 +10414,7 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       return;
     }
     savePlanningButton.disabled = true;
-    if (status) status.textContent = `Saving the current enrollment planning record for ${studentId}...`;
+    if (status) status.textContent = `Saving the current enrollment planning record for ${accountLabelText(studentId)}...`;
     const error = await updateAdminEnrollmentPlanRemote(studentId, {
       scheduledStartDate: planningStart && planningStart.value,
       scheduledCompletionDate: planningCompletion && planningCompletion.value,
@@ -9745,7 +10428,7 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
     }
     await render();
     const nextStatus = document.getElementById('admin-report-status');
-    if (nextStatus) nextStatus.textContent = `Saved the current enrollment planning record for ${studentId}.`;
+    if (nextStatus) nextStatus.textContent = `Saved the current enrollment planning record for ${accountLabelText(studentId)}.`;
   });
 
   function identityForRow(row) {
@@ -9770,6 +10453,22 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
         await rotateAccountPassword(rotateBtn);
         return;
       }
+      const resetBtn = event.target.closest('[data-admin-reset-progress]');
+      if (resetBtn) {
+        const resetRow = dashboardRows.find((item) => item.student_id === resetBtn.getAttribute('data-admin-reset-progress'));
+        if (!resetRow || !resetRow.is_test_account) return;
+        resetBtn.disabled = true;
+        try {
+          await openTestResetModal(resetRow, resetBtn, async (summary) => {
+            await render({ reuseAdminRoster: false });
+            const status = document.getElementById('admin-report-status');
+            if (status) status.textContent = summary;
+          });
+        } finally {
+          resetBtn.disabled = false;
+        }
+        return;
+      }
       const snapshotBtn = event.target.closest('[data-admin-snapshot]');
       if (!snapshotBtn) return;
       const studentId = snapshotBtn.getAttribute('data-admin-snapshot');
@@ -9777,16 +10476,47 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       const message = document.getElementById('admin-report-status');
       if (!row) return;
       snapshotBtn.disabled = true;
-      if (message) message.textContent = `Saving progress file for ${studentId}...`;
+      if (message) message.textContent = `Saving progress file for ${accountLabelText(studentId)}...`;
       try {
         await downloadStudentSnapshot(studentId, identityForRow(row));
-        if (message) message.textContent = `Progress file saved for ${studentId}.`;
+        if (message) message.textContent = `Progress file saved for ${accountLabelText(studentId)}.`;
       } catch (err) {
         console.error('downloadStudentSnapshot failed', err);
-        if (message) message.textContent = `Could not save the progress file for ${studentId} — see console for details.`;
+        if (message) message.textContent = `Could not save the progress file for ${accountLabelText(studentId)} — see console for details.`;
       } finally {
         snapshotBtn.disabled = false;
       }
+    });
+
+    tableBody.addEventListener('change', async (event) => {
+      const testToggle = event.target.closest('[data-admin-test-account]');
+      if (!testToggle) return;
+      const studentId = testToggle.getAttribute('data-admin-test-account');
+      const row = dashboardRows.find((item) => item.student_id === studentId);
+      const message = document.getElementById('admin-report-status');
+      if (!row) return;
+      const desired = testToggle.checked;
+      testToggle.disabled = true;
+      const error = await setTestAccountRemote(studentId, desired);
+      testToggle.disabled = false;
+      if (error) {
+        testToggle.checked = !desired;
+        if (message) message.textContent = `Could not update the test-account flag for ${accountLabelText(studentId)}: ${error.message || 'Supabase rejected the update.'}`;
+        return;
+      }
+      row.is_test_account = desired;
+      const resetBtn = tableBody.querySelector(`[data-admin-reset-progress="${CSS.escape(studentId)}"]`);
+      if (resetBtn) resetBtn.hidden = !desired;
+      const idCell = testToggle.closest('tr')?.querySelector('td');
+      const badge = idCell?.querySelector('[data-test-badge]');
+      if (desired && idCell && !badge) {
+        idCell.querySelector('[data-view-credentials]')?.insertAdjacentHTML('afterend', '<span data-test-badge class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-50 text-violet-700 border border-violet-200">TEST</span>');
+      } else if (!desired && badge) {
+        badge.remove();
+      }
+      if (message) message.textContent = desired
+        ? `${accountLabelText(studentId)} is now a test account. Its progress can be reset.`
+        : `${accountLabelText(studentId)} is no longer a test account.`;
     });
 
     tableBody.addEventListener('change', async (event) => {
@@ -9808,25 +10538,25 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       // snapshot can't be captured, the disenroll does not proceed.
       if (!desired) {
         toggle.disabled = true;
-        if (message) message.textContent = `Saving progress file for ${studentId} before disenrolling...`;
+        if (message) message.textContent = `Saving progress file for ${accountLabelText(studentId)} before disenrolling...`;
         try {
           await downloadStudentSnapshot(studentId, identityForRow(row));
         } catch (err) {
           console.error('Pre-disenroll snapshot failed', err);
           toggle.disabled = false;
           toggle.checked = true;
-          if (message) message.textContent = `Could not save a progress file for ${studentId} — disenrollment cancelled. See console for details.`;
+          if (message) message.textContent = `Could not save a progress file for ${accountLabelText(studentId)} — disenrollment cancelled. See console for details.`;
           return;
         }
       }
 
       toggle.disabled = true;
-      if (message) message.textContent = `Saving enrollment for ${studentId}...`;
+      if (message) message.textContent = `Saving enrollment for ${accountLabelText(studentId)}...`;
       const error = await updateAdminEnrollmentRemote(studentId, desired);
       toggle.disabled = false;
       if (error) {
         toggle.checked = !desired;
-        if (message) message.textContent = `Could not save enrollment for ${studentId}: ${error.message || 'Supabase rejected the update.'}`;
+        if (message) message.textContent = `Could not save enrollment for ${accountLabelText(studentId)}: ${error.message || 'Supabase rejected the update.'}`;
         return;
       }
 
@@ -9836,8 +10566,8 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       render();
       const nextMessage = document.getElementById('admin-report-status');
       if (nextMessage) nextMessage.textContent = desired
-        ? `${studentId} is now enrolled.`
-        : `${studentId} is now disenrolled. Progress file saved.`;
+        ? `${accountLabelText(studentId)} is now enrolled.`
+        : `${accountLabelText(studentId)} is now disenrolled. Progress file saved.`;
     });
   }
 
@@ -9982,7 +10712,7 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
         const snapshots = [];
         for (let i = 0; i < scopedRows.length; i++) {
           const row = scopedRows[i];
-          if (status) status.textContent = `Preparing progress files for ${i + 1} of ${scopedRows.length}: ${row.student_id}…`;
+          if (status) status.textContent = `Preparing progress files for ${i + 1} of ${scopedRows.length}: ${accountLabelText(row)}…`;
           snapshots.push(await buildStudentSnapshotRecord(row.student_id, identityForRow(row)));
         }
         const capturedAt = new Date().toISOString();
@@ -10023,7 +10753,12 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
     ]);
     await applyOfficialLabGrades(labRes.data || []);
     if (panel.dataset.studentId !== studentId) return;
-    panel.innerHTML = renderStudentDetail(row, moduleRes.data || [], labRes.data || [], capstoneRes.data || [], scorecardRes.data || null, artifactRes.data || [], reviewRes.data || [], cheatingFlagsByUserId.get(row.user_id) || [], !!user.isAdmin);
+    // Edit name is admin-only (admin_set_account_name enforces it server-side
+    // too) and hidden while the DB has no account-name columns/RPC.
+    const detailViewer = await currentUser();
+    const canEditName = !!(detailViewer && detailViewer.isAdmin) && ACCOUNT_NAMES.available !== false && ACCOUNT_NAMES.rpcAvailable !== false;
+    // Module completion override is admin-only too (admin_set_module_override).
+    panel.innerHTML = renderStudentDetail(row, moduleRes.data || [], labRes.data || [], capstoneRes.data || [], scorecardRes.data || null, artifactRes.data || [], reviewRes.data || [], cheatingFlagsByUserId.get(row.user_id) || [], canEditName, !!(detailViewer && detailViewer.isAdmin));
   }
 
   const archivedSearch = document.getElementById('archived-student-search');
@@ -10062,6 +10797,48 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
       detailSelect.dispatchEvent(new Event('change'));
     });
   });
+  // Admin "Edit name" in the student detail panel (account display names).
+  // Delegated per panel, outside the detailSelect block, so inline track-card
+  // panels work too. setAccountName() refreshes the directory; a full render
+  // then redraws every place the name shows.
+  [document.getElementById('student-detail-panel'), ...document.querySelectorAll('[data-admin-inline-detail]')].filter(Boolean).forEach((namePanel) => {
+    namePanel.addEventListener('click', (event) => {
+      const editBtn = event.target.closest('[data-edit-name]');
+      const cancelBtn = event.target.closest('[data-edit-name-cancel]');
+      if (!editBtn && !cancelBtn) return;
+      const wrap = (editBtn || cancelBtn).closest('div');
+      const form = wrap.querySelector('[data-edit-name-form]');
+      const toggle = wrap.querySelector('[data-edit-name]');
+      if (!form) return;
+      form.hidden = !editBtn;
+      if (toggle) toggle.setAttribute('aria-expanded', String(!!editBtn));
+      if (editBtn) { const first = form.querySelector('input[name="first"]'); if (first) first.focus(); }
+    });
+    namePanel.addEventListener('submit', async (event) => {
+      const form = event.target.closest('[data-edit-name-form]');
+      if (!form) return;
+      event.preventDefault();
+      const studentId = form.getAttribute('data-edit-name-form');
+      const target = activeStudents.find((r) => r.student_id === studentId);
+      const statusEl = form.querySelector('[data-edit-name-status]');
+      const submit = form.querySelector('button[type="submit"]');
+      const first = form.elements.first.value.trim();
+      const last = form.elements.last.value.trim();
+      if (!target) return;
+      if (!first || !last) { if (statusEl) statusEl.textContent = 'First name and last name are required.'; return; }
+      if (submit) submit.disabled = true;
+      if (statusEl) statusEl.textContent = 'Saving…';
+      const result = await setAccountName(target.user_id, first, last);
+      if (result.ok) { await render({ reuseAdminRoster: true }); return; }
+      if (submit) submit.disabled = false;
+      if (statusEl) {
+        statusEl.textContent = result.unavailable
+          ? 'Account names are not available on this database yet.'
+          : `Could not save the name: ${result.error && result.error.message ? result.error.message : 'unknown error'}`;
+      }
+    });
+  });
+
   if (detailSelect) {
     detailSelect.addEventListener('change', async () => {
       const panel = document.getElementById('student-detail-panel');
@@ -10080,6 +10857,20 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
     const detailPanels = [document.getElementById('student-detail-panel'), ...document.querySelectorAll('[data-admin-inline-detail]')];
     detailPanels.filter(Boolean).forEach((detailPanel) => {
       detailPanel.addEventListener('click', async (event) => {
+        // "Open attempt" on a lab awaiting review: switch to the Lab Attempts
+        // tab and open that attempt's pill.
+        const openAttemptBtn = event.target.closest('[data-admin-open-attempt]');
+        if (openAttemptBtn) {
+          const key = openAttemptBtn.getAttribute('data-admin-open-attempt');
+          const tab = document.querySelector('[data-admin-tab="grading"]');
+          if (tab) tab.click();
+          const chip = Array.from(document.querySelectorAll('[data-attempt-chip]')).find((el) => el.dataset.attemptChip === key);
+          if (chip && chip.getAttribute('aria-expanded') !== 'true') chip.click();
+          else if (chip) chip.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          // The button is now in the hidden Progress tab: move focus to the pill.
+          if (chip) chip.focus({ preventScroll: true });
+          return;
+        }
         const overrideBtn = event.target.closest('[data-admin-module-override]');
         if (overrideBtn) {
           const overrideValue = overrideBtn.getAttribute('data-override-value') === 'true';
@@ -10087,8 +10878,8 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
           const moduleKey = overrideBtn.getAttribute('data-module-key');
           const label = adminModuleLabel(overrideBtn.getAttribute('data-track-code'), moduleKey);
           const confirmed = confirm(overrideValue
-            ? `Mark ${label} complete for ${studentId} regardless of lab/quiz status? This shows green everywhere for this student immediately and survives future grading-rule changes.`
-            : `Remove the admin override on ${label} for ${studentId}? The module's status will go back to whatever the real lab/quiz records support.`);
+            ? `Mark ${label} complete for ${accountLabelText(studentId)} regardless of lab/quiz status? This shows green everywhere for this student immediately and survives future grading-rule changes.`
+            : `Remove the admin override on ${label} for ${accountLabelText(studentId)}? The module's status will go back to whatever the real lab/quiz records support.`);
           if (!confirmed) return;
           overrideBtn.disabled = true;
           const originalText = overrideBtn.textContent;
@@ -10122,7 +10913,8 @@ Track:      ${esc(account.track_code)}${instructor ? `\nDashboard:  ${esc(trackS
         trigger.textContent = 'Generating…';
         try {
           if (transcriptBtn) await downloadTranscriptPdf(studentId, identity);
-          else await downloadEvidencePdf(studentId, identity);
+          // Staff download: the newest attempt says "Awaiting review" or "Returned".
+          else await downloadEvidencePdf(studentId, { ...identity, staffLabels: true });
         } catch (err) {
           console.error('Per-student PDF generation failed', err);
           trigger.textContent = 'Failed — see console';
@@ -10166,6 +10958,16 @@ function adminModuleLabel(trackCode, moduleKey) {
   const program = PROGRAMS.find((p) => p.slug === slug);
   const module = program && program.modules && program.modules[moduleKey];
   return module ? module.title : moduleKey;
+}
+
+// A module's display number, for listing modules in course order. Help Desk
+// numbers differ from key order (its-10 is Module 2), so sort by this, not
+// by key. A key not in the catalogue sorts last.
+function adminModuleOrder(trackCode, moduleKey) {
+  const slug = TRACK_CODE_TO_PROGRAM_SLUG[trackCode];
+  const program = PROGRAMS.find((p) => p.slug === slug);
+  const module = program && program.modules && program.modules[moduleKey];
+  return module && Number.isFinite(module.number) ? module.number : Infinity;
 }
 
 function adminLabLabel(labKey) {
@@ -10320,15 +11122,27 @@ function adminModuleStatusHtml(m, labRows) {
   const labKey = officialLabForModule(m.module_key);
   const standing = labKey ? officialLabStanding(labKey, labRows) : null;
   if (standing && standing.attempted) {
-    return `<span style="color:${adminStateColor(standing.passed ? 'complete' : 'in_progress')}">${standing.passed ? 'Pass' : 'In progress'}</span>`;
+    const label = standing.passed ? 'Pass'
+      : standing.awaiting ? OFFICIAL_AWAITING_REVIEW
+      : standing.critical ? OFFICIAL_CRITICAL_RESULT
+      : standing.returned ? OFFICIAL_RETURNED
+      : 'In progress';
+    return `<span style="color:${adminStateColor(standing.passed ? 'complete' : 'in_progress')}">${label}</span>`;
   }
   return `<span style="color:${adminStateColor(m.state)}">${adminStateLabel(m.state)}</span>`;
 }
 
-function adminLabRecordCells(l, labRows) {
-  const record = labTakesOfficialGrade(l.lab_key) ? officialAttemptRecord(l, officialLabStanding(l.lab_key, labRows)) : null;
+// student: the detail's row (student_id, track_code). An attempt awaiting
+// review links to its pill on the Lab Attempts tab, whose key is
+// `<student id>|<item name>` (adminLabAttemptsPanel).
+function adminLabRecordCells(l, labRows, student) {
+  const record = labTakesOfficialGrade(l.lab_key) ? officialAttemptRecord(l, officialLabStanding(l.lab_key, labRows), true) : null;
   if (record) {
-    return `<td class="px-4 py-2"><span style="color:${adminStateColor(record.state)}">${record.status}</span></td>
+    const attemptKey = record.awaiting && student && student.student_id
+      ? `${student.student_id}|${adminGradingLabMeta({ lab_key: l.lab_key, track_code: student.track_code }).itemName}`
+      : '';
+    const openLink = attemptKey ? ` <button type="button" class="ml-1 text-xs font-semibold text-[#1e3a5f] underline hover:text-[#f97316]" data-admin-open-attempt="${esc(attemptKey)}">Open attempt</button>` : '';
+    return `<td class="px-4 py-2"><span style="color:${adminStateColor(record.state)}">${record.status}</span>${openLink}</td>
                  <td class="px-4 py-2 text-gray-600">${adminScore(record.score)}</td>
                  <td class="px-4 py-2 text-gray-600">${record.date ? adminDate(record.date) : '—'}</td>`;
   }
@@ -10353,7 +11167,7 @@ function adminDate(value) {
   return value ? new Date(value).toLocaleDateString() : '—';
 }
 
-function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRow, artifactRows = [], reviewRows = [], reviewFlagReasons = [], canOverrideModules = false) {
+function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRow, artifactRows = [], reviewRows = [], reviewFlagReasons = [], canEditName = false, canOverrideModules = false) {
   const m360Detail = row.m360_required
     ? `<section class="mt-8"><h3 class="text-base font-semibold text-[#1e3a5f] mb-3">M360 Career Readiness</h3><div class="grid grid-cols-2 md:grid-cols-3 gap-3"><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Accepted weeks</p><p class="text-lg font-semibold text-[#1e3a5f]">${Number(row.m360_accepted_weeks || 0)} / ${Number(row.m360_required_weeks || 6)}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Final grade</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_final_grade == null ? '—' : esc(Number(row.m360_final_grade).toFixed(1))}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Start Here</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_start_here_complete ? 'Complete' : 'Not started'}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Networking confidence</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.networking_comfort == null ? '— / 5' : `${Number(row.networking_comfort)} / 5`}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Interview readiness</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.interview_readiness == null ? '— / 5' : `${Number(row.interview_readiness)} / 5`}</p></div><div class="bg-[#f8fafc] border border-gray-200 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wide">Course status</p><p class="text-lg font-semibold text-[#1e3a5f]">${row.m360_course_complete ? 'Complete' : 'In progress'}</p></div></div><p class="text-xs text-gray-500 mt-3">M360 is a separate career-readiness course record. It appears on the student transcript but is not technical-module credit.</p></section>`
     : '';
@@ -10378,7 +11192,7 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
              </tr>
            </thead>
            <tbody>
-             ${moduleRows.slice().sort((a, b) => String(a.module_key).localeCompare(String(b.module_key))).map((m) => `
+             ${moduleRows.slice().sort((a, b) => (adminModuleOrder(row.track_code, a.module_key) - adminModuleOrder(row.track_code, b.module_key)) || String(a.module_key).localeCompare(String(b.module_key))).map((m) => `
                <tr class="border-b border-gray-100">
                  <td class="px-4 py-2 text-gray-900">${esc(adminModuleLabel(row.track_code, m.module_key))}</td>
                  <td class="px-4 py-2">${adminModuleStatusHtml(m, labRows)}${m.admin_override ? ' <span class="text-xs font-semibold text-amber-700">(admin override)</span>' : ''}</td>
@@ -10429,7 +11243,7 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
                  return `
                <tr class="border-b border-gray-100">
                  <td class="px-4 py-2 text-gray-900">${esc(adminLabLabel(l.lab_key))}${attemptLabel}</td>
-                 ${adminLabRecordCells(l, labRows)}
+                 ${adminLabRecordCells(l, labRows, row)}
                </tr>`;
                }).join('')}
            </tbody>
@@ -10515,7 +11329,19 @@ function renderStudentDetail(row, moduleRows, labRows, capstoneRows, scorecardRo
       ${reviewFlagSection}
       <div class="mb-6 pb-4 border-b border-gray-100 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p class="font-mono text-sm text-gray-900">${esc(row.student_id)}</p>
+          <p class="font-mono text-sm text-gray-900">${esc(row.student_id)}${accountNameHtml(row)}</p>
+          ${canEditName ? `<button type="button" data-edit-name="${esc(row.student_id)}" aria-expanded="false" class="mt-1 text-xs font-semibold text-[#1e3a5f] hover:underline cursor-pointer">Edit name</button>
+          <form data-edit-name-form="${esc(row.student_id)}" hidden class="mt-2 flex flex-wrap items-end gap-2">
+            <label class="text-xs font-semibold text-gray-600">First name
+              <input type="text" name="first" required maxlength="80" autocomplete="off" value="${esc((accountNameParts(row) || {}).first_name || '')}" class="block mt-1 w-40 border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-normal text-gray-900" />
+            </label>
+            <label class="text-xs font-semibold text-gray-600">Last name
+              <input type="text" name="last" required maxlength="80" autocomplete="off" value="${esc((accountNameParts(row) || {}).last_name || '')}" class="block mt-1 w-40 border border-gray-200 rounded-lg px-2 py-1.5 text-sm font-normal text-gray-900" />
+            </label>
+            <button type="submit" class="bg-[#1e3a5f] hover:bg-[#16304f] text-white font-semibold px-3 py-1.5 rounded-lg text-xs cursor-pointer">Save</button>
+            <button type="button" data-edit-name-cancel class="text-xs font-semibold text-gray-600 hover:underline cursor-pointer">Cancel</button>
+            <span data-edit-name-status class="basis-full text-xs text-gray-500" role="status"></span>
+          </form>` : ''}
           <p class="text-xs text-gray-500 mt-1">${esc(row.program_slug || row.track_code)} · ${row.modules_complete}/${row.modules_total} modules · ${row.percent_complete}% complete</p>
         </div>
         <div class="flex flex-wrap gap-2">

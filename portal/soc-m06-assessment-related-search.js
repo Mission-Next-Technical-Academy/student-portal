@@ -43,6 +43,16 @@ const SocM06AssessmentRelatedSearch = (() => {
     return { startTime: scope.startTime, endTime: scope.endTime, entityType: scope.entityType, entityValue: scope.entityValue };
   }
 
+  function scopeFromForm(values) {
+    const entityType = values.get('entityType');
+    return {
+      startTime: values.get('startTime'),
+      endTime: values.get('endTime'),
+      entityType,
+      entityValue: entityType === 'all' ? 'all' : values.get('entityValue'),
+    };
+  }
+
   function matchesEntity(event, scope) {
     if (scope.entityType === 'device') return event.device === scope.entityValue;
     if (scope.entityType === 'account') return event.account === scope.entityValue;
@@ -444,7 +454,7 @@ const SocM06AssessmentRelatedSearch = (() => {
       ${latest ? `<p role="status">Last run: ${e(latest.name)} · ${e(latest.resultCount)} results · ${e(latest.timestamp)}</p>${render(latestEvents, { bookmarks: state?.bookmarks || [] })}` : '<p role="status">No query runs yet.</p>'}</section>`;
   }
 
-  return Object.freeze({ MAX_RANGE_MS, SEARCH_LIMIT, QUERY_FIELDS, TACTICS, TECHNIQUES, validateScope, search, parseQuery, saveQuery, runSavedQuery, pivot,
+  return Object.freeze({ MAX_RANGE_MS, SEARCH_LIMIT, QUERY_FIELDS, TACTICS, TECHNIQUES, validateScope, scopeFromForm, search, parseQuery, saveQuery, runSavedQuery, pivot,
     toggleBookmark, selectCollection, saveCollection, validateMapping, saveMapping, removeMapping, proposeHandoff, updateHandoffStatus, renderHandoffPanel, renderMappingPanel, render, renderSearch, renderSavedQueryPanel, renderEvidencePanel, escapeHtml,
     MAPPING_STATUS, HANDOFF_DESTINATION, HANDOFF_STATUS });
 })();

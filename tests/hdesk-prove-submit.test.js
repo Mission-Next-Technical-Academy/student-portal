@@ -33,7 +33,9 @@ let signedIn = null;
 portal.currentUser = async () => signedIn;
 const studentOf = (user) => prun('LabRuntime').anonymousStudentId(user);
 const HD = prun(`PROGRAMS.find((p) => p.slug === 'it-support')`);
-const moduleLab = (n) => prun(`MODULE_LABS['it-support/${n}']`);
+// moduleLab(n) is the page for module key its-NN (Help Desk display numbers
+// differ from key order: its-10 is Module 2), so look up the key's number.
+const moduleLab = (n) => prun(`MODULE_LABS['it-support/' + PROGRAMS.find((p) => p.slug === 'it-support').modules['its-${String(n).padStart(2, '0')}'].number]`);
 
 const hdUser = (extra = {}) => ({
   userId: 'user-hdesk', email: 'hdesk@test.invalid', trackCode: 'HDESK',
@@ -131,10 +133,20 @@ function sim({ student, opener = null, local = store() }) {
 }
 
 const hasKey = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
-// Fills every required part with arbitrary values.
+// Module 1's pre-set ticket fields (read-only, never scored).
+const PRESET = { category: 'Service Request', type: 'Access request', priority: 'P3' };
+// Fills every required part with arbitrary values. The ticket fields are
+// pre-set in Module 1, so setting them does nothing there.
+// Closes the ticket the way the decision allows: Resolve needs a code.
+function closeTicket(tab, code = 'Solution provided') {
+  const id = tab.run('hdState.tickets[0].id');
+  if (tab.run('hdState.prove.decision') === 'Resolve') tab.run(`hdProveSetCode('${id}', ${JSON.stringify(code)})`);
+  tab.run(`hdProveClose('${id}')`);
+}
 function fill(tab, skip = []) {
   const ticket = tab.run('hdState.tickets[0]');
   const parts = {
+    assign: () => tab.run(`hdProveAssign('${ticket.id}')`),
     category: () => tab.run(`hdProveSetField('category', ${JSON.stringify(ticket.categoryOptions[0])})`),
     type: () => tab.run(`hdProveSetField('type', ${JSON.stringify(ticket.typeOptions[0])})`),
     priority: () => tab.run("hdProveSetField('priority', 'P4')"),
@@ -142,6 +154,7 @@ function fill(tab, skip = []) {
     decision: () => tab.run("hdProveChoose('decision', 'Escalate')"),
     resolutionNote: () => tab.run("hdProveText('resolutionNote', 'Line one.\\n\\nLine <two>.')"),
     userReply: () => tab.run("hdProveText('userReply', 'Hello Evan.')"),
+    close: () => closeTicket(tab),
   };
   Object.keys(parts).filter((name) => !skip.includes(name)).forEach((name) => parts[name]());
   return parts;
@@ -176,7 +189,7 @@ async function testSubmitTurnsOnFromCompletenessOnly() {
   assert.equal(tab.status(), 'not_submitted');
   let state = tab.submitState();
   assert.equal(state.enabled, false);
-  assert.equal(state.note, 'Still needed: category, type, priority, diagnosis, decision, resolution note, reply to the user.');
+  assert.equal(state.note, 'Still needed: Assign to me, diagnosis, decision, work note, reply to the user, close the ticket.', 'the ticket fields are pre-set');
   fill(tab);
   state = tab.submitState();
   assert.equal(state.enabled, true, 'steps are not required');
@@ -193,6 +206,11 @@ async function testSubmitTurnsOnFromCompletenessOnly() {
     tab.run(`hdProveChoose('diagnosis', ${JSON.stringify(option)})`);
     ['Resolve', 'Escalate'].forEach((decision) => {
       tab.run(`hdProveChoose('decision', '${decision}')`);
+      // A close made the other way reopens; either way the note names only that.
+      if (tab.run('hdProveClosed(hdState.tickets[0])') === false) {
+        assert.deepEqual(tab.submitState(), { enabled: false, label: 'Submit for faculty review', note: 'Still needed: close the ticket.' });
+        closeTicket(tab);
+      }
       assert.deepEqual(tab.submitState(), { enabled: true, label: 'Submit for faculty review', note: '' });
     });
   });
@@ -234,7 +252,8 @@ async function testConfirmedSaveOnlyAfterTheServerHasTheRow() {
   assert.equal(row.user_id, user.userId);
   assert.equal(row.state, 'complete', 'the completion view counts only complete');
   assert.equal(row.score, null, 'no automated score');
-  assert.equal(row.rubric_version, 'hdesk-its-01-prove-v1');
+  assert.equal(row.rubric_version, 'hdesk-its-01-prove-v2');
+  assert.deepEqual({ ...row.result.fields }, PRESET, 'the pre-set fields travel with the work');
   assert.equal(row.scoring_engine_version, 'instructor-review-v1');
   assert.equal(row.result.kind, 'hdesk-prove');
   assert.equal(row.result.userReply, 'Hello Evan.');
@@ -253,15 +272,72 @@ async function testConfirmedSaveOnlyAfterTheServerHasTheRow() {
   assert.equal(prun('moduleCardState')(HD, 'its-01', user, true).state, 'awaiting_approval');
 }
 
-async function testUnsentWorkNoteTravelsWithTheSubmit() {
+// One Work notes box, sent as resolutionNote (the key's note checks read it),
+// plus the ticket's assignment and close, recorded and never scored.
+async function testOneWorkNoteIsTheResolution() {
   resetWorld();
   const tab = await openTab();
-  fill(tab);
-  const note = { value: 'Typed but never added.' };
-  tab.byId.set('hd-note-input', note);
+  const id = tab.run('hdState.tickets[0].id');
+  let html = tab.view();
+  assert.match(html, /id="hd-prove-assign"[^>]*>Assign to me</, 'the ticket starts unassigned');
+  assert.equal(tab.run('hdState.tickets[0].status'), 'New');
+  assert.match(html, /id="hd-prove-note"/, 'one Work notes box');
+  assert.doesNotMatch(html, /Resolution note|id="hd-prove-resolution"|id="hd-note-input"|Add work note/, 'no separate resolution note or note list input');
+  assert.match(html, /Reported \/ Tried \/ Result \(\+ Next action if it stays open or goes to another team\)/);
+  assert.match(html, /Assign the ticket to yourself first\./);
+  tab.run(`hdProveAssign('${id}')`);
+  assert.equal(tab.run('hdState.tickets[0].status'), 'In Progress', 'one step to In Progress');
+  assert.equal(tab.run('hdState.tickets[0].assignedTechnician'), 'Riley Morgan');
+  assert.doesNotMatch(tab.view(), /id="hd-prove-assign"/);
+  assert.match(tab.view(), /Choose your decision first\./);
+  // Resolve needs a code; the close card never says which decision is right.
+  tab.run("hdProveChoose('decision', 'Resolve')");
+  html = tab.view();
+  assert.match(html, /id="hd-prove-code"/);
+  assert.match(html, /id="hd-prove-close" class="btn btn-primary"\s+disabled[^>]*>Resolve</);
+  tab.run(`hdProveClose('${id}')`);
+  assert.equal(tab.run('hdState.tickets[0].status'), 'In Progress', 'no Resolve without a code');
+  tab.run(`hdProveSetCode('${id}', 'Not a code')`);
+  assert.equal(tab.run('hdState.tickets[0].closureCode || ""'), '', 'only an offered code');
+  ['Escalated', 'Routed to Security Operations'].forEach((code) => assert.doesNotMatch(html, new RegExp(`<option[^>]*>${code}<`), 'no escalation codes on Resolve'));
+  tab.run(`hdProveSetCode('${id}', 'Workaround provided'); hdProveClose('${id}')`);
+  assert.equal(tab.run('hdState.tickets[0].status'), 'Resolved');
+  assert.doesNotMatch(tab.view().match(/Close the ticket[\s\S]*?<\/aside>/)[0], FEEDBACK_WORDS);
+  // A different decision reopens it, and its close control is Escalate.
+  tab.run("hdProveChoose('decision', 'Escalate')");
+  assert.equal(tab.run('hdState.tickets[0].status'), 'In Progress');
+  assert.match(tab.view(), /id="hd-prove-close" class="btn btn-primary"\s*onclick="hdProveClose\('HD-2125'\)">Escalate</);
+  fill(tab, ['assign', 'decision']);
+  assert.equal(tab.run('hdState.tickets[0].status'), 'Escalated');
   tab.run('hdProveSubmit()');
   await flush();
-  assert.deepEqual([...db.attempts[0].result.workNotes], ['Typed but never added.']);
+  const result = db.attempts[0].result;
+  assert.equal(result.resolutionNote, 'Line one.\n\nLine <two>.');
+  assert.equal(result.noteIsResolution, true);
+  assert.deepEqual([...result.workNotes], [], 'no second note list');
+  assert.equal(result.assignedTo, 'Riley Morgan');
+  assert.equal(result.ticketState, 'Escalated');
+  assert.equal(result.resolutionCode, '', 'a code only with Resolved');
+  // Locked once submitted: nothing to assign or close.
+  assert.equal(tab.run('hdProveLocked()'), true);
+  tab.run(`hdProveChoose('decision', 'Resolve')`);
+  assert.equal(tab.run('hdState.tickets[0].status'), 'Escalated');
+}
+
+// A draft saved before 2026-11-20 has HD-2125 Assigned to Riley Morgan and
+// maybe notes added with the old "Add work note": it counts as assigned, and
+// those notes still travel.
+async function testOlderDraftKeepsItsAssignmentAndNotes() {
+  resetWorld();
+  const tab = await openTab();
+  tab.run("hdState.tickets[0].status = 'Assigned'; hdState.tickets[0].assignedTechnician = 'Riley Morgan'; hdState.tickets[0].notes = [{ time:'09:10', author:'Riley Morgan', text:'Checked the KB.' }]; hdSave()");
+  fill(tab, ['assign']);
+  assert.match(tab.view(), /Earlier notes:[\s\S]*Checked the KB\./);
+  assert.equal(tab.submitState().enabled, true);
+  tab.run('hdProveSubmit()');
+  await flush();
+  assert.deepEqual([...db.attempts[0].result.workNotes], ['Checked the KB.']);
+  assert.equal(db.attempts[0].result.ticketState, 'Escalated');
 }
 
 async function testReloadTakesTheLockFromTheServer() {
@@ -423,6 +499,13 @@ async function testPortalRefusals() {
   await refused(submit({ student: 'student-someone' }), 'other-student', 'another student id');
   await refused(submit({ student: undefined }), 'other-student', 'no student id');
   await refused(submit({}, { rubricVersion: 'hdesk-its-01-prove-v0' }), 'invalid', 'unknown rubric version');
+  await refused(submit({}, { rubricVersion: 'hdesk-its-01-prove-v1' }), 'invalid', 'a simulator tab from before v2');
+  // The pre-set fields are saved as the rubric sets them, whatever the message says.
+  resetWorld();
+  const forged = await send({ data: submit({}, { fields: { category: 'Incident', type: 'Printer', priority: 'P1' } }) });
+  assert.equal(forged[0].saved, true);
+  assert.deepEqual({ ...db.attempts[0].result.fields }, PRESET, 'pre-set fields can\'t be changed by a crafted message');
+  resetWorld();
   await refused(submit({}, { kind: 'other' }), 'invalid', 'wrong kind');
   await refused(submit({}, { version: 2 }), 'invalid', 'wrong version');
   await refused(submit({}, { labKey: 'lab-its-01-ticket-triage' }), 'invalid', 'another lab');
@@ -549,7 +632,6 @@ async function testInstructorReadsPlainText() {
   const ticket = tab.run('hdState.tickets[0]');
   tab.run(`hdProveToggleStep('${ticket.pathPool[0].id}', true)`);
   tab.run("VIEWS['helpdesk/knowledge-base']()");
-  tab.byId.set('hd-note-input', { value: 'A work note.' });
   tab.run('hdProveSubmit()');
   await flush();
   const row = { ...savedRow(db.attempts[0].result) };
@@ -566,9 +648,22 @@ async function testInstructorReadsPlainText() {
   assert.match(panel, /whitespace-pre-wrap/, 'paragraphs are kept');
   assert.ok(panel.includes('Line one.\n\nLine &lt;two&gt;.'), 'writing is whole and escaped');
   assert.ok(panel.includes('Hello Evan.'));
-  assert.ok(panel.includes('A work note.'));
-  assert.ok(panel.includes(tab.run('hdEsc')(ticket.categoryOptions[0])));
-  assert.ok(panel.includes('P4'));
+  // One work note, shown once under its own heading, with the ticket's
+  // assignment and close beside the choices.
+  assert.match(panel, />Work note<\/h4>/);
+  assert.doesNotMatch(panel, /Resolution note|Earlier work notes|No work notes/);
+  assert.equal(panel.split('Line one.').length - 1, 1, 'the note is not shown twice');
+  assert.match(panel, /Assigned to<\/dt><dd[^>]*>Riley Morgan</);
+  assert.match(panel, /Ticket state<\/dt><dd[^>]*>Escalated</);
+  // An attempt from the old form keeps its two headings.
+  const old = prun('itsProveReviewPanel')(savedRow({ ...row.result, noteIsResolution: undefined, workNotes: ['A work note.'] }));
+  assert.match(old, />Resolution note<\/h4>/);
+  assert.ok(old.includes('A work note.'));
+  assert.doesNotMatch(old, /Ticket state/);
+  // An earlier attempt's notes still show under the one note.
+  assert.match(prun('itsProveReviewPanel')(savedRow({ ...row.result, workNotes: ['Earlier note.'] })), /Earlier work notes<\/h4>[\s\S]*Earlier note\./);
+  assert.ok(panel.includes(PRESET.category) && panel.includes(PRESET.type));
+  assert.ok(panel.includes('P3'));
   assert.ok(panel.includes('Escalate'));
   assert.ok(panel.includes(tab.run('hdEsc')(ticket.pathPool[0].text)), 'steps as text, not ids');
   assert.ok(panel.includes('Knowledge Base'), 'evidence opened');
@@ -590,6 +685,71 @@ async function testInstructorReadsPlainText() {
   assert.equal(prun('itsProveReviewPanel')({ ...savedRow({ kind: 'hdesk-prove' }), lab_key: 'lab-its-02-vm-build' }), '', 'other labs are untouched');
 }
 
+// A password typed into the Prove shell reaches the instructor only as a flag:
+// the saved attempt never holds it, and the panel says what happened.
+async function testTypedPasswordReachesTheInstructorAsAFlag() {
+  resetWorld();
+  const tab = await openTab();
+  fill(tab);
+  tab.byId.set('hd-ps-input', { value: 'Get-ADUser eparker -Password:Spring2026x' });
+  tab.run('hdRunPowerShell({ preventDefault() {} })');
+  tab.run('hdProveSubmit()');
+  await flush();
+  assert.equal(db.attempts.length, 1, 'the attempt still saves; scoring is the instructor\'s');
+  const saved = db.attempts[0].result;
+  assert.equal(saved.passwordTyped, true);
+  assert.ok(!/Spring2026x/.test(JSON.stringify(db.attempts[0])), 'no password in the saved row');
+  const panel = prun('itsProveReviewPanel')(savedRow(saved));
+  assert.match(panel, /The student typed a password into the shell\. The command was refused and the password was not saved\./);
+  assert.ok(panel.includes('Get-ADUser eparker -Password:********'), 'the command is shown masked');
+  // Only a real true counts; without it the panel says nothing.
+  assert.doesNotMatch(prun('itsProveReviewPanel')(savedRow({ ...saved, passwordTyped: 'yes' })), /data-its-prove-password/);
+  assert.doesNotMatch(prun('itsProveReviewPanel')(savedRow({ ...saved, passwordTyped: false })), /typed a password/);
+}
+
+// A password written in a Prove ticket field is never saved: the box keeps its
+// last text without one, Submit waits until it's removed, a work note with one
+// isn't added, and the instructor sees only the flag (not a score change).
+async function testWrittenPasswordReachesTheInstructorAsAFlag() {
+  resetWorld();
+  const tab = await openTab();
+  fill(tab);
+  tab.run("hdProveText('resolutionNote', 'Reset done. New password: Spring2026x')");
+  assert.equal(tab.run('hdState.prove.resolutionNote'), 'Line one.\n\nLine <two>.', 'the box keeps its last text without a password');
+  assert.equal(tab.submitState().enabled, false, 'Submit waits while a box holds a password');
+  assert.match(tab.submitState().note, /Stopped: this work note includes a password, so it was not saved\. Remove it to submit\./);
+  assert.doesNotMatch(tab.submitState().note, /KB-0024|secure prompt/, 'no Practice coaching in Prove');
+  tab.run('hdProveSubmit()');
+  await flush();
+  assert.equal(db.attempts.length, 0, 'nothing is sent while a box holds a password');
+  // A redraw (here a decision change) rebuilds the box from the saved text,
+  // so the refusal clears with it and Submit is not left waiting.
+  tab.run("hdProveText('userReply', 'Your password is Spring2026x')");
+  assert.equal(tab.submitState().enabled, false);
+  tab.run("hdProveChoose('decision', 'Resolve')");
+  tab.view();
+  assert.doesNotMatch(tab.submitState().note, /Stopped/);
+  assert.equal(tab.run('hdState.prove.userReply'), 'Hello Evan.');
+  assert.equal(tab.run('hdState.prove.passwordWritten'), true, 'the flag stays for the instructor');
+  tab.run("hdProveChoose('decision', 'Escalate')");
+  closeTicket(tab);
+  // The words alone are fine.
+  tab.run(`hdProveText('resolutionNote', ${JSON.stringify('Explained we can\'t view or set passwords; guided Evan through the self-service password reset.')})`);
+  assert.equal(tab.submitState().enabled, true);
+  tab.run('hdProveSubmit()');
+  await flush();
+  assert.equal(db.attempts.length, 1);
+  const saved = db.attempts[0].result;
+  assert.equal(saved.passwordWritten, true);
+  assert.equal(saved.passwordTyped, false, 'the shell flag is separate');
+  assert.ok(!/Spring2026x|Autumn2026y/.test(JSON.stringify(db.attempts[0])), 'no password in the saved row');
+  assert.ok(!/Spring2026x|Autumn2026y/.test(JSON.stringify(tab.run('hdState'))), 'no password in the simulator\'s saved state');
+  const panel = prun('itsProveReviewPanel')(savedRow(saved));
+  assert.match(panel, /The student wrote a password in a ticket field\. It was refused and not saved\./);
+  assert.doesNotMatch(panel, /typed a password into the shell/);
+  assert.doesNotMatch(prun('itsProveReviewPanel')(savedRow({ ...saved, passwordWritten: 'yes' })), /data-its-prove-password-written/, 'only a real true counts');
+}
+
 function moduleOneHtml(user) {
   return moduleLab(1).view(user, HD);
 }
@@ -606,7 +766,7 @@ async function testModuleOnePage() {
   let html = moduleOneHtml(user);
   const card = proveSection(html);
   assert.match(card, /Prove It · Assessment Lab/);
-  assert.match(card, /Complete Practice It \(Labs 1\.1 and 1\.2\) first: it prepares you for this\./);
+  assert.match(card, /Complete Lab 1\.1, the guided lab, first: it prepares you for this\./);
   const link = /data-its01-prove-launch href="([^"]+)"/.exec(card);
   assert.ok(link, 'a launch link with no Practice It submitted: no lock');
   assert.ok(link[1].replace(/&amp;/g, '&').includes(`?prove=its-01&student=${studentOf(user)}#/helpdesk/tickets`));
@@ -619,9 +779,9 @@ async function testModuleOnePage() {
   assert.doesNotMatch(html, /data-module-assessment-form|Assessment Lab submission/i);
   assert.equal((html.match(/<span class="munified-row-label">Assessment Lab<\/span>/g) || []).length, 1);
   assert.equal(railRow(html).locked, false, 'not locked behind Practice It');
-  assert.match(html, /id="its01-status">3 labs · 0 passed</);
+  assert.match(html, /id="its01-status">3 labs · 0 practice complete · 0 passed</);
   // The rail doesn't call the module done with only Practice It passed.
-  user = resetWorld(hdUser({ latestLabAttemptByKey: { 'lab-its-01-lms-validation': { ...WAITING, reviewedAt: 'x' }, 'lab-its-01-ticket-triage': { ...WAITING, reviewedAt: 'x' } } }));
+  user = resetWorld(hdUser({ latestLabAttemptByKey: { 'lab-its-01-ticket-triage': { ...WAITING, reviewedAt: 'x' } } }));
   assert.doesNotMatch(moduleOneHtml(user), /100%/);
 
   // Another Help Desk module keeps its generic box until its own Prove It.
@@ -683,6 +843,13 @@ async function testReturnedPrefillsFromTheLastAttemptOnAnotherBrowser() {
   assert.equal(prove.userReply, 'Hello Evan.');
   assert.deepEqual(JSON.parse(JSON.stringify(tab.run('hdState.tickets[0].notes.map((n) => n.text)'))), ['Checked the account.']);
   assert.equal(prove.editedAt, undefined, 'prefilling is not an edit');
+  // The earlier actions come back too: what was recorded, the ticket's
+  // assignment and its close.
+  const types = (events) => events.map((event) => `${event.type}:${event.value || event.step || ''}`);
+  assert.deepEqual(types(prove.events), types(was.events), 'the recorded actions are kept');
+  assert.ok(prove.events.length > 0);
+  assert.equal(tab.run('hdState.tickets[0].assignedTechnician'), 'Riley Morgan');
+  assert.equal(tab.run('hdState.tickets[0].status'), 'Escalated');
   assert.equal(tab.submitState().enabled, true, 'nothing left to fill in');
   assert.equal(tab.submitState().label, 'Resubmit for faculty review');
   assert.doesNotMatch(blank.getItem(`defender-lab.helpdesk.prove.v1.its-01.${studentOf(user)}`), /Instructor note text/);
@@ -691,14 +858,82 @@ async function testReturnedPrefillsFromTheLastAttemptOnAnotherBrowser() {
   read.forEach((call) => assert.equal(call.filters.user_id, user.userId, 'only ever this student\'s attempts'));
 }
 
+// The laptop as the student left it and the password flags come back on
+// another browser, as a same-browser return keeps them. Only the fixture's
+// own keys, with the fixture's types.
+async function testReturnedKeepsTheLaptopAndFlags() {
+  resetWorld();
+  const first = await openTab(null, { local: store() });
+  fill(first);
+  first.run("hdState.machines['NS-LT-0122'].printers.push('Added printer'); hdState.prove.passwordWritten = true; hdSave()");
+  first.run('hdProveSubmit()');
+  await flush();
+  db.attempts[0].result.machine.extraKey = 'dropped';
+  db.attempts[0].result.machine.spooler = 7;
+  Object.assign(db.attempts[0], { completed_at: new Date(Date.now() - 60000).toISOString(), reviewed_at: new Date().toISOString(), redo_requested: true });
+  db.feedback.push({ lab_attempt_id: 'row-1', item_label: 'Overall', comment: 'Try again.' });
+  const tab = await openTab(null, { local: store() });
+  assert.equal(tab.status(), 'returned');
+  const machine = JSON.parse(JSON.stringify(tab.run("hdState.machines['NS-LT-0122']")));
+  assert.ok(machine.printers.includes('Added printer'), 'the earlier change to the laptop is kept');
+  assert.equal(machine.extraKey, undefined, 'a key the fixture lacks is dropped');
+  assert.equal(machine.spooler, 'Running', 'a value of the wrong type keeps the fixture');
+  assert.equal(tab.run('hdState.prove.passwordWritten'), true);
+  tab.run('hdProveSubmit()');
+  await flush();
+  assert.equal(db.attempts.length, 2);
+  assert.ok(db.attempts[1].result.machine.printers.includes('Added printer'), 'the resubmission carries it');
+  assert.ok(db.attempts[1].result.events.length > 0, 'and the earlier actions');
+  assert.equal(db.attempts[1].result.passwordWritten, true);
+}
+
+// After a return, a recorded action with no form edit (a KB search, a
+// command) is newer than the attempt: a reload keeps it and the laptop as it
+// is now, rather than prefilling the earlier attempt over them.
+async function testReloadKeepsActionsTakenAfterTheReturn() {
+  const { first } = await submittedAndReturned();
+  const local = store();
+  const tab = await openTab(null, { local });
+  assert.equal(tab.status(), 'returned');
+  const before = tab.run('hdState.prove.events.length');
+  tab.run("hdState.machines['NS-LT-0122'].printers = ['Changed after the return']; hdProveEvent('kb_search', { value:'new search' }); hdSave()");
+  const again = await openTab(null, { local });
+  assert.equal(again.status(), 'returned');
+  assert.equal(again.run('hdState.prove.events.length'), before + 1, 'the new search is kept');
+  assert.deepEqual([...again.run("hdState.machines['NS-LT-0122'].printers")], ['Changed after the return']);
+  assert.ok(first);
+}
+
+// A simulator tab opened before 2026-11-20 sends no assignment or close: the
+// portal still accepts its work.
+function testOldSimulatorPackageStillSaves() {
+  const old = {
+    version: 1, kind: 'hdesk-prove', moduleKey: 'its-01', labKey: LAB, rubricVersion: 'hdesk-its-01-prove-v2', ticketId: 'HD-2125', startedAt: '2026-11-19T10:00:00Z',
+    fields: PRESET, diagnosis: 'd', steps: [], stepTexts: [], decision: 'Resolve', resolutionNote: 'r', userReply: 'u', workNotes: ['n'], commands: [], events: [], machine: {},
+  };
+  const { work } = prun('itsCleanProveWork')(old, 'its-01', LAB);
+  assert.ok(work, 'accepted');
+  assert.equal(work.noteIsResolution, false);
+  assert.equal(work.assignedTo, '');
+  assert.equal(work.ticketState, '');
+  assert.deepEqual([...work.workNotes], ['n']);
+  const cleaned = prun('itsCleanProveWork')({ ...old, noteIsResolution: 'yes', assignedTo: 'x'.repeat(99), ticketState: 7 }, 'its-01', LAB).work;
+  assert.equal(cleaned.noteIsResolution, false, 'only a real true');
+  assert.equal(cleaned.assignedTo.length, 40);
+  assert.equal(cleaned.ticketState, '');
+}
+
 function testPrefillCarriesOnlyTheStudentsOwnWork() {
   const work = prun('itsProvePrefillWork')({
     completed_at: '2026-10-30T12:00:00Z', score: 88, official_grade: { official_score: 88 }, feedback: ['x'],
     result: { kind: 'hdesk-prove', ticketId: 'HD-2125', fields: { category: 'c', type: 't', priority: 'P1', extra: 'no' }, diagnosis: 'd', steps: ['s1'], decision: 'Resolve', resolutionNote: 'r', userReply: 'u', workNotes: ['n'],
       official_score: 88, competency_scores: [1], answerKey: 'no', expectedDiagnosis: 'no', events: [{ type: 'x' }], machine: { a: 1 } },
   });
-  assert.deepEqual(Object.keys(work).sort(), ['completedAt', 'decision', 'diagnosis', 'fields', 'resolutionNote', 'steps', 'ticketId', 'userReply', 'workNotes']);
+  assert.deepEqual(Object.keys(work).sort(), ['assignedTo', 'completedAt', 'decision', 'diagnosis', 'events', 'fields', 'machine', 'passwordTyped', 'passwordWritten', 'resolutionCode', 'resolutionNote', 'steps', 'ticketId', 'ticketState', 'userReply', 'workNotes']);
   assert.deepEqual(Object.keys(work.fields).sort(), ['category', 'priority', 'type']);
+  assert.deepEqual([...work.events], [], 'events are cleaned as a submit is: an unknown type is dropped');
+  assert.deepEqual({ ...work.machine }, { a: 1 });
+  assert.equal(work.assignedTo, '', 'an attempt from before the assignment was recorded');
   assert.equal(prun('itsProvePrefillWork')({ completed_at: 'x', result: { kind: 'other', fields: {} } }), null, 'only a Prove It package');
   assert.equal(prun('itsProvePrefillWork')({ result: { kind: 'hdesk-prove', fields: {} } }), null, 'only a submitted attempt');
 }
@@ -740,6 +975,61 @@ async function testNoPrefillUnlessReturnedOrForAnotherStudent() {
   assert.notEqual(tab.status(), 'returned');
 }
 
+// A returned attempt from v1 (its own fields, v1 step ids) reopens with the
+// pre-set fields and no steps; its writing comes back.
+async function testReturnedV1AttemptReopensOnTheCurrentTicket() {
+  await submittedAndReturned();
+  db.attempts[0].result = { ...db.attempts[0].result, rubricVersion: 'hdesk-its-01-prove-v1', fields: { category: 'Incident', type: 'Printer', priority: 'P2' }, steps: ['p1', 'p3'], stepTexts: ['a', 'b'] };
+  const tab = await openTab(null, { local: store() });
+  assert.equal(tab.status(), 'returned');
+  assert.deepEqual({ ...tab.run('hdState.prove.fields') }, PRESET);
+  assert.equal(tab.run('hdState.prove.steps.length'), 0);
+  assert.notEqual(tab.run('hdState.prove.userReply'), '', 'the writing comes back');
+}
+
+// The words searched and the screen actions reach the instructor; nothing else new.
+async function testSearchesAndActionsReachTheInstructor() {
+  resetWorld();
+  const tab = await openTab();
+  fill(tab);
+  tab.byId.set('hd-kb-input', { value: 'admin rights' });
+  tab.run("hdKbSearch({ preventDefault() {} }, 'HD-2125'); hdKbOpen('HD-2125', 'KB-0058')");
+  tab.run("hdSettingsScan(); hdSettingsAddPrinter('NS-LT-0122', '\\\\\\\\NS-PRINT01\\\\NS-FIN-PRN01')");
+  tab.run('hdProveSubmit()');
+  await flush();
+  const { result } = db.attempts[0];
+  assert.deepEqual(result.events.filter((e) => e.type === 'kb_search').map((e) => e.value), ['admin rights']);
+  assert.deepEqual(result.events.filter((e) => e.type === 'action_taken').map((e) => [e.label, e.computer]), [['Added NS-FIN-PRN01 from Settings › Printers & scanners › Add device', 'NS-LT-0122']]);
+  assert.ok(result.machine.printers.includes('\\\\NS-PRINT01\\NS-FIN-PRN01'));
+  const panel = prun('itsProveReviewPanel')(savedRow(result));
+  assert.match(panel, /Knowledge base searches<\/h4>\s*<ul[^>]*><li>“admin rights”<\/li><\/ul>/);
+  assert.match(panel, /Actions in the simulator<\/h4>\s*<ul[^>]*><li>Added NS-FIN-PRN01 from Settings › Printers &amp; scanners › Add device \(on NS-LT-0122\)<\/li><\/ul>/);
+  assert.match(panel, /KB-0058 · Local administrator rights on managed devices/, 'the article opened');
+  // An attempt with neither says so.
+  const none = prun('itsProveReviewPanel')(savedRow({ ...result, events: [] }));
+  assert.match(none, /Knowledge base searches<\/h4>\s*<p[^>]*>None recorded\.<\/p>/);
+  assert.match(none, /Actions in the simulator<\/h4>\s*<p[^>]*>None recorded\.<\/p>/);
+}
+
+// A v1 attempt (submitted before the Module 1 rework) that was returned and is
+// resubmitted from today's simulator is saved under the current rubric version,
+// so automatic scoring (keyed by rubric version) can score it.
+async function testReturnedV1AttemptResubmitsUnderV2() {
+  await submittedAndReturned();
+  Object.assign(db.attempts[0], { rubric_version: 'hdesk-its-01-prove-v1' });
+  db.attempts[0].result = { ...db.attempts[0].result, rubricVersion: 'hdesk-its-01-prove-v1', fields: { category: 'Incident', type: 'Printer', priority: 'P2' }, steps: ['p1'], stepTexts: ['An earlier step'] };
+  const tab = await openTab(null, { local: store() });
+  assert.equal(tab.status(), 'returned');
+  fill(tab);
+  tab.run('hdProveSubmit()');
+  await flush();
+  assert.equal(db.attempts.length, 2, 'the resubmission is a new row');
+  const row = db.attempts[1];
+  assert.equal(row.rubric_version, 'hdesk-its-01-prove-v2', 'the row records the current rubric version');
+  assert.equal(row.result.rubricVersion, 'hdesk-its-01-prove-v2', 'and so does the saved work');
+  assert.deepEqual({ ...row.result.fields }, PRESET);
+}
+
 async function testPrefillDropsValuesTheTicketNoLongerOffers() {
   await submittedAndReturned();
   db.attempts[0].result = { ...db.attempts[0].result, diagnosis: 'A retired option', steps: ['gone'], ticketId: 'HD-2125' };
@@ -753,11 +1043,12 @@ async function testPrefillDropsValuesTheTicketNoLongerOffers() {
 }
 
 const tests = [
-  testSubmitTurnsOnFromCompletenessOnly, testConfirmedSaveOnlyAfterTheServerHasTheRow, testUnsentWorkNoteTravelsWithTheSubmit,
+  testSubmitTurnsOnFromCompletenessOnly, testConfirmedSaveOnlyAfterTheServerHasTheRow, testOneWorkNoteIsTheResolution, testOlderDraftKeepsItsAssignmentAndNotes, testReturnedKeepsTheLaptopAndFlags, testReloadKeepsActionsTakenAfterTheReturn, testOldSimulatorPackageStillSaves,
   testReloadTakesTheLockFromTheServer, testFailuresKeepWorkAndShowNoSuccess, testSimulatorOnlyAcceptsItsOwnReply, testPortalRefusals,
   testOneWaitingAttempt, testReturnedReopensForOneResubmission, testReturnedPrefillsFromTheLastAttemptOnAnotherBrowser, testPrefillCarriesOnlyTheStudentsOwnWork,
   testNewerBrowserDraftIsKept, testDraftOlderThanTheAttemptIsReplaced, testNoPrefillUnlessReturnedOrForAnotherStudent, testPrefillDropsValuesTheTicketNoLongerOffers,
-  testInstructorReadsPlainText, testModuleOnePage,
+  testReturnedV1AttemptReopensOnTheCurrentTicket, testReturnedV1AttemptResubmitsUnderV2, testSearchesAndActionsReachTheInstructor,
+  testInstructorReadsPlainText, testTypedPasswordReachesTheInstructorAsAFlag, testWrittenPasswordReachesTheInstructorAsAFlag, testModuleOnePage,
 ];
 (async () => {
   let failed = 0;

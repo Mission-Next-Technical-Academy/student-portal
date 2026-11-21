@@ -42,7 +42,7 @@ for (const c of cases) {
     assert.ok(['benign_background', 'incident_context'].includes(t.classification), `${t.id} classification`);
     assert.ok(typeof t.purpose === 'string' && t.purpose.length > 10, `${t.id} purpose`);
   }
-  const added = scenario.telemetry.filter((t) => Number(t.id.slice(-3)) >= 55);
+  const added = scenario.telemetry.filter((t) => Number(t.id.slice(-3)) >= 55 && Number(t.id.slice(-3)) <= 81) // M09-T-082..084 are the U30 preservation rows, not Sprint 7;
   assert.strictEqual(added.length, 27, `${c.name}: Sprint 7 adds 27 telemetry rows`);
   assert.ok(added.every((t) => /^(background|alternate-explanation|scope-check|evidence-quality|before\/after|recovery validation):/.test(t.purpose)), 'Sprint 7 rows state a purpose class');
 
@@ -98,7 +98,7 @@ assert.deepStrictEqual(local(data.scenario.backups.map((b) => [b.recoveryPointId
 assert.strictEqual(data.validateScenario(data.scenario), true);
 
 const expectedAlertRows = {
-  'INC-4937': ['M09-E01', 'M09-E02', 'M09-E03', 'M09-E04', 'M09-T-001', 'M09-T-002', 'M09-T-003', 'M09-T-004', 'M09-T-005', 'M09-T-006'],
+  'INC-4937': ['M09-E01', 'M09-E02', 'M09-E03', 'M09-E04', 'M09-T-001', 'M09-T-002', 'M09-T-003', 'M09-T-004', 'M09-T-005', 'M09-T-006', 'M09-T-082', 'M09-T-083', 'M09-T-084'], // T-082..084: worker process, hash and run key on ws-173 (UAT U30)
   'M09-ALERT-001': ['M09-T-007', 'M09-T-010'],
   'M09-ALERT-002': ['M09-T-019', 'M09-T-020'],
   'M09-ALERT-003': ['M09-T-022'],

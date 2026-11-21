@@ -12,7 +12,10 @@
  * affectedDevice, escalation, escalateTo, notes, reviewedEvidence,
  * viewedLogIds, actionHistory, legacy handoff), result.breakdown,
  * result.feedback, result.critical_errors, and from 2026-10-17
- * result.case_display (the ticket rows as the student saw them).
+ * result.case_display (the ticket rows as the student saw them). From
+ * 2026-11-19 result.kind = 'soc-prove': the database also scores the attempt
+ * (staff-only recommendation, shown in the "Server recommendation" box by
+ * portal/admin-sheets/soc-prove-recommendation.js).
  */
 (() => {
   'use strict';
@@ -86,6 +89,7 @@
   AdminSubmissionSheet.register(['lab-soc-escalation'], {
     title: 'Module 01 · PROVE IT — Independent Case Ticket',
     fixture: lab,
+    serverRecommendation: true,
     caseId: () => {
       const scenario = lab() && lab().scenario;
       return scenario ? [scenario.caseId, scenario.incidentId].filter(Boolean).join(' · ') : 'CASE-012407';

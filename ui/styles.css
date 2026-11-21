@@ -5491,6 +5491,8 @@ body.route-defender-device .page-header { margin: 0; }
 .hd-ticket-layout { align-items: start; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 300px; }
 .hd-ticket-main, .hd-ticket-side { display: grid; gap: 16px; min-width: 0; }
 .hd-ticket-main .card-header, .hd-ticket-side .card-header { gap: 8px; }
+/* Settings › Printers & scanners: the card headings get the card's padding. */
+.hd-settings-view .card-header { padding: 10px 14px; border-bottom: 1px solid var(--border); }
 .hd-ticket-side { position: sticky; top: 16px; }
 .hd-request { border-left: 4px solid var(--workload); color: var(--fg); font-size: 16px; line-height: 1.6; margin: 0 0 18px; padding: 6px 0 6px 16px; }
 .hd-field-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }

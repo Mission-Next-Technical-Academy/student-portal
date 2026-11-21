@@ -20,11 +20,13 @@ const adminRow = ctx.normalizeAdminProgramProgressRows([{ ...base, technical_com
 assert.match(ctx.adminProgramRoster(adminRow), /Coursework 12 \/ 18/);
 
 // B6: override button only for global admins; blank percent shows a dash.
-const detail = (can, percent) => ctx.renderStudentDetail({ ...base, track_code: 'SOCAN' }, [{ module_key: 'soc-m01', state: 'in_progress', percent, admin_override: false }], [], [], null, [], [], [], can);
+const detail = (can, percent) => ctx.renderStudentDetail({ ...base, track_code: 'SOCAN' }, [{ module_key: 'soc-m01', state: 'in_progress', percent, admin_override: false }], [], [], null, [], [], [], false, can);
 assert.doesNotMatch(detail(false, null), /data-admin-module-override|Mark complete \(override\)/);
 assert.match(detail(true, 40), /data-admin-module-override/);
 assert.match(detail(false, null), /text-gray-600">—<\/td>/);
 assert.match(detail(true, 40), /40%/);
+// The 9th argument is master's canEditName; it alone must not show the override.
+assert.doesNotMatch(ctx.renderStudentDetail({ ...base, track_code: 'SOCAN' }, [{ module_key: 'soc-m01', state: 'in_progress', percent: 40, admin_override: false }], [], [], null, [], [], [], true), /data-admin-module-override/);
 
 // B14: grading decisions must re-read the roster rather than reuse the snapshot.
 const src = fs.readFileSync(path.join(__dirname, '..', 'portal', 'app.js'), 'utf8');

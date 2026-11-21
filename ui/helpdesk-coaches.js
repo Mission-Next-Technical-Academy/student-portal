@@ -34,7 +34,7 @@
   // before writing it to lab_attempts.result. Answer keys and fixture logs are
   // deliberately excluded; this is only the student's recorded work.
   const HD_COACH_TICKET_IDS = {
-    'hd-m01': ['HD-2101'],
+    'hd-m01': ['HD-2150'],
     'hd-m02': ['HD-2106', 'HD-2112'],
     'hd-m03': ['HD-2109'],
     'hd-m04': ['HD-2104', 'HD-2105', 'HD-2113'],
@@ -43,17 +43,22 @@
     'hd-m07': ['HD-2119', 'HD-2120', 'HD-2121', 'HD-2122', 'HD-2123'],
     'hd-m08': ['HD-2110', 'HD-2111'],
     'hd-m09': ['SEC-2114', 'SEC-2115'],
-    'hd-m10': null,
+    'hd-m10': ['HD-2158', 'HD-2159', 'HD-2160', 'SR-2161', 'HD-2162', 'SEC-2163'],
     'hd-m11': ['HD-2113', 'HD-2124'],
   };
   function hdCollectCoachWork(coach) {
     if (typeof hdState === 'undefined' || !Array.isArray(hdState.tickets)) return null;
     const ids = HD_COACH_TICKET_IDS[coach && coach.id];
-    const tickets = hdState.tickets.filter((ticket) => ids
-      ? ids.includes(ticket.id)
-      : coach && coach.id === 'hd-m10' && ticket.priority === 'P1');
+    const tickets = hdState.tickets.filter((ticket) => Boolean(ids) && ids.includes(ticket.id));
+    // Module 2's guided queue: the student's work order lives on the shift.
+    const queue = coach && coach.id === 'hd-m10' && Array.isArray(hdState.workOrder)
+      ? { workOrder: hdState.workOrder.slice(0, 8), workOrderResult: String(hdState.workOrderResult || '').slice(0, 200) } : {};
+    // HD-2101's investigation: outcomes, typed commands and key results.
+    const investigation = ids && ids.includes('HD-2101') && typeof hdM01Investigation === 'function' ? hdM01Investigation() : null;
     return {
       version: 1,
+      ...(investigation ? { investigation } : {}),
+      ...queue,
       selectedTicketId: hdState.selectedTicketId || '',
       tickets: tickets.map((ticket) => ({
         id: ticket.id,
@@ -88,101 +93,202 @@
         })) : [],
         resolution: ticket.resolution || '',
         closureCode: ticket.closureCode || '',
+        ...hdCoachConsoleWork(ticket),
       })),
     };
   }
+  // A console ticket's work (ui/helpdesk.js hdConsoleProgress) and the
+  // student's customer comments, word for word. Nothing for other tickets.
+  function hdCoachConsoleWork(ticket) {
+    const progress = typeof hdConsoleProgress === 'function' ? hdConsoleProgress(ticket.id) : null;
+    if (!progress) return {};
+    const state = typeof hdConsoleState === 'function' ? hdConsoleState(ticket) : {};
+    // Module 2: the student's rewrite and knowledge draft, word for word.
+    const writing = state.rewrite || state.kbDraft ? { writing: {
+      shortDescription: state.rewrite ? String(state.rewrite.short || '').slice(0, 160) : '',
+      description: state.rewrite ? String(state.rewrite.description || '').slice(0, 4000) : '',
+      kbDraftTitle: state.kbDraft ? String(state.kbDraft.title || '').slice(0, 160) : '',
+      kbDraftText: state.kbDraft ? String(state.kbDraft.text || '').slice(0, 4000) : '',
+    } } : {};
+    return {
+      ...(ticket.number ? { number: String(ticket.number).slice(0, 16) } : {}),
+      ...writing,
+      console: progress,
+      customerComments: Array.isArray(ticket.customerComments) ? ticket.customerComments.slice(-20).map((comment) => ({
+        author: String(comment.author || '').slice(0, 80),
+        time: String(comment.time || '').slice(0, 40),
+        text: String(comment.text || '').slice(0, 2000),
+      })) : [],
+    };
+  }
   /* ---------------------------------------------------------- hd-m01 ---- */
+  /* Module 1 Practice It, Guided Lab 1: INC0010150 (HD-2150), Sam Rivera's
+   * lockout, worked with the console features alone (ui/helpdesk.js): the
+   * method, KB-0024, a verified unlock, a customer comment and a note. No
+   * commands. HD-2101 (the repeating lockout traced to a scheduled task)
+   * left Module 1 on 2026-11-09; its scenario code stays for Module 8. */
 
-  const HD1_TICKETS = ['HD-2101', 'SR-2102', 'SR-2103', 'SR-2116'];
+  const HD1_TICKETS = ['HD-2150', 'SR-2102', 'SR-2103', 'SR-2116'];
+  const HD1_ID = 'HD-2150';
 
+  // A fresh lab: Module 1's tickets, with Sam's account locked again.
   function hd1Reset() {
     if (typeof hdState === 'undefined' || typeof window.hdFreshState !== 'function') return;
     const fresh = window.hdFreshState();
     hdState.tickets = fresh.tickets.filter((t) => HD1_TICKETS.includes(t.id));
-    if (hdState.tickets.length && !hdState.tickets.find((t) => t.id === hdState.selectedTicketId)) {
-      hdState.selectedTicketId = hdState.tickets[0].id;
-    }
+    ['machines', 'scenarios', 'practiceLog', 'eventFilter', 'userOverrides', 'computerOverrides', 'selectedComputer', 'selectedUserId', 'powershell']
+      .forEach((key) => { hdState[key] = fresh[key]; });
+    hdState.queueFilter = 'Open';
+    hdState.priorityFilter = 'All';
+    hdState.selectedTicketId = null;
+    // A fresh lab runs the current step order (hd1RemapOldStepOrder).
+    hdState.coachOrder = 2;
     if (typeof hdSave === 'function') hdSave();
     // The page was drawn from the old tickets before the coach booted.
     if (typeof render === 'function') render();
   }
+
+  // A walkthrough saved before HD-2150 replaced HD-2101 points at steps for a
+  // ticket this shift no longer has, and would wait forever. Forget it, so the
+  // next launch starts the new lab fresh (ui/coach.js reads these keys).
+  (function hd1ForgetOldWalkthrough() {
+    // Only the shift the coached lab uses counts: a practice set or a Prove It
+    // has its own shift, without HD-2150, and must leave the walkthrough alone.
+    if ((typeof HD_PRACTICE_SET !== 'undefined' && HD_PRACTICE_SET) || (typeof HD_PROVE !== 'undefined' && HD_PROVE)) return;
+    if (typeof hdState === 'undefined' || !Array.isArray(hdState.tickets) || hdState.tickets.some((t) => t.id === HD1_ID)) return;
+    const stale = (raw) => { try { const saved = JSON.parse(raw || 'null'); return Boolean(saved && saved.id === 'hd-m01'); } catch { return false; } };
+    try { if (stale(localStorage.getItem('mnt.coach.resume'))) localStorage.removeItem('mnt.coach.resume'); } catch { /* storage blocked */ }
+    try { if (stale(sessionStorage.getItem('mnt.coach.state'))) sessionStorage.removeItem('mnt.coach.state'); } catch { /* storage blocked */ }
+  }());
+
+  // Every step reads the ticket's real state (ui/helpdesk.js), not a
+  // checkbox, and a step already done when it comes up completes itself.
+  const hd1Ticket = () => (typeof hdTicketById === 'function' ? hdTicketById(HD1_ID) : null);
+  const hd1Progress = () => (typeof hdConsoleProgress === 'function' ? hdConsoleProgress(HD1_ID) : null);
+  const hd1Outcome = (key) => () => { const p = hd1Progress(); return Boolean(p && p.outcomes && p.outcomes[key]); };
+  const hd1Asked = (...ids) => () => { const p = hd1Progress(); return Boolean(p) && ids.every((id) => p.chatAsked.includes(id)); };
+
+  // The step order changed on 2026-11-15: Verify caller moved from step 4 to
+  // step 2, before the chat questions (old 2) and the KB (old 3). A run saved
+  // under the old order at step 3 or 4 hasn't verified yet, so it resumes at
+  // step 2 (verify); steps 0, 1 and 5 to 9 mean the same in both orders, and
+  // a run at old step 2 lands on verify anyway. Done once per shift: the
+  // shift then carries coachOrder, as does every fresh lab (hd1Reset), so a
+  // run saved under the new order is never moved back. Only the coached
+  // lab's shift: a practice set or a Prove It has its own.
+  const HD1_COACH_ORDER = 2;
+  (function hd1RemapOldStepOrder() {
+    if ((typeof HD_PRACTICE_SET !== 'undefined' && HD_PRACTICE_SET) || (typeof HD_PROVE !== 'undefined' && HD_PROVE)) return;
+    if (typeof hdState === 'undefined' || !hdState || hdState.coachOrder === HD1_COACH_ORDER) return;
+    const remap = (storage, key) => {
+      try {
+        const saved = JSON.parse(storage.getItem(key) || 'null');
+        if (saved && saved.id === 'hd-m01' && (saved.step === 3 || saved.step === 4)) storage.setItem(key, JSON.stringify({ ...saved, step: 2 }));
+      } catch { /* storage blocked or unreadable: the coach starts as it would */ }
+    };
+    try { remap(localStorage, 'mnt.coach.resume'); } catch { /* storage blocked */ }
+    try { remap(sessionStorage, 'mnt.coach.state'); } catch { /* storage blocked */ }
+    hdState.coachOrder = HD1_COACH_ORDER;
+    if (typeof hdSave === 'function') hdSave();
+  }());
 
   MODULE_COACHES.push({
     id: 'hd-m01',
     module: 1,
     name: 'Your First Help Desk Ticket',
     role: 'Tier 1 Help Desk Technician',
-    summary: 'Work Jordan Bell’s account-lockout ticket end to end: read the evidence, work the troubleshooting path, diagnose against the log rather than the obvious guess, document it, and resolve it.',
+    summary: 'Work Sam Rivera’s account lockout end to end: take the ticket, verify Sam, find out what changed, follow KB-0024, unlock the account, confirm Sam can sign in, tell Sam what to do if it happens again, document it and resolve it.',
     completionToken: 'hd-m01',
     home: '#/helpdesk/tickets',
     resetState: hd1Reset,
-    allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket'],
+    allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket', '#/helpdesk/knowledge-base', '#/helpdesk/directory'],
     steps: [
       {
         route: '#/helpdesk/tickets',
-        target: 'tr[onclick*="HD-2101"]',
-        require: true,
-        title: 'Open your first ticket',
-        instruction: 'Next Step: open <strong>HD-2101</strong>, Jordan Bell’s account lockout ticket.',
-        body: 'Every shift starts in the queue. This one is a good first case: the account keeps locking itself again a few minutes after it’s unlocked — which is a clue the real cause probably isn’t the obvious one.',
-        waitLabel: 'Next Step: Opened the ticket',
-        nudge: 'Click the HD-2101 row to open it.',
-        check: () => typeof hdState !== 'undefined' && hdState.selectedTicketId === 'HD-2101',
+        target: 'tr[onclick*="HD-2150"]',
+        title: 'Take the ticket',
+        instruction: 'Open <strong>INC0010150</strong> and click <strong>Assign to me</strong>. The ticket moves to <strong>In Progress</strong> and <strong>Assigned technician</strong> shows Riley Morgan.',
+        body: 'Why: an unowned ticket stalls. Nobody is working it while its SLA clock runs. Success looks like: your name shows in Assigned technician, and the SLA badge is green.',
+        waitLabel: 'Next Step: Ticket assigned to you',
+        check: () => { const t = hd1Ticket(); return Boolean(t) && t.assignedTechnician === 'Riley Morgan' && t.status !== 'New'; },
       },
       {
         route: '#/helpdesk/ticket',
         target: '.hd-field-grid',
-        title: 'Read before you diagnose',
-        instruction: 'Read the requester statement and the ticket details before doing anything else.',
-        body: 'Business impact, SLA, and the requester’s own words all shape how you’ll prioritize and what you’ll say back to them — gather this before you touch the evidence.',
+        title: 'Read the ticket',
+        instruction: 'Read what Sam reported and jot down Sam’s own words (on paper or in a text file; it isn’t graded). Then read the pre-set <strong>Priority: P3</strong> and its reason.',
+        body: 'Why: identify the problem before you form a theory. Success looks like: you can say “Locked out after wrong password tries; on the phones at 9.” Priority is pre-set in Module 1; you’ll set it yourself from impact and urgency in Module 2.',
         continueLabel: 'I’ve read it',
       },
       {
-        target: '.hd-evidence',
-        title: 'Check the evidence, not the assumption',
-        instruction: 'Look closely at the log line about the scheduled task.',
-        body: '“User typing an old password” is the tempting first guess — but the second log line (a scheduled task that last ran right around the lockout) is the actual clue. Evidence first, guess second.',
-        continueLabel: 'Got it',
+        route: '#/helpdesk/ticket',
+        target: '.hd-verify',
+        title: 'Verify the caller',
+        instruction: 'In the <strong>Verify caller</strong> card, right under Sam’s statement, choose <strong>Call Sam back on the number in the User Directory and confirm their employee ID</strong>. The result stays at the top of the ticket.',
+        body: 'Why: KB-0024 says verify before you act. Unlocking an account for the wrong person hands them the account. Success looks like: the badge turns green and the card shows you called Sam back on ext. 4391 and confirmed employee ID E-42856. Accepting a name and department, or asking for a password, is a critical error and is recorded for your instructor.',
+        waitLabel: 'Next Step: Caller verified',
+        check: hd1Outcome('verified'),
       },
       {
-        target: '.hd-path',
-        require: true,
-        title: 'Work the troubleshooting path',
-        instruction: 'Check off each step as you work through it.',
-        body: 'This isn’t busywork — it’s what a real technician’s documentation looks like while investigating. Check at least the first step to continue.',
-        waitLabel: 'Next Step: Checked a troubleshooting step',
-        nudge: 'Check at least one box in the troubleshooting path.',
-        check: () => document.querySelectorAll('.hd-path input:checked').length > 0,
+        route: '#/helpdesk/ticket',
+        target: '.hd-chat',
+        title: 'Find out what changed',
+        instruction: 'In the chat, ask Sam two identify questions: <strong>when did it start</strong>, and <strong>did anything change</strong>?',
+        body: 'Why: step 1 of the method is to find out what changed. Success looks like: Sam says “I typed it wrong a few times after the long weekend. I didn’t change it.” Wrong tries after a long weekend point to a simple lockout; a new password or a new device would point somewhere else.',
+        waitLabel: 'Next Step: Both questions asked',
+        check: hd1Asked('when', 'changed'),
       },
       {
-        target: '.hd-diagnosis-row',
-        require: true,
-        title: 'Choose your diagnosis',
-        instruction: 'Select the cause the evidence actually supports, then click Check diagnosis.',
-        body: 'Two of the three options are plausible-sounding distractors. The log line about the scheduled task is what should drive your answer, not which one sounds most familiar.',
-        waitLabel: 'Next Step: Diagnosis confirmed',
-        nudge: 'Pick a cause and click Check diagnosis — if it’s not supported by the evidence, you’ll be told to recheck.',
-        check: () => typeof hdCurrentTicket === 'function' && hdCurrentTicket() && hdCurrentTicket().diagnosisCorrect === true,
+        route: '#/helpdesk/ticket',
+        target: '.hd-kb-search',
+        title: 'Check the knowledge base',
+        instruction: 'In the Knowledge Base search box on the ticket, type <strong>locked out</strong>. Open <strong>KB-0024</strong> and read every step.',
+        body: 'Why: your theory and your fix come from approved knowledge first. Success looks like: KB-0024 is open, and you’ve read how Tier 1 unlocks an account and when a ticket goes to someone else.',
+        waitLabel: 'Next Step: KB-0024 opened',
+        check: () => { const p = hd1Progress(); return Boolean(p) && p.kbOpened.includes('KB-0024'); },
       },
       {
-        target: '#hd-note-input, #hd-note-input ~ button',
-        require: true,
-        title: 'Document what you found',
-        instruction: 'Write a work note: what you checked, what you found, what you’re about to do.',
-        body: '“Fixed it” is not a note. A useful one tells the next technician exactly what happened without them having to redo your work.',
-        waitLabel: 'Next Step: Note added',
-        nudge: 'Type a note and click Add work note.',
-        check: () => typeof hdCurrentTicket === 'function' && hdCurrentTicket() && hdCurrentTicket().notes.length > 0,
+        route: '#/helpdesk/ticket',
+        target: '.hd-account',
+        title: 'Unlock the account',
+        instruction: 'Follow KB-0024’s unlock step: click <strong>Unlock account</strong> on Sam’s account card.',
+        body: 'Why: Tier 1 may unlock a verified user’s account. Success looks like: the account card shows Unlocked. This button is the simulator’s version of the Active Directory tool you’ll use in Module 8.',
+        waitLabel: 'Next Step: Account unlocked',
+        check: hd1Outcome('unlocked'),
       },
       {
-        target: '.hd-control-stack .btn-primary',
-        require: true,
-        title: 'Close the loop',
-        instruction: 'Resolve the ticket.',
-        body: 'Resolving is gated on your diagnosis actually being correct — if you jumped to the wrong cause earlier, this button will tell you to recheck the evidence instead of letting you close it anyway.',
+        route: '#/helpdesk/ticket',
+        target: '.hd-chat',
+        title: 'Confirm from Sam’s side',
+        instruction: 'In the chat, ask Sam to sign in again slowly with Caps Lock off. Never ask for or look at the password.',
+        body: 'Why: verify the fix from the user’s side; you never handle passwords. Success looks like: Sam says “I’m in, thank you!”',
+        waitLabel: 'Next Step: Sam is signed in',
+        check: hd1Outcome('confirmed'),
+      },
+      {
+        route: '#/helpdesk/ticket',
+        target: '.hd-comments',
+        title: 'Plan for a repeat',
+        instruction: 'KB-0024 says a lockout that comes back within a day goes to the next-level team to find its source. Add a customer comment for Sam that says what to do <strong>if it happens again</strong>.',
+        body: 'Why: plan for a repeat and know when to escalate. Success looks like: the checker finds your “if it happens again” line. Sam reads this comment, so use plain words: “our next-level team”, not “Tier 2”, and no internal terms.',
+        waitLabel: 'Next Step: Comment says what to do if it happens again',
+        check: hd1Outcome('comment'),
+      },
+      {
+        route: '#/helpdesk/ticket',
+        target: '#hd-note-input, #hd-resolution-code',
+        title: 'Document and resolve',
+        instruction: 'Add a work note in three parts: <strong>Reported</strong>: what Sam reported, <strong>Tried</strong>: what you checked and did, <strong>Result</strong>: the outcome and how you confirmed it. Set <strong>Resolution code</strong> to <strong>Solution provided</strong>, then click <strong>Resolve</strong>, the ticket’s only close control.',
+        body: 'Why: document so the next technician never starts from zero. Success looks like: “Your note needs” ticks Reported, Tried and Result, your comment has no internal words, and the ticket shows Resolved. If anything is still missing, Resolve tells you what.',
         waitLabel: 'Next Step: Ticket resolved',
-        nudge: 'Click Resolve / escalate to close this ticket out.',
-        check: () => typeof hdCurrentTicket === 'function' && hdCurrentTicket() && hdCurrentTicket().status === 'Resolved',
+        check: () => { const t = hd1Ticket(); return Boolean(t) && t.status === 'Resolved'; },
+      },
+      {
+        // Reached only after the ticket is resolved, so Finish never shows
+        // before then (ui/coach.js shows Finish on the last step).
+        title: 'Finish the lab',
+        instruction: 'Ticket resolved. Press <strong>Finish</strong> to send your work to your course page.',
+        body: 'Your work counts once your course page confirms it saved it: how you verified Sam, the unlock, your comment and your note.',
         finish: { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/1', 'hd-m01') },
       },
     ],
@@ -281,11 +387,11 @@
   }
 
   const hd2Steps = hd2TicketSteps('HD-2106', true).concat(hd2TicketSteps('HD-2112', false));
-  hd2Steps[hd2Steps.length - 1].finish = { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/2', 'hd-m02') };
+  hd2Steps[hd2Steps.length - 1].finish = { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/4', 'hd-m02') };
 
   MODULE_COACHES.push({
     id: 'hd-m02',
-    module: 2,
+    module: 4,
     name: 'The Misbehaving Peripheral & The Stuck Queue',
     role: 'Tier 1 Help Desk Technician',
     summary: 'Work two real print-driver tickets end to end — a stuck label queue and a crashing Print Spooler service — tracing both back to the same root cause and resolving them under change control.',
@@ -413,10 +519,10 @@
     return MODULE_COACHES[MODULE_COACHES.length - 1];
   }
 
-  /* hd-m03 — Module 3: Windows Operating System Support. One ticket. */
-  hdRegisterSimpleCoach('hd-m03', 3, 'The Blank Desktop', 'Diagnose a corrupted Windows profile end to end: read the evidence, work the troubleshooting path, diagnose against the log, document it, and resolve it.', ['HD-2109']).steps =
+  /* hd-m03 — Module 5 (key its-03): Windows Operating System Support. One ticket. */
+  hdRegisterSimpleCoach('hd-m03', 5, 'The Blank Desktop', 'Diagnose a corrupted Windows profile end to end: read the evidence, work the troubleshooting path, diagnose against the log, document it, and resolve it.', ['HD-2109']).steps =
     hdTicketFlowSteps('HD-2109', {
-      opening: true, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/3', 'hd-m03'),
+      opening: true, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/5', 'hd-m03'),
       openBody: 'Noah signed in to a completely empty desktop with his shortcuts missing — but he can still sign in fine. That combination is the clue.',
       evidenceBody: 'The User Profile Service log line about a temporary profile is the tell — Windows quietly loaded a fallback profile because it couldn’t load the real one.',
       pathBody: 'Protecting the user’s data comes first, before any repair — a profile fix should never risk losing what’s already there.',
@@ -425,11 +531,11 @@
       resolveBody: 'Resolving is gated on your diagnosis actually being correct — the same discipline as every ticket in this program.',
     });
 
-  /* hd-m04 — Module 4: Networking Fundamentals. Three tickets scoped;
+  /* hd-m04 — Module 9 (key its-04): Networking Fundamentals. Three tickets scoped;
    * guides HD-2104 (DHCP/APIPA) then HD-2105 (DNS), leaves HD-2113 (VPN
    * gateway certificate, an 'Always' escalation) for free practice — it
    * gets its own dedicated treatment in hd-m11 instead. */
-  hdRegisterSimpleCoach('hd-m04', 4, 'Connected But Nothing Works', 'Work two real connectivity tickets end to end — an APIPA/DHCP failure and a DNS failure — using ipconfig, ping, and nslookup-style evidence rather than guessing.', ['HD-2104', 'HD-2105', 'HD-2113']).steps =
+  hdRegisterSimpleCoach('hd-m04', 9, 'Connected But Nothing Works', 'Work two real connectivity tickets end to end — an APIPA/DHCP failure and a DNS failure — using ipconfig, ping, and nslookup-style evidence rather than guessing.', ['HD-2104', 'HD-2105', 'HD-2113']).steps =
     hdTicketFlowSteps('HD-2104', {
       opening: true, isLast: false, finalStatus: 'Resolved',
       openBody: 'Priya is connected to the office network but nothing opens — that gap between “connected” and “working” is exactly what this module is about.',
@@ -439,7 +545,7 @@
       noteBody: 'Name the APIPA evidence, which interface you disabled, and that a valid lease and resource access were confirmed afterward.',
       resolveBody: 'Resolving is gated on your diagnosis actually being correct — recheck the evidence if it isn’t.',
     }).concat(hdTicketFlowSteps('HD-2105', {
-      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/4', 'hd-m04'),
+      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/9', 'hd-m04'),
       openBody: 'Maya can reach the public internet and internal resources by IP, but a hostname fails — a classic DNS-shaped symptom.',
       evidenceBody: 'NXDOMAIN on an internal hostname, plus a client DNS server that isn’t the corporate resolver — that combination is the clue.',
       pathBody: 'Capturing the current DNS configuration before changing anything is what makes this fixable and documentable.',
@@ -448,8 +554,8 @@
       resolveBody: 'Resolving is gated on your diagnosis actually being correct, same as every ticket.',
     }));
 
-  /* hd-m05 — Module 5: Windows Server & Active Directory. Two tickets. */
-  hdRegisterSimpleCoach('hd-m05', 5, 'The Missing Drive & The Vanishing Free Space', 'Work two real Windows Server tickets end to end — a Group Policy scope issue and a file-server disk-space incident.', ['HD-2108', 'HD-2117']).steps =
+  /* hd-m05 — Module 7 (key its-05): Windows Server & Active Directory. Two tickets. */
+  hdRegisterSimpleCoach('hd-m05', 7, 'The Missing Drive & The Vanishing Free Space', 'Work two real Windows Server tickets end to end — a Group Policy scope issue and a file-server disk-space incident.', ['HD-2108', 'HD-2117']).steps =
     hdTicketFlowSteps('HD-2108', {
       opening: true, isLast: false, finalStatus: 'Resolved',
       openBody: 'Amir’s Operations drive disappeared after his laptop was replaced — his group membership is correct, so it isn’t an access problem.',
@@ -459,7 +565,7 @@
       noteBody: 'Name the OU evidence, the object you moved, and that the drive mapping returned after a policy refresh.',
       resolveBody: 'Resolving is gated on your diagnosis actually being correct.',
     }).concat(hdTicketFlowSteps('HD-2117', {
-      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/5', 'hd-m05'),
+      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/7', 'hd-m05'),
       openBody: 'A monitoring alert: the file server’s data volume has 4% free space left and is dropping fast.',
       evidenceBody: 'A single export path accounting for most of the growth, right after a job that ran overnight, is the clue.',
       pathBody: 'Confirming impact and growth rate first is what keeps you from deleting something that turns out to matter.',
@@ -468,12 +574,12 @@
       resolveBody: 'Resolving is gated on your diagnosis actually being correct.',
     }));
 
-  /* hd-m06 — Module 6: Identity, Accounts & Access Management. Two
+  /* hd-m06 — Module 8 (key its-06): Identity, Accounts & Access Management. Two
    * tickets. SR-2107 is a Service Request (its resolve gate doesn't
    * actually require diagnosisCorrect in the underlying app) — the coach
    * still requires a correct diagnosis anyway, for the same reasoning
    * practice as every other ticket. */
-  hdRegisterSimpleCoach('hd-m06', 6, 'Restoring Access the Right Way', 'Work two real identity tickets end to end — an approved group-membership restore and a missing file-permission group — verifying authorization before you act.', ['SR-2107', 'HD-2118']).steps =
+  hdRegisterSimpleCoach('hd-m06', 8, 'Restoring Access the Right Way', 'Work two real identity tickets end to end — an approved group-membership restore and a missing file-permission group — verifying authorization before you act.', ['SR-2107', 'HD-2118']).steps =
     hdTicketFlowSteps('SR-2107', {
       opening: true, isLast: false, finalStatus: 'Resolved',
       openBody: 'An approved request: restore Grace’s contributor access to the HR onboarding folder. Manager approval is already attached — verify it before acting.',
@@ -483,7 +589,7 @@
       noteBody: 'Name the approval reference, the group you restored, and that upload access was verified afterward.',
       resolveBody: 'Resolving is gated on your diagnosis actually being correct, the same discipline whether or not it’s strictly required for a request.',
     }).concat(hdTicketFlowSteps('HD-2118', {
-      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/6', 'hd-m06'),
+      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/8', 'hd-m06'),
       openBody: 'Evan can open the payroll workbook but can’t save — read succeeds, modify is denied.',
       evidenceBody: 'Effective access showing Read & Execute while the share permission allows Change is the clue — the block is on the NTFS side.',
       pathBody: 'Calculating group-based effective access (not just the share permission) is what actually explains this.',
@@ -492,14 +598,14 @@
       resolveBody: 'Resolving is gated on your diagnosis actually being correct.',
     }));
 
-  /* hd-m07 — Module 7: Software, Applications & Endpoint Management. Five
+  /* hd-m07 — Module 6 (key its-07): Software, Applications & Endpoint Management. Five
    * correlated tickets scoped (same underlying cert expiry); guides just
    * HD-2119 and leaves the other four for free practice — matching hd-m01's
    * own "guide one, scope the rest" precedent, doubly appropriate here
    * since all five are literally the same root cause from different users. */
-  hdRegisterSimpleCoach('hd-m07', 7, 'The Purchasing App Everyone’s Locked Out Of', 'Work one of five correlated tickets end to end — a shared application certificate expiry — and recognize the pattern across the others.', ['HD-2119', 'HD-2120', 'HD-2121', 'HD-2122', 'HD-2123']).steps =
+  hdRegisterSimpleCoach('hd-m07', 6, 'The Purchasing App Everyone’s Locked Out Of', 'Work one of five correlated tickets end to end — a shared application certificate expiry — and recognize the pattern across the others.', ['HD-2119', 'HD-2120', 'HD-2121', 'HD-2122', 'HD-2123']).steps =
     hdTicketFlowSteps('HD-2119', {
-      opening: true, isLast: true, finalStatus: 'Escalated', finishHref: itsPortalUrl('#/program/it-support/module/7', 'hd-m07'),
+      opening: true, isLast: true, finalStatus: 'Escalated', finishHref: itsPortalUrl('#/program/it-support/module/6', 'hd-m07'),
       openBody: 'Maya can’t sign in to the Purchasing app — a secure-connection error, not a login error. Four other tickets in this queue report the exact same thing.',
       evidenceBody: 'A certificate-date browser error alongside a NotAfter timestamp that’s already passed is the clue — this isn’t a user account or browser-cache problem.',
       pathBody: 'Comparing timestamps and linking the related incidents comes before escalating — confirm the pattern, don’t just assume it.',
@@ -508,10 +614,10 @@
       resolveBody: 'This is a shared production certificate — outside what a technician fixes alone. Escalate it, don’t try to resolve it user by user.',
     });
 
-  /* hd-m08 — Module 8: Troubleshooting Methodology & Diagnostics. Two
+  /* hd-m08 — Module 10 (key its-08): Troubleshooting Methodology & Diagnostics. Two
    * tickets, both genuinely unfamiliar-shaped problems worked with the
    * five-step method rather than a memorized fix. */
-  hdRegisterSimpleCoach('hd-m08', 8, 'Two Problems You Haven’t Seen Before', 'Work two real unfamiliar-shaped tickets end to end — a broken domain trust and a BitLocker recovery — applying the troubleshooting method itself, not a memorized answer.', ['HD-2110', 'HD-2111']).steps =
+  hdRegisterSimpleCoach('hd-m08', 10, 'Two Problems You Haven’t Seen Before', 'Work two real unfamiliar-shaped tickets end to end — a broken domain trust and a BitLocker recovery — applying the troubleshooting method itself, not a memorized answer.', ['HD-2110', 'HD-2111']).steps =
     hdTicketFlowSteps('HD-2110', {
       opening: true, isLast: false, finalStatus: 'Resolved',
       openBody: 'Sofia’s workstation says the trust relationship with the domain failed — right after a VM snapshot was restored yesterday.',
@@ -521,7 +627,7 @@
       noteBody: 'Name the snapshot-timing evidence, the approved repair procedure you used, and that domain sign-in was verified afterward.',
       resolveBody: 'Resolving is gated on your diagnosis actually being correct.',
     }).concat(hdTicketFlowSteps('HD-2111', {
-      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/8', 'hd-m08'),
+      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/10', 'hd-m08'),
       openBody: 'Dina’s laptop is asking for a BitLocker recovery key right after an overnight firmware update.',
       evidenceBody: 'A completed, approved firmware change logged overnight, right before the recovery prompt, is the clue — not tampering.',
       pathBody: 'Verifying the user and device identity, and matching the recovery key ID, comes before disclosing anything.',
@@ -530,9 +636,9 @@
       resolveBody: 'Resolving is gated on your diagnosis actually being correct.',
     }));
 
-  /* hd-m09 — Module 9: Security Fundamentals for IT Support. Two Security
+  /* hd-m09 — Module 11 (key its-09): Security Fundamentals for IT Support. Two Security
    * Incident tickets — both correctly end in 'Escalated', not 'Resolved'. */
-  hdRegisterSimpleCoach('hd-m09', 9, 'Two Calls You Escalate, Not Fix', 'Work two real security-incident tickets end to end — a credential-phishing report and a malware alert — recognizing why L1 escalates rather than resolves.', ['SEC-2114', 'SEC-2115']).steps =
+  hdRegisterSimpleCoach('hd-m09', 11, 'Two Calls You Escalate, Not Fix', 'Work two real security-incident tickets end to end — a credential-phishing report and a malware alert — recognizing why L1 escalates rather than resolves.', ['SEC-2114', 'SEC-2115']).steps =
     hdTicketFlowSteps('SEC-2114', {
       opening: true, isLast: false, finalStatus: 'Escalated',
       openBody: 'Luis clicked a shipping link and signed in again — he’s asking if that was real. Treat it as a real possibility, not reassurance.',
@@ -542,7 +648,7 @@
       noteBody: 'Name the lookalike-domain evidence, that the account was protected within procedure, and that this was escalated immediately.',
       resolveBody: 'This is a possible credential compromise — outside what L1 resolves alone. Escalate it, don’t declare the endpoint safe yourself.',
     }).concat(hdTicketFlowSteps('SEC-2115', {
-      opening: false, isLast: true, finalStatus: 'Escalated', finishHref: itsPortalUrl('#/program/it-support/module/9', 'hd-m09'),
+      opening: false, isLast: true, finalStatus: 'Escalated', finishHref: itsPortalUrl('#/program/it-support/module/11', 'hd-m09'),
       openBody: 'A high-confidence EDR malware alert on a user’s laptop, with a report of browser pop-ups. Security needs help-desk coordination, not a solo fix.',
       evidenceBody: 'A suspicious PowerShell process launched as a child of the browser is the clue — that’s not a normal browser behavior.',
       pathBody: 'Do not delete evidence — confirming the user and device comes first, before any containment step.',
@@ -551,62 +657,172 @@
       resolveBody: 'This is a confirmed malware indicator — outside what L1 resolves alone. Escalate it as a warm handoff to security.',
     }));
 
-  /* hd-m10 — Module 10: Ticketing, Service Management & SLAs. Full,
-   * unfiltered queue — this module is about ticket structure and
-   * prioritization across the whole queue, not fixing one ticket. Guides
-   * filtering to P1 and reading a real ticket's fields, no resolve step. */
+  /* hd-m10 — Module 2 (key its-10): Lab 2.1, the practice queue. Six tickets,
+   * ten steps, then Finish. Every check reads the saved ticket state, so it
+   * passes whatever order the student works in. Feedback only, no points. */
+  const HD10_ID = { sam: 'HD-2158', noah: 'HD-2159', luis: 'HD-2160', amir: 'SR-2161', priya: 'HD-2162', maya: 'SEC-2163' };
+  const hd10Ticket = (id) => (typeof hdTicketById === 'function' ? hdTicketById(id) : null);
+  const hd10Progress = (id) => (typeof hdConsoleProgress === 'function' ? hdConsoleProgress(id) : null);
+  const hd10State = (t) => (t && typeof hdConsoleState === 'function' ? hdConsoleState(t) : null);
+  const hd10Mine = (list) => (Array.isArray(list) ? list : []).filter((item) => item && item.author === 'Riley Morgan');
+  const hd10Arrived = (t) => { const s = hd10State(t); return Boolean(s) && Array.isArray(s.arrived) && s.arrived.some((a) => a && a.id === 'priya-reply'); };
+  const hd10Empty = (v) => !v || (Array.isArray(v) && v.length === 0);
+  // A saved run of the old four-step hd-m10 coach (before 2026-11-19) points
+  // at steps for a queue this shift doesn't hold, and ui/coach.js would
+  // resume it at the same step number. When the shift isn't the guided queue,
+  // forget it, so the next launch starts the new lab fresh (resetState).
+  // Only the coached lab's shift: a practice set or a Prove It has its own.
+  (function hd10ForgetOldWalkthrough() {
+    if ((typeof HD_PRACTICE_SET !== 'undefined' && HD_PRACTICE_SET) || (typeof HD_PROVE !== 'undefined' && HD_PROVE)) return;
+    if (typeof hdState === 'undefined' || !hdState || hdState.ticketSet === 'its-10-guided') return;
+    const stale = (raw) => { try { const saved = JSON.parse(raw || 'null'); return Boolean(saved && saved.id === 'hd-m10'); } catch { return false; } };
+    try { if (stale(localStorage.getItem('mnt.coach.resume'))) localStorage.removeItem('mnt.coach.resume'); } catch { /* storage blocked */ }
+    try { if (stale(sessionStorage.getItem('mnt.coach.state'))) sessionStorage.removeItem('mnt.coach.state'); } catch { /* storage blocked */ }
+  }());
   MODULE_COACHES.push({
-    id: 'hd-m10', module: 10, name: 'Working the Queue by Priority', role: 'Tier 1 Help Desk Technician',
-    summary: 'Filter the full ticket queue down to what actually needs attention first, then read a priority ticket the way a real shift starts.',
+    id: 'hd-m10', module: 2, name: 'Guided Lab: queue shift', role: 'Tier 1 Help Desk Technician',
+    summary: 'Work a six-ticket morning queue: add the columns, set impact and urgency on every ticket, convert a request, link two tickets about one outage, put the queue in order, send a security ticket to the SOC, pause a ticket while you wait on the caller, attach a knowledge article, write for two audiences, and resolve a ticket with a knowledge draft.',
     completionToken: 'hd-m10', home: '#/helpdesk/tickets',
-    resetState: () => hdResetTicketScope(null),
-    allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket'],
+    resetState: () => { if (typeof hdUseTicketSet === 'function') hdUseTicketSet('its-10-guided'); },
+    allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket', '#/helpdesk/knowledge-base'],
     steps: [
       {
         route: '#/helpdesk/tickets',
-        target: '.filterbar select[onchange*="hdSetPriorityFilter"]',
-        require: true,
-        title: 'Filter to what matters first',
-        instruction: 'Set the Priority filter to P1.',
-        body: 'Working tickets in arrival order is rarely the right call. Impact and urgency combined — priority — is what actually determines the order.',
-        waitLabel: 'Next Step: Filtered to P1',
-        nudge: 'Use the Priority dropdown and choose P1.',
-        check: () => typeof hdState !== 'undefined' && hdState.priorityFilter === 'P1',
+        target: 'input[data-hd-column]',
+        title: 'See the whole queue',
+        instruction: 'In the queue, open <strong>Columns</strong> and tick <strong>Priority</strong>, <strong>SLA due</strong>, <strong>Category</strong>, <strong>Caller</strong> and <strong>Created</strong>.',
+        body: 'Why: you can’t sequence what you can’t see. Success looks like: six rows, with the SLA due column visible. The priority and SLA due columns say “Not set” until you triage.',
+        waitLabel: 'Next Step: All five columns on',
+        check: () => {
+          if (typeof hdState === 'undefined' || !hdState.queueView || !Array.isArray(hdState.queueView.columns)) return false;
+          const cols = hdState.queueView.columns;
+          return ['priority', 'sla', 'category', 'caller', 'created'].every((c) => cols.includes(c));
+        },
       },
       {
-        target: '.hd-ticket-row',
-        require: true,
-        title: 'Open a P1 ticket',
-        instruction: 'Click any ticket now showing in the filtered queue.',
-        body: 'A P1 ticket carries the tightest SLA in this queue — that’s exactly why it sorts to the top of a real shift.',
-        waitLabel: 'Next Step: Opened a P1 ticket',
-        nudge: 'Click any row in the filtered queue to open it.',
-        check: () => typeof hdCurrentTicket === 'function' && hdCurrentTicket() && hdCurrentTicket().priority === 'P1',
+        route: '#/helpdesk/tickets',
+        target: 'select[data-hd-field="impact"], select[data-hd-field="urgency"], select[data-hd-field="category"], tr[data-hd-row]',
+        title: 'Triage every ticket',
+        instruction: 'Open each ticket in the order it arrived. Set <strong>Category</strong>, <strong>Configuration item</strong>, <strong>Impact</strong> and <strong>Urgency</strong> from the facts, not the caller’s tone. If the ticket doesn’t say which laptop it is, ask the caller in the chat. Then read the coach note that appears on the ticket once its priority is calculated.',
+        body: 'Why: priority is calculated from impact and urgency. You never type it. Success looks like: every ticket shows a priority, and the coach note on each ticket says whether your impact and urgency match the facts, and why. This is feedback only, with no points.',
+        waitLabel: 'Next Step: Every ticket has a priority',
+        check: () => Object.values(HD10_ID).every((id) => {
+          const t = hd10Ticket(id);
+          if (!t) return false;
+          const c = typeof hdClassification === 'function' ? hdClassification(t) : null;
+          return Boolean(t.priority) && Boolean(c) && Boolean(c.category) && Boolean(c.ci);
+        }),
       },
       {
-        route: '#/helpdesk/ticket',
-        target: '.hd-field-grid',
-        title: 'Read the fields that drive the SLA',
-        instruction: 'Read the business impact and SLA target before anything else.',
-        body: 'Business impact and SLA target are what actually justify the priority — not just a label someone assigned on intake.',
-        continueLabel: 'Got it',
+        route: '#/helpdesk/tickets',
+        target: '.hd-convert, tr[data-hd-row]',
+        title: 'Convert the request',
+        instruction: 'Find the request in the queue. Open it, click <strong>Convert to Request</strong> and choose the catalog item.',
+        body: 'Why: requests need approval and asset tracking, and an incident is the wrong record for them. Success looks like: the incident shows Canceled – Converted, and the request shows Approval = Approved, because the manager already approved it. (The request is INC0010161, from Amir Patel, who asked for a headset.) If you canceled or closed it by mistake, it can’t be converted: press <strong>Reset shift</strong> on the Dashboard to start the queue again.',
+        waitLabel: 'Next Step: Request converted',
+        check: () => { const t = hd10Ticket(HD10_ID.amir); return Boolean(t) && t.cancelReason === 'Converted' && Boolean(t.request) && t.request.approval === 'Approved'; },
       },
       {
-        target: '#hd-note-input, #hd-note-input ~ button',
-        require: true,
-        title: 'Note why this ticket sorts first',
-        instruction: 'Write one note explaining the impact and urgency that justify working this ticket first.',
-        body: '“It’s P1” is not a justification. Name the actual impact and the SLA deadline driving it.',
-        waitLabel: 'Next Step: Note added',
-        nudge: 'Type a note and click Add work note.',
-        check: () => typeof hdCurrentTicket === 'function' && hdCurrentTicket() && hdCurrentTicket().notes.length > 0,
-        finish: { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/10', 'hd-m10') },
+        target: '.hd-link,.hd-rewrite, select[data-hd-field="impact"], select[data-hd-field="urgency"]',
+        title: 'Link two tickets, rewrite the weak one',
+        instruction: 'Find the two tickets that describe one problem. On the weaker one, in <strong>Related tickets</strong>, choose the stronger one and click <strong>Link</strong>. Then rewrite its short description and description, and click <strong>Save and check</strong>. Linking does not change its priority, so set it to match its parent: <strong>Impact 1</strong> and <strong>Urgency 2</strong>, which gives <strong>P2</strong>.',
+        body: 'Why: two tickets, one cause. Fixing the cause fixes both, and a clear ticket saves the next technician a call. Success looks like: the weaker ticket is linked to its parent, the rewrite names who, what, where, when and the impact, and the priority is P2. (The pair is INC0010159 from Noah Williams, written well, and INC0010160 from Luis Ortega, “internet not working”. Luis is on floor 3, and his laptop says “No internet” since about 08:15.)',
+        waitLabel: 'Next Step: Linked, rewritten and rated P2',
+        check: () => {
+          const t = hd10Ticket(HD10_ID.luis);
+          if (!t || t.parentId !== HD10_ID.noah) return false;
+          const s = hd10State(t);
+          const rewritten = Boolean(s) && Boolean(s.rewrite) && Array.isArray(s.rewrite.missing) && s.rewrite.missing.length === 0;
+          return rewritten && String(t.impact) === '1' && String(t.urgency) === '2' && t.priority === 'P2';
+        },
+      },
+      {
+        route: '#/helpdesk/tickets',
+        target: '.hd-work-order',
+        title: 'Put the queue in order',
+        instruction: 'Sort the queue by <strong>Priority</strong>, then <strong>SLA due</strong>. Drag the rows into your work order, then click <strong>Check order</strong>.',
+        body: 'Why: priority comes first, then the clock. Sorting by Created alone gives the wrong order here. Success looks like: the checker accepts your order. If it does not, it names the ticket that is out of place, so move that one and check again.',
+        waitLabel: 'Next Step: Order accepted',
+        check: () => typeof hdState !== 'undefined' && hdState.workOrderResult === 'ok',
+      },
+      {
+        target: 'select[data-hd-field="category"], #hd-assignment-group, #hd-note-input',
+        title: 'Send the security ticket to the SOC',
+        instruction: 'On the security ticket, set <strong>Category</strong> to <strong>Security</strong> and set <strong>Assignment group</strong> to <strong>Security Operations (SOC)</strong>. Add a work note with the indicators.',
+        body: 'Why: security goes to the SOC. It never waits for “later”. Success looks like: the group is Security Operations (SOC) and your note names the sender’s address, the attachment name, what the user clicked and when, and which laptop. (The ticket is INC0010163 from Maya Chen. The attachment is Invoice_8841, and she clicked Enable content.) The ticket leaves your queue once it is assigned.',
+        waitLabel: 'Next Step: Assigned to the SOC with a note',
+        check: () => {
+          const t = hd10Ticket(HD10_ID.maya);
+          if (!t || t.assignmentGroup !== 'Security Operations (SOC)') return false;
+          const c = typeof hdClassification === 'function' ? hdClassification(t) : null;
+          return Boolean(c) && /security/i.test(c.category || '') && hd10Mine(t.notes).length > 0;
+        },
+      },
+      {
+        target: '.hd-comments, #hd-next-state, #hd-hold-reason',
+        title: 'Pause while you wait on the caller',
+        instruction: 'On <strong>INC0010162</strong>, the mouse ticket, ask a question in an <strong>Additional comment</strong>. For example, ask if the mouse is wireless and when its batteries were last changed. Then set the state to <strong>On Hold</strong> with the reason <strong>Awaiting Caller</strong>.',
+        body: 'Why: the SLA clock pauses only while you wait on the user. Success looks like: the state shows On Hold – Awaiting Caller and the SLA bar turns grey and says Paused. Priya’s reply may arrive later in the lab. If it has already arrived, this step is done. If you resolved or closed this ticket by mistake, it can’t go On Hold: press <strong>Reset shift</strong> on the Dashboard to start the queue again.',
+        waitLabel: 'Next Step: On Hold – Awaiting Caller',
+        check: () => {
+          const t = hd10Ticket(HD10_ID.priya);
+          if (!t) return false;
+          if (hd10Arrived(t)) return true;
+          const paused = typeof hdStatusText === 'function' && /On Hold\s*[–-]\s*Awaiting Caller/.test(hdStatusText(t));
+          return paused && hd10Mine(t.customerComments).length > 0;
+        },
+      },
+      {
+        target: '.hd-kb-search, .hd-related-knowledge',
+        title: 'Attach the Wi-Fi article',
+        instruction: 'On <strong>INC0010159</strong>, the Wi-Fi ticket, search the knowledge base for <strong>wifi no internet</strong>. Open the article and click <strong>Attach knowledge</strong>.',
+        body: 'Why: a linked article shows the next technician which fix was used. Success looks like: KB-0063 is listed under Related › Knowledge. The article says that when several people in one area lose Wi-Fi, the cause is the network: link the tickets to one parent and escalate it to Network Operations with the area, the start time and the business impact. Never restart network equipment yourself.',
+        waitLabel: 'Next Step: Article attached',
+        check: () => {
+          const t = hd10Ticket(HD10_ID.noah);
+          const s = hd10State(t); const p = hd10Progress(HD10_ID.noah);
+          return Boolean((s && Array.isArray(s.kbAttached) && s.kbAttached.includes('KB-0063')) || (p && Array.isArray(p.kbAttached) && p.kbAttached.includes('KB-0063')));
+        },
+      },
+      {
+        target: '#hd-note-input, .hd-comments, #hd-assignment-group',
+        title: 'Write for two audiences',
+        instruction: 'On <strong>INC0010158</strong>, the P1 ticket from Customer Service, add one <strong>work note</strong> that includes a line telling the <strong>Service Desk lead</strong>. Add one <strong>Additional comment</strong> for Sam. Set <strong>Assignment group</strong> to <strong>Messaging &amp; Collaboration</strong>, who own the phone app.',
+        body: 'Why: the work note is for IT staff and the comment is for the caller, so each has its own style. The SLA table says the Service Desk lead must be told about every P1. Success looks like: the comment check shows no jargon or internal names, and the ticket shows Escalated under Messaging &amp; Collaboration. Write the comment with four parts: thank Sam, say what is happening in plain words, say what Sam must do (if anything), and say when Sam hears from you next.',
+        waitLabel: 'Next Step: Note, comment and owner done',
+        check: () => {
+          const t = hd10Ticket(HD10_ID.sam);
+          const p = hd10Progress(HD10_ID.sam);
+          if (!t || !p || t.assignmentGroup !== 'Messaging & Collaboration') return false;
+          const lead = hd10Mine(t.notes).some((n) => /service desk lead/i.test(String((n && n.text) || '')));
+          return lead && hd10Mine(t.customerComments).length > 0 && hd10Empty(p.lastCommentJargon) && hd10Empty(p.lastCommentInternal);
+        },
+      },
+      {
+        target: '.hd-arrivals,#hd-resolution-code, #hd-next-state',
+        title: 'Resolve it and share the fix',
+        instruction: 'When Priya replies on <strong>INC0010162</strong>, read her message. Set a <strong>Resolution code</strong> and add resolution notes, then resolve the ticket. Click <strong>Create knowledge draft</strong> from it.',
+        body: 'Why: close with the how, and share it so the next technician can fix it faster. Success looks like: the state is Resolved and the knowledge draft is in Review. Priya’s reply arrives after you finish the P1 ticket and the mouse ticket is On Hold. If it has not arrived yet, finish the earlier steps first.',
+        waitLabel: 'Next Step: Resolved, with a knowledge draft',
+        check: () => {
+          const t = hd10Ticket(HD10_ID.priya);
+          const s = hd10State(t);
+          return Boolean(t) && (t.status === 'Resolved' || t.status === 'Closed') && Boolean(s && s.kbDraft && s.kbDraft.state === 'Review');
+        },
+      },
+      {
+        // Reached only after the last work step passes, so Finish never shows
+        // before then (ui/coach.js shows Finish on the last step).
+        title: 'Finish the lab',
+        instruction: 'Queue worked. Press <strong>Finish</strong> to send your work to your course page.',
+        body: 'Your work counts once your course page confirms it saved it: your triage, work order, notes, comments, link, rewrite and knowledge draft. There is no score.',
+        finish: { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/2', 'hd-m10') },
       },
     ],
   });
 
-  /* hd-m11 — Module 11: Customer Service, Documentation & Escalation. Two
-   * tickets. HD-2113 (also reachable unguided from Module 4's scope) whose
+  /* hd-m11 — Module 3 (key its-11): Customer Service, Documentation & Escalation. Two
+   * tickets. HD-2113 (also reachable unguided from Module 9's scope, coach hd-m04) whose
    * 'Always' escalation criteria makes it a clean example of recognizing an
    * escalation trigger and writing a handoff-quality note, rather than a
    * fixable-by-L1 ticket. HD-2124 pairs that with the module's other half —
@@ -614,7 +830,7 @@
    * technical cause — practicing calm, plain-language, expectation-setting
    * communication under pressure (lesson 2's 'Updating Users Without
    * Overpromising' / 'Setting Expectations From the Start'). */
-  hdRegisterSimpleCoach('hd-m11', 11, 'Writing the Handoff That Actually Helps', 'Work two real tickets end to end, focused on documentation, escalation, and communication under pressure: recognize an escalation trigger and write a note a stranger could act on, then diagnose while calmly setting expectations for an already-frustrated, repeat-contact user.', ['HD-2113', 'HD-2124']).steps =
+  hdRegisterSimpleCoach('hd-m11', 3, 'Writing the Handoff That Actually Helps', 'Work two real tickets end to end, focused on documentation, escalation, and communication under pressure: recognize an escalation trigger and write a note a stranger could act on, then diagnose while calmly setting expectations for an already-frustrated, repeat-contact user.', ['HD-2113', 'HD-2124']).steps =
     hdTicketFlowSteps('HD-2113', {
       opening: true, isLast: false, finalStatus: 'Escalated',
       openBody: 'Kai’s VPN accepts MFA, connects for a few seconds, then drops — every time.',
@@ -624,7 +840,7 @@
       noteBody: 'This is the note a stranger has to act on: name the expired-certificate evidence, confirm other users are affected the same way, and state plainly that this needs a certificate renewal — not a per-user fix.',
       resolveBody: 'A shared gateway certificate is outside what a technician replaces alone. Escalate it with a note complete enough that the next person isn’t starting from zero.',
     }).concat(hdTicketFlowSteps('HD-2124', {
-      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/11', 'hd-m11'),
+      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/3', 'hd-m11'),
       openBody: 'Tara is calling for the second time today — Outlook keeps demanding her password and failing, and she has a client proposal waiting. She’s frustrated, and that’s the point of this one: the fix has to happen while you keep her calm and informed, not after.',
       evidenceBody: 'Teams and the browser already accept her new password — only Outlook fails. That split, plus a Credential Manager entry that’s weeks old, is the clue: something cached is still holding the old password.',
       pathBody: 'Confirm the scope is Outlook-only before touching anything, then go straight to the stale credential — don’t make her repeat troubleshooting she’s effectively already done for you by mentioning Teams works fine.',

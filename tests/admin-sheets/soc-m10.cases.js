@@ -172,13 +172,19 @@ module.exports = ({ run, clone, AdminSubmissionSheet }) => {
         verdict: 'pass',
         sections: { ticket: 'pass', notes: 'pass', 'evidence-locker': 'pass', 'artifact-notes': 'judgment', acquisition: 'pass', integrity: 'pass', custody: 'pass', preservation: 'pass', timeline: 'pass', statements: 'pass', 'root-cause': 'pass', attack: 'pass', unknowns: 'pass', 'timeline-actions': 'judgment' },
         feedback: [],
-        html: ['Recommend PASS', 'CASE-105510 · INC-5510', 'ART-09 · Memory image of isolated wkstn-19', 'Digital Forensics evidence custodian', 'T1566.001', '10 of 10 points', /data-sheet-narrative="statements:0"/, /data-sheet-narrative="root-cause:0"/,
+        html: ['Recommend PASS', 'CASE-105510 · INC-5510', 'ART-09 · Memory image of isolated wkstn-19 (memory image · specialist handoff)', 'Digital Forensics evidence custodian', 'T1566.001', '10 of 10 points', /data-sheet-narrative="statements:0"/, /data-sheet-narrative="root-cause:0"/,
           // Per-artifact analyst notes from the Evidence Locker are shown in full.
           'Analyst notes (kept separate from the originals)', /data-sheet-narrative="artifact-notes:0"/, 'ART-03 · WINWORD.EXE spawned powershell.exe -enc', NOTE_TEXT,
           // Statement types and topics read as the console labels them.
           `${UI.kinds.fact} · cites ART-01`, `${UI.kinds.analysis} · cites ART-03`, `Unknowns · ${UI.topics.exfiltration}`, `Unknowns · ${UI.topics.memory}`, `Specialist escalation · ${UI.routes['digital-forensics']}`,
           `Acquisition method ${UI.methods.disk_image}`, `Acquisition method ${UI.methods.gateway_export}`, 'ART-03: verified'],
         notHtml: ['tier2-soc', 'in-progress', 'root_cause', 'digital-forensics', 'Fact (observed)', 'Analysis (interpretation)', 'Unknown · Whether data left the network', 'Unknown · What the memory image shows', 'not checked'],
+        custom: () => {
+          const fields = AdminSubmissionSheet.narrativeFields(perfect).filter((field) => field.sectionId === 'statements');
+          assert.equal(fields.length, 1, 'all M10 statements share one spelling/proofreading check');
+          assert.match(fields[0].text, /Observed fact · cites ART-01/);
+          assert.match(fields[0].text, /Supported analysis · cites ART-03/);
+        },
       },
     },
     {

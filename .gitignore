@@ -21,6 +21,9 @@ bin/.roster-output/
 node_modules/
 _site/
 
+# Agent drafts, audits, keys and production migration scripts (2026-11-14).
+.claude/work/
+
 # Real business documents (launch tracker, control framework) that live in
 # this working directory for convenience but are not part of the codebase.
 00 - CURRENT - MNTA November 2 MVP Launch Execution Tracker v1.0.xlsx

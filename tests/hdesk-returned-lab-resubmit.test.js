@@ -1,10 +1,10 @@
 // Help Desk: a lab faculty returned for revision can be resubmitted, and a
 // resubmission sends exactly one new lab_attempts row.
 //
-//   - Evidence labs (Module 1 Lab 1.1, Module 2 Labs 2.1/2.2): an explicit
+//   - Evidence labs (Module 1 Lab 1.1, Module 4 (its-02) Labs 4.1/4.2): an explicit
 //     "Resubmit" button, disabled until the student has added or replaced at
 //     least one evidence file since the lab was returned.
-//   - Guided walkthrough labs (Module 1 Lab 1.2, Module 2 Labs 2.3/2.4,
+//   - Guided walkthrough labs (Module 1 Lab 1.2, Module 4 (its-02) Labs 4.3/4.4,
 //     Modules 3-11): finishing the walkthrough again resubmits only the
 //     returned lab(s); waiting or approved labs send nothing.
 //   - Every Help Desk module page shows the instructor's return notes,
@@ -24,11 +24,16 @@ ctx.currentUser = async () => signedIn;
 const SIM = new URL(run('SIM_ORIGIN')).origin;
 const HD = run(`PROGRAMS.find((p) => p.slug === 'it-support')`);
 const LabRuntime = run('LabRuntime');
-const moduleLab = (n) => run(`MODULE_LABS['it-support/${n}']`);
+// moduleLab(n) is the page for module key its-NN (Help Desk display numbers
+// differ from key order: its-10 is Module 2), so look up the key's number.
+const moduleLab = (n) => run(`MODULE_LABS['it-support/' + PROGRAMS.find((p) => p.slug === 'it-support').modules['its-${String(n).padStart(2, '0')}'].number]`);
 // Saved lab state only loads back with LabRuntime's own labId/student stamp.
 const seed = (labId, user, state) => LabRuntime.save(labId, user, { ...LabRuntime.load(labId, user, {}), ...state });
 // Sent with the signed-in student's launch id, as the simulator sends it.
-const coachDone = (id) => ({ data: { type: 'mnt-coach-complete', id, student: vm.runInContext('LabRuntime', ctx).anonymousStudentId(signedIn) }, origin: SIM });
+// Module 1 saves only a finished HD-2150 (tests/hdesk-m01-guided-lab.test.js).
+const M01_FINISHED_WORK = { version: 1, tickets: [{ id: 'HD-2150', status: 'Resolved', console: {
+  outcomes: { verified: true, unlocked: true, confirmed: true, comment: true, note: true, code: true } } }] };
+const coachDone = (id) => ({ data: { type: 'mnt-coach-complete', id, student: vm.runInContext('LabRuntime', ctx).anonymousStudentId(signedIn), ...(id === 'hd-m01' ? { work: M01_FINISHED_WORK } : {}) }, origin: SIM });
 
 const SUBMITTED = '2026-10-01T10:00:00Z';
 const REVIEWED = '2026-10-02T10:00:00Z';
@@ -65,7 +70,7 @@ const inserts = (labKey) => ctx.supabaseCalls.filter((c) => c.table === 'lab_att
 const resubmitButton = (html, labKey) => (new RegExp(`<button[^>]*data-its-resubmit="${labKey}"[^>]*>`).exec(html) || [null])[0];
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-/* ------------------------------------------------ Module 2, Lab 2.1 (evidence) */
+/* ------------------------------------------------ Module 4 (its-02), Lab 4.1 (evidence) */
 
 const LAB21 = 'lab-its-02-vm-build';
 const LAB22 = 'lab-its-02-vm-snapshot-server';
@@ -85,7 +90,7 @@ async function testReturnedEvidenceLabResubmitsOnce() {
   let html = moduleLab(2).view(user, HD);
   assert.match(html, /Show the RAM setting in the screenshot\./, 'the return note is on the Module 2 page');
   const before = resubmitButton(html, LAB21);
-  assert.ok(before, 'a returned Lab 2.1 shows a Resubmit button');
+  assert.ok(before, 'a returned Lab 4.1 shows a Resubmit button');
   assert.match(before, /disabled/, 'Resubmit is disabled until a file is added or replaced');
 
   // No new file since the return: the button does nothing.
@@ -108,7 +113,7 @@ async function testReturnedEvidenceLabResubmitsOnce() {
 
   // Two quick presses send one attempt.
   await Promise.all([run('its02ResubmitLab')(LAB21), run('its02ResubmitLab')(LAB21)]);
-  assert.equal(inserts(LAB21).length, 1, 'exactly one new attempt for Lab 2.1');
+  assert.equal(inserts(LAB21).length, 1, 'exactly one new attempt for Lab 4.1');
   assert.equal(inserts().length, 1, 'no other lab is submitted');
   assert.equal(inserts(LAB21)[0].payload.state, 'complete');
 
@@ -154,7 +159,7 @@ async function testWaitingOrApprovedEvidenceLabCannotResubmit() {
 }
 
 async function testFirstSubmissionUsesSubmitButton() {
-  // Never submitted: adding both files sends nothing; Submit Lab 2.1 sends
+  // Never submitted: adding both files sends nothing; Submit Lab 4.1 sends
   // one attempt, the same explicit pattern as Resubmit.
   const user = hdUser();
   fresh(user);
@@ -164,11 +169,11 @@ async function testFirstSubmissionUsesSubmitButton() {
   await settle();
   assert.equal(inserts().length, 0, 'adding files never submits');
   await run('its02SubmitLab')(LAB21);
-  assert.equal(inserts(LAB21).length, 1, 'Submit Lab 2.1 sends one attempt');
+  assert.equal(inserts(LAB21).length, 1, 'Submit Lab 4.1 sends one attempt');
   assert.equal(resubmitButton(moduleLab(2).view(user, HD), LAB21), null, 'no Resubmit button for a first submission');
 }
 
-/* -------------------------------------- Module 2, Labs 2.3/2.4 (walkthrough) */
+/* -------------------------------------- Module 4 (its-02), Labs 4.3/4.4 (walkthrough) */
 
 async function testWalkthroughResubmitsOnlyReturnedLab() {
   const user = hdUser({ attempts: { [LAB23]: returned(), [LAB24]: approved() }, feedback: { [LAB23]: note('Restart the spooler before clearing the queue.') } });
@@ -229,31 +234,17 @@ async function testModuleOne() {
   const LAB2 = 'lab-its-01-ticket-triage';
   const user = hdUser({ attempts: { [LAB1]: returned(), [LAB2]: returned() }, feedback: { [LAB1]: note('Upload the sandbox screenshot, not the LMS one.'), [LAB2]: note('Unlock the account before resetting.') } });
   fresh(user);
-  seed('its01-lms-validation-v1', user, {
-    evidence1: file('lms.png', SUBMITTED), evidence2: file('tile.png', SUBMITTED), aupScrolled: true, aupAcknowledged: true, lab1Complete: true,
-    consoleStarted: true, consoleCompleted: true,
-  });
-  let html = moduleLab(1).view(user, HD);
-  assert.match(html, /Upload the sandbox screenshot, not the LMS one\./);
+  seed('its01-lms-validation-v1', user, { aupAcknowledged: true, consoleStarted: true, consoleCompleted: true });
+  const html = moduleLab(1).view(user, HD);
   assert.match(html, /Unlock the account before resetting\./);
-  assert.match(resubmitButton(html, LAB1), /disabled/);
-
-  await run('its01ResubmitLab')(LAB1);
-  assert.equal(inserts().length, 0, 'Lab 1.1: no new file -> no save');
-  run('its01AddEvidence')('its01-evidence-1', file('sandbox.png', '2026-10-03T09:00:00Z'));
-  await settle();
-  assert.equal(inserts().length, 0, 'Lab 1.1: upload alone does not resubmit');
-  html = moduleLab(1).view(user, HD);
-  assert.match(resubmitButton(html, LAB1), /disabled/, 'Lab 1.1: disabled until both files are chosen on this page');
-  run('its01AddEvidence')('its01-evidence-2', file('lms.png', '2026-10-03T09:00:00Z'));
-  html = moduleLab(1).view(user, HD);
-  assert.doesNotMatch(resubmitButton(html, LAB1), /disabled/);
-  await Promise.all([run('its01ResubmitLab')(LAB1), run('its01ResubmitLab')(LAB1)]);
-  assert.equal(inserts(LAB1).length, 1, 'Lab 1.1: exactly one new attempt');
+  // Lab 1.1 is off the page: an old returned attempt shows no notice and no Resubmit.
+  assert.doesNotMatch(html, /Upload the sandbox screenshot/);
+  assert.equal(resubmitButton(html, LAB1), null);
 
   await moduleLab(1).onMessage(coachDone('hd-m01'));
   await moduleLab(1).onMessage(coachDone('hd-m01'));
   assert.equal(inserts(LAB2).length, 1, 'Lab 1.2: exactly one new attempt');
+  assert.equal(inserts(LAB1).length, 0, 'nothing is ever saved for Lab 1.1');
 }
 
 /* ------------------------------------------------------------------ Module 12 */

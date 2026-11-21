@@ -13,6 +13,9 @@ const MODULE_ONE_ROUTE = '#/program/soc-analyst/module/1';
 // and MODULE_ONE_ESCALATION_LAB.departmentOptions in portal/data.js).
 const MODULE_ONE_LOG_PAGE_SIZE = 10;
 const MODULE_ONE_DEPARTMENT_BOUNCE_THRESHOLD = 40;
+// Saved as lab_attempts.rubric_version on the Prove It; the server-side
+// answer key for 'lab-soc-escalation' is loaded under this version.
+const MODULE_ONE_PROVE_RUBRIC_VERSION = 'soc-m01-prove-v1';
 
 /* Module-level assessment bank. selectQuizQuestions() returns wrappers shaped
  * { conceptId, conceptTitle, question, shuffledOptions, correctIndex } — the
@@ -180,7 +183,13 @@ function moduleOneFinalizeProveIt() {
     const caseDisplay = typeof caseRecordDisplay === 'function'
       ? caseRecordDisplay(moduleOneState.lab2, { caseId: scenario.caseId || scenario.id, incidentIds: scenario.incidentId, dispositionOptions: MODULE_ONE_ESCALATION_LAB.verdictOptions, departmentOptions: MODULE_ONE_ESCALATION_LAB.departmentOptions })
       : undefined;
-    recordProveItAttempt(moduleOneUser, 'lab-soc-escalation', { state: 'complete', submittedAt: moduleOneState.lab2.submittedAt, score: performance.score, result: { breakdown: performance.breakdown, feedback: performance.feedback, critical_errors: performance.criticalErrors, case_record: moduleOneState.lab2, case_display: caseDisplay } }, () => {
+    // kind 'soc-prove' (2026-11-19): the database scores this work package
+    // (case_record) against the lab's answer key at submit, as a staff-only
+    // recommendation (migration 20261119204423). The rubric version names the
+    // key it is scored with. recordProveItAttempt() (PR #79) passes these
+    // fields to recordLabAttempt() unchanged and rolls the latch back on a
+    // failed save.
+    recordProveItAttempt(moduleOneUser, 'lab-soc-escalation', { state: 'complete', submittedAt: moduleOneState.lab2.submittedAt, score: performance.score, rubricVersion: MODULE_ONE_PROVE_RUBRIC_VERSION, result: { kind: 'soc-prove', breakdown: performance.breakdown, feedback: performance.feedback, critical_errors: performance.criticalErrors, case_record: moduleOneState.lab2, case_display: caseDisplay } }, () => {
       moduleOneState.lab2.submitted = false;
       moduleOneState.lab2.completed = false;
       moduleOneState.lab2.submittedAt = '';
@@ -356,6 +365,36 @@ function moduleOneSyncCompletionEvidence() {
   Promise.resolve(recordModuleCompletionEvidence(user, 'soc-01', pending)).then(() => {
     pending.forEach((key) => { if (user.remoteModuleEvidence?.['soc-01']?.[key] !== true) moduleOneEvidenceSent.delete(`${user.email}:${key}`); });
   });
+}
+
+// Name exactly what is still missing, so the learner is never left hunting
+// for the one field (e.g. the route that appears only after Escalation =
+// Required).
+const MODULE_ONE_GUIDED_TODO_PREFIX = 'Almost there. Still to do: ';
+function moduleOneGuidedTodo() {
+  const practice = moduleOneState.practice;
+  return [
+    [!moduleOneState.reviewedEvidence.length, 'open the sign-in log'],
+    [!practice.affectedUser, 'add the affected user'],
+    [!practice.affectedDevice, 'add the affected device'],
+    [!practice.priority, 'set Severity'],
+    [!practice.verdict, 'set Disposition'],
+    [!practice.escalation, 'set Escalation required'],
+    [practice.escalation === 'required' && !practice.escalateTo, 'choose the Route to Department'],
+    [!(practice.notes || '').trim(), 'write a work note'],
+  ].filter(([isMissing]) => isMissing).map(([, label]) => label);
+}
+
+// UAT U2 (2026-11-02): the "Still to do" list from an empty Submit used to
+// stay frozen (and was saved) after the learner filled those fields, so it
+// told them to do work they had already done. Recompute it whenever the
+// ticket renders; drop it once nothing is missing. Returns the current text.
+function moduleOneRefreshGuidedTodo() {
+  const current = moduleOneState.validationError || '';
+  if (!current.startsWith(MODULE_ONE_GUIDED_TODO_PREFIX)) return current;
+  const todo = moduleOneGuidedTodo();
+  moduleOneState.validationError = todo.length ? `${MODULE_ONE_GUIDED_TODO_PREFIX}${todo.join(', ')}.` : '';
+  return moduleOneState.validationError;
 }
 
 function moduleOneSave() {
@@ -1016,7 +1055,7 @@ function moduleOneCaseConsolePane() {
         </form>
         ${moduleOneState.consoleCompleted
           ? caseRecordPanel({ panelId: 'm01-practice-submission', submitted: true, practiceSubmitted: true })
-          : moduleOneState.validationError
+          : moduleOneRefreshGuidedTodo()
             ? `<div class="m01cc-feedback is-error" id="m01cc-feedback" tabindex="-1" role="alert">${esc(moduleOneState.validationError)}</div>`
             : ''}
       </section>
@@ -1514,21 +1553,9 @@ function wireModuleOneCaseConsole() {
 
     if (event.target.closest('[data-m01-practice-check]')) {
       const practice = moduleOneState.practice;
-      // Name exactly what is still missing, so the learner is never left
-      // hunting for the one field (e.g. the route that appears only after
-      // Escalation = Required).
-      const todo = [
-        [!moduleOneState.reviewedEvidence.length, 'open the sign-in log'],
-        [!practice.affectedUser, 'add the affected user'],
-        [!practice.affectedDevice, 'add the affected device'],
-        [!practice.priority, 'set Severity'],
-        [!practice.verdict, 'set Disposition'],
-        [!practice.escalation, 'set Escalation required'],
-        [practice.escalation === 'required' && !practice.escalateTo, 'choose the Route to Department'],
-        [!(practice.notes || '').trim(), 'write a work note'],
-      ].filter(([isMissing]) => isMissing).map(([, label]) => label);
+      const todo = moduleOneGuidedTodo();
       const missing = todo.length > 0;
-      moduleOneState.validationError = missing ? `Almost there. Still to do: ${todo.join(', ')}.` : '';
+      moduleOneState.validationError = missing ? `${MODULE_ONE_GUIDED_TODO_PREFIX}${todo.join(', ')}.` : '';
       if (!missing) {
         moduleOneState.completed = true;
         moduleOneState.consoleCompleted = true;

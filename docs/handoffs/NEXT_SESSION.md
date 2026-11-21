@@ -32,9 +32,714 @@ Full notes, the WHY, and Help Desk recommendations:
   same browser and never saved to the database. Recommended fixes are in
   section 4 of the doc. Alex will not edit Help Desk coursework.
 
+**2026-11-20 (Megan; branch `shared/m02-prove`, PR #127 "Help Desk Module 2 Prove It: a six-ticket queue shift graded by the instructor" (number added 2026-11-21); new migration `supabase/migrations/20261120213000_hdesk_its10_prove_queue.sql`, shared `portal/it-support-shared.js`, `portal/data.js`, `portal/index.html`, `portal/admin-sheets/hdesk-prove-rubrics.js`, `bin/ci-check.sh`, new `supabase/tests/hdesk_its10_prove_queue.sql` — please review those):**
+Help Desk Module 2 (key `its-10`) now has its Prove It: `?prove=its-10` opens a six-ticket queue shift in the simulator, scored at submit by your shared engine from PR #122 (no engine function is changed or replaced) and graded by the instructor. Module 2 now completes on `lab-its-10-prove-it`, not on Lab 2.1.
+- **Migration:** moves Module 2's gate in `course_module_labs` (Lab 2.1 `lab-its-10-priority-queue` gets `gates_completion = false`; new row `lab-its-10-prove-it` with `gates_completion` and `requires_official_score` true). It refuses to run if a `lab-its-10-prove-it` attempt is already reviewed. It adds the backup table `module_progress_its10_gate_backup` (RLS on, no API access) and demotes HDESK `its-10` `complete` rows the verified view no longer supports, as `20261030175603` did for Module 1. No view, scoring function or grant on an existing table changes. The rollback is in the header.
+- **`portal/it-support-shared.js` (shared, Help Desk functions only):** a rubric with `shape: 'queue'` sends `itsCleanProveWork` to the new `itsCleanProveQueueWork`, and `itsProvePrefillWork` and `itsProveReviewPanel` to queue branches (new `itsProveQueueReviewPanel`). A package and a rubric that disagree on the shape are refused. `ITS_PROVE_EVENT_TYPES` adds `field_set`, `order_changed` and `ticket_arrived`. The grading card's acknowledgement line now comes from `rubric.writingAck`, falling back to Module 1's text. Module 1's path is unchanged. SOC code doesn't call these functions.
+- **Work package (`kind: 'hdesk-prove'`, `shape: 'queue'`):** `tickets.<id>` holds `{ number, impact, urgency, priority, ticketClass, parentId, position, reason }`, plus `order`, `rewrite`, `interrupt` and `elapsedSeconds`. The course page works out `priority` (Impact × Urgency) and `position` (place in `order`, 1 first) itself. Impact and urgency are strings; position is a number. A key for this shape reads them with `path_equals` and compares positions with `jsonpath` `match`.
+- **`portal/data.js` (shared):** Lab 2.1 gets `phase: 'practice'`; the Prove It's objective no longer says "route each ticket". No key, minute or order change.
+- **For your agent:** a new Prove It shape needs only a rubric `shape` and a cleaner branch; the engine's path checks already read any field.
+
+**2026-11-20 (Megan; branch `shared/module-1-portal-labels-and-save-result`, PR #125 "Module 1 portal: a save that reports its result, rail labels, Awaiting review, Lessons 1.2 to 1.4"; shared `portal/app.js`, `portal/lab-runtime.js`, `portal/data.js`, `portal/index.html`, `bin/ci-check.sh` and shared tests — please review those):**
+The shared case-state save now reports whether it worked, and Help Desk uses that, plus a few Help Desk-only labels, on the portal. SOC pages look and behave as before; tests show it.
+- **`portal/app.js` `persistModuleCaseState` (shared):** resolves to `true` once the row holds the state and to `false` otherwise (bad arguments, a failed read or write, a throw, the 23505 retry failing, or an update that changed no row). It never rejects. The two `module_progress` updates now end in `.select('module_key')`, so an update that matches no row counts as a failed save. Before, the function resolved to `undefined` in every case.
+- **`portal/lab-runtime.js` `saveCaseState` (shared):** takes an optional `options.onResult(ok)`. It still returns the state. A newer save that replaces a waiting one carries the waiting one's callbacks and reports to them too. Callers that pass no callback (every SOC module, Help Desk modules 2 and 10) are unchanged. `ok` is `true`, `false`, or `undefined` when the result isn't known; treat only `false` as a failure.
+- **Rail (`moduleUnifiedNav`, shared):** a complete row with a `doneLabel` field shows that word next to the tick. Only Help Desk sets it (`itsLabRail`: "Complete" for Practice It, "Passed" for a passed Prove It; Module 1's checks: "Complete"). SOC rows set none, so they show only the tick as before.
+- **Staff labels (shared):** `officialLabStanding` adds `awaiting` and `returned`. `officialAttemptRecord(row, standing, staffLabels)` and `computeModuleScores(..., { staffLabels })` show "Awaiting review" or "Returned" for the newest attempt only when `staffLabels` is true: the staff student page and the staff evidence download. Students' own Evidence Report and JSON export, the admin snapshot and the academic transcript keep "In progress". An awaiting attempt has an "Open attempt" button that switches to the Lab Attempts tab and opens its pill (key `<student_id>|<item name>`). `officialLabStanding` is used only for official-grade (Help Desk) labs, so SOC staff pages are unchanged. The Lab Attempts tab's "Under review" is unchanged.
+- **Help Desk only:** the program legend (only for `truthfulModuleStates`) and a passed module's panel line; Module 1's card line, lesson text, Lab 1.2 title ("(not graded)" removed) and the Prove It objective in `portal/data.js` (no keys or minutes changed); the Module 1 page shows Lessons 1.2 to 1.4 with each lesson's check questions after it.
+- **Tests:** new `tests/case-state-save-result.test.js` (in `bin/ci-check.sh`), including SOC rail rows with no label; `tests/module-card-state.test.js` and `tests/hdesk-faculty-grading.test.js` updated for the new wording.
+- **For your agent:** to use the save result in an SOC module, pass `onResult` to `LabRuntime.saveCaseState` and act only on `false`. Don't rely on `persistModuleCaseState` returning `undefined`.
+
+**2026-11-19 (Megan; branch `shared/m02-page`, PR #123 "Help Desk Module 2 page: readings, tables, diagrams, check and lab cards"; shared `portal/data.js` (the `its-10` module entry and its lab entries), `portal/index.html`, `bin/ci-check.sh` and `tests/hdesk-module-page-states.test.js` — please review those):**
+Help Desk Module 2 (key `its-10`) now has its own course page, `portal/it-support-module-10.js`, on Module 1's pattern. It replaces the shared `itsRegisterCoachModule` template for this module only; other modules still use the template. The page has two lessons holding three readings, reference tables, three diagrams, a knowledge check saved to `module_progress.case_state` (id `its10-page-v1`), and cards for Lab 2.1, Lab 2.2 and the Prove It. The Prove It card shows "Opens soon" and launches nothing yet.
+- **`portal/data.js` (shared):** the old 75-minute lab `lab-its-10-priority-queue` is now "Lab 2.1 · Guided Lab: queue shift", 35 minutes. Two new labs: `lab-its-10-practice-tickets` ("Lab 2.2 · Practice tickets", 20 minutes, `phase: 'practice'`) and `lab-its-10-prove-it` ("Prove It: queue shift", 20 minutes). All are ITHD-101.2. The module still totals 210 minutes, with `labs: 3`; `bin/its-curriculum-check.js` passes at 3,600 technical minutes. No key was renamed, so saved attempts under `lab-its-10-priority-queue` keep matching.
+- **Gating is unchanged:** Lab 2.1 has no `phase: 'practice'`, because it is still the `course_module_labs` gating row for Module 2, so the instructor review queue and the status lines treat it as before. One difference: if the `course_module_labs` read fails, the module card's fallback list (`moduleRequiredLabKeys`) now also lists `lab-its-10-prove-it` as required, and the page's lab counter and rail percent count it, until the Prove It part ships. The Module 2 Prove It part will add the gating row for `lab-its-10-prove-it` in a migration and move Lab 2.1 to Practice It then. No migration in this PR.
+- **`bin/ci-check.sh` and tests (shared):** new `tests/hdesk-m02-page.test.js`. The shared walkthrough loop in `tests/hdesk-module-page-states.test.js` now skips `its-10`, which the new test covers.
+- **For your agent:** `.its10-shell` is a new page shell class; its rail layout is in `portal/it-support-module-10.css`, not in `module-labs.css`. If the shared rail layout in `module-labs.css` changes for `.its01-shell`, make the same change for `.its10-shell`.
+
+**2026-11-19 (Megan; branch `shared/server-note-check-accepts-dash-labels`, PR #119 "Prove It: the server's work-note check accepts the same labels as Practice"; new migration `supabase/migrations/20261119070547_prove_note_check_dash_labels.sql`, shared `supabase/tests/prove_it_auto_scoring.sql`, comments in `ui/helpdesk.js` and `tests/hdesk-prove-mode.test.js` — please review those):**
+The server's Prove It work-note check (`public.prove_note_missing`, used by the `note_parts` check in `prove_check`) now uses the same label rule as the simulator's Practice check (`hdNoteLabels` in `ui/helpdesk.js`, changed 2026-11-15). Before, a label counted only before a colon ("Reported:"). Now a label also counts before a dash (hyphen, en dash or em dash), a full stop or a line break, but only at the start of the note, at the start of a line, or right after `.` `;` or `,`. So "Reported - ..." earns the note part, and "the user tried. She restarted" is still not a Tried part. The 8-character minimum, the 8,000-character cut and the label list are unchanged.
+- **Migration:** `20261119070547_prove_note_check_dash_labels.sql` replaces only the body of `prove_note_missing(text, text[])` (same signature, `immutable`, `set search_path = public`) and repeats its `revoke` from `public`, `anon` and `authenticated`. No table, policy or grant changes. Rollback: re-run the function from `20261110200000_prove_it_auto_scoring.sql`.
+- **Scores:** saved recommendations don't change. A staff rescore of an undecided attempt uses the new rule. The automatic score is a staff-only recommendation; the instructor's approval is still the grade of record. The new rule almost always accepts more. One narrow case can now score lower: a colon-style note with a bare label word, at the start of a line or right after `.` `;` or `,`, followed by a dash, full stop or line break. The note now splits there, so the part before can fall under 8 characters. Examples: "Reported: abcd", new line, "Tried", new line, "abcd"; and "Reported: no wifi, tried - x. Result: fixed after reboot", which now loses Reported as well as Tried. Practice already behaves this way.
+- **Tests:** `supabase/tests/prove_it_auto_scoring.sql` adds the cases of `testNoteRule` (`tests/hdesk-m01-ticket-1d.test.js`) and three checks through `prove_check` and `prove_score` with the made-up demo key. The SQL copy matches the browser on 20,030 generated notes, including two places where Postgres and JavaScript regular expressions differ (Postgres takes the longest alternative; `\m` treats accented letters as word characters). The migration header explains both.
+- **SOC:** no SOC Prove It is known to use `note_parts`. Answer keys live only in the database, so the production dry run lists every active key that uses it. If an SOC key does, its note scores follow the new rule too.
+- **On staging now:** the Staging test branch run put `20261119070547_prove_note_check_dash_labels.sql` on the staging database on 2026-11-19 (run 44478722666, commit `c86725b`). Until this PR merges, Staging sync fails on every merge to `master`.
+- **For your agent:** if the Practice note rule in `ui/helpdesk.js` changes, change `prove_note_missing` in a new migration in the same PR, and keep the SQL cases in step with `testNoteRule`.
+
+**2026-11-19 (Megan; branch `shared/agent-rules-index-paths`, PR #118 "Agent rules: the rule index in CLAUDE.md lists every path the rule files cover"; shared `CLAUDE.md` (Domain rules index) and `.claude/rules/database.md` — please review those):**
+Docs only; no portal, database or workflow code changes. The Domain rules index in `CLAUDE.md` had drifted from the rule files' own `paths:` frontmatter, so Codex, which uses the index because it does not load `.claude/rules/`, could miss a rule file that Claude Code applies.
+- **`CLAUDE.md` (shared):** each index row now names its rule file's `paths:` as literal paths. New: `bin/lib/**` and `bin/db-*.sh` (`database.md`); `bin/db-security-check.sh` (`testing.md`); `README.md` and `CONTRIBUTING.md` (`docs-handoffs.md`); the grading row's `portal/*-module-*.js`, `portal/*-shared.js`, `portal/prove-it-gate.*`, `portal/lab-runtime.js`, `portal/case-record.js`, `portal/*assessment*`, `portal/*scorer*`, `portal/admin-*`, `portal/admin-sheets/**` and the `supabase/migrations/*grad*`, `*prove*` and `*lab*` migrations (`grading-assessment.md`); `portal/module-registry.js`, `portal/*-module-*.js`, `portal/learn-it-*` and `bin/*curriculum-check.js` (`curriculum.md`); and the full `supabase/migrations/*storage*` path (`evidence-uploads.md`). Checked by script against every rule file's frontmatter. No rule text changed.
+- **`.claude/rules/database.md` (shared):** removed the sentence naming the PRs that first used the production SQL Editor method; the method itself is unchanged.
+- **For your agent:** when a rule file's `paths:` changes, update its row in the `CLAUDE.md` index in the same PR, or Codex will not see the change.
+
+**2026-11-19 (Megan; branch `shared/coach-panel-and-sim-theme-links`, PR #117 "Simulator: no saved coach in a launch that didn't ask for one, and no theme 404s"; shared `ui/coach.js` (`boot()`), `ui/index.html` and `tests/coach-reload-resume.test.js` — please review those):**
+A saved coach no longer follows a student into a simulator launch that didn't ask for it. Before, `boot()` restored any coach found in the tab's sessionStorage whenever the address had no `?coach=`. A new tab opened from the course page starts with a copy of that tab's sessionStorage. So after a Help Desk Finish that couldn't reach the course page, "Coursework" turned the simulator tab into the course page, and the next lab opened from it (Lab 1.2's practice set) showed the Lab 1.1 coach panel, also after a reload (seen on staging 2026-11-16, reproduced in the test).
+- **`ui/coach.js` (shared):** with no `?coach=`, a saved coach is restored only when it isn't a Help Desk coach (`resumeAcrossLaunches`) and the launch isn't a practice set (`?practice=`). Otherwise the tab's copy is dropped, with its `mnt.coach.lastModule` (left there, the corner dock offered SOC Module 1's "Take the tour" in the Help Desk practice set); the Help Desk in-progress record in localStorage stays, so reopening that lab still resumes it. Help Desk coaches always launch with `?coach=<id>`, and a reload keeps it, so their reloads are unchanged.
+- **SOC:** unchanged. Coaches launched with `?coach=` (m01 and the others) take the same path as before, and the in-simulator orientation tour (`m01-orientation`, started with no `?coach=`) is still restored on a reload. New test `testSocTourReloadKeepsStep`; the existing SOC m01 launch, reload and Finish tests pass unchanged.
+- **`ui/index.html` (shared):** removed the two tags that loaded `../portal/theme.css` and `../portal/theme.js`. Deployed, the simulator is at `/sim/` and the portal at `/`, so they asked for `/portal/theme.*` and returned 404 on every simulator load; locally `ui/` is the server root, so they never loaded there either. Nothing on screen changes in either simulator. `coach.js`'s `?v=` is bumped.
+- **For your agent:** if an SOC coach ever needs to come back on a load without `?coach=`, that still works for coaches without `resumeAcrossLaunches`; don't set `resumeAcrossLaunches` on an SOC coach that relies on it.
+
+**2026-11-15 (Megan; branch `shared/help-desk-module-order`, PR #112 "Help Desk: show and unlock modules in the rebuilt course order (L-013)"; shared `portal/data.js` (it-support program and the module-map normalizer), `portal/app.js` (admin student detail sort, new `adminModuleOrder()`), `portal/index.html`, `bin/ci-check.sh` and shared Help Desk tests — please review those):**
+Help Desk modules now show and unlock in the rebuilt course order (ITHD-101.1 to 101.9). Only each module's display `number` and `week` changed. Keys, file names, lesson/lab keys, coach IDs, saved-state IDs, minutes, allocations and hours are unchanged, so saved attempts and completions stay on the same key. New order: 1 `its-01`, 2 `its-10`, 3 `its-11`, 4 `its-02`, 5 `its-03`, 6 `its-07`, 7 `its-05`, 8 `its-06`, 9 `its-04`, 10 `its-08`, 11 `its-09`, 12 `its-12`.
+- **File names no longer match module numbers.** `portal/it-support-module-10.js` is Module 2, and `-02.js` is Module 4. Each file header now names its number and key. Pages register by display number (`registerModuleLab` / `itsRegisterCoachModule` `moduleNumber`), so `#/program/it-support/module/2` opens `its-10`.
+- **`portal/data.js` (shared):** the Help Desk week groups are written out; `weekGroups()` and `skeleton()` are unchanged and no longer used for Help Desk. The normalizer after `PROGRAMS` now orders each program's `modules` map by `number` (a stable sort). SOC, AI/ML and Electrical are already in number order, so their maps are unchanged; `tests/hdesk-module-order.test.js` checks that.
+- **`portal/app.js` (shared):** the admin student detail module table sorts by display number (`adminModuleOrder()`), not by `module_key`. For SOC this gives the same order as before. The lab-attempt table under it still sorts by `lab_key`, as before, for every program.
+- **Unlocking:** `hasModuleAccess` is unchanged; it already unlocks by `number`. With Module 1 done, `its-10` opens and `its-02` stays locked until `its-10` and `its-11` are complete.
+- **No migration.** `public.modules` and `my_module_access()` were dropped in `20260828160000_simplify_schema.sql`; nothing reads module numbers from the database.
+- **Tests:** Help Desk tests that opened pages by number (`MODULE_LABS['it-support/<n>']`) now look up the page by key. New `tests/hdesk-module-order.test.js` (in `bin/ci-check.sh`) holds the order and checks the catalogue, week groups, page registry, lab links, lesson labels, coach numbers and Finish links, and admin sheet labels. No SOC test changed.
+- **For your agent:** never derive a Help Desk module's number, week or route from its key or file name; read `number` from `portal/data.js`. Help Desk staging test accounts with progress on `its-02` now show Module 4 complete while Modules 2 and 3 are not; reset them with Reset Progress.
+
+**2026-11-14 (Megan; branch `shared/agent-rules-refactor`, PR #110 "Agent rules: one core rule file plus domain rules by path"; shared `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, new `.claude/rules/*.md` (9 files), `docs/operations/AI_AGENT_RULES.md`, `docs/operations/STAGING_AUTOMATION.md`, `docs/operations/OPERATIONS.md`, `docs/RELEASE_VERSIONING.md`, `README.md`, `bin/run-module-agents.sh` (one "read first" line), `.gitignore`, two broken links in `ui/NODE_MAP.md` and `local-tasks/README.md`, and two `git mv`s into `archive/` — please review all of it, it changes the rules your agent reads):**
+Docs only; no portal, database or workflow code changes.
+- **New rule layout.** `CLAUDE.md` is now the core rule set for every agent
+  (rules only; the dated status notes are gone, still in git history). Domain
+  rules live in `.claude/rules/` (database, staging-deploy, grading-assessment,
+  ui-frontend, curriculum, evidence-uploads, simulator, testing,
+  docs-handoffs). Claude Code loads each one when it reads a file matching
+  its `paths:`; Codex reads `AGENTS.md`, which points it to `CLAUDE.md`'s
+  index. `docs/operations/AI_AGENT_RULES.md` is now a pointer so old links
+  work. `docs/operations/PROJECT_GUIDE_FOR_AI.md` moved to
+  `archive/historical-plans/` (it said there was no auth or database), and
+  `archive/legacy-sc200-simulator/AGENTS.md` is now `AGENTS.legacy.md` so
+  Codex stops auto-loading it.
+- **`CLAUDE.md` no longer says to read `NEXT_SESSION.md` before anything
+  else.** Agents read a handoff only when the task touches that work. Your
+  call: if you want the old line back, restore it.
+- **An agent may now start Staging test branch without asking** and must
+  report which migrations it put on staging (this replaces "ask again for
+  every run" from the 2026-11-13 entry). Before a run with migrations it
+  reads each new one and stops to ask if one drops a table or column,
+  deletes or truncates rows, or goes outside the task. Agents still never
+  run `supabase db push` or `functions deploy`, and never touch `staging`.
+- **Staging test branch accepts only `hdesk/` and `shared/` branches.**
+  `CONTRIBUTING.md` still lists `soc/` and `m360/` prefixes, so a `soc/`
+  branch can't use the workflow today. Rename the branch to `shared/…`, or
+  widen the name check in `bin/ci/check-branch-for-staging.sh`.
+- **Production migrations** (`.claude/rules/database.md` and
+  `STAGING_AUTOMATION.md` "Production migrations"): a person applies a PR's
+  migrations in the production SQL Editor before merging, with a dry-run
+  script (`begin;`, migrations, checks, a raised "DRY RUN OK, NOTHING
+  SAVED") and an apply script (`begin;`, migrations, the
+  `schema_migrations` insert, `commit;`). Never link the CLI to production.
+- **Hand staging push form** (fallback only, a person runs it), checked
+  against `supabase db push --help` on CLI 2.118.0:
+  `supabase db push --linked --project-ref xbblgtrfwgeiyttdlbue --dry-run`.
+  `.github/workflows/supabase-change-reminder.yml` still prints the older
+  "`db push` has no `--project-ref` option" advice; not changed here.
+- **Needs Alex's confirmation:**
+  - Dropping "read `NEXT_SESSION.md` before anything else" (above).
+  - Squash and merge for every PR, including shared PRs others depend on
+    (`CONTRIBUTING.md` used to say regular merge for maintenance PRs).
+  - A Prove It critical error is an automatic zero: the rule now applies to
+    Help Desk only; other programs ask their owner. Please confirm whether
+    SOC follows it (`.claude/rules/grading-assessment.md`, updated 2026-11-14).
+- **Also:** `.claude/work/` is now in `.gitignore` (the rules send drafts,
+  keys and production scripts there). The grading and evidence rules also
+  load when an agent edits `portal/app.js`, and `CLAUDE.md` keeps the
+  "read `docs/LAB_ASSESSMENT_STANDARD.md` before Learn/Practice/Prove It,
+  scoring, review or completion changes" line.
+
+**2026-11-12 (Megan; branch `shared/test-account-progress-reset`, PR #109 "Admin: reset progress for test accounts (all or selected modules)"; shared `portal/app.js`, `bin/ci-check.sh`, `supabase/migrations/20261110120000_test_account_progress_reset.sql`, `supabase/migrations/20261112120000_test_account_flag_rpc_only.sql`, `supabase/tests/test_account_progress_reset.sql`, `supabase/tests/test_account_flag_rpc_only.sql`, plus `tests/test-account-reset.test.js` — please review all of it, it's all shared):**
+Admins can mark an account as a **test account** on the roster and then erase
+its coursework: all of it, or only the modules they tick. Real students,
+admins and instructors can never be reset. This is the roster and database
+you share, and you haven't seen either migration on master yet.
+- **For your code or agent:**
+  - **Roster (admin only, never the instructor dashboard):** each row gets a
+    "Test account" checkbox and a solid red **Reset Progress** button, built
+    by `testAccountRosterControlsHtml()`. The button is on every row but has
+    `hidden` unless the row is a test account, so the checkbox shows it at
+    once. Don't add a display class (`inline-flex`, `block`, …) to it: in the
+    bundled Tailwind that overrides `hidden` and the button would show on
+    real students (a test checks this). A **TEST** badge sits next to the ID.
+  - **Reset dialog** (`openTestResetModal`): erase all, or selected modules.
+    The admin types **RESET** (exact uppercase, spaces around it ignored,
+    `testResetConfirmed()`), not the student ID. It **no longer downloads a
+    progress file**; the warning tells the admin to use the roster's Save
+    Progress File first if they want a copy. The automatic snapshot before
+    an enrolled → disenrolled toggle is unchanged.
+  - **Student side, every program:** at sign-in `buildUserFromSession` calls
+    `applyPendingProgressReset()` (not for admins or instructors). If an
+    admin reset the account since this browser last looked, it clears that
+    account's browser-held progress once. Another student's own saved work
+    on the same browser is kept: keys ending in their `student-…` id (the
+    Help Desk Prove It and practice drafts, `mnt-portal.lab-state.v1.*`, the
+    module engagement list) and a coach resume record (`mnt.coach.resume`)
+    that names them. The id is `LabRuntime.anonymousStudentId`, the one
+    every simulator launch sends as `student=`; a test checks they match.
+    If you add a per-student simulator key, end its name with that id.
+    Known limit: simulator keys with no student id (the SOC simulator's
+    `defender-lab.*` keys, `defender-lab.helpdesk.state.v1`) and the
+    imported labs' `mission_next_progress_ext` are shared by everyone on the
+    browser, so an erase-all clears them for everyone there. Use test
+    accounts on QA browsers, not a real student's. Close any open simulator
+    tabs before signing back in after a reset; an open tab can write the
+    erased work back.
+    `signIn()` (the login form, no page reload) now runs the same check, so
+    every student login in every program does one extra read
+    (`students.progress_reset_at` for that student); admins and instructors
+    skip it.
+    Known limit: a second module reset before the student signs in replaces
+    the first, so only the latest one is cleared in that browser.
+  - **Two migrations.** Megan runs both, on staging and on production before
+    merging.
+    - `20261110120000_test_account_progress_reset.sql`: the flag and reset
+      columns on `students`, `admin_set_test_account()`,
+      `admin_reset_test_progress()` (logged to `test_account_progress_resets`),
+      and admin Storage access to a **test account's own** evidence folder
+      only. **Applied on staging; not yet on production.** Its
+      timestamp is older than PR #107's, so on production
+      `supabase db push` needs `--include-all`. It must stay byte-for-byte
+      the same; any change goes in a new migration.
+    - `20261112120000_test_account_flag_rpc_only.sql`: a trigger on
+      `students`. `students_admin_update` let an admin set `is_test_account`
+      (or the reset markers) by a direct API update, on any row, skipping the
+      functions' checks. Now API roles (`authenticated`, `anon`) can change
+      those three columns only through the two admin functions. For every
+      caller, a row can't become both a test account and an admin or
+      instructor. The service role and the SQL editor can still set the flag
+      on a learner. **Applied on staging; not yet on production.** Every other
+      `students` edit (enrollment toggle, names) works as before.
+  - **Before the migrations are applied** (e.g. the portal deploys first):
+    the roster shows no test-account controls, and the sign-in check sees
+    "column does not exist" and does nothing. Both are tested.
+  - **Tests:** `tests/test-account-reset.test.js` is in `bin/ci-check.sh`.
+    The two SQL tests run on the local stack with `bin/db-security-check.sh`
+    and aren't in CI. In the first one, two checks were wrong and are fixed:
+    a learner's update of `students` matches no row rather than raising, and
+    deleting from `storage.objects` now needs
+    `storage.allow_delete_query = 'true'`, as Storage's own API sets.
+
+**2026-11-13 (Megan; branch `shared/staging-test-branch`, PR #108 "Staging: test a feature branch on hosted staging in one run"; shared `.github/workflows/staging-test-branch.yml` (new), `bin/ci/check-branch-for-staging.sh` (new), `bin/ci/migrate-staging.sh`, `bin/ci-check.sh`, `tests/staging-sync-scripts.test.js`, `docs/operations/STAGING_AUTOMATION.md`, `docs/operations/AI_AGENT_RULES.md` — please review those):**
+A new manual workflow, **Staging test branch**, replaces the hand steps for
+testing a feature branch on hosted staging. Started from `master`
+(`gh workflow run staging-test-branch.yml --ref master -f ref=<branch>`), it
+checks the branch, applies only the branch's new migrations to the staging
+database, and starts `deploy-staging.yml` in student-portal-staging with the
+branch's full commit SHA. It never moves the `staging` branch and never
+deploys Edge Functions. The hand steps stay in `STAGING_AUTOMATION.md` as
+the fallback.
+- **How it works:**
+  - `preflight` (no secrets, runs no branch code):
+    `bin/ci/check-branch-for-staging.sh` refuses the branch unless its name
+    matches `^(hdesk|shared)/[a-z0-9._-]+$`, it exists, it contains the
+    `master` tip, and every change under `supabase/migrations/` is a newly
+    added plain `.sql` file named `<14 digits>_<lowercase_words>.sql` that
+    sorts after `master`'s newest migration. Changes under
+    `supabase/functions/` only add a "deploy by hand" note to the summary.
+  - `migrate` (only when the branch adds migrations; `staging-sync`
+    environment): checks out `master`'s scripts, takes only
+    `supabase/migrations/` from the checked SHA, then runs
+    `bin/ci/migrate-staging.sh` with `EXPECTED_MIGRATIONS`. That script now
+    stops after the dry run if it names any file outside that list (fewer is
+    allowed, so a rerun works). If the dry run names no file at all, it
+    skips the real push, so a change in the CLI's wording can never let it
+    apply unchecked migrations. **With `EXPECTED_MIGRATIONS` unset, Staging
+    sync behaves exactly as before.**
+  - `deploy-site` (`staging-sync` environment, `permissions: {}`): dispatches
+    `deploy-staging.yml` with `-f ref=<full SHA>`. Unlike Staging sync, a
+    missing `STAGING_DEPLOY_TOKEN` is an error, not a notice.
+- **For your code or agent:**
+  - It uses the same `staging-sync` concurrency group as Staging sync.
+    GitHub keeps one waiting run per group, so a branch test can cancel a
+    waiting Staging sync run (or the other way round); rerun it from
+    `master` if it shows as cancelled.
+  - While a branch's migration is on staging and not on `master`, Staging
+    sync's `migrate-staging` fails on every merge ("Remote migration versions
+    not found in local migrations directory"), as it already did with the
+    hand steps. The docs now say so.
+  - The branch's SQL runs on staging with full database rights, and anyone
+    with write access can start the run. No branch code runs in a job that
+    holds a secret.
+  - `tests/staging-sync-scripts.test.js` now runs in `bin/ci-check.sh`, so
+    in CI, `pages.yml` and `deploy-staging.yml` too. It works offline with
+    throwaway git repos. Its boundary check now allows exactly two workflows
+    to use the `staging-sync` secrets.
+  - `AI_AGENT_RULES.md`: an agent may start Staging test branch from
+    `master` for the current feature branch after the person approves that
+    run; agents still never run `supabase db push`, never deploy functions,
+    and never touch the `staging` branch.
+- No migrations, no Supabase commands, nothing on production.
+
+**2026-11-10 (Megan; branch `shared/hdesk-prove-auto-score`, PR #107 "Prove It automatic scoring: a staff-only recommendation the instructor confirms; critical errors are an automatic zero"; shared `supabase/migrations/20261110200000_prove_it_auto_scoring.sql`, `supabase/migrations/20261111120000_prove_it_critical_coaching_only.sql`, `supabase/tests/prove_it_auto_scoring.sql`, `supabase/tests/hdesk_faculty_gate.sql`, `portal/app.js`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `portal/it-support-shared.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests — please review the shared ones):**
+Help Desk Module 1's Prove It (HD-2125) is now scored automatically when the
+student submits. The score is a recommendation that only staff can read. The
+instructor confirms or changes it, and decides through `record_lab_grade` as
+before. No answer key is in the repository: keys are loaded by hand into the
+database. A critical error is now an **automatic zero** (it was a cap at the
+pass mark minus 1), and the student sees "Critical Error - Not Passed" instead
+of a score.
+- **For your code or agent:**
+  - **Two new migrations.** Megan runs them on staging, and on production
+    before merging. The second, `20261111120000_prove_it_critical_coaching_only.sql`,
+    only replaces `prove_score()` (see Recommendation below); it's separate
+    because the first was already applied on staging.
+    - `assessment_answer_keys`: keys by lab + rubric version + revision, one
+      active per lab. RLS on with **no policies**: no API role (student,
+      instructor or admin) can read or write it; only the scoring functions and
+      the SQL editor can.
+    - `lab_attempt_recommendations` (one per attempt) and
+      `lab_attempt_grade_reviews` (one per decision made from a
+      recommendation): **staff read only** (`is_admin()` or
+      `can_manage_course_messages(track)`), no student policy, no write grants.
+      Students can't read the system's points or reasons, before or after a
+      decision.
+    - `AFTER INSERT` trigger `lab_attempts_score_recommendation`: scores a
+      finished `hdesk-prove` package on a `requires_official_score` lab with
+      the active key. It runs after the existing BEFORE guards (the write guard
+      and the one-pending rule), so a refused insert is never scored. Any
+      scoring failure is stored as status `error`; it never stops the
+      submission. Every other lab returns at once.
+    - The engine (`prove_score`, `prove_check`, `prove_note_missing`, …) is
+      generic: the key holds the rules (steps, KB searches, articles, actions,
+      commands, diagnosis or decision values, text and note-part checks,
+      partial points, critical rules), so the capstone and SOC could use it
+      later with their own keys. Its helpers aren't granted to any API role.
+    - `rescore_lab_attempt(uuid)`: staff only. It scores an attempt with no
+      recommendation or a failed one; it's refused once the attempt has a
+      decision, and it can't override a rubric-version mismatch.
+    - **`record_lab_grade`** is dropped and recreated with three optional
+      arguments: `p_recommendation_id`, `p_writing_parts`,
+      `p_writing_acknowledged`. Without them it behaves exactly as before:
+      named calls from older pages still work. The pass mark and "below the
+      pass mark is returned" are unchanged.
+      - **Changed rule: a critical error is an automatic zero.** With Critical
+        error ticked, `official_score`, `uncapped_total` and every
+        competency's `earned` are saved as 0, whatever was sent; the zeroed
+        competencies need no justification of their own. A reason is still
+        required, Approve is still refused, and the attempt is returned.
+        Old graded rows (capped at 69) are not changed.
+      An attempt with a scored recommendation can't get its first decision
+      without it (`hint = 'recommendation_required'`); corrections of a
+      decided attempt are exempt. With a recommendation:
+      - a changed pre-filled score needs the instructor's own reason;
+      - the writing (judgment parts) must be acknowledged and entered by hand,
+        adding up to its competency;
+      - a staff-only review row records what was recommended and what changed.
+      - with a critical error ticked, nothing counts as changed and the
+        writing parts aren't needed (they're zeroed), but the writing must
+        still be acknowledged.
+    - **Recommendation:** when a critical rule fires, the recommended total,
+      score, `automatic_earned`, `writing_suggested` and every competency and
+      writing part are 0. What the criteria found is kept for staff in the
+      competencies JSON (`earned_before_critical`,
+      `suggested_before_critical`), with every staff reason. An instructor
+      who clears a flagged critical error starts from those points.
+      Under a critical error the pre-filled student lines are coaching only:
+      no "met" (positive) line, plus the critical rule's own line.
+  - **Grading card** (`it-support-shared.js`, Help Desk Prove It only): after
+    Lab Attempts draws, it reads the staff tables and redraws each Prove It
+    card with:
+    - a "System rubric" box: staff reasons, "Suggested: check this" on the
+      writing, how and with which key revision it scored;
+    - pre-filled automatic competencies, with the key's student lines in the
+      justification boxes;
+    - empty writing part boxes, behind a required tick-box;
+    - a "Score this attempt" button;
+    - a critical error: "Critical error: automatic zero" with the reason, the
+      points boxes locked while it's ticked, and "Final 0".
+  - **What the student sees after a critical error** (only on official-grade
+    labs, today Module 1's Prove It): "Critical Error - Not Passed" instead of
+    "0%" and the competency points, with the critical error's line and the
+    instructor's notes still shown. Places: the marked lab
+    (`itsProveMarkedLabHtml`), the Module 1 course page's status line and the
+    returned notice (`itsLabStatusHtml`, `itsRedoNoticeHtml`), the program
+    page's module card (`truthfulLabLine` in `portal/app.js`), and the records
+    (transcript grade and progress state, evidence-record status:
+    `officialLabStanding` / `officialAttemptRecord` in `portal/app.js`, still
+    no score or date). `latestLabAttemptByKey[lab].criticalError` is loaded at
+    sign-in (`fetchUserDetails`) and by `itsProveRefreshAttempt`.
+    `admin-submission-sheet.js` is not changed.
+  - **Deploy order:** the portal reaches production before the migration is
+    applied. Until the new tables exist (`42P01` / `PGRST205`), the card is
+    exactly as before: no System rubric box, no rescore button, and
+    `record_lab_grade` called with its old arguments. Any other read failure
+    says "couldn't be loaded, reload".
+  - **Tests:** the database tests (`supabase/tests/prove_it_auto_scoring.sql`,
+    68 checks, made-up lab and key) and the updated
+    `supabase/tests/hdesk_faculty_gate.sql` (73 checks) run on the local stack with
+    `bin/db-security-check.sh`; they aren't in CI. Note:
+    `supabase/tests/student_write_lockdown.sql` already fails on master (it
+    writes without a registered session); this branch doesn't change it.
+- **Status:** `bin/ci-check.sh` passes; the local SQL tests pass (except the
+  existing write-lockdown failure above).
+  - **Codex, three rounds:**
+    - fixed: a scored attempt could be decided through the manual path,
+      skipping the writing checks;
+    - fixed: the transcript's "assessments passed" check treated "Critical
+      Error - Not Passed" as passed (it only rejected "Fail"), which mattered
+      if an admin override kept that module complete;
+    - not fixing: the work package is student-supplied evidence (the simulator
+      runs in the browser, as it already does for the instructor's review); the
+      card now says the score comes from what the browser recorded.
+  - Hosted staging checked Nov 11 on `4f314bb` (scoring, approve, adjust and
+    return, critical zero, student views, SOC unchanged); the coaching-only
+    change is rechecked separately.
+  - Migrations: `20261110200000_prove_it_auto_scoring.sql`,
+    `20261111120000_prove_it_critical_coaching_only.sql`.
+  - **Production order:** (1) apply both migrations; (2) merge and wait for
+    the production deploy; (3) only then load the HD-2125 key. Once a key is
+    loaded, a scored attempt's first decision must come from its
+    recommendation (`recommendation_required`), and the old production card
+    can't send one, so a key loaded before the deploy would block grading new
+    HD-2125 submissions.
+
+**2026-11-10 (Megan; PR #106 "Help Desk Module 1: the Module 1 version of the HD-2125 Prove It"; Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `portal/it-support-shared.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests, plus `?v=` lines in `ui/index.html` and `portal/index.html` — please review the `it-support-shared.js` and `index.html` lines):**
+The HD-2125 Prove It (Module 1) is reworked for Module 1 skills: no commands
+are needed, the ticket's category, type and priority are pre-set, and the
+student can add the Finance printer from Settings › Printers & scanners ›
+Add device. Rubric version `hdesk-its-01-prove-v2` (competencies and points
+unchanged).
+- **For your code or agent:**
+  - **Two new Prove It event types** kept by `itsCleanProveWork`
+    (`ITS_PROVE_EVENT_TYPES`): `kb_search` (`value`: the words searched) and
+    `action_taken` (`label`, `computer`: an action done on a screen, here
+    adding the printer). The instructor's Prove It panel shows them as
+    "Knowledge base searches" and "Actions in the simulator".
+  - **Pre-set fields:** a rubric in `hdesk-prove-rubrics.js` can carry
+    `presetFields`; `itsCleanProveWork` then saves those, whatever category,
+    type and priority the submit message carries. Only Module 1's Prove It
+    has them (Service Request, Access request, P3).
+  - **Rubric version:** the course page refuses a Submit whose version isn't
+    `hdesk-its-01-prove-v2`, so a simulator tab opened before the deploy gets
+    the existing "reload your course page" notice. A v1 attempt graded after
+    the deploy records `hdesk-its-01-prove-v2`. The database doesn't check the
+    version; the SQL tests in `supabase/tests/` still use v1 as test data.
+  - **Simulator, Prove only:** `hdConsole()` now turns on the knowledge base
+    search for a Prove ticket that asks for it (HD-2125), and no other console
+    feature. Practice tickets in a Prove shift still get none.
+  - **Not touched:** `portal/app.js`, `portal/data.js`, `supabase/`, shared
+    CSS, `ui/coach.js`. SOC and AI/ML are unchanged.
+- **Status:** `bin/ci-check.sh` passes. Codex: one finding fixed (the course
+  page accepted other values for the pre-set fields); one left by design (a
+  submit with missing or invalid pre-set fields is refused, not replaced).
+  Hosted staging checked Nov 10 at 1,280 and 1,512 px
+  (`1.642-staging.4b4e54c`). Migration: none.
+
+**2026-11-10 (Megan; PR #105 "Help Desk Module 1: the practice tickets become Lab 1.2 with a completion record; the old Lab 1.1 is retired"; shared `portal/data.js`, `portal/app.js`, `portal/admin-sheets/hdesk.js`, `portal/index.html`, `ui/index.html`, `bin/ci-check.sh` and `bin/its-curriculum-check.js`, plus Help Desk `portal/it-support-module-01.js`, `portal/it-support-shared.js`, `ui/helpdesk.js` and tests — please review the shared ones):**
+Module 1's practice tickets (HD-2151, HD-2152, SEC-2153) are now a Practice It
+lab with a new key, `lab-its-01-practice-tickets` (15 min under ITHD-101.1,
+`phase: 'practice'`, no score, never gates completion). It takes the 15
+minutes of the old Lab 1.1, LMS & Environment Validation
+(`lab-its-01-lms-validation`), which is retired. Students see the guided lab
+as "Lab 1.1 · Guided Lab" and the practice tickets as "Lab 1.2 · Practice
+tickets (not graded)"; the keys don't change.
+- **For your code or agent:**
+  - **`retired: true` on a lab record** (new field, `portal/data.js`): the
+    old Lab 1.1 stays in `LABS` with 0 minutes and no allocation, so its past
+    attempts keep their title and module (Lab Attempts, its instructor sheet,
+    notices). `programLabs()` leaves retired labs out (program page lab list,
+    module card practice keys, the fallbacks), and `openLabRedosByModuleKey`
+    skips them (a returned old Lab 1.1 opens no redo the student can't do).
+    The card's "started" check still counts their attempts.
+    `bin/its-curriculum-check.js` skips retired labs and fails if one still
+    carries minutes. No SOC or AI/ML lab is retired, so their lists are
+    unchanged (tested).
+  - **Rail:** a section can set `navTitle`, which `moduleUnifiedNav` shows
+    before its own "Guided Lab" naming. Only Help Desk Module 1 sets it.
+  - **New message** from the simulator's practice set to the course page:
+    `mnt-practice-complete` `{ id, nonce, student, tickets }`, answered by
+    `mnt-practice-received` `{ id, nonce, saved, reason? }`. Ticket ids only,
+    no answers. It's sent once every ticket in the set is resolved or
+    escalated (students read "Finish all three tickets: resolve or escalate
+    each one"). The course page saves one `lab_attempts` row (state
+    `complete`, score null, `result: { source, practiceSet, tickets }`). The
+    launch link is now `rel="opener"`.
+  - **Grading counts:** this PR adds one Practice It completion row per
+    student who finishes the practice tickets; the admin course-card badge
+    and the grading views count these, since they don't filter Practice It.
+  - **Not saved twice:** the key has no `course_module_labs` row, so the
+    one-pending rule doesn't apply. The page re-reads the database and holds a
+    15-second same-browser lock before inserting; a superseded or returned
+    Lab 1.2 record doesn't count as already saved. A save slower than 15
+    seconds in two tabs at once, or two devices in the same moment, could
+    still leave an extra no-score row; a unique index would close that but
+    needs a migration (not done, by decision).
+  - **Practice It wording (Help Desk, `itsLabStatus`):** a saved Practice It
+    attempt reads 'practice' ("Practice complete (not graded)"), not
+    'waiting', and an older approved one doesn't read 'passed'. Returns from
+    before Oct 30 still read 'returned'. The hero reads "3 labs · N practice
+    complete · N passed". Instructor side unchanged ("PRACTICE IT ·
+    Autograded"); the sheet banner still says "Instructor judgment needed", as
+    for the guided lab today.
+  - **Module 1 card text (`portal/data.js`):** the program page lists Lab 1.1
+    before Lab 1.2, and the Module 1 summary and both lessons' objective,
+    learn, practice and prove strings now describe the rebuilt module (no lab
+    environment or five-step mindset). Lesson titles, minutes and keys are
+    unchanged.
+  - **Not touched:** `supabase/` (the old Lab 1.1's `course_module_labs` row
+    and every attempt stay), `ui/coach.js`, shared CSS, SOC files.
+- **Status:** `bin/ci-check.sh` passes. Codex: two findings fixed (two tabs
+  could save twice; a superseded or returned Lab 1.2 record counted as
+  already saved); one left (the lock can expire during a save slower than
+  15 seconds; closing it fully needs a migration). Hosted staging checked
+  Nov 10 at 1,280 and 1,512 px (`1.640-staging.43f82cc`); the later commits
+  (lab order, card text, the superseded-record check, wording) are covered by
+  tests, with the lab order and card text rechecked after redeploy.
+  Migration: none.
+
+**2026-11-10 (Megan; PR #104 "Help Desk Module 1: rebuild the page with orientation, readings and diagrams, checks and unguided tickets; Lab 1.1 off the page"; shared `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `portal/it-support-module-01.js`, `portal/it-support-module-01.css` and tests — please review the shared ones):**
+The Module 1 page is rebuilt from the Week 1 plan. Orientation comes first
+(Lesson 1.1: the program, the LMS, technology setup, the Acceptable Use
+Policy, getting help and the chain of command, policies, the course calendar),
+then the orientation tasks: acknowledge the policy and take a 6-question
+orientation check. Lesson 1.2 is now the three readings, with three inline SVG
+diagrams. A Learn It check (8 questions) and an A+ check (4) follow, practice
+only. The unguided tickets (PR #103) have their own section. Lab 1.1 (LMS &
+Environment Validation) is gone from the page: no evidence upload, no Submit
+or Resubmit, no rail row, and it's out of the hero's lab count. Lesson titles
+and minutes, the lab keys, Guided Lab 1 and the Prove It are unchanged.
+- **Shared:** `portal/index.html` (version bumps for `it-support-module-01.js`
+  and `it-support-module-01.css` only), `bin/ci-check.sh` (one line for the
+  new test).
+- **Not touched:** `portal/app.js`, `portal/data.js`, `portal/admin-sheets/`,
+  `supabase/`, `ui/`, shared CSS. SOC and AI/ML are unchanged.
+- **For your code or agent:**
+  - Lab 1.1 still exists everywhere except this page: its `portal/data.js`
+    entry (15 min under ITHD-101.1, so the filed hours don't change), its
+    `course_module_labs` row (it never gated completion), Lab Attempts and its
+    instructor sheet, so past attempts still open. Students can no longer
+    submit or resubmit it. A Lab 1.1 attempt waiting for review or returned
+    stays as it is in Lab Attempts; the student sees no notice for it.
+  - The policy acknowledgement and the orientation check are orientation
+    tasks, not labs: no lab key, no `lab_attempts` row, no score. They're
+    saved in Module 1's `module_progress.case_state` under the id Lab 1.1 used
+    (`its01-lms-validation-v1`), with new fields `aupReadVersion`,
+    `aupVersion`, `aupAcknowledgedAt`, `orientationCheckCompleted` and
+    `orientationCheckCompletedAt`. The policy text changed, so an
+    acknowledgement saved before this (no `aupVersion`) asks the student to
+    acknowledge again.
+  - Module 1's rail has new rows. Orientation and the orientation check count
+    toward the rail's percent, and Guided Lab 1 shows locked in the rail until
+    both are done (as it did behind Lab 1.1 before); the orientation check's
+    row shows locked until the policy is acknowledged. Rail locks only
+    explain the order: nothing on the page is blocked. The knowledge checks and
+    the unguided tickets don't count. Module completion is unchanged (still
+    Lab 1.2 and the Prove It).
+- **Status:** `bin/ci-check.sh` passes. Codex: one finding left by design:
+  the page shows the policy acknowledgement and the orientation check as
+  saved before the account write finishes, the same as the old Lab 1.1
+  checkbox. Hosted staging checked Nov 10 at 1,280 and 1,512 px, plus
+  390 px (`1.640-staging.b2d77dc`, then `1.641-staging.8a7d11b`).
+  Migration: none.
+
+**2026-11-10 (Megan; PR #103 "Help Desk Module 1: add practice tickets 1-A to 1-C and KB-0071, feedback only"; shared `ui/index.html`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `ui/helpdesk-coaches.js`, `portal/it-support-module-01.js` and tests — please review the shared ones):**
+Module 1 gains three unguided practice tickets, not graded: HD-2151 (Leah
+Brooks, forgotten password: verify, then self-service reset), HD-2152 (Ravi
+Shah, cracked laptop screen: KB-0071, loaner, escalate to Desktop Support)
+and SEC-2153 (a caller who can't be verified wants an executive's password:
+offer a callback, decline, route to Security Operations). New people: Leah
+Brooks (Marketing, a new department), Ravi Shah, and Martin Alvarez (CFO,
+`ralvarez`, with a directory mobile); new laptop NS-LT-0215; new KB-0071. The
+Module 1 page links them under Lab 1.2 as "Practice tickets (not graded)".
+Module 1's minutes, lab keys, Guided Lab 1 (HD-2150) and the Prove It
+(HD-2125) are unchanged; no new lab in `portal/data.js`.
+- **Shared:** `ui/index.html` and `portal/index.html` (version bumps for the
+  changed Help Desk files only), `bin/ci-check.sh` (one line for the new
+  test).
+- **Not touched:** `ui/coach.js`, `portal/app.js`, `portal/data.js`,
+  `supabase/`, shared CSS. SOC and AI/ML are unchanged.
+- **For your code or agent:**
+  - New simulator launch mode `?practice=<key>&student=<id>`
+    (`HD_PRACTICE_SETS` in `ui/helpdesk-data.js`): only the set's tickets, no
+    coach, and its own saved state
+    (`defender-lab.helpdesk.practice.v1.<key>.<student>`), so it never
+    replaces the coached lab's shift. It sends nothing to the portal: no
+    attempt, no message.
+  - `ui/coach.js`'s `stripLaunchParams()` removes `student=` from the address
+    after load (it skips only `prove=`). So a reload of a practice tab finds
+    the student id in that tab's sessionStorage instead. If you ever make the
+    coach skip `practice=` too, that fallback simply stops being needed.
+  - Opening the practice set or pressing Reset shift in it never touches the
+    coached lab's saved shift or its `mnt.coach.resume` record (the HD-2101
+    clean-up from PR #102 now skips practice and Prove shifts).
+  - New optional console keys: `actions` (right / wrong / critical, with an
+    optional "verify first"), `owner` (who owns the ticket; it closes only once
+    the ticket's Action and Documentation work is done), `feedback` (Practice
+    "Check my work" by rubric area, never points), verification
+    `concludes:'unverified'`, and chat `afterAction` / `replyBefore`.
+  - The Prove It shift shares the directory, devices and KB with Practice, so
+    HD-2125's lists now also show the three new people, NS-LT-0215 and KB-0071
+    (context only; its ticket, scoring and rubric are unchanged).
+- **Status:** `bin/ci-check.sh` passes; Codex review approved (three earlier
+  findings fixed; two left by design: closing doesn't wait for Investigation
+  and Diagnosis, which "Check my work" coaches and opens when a ticket closes,
+  and the three tickets also appear in the general free-play queue). Hosted
+  staging checked Nov 10 at 1,280 and 1,512 px (`1.639-staging.d443ab6`, then
+  `6e920eb` for the feedback label). Migration: none.
+
+**2026-11-09 (Megan; PR #102 "Help Desk Module 1: Guided Lab 1 becomes HD-2150, a verified unlock; KB-0024 rewritten"; shared `ui/index.html`, `portal/index.html`, `portal/data.js` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `ui/helpdesk-coaches.js`, `portal/it-support-shared.js`, `portal/it-support-module-01.js`, `portal/admin-sheets/hdesk.js` and tests — please review the shared ones):**
+Help Desk Lab 1.2 (Practice It, coach `hd-m01`, lab key
+`lab-its-01-ticket-triage`) is now INC0010150 (ticket HD-2150): Sam Rivera
+is locked out after wrong password tries. The student takes the ticket, asks
+what changed, finds KB-0024 in the ticket's KB search, verifies Sam (callback
+on the directory number and the employee ID), unlocks the account on the
+account card, confirms Sam can sign in, adds a customer comment that says
+what to do if it happens again, writes a Reported / Tried / Result note,
+chooses a resolution code and resolves. No commands. It uses the console
+features from PR #101. HD-2101 (Jordan Bell's repeating lockout) leaves
+Module 1; its scenario code stays, unused, for Module 8. KB-0024 is rewritten
+(employee ID instead of manager, self-service reset, repeat lockout to Tier 2,
+the unverified-caller route to the SOC; the 4740 / scheduled-task steps are
+kept, marked "Tier 2 only"). Sam Rivera (Customer Service) is a new user.
+Module 1's minutes, lab keys and the Prove It (HD-2125) are unchanged.
+- **Shared:** `ui/index.html` and `portal/index.html` (version bumps for the
+  changed Help Desk files only), `portal/data.js` (Lab 1.2's description
+  and objective strings only), `bin/ci-check.sh` (one line for the new test,
+  and the HD-2101 test's label now says it's a regression test kept for
+  Module 8).
+- **Not touched:** `ui/coach.js`, `portal/app.js`, `supabase/`, shared CSS.
+  SOC and AI/ML are unchanged.
+- **For your code or agent:**
+  - Lab 1.2's saved work changes shape. The ticket is `HD-2150`, and its entry
+    in `result.work.tickets` carries two new blocks: `console` (verification
+    choice, tries and critical errors, unlock, chat questions, KB searches,
+    outcomes, password flags) and `customerComments` (the student's text).
+    `itsCleanCoachWork()` keeps them, known fields only and bounded. There is
+    no `investigation` block for HD-2150.
+  - The portal saves Lab 1.2 only when HD-2150 is Resolved with every outcome
+    met (`its01PracticeComplete`). A critical verification choice (accepting a
+    name and department, or asking for the password) is shown to the
+    instructor as a red check row but never blocks the save or module
+    progress. A finished HD-2101 from an old tab is now refused as
+    `incomplete`.
+  - The Lab 1.2 sheet reads HD-2150's console work. An attempt saved before
+    this change (HD-2101, no HD-2150) keeps its old sheet.
+  - A browser halfway through the old HD-2101 walkthrough has its `hd-m01`
+    resume record cleared on load (`mnt.coach.resume`, `mnt.coach.state`), so
+    the next launch starts HD-2150 fresh. `coach.js` itself is unchanged.
+  - New optional console keys: `caller.questions[].confirms`,
+    `comments.repeatLine`, `resolveByOutcomes` (no diagnosis; resolving needs
+    every outcome; the student's note becomes the resolution).
+- **Status:** `bin/ci-check.sh` passes; Codex review approved (two earlier
+  findings fixed). Hosted staging checked Nov 9 at 1,280 and 1,512 px
+  (`1.637-staging.c0d2163`, then `1.638-staging.9c75555` for the dimmed Unlock
+  button and KB-0024's numbered list). Migration: none.
+
+**2026-11-09 (Megan; PR #101 "Help Desk simulator: add console features, off by default"; shared `ui/index.html`, `portal/index.html` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `portal/it-support-shared.js`, `portal/admin-sheets/hdesk.js` and tests — please review the shared ones):**
+The Help Desk simulator gains reusable console features that a ticket turns
+on with an optional `console: { ... }` block in `ui/helpdesk-data.js`: a
+Knowledge Base search box, caller chat, a verification card that gates Unlock
+account (and the Active Directory Unlock for that user), customer-visible
+comments kept apart from Work notes, a resolution code (required when the
+ticket says so), a read-only pre-set priority, and note checks (parts, an
+optional Next action, a per-ticket jargon list). No ticket turns them on yet,
+so every existing ticket looks and behaves as before. Two things do change for
+students on every Help Desk ticket:
+- **Passwords in ticket text are refused.** A work note, customer comment or
+  Prove It resolution note / reply that contains a password value (a label
+  such as password, pwd, pw or passcode followed by ":", "=", "is" or a dash,
+  then a value) isn't saved. Practice coaches with the shell refusal's message.
+  Prove It says only that it wasn't saved, holds Submit until the student
+  removes it, and sends `passwordWritten: true` (separate from the shell's
+  `passwordTyped`). It's a flag, not a scoring rule. Old drafts are masked on
+  load.
+- **The User Directory shows Employee ID and Phone** in Practice and Prove It
+  (Phone used to be Practice-only). This also shows on Active Directory › Users.
+- **Shared:** `ui/index.html` (version bumps for `helpdesk-data.js` and
+  `helpdesk.js` only), `portal/index.html` (version bump for
+  `it-support-shared.js` only), `bin/ci-check.sh` (one line for the new test).
+- **Not touched:** `ui/coach.js`, `ui/styles.css`, `portal/app.js`,
+  `portal/data.js`, `supabase/`. SOC and AI/ML are unchanged.
+- **For your code or agent:** `itsCleanCoachWork()` and the Prove It cleaner
+  keep a new boolean `passwordWritten`. The Prove It review panel shows "The
+  student wrote a password in a ticket field. It was refused and not saved."
+  The HD-2101 sheet shows it as an answer row ("Password in a ticket field"),
+  not a check, so it never changes a verdict. `hdNoteMissingParts(text)` with
+  no list is unchanged (Reported / Tried / Result).
+
+**2026-11-03 (Megan; PR #100 "Help Desk Module 1 Practice It: work HD-2101 on the simulated machines"; shared `ui/index.html`, `portal/index.html`, `portal/data.js` and `bin/ci-check.sh`, plus Help Desk `ui/helpdesk.js`, `ui/helpdesk-data.js`, `ui/helpdesk-coaches.js`, `portal/it-support-shared.js`, `portal/it-support-module-01.js`, `portal/admin-sheets/hdesk.js` and tests — please review the shared ones):**
+Help Desk Lab 1.2 (Practice It, coach `hd-m01`) is now worked on the simulated
+machines. HD-2101 no longer shows the logs, caller computer or diagnosis; the
+student finds the lockout source (event 4740), the scheduled task on the caller
+computer with the old stored password, fixes it the approved way (the user types
+the password at a secure prompt) and proves the account stays unlocked. Unlocking
+before the fix re-locks the account on the task's next run. The coach has 11
+steps, checks outcomes rather than one fixed path, and shows Finish only after
+the ticket is Resolved or Escalated. The Module 1 Prove It (HD-2125) changes in
+one way only: a password typed into its shell is refused (see below). Its
+scoring, rubric and steps checklist are unchanged. SOC and AI/ML are unchanged.
+- **Shared:** `ui/index.html` and `portal/index.html` (script version bumps for
+  the changed files only), `portal/data.js` (Lab 1.2's description string only),
+  `bin/ci-check.sh` (one line for the new test).
+- **Not touched:** `ui/coach.js`, `portal/app.js`, `supabase/`. The coach
+  step-skip fix it relies on came in with PR #99.
+- **Tests:** new `tests/hdesk-m01-practice.test.js` (12 tests); new password
+  tests in `hdesk-prove-mode` and `hdesk-prove-submit`. Updated for the
+  new `hd-m01`: `coach-reload-resume` (Finish is now step 11),
+  `hdesk-module-page-states` and `hdesk-returned-lab-resubmit` (they send a
+  finished HD-2101 package).
+- **For your code or agent:**
+  - `itsCleanCoachWork()` keeps a new `investigation` block (HD-2101 only, known
+    fields, bounded). Over the 48 KB limit its events are trimmed first.
+  - Lab 1.2 saves only when HD-2101 is Resolved or Escalated with every outcome
+    met. Otherwise the portal replies `saved: false` with reason `incomplete`
+    and shows a notice on the course page. `coach.js` has no message for that
+    reason, so the simulator shows its generic "didn't confirm" message.
+  - `coach.js` shows Finish on a coach's last step without running that step's
+    check, so a student who reopens the ticket after reaching Finish still sees
+    the button (the portal still refuses the save). Running the last step's
+    check before showing Finish would close this for every coach. Suggested
+    follow-up after Nov 6, not built here.
+  - Lab 1.2's completion is reported by the browser, like every coach lab, so a
+    hand-made completion message would be saved and reach instructor review.
+    Relevant to the server-side scoring work.
+  - Typed commands are recorded as `command_run` events (`at`, `command`,
+    `computer`, plus `result`), the same shape as the Prove It's, so the Prove
+    It can reuse them.
+  - A password typed into the shell, in Practice or Prove and in any form
+    (`-Password`, `-Pass`, `-Password:value`, `/RP`), is refused before the
+    command runs. Everything from the password argument on is masked in the
+    echo and the record, and it is never saved. A draft saved in the browser
+    before this change is masked when it loads, and the Prove It package masks
+    its commands again when it is built. The Prove It package and its
+    saved attempt carry a new `passwordTyped` boolean (kept by
+    `itsCleanProveWork()` only when it is `true`), and the instructor's review
+    panel shows one line when it is set. It doesn't change the score.
+- **Status:** `bin/ci-check.sh` passes on the branch. Codex review: six passes.
+  The first also raised the browser-reported completion above (not fixed).
+  Every password-handling gap found was fixed with a test, until the last
+  pass (`b783adf`): one medium finding not fixed. It says the load-time write-back
+  of a masked draft could overwrite a newer draft saved in a second tab. The
+  read, mask and write happen in one synchronous run, so no other tab's save
+  can land in between, and every simulator save already writes the whole
+  draft (last tab wins). Hosted staging tested Nov 4
+  (`v1.643-staging.84db484`): Lab 1.2 end to end, the Practice and Prove It
+  password refusals, and the instructor sheet and panel. Read-only password
+  scans of staging and production found nothing to clean up.
+- **Merge:** Hosted staging check done Nov 4.
+- **Migration:** none.
+
+**2026-11-03 (Megan; PR #99 "Coach: a redraw while a step completes never skips the next step"; shared `ui/coach.js`, `ui/index.html`, `bin/ci-check.sh` and new `tests/coach-step-advance-race.test.js` — please review the shared ones):**
+`watchForStepCompletion()` in `ui/coach.js` advanced a coach once for every
+watcher that saw a step's check pass. A redraw during the 650 ms wait started a
+second watcher for the same step, so the coach skipped a step, one more for each
+extra redraw. Now each delayed advance remembers the step that completed and
+the coach session (`state`) it belongs to. It advances only if both still match,
+so a duplicate watcher, or a session that was stopped or restarted during the
+wait, does nothing. A step that completes normally advances exactly as before.
+This affects every coach, SOC and Help Desk.
+- **Shared:** `ui/coach.js` (the guard), `ui/index.html` (`coach.js` version
+  bump), `bin/ci-check.sh` (one line for the new test).
+- **Test:** `tests/coach-step-advance-race.test.js` (3 tests):
+  - a redraw during the wait doesn't skip a step;
+  - a single watcher still advances;
+  - a restart during the wait doesn't move the new session.
+- **Checked on local staging:** the SOC Module 1 (`m01`) and Help Desk `hd-m02`
+  coaches, end to end, each step advancing exactly once with forced redraws.
+  Codex review: PASS.
+- **Status:** hosted staging not yet tested; Megan deploys the branch and the
+  staging check follows.
+- **Merge:** Megan will merge after the hosted staging check.
+- **For your code or agent:** if you add a path that replaces `state` (start,
+  stop, resume), keep it a new object. The guard relies on that to tell sessions
+  apart.
+- **Migration:** none.
+
 **2026-10-30 (Megan; PR #93 (draft) "Official faculty grades, Help Desk Module 1 Prove It first (L-003)"; shared new `supabase/` migration and tests, `portal/app.js`, `portal/index.html`, `bin/ci-check.sh` and `tests/portal-vm.js`, plus Help Desk `portal/it-support-shared.js`, `portal/it-support-module-01.js`, `portal/admin-sheets/hdesk-prove-rubrics.js` and tests — please review the shared ones):**
 **Hold (updated 2026-10-30): PR #90, PR #91, PR #92 and the faculty-gate PR roll out together, and none reaches production alone. Staging goes together once Megan has the production impact numbers. Before the production push Megan sends Randy a heads-up on four points: L-003 stays open for other labs, the records change, Module 2 waits on review, and the hours and transcript gap (L-005). The push doesn't wait for his answer; any change he asks for is handled afterwards. Production order: run the read-only impact query, apply the migrations by hand, then merge straight away.**
 **Production impact, read-only query, run 2026-10-30 before any of PR #90–#93 (Megan). Rerun 2026-10-31, unchanged: AIENG 0 and 0, HDESK 1 flip and 11 later modules locked, SOCAN 0 and 0, every other column identical. Staging is verified (transcript 83.0, Pass, on 10/31). Production dry run 2026-10-31 passed, nothing saved: verified modules AIENG 0 to 0, HDESK 13 to 12, SOCAN 33 to 33; official-grade labs `lab-its-01-prove-it`; Module 1 rows demoted 2. One is the flip above, a synthetic test account. The other's progress said complete but it was never verified (one of the 11 Help Desk rows in the last column), so it changes no verified count.**
+**Production migrations applied by hand before merging; Megan confirmed `schema_migrations` lists 20261031120000, 20261030221555 and 20261030175603 above 20261029234710.** (Recorded 2026-11-14.)
 
 | Track | Students | Complete modules | Flip from PR #90 (Module 1) | Other complete modules then behind the lock | If every lab needed `score` ≥ 70 | If every lab needed an official score | Admin override | Marked complete but not verified |
 |---|---|---|---|---|---|---|---|---|

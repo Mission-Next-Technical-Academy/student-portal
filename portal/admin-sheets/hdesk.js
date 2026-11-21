@@ -11,7 +11,7 @@
   // (hdTicketFlowSteps in ui/helpdesk-coaches.js). Other saved queue tickets
   // show as ungraded context.
   const TICKETS_BY_LAB = {
-    'lab-its-01-ticket-triage': ['HD-2101'],
+    'lab-its-01-ticket-triage': ['HD-2150'],
     'lab-its-02-device-manager': ['HD-2106'],
     'lab-its-02-print-spooler': ['HD-2112'],
     'lab-its-03-blank-desktop': ['HD-2109'],
@@ -23,28 +23,38 @@
     'lab-its-09-security-incidents': ['SEC-2114', 'SEC-2115'],
     'lab-its-11-handoff-documentation': ['HD-2113', 'HD-2124'],
   };
+  // Lab 1.2 used HD-2101 until 2026-11-09: an attempt saved before then holds
+  // HD-2101 and no HD-2150, and keeps the sheet it was worked against.
+  const EARLIER_TICKETS_BY_LAB = { 'lab-its-01-ticket-triage': ['HD-2101'] };
   const TITLES = {
+    // Retired 2026-11-10; kept so its past attempts still open.
     'lab-its-01-lms-validation': 'Module 01 · LMS & Environment Validation',
     'lab-its-01-ticket-triage': 'Module 01 · Guided Ticket Triage',
-    'lab-its-02-vm-build': 'Module 02 · Build Your Windows Client VM',
-    'lab-its-02-vm-snapshot-server': 'Module 02 · Snapshot, Recover & Connect',
-    'lab-its-02-device-manager': 'Module 02 · The Misbehaving Peripheral',
-    'lab-its-02-print-spooler': 'Module 02 · The Stuck Queue and Offline Printer',
-    'lab-its-03-blank-desktop': 'Module 03 · The Blank Desktop',
-    'lab-its-04-connectivity': 'Module 04 · Connected But Nothing Works',
-    'lab-its-05-server-ad': 'Module 05 · Server and Active Directory',
-    'lab-its-06-identity-access': 'Module 06 · Restoring Access the Right Way',
-    'lab-its-07-app-cert': 'Module 07 · Application and Certificate Support',
-    'lab-its-08-unfamiliar-problems': 'Module 08 · Unfamiliar Problems',
-    'lab-its-09-security-incidents': 'Module 09 · Security Incidents',
-    'lab-its-10-priority-queue': 'Module 10 · Working the Queue by Priority',
-    'lab-its-11-handoff-documentation': 'Module 11 · Handoff Documentation',
+    'lab-its-01-practice-tickets': 'Module 01 · Lab 1.2 · Practice tickets',
+    'lab-its-02-vm-build': 'Module 04 · Build Your Windows Client VM',
+    'lab-its-02-vm-snapshot-server': 'Module 04 · Snapshot, Recover & Connect',
+    'lab-its-02-device-manager': 'Module 04 · The Misbehaving Peripheral',
+    'lab-its-02-print-spooler': 'Module 04 · The Stuck Queue and Offline Printer',
+    'lab-its-03-blank-desktop': 'Module 05 · The Blank Desktop',
+    'lab-its-04-connectivity': 'Module 09 · Connected But Nothing Works',
+    'lab-its-05-server-ad': 'Module 07 · Server and Active Directory',
+    'lab-its-06-identity-access': 'Module 08 · Restoring Access the Right Way',
+    'lab-its-07-app-cert': 'Module 06 · Application and Certificate Support',
+    'lab-its-08-unfamiliar-problems': 'Module 10 · Unfamiliar Problems',
+    'lab-its-09-security-incidents': 'Module 11 · Security Incidents',
+    'lab-its-10-priority-queue': 'Module 02 · Lab 2.1 · Guided Lab: queue shift',
+    'lab-its-10-practice-tickets': 'Module 02 · Lab 2.2 · Practice tickets (not graded)',
+    'lab-its-10-prove-it': 'Module 02 · Prove It: queue shift',
+    'lab-its-11-handoff-documentation': 'Module 03 · Handoff Documentation',
     'lab-its-12-capstone': 'Module 12 · IT Help Desk Capstone',
   };
   const workTickets = (result) => result.work && Array.isArray(result.work.tickets) ? result.work.tickets : [];
   const text = (value) => value === undefined || value === null || value === '' ? null : String(value);
   const savedNotes = (ticket) => Array.isArray(ticket && ticket.notes) ? ticket.notes.filter((note) => note && note.text) : [];
-  const noteResponses = (notes) => notes.map((note) => ({ label: `${note.author || 'Student note'} · ${note.time || ''}`, text: note.text }));
+  // Riley Morgan is the simulator's technician: the student. Other authors
+  // (a recorded requester contact) keep their own label.
+  const noteLabel = (note) => `${!note.author || note.author === 'Riley Morgan' ? 'Student work note' : note.author} · ${note.time || ''}`;
+  const noteResponses = (notes) => notes.map((note) => ({ label: noteLabel(note), text: note.text }));
   const help = {
     priorityPrompt: 'Ask which business impact and SLA clues support the priority the learner selected.',
     diagnosis: 'Revisit the log or system evidence and explain how it supports your chosen diagnosis.',
@@ -72,7 +82,7 @@
   const PRIORITY_KEY = 'lab-its-10-priority-queue';
   const priorityFix = 'Explain the business impact and time remaining against the SLA, then state why this ticket comes before the others.';
 
-  // Module 10 saves every P1 in the queue; the coach asks for one note on one
+  // Module 2 (its-10) saves every P1 in the queue; the coach asks for one note on one
   // of them. A P1 with a note is the one the student worked. A note shows;
   // whether it justifies the priority stays the instructor's judgment.
   function prioritySections(tickets) {
@@ -93,6 +103,201 @@
     return graded.concat(tickets.filter((ticket) => !worked.includes(ticket)).map(contextSection));
   }
 
+  // Lab 2.1 from 2026-11-19 (Module 2, key its-10): the guided queue shift,
+  // six practice tickets the coach walks the student through. An attempt
+  // that saved one of them gets this sheet; an older attempt (the P1-note
+  // coach) keeps prioritySections. Practice It: the checks are feedback for
+  // the instructor's decision, never a score. The expected priorities are
+  // practice content (ui/helpdesk-data.js priorityCoach on each ticket;
+  // tests/hdesk-m02-guided-lab.test.js keeps the two in step), not a Prove
+  // It key.
+  const QUEUE_TICKETS = [
+    { id: 'HD-2158', priority: 'P1', focus: 'The understated P1: two audiences', prompt: 'A whole department can’t take customer calls, however calmly Sam asked. Look for the Service Desk lead being told, the hand-off to Messaging & Collaboration, a note with Reported / Tried / Result / Next action, and a comment in plain words with no internal names.' },
+    { id: 'HD-2159', priority: 'P2', focus: 'The Wi-Fi outage: knowledge', prompt: 'Several people in one area: the cause is the network. Look for KB-0063 attached and the outage handled as the parent.' },
+    { id: 'HD-2160', priority: 'P2', focus: 'The same outage told badly: link and rewrite', prompt: 'Look for the link to the parent and a rewrite a stranger could follow: who, what, where, when and impact.' },
+    { id: 'SEC-2163', priority: 'P2', focus: 'The security ticket', prompt: 'Security goes to the SOC at once. Look for Security Operations as the group and a work note with the indicators (sender, attachment name, what was clicked and when, which laptop).' },
+    { id: 'HD-2162', priority: 'P4', focus: 'The overstated low ticket: waiting on the caller', prompt: 'Capital letters aren’t urgency. Look for a question to Priya, On Hold – Awaiting Caller while waiting, then a resolution with a code and notes and a knowledge draft in Review.' },
+    { id: 'SR-2161', priority: 'P5', focus: 'The request logged as an incident', prompt: 'Nothing is broken: it is a request. Look for Convert to Request with the manager’s approval on the RITM.' },
+  ];
+  const QUEUE_IDS = QUEUE_TICKETS.map((entry) => entry.id);
+  const QUEUE_GROUPS = { 'HD-2158': 'Messaging & Collaboration', 'SEC-2163': 'Security Operations (SOC)' };
+  const queueLabel = (ticket, id) => (ticket && ticket.number) || id;
+  const listText = (value) => (Array.isArray(value) && value.length ? value.join(', ') : 'None');
+  function queueTicketSection(entry, ticket) {
+    const saved = Boolean(ticket);
+    const work = saved && ticket.console ? ticket.console : null;
+    const matrix = work && work.matrix ? work.matrix : null;
+    const cls = work && work.classification ? work.classification : null;
+    const writing = saved && ticket.writing ? ticket.writing : null;
+    const comments = saved && Array.isArray(ticket.customerComments) ? ticket.customerComments.filter((comment) => comment && comment.text) : [];
+    const id = entry.id;
+    const has = (value) => (saved ? value : null);
+    const checks = [{
+      label: 'Priority matches the facts (Impact × Urgency)', expected: entry.priority,
+      test: () => (matrix ? (matrix.priority ? matrix.priority === entry.priority : false) : null),
+      given: () => (matrix ? (matrix.priority ? `Impact ${matrix.impact} × Urgency ${matrix.urgency} = ${matrix.priority}` : 'Not set') : null),
+      fix: 'Set Impact from how much of the business is hurt and Urgency from how fast it grows, never from the caller’s tone, and let Priority calculate.',
+    }, {
+      label: 'Category and configuration item set', expected: 'Both set',
+      test: () => (cls ? (cls.category && cls.ci ? true : false) : null),
+      given: () => (cls ? `${[cls.category, cls.subcategory].filter(Boolean).join(' › ') || 'No category'} · ${cls.ci || 'No CI'}` : null),
+      fix: 'Set Category / Subcategory from the symptom and the configuration item the ticket is about.',
+    }];
+    if (id === 'SR-2161') checks.push({ label: 'Converted to a request with its approval', expected: 'Canceled – Converted; RITM Approval = Approved', test: () => (work ? Boolean(work.request && work.request.approval === 'Approved') : null), given: () => (work ? (work.request ? `${work.request.item} for ${work.request.requestedFor} · Approval ${work.request.approval}` : 'Not converted') : null), fix: 'Asking for something new is a request: Convert to Request and choose the catalog item.' });
+    if (id === 'HD-2160') {
+      checks.push({ label: 'Linked to the outage it belongs to', expected: 'Child of INC0010159', test: () => (work ? work.parent === 'HD-2159' : null), given: () => (work ? (work.parent ? `Child of ${work.parent === 'HD-2159' ? 'INC0010159' : work.parent}` : 'Not linked') : null), fix: 'Two tickets, one cause: link the weaker ticket to the stronger one as related.' });
+      checks.push({ label: 'Rewrite names who, what, where, when and impact', expected: 'Nothing missing', test: () => (work ? Array.isArray(work.rewriteMissing) && !work.rewriteMissing.length : null), given: () => (work ? (Array.isArray(work.rewriteMissing) ? (work.rewriteMissing.length ? `Missing: ${work.rewriteMissing.join(', ')}` : 'Every part') : 'Not rewritten') : null), fix: 'Rewrite the short description and description so a stranger can follow them: who, what, where, when and impact.' });
+    }
+    if (QUEUE_GROUPS[id]) checks.push({ label: `Assigned to ${QUEUE_GROUPS[id]}`, expected: QUEUE_GROUPS[id], test: () => (matrix ? matrix.assignmentGroup === QUEUE_GROUPS[id] : null), given: () => (matrix ? matrix.assignmentGroup || 'Service Desk (Tier 1)' : null), fix: id === 'SEC-2163' ? 'Security goes to Security Operations at once, with the indicators in the work note.' : 'The phone app belongs to Messaging & Collaboration: assign it there and tell the Service Desk lead.' });
+    if (id === 'HD-2159') checks.push({ label: 'KB-0063 attached', expected: 'Listed under Related › Knowledge', test: () => (work ? (work.kbAttached || []).includes('KB-0063') : null), given: () => (work ? listText(work.kbAttached) : null), fix: 'Search the KB for the symptom words, open the article that fits and click Attach knowledge.' });
+    if (id === 'HD-2162') {
+      checks.push({ label: 'Resolved with a resolution code after Priya’s reply', expected: 'Resolved', test: () => (matrix ? matrix.status === 'Resolved' || matrix.status === 'Closed' : null), given: () => (matrix ? `${matrix.status}${ticket.closureCode ? ` · ${ticket.closureCode}` : ''}` : null), fix: 'Ask by Additional comment, set On Hold – Awaiting Caller, and resolve with a code and notes once Priya replies.' });
+      checks.push({ label: 'Knowledge draft created', expected: 'State Review', test: () => (work ? work.kbDraft === 'Review' : null), given: () => (work ? work.kbDraft || 'No draft' : null), fix: 'After resolving, click Create knowledge draft so the next technician finds the fix.' });
+    }
+    if (id === 'HD-2158') checks.push({ label: 'Customer comment free of jargon and internal names', expected: 'None flagged', test: () => (work && comments.length ? !(work.lastCommentJargon || []).length && !(work.lastCommentInternal || []).length : work ? false : null), given: () => (work ? (comments.length ? listText([...(work.lastCommentJargon || []), ...(work.lastCommentInternal || [])]) : 'No comment') : null), fix: 'Write the customer comment in plain words: no internal team or system names, no P1 or SLA.' });
+    const notes = savedNotes(ticket).filter((note) => note.author === 'Riley Morgan' || !note.author);
+    const response = [
+      ...noteResponses(notes),
+      ...comments.map((comment) => ({ label: `Customer comment · ${comment.time || ''}`, text: comment.text })),
+      ...(saved && ticket.resolution ? [{ label: 'Resolution notes', text: ticket.resolution }] : []),
+      ...(writing && writing.shortDescription ? [{ label: 'Rewritten short description', text: writing.shortDescription }, { label: 'Rewritten description', text: writing.description || '(empty)' }] : []),
+      ...(writing && writing.kbDraftTitle ? [{ label: 'Knowledge draft title', text: writing.kbDraftTitle }, { label: 'Knowledge draft text', text: writing.kbDraftText || '(empty)' }] : []),
+    ];
+    return {
+      id: `queue-${id.toLowerCase()}`, title: `${entry.focus} · ${queueLabel(ticket, id)}`, recordedSince: '2026-11-19', mechanics: false,
+      instructorPrompt: `${entry.prompt} Practice It: these checks inform your decision; they are never a score.`,
+      answer: [
+        ['Caller', has(text(ticket && ticket.requester))], ['Reported', has(text(ticket && ticket.description))],
+        ['Impact × Urgency = Priority', matrix ? (matrix.priority ? `${matrix.impact} × ${matrix.urgency} = ${matrix.priority}` : 'Not set') : has(null)],
+        ['Classification', cls ? [cls.category, cls.subcategory, cls.ci, cls.contactType].filter(Boolean).join(' · ') || 'Not set' : has(null)],
+        ['State and SLA', matrix ? `${matrix.status} · ${matrix.assignmentGroup || 'Service Desk (Tier 1)'} · SLA ${matrix.sla || '—'}` : has(null)],
+      ],
+      response: response.length ? response : [{ label: 'Student work notes and comments', text: saved ? 'None' : null }],
+      checks,
+    };
+  }
+  function queueSections(tickets, result) {
+    const order = result.work && Array.isArray(result.work.workOrder) ? result.work.workOrder : null;
+    const orderResult = result.work ? text(result.work.workOrderResult) : null;
+    const byId = (id) => tickets.find((ticket) => ticket.id === id) || null;
+    return [{
+      id: 'queue-work-order', title: 'Work order', recordedSince: '2026-11-19',
+      instructorPrompt: 'Priority first, then the SLA clock: the P1 first, the three P2s in any order, then the P4, then the P5. Ask the learner why the order differs from arrival order. Practice It: never a score.',
+      answer: [['Student’s work order', order ? (order.length ? order.map((id, index) => `${index + 1}. ${queueLabel(byId(id), id)}`) : 'Not set') : null], ['Check order said', orderResult ? (orderResult === 'ok' ? 'This order works.' : orderResult) : order ? 'Not checked' : null]],
+      checks: [{ label: 'Check order accepted the work order', expected: 'This order works', test: () => (order ? orderResult === 'ok' : null), given: () => (orderResult ? (orderResult === 'ok' ? 'Accepted' : orderResult) : order ? 'Not checked' : null), fix: 'Re-sort by Priority, then SLA due, drag the rows into that order and click Check order.' }],
+    }].concat(QUEUE_TICKETS.map((entry) => queueTicketSection(entry, byId(entry.id))));
+  }
+
+  // HD-2101 (Lab 1.2) is worked on the simulated machines: the sheet reads its
+  // investigation (outcomes, typed commands and key results) instead of the
+  // step checklist and diagnosis dropdown, which that ticket doesn't show.
+  const INVESTIGATION_CHECKS = [
+    ['identityVerified', 'Caller verified per KB-0024', 'Callback on the User Directory number', 'Verify every caller the KB-0024 way before any account action: call back on the number in the User Directory, never ask for a password.'],
+    ['sourceFound', 'Lockout source found', 'Caller computer from event 4740 or lockout details', 'Find the computer named as the caller in event 4740 (Event Viewer or Lockout details) before changing anything.'],
+    ['taskInspected', 'Cause found on the caller computer', 'FinanceReportSync stores the old password', 'Connect to the caller computer and check what runs with the user’s account (Get-ScheduledTask), then name it in your note.'],
+    ['credentialFixed', 'Stored credential updated the approved way', 'Set-ScheduledTask or schtasks /Change, user types the password', 'Fix the cause before unlocking: update the stored credential through the approved workflow, so the user types the password.'],
+    ['unlockedAfterFix', 'Unlocked once, after the fix', 'Account unlocked with the credential current', 'Unlock once, after the cause is fixed; unlocking first only buys a few minutes.'],
+    ['verified', 'Verified no new 4740 after the next run', 'A clean task run, then a lockout check', 'Prove the fix holds: after the task runs again, show there is no new 4740 and the account is still unlocked.'],
+    ['noteComplete', 'Reported / Tried / Result note', 'All three parts', 'Write the note in three parts so the next technician can follow it: Reported, Tried, Result.'],
+  ];
+  const IDENTITY_TEXT = { callback: 'Callback on the User Directory number', name: 'Accepted the caller’s own details', password: 'Asked for the password' };
+  function investigationSections(ticket) {
+    const work = ticket ? ticket.investigation : null;
+    const has = Boolean(work);
+    const yes = (value) => (value ? 'Yes' : 'No');
+    const tries = has ? work.identity.tries : [];
+    const commands = has ? work.events.filter((event) => event.type === 'command_run') : [];
+    return [
+      {
+        id: 'investigation-hd-2101', title: 'Investigation · HD-2101', recordedSince: '2026-11-03',
+        instructorPrompt: 'Read how the learner reached each outcome. Any order is valid; what counts is the cause found, the credential fixed before or alongside the final unlock, the fix verified and the work documented. Re-locks the learner caused by unlocking first are part of Practice, not a penalty.',
+        answer: [
+          ['Caller verification', has ? (tries.length ? tries.map((choice) => IDENTITY_TEXT[choice] || choice).join(' → ') : 'Not answered') : null],
+          ['Lockout source found with', has ? (work.sourceFoundVia.length ? work.sourceFoundVia : 'Not found') : null],
+          ['Stored credential updated', has ? (work.credentialFixedBy ? `${work.credentialFixedBy} at ${work.credentialFixedAt}` : 'Not updated') : null],
+          ['Unlocks', has ? (work.unlocks.length ? work.unlocks.map((unlock) => `${unlock.at} · ${unlock.via} · ${unlock.credentialCurrent ? 'after the fix' : 'before the fix'}`) : 'None') : null],
+          ['Re-locks the learner caused', has ? String(work.relocks) : null],
+          ['Verified with', has ? (work.verifiedBy ? `${work.verifiedBy} at ${work.verifiedAt}` : 'Not verified') : null],
+          ['End state', has ? `Account ${work.end.accountLocked ? 'locked' : 'unlocked'} · stored credential ${work.end.taskCredential || 'unknown'} · last task result ${work.end.taskLastResult || 'unknown'}` : null],
+          ['Hints used', has ? String(work.hintsUsed) : null],
+          // A flag for the instructor, not a check: it never changes the sheet's verdict.
+          ['Password in a ticket field', has ? (work.passwordWritten === true ? 'Wrote a password in a ticket field (refused, not recorded)' : 'Did not') : null],
+        ],
+        checks: INVESTIGATION_CHECKS.map(([key, label, expected, fix]) => ({
+          label, expected, test: () => (has ? work.outcomes[key] === true : null),
+          given: () => (has ? yes(work.outcomes[key] === true) : null), fix,
+        })).concat([{
+          label: 'Never asked the caller for a password', expected: 'The help desk never asks for a password',
+          test: () => (has ? !tries.includes('password') : null),
+          given: () => (has ? (tries.includes('password') ? 'Chose “ask for the password” before correcting it' : 'Did not ask') : null),
+          fix: 'The help desk never asks for a password, for any reason. Verify by calling back on the number in the User Directory (KB-0024).',
+        }, {
+          label: 'Never typed a password into the shell', expected: 'The user types it at the secure prompt',
+          test: () => (has ? !work.passwordTyped : null),
+          given: () => (has ? (work.passwordTyped ? 'Typed a password into a command (refused, not recorded)' : 'Did not') : null),
+          fix: 'Never type a user’s password yourself. Run the approved command without one; the user types it at the secure prompt on their own screen.',
+        }]),
+      },
+      {
+        id: 'commands-hd-2101', title: 'Commands and key results · HD-2101', required: false, recordedSince: '2026-11-03',
+        instructorPrompt: 'The commands the learner typed, in order, with what each one showed. Use them to ask what the learner concluded from a result, or which command they would run first next time.',
+        answer: [['Commands typed', has ? (commands.length ? commands.map((event) => `[${event.computer || '?'}] ${event.command}${event.result ? ` → ${event.result}` : ''}`) : 'No commands typed') : null]],
+      },
+    ];
+  }
+
+  // HD-2150 (Lab 1.2 from 2026-11-09) is worked through the console alone:
+  // the sheet reads its console work (how the caller was verified, the
+  // unlock, the chat, the customer comment) instead of the step checklist and
+  // diagnosis dropdown, which that ticket doesn't show. Practice It: a failing
+  // row here never blocks the save or module progress.
+  const VERIFY_TEXT = { callback: 'Callback on the directory number + employee ID', name: 'Accepted the name and department', password: 'Asked for the password' };
+  function consoleSections(ticket) {
+    const work = ticket && ticket.console ? ticket.console : null;
+    const has = Boolean(work);
+    const outcome = (key) => (has && work.outcomes ? work.outcomes[key] === true : null);
+    const critical = (choice) => (has ? work.verification.criticalErrors.includes(choice) : null);
+    const comments = has && Array.isArray(ticket.customerComments) ? ticket.customerComments.filter((comment) => comment && comment.text) : [];
+    const id = ticket ? ticket.id : 'HD-2150';
+    return [
+      {
+        id: `verification-${id.toLowerCase()}`, title: `Caller verification and unlock · ${id}`, recordedSince: '2026-11-09',
+        instructorPrompt: 'KB-0024: verify before any account action. Every choice the learner made is listed in order. A critical error is shown even when the learner corrected it, so it can be discussed; in Practice It it never blocks the lab.',
+        answer: [
+          ['Verification choices, in order', has ? (work.verification.tries.length ? work.verification.tries.map((choice) => VERIFY_TEXT[choice] || choice).join(' → ') : 'Not answered') : null],
+          ['Unlocks', has ? String(work.unlocks) : null],
+          ['Account at the end', has ? (work.accountUnlocked ? 'Unlocked' : 'Locked') : null],
+          ['Knowledge Base searches', has ? (work.kbSearches.length ? work.kbSearches : 'None') : null],
+          ['Articles opened', has ? (work.kbOpened.length ? work.kbOpened : 'None') : null],
+          ['Questions asked in the chat', has ? (work.chatAsked.length ? work.chatAsked : 'None') : null],
+          // Flags for the instructor, not checks: they never change the verdict.
+          ['Asked for a password in the chat', has ? (work.passwordAsked ? 'Yes (refused, never sent to the caller)' : 'Did not') : null],
+          ['Password in a ticket field', has ? (work.passwordWritten ? 'Wrote a password in a ticket field (refused, not recorded)' : 'Did not') : null],
+        ],
+        checks: [
+          { label: 'Caller verified per KB-0024', expected: 'Callback on the User Directory number and the employee ID', test: () => (has ? work.verification.passed : null), given: () => (has ? (work.verification.passed ? 'Yes' : 'No') : null), fix: 'Verify every caller the KB-0024 way before any account action: call back on the number in the User Directory and confirm the employee ID.' },
+          { label: 'Critical error: accepted a name and department as verification', expected: 'Never', test: () => (has ? !critical('name') : null), given: () => (has ? (critical('name') ? 'Chose it' : 'Did not') : null), fix: 'A name and department are not verification: anyone can learn them. Call back on the directory number and confirm the employee ID (KB-0024).' },
+          { label: 'Critical error: asked the caller for their password', expected: 'Never', test: () => (has ? !critical('password') : null), given: () => (has ? (critical('password') ? 'Chose it' : 'Did not') : null), fix: 'The help desk never asks for a password, for any reason (KB-0024).' },
+          { label: 'Account unlocked after verifying', expected: 'Unlocked once, after a passing verification', test: () => outcome('unlocked'), given: () => (has ? (outcome('unlocked') ? 'Yes' : 'No') : null), fix: 'Once the caller is verified, unlock the account on the account card (KB-0024).' },
+          { label: 'User confirmed they can sign in', expected: 'The user signs in while you are still on the call', test: () => outcome('confirmed'), given: () => (has ? (outcome('confirmed') ? 'Yes' : 'No') : null), fix: 'Ask the user to sign in again slowly with Caps Lock off, and confirm it works from their side.' },
+        ],
+      },
+      {
+        id: `customer-comment-${id.toLowerCase()}`, title: `Customer comment · ${id}`, recordedSince: '2026-11-09',
+        // The shared proofreading reads a sign-off ("– Riley, Northstar
+        // Service Desk") as a sentence with no end punctuation, so it would
+        // flag every signed comment, the spec's model one included.
+        mechanics: false,
+        instructorPrompt: 'The customer reads this comment. Look for plain words, what was done, and what to do if the lockout comes back (KB-0024: a lockout that returns within a day goes to Tier 2).',
+        response: has ? (comments.length ? comments.map((comment) => ({ label: `Customer comment · ${comment.time || ''}`, text: comment.text })) : [{ label: 'Customer comment', text: 'No customer comment' }]) : [{ label: 'Customer comment', text: null }],
+        answer: [['Internal terms in the last comment', has ? (work.lastCommentJargon.length ? work.lastCommentJargon : 'None') : null]],
+        checks: [
+          { label: 'Says what to do if it happens again', expected: 'A line telling the user what to do if the lockout comes back', test: () => (has ? work.commentRepeatLine : null), given: () => (has ? (work.commentRepeatLine ? 'Yes' : 'No') : null), fix: 'Tell the user what to do if it locks again (reply or call back), and that the next-level team will then find out why.' },
+        ],
+      },
+    ];
+  }
+
   function coachSections(result, ctx) {
     const key = ctx.row.lab_key;
     // Every saved ticket, from this attempt first, then from any other attempt
@@ -101,10 +306,20 @@
     [result].concat(ctx.rows.map((row) => row && row.result)).forEach((saved) => workTickets(saved || {}).forEach((ticket) => {
       if (ticket && ticket.id && !tickets.some((other) => other.id === ticket.id)) tickets.push(ticket);
     }));
-    if (key === PRIORITY_KEY) return prioritySections(tickets);
-    // A card holding Lab 2.3 and Lab 2.4 grades both labs' tickets, in course order.
+    if (key === PRIORITY_KEY) {
+      // Chosen from this attempt's own tickets: the card may also hold older attempts.
+      const own = workTickets(result);
+      return own.some((ticket) => QUEUE_IDS.includes(ticket.id)) ? queueSections(own, result) : prioritySections(tickets);
+    }
+    // A card holding Lab 4.3 and Lab 4.4 grades both labs' tickets, in course order.
     const cardKeys = new Set([key].concat(ctx.rows.map((row) => row && row.lab_key)));
-    const ids = Array.from(new Set(Object.keys(TICKETS_BY_LAB).filter((labKey) => cardKeys.has(labKey)).flatMap((labKey) => TICKETS_BY_LAB[labKey])));
+    const ticketsFor = (labKey) => {
+      const current = TICKETS_BY_LAB[labKey];
+      const earlier = EARLIER_TICKETS_BY_LAB[labKey];
+      const saved = (list) => list.some((id) => tickets.some((ticket) => ticket.id === id));
+      return earlier && !saved(current) && saved(earlier) ? earlier : current;
+    };
+    const ids = Array.from(new Set(Object.keys(TICKETS_BY_LAB).filter((labKey) => cardKeys.has(labKey)).flatMap(ticketsFor)));
     return ids.flatMap((id) => {
       const ticket = tickets.find((entry) => entry.id === id) || null;
       const saved = Boolean(ticket);
@@ -117,6 +332,14 @@
       };
       const notes = saved ? (ticket.notes || []).filter((note) => note && note.text) : [];
       const history = saved ? (ticket.statusHistory || []).map((entry) => `${entry.time}: ${entry.action}`) : null;
+      const worked = id === 'HD-2101' ? investigationSections(saved ? { ...ticket, investigation: result.work && result.work.investigation } : null)
+        : id === 'HD-2150' ? consoleSections(saved ? ticket : null) : null;
+      // HD-2150's note has three parts (Reported / Tried / Result).
+      const noteParts = id === 'HD-2150' ? [{
+        label: 'Reported / Tried / Result note', expected: 'All three parts', test: () => (saved && ticket.console && ticket.console.outcomes ? ticket.console.outcomes.note === true : null),
+        given: () => (saved && ticket.console ? (ticket.console.outcomes && ticket.console.outcomes.note ? 'All three parts' : `Missing: ${(ticket.console.noteMissing || []).join(', ') || 'a complete note'}`) : null),
+        fix: 'Write the note in three parts so the next technician can follow it: Reported, Tried, Result.',
+      }] : [];
       return [
         {
           id: `scenario-${id.toLowerCase()}`, title: `Ticket and evidence · ${id}`, required: false, recordedSince: '2026-10-17',
@@ -133,7 +356,7 @@
           answer: [['Priority', saved ? text(ticket.priority) : null], ['Assigned technician', saved ? text(ticket.assignedTechnician) : null], ['Current state', saved ? text(ticket.status) : null], ['Linked problem', saved ? text(ticket.linkedProblem) : null]],
           checks: [{ label: 'Ticket details were recorded', test: () => saved ? Boolean(ticket.status) : null, given: () => saved ? `${ticket.priority || 'Priority not changed'} · ${ticket.status || 'No state recorded'}` : null, fix: help.status }],
         },
-        {
+        ...(worked || [{
           id: `troubleshooting-${id.toLowerCase()}`, title: `Troubleshooting path · ${id}`, recordedSince: '2026-10-17',
           instructorPrompt: 'Ask which step produced the most useful evidence and whether any safety or approval check was needed.',
           answer: [['Steps the student checked', saved ? ticket.checkedSteps : null], ['Scenario reference: expected path', saved ? ticket.expectedPath : null]],
@@ -144,12 +367,12 @@
           instructorPrompt: 'Compare the diagnosis and the student-visible checkpoint result. If it was incorrect, direct the learner back to the evidence they should reconsider.',
           answer: [['Diagnosis entered', saved ? text(ticket.diagnosis) : null], ['Scenario reference: expected cause', saved ? text(ticket.expectedDiagnosis) : null]],
           checks: [diagnosisCheck],
-        },
+        }]),
         {
           id: `work-notes-${id.toLowerCase()}`, title: `Work notes · ${id}`, recordedSince: '2026-10-17',
           instructorPrompt: 'Look for the fact, what it proves, and the next action. Give one specific example of how to make the note more useful to the next technician.',
-          response: saved ? notes.map((note) => ({ label: `${note.author || 'Student note'} · ${note.time || ''}`, text: note.text })) : [{ label: 'Student work notes', text: null }],
-          checks: [{ label: 'A work note was recorded', expected: 'At least one useful work note', test: () => saved ? notes.length > 0 : null, given: () => saved ? `${notes.length} note(s)` : null, fix: help.note }],
+          response: saved ? noteResponses(notes) : [{ label: 'Student work notes', text: null }],
+          checks: [{ label: 'A work note was recorded', expected: 'At least one useful work note', test: () => saved ? notes.length > 0 : null, given: () => saved ? `${notes.length} note(s)` : null, fix: help.note }].concat(noteParts),
         },
         {
           id: `resolution-${id.toLowerCase()}`, title: `Resolution and history · ${id}`, recordedSince: '2026-10-17',
@@ -186,6 +409,18 @@
       checks: [{ label: 'AUP acknowledgment recorded', test: () => result.aup === true, given: () => result.aup === true ? 'Acknowledged' : 'Not acknowledged', fix: 'Read the Acceptable Use Policy and check the acknowledgment box.' }],
     }];
     return [section];
+  }
+
+  // Lab 1.2, the practice tickets: a completion record only (no score, no
+  // answers), saved when the simulator reports all three tickets closed.
+  // Practice It is never reviewed: nothing here is a decision.
+  function practiceCompletionSections(result, ctx) {
+    const tickets = Array.isArray(result.tickets) ? result.tickets.filter((id) => typeof id === 'string') : [];
+    const completedAt = ctx && ctx.row && ctx.row.completed_at;
+    return [{
+      id: 'practice-completion', title: 'Practice completion', required: false, instructorPrompt: 'Practice only, not graded. The student finished every practice ticket (resolved or escalated each one); no score and no answers are saved. Nothing to grade here: use this module’s Prove It for review.',
+      answer: [['Completed', completedAt ? new Date(completedAt).toLocaleString() : null], ['Tickets finished', tickets.length ? tickets.join(', ') : null], ['Graded', 'No: Practice It, no score and no answers saved']],
+    }];
   }
 
   function capstoneSections(result) {
@@ -240,6 +475,15 @@
 
   ['lab-its-01-lms-validation', 'lab-its-02-vm-build', 'lab-its-02-vm-snapshot-server'].forEach((key) => {
     AdminSubmissionSheet.register(key, { title: TITLES[key], sections: evidenceSections });
+  });
+
+  // Module 1's and Module 2's practice tickets: a completion record only.
+  ['lab-its-01-practice-tickets', 'lab-its-10-practice-tickets'].forEach((key) => {
+    AdminSubmissionSheet.register(key, {
+      title: TITLES[key],
+      caseId: (result) => (Array.isArray(result.tickets) ? result.tickets.filter((id) => typeof id === 'string').join(', ') : '') || null,
+      sections: practiceCompletionSections,
+    });
   });
 
   AdminSubmissionSheet.register('lab-its-12-capstone', {

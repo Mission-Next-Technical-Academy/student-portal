@@ -129,7 +129,21 @@ const SocM07AssessmentActions = (() => {
     const details = canonicalDetails(rawDetails);
     const { scenario } = refs(fixture);
     if (!canonicalTimestamp(timestamp, scenario)) throw new Error('M07 action timestamp must be canonical UTC within the fixture window.');
-    if (!validDetails(type, details, fixture)) throw new Error(`Invalid details for M07 action type: ${type}`);
+    if (!validDetails(type, details, fixture)) {
+      if (type === 'incident_link' && details.operation !== 'remove') {
+        const records = new Map(evidenceRecords(scenario).map((record) => [record.id, record]));
+        for (const eventId of details.eventIds || []) {
+          const record = records.get(eventId);
+          if (record?.recipientId && !(details.recipientIds || []).includes(record.recipientId)) {
+            throw new Error(`Incident evidence ${eventId} belongs to recipient ${record.recipientId}, which is outside the selected recipient scope.`);
+          }
+          if (record?.deviceId && !(details.deviceIds || []).some((id) => id.toLowerCase() === record.deviceId.toLowerCase())) {
+            throw new Error(`Incident evidence ${eventId} belongs to device ${record.deviceId}, which is outside the selected device scope.`);
+          }
+        }
+      }
+      throw new Error(`Invalid details for M07 action type: ${type}`);
+    }
     const next = SocM07AssessmentState.normalize(state, fixture);
     if (type === 'incident_link') {
       const exists = next.incidentLinks.some((item) => item.incidentId === details.incidentId);

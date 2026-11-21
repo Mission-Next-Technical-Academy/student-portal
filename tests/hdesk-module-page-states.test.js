@@ -3,8 +3,8 @@
 // (user.latestLabAttemptByKey). Browser storage holds only work not yet
 // sent, so clearing site data never changes a lab's status, counter or rail.
 //
-//   - Status lines: "Lab 2.1 submitted <day>, waiting for instructor review",
-//     "Lab 2.1 passed", "Lab 2.1 returned for revision ...", else the prompt.
+//   - Status lines: "Lab 4.1 submitted <day>, waiting for instructor review",
+//     "Lab 4.1 passed", "Lab 4.1 returned for revision ...", else the prompt.
 //   - Hero counter: "4 labs · 3 waiting for review · 1 passed" (waiting and
 //     returned parts only when non-zero).
 //   - Rail: ticked only when passed; "In review" / "Returned" otherwise.
@@ -29,7 +29,9 @@ const HD = run(`PROGRAMS.find((p) => p.slug === 'it-support')`);
 const LabRuntime = run('LabRuntime');
 // The anonymous id a walkthrough launch link carries (never the email).
 const studentOf = (user) => LabRuntime.anonymousStudentId(user);
-const moduleLab = (n) => run(`MODULE_LABS['it-support/${n}']`);
+// moduleLab(n) is the page for module key its-NN (Help Desk display numbers
+// differ from key order: its-10 is Module 2), so look up the key's number.
+const moduleLab = (n) => run(`MODULE_LABS['it-support/' + PROGRAMS.find((p) => p.slug === 'it-support').modules['its-${String(n).padStart(2, '0')}'].number]`);
 const seed = (labId, user, state) => LabRuntime.save(labId, user, { ...LabRuntime.load(labId, user, {}), ...state });
 
 const SUBMITTED = '2026-10-01T15:00:00Z';
@@ -61,7 +63,7 @@ function fresh(user) {
   ctx.supabaseCalls.length = 0;
   ctx.supabaseResponder = () => ({ data: null, error: null });
   ctx.localStorage.clear();
-  run('itsUnrecordedWalkthroughs.clear(); itsBlockedWalkthroughs.clear()');
+  run('itsUnrecordedWalkthroughs.clear(); itsBlockedWalkthroughs.clear(); itsIncompleteWalkthroughs.clear()');
   signedIn = user;
 }
 
@@ -105,10 +107,10 @@ async function testModuleTwoClearedStorageShowsDatabaseStatus() {
   fresh(user);
   const html = moduleLab(2).view(user, HD);
 
-  assert.equal(statusLine(html, LAB21), `Lab 2.1 submitted ${DAY}, waiting for instructor review`);
-  assert.equal(statusLine(html, LAB22), 'Lab 2.2 passed');
-  assert.equal(statusLine(html, LAB23), `Lab 2.3 submitted ${DAY}, waiting for instructor review`);
-  assert.equal(statusLine(html, LAB24), `Lab 2.4 submitted ${DAY}, waiting for instructor review`);
+  assert.equal(statusLine(html, LAB21), `Lab 4.1 submitted ${DAY}, waiting for instructor review`);
+  assert.equal(statusLine(html, LAB22), 'Lab 4.2 passed');
+  assert.equal(statusLine(html, LAB23), `Lab 4.3 submitted ${DAY}, waiting for instructor review`);
+  assert.equal(statusLine(html, LAB24), `Lab 4.4 submitted ${DAY}, waiting for instructor review`);
   assert.equal(counter(html, 'its02-status'), '4 labs · 3 waiting for review · 1 passed');
   assert.doesNotMatch(html, /Labs complete/, 'the counter never says complete');
 
@@ -134,14 +136,14 @@ async function testModuleTwoLocalFlagsAloneAreNotSubmitted() {
     consoleStarted: true, consoleCompleted: true,
   });
   const html = moduleLab(2).view(user, HD);
-  assert.doesNotMatch(html, /Lab 2\.1 complete|Lab 2\.2 complete|Labs 2\.3 &(amp;)? 2\.4 complete/);
+  assert.doesNotMatch(html, /Lab 4\.1 complete|Lab 4\.2 complete|Labs 4\.3 &(amp;)? 4\.4 complete/);
   // Picked files live only in the page that picked them: after a reload each
   // tile asks for its file again, and nothing is ready to submit.
   assert.equal(statusLine(html, LAB21), 'Upload both evidence files to complete this lab.');
   assert.equal(submitButton(html, LAB21), null, 'no Submit button until the files are chosen again');
   assert.match(section(html, 'its02-lab-2-1'), /Choose this file again — “d\.png”/);
   assert.equal(counter(html, 'its02-status'), '4 labs · 0 passed');
-  assert.match(section(html, 'its02-lab-2-3'), /Start Labs 2\.3 &(amp;)? 2\.4 walkthrough/);
+  assert.match(section(html, 'its02-lab-2-3'), /Start Labs 4\.3 &(amp;)? 4\.4 walkthrough/);
   for (const id of ['its02-lab-2-1', 'its02-lab-2-2', 'its02-lab-2-3']) assert.equal(railRow(html, id).ticked, false, `${id} not ticked`);
 }
 
@@ -149,7 +151,7 @@ async function testModuleTwoReturnedLab() {
   const user = hdUser({ [LAB21]: returned(), [LAB22]: approved() });
   fresh(user);
   const html = moduleLab(2).view(user, HD);
-  assert.equal(statusLine(html, LAB21), 'Lab 2.1 returned for revision — see your instructor’s notes below.');
+  assert.equal(statusLine(html, LAB21), 'Lab 4.1 returned for revision — see your instructor’s notes below.');
   assert.match(section(html, 'its02-lab-2-1'), /data-itsw-evidence-input/, 'a returned lab shows its upload boxes again');
   assert.match(section(html, 'its02-lab-2-1'), /data-its-resubmit/, 'PR #61 Resubmit button stays');
   assert.equal(counter(html, 'its02-status'), '4 labs · 1 passed · 1 returned');
@@ -171,23 +173,23 @@ async function testEvidenceUploadNeverCompletes() {
   await settle();
   assert.equal(inserts().length, 0, 'adding every file does not submit by itself');
   html = moduleLab(2).view(user, HD);
-  assert.equal(statusLine(html, LAB21), 'Ready to submit Lab 2.1');
+  assert.equal(statusLine(html, LAB21), 'Ready to submit Lab 4.1');
   assert.doesNotMatch(statusLine(html, LAB21), /complete|passed/i);
-  assert.ok(submitButton(html, LAB21), 'Submit Lab 2.1 button once every file is added');
-  assert.match(submitButton(html, LAB21), /Submit Lab 2\.1/);
+  assert.ok(submitButton(html, LAB21), 'Submit Lab 4.1 button once every file is added');
+  assert.match(submitButton(html, LAB21), /Submit Lab 4\.1/);
   assert.equal(railRow(html, 'its02-lab-2-1').ticked, false);
 
   // Pressing Submit: "Submitting…" while the save is in flight, one row only.
   const first = run('its02SubmitLab')(LAB21);
   const second = run('its02SubmitLab')(LAB21);
   html = moduleLab(2).view(user, HD);
-  assert.equal(statusLine(html, LAB21), 'Submitting Lab 2.1…');
+  assert.equal(statusLine(html, LAB21), 'Submitting Lab 4.1…');
   await Promise.all([first, second]);
   assert.equal(inserts(LAB21).length, 1, 'exactly one attempt');
   assert.equal(inserts().length, 1, 'no other lab is submitted');
 
   html = moduleLab(2).view(user, HD);
-  assert.match(statusLine(html, LAB21), /^Lab 2\.1 submitted .+, waiting for instructor review$/);
+  assert.match(statusLine(html, LAB21), /^Lab 4\.1 submitted .+, waiting for instructor review$/);
   assert.equal(counter(html, 'its02-status'), '4 labs · 1 waiting for review · 0 passed');
   assert.equal(submitButton(html, LAB21), null, 'no Submit button once submitted');
   assert.match(railRow(html, 'its02-lab-2-1').text, /In review/);
@@ -203,62 +205,71 @@ async function testEvidenceSubmitFailure() {
   run('its02AddEvidence')('its02-ev-vmsettings', file('settings.png', SUBMITTED));
   await run('its02SubmitLab')(LAB21);
   const html = moduleLab(2).view(user, HD);
-  assert.equal(statusLine(html, LAB21), 'Lab 2.1 wasn’t submitted. Check your connection, then press Submit Lab 2.1.');
+  assert.equal(statusLine(html, LAB21), 'Lab 4.1 wasn’t submitted. Check your connection, then press Submit Lab 4.1.');
   assert.ok(submitButton(html, LAB21), 'the Submit button stays so the student can retry');
   assert.equal(counter(html, 'its02-status'), '4 labs · 0 passed');
 }
 
 /* ------------------------------------------------------------------ Module 1 */
 
+// The keys are older than the numbers students see: the old Lab 1.1 (LMS &
+// Environment Validation) is retired, the guided lab now shows as Lab 1.1 and
+// the practice tickets as Lab 1.2.
 const LAB11 = 'lab-its-01-lms-validation';
 const LAB12 = 'lab-its-01-ticket-triage';
+const PRACTICE = 'lab-its-01-practice-tickets';
 
+// The retired Lab 1.1 is off the page: its old attempts stay in the database
+// but show nowhere on Module 1 (no section, no status line, no rail row, no
+// counter). Practice It labs read "Complete", whether
+// waiting or approved before Practice It stopped being reviewed.
 async function testModuleOneClearedStorage() {
   const user = hdUser({ [LAB11]: waiting(), [LAB12]: approved() });
   fresh(user);
   const html = moduleLab(1).view(user, HD);
-  assert.equal(statusLine(html, LAB11), `Lab 1.1 submitted ${DAY}, waiting for instructor review`);
-  assert.equal(statusLine(html, LAB12), 'Lab 1.2 passed');
-  assert.equal(counter(html, 'its01-status'), '3 labs · 1 waiting for review · 1 passed');
-  assert.doesNotMatch(section(html, 'its01-lab-1-1'), /Not uploaded yet|data-itsw-evidence-input|data-its01-aup-checkbox/);
-  assert.match(section(html, 'its01-lab-1-1'), new RegExp(`Acknowledged with your Lab 1\\.1 submission on ${DAY}`));
+  assert.equal(statusLine(html, LAB12), `Lab 1.1: Complete · ${DAY}`);
+  assert.equal(counter(html, 'its01-status'), '3 labs · 1 practice complete · 0 passed');
   assert.match(section(html, 'its01-lab-1-2'), /Review the walkthrough/);
-  assert.match(railRow(html, 'its01-lab-1-1').text, /In review/);
   assert.equal(railRow(html, 'its01-lab-1-2').ticked, true);
+  assert.doesNotMatch(html, /its01-lab-1-1|data-its-lab-status="lab-its-01-lms-validation"|LMS &amp; Environment Validation/);
+
+  // A waiting guided lab and a saved practice-tickets record: both practice
+  // complete, never "waiting for instructor review" or "In review".
+  const both = hdUser({ [LAB12]: waiting(), [PRACTICE]: waiting() });
+  fresh(both);
+  const page = moduleLab(1).view(both, HD);
+  assert.equal(statusLine(page, LAB12), `Lab 1.1: Complete · ${DAY}`);
+  assert.equal(statusLine(page, PRACTICE), `Lab 1.2: Complete · ${DAY}`);
+  assert.equal(counter(page, 'its01-status'), '3 labs · 2 practice complete · 0 passed');
+  assert.equal(railRow(page, 'its01-practice-tickets').ticked, true);
+  assert.doesNotMatch(page, /waiting for instructor review|In review/);
+
+  // A Return from before Practice It stopped being reviewed still shows.
+  const back = hdUser({ [LAB12]: returned() });
+  fresh(back);
+  assert.equal(statusLine(moduleLab(1).view(back, HD), LAB12), 'Lab 1.1 returned for revision — see your instructor’s notes below.');
 }
 
-async function testModuleOneExplicitSubmit() {
-  const user = hdUser();
-  fresh(user);
-  seed('its01-lms-validation-v1', user, { aupScrolled: true });
-  moduleLab(1).view(user, HD);
-  run('its01AddEvidence')('its01-evidence-1', file('sandbox.png', SUBMITTED));
-  run('its01AddEvidence')('its01-evidence-2', file('tile.png', SUBMITTED));
-  let html = moduleLab(1).view(user, HD);
-  assert.equal(submitButton(html, LAB11), null, 'the policy must be acknowledged before Submit appears');
-
-  const state = LabRuntime.load('its01-lms-validation-v1', user, {});
-  LabRuntime.save('its01-lms-validation-v1', user, { ...state, aupAcknowledged: true });
-  html = moduleLab(1).view(user, HD);
-  await settle();
-  assert.equal(inserts().length, 0, 'no auto-submit');
-  assert.equal(statusLine(html, LAB11), 'Ready to submit Lab 1.1');
-  assert.ok(submitButton(html, LAB11));
-  assert.match(section(html, 'its01-lab-1-1'), /screenshot of your LMS dashboard after you sign in/, 'Lab 1.1 asks for evidence of the student’s own sign-in');
-
-  await run('its01SubmitLab')(LAB11);
-  assert.equal(inserts(LAB11).length, 1);
-  html = moduleLab(1).view(user, HD);
-  assert.match(statusLine(html, LAB11), /^Lab 1\.1 submitted .+, waiting for instructor review$/);
-  assert.equal(counter(html, 'its01-status'), '3 labs · 1 waiting for review · 0 passed');
+async function testModuleOneHasNoEvidenceLab() {
+  const returnedLab11 = hdUser({ [LAB11]: returned() });
+  for (const user of [hdUser(), returnedLab11]) {
+    fresh(user);
+    const html = moduleLab(1).view(user, HD);
+    assert.doesNotMatch(html, /data-itsw-evidence-input|data-its-submit=|data-its-resubmit=|Not uploaded yet/, 'no evidence upload, Submit or Resubmit');
+    // The one allowed mention: technology setup says there is no virtual machine to build.
+    const words = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').replace('Every lab runs in the browser-based IT Service Desk simulator. There is nothing to install and no virtual machine to build.', '');
+    assert.doesNotMatch(words, /sandbox|virtual machine|\bVM\b|lab login|lab-environment login|two logins/i, 'no other sandbox, VM or second login');
+    assert.equal(counter(html, 'its01-status'), '3 labs · 0 practice complete · 0 passed', 'the counter has the guided lab, the practice tickets and the Prove It');
+  }
 }
-
-/* --------------------------------------------------------------- Modules 3-11 */
 
 async function testSharedWalkthroughModules() {
   for (let n = 3; n <= 11; n += 1) {
     const key = `its-${String(n).padStart(2, '0')}`;
-    const rail = `itss-lab-${String(n).padStart(2, '0')}`;
+    // Module 2 (its-10) has its own page now: tests/hdesk-m02-page.test.js.
+    if (key === 'its-10') continue;
+    // The page anchor follows the module's display number, not its key.
+    const rail = `itss-lab-${String(HD.modules[key].number).padStart(2, '0')}`;
     const [lab] = run('LABS').filter((l) => l.module === key).map((l) => l.key);
 
     let user = hdUser({ [lab]: waiting() });
@@ -320,7 +331,11 @@ function replyCatcher() {
   return { replies, source: { postMessage: (data, origin) => replies.push({ data, origin }) } };
 }
 // `student` defaults to the signed-in student's launch id, as the simulator sends it.
-const finishMessage = (id, source, student = signedIn ? studentOf(signedIn) : '') => ({ data: { type: 'mnt-coach-complete', id, nonce: 'n-1', student, work: { version: 1, tickets: [{ id: 'HD-2109' }] } }, origin: SIM, source });
+// Module 1 saves only a finished HD-2150 (resolved, every outcome met;
+// tests/hdesk-m01-guided-lab.test.js covers that rule).
+const M01_FINISHED_WORK = { version: 1, tickets: [{ id: 'HD-2150', status: 'Resolved', console: {
+  outcomes: { verified: true, unlocked: true, confirmed: true, comment: true, note: true, code: true } } }] };
+const finishMessage = (id, source, student = signedIn ? studentOf(signedIn) : '') => ({ data: { type: 'mnt-coach-complete', id, nonce: 'n-1', student, work: id === 'hd-m01' ? M01_FINISHED_WORK : { version: 1, tickets: [{ id: 'HD-2109' }] } }, origin: SIM, source });
 
 async function testReceiptSavedAfterSubmit() {
   const user = hdUser();
@@ -503,10 +518,10 @@ const returnLink = (coachId) => run(`location.search = ${JSON.stringify(coachId 
 
 async function testReturnLinkRecordsNothing() {
   const cases = [
-    [1, 'hd-m01', 'its01-lab-1-2', 'lab-its-01-ticket-triage', 'its01-lab-1-2', 'Start Lab 1.2 walkthrough'],
-    [2, 'hd-m02', 'its02-lab-2-3', LAB23, 'its02-lab-2-3', 'Start Labs 2.3 &amp; 2.4 walkthrough'],
-    [3, 'hd-m03', null, 'lab-its-03-blank-desktop', 'itss-lab-03', 'Start guided walkthrough'],
-    [7, 'hd-m07', null, run('LABS').find((l) => l.module === 'its-07').key, 'itss-lab-07', 'Start guided walkthrough'],
+    [1, 'hd-m01', 'its01-lab-1-2', 'lab-its-01-ticket-triage', 'its01-lab-1-2', 'Start Lab 1.1 walkthrough'],
+    [2, 'hd-m02', 'its02-lab-2-3', LAB23, 'its02-lab-2-3', 'Start Labs 4.3 &amp; 4.4 walkthrough'],
+    [3, 'hd-m03', null, 'lab-its-03-blank-desktop', 'itss-lab-05', 'Start guided walkthrough'],
+    [7, 'hd-m07', null, run('LABS').find((l) => l.module === 'its-07').key, 'itss-lab-06', 'Start guided walkthrough'],
   ];
   for (const [n, coachId, sectionId, lab, railId, start] of cases) {
     const user = hdUser();
@@ -575,7 +590,7 @@ async function testBlockedPopupShowsMessage() {
     testEvidenceUploadNeverCompletes,
     testEvidenceSubmitFailure,
     testModuleOneClearedStorage,
-    testModuleOneExplicitSubmit,
+    testModuleOneHasNoEvidenceLab,
     testSharedWalkthroughModules,
     testWalkthroughCompletionShowsWaiting,
     testDuplicateCoachCompletionMessageCreatesOneAttempt,

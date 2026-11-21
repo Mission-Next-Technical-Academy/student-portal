@@ -1,5 +1,7 @@
 # Module completion integrity — generalize the detail-beacon pattern
 
+> **Correction (2026-11-14):** Production is the live system. Treat every account that isn't an admin-flagged test account as a real student's, and never modify one without a person's task-scoped approval.
+
 **Status, 2026-09-16: NOT STARTED. Spec only.** Written for a fresh session
 (owner intends to run this via Codex) after a live debugging session found
 the root cause below. Read this whole file before writing any code.

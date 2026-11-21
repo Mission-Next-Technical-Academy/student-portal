@@ -1,5 +1,7 @@
 # Assessment & CIE Reporting Specification
 
+> **Correction (2026-11-14):** Below-pass attempts are now saved as "submitted" and go to instructor review.
+
 Status: living gap doc. Maps `docs/compliance/Reportingrequirements.txt` (CIE minimum LMS
 requirements) against what the LMS actually captures today, and defines the
 per-module assessment format so "grade," "assessment result," and "passing

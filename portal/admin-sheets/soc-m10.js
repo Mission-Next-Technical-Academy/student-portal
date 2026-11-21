@@ -286,7 +286,7 @@
           const locker = lockerOf(result);
           if (!locker) return [['Evidence locker', null]];
           const t = truth();
-          const kind = (id) => (list(t.requiredArtifactIds).includes(id) ? 'needed' : list(t.noiseArtifactIds).includes(id) ? 'routine / unrelated' : list(t.optionalSupportingArtifactIds).includes(id) ? 'optional context' : 'other');
+          const kind = (id) => (list(t.requiredArtifactIds).includes(id) ? 'needed' : list(t.noiseArtifactIds).includes(id) ? 'routine / unrelated' : list(t.optionalSupportingArtifactIds).includes(id) ? 'optional context' : id === t.specialistArtifactId && artifact(id)?.type === 'memory_image' ? 'memory image · specialist handoff' : 'other');
           const rows = Object.keys(locker).sort();
           const missing = list(t.requiredArtifactIds).filter((id) => !locker[id]);
           return [
@@ -519,9 +519,11 @@
         response: (result) => {
           const rec = evidence(result);
           if (!rec) return [{ label: 'Statements · student response', text: null }];
-          return statementsOf(result).filter((item) => item.kind !== 'root_cause').map((item) => ({
-            label: `${KIND_TEXT[item.kind] || item.kind} · cites ${ids(item.artifactIds) || 'nothing'}`, text: item.text,
-          }));
+          const statements = statementsOf(result).filter((item) => item.kind !== 'root_cause');
+          return statements.length ? [{
+            label: 'Statements · student response',
+            text: statements.map((item) => `${KIND_TEXT[item.kind] || item.kind} · cites ${ids(item.artifactIds) || 'nothing'}: ${item.text}`).join('\n'),
+          }] : [];
         },
         mechanics: true,
         checks: [

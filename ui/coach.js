@@ -360,8 +360,14 @@
       if (dots[state.step]) dots[state.step].className = 'done';
       const waitingLabel = panelEl().querySelector('.coach-bar-waiting');
       if (waitingLabel) waitingLabel.innerHTML = '<i class="coach-bar-tick" aria-hidden="true">✓</i>Done';
+      // A redraw during the wait starts another watcher for this same step,
+      // and it sees the check pass too. Advance only from the step that
+      // completed, in the same coach session (a stop or restart replaces
+      // `state`), so a second watcher or an old session never skips a step.
+      const doneState = state;
+      const doneStep = state.step;
       setTimeout(() => {
-        if (!state) return;
+        if (!state || state !== doneState || state.step !== doneStep) return;
         if (state.step >= activeCoach().steps.length - 1) { renderPanel(); return; }
         goToStep(state.step + 1);
       }, 650);
@@ -695,9 +701,22 @@
         }
         start(requested, student);
       }
-    } else if (restored) {
+    } else if (restored && !search.has('practice') && !coachById(restored.id).resumeAcrossLaunches) {
+      // A tour started inside the simulator has no ?coach, so a reload
+      // brings it back from sessionStorage.
       state = restored;
       goToStep(state.step);
+    } else if (restored) {
+      // A Help Desk coach always runs with ?coach=<id>, which a reload keeps,
+      // and a practice set never has any coach. This copy came from another tab
+      // (a new tab starts with its opener's sessionStorage), so drop it. Its
+      // in-progress record stays: reopening that lab still resumes it. Its
+      // module number goes too, or the corner dock offers that module's SOC
+      // tour (courseworkModuleNumber), which opens another coach panel.
+      try {
+        sessionStorage.removeItem(STATE_KEY);
+        sessionStorage.removeItem('mnt.coach.lastModule');
+      } catch { /* storage blocked */ }
     }
     coachAfterRender();
   }

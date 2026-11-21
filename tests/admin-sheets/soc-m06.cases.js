@@ -115,6 +115,9 @@ module.exports = ({ run, clone }) => {
 
   const perfect = row('m06-pass', ticket(), huntState());
   assert.equal(perfect.score, 100, 'the hand-built hunt earns full marks from the real scorer');
+  const crossDay = clone(perfect);
+  crossDay.result.assessment_work.queryHistory[0].startTime = '2026-09-26T09:30:00.000Z';
+  crossDay.result.assessment_work.queryHistory[0].endTime = '2026-09-27T09:30:00.000Z';
 
   // Wrong everything: bad ticket, empty hunt, and an unsupported certainty claim.
   const overclaim = huntState({ hypotheses: [], queryHistory: [], savedQueries: [], savedQueryRuns: [], pivots: [], collections: [], mappings: [], handoffs: [], conclusions: [{ id: 'c1', text: 'C2 confirmed on ws-318, everything is compromised.', eventIds: [E(5)], disposition: 'supported' }], actionHistory: [{ type: 'conclusion', details: { text: 'C2 confirmed on ws-318, everything is compromised.', eventIds: [E(5)] } }] });
@@ -137,6 +140,11 @@ module.exports = ({ run, clone }) => {
   delete older.result.case_display;
 
   return [
+    {
+      name: 'M06 search windows retain UTC dates when they cross midnight',
+      row: crossDay,
+      expect: { html: ['2026-09-26 09:30 UTC–2026-09-27 09:30 UTC'] },
+    },
     {
       name: 'M06 correct hunt and ticket recommends PASS with no prefilled notes',
       row: perfect,
