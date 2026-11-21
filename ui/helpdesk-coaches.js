@@ -880,7 +880,7 @@
         target: '.hd-chat, select[data-hd-field="impact"], select[data-hd-field="urgency"], select[data-hd-field="category"]',
         title: 'Ask three questions, then triage',
         instruction: 'Ask Wes <strong>when it started</strong>, <strong>whether anything changed</strong> and <strong>how it is affecting his work</strong>. Then set <strong>Category</strong>, <strong>Configuration item</strong>, <strong>Impact</strong> and <strong>Urgency</strong> from the facts.',
-        body: 'Why: you need the problem and the impact before you can rate it. Success looks like: all three answers are in the chat, the category and configuration item are set, and the ticket shows a priority. Read the coach note once the priority calculates: Wes is angry, and that isn’t what makes this urgent. The 3:00 deadline is. One person (Impact 3) whose work has stopped with a deadline today (Urgency 1) is P3. Never type the priority; it is calculated.',
+        body: 'Why: you need the problem and the impact before you can rate it. Success looks like: all three answers are in the chat, the category and configuration item are set, and the ticket shows a priority. Rate it from who is affected and his deadline, not from his tone, then read the coach note on the ticket once the priority calculates. Never type the priority; it is calculated.',
         waitLabel: 'Next Step: Three answers and a priority',
         check: () => {
           const t = hd11Ticket(); const c = hd11Class(t);

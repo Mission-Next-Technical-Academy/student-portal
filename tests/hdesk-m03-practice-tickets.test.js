@@ -109,6 +109,9 @@ function test3A() {
   assert.equal(tab.ticket(id).priority, 'P3');
   tab.kb(id, 'outlook not sending', 'KB-0064');
   tab.ask(id, 'outbox', 'status', 'receive');
+  tab.run(`hdConsoleCheckWork('${id}')`);
+  assert.equal(tab.feedback(id).areas.find((a) => a.area === 'Documentation').ok, false, 'CALM on the call is part of the feedback');
+  tab.run(`hdConsoleAction('${id}', 'acknowledge')`);
   tab.run(`hdConsoleAction('${id}', 'work-offline')`); tab.run(`hdConsoleAction('${id}', 'test-email')`);
   tab.note(id, A_NOTE); tab.comment(id, A_COMMENT);
   tab.run(`hdTransitionTicket('${id}', 'In Progress')`);
@@ -200,7 +203,19 @@ function testCompletionAfterAllThree() {
   assert.deepEqual(Object.keys(done[0]).sort(), ['id', 'nonce', 'student', 'tickets', 'type'], 'ticket ids only: no score, no answers');
 }
 
-const tests = [testSetOpensOnItsOwnClocks, test3A, test3B, test3C, testCompletionAfterAllThree];
+// The comment time check accepts the ways people name a time, and the fix
+// promise is caught however the time is written.
+function testTimeWords() {
+  const tab = sim();
+  const time = new RegExp(tab.run('HD_M03_TIME'), 'i');
+  const promise = new RegExp(tab.run('HD_M03_PROMISE'), 'i');
+  ['by 11:30', 'at 3 p.m.', 'by 3pm', 'at 8 AM tomorrow', 'in 30 minutes', 'within an hour', 'within 2 hours'].forEach((t) => assert.ok(time.test(t), `a time: ${t}`));
+  ['soon', 'as soon as we can', 'later today', 'in a bit', 'Model 16'].forEach((t) => assert.ok(!time.test(t), `not a time: ${t}`));
+  ['fixed by 2:00', 'working by 3', 'ready by 11:30'].forEach((t) => assert.ok(promise.test(t), `a promise: ${t}`));
+  assert.ok(!promise.test('I will update you by 11:30'));
+}
+
+const tests = [testSetOpensOnItsOwnClocks, test3A, test3B, test3C, testCompletionAfterAllThree, testTimeWords];
 let failed = 0;
 for (const test of tests) {
   try { test(); console.log(`ok   ${test.name}`); } catch (error) { failed += 1; console.error(`FAIL ${test.name}\n${error.stack}`); }

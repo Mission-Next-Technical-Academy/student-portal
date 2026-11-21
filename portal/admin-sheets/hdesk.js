@@ -249,7 +249,7 @@
         ],
         checks: [
           { label: 'Priority matches the facts', expected: 'P3', test: () => (matrix ? matrix.priority === 'P3' : v(false)), given: () => (matrix ? matrix.priority || 'Not set' : v('Not set')), fix: 'Set Impact from who is affected and Urgency from the deadline, never from the caller’s tone.' },
-          { label: 'Category and configuration item set', expected: 'Hardware › Laptop · NS-LT-0236', test: () => (cls ? Boolean(cls.category && cls.ci) : v(false)), given: () => (cls ? `${cls.category || 'No category'} · ${cls.ci || 'No CI'}` : v('Not set')), fix: 'Set the category from the symptom and the configuration item to his laptop.' },
+          { label: 'Category and configuration item set', expected: 'Hardware › Laptop · NS-LT-0236', test: () => (cls ? cls.category === 'Hardware' && cls.ci === 'NS-LT-0236' : v(false)), given: () => (cls ? `${cls.category || 'No category'} · ${cls.ci || 'No CI'}` : v('Not set')), fix: 'Set the category from the symptom and the configuration item to his laptop.' },
         ],
       },
       {
