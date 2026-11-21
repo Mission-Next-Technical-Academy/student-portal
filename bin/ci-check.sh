@@ -82,6 +82,9 @@ node tests/lab-attempt-evidence-panel.test.js
 echo '== Simulator route render and navigation =='
 node bin/render_all.js
 
+echo '== SOC entity identity lint (strict, read-only) =='
+node scripts/soc-entity-identity-lint.js --strict --no-write
+
 echo '== Staging automation scripts and workflow boundaries (offline, throwaway git repos) =='
 node tests/staging-sync-scripts.test.js
 
