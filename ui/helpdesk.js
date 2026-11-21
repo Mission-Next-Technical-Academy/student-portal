@@ -161,8 +161,12 @@ function hdPracticeClosed() {
   // complete: the tickets the set needs closed (Module 2 keeps 2-B's related
   // tickets in the set without requiring them); otherwise every ticket.
   const needed = Array.isArray(HD_PRACTICE_SET.set.complete) ? HD_PRACTICE_SET.set.complete : HD_PRACTICE_SET.set.tickets;
+  // done: { id:[rule] } (Module 3 on): a ticket that never closes counts as
+  // done when every rule holds (hdConsoleRule), in place of the state test.
+  const done = HD_PRACTICE_SET.set.done && typeof HD_PRACTICE_SET.set.done === 'object' ? HD_PRACTICE_SET.set.done : {};
   return needed.every(id => {
     const ticket = hdState.tickets.find(item => item.id === id);
+    if (ticket && Array.isArray(done[id]) && done[id].length) return done[id].every(rule => hdConsoleRule(ticket, rule));
     // A converted incident (Canceled – Converted) is closed too.
     return Boolean(ticket && (['Resolved', 'Escalated'].includes(ticket.status) || (ticket.status === 'Canceled' && ticket.cancelReason === 'Converted')));
   });
@@ -633,7 +637,7 @@ function hdComputerByName(name) {
 function hdOpenTickets() { return hdState.tickets.filter(t => !['Resolved','Closed','Canceled'].includes(t.status)); }
 // Older tickets' SLA clock, unchanged: a matrix ticket uses hdMatrixSla.
 function hdSlaMinutes(ticket) { return { P1:15, P2:120, P3:480, P4:1440 }[ticket.priority] || 480; }
-function hdAgeMinutes(ticket) { return Math.max(0, Math.round((hdShiftNow() - new Date(ticket.createdTimestamp)) / 60000)); }
+function hdAgeMinutes(ticket) { return Math.max(0, Math.round((hdShiftNow(ticket) -new Date(ticket.createdTimestamp)) / 60000)); }
 function hdSlaState(ticket) {
   if (hdIsMatrix(ticket)) return hdMatrixSla(ticket);
   if (['Resolved','Closed'].includes(ticket.status)) return { label:'Met / stopped', cls:'ok' };
@@ -654,7 +658,7 @@ function hdMetric(label, value, detail, tone) {
   return `<div class="card hd-metric ${tone || ''}"><div class="card-body"><span class="muted">${hdEsc(label)}</span><strong>${hdEsc(value)}</strong><small>${hdEsc(detail)}</small></div></div>`;
 }
 function hdHistory(ticket, action) {
-  ticket.troubleshootingHistory.push({ time:hdConsoleTime(), action });
+  ticket.troubleshootingHistory.push({ time:hdConsoleTime(ticket), action });
 }
 
 function hdSelectTicket(id) {
@@ -707,7 +711,7 @@ function hdAddNote(id) {
   const text = input && input.value.trim(); if (!ticket || !text) { toast('Enter a useful troubleshooting note first.'); return false; }
   // A password is never saved in a note, on any ticket.
   if (hdPasswordInText(text)) { toast(hdRefusePasswordText(ticket, 'work note')); return false; }
-  ticket.notes.push({ time:hdConsoleTime(), author:'Riley Morgan', text });
+  ticket.notes.push({ time:hdConsoleTime(ticket), author:'Riley Morgan', text });
   hdClearDraft(ticket, 'note');
   hdProveEdited();
   hdHistory(ticket, 'Technician work note added.');
@@ -722,7 +726,7 @@ function hdAddNote(id) {
 function hdContactRequester(id) {
   const ticket = hdTicketById(id); if (!ticket) return;
   const message = `Contacted ${ticket.requester}: acknowledged the ticket, confirmed impact, and set the next update expectation.`;
-  ticket.notes.push({ time:hdConsoleTime(), author:'Customer update', text:message });
+  ticket.notes.push({ time:hdConsoleTime(ticket), author:'Customer update', text:message });
   hdHistory(ticket, 'Requester contacted; impact and next-update time confirmed.');
   toast('Simulated requester contact recorded.'); hdRerender();
 }
@@ -809,7 +813,7 @@ function hdQueueRows(tickets) {
     const fields = HD_PROVE && hdState.prove ? hdState.prove.fields : null;
     const priority = fields ? fields.priority : ticket.priority;
     return `<tr class="hd-ticket-row" tabindex="0" onclick="hdSelectTicket('${ticket.id}')" onkeydown="if(event.key==='Enter')hdSelectTicket('${ticket.id}')">
-      <td><strong>${hdEsc(hdTicketLabel(ticket))}</strong>${ticket.linkedProblem ? `<small>${hdEsc(ticket.linkedProblem)}</small>` : ''}</td>
+      <td><strong>${hdEsc(hdTicketLabel(ticket))}</strong>${hdVipBadge(ticket)}${ticket.linkedProblem ?`<small>${hdEsc(ticket.linkedProblem)}</small>` : ''}</td>
       <td>${priority ? hdBadge(priority, priority.toLowerCase()) : '<span class="muted">Not set</span>'}</td>
       <td><strong>${hdEsc(ticket.requester)}</strong><small>${hdEsc(ticket.department)}</small></td>
       <td><strong>${hdEsc(fields ? ticket.title : hdConsole(ticket).classify ? hdTicketCategoryText(ticket) : ticket.subcategory)}</strong><small>${hdEsc(ticket.description)}</small></td>
@@ -888,7 +892,7 @@ VIEWS['helpdesk/ticket'] = () => {
   const pathAndDiagnosis = scenario ? hdM01IdentityCard(scenario) + hdM01InvestigationCard(scenario) : byOutcomes ? hdConsoleOutcomesCard(ticket) : matrix ? '' : `<div class="card"><div class="card-header"><strong>Troubleshooting path</strong><span class="muted">Record what you actually checked.</span></div><div class="card-body"><div class="hd-path">${ticket.correctPath.map((step,index) => `<label><input type="checkbox" onchange="hdTogglePathStep('${ticket.id}',${index},this.checked)" ${(ticket.checkedSteps || []).includes(step)?'checked':''}> <span>${index+1}</span>${hdEsc(step)}</label>`).join('')}</div></div></div>
         <div class="card"><div class="card-header"><strong>Diagnosis checkpoint</strong></div><div class="card-body"><div class="hd-diagnosis-row"><select id="hd-diagnosis" class="select"><option value="">Choose the most likely cause…</option>${diagnosisOptions.map(value => `<option ${ticket.diagnosis===value?'selected':''}>${hdEsc(value)}</option>`).join('')}</select><button class="btn btn-primary" onclick="hdSubmitDiagnosis('${ticket.id}')">Check diagnosis</button></div>${ticket.diagnosis ? `<div class="callout ${ticket.diagnosisCorrect?'success':'warning'}">${ticket.diagnosisCorrect ? `<strong>Supported by the evidence.</strong> ${hdEsc(ticket.hiddenRootCause)}` : '<strong>Not sufficiently supported.</strong> Recheck the evidence and test a different hypothesis.'}</div>` : ''}${ticket.diagnosisCorrect ? `<div class="hd-resolution"><strong>Expected resolution</strong><p>${hdEsc(ticket.expectedResolution)}</p></div>` : ''}</div></div>`;
   const fieldGrid = matrix
-    ? `<div><span>Caller</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Short description</span><strong>${hdEsc(hdShortDescription(ticket) || '—')}</strong></div><div><span>SLA target</span><strong>${hdEsc(hdMatrixTargetText(ticket))}</strong></div><div><span>Created</span><strong>${hdEsc(hdShiftTimeText(ticket.createdTimestamp))}</strong></div><div><span>Assignment group</span><strong>${hdEsc(ticket.assignmentGroup || HD_SERVICE_DESK)}</strong></div><div><span>Assigned to</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${hdConsole(ticket).classify ? '' : `${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}`}`
+    ? `<div><span>Caller</span><strong>${hdEsc(hdCallerText(ticket))}</strong></div>${hdCallbackField(ticket)}<div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Short description</span><strong>${hdEsc(hdShortDescription(ticket) || '—')}</strong></div><div><span>SLA target</span><strong>${hdEsc(hdMatrixTargetText(ticket))}</strong></div><div><span>Created</span><strong>${hdEsc(hdShiftTimeText(ticket.createdTimestamp))}</strong></div><div><span>Assignment group</span><strong>${hdEsc(ticket.assignmentGroup || HD_SERVICE_DESK)}</strong></div><div><span>Assigned to</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${hdConsole(ticket).classify ? '' : `${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}`}`
     : '';
   const factCards = matrix && !(ticket.symptoms || []).length && !(ticket.systemState || []).length ? '' : `<div class="two-col"><div class="card"><div class="card-header"><strong>Observable symptoms</strong></div><div class="card-body">${hdList(ticket.symptoms)}</div></div><div class="card"><div class="card-header"><strong>Relevant system state</strong></div><div class="card-body">${hdList(ticket.systemState)}</div></div></div>`;
   const controls = matrix
@@ -898,7 +902,7 @@ VIEWS['helpdesk/ticket'] = () => {
     ${related.length > 1 ? `<div class="callout warning hd-related"><strong>${related.length} related reports detected.</strong> Same application, symptom, and time window. ${ticket.linkedProblem ? `Linked to ${hdEsc(ticket.linkedProblem)}.` : `<button class="btn btn-sm btn-secondary" onclick="hdLinkProblem('${ticket.id}')">Link to problem record</button>`}</div>` : ''}
     <div class="hd-ticket-layout">
       <div class="hd-ticket-main">
-        <div class="card"><div class="card-header"><strong>Requester statement</strong>${matrix ? `${ticket.priority ? hdBadge(ticket.priority, ticket.priority.toLowerCase()) : '<span class="muted">Priority not set</span>'}${hdStatusBadge(ticket)}${hdSlaBadge(ticket)}` : `${hdBadge(ticket.priority,ticket.priority.toLowerCase())}${hdBadge(ticket.status)}${hdBadge(sla.label,sla.cls)}`}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid">${matrix ? fieldGrid : `<div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Business impact</span><strong>${hdEsc(ticket.businessImpact)}</strong></div><div><span>SLA target</span><strong>${hdEsc(ticket.sla)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}${ticket.callerStatus ? `<div><span>Caller</span><strong>${hdEsc(ticket.callerStatus)}</strong></div>` : ''}`}</div></div></div>${hdConsoleVerifyCard(ticket)}${hdConsoleChatCard(ticket)}${hdConsoleKbCard(ticket)}${hdConsoleAccountCard(ticket)}${hdConsoleActionsCard(ticket)}${hdConsoleComputerCard(ticket)}${hdConsoleOwnerCard(ticket)}${hdMatrixCards(ticket)}
+        <div class="card"><div class="card-header"><strong>Requester statement</strong>${hdVipBadge(ticket)}${matrix ? `${ticket.priority ? hdBadge(ticket.priority, ticket.priority.toLowerCase()) : '<span class="muted">Priority not set</span>'}${hdStatusBadge(ticket)}${hdSlaBadge(ticket)}` : `${hdBadge(ticket.priority,ticket.priority.toLowerCase())}${hdBadge(ticket.status)}${hdBadge(sla.label,sla.cls)}`}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid">${matrix ? fieldGrid : `<div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Business impact</span><strong>${hdEsc(ticket.businessImpact)}</strong></div><div><span>SLA target</span><strong>${hdEsc(ticket.sla)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}${ticket.callerStatus ? `<div><span>Caller</span><strong>${hdEsc(ticket.callerStatus)}</strong></div>` : ''}`}</div></div></div>${hdConsoleVerifyCard(ticket)}${hdConsoleChatCard(ticket)}${hdConsoleKbCard(ticket)}${hdConsoleAccountCard(ticket)}${hdConsoleActionsCard(ticket)}${hdConsoleComputerCard(ticket)}${hdConsoleOwnerCard(ticket)}${hdMatrixCards(ticket)}${hdCommsCards(ticket)}
         ${factCards}
         ${evidenceCard}
         ${pathAndDiagnosis}
@@ -1034,7 +1038,10 @@ function hdComments(ticket) {
 // On a set's own clock (set.now), history, work notes, customer updates and
 // comments show shift time (day and time, UTC); every other shift, Prove It
 // included, keeps the computer's time, as before.
-function hdConsoleTime() {
+// A ticket with its own clock (console.now, Module 3 on) shows its own shift
+// time.
+function hdConsoleTime(ticket) {
+  if (hdTicketClock(ticket)) return hdShiftTimeText(hdShiftNow(ticket));
   const set = hdActiveSet();
   return set && set.now ? hdShiftTimeText(hdShiftNow()) : new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
 }
@@ -1102,7 +1109,7 @@ function hdDraft(ticket, kind) {
   return drafts && typeof drafts[kind] === 'string' ? drafts[kind] : '';
 }
 function hdKeepDraft(id, kind, value) {
-  const ticket = hdTicketById(id); if (!ticket || !['note', 'comment', 'resolution', 'rewriteShort', 'rewriteDesc', 'kbTitle', 'kbText'].includes(kind)) return;
+  const ticket = hdTicketById(id); if (!ticket || !['note', 'comment', 'resolution', 'rewriteShort', 'rewriteDesc', 'kbTitle', 'kbText', 'caller', 'callback', 'explain', 'followUp'].includes(kind)) return;
   const text = String(value || '').slice(0, HD_DRAFT_MAX);
   ticket.drafts = { ...(ticket.drafts || {}) };
   if (!text || hdPasswordInText(text)) delete ticket.drafts[kind]; else ticket.drafts[kind] = text;
@@ -1255,14 +1262,14 @@ function hdChatAsk(id, questionId) {
   const state = hdConsoleState(ticket);
   if (question.asksPassword) {
     ticket.passwordAsked = true;
-    state.chat.push({ id:question.id, question:question.text, refused:true, time:hdConsoleTime() });
+    state.chat.push({ id:question.id, question:question.text, refused:true, time:hdConsoleTime(ticket) });
     hdPracticeEvent('password_refused', { ticket:ticket.id, field:'chat' });
     toast(`${HD_PASSWORD_STOP} The help desk never asks for a password, for any reason (KB-0024).`);
     hdRerender(); return;
   }
   const whileLocked = hdChatPending(ticket, question);
   const reply = whileLocked ? (question.replyLocked && hdConsoleAccountLocked(ticket) ? question.replyLocked : question.replyBefore || question.replyLocked) : question.reply;
-  state.chat.push({ id:question.id, question:question.text, reply, whileLocked, time:hdConsoleTime() });
+  state.chat.push({ id:question.id, question:question.text, reply, whileLocked, time:hdConsoleTime(ticket) });
   hdPracticeEvent('caller_question', { ticket:ticket.id, question:question.id });
   hdRerender();
 }
@@ -1308,7 +1315,7 @@ function hdConsoleUnlock(id, via = 'Account card') {
   if (blocked) { hdPracticeEvent('unlock_blocked', { ticket:ticket.id, via }); toast(blocked); hdRerender(); return; }
   if (!user.locked) { toast(`${user.username} is not locked out.`); return; }
   hdState.userOverrides[user.id] = { ...(hdState.userOverrides[user.id] || {}), locked:false };
-  hdConsoleState(ticket).unlocks.push({ via, time:hdConsoleTime() });
+  hdConsoleState(ticket).unlocks.push({ via, time:hdConsoleTime(ticket) });
   hdHistory(ticket, `Account ${user.username} unlocked (${via}).`);
   hdPracticeEvent('account_unlocked', { ticket:ticket.id, via });
   toast(`Account ${user.username} unlocked.`);
@@ -1322,7 +1329,9 @@ function hdAddComment(id) {
   const text = input && input.value.trim();
   if (!text) { toast('Write the comment the customer will read first.'); return false; }
   if (hdPasswordInText(text)) { toast(hdRefusePasswordText(ticket, 'customer comment')); return false; }
-  hdComments(ticket).push({ time:hdConsoleTime(), author:'Riley Morgan', text:text.slice(0, 2000) });
+  // A follow-up ticket (Module 3 on) also keeps each comment's shift time, so
+  // an update can be checked against the follow-up time.
+  hdComments(ticket).push({ time:hdConsoleTime(ticket), author:'Riley Morgan', text:text.slice(0, 2000), ...(hdConsole(ticket).followUp ? { at:hdShiftIso(ticket) } : {}) });
   hdClearDraft(ticket, 'comment');
   hdHistory(ticket, 'Additional comment (customer-visible) added.');
   const jargon = hdJargonFound(text, (hdConsole(ticket).notes || {}).jargon);
@@ -1334,7 +1343,9 @@ function hdAddComment(id) {
   const repeat = config && typeof config === 'object' ? config.repeatLine : null;
   const repeatTip = repeat && !hdCommentHasRepeatLine(ticket, text) ? ` It doesn't say ${repeat.label} yet.` : '';
   const internalTip = internal.length ? ` Internal names stay in the work notes: ${internal.join(', ')}.` : '';
-  toast(jargon.length ? `Comment added. The customer won't know these words: ${jargon.join(', ')}. Say it in plain words.${internalTip}${repeatTip}` : internalTip ? `Comment added.${internalTip}${repeatTip}` : repeatTip ? `Customer comment added.${repeatTip}` : 'Customer comment added.');
+  const timeTip = hdCommentTimeTip(ticket, text);
+  const extraTip = `${repeatTip}${timeTip}`;
+  toast(jargon.length ? `Comment added. The customer won't know these words: ${jargon.join(', ')}. Say it in plain words.${internalTip}${extraTip}` : internalTip ? `Comment added.${internalTip}${extraTip}` : extraTip ? `Customer comment added.${extraTip}` : 'Customer comment added.');
   hdRerender();
   return true;
 }
@@ -1361,7 +1372,7 @@ function hdSetResolutionCode(id, value) {
 // taken too early, is not done and is recorded as its earlyCritical.
 function hdConsoleCritical(ticket, id, text) {
   const state = hdConsoleState(ticket);
-  if (!state.critical.some(entry => entry.id === id)) state.critical.push({ id, text, time:hdConsoleTime() });
+  if (!state.critical.some(entry => entry.id === id)) state.critical.push({ id, text, time:hdConsoleTime(ticket) });
 }
 function hdConsoleAction(id, actionId) {
   const ticket = hdTicketById(id); const actions = ticket && hdConsole(ticket).actions;
@@ -1386,7 +1397,7 @@ function hdConsoleAction(id, actionId) {
     toast(action.earlyFeedback || 'Verify the caller first (KB-0024).');
     hdRerender(); return;
   }
-  if (!state.actions.some(entry => entry.id === action.id)) state.actions.push({ id:action.id, time:hdConsoleTime() });
+  if (!state.actions.some(entry => entry.id === action.id)) state.actions.push({ id:action.id, time:hdConsoleTime(ticket) });
   if (action.critical) hdConsoleCritical(ticket, action.id, action.text);
   state.lastAction = action.id;
   hdHistory(ticket, action.history || `Action: ${action.text}.`);
@@ -1490,6 +1501,9 @@ function hdConsoleRule(ticket, rule) {
   if (rule.attempts) return hdContactAttempts(ticket).length >= rule.attempts;
   if (rule.code) return (state.resolutionCode || ticket.closureCode) === rule.code;
   if (rule.rewrite) return !!(state.rewrite && !state.rewrite.missing.length);
+  // Module 3 work: the call, hold, handoff, follow-up and team messages.
+  const comms = hdCommsRule(ticket, rule);
+  if (comms !== undefined) return comms;
   return false;
 }
 function hdConsoleFeedback(ticket) {
@@ -1606,6 +1620,7 @@ function hdConsoleProgress(id) {
     unverified:state.verification.unverified, actions:state.actions.map(entry => entry.id),
     critical:state.critical.map(entry => entry.id), owner:state.owner.choice, ownerTries:state.owner.tries.slice(),
     ...hdMatrixProgress(ticket),
+    ...hdCommsProgress(ticket),
   };
 }
 
@@ -1620,7 +1635,7 @@ function hdConsoleChatCard(ticket) {
     : `<div><strong>You · ${hdEsc(entry.time)}</strong><p>${hdEsc(entry.question)}</p><strong>${hdEsc(caller.name)}</strong><p>${hdEsc(entry.reply)}</p></div>`).join('') : '<p class="muted">No questions asked yet.</p>';
   const open = (caller.questions || []).filter(question => hdChatQuestionOpen(ticket, question));
   const buttons = open.length ? `<div class="hd-chat-questions" style="display:grid;gap:8px">${open.map(question => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} onclick="hdChatAsk('${ticket.id}','${hdEsc(question.id)}')">${hdEsc(question.text)}</button>`).join('')}</div>` : '';
-  return `<div class="card hd-chat"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Caller chat</strong><span class="muted">${hdEsc(caller.name)} · on the line</span></div><div class="card-body"><div class="hd-note-list">${log}</div>${buttons}</div></div>`;
+  return `<div class="card hd-chat"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${caller.style === 'phone' ? 'Phone call' : caller.style === 'chat' ? 'Chat' : 'Caller chat'}</strong><span class="muted">${hdEsc(caller.name)} · ${caller.style === 'chat' ? 'in the chat' : 'on the line'}</span></div><div class="card-body"><div class="hd-note-list">${log}</div>${buttons}</div></div>`;
 }
 // An article's text: its numbered steps ("1. … 2. …", in order from 1) as a
 // list, any words before step 1 as a paragraph; otherwise one paragraph.
@@ -1801,9 +1816,20 @@ function hdActiveSet() {
 }
 // The shift clock: a set's own fixed time (moved only by "Next day"), or
 // HD_SHIFT_NOW for every other shift, exactly as before.
-function hdShiftNow() {
+// A Practice ticket may run on its own fixed clock (console.now, Module 3 on),
+// moved only by its "Go to follow-up time". Only a caller that passes the
+// ticket gets it: a set-wide caller ("Next day") keeps the set's clock.
+function hdTicketClock(ticket) {
+  if (HD_PROVE || !ticket) return null;
+  const now = hdConsole(ticket).now;
+  if (!now || Number.isNaN(Date.parse(now))) return null;
+  const moved = ticket.consoleState && ticket.consoleState.clockNow;
+  return new Date(moved && !Number.isNaN(Date.parse(moved)) ? moved : now);
+}
+function hdShiftNow(ticket) {
   // A queue Prove shift (Module 2) runs on its own fixed clock, never moved.
   if (HD_PROVE && HD_PROVE.shift.queue === true && HD_PROVE.shift.now) return new Date(HD_PROVE.shift.now);
+  const own = hdTicketClock(ticket); if (own) return own;
   const set = hdActiveSet();
   return set && set.now ? new Date(hdState.clockNow || set.now) : HD_SHIFT_NOW;
 }
@@ -1898,7 +1924,7 @@ function hdMatrixSla(ticket) {
   const phase = responded ? 'Resolve' : 'Respond';
   const target = responded ? targets.resolve : targets.respond;
   if (!target) return { label:'By agreement', cls:'ok', phase };
-  const now = hdShiftNow().getTime();
+  const now = hdShiftNow(ticket).getTime();
   const used = hdSlaUsed(ticket, Date.parse(ticket.createdTimestamp), now, targets.business);
   const left = target - used;
   const base = { phase, used, target, left, business:targets.business, dueMs:hdAddSlaUnits(now, Math.max(0, left), targets.business) };
@@ -1925,18 +1951,18 @@ function hdStatusText(ticket) {
   return ticket.status;
 }
 function hdStatusBadge(ticket) { return hdBadge(hdStatusText(ticket), String(ticket.status).toLowerCase().replace(/[^a-z0-9]+/g, '-')); }
-function hdShiftIso() { return hdShiftNow().toISOString(); }
+function hdShiftIso(ticket) { return hdShiftNow(ticket).toISOString(); }
 // The respond target is met once, when the desk first takes the next move.
 function hdMatrixRespond(ticket) {
   const clock = hdSlaClock(ticket);
-  if (!clock.respondedAt) clock.respondedAt = hdShiftIso();
+  if (!clock.respondedAt) clock.respondedAt = hdShiftIso(ticket);
 }
 // Every state change on a matrix ticket goes through here, on the shift
 // clock: it closes an open stop and opens one for Resolved or for On Hold –
 // Awaiting Caller.
 function hdMatrixSetStatus(ticket, status, reason, at) {
   delete hdPendingState[ticket.id];
-  const clock = hdSlaClock(ticket); const now = at || hdShiftIso();
+  const clock = hdSlaClock(ticket); const now = at || hdShiftIso(ticket);
   clock.stops.forEach(stop => { if (!stop.to) stop.to = now; });
   ticket.status = status;
   ticket.holdReason = status === 'On Hold' ? reason || '' : '';
@@ -1970,6 +1996,12 @@ function hdMatrixAssignGroup(id, group) {
   hdMatrixSetStatus(ticket, 'Escalated');
   hdHistory(ticket, `Assigned to ${group}; state Escalated.`);
   hdPracticeEvent('assignment_group', { ticket:ticket.id, group });
+  // handoff (Module 3 on): the reassignment names what the handoff note
+  // still needs. Feedback only: the note may come after the assignment.
+  if (hdConsole(ticket).handoff) {
+    const missing = hdHandoffMissing(ticket) || [];
+    toast(missing.length ? `Assigned to ${group}. Your handoff work note needs: ${hdJoinWords(missing)}.` : `Assigned to ${group}. Your handoff work note has every part.`);
+  }
   hdRerender();
 }
 // A state from the State list. On Hold needs a reason; Resolved needs a
@@ -2097,9 +2129,16 @@ function hdConvertToRequest(id) {
   ticket.request = {
     number:config.number || 'RITM', item:item.name, requestedFor:draft.requestedFor,
     fields:(item.fields || []).map(field => ({ id:field.id, label:field.label, value:draft.fields[field.id] })),
-    approval:approved ? 'Approved' : 'Requested', approver:item.approver || '', approvedAt:approved ? hdShiftIso() : '', state:'Open',
+    approval:approved ? 'Approved' : 'Requested', approver:item.approver || '', approvedAt:approved ? hdShiftIso(ticket) : '', state:'Open',
   };
   hdMatrixRespond(ticket);
+  // keepIncident (Module 3 on): the request is opened from the incident, and
+  // the incident stays open beside it (something broken and something new).
+  if (config.keepIncident) {
+    hdHistory(ticket, `Request ${ticket.request.number} (${item.name}) opened from this incident; the incident stays open.`);
+    hdPracticeEvent('request_opened', { ticket:ticket.id, item:item.name });
+    hdRerender(); return;
+  }
   ticket.cancelReason = 'Converted';
   ticket.closureCode = 'Canceled – Converted';
   hdMatrixSetStatus(ticket, 'Canceled');
@@ -2109,7 +2148,7 @@ function hdConvertToRequest(id) {
 }
 function hdRequestApprove(ticket) {
   if (!ticket.request || ticket.request.approval === 'Approved') return;
-  ticket.request.approval = 'Approved'; ticket.request.approvedAt = hdShiftIso();
+  ticket.request.approval = 'Approved'; ticket.request.approvedAt = hdShiftIso(ticket);
   hdHistory(ticket, `${ticket.request.number} approved${ticket.request.approver ? ` by ${ticket.request.approver}` : ''}.`);
 }
 function hdRequestClose(id) {
@@ -2174,7 +2213,7 @@ function hdCheckArrivals(quiet) {
       // at: the message's own shift time (a reply that came in before the
       // shift opened); otherwise now on the shift clock.
       const at = arrival.at && !Number.isNaN(Date.parse(arrival.at)) ? new Date(arrival.at).toISOString() : '';
-      state.arrived.push({ id:arrival.id, from:arrival.from || ticket.requester, text:arrival.text, time:at ? hdShiftTimeText(at) : hdConsoleTime() });
+      state.arrived.push({ id:arrival.id, from:arrival.from || ticket.requester, text:arrival.text, time:at ? hdShiftTimeText(at) : hdConsoleTime(ticket) });
       hdHistory(ticket, `Reply from ${arrival.from || ticket.requester} (customer-visible).`);
       if (arrival.reopen && ticket.status === 'Resolved') {
         hdMatrixSetStatus(ticket, 'In Progress', '', at); ticket.closureCode = ''; ticket.resolution = '';
@@ -2215,7 +2254,7 @@ function hdKbCreateDraft(id) {
   if (title.length < 5) { toast('Give the knowledge draft a title that names the symptom and the fix.'); return; }
   if (text.length < 10) { toast('Write the steps that fixed it in the knowledge draft.'); return; }
   if (hdPasswordInText(title) || hdPasswordInText(text)) { toast(hdRefusePasswordText(ticket, 'knowledge draft')); return; }
-  state.kbDraft = { title, text, state:'Review', at:hdActiveSet() && hdActiveSet().now ? hdShiftIso() : new Date().toISOString() };
+  state.kbDraft = { title, text, state:'Review', at:(hdActiveSet() && hdActiveSet().now) || hdTicketClock(ticket) ? hdShiftIso(ticket) : new Date().toISOString() };
   hdClearDraft(ticket, 'kbTitle'); hdClearDraft(ticket, 'kbText');
   hdHistory(ticket, `Knowledge draft created: "${title}" (state Review).`);
   hdPracticeEvent('kb_draft', { ticket:ticket.id });
@@ -2236,7 +2275,7 @@ function hdLogContactAttempt(id) {
   const method = input ? input.value : '';
   if (!HD_CONTACT_METHODS.includes(method)) { toast('Choose how you tried to reach the caller.'); return; }
   hdContactAttempts(ticket);
-  hdConsoleState(ticket).contactAttempts.push({ at:hdShiftIso(), method });
+  hdConsoleState(ticket).contactAttempts.push({ at:hdShiftIso(ticket), method });
   const count = hdContactAttempts(ticket).length;
   hdHistory(ticket, `Contact attempt ${count}: ${method}.`);
   hdPracticeEvent('contact_attempt', { ticket:ticket.id, method, count });
@@ -2434,7 +2473,7 @@ function hdSetQueueHtml(set) {
   const sortSelect = level => `<select class="select" aria-label="${level ? 'Then sort by' : 'Sort by'}" onchange="hdQueueSort(${level},this.value)">${level ? `<option value="" ${!view.sort[1] ? 'selected' : ''}>None</option>` : ''}${Object.keys(HD_QUEUE_SORTS).map(key => `<option value="${key}" ${view.sort[level] === key ? 'selected' : ''}>${HD_QUEUE_SORTS[key]}</option>`).join('')}</select>`;
   const columns = `<fieldset style="border:0;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:10px;align-items:center"><legend class="muted" style="float:left;margin-right:6px">Columns</legend>${Object.keys(HD_QUEUE_COLUMNS).map(key => `<label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-hd-column="${key}" ${view.columns.includes(key) ? 'checked' : ''} onchange="hdQueueColumn('${key}',this.checked)"> ${HD_QUEUE_COLUMNS[key]}</label>`).join('')}</fieldset>`;
   const head = `<th>Number</th><th>Short description</th>${view.columns.map(key => `<th>${HD_QUEUE_COLUMNS[key]}</th>`).join('')}<th>State</th><th>Assigned to</th>`;
-  const rows = tickets.map(ticket => `<tr class="hd-ticket-row" data-hd-row="${hdEsc(ticket.id)}" tabindex="0" onclick="hdSelectTicket('${ticket.id}')" onkeydown="if(event.key==='Enter')hdSelectTicket('${ticket.id}')"><td><strong>${hdEsc(hdTicketLabel(ticket))}</strong>${ticket.parentId && hdTicketById(ticket.parentId) ? `<small>Child of ${hdEsc(hdTicketLabel(hdTicketById(ticket.parentId)))}</small>` : ''}</td><td>${hdEsc(hdShortDescription(ticket) || ticket.description)}</td>${view.columns.map(key => `<td data-hd-cell="${key}">${hdQueueCell(ticket, key)}</td>`).join('')}<td>${hdStatusBadge(ticket)}</td><td>${hdEsc(ticket.assignedTechnician)}</td></tr>`).join('')
+  const rows = tickets.map(ticket => `<tr class="hd-ticket-row" data-hd-row="${hdEsc(ticket.id)}" tabindex="0" onclick="hdSelectTicket('${ticket.id}')" onkeydown="if(event.key==='Enter')hdSelectTicket('${ticket.id}')"><td><strong>${hdEsc(hdTicketLabel(ticket))}</strong>${hdVipBadge(ticket)}${ticket.parentId &&hdTicketById(ticket.parentId) ? `<small>Child of ${hdEsc(hdTicketLabel(hdTicketById(ticket.parentId)))}</small>` : ''}</td><td>${hdEsc(hdShortDescription(ticket) || ticket.description)}</td>${view.columns.map(key => `<td data-hd-cell="${key}">${hdQueueCell(ticket, key)}</td>`).join('')}<td>${hdStatusBadge(ticket)}</td><td>${hdEsc(ticket.assignedTechnician)}</td></tr>`).join('')
     || `<tr><td colspan="${4 + view.columns.length}" class="muted">No tickets in this list.</td></tr>`;
   return `<div class="filterbar" style="flex-wrap:wrap;gap:10px"><label>Incidents › <select class="select" aria-label="List" onchange="hdQueueSetList(this.value)">${Object.keys(HD_QUEUE_LISTS).map(key => `<option value="${key}" ${view.list === key ? 'selected' : ''}>${HD_QUEUE_LISTS[key]}</option>`).join('')}</select></label><label>Sort by ${sortSelect(0)}</label><label>then by ${sortSelect(1)}</label><span class="muted">${tickets.length} shown</span></div>
     <div class="filterbar">${columns}</div>
@@ -2466,7 +2505,7 @@ function hdMatrixControls(ticket) {
   const state = next.length ? `<label>State<select id="hd-next-state" class="select" onchange="hdKeepPendingState('${ticket.id}','state',this.value)" data-hd-field="state"><option value="">${hdEsc(hdStatusText(ticket))}</option>${next.map(value => `<option${pending.state === value ? ' selected' : ''}>${value}</option>`).join('')}</select></label>${next.includes('On Hold') ? `<label>On Hold reason (only for On Hold)<select id="hd-hold-reason" class="select" onchange="hdKeepPendingState('${ticket.id}','hold',this.value)"><option value="">Choose…</option>${HD_HOLD_REASONS.map(reason => `<option ${(pending.hold || ticket.holdReason) === reason ? 'selected' : ''}>${reason}</option>`).join('')}</select></label>` : ''}<button type="button" class="btn btn-secondary" onclick="hdApplyState('${ticket.id}')">Apply state</button>` : `<div><span class="muted">State</span> ${hdStatusBadge(ticket)}</div>`;
   const group = closed ? `<div><span class="muted">Assignment group</span> <strong>${hdEsc(ticket.assignmentGroup || HD_SERVICE_DESK)}</strong></div>` : `<label>Assignment group<select id="hd-assignment-group" class="select" data-hd-field="group">${HD_ASSIGNMENT_GROUPS.map(value => `<option ${(ticket.assignmentGroup || HD_SERVICE_DESK) === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label><button type="button" class="btn btn-secondary" onclick="hdApplyGroup('${ticket.id}')">Assign to group</button>`;
   const resolving = !closed ? `<label>Resolution notes (required to resolve)<textarea id="hd-resolution-notes" class="ipt" rows="4" maxlength="4000" oninput="hdKeepDraft('${ticket.id}','resolution',this.value)" placeholder="Why and how it was closed">${hdEsc(hdDraft(ticket, 'resolution'))}</textarea></label>` : '';
-  return `${select('impact', 'Impact')}${select('urgency', 'Urgency')}${priority}${hdClassifyControls(ticket)}${group}${state}${hdConsoleResolutionControl(ticket)}${resolving}`;
+  return `${select('impact', 'Impact')}${select('urgency', 'Urgency')}${priority}${hdClassifyControls(ticket)}${group}${hdWarmHandoffControl(ticket)}${state}${hdConsoleResolutionControl(ticket)}${resolving}${hdFollowUpControl(ticket)}${hdDuplicateControl(ticket)}`;
 }
 function hdClassifyControls(ticket) {
   if (!hdConsole(ticket).classify) return '';
@@ -2489,7 +2528,8 @@ function hdConvertCard(ticket) {
   const draft = hdConvertDraft(ticket);
   const item = (config.items || []).find(entry => entry.name === draft.item);
   const fields = item ? (item.fields || []).map(field => `<label>${hdEsc(field.label)}<select class="select" data-hd-convert="${hdEsc(field.id)}" onchange="hdConvertSet('${ticket.id}','${hdEsc(field.id)}',this.value)"><option value="">Choose…</option>${(field.options || []).map(value => `<option ${draft.fields[field.id] === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></label>`).join('') : '';
-  return `<div class="card hd-convert"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Convert to Request</strong><span class="muted">For something new, not something broken.</span></div><div class="card-body" style="display:grid;gap:8px"><label>Catalog item<select class="select" data-hd-convert="item" onchange="hdConvertSet('${ticket.id}','item',this.value)"><option value="">Choose…</option>${(config.items || []).map(entry => `<option ${draft.item === entry.name ? 'selected' : ''}>${hdEsc(entry.name)}</option>`).join('')}</select></label><label>Requested for<select class="select" data-hd-convert="requestedFor" onchange="hdConvertSet('${ticket.id}','requestedFor',this.value)"><option value="">Choose…</option>${HD_USERS.map(user => `<option ${draft.requestedFor === user.name ? 'selected' : ''}>${hdEsc(user.name)}</option>`).join('')}</select></label>${fields}<div><button type="button" class="btn btn-primary" onclick="hdConvertToRequest('${ticket.id}')">Convert to Request</button></div></div></div>`;
+  const keep = config.keepIncident === true;
+  return `<div class="card hd-convert"${keep ? ' data-hd-keep-incident' : ''}><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${keep ? 'Open a request from this incident' : 'Convert to Request'}</strong><span class="muted">${keep ? 'The incident stays open for what is broken; the request is for what is new.' : 'For something new, not something broken.'}</span></div><div class="card-body" style="display:grid;gap:8px"><label>Catalog item<select class="select" data-hd-convert="item" onchange="hdConvertSet('${ticket.id}','item',this.value)"><option value="">Choose…</option>${(config.items || []).map(entry => `<option ${draft.item === entry.name ? 'selected' : ''}>${hdEsc(entry.name)}</option>`).join('')}</select></label><label>Requested for<select class="select" data-hd-convert="requestedFor" onchange="hdConvertSet('${ticket.id}','requestedFor',this.value)"><option value="">Choose…</option>${HD_USERS.map(user => `<option ${draft.requestedFor === user.name ? 'selected' : ''}>${hdEsc(user.name)}</option>`).join('')}</select></label>${fields}<div><button type="button" class="btn btn-primary" onclick="hdConvertToRequest('${ticket.id}')">${keep ? 'Open request' : 'Convert to Request'}</button></div></div></div>`;
 }
 function hdLinkCard(ticket) {
   if (!hdConsole(ticket).link) return '';
@@ -2577,6 +2617,549 @@ function hdMatrixProgress(ticket) {
   return out;
 }
 
+/* ---------- Communication features (Module 3 on), switched on per ticket ----------
+ * More `console` keys, each off unless a ticket's template sets it. Older
+ * tickets look and behave as before, and a Prove shift never gets them
+ * (hdConsole). Keys:
+ *   now: ISO                       the ticket's own fixed clock (hdTicketClock),
+ *                                  moved only by its "Go to follow-up time"
+ *   vip: true                      a VIP badge on the ticket and its queue row
+ *   conversation: { name, style?:'phone'|'chat', mood?:'Calm'|'Tense'|'Frustrated'|'Angry',
+ *                   stages:[{ id, prompt?, messages?:[text], gapSeconds?, interruptLine?,
+ *                             choices:[{ id, text, pass?, mood?:-1|0|1, line?, reply? }] }] }
+ *                                  a live call or chat: a stage's messages
+ *                                  arrive one at a time (real time, from the
+ *                                  stage's start, so a reload keeps them);
+ *                                  choices show from the first message;
+ *                                  answering before the last one is an
+ *                                  interruption; a wrong choice shows its
+ *                                  line and the student chooses again. With
+ *                                  mood, a mood meter (HD_MOODS) moves one
+ *                                  step per scripted move, with its line.
+ *                                  The meter is feedback only: it is never in
+ *                                  hdConsoleProgress, so never in saved work.
+ *   intake: { caller?:true, callback?:true }
+ *                                  Caller (from the directory) and a typed
+ *                                  callback number the student sets
+ *   hold: { seconds?, ask, askReply?, back, unaskedLine, overLine }
+ *                                  ask to hold, a hold timer in real time
+ *                                  (start time saved), a return line; holding
+ *                                  without asking or past the time moves the
+ *                                  mood meter
+ *   explain: { prompt?, words:[...], line, goodLine? }
+ *                                  a typed plain-words explanation checked
+ *                                  against the ticket's own word list (line:
+ *                                  '{term}' is replaced by the first found)
+ *   evidence: [{ id, title, rows:[{ label, value }] }]
+ *                                  read-only cards; each open is recorded
+ *   handoff: { parts? }            once assigned to another group, the latest
+ *                                  work note is checked for its labels
+ *                                  (default Reported, Tried, Result, Next action)
+ *   warmHandoff: true              "Warm handoff" logs "Called <group> at <time>"
+ *   followUp: { jump? }            a Follow-up date and time; jump adds "Go to
+ *                                  follow-up time", which moves the ticket's
+ *                                  own clock (console.now) or else the set's
+ *   comments: { timeCheck:{ time, promise?, promiseLine, noTimeLine, moodDown?, goodLine? } }
+ *                                  a customer comment must name a time (time:
+ *                                  regex source); a fix-time promise (promise)
+ *                                  gets promiseLine
+ *   convert: { keepIncident:true } a request opened from the incident; the
+ *                                  incident stays open
+ *   teamMessages: [{ id, to, text, from, reply, assign? }]
+ *                                  internal messages to another team, each
+ *                                  with a scripted reply (assign: the person
+ *                                  the reply assigns the ticket to)
+ *   duplicateMove: { text, feedback, critical? }
+ *                                  a "Create new incident" move on a ticket
+ *                                  that already exists: recorded as a
+ *                                  critical error, shown as feedback
+ * A followUp ticket needs a clock (console.now or its set's now): on the
+ * fixed default clock an update can never reach the follow-up time.
+ * A practice set may set done:{ id:[rule] }: that ticket counts as done for
+ * the set's completion when every rule holds (hdPracticeClosed), in place of
+ * the state test, so each list should include a state rule (status or
+ * requestOpen). Rules for
+ * this work (hdCommsRule): call, intakeCaller, callback, held, explained,
+ * evidence, handoffNote, warmHandoff, followUp, followUpUpdated,
+ * commentTime, teamMessage, requestOpen. */
+const HD_MOODS = ['Calm', 'Tense', 'Frustrated', 'Angry'];
+const HD_CALL_GAP_SECONDS = 4;
+const HD_HOLD_SECONDS = 120;
+const HD_CALLBACK_MAX = 40;
+const HD_HANDOFF_PARTS = ['reported', 'tried', 'result', 'next'];
+function hdCommsOpen(ticket) { return !['Resolved', 'Closed', 'Canceled'].includes(ticket.status); }
+function hdVipBadge(ticket) { return hdConsole(ticket).vip ? `<span data-hd-vip>${hdBadge('VIP', 'vip')}</span>` : ''; }
+
+// The mood meter (conversation.mood): a level on HD_MOODS and every move.
+function hdMood(ticket) {
+  const start = (hdConsole(ticket).conversation || {}).mood;
+  if (!HD_MOODS.includes(start)) return null;
+  const state = hdConsoleState(ticket);
+  if (!state.mood || typeof state.mood.level !== 'number') state.mood = { level:HD_MOODS.indexOf(start), moves:[] };
+  if (!Array.isArray(state.mood.moves)) state.mood.moves = [];
+  return state.mood;
+}
+function hdMoodMove(ticket, delta, line) {
+  const mood = hdMood(ticket); if (!mood || !delta) return;
+  mood.level = Math.max(0, Math.min(HD_MOODS.length - 1, mood.level + (delta > 0 ? 1 : -1)));
+  // Every move shows a reason: the ticket's line, else a plain default.
+  const reason = String(line || '').trim() || (delta > 0 ? 'That didn\'t help the caller.' : 'That helped the caller.');
+  mood.moves.push({ delta:delta > 0 ? 1 : -1, line:reason.slice(0, 300) });
+  if (mood.moves.length > 60) mood.moves.splice(0, mood.moves.length - 60);
+}
+// For a coach's hint: the meter's level name, or '' (never saved). Hints
+// only: a coach step must never need a mood level to complete.
+function hdCallMood(id) { const ticket = hdTicketById(id); const mood = ticket && hdMood(ticket); return mood ? HD_MOODS[mood.level] : ''; }
+
+// The live conversation.
+// The call starts (its first stage's clock) when the student first sees it or
+// answers: start false only reads it, so the tick, a coach's check and the
+// work snapshot never start a call the student hasn't opened.
+function hdCall(ticket, now = hdNowMs(), start = true) {
+  const config = hdConsole(ticket).conversation; if (!config || !Array.isArray(config.stages)) return null;
+  const state = hdConsoleState(ticket);
+  const call = state.call = state.call || {};
+  call.stage = Number.isInteger(call.stage) ? call.stage : 0;
+  call.log = Array.isArray(call.log) ? call.log : [];
+  call.tries = Array.isArray(call.tries) ? call.tries : [];
+  call.interruptions = call.interruptions || 0;
+  if (typeof call.startedAt !== 'number' && start) call.startedAt = now;
+  call.done = call.stage >= config.stages.length;
+  return call;
+}
+function hdCallStage(ticket) { const call = hdCall(ticket, hdNowMs(), false); return call && !call.done ? hdConsole(ticket).conversation.stages[call.stage] : null; }
+// How many of the stage's messages have arrived, from its start time.
+function hdCallArrived(ticket, now = hdNowMs()) {
+  const call = hdCall(ticket, now, false); const stage = hdCallStage(ticket);
+  const messages = stage && Array.isArray(stage.messages) ? stage.messages : [];
+  if (!messages.length || typeof call.startedAt !== 'number') return 0;
+  const gap = (Number(stage.gapSeconds) > 0 ? Number(stage.gapSeconds) : HD_CALL_GAP_SECONDS) * 1000;
+  return Math.min(messages.length, Math.floor(Math.max(0, now - call.startedAt) / gap) + 1);
+}
+// The choices' order: shuffled per shift and stage, the same on every redraw.
+function hdCallSeed(ticket, stage) {
+  let n = (hdState && hdState.seed) || 1;
+  for (const ch of `${ticket.id}:${stage.id}`) n = (n * 31 + ch.charCodeAt(0)) >>> 0;
+  return n || 1;
+}
+function hdCallChoose(id, choiceId, now = hdNowMs()) {
+  const ticket = hdTicketById(id); const call = ticket && hdCall(ticket, now); const stage = call && hdCallStage(ticket);
+  const choice = stage && (stage.choices || []).find(item => item.id === choiceId); if (!choice) return;
+  const config = hdConsole(ticket).conversation;
+  const total = Array.isArray(stage.messages) ? stage.messages.length : 0;
+  if (total && hdCallArrived(ticket, now) < total) {
+    call.interruptions += 1;
+    call.lastLine = stage.interruptLine || `${config.name || 'The caller'} hadn't finished.`; call.lastTone = 'warn';
+    hdMoodMove(ticket, 1, call.lastLine);
+    hdPracticeEvent('call_interrupted', { ticket:ticket.id, stage:stage.id });
+    hdRerender(); return;
+  }
+  call.tries.push({ stage:stage.id, choice:choice.id, pass:choice.pass === true });
+  if (call.tries.length > 80) call.tries.splice(0, call.tries.length - 80);
+  hdMoodMove(ticket, typeof choice.mood === 'number' ? choice.mood : (choice.pass ? 0 : 1), choice.line);
+  call.lastLine = choice.line || ''; call.lastTone = choice.pass ? 'success' : 'warn';
+  hdPracticeEvent('call_reply', { ticket:ticket.id, stage:stage.id, choice:choice.id, pass:choice.pass === true });
+  if (!choice.pass) { hdRerender(); return; }
+  const time = hdConsoleTime(ticket);
+  (stage.messages || []).forEach(text => call.log.push({ who:'caller', text, time }));
+  call.log.push({ who:'you', text:choice.text, time });
+  if (choice.reply) call.log.push({ who:'caller', text:choice.reply, time });
+  call.stage += 1; call.startedAt = now;
+  call.done = call.stage >= config.stages.length;
+  hdRerender();
+}
+function hdCallListen(id, now = hdNowMs()) {
+  const ticket = hdTicketById(id); const stage = ticket && hdCallStage(ticket); if (!stage) return;
+  const total = Array.isArray(stage.messages) ? stage.messages.length : 0;
+  const name = hdConsole(ticket).conversation.name || 'The caller';
+  toast(total && hdCallArrived(ticket, now) < total ? `${name} is still talking. Keep listening.` : `${name} has finished. Choose your reply.`);
+  hdRerender();
+}
+
+// The hold: asked, running (start time) and every hold taken.
+function hdHold(ticket) {
+  if (!hdConsole(ticket).hold) return null;
+  const state = hdConsoleState(ticket);
+  const hold = state.hold = state.hold || {};
+  hold.asked = hold.asked === true;
+  hold.startedAt = typeof hold.startedAt === 'number' ? hold.startedAt : 0;
+  hold.holds = Array.isArray(hold.holds) ? hold.holds : [];
+  return hold;
+}
+function hdHoldLimit(ticket) { const seconds = Number(hdConsole(ticket).hold.seconds); return (seconds > 0 ? seconds : HD_HOLD_SECONDS) * 1000; }
+// A hold past its time moves the meter once, whether the student is on the
+// page (the tick) or comes back to it later (the return).
+function hdHoldCheckOver(ticket, now = hdNowMs()) {
+  const hold = hdHold(ticket); if (!hold || !hold.startedAt || hold.over) return false;
+  if (now - hold.startedAt <= hdHoldLimit(ticket)) return false;
+  hold.over = true;
+  hdMoodMove(ticket, 1, hdConsole(ticket).hold.overLine);
+  hdPracticeEvent('hold_over', { ticket:ticket.id });
+  return true;
+}
+function hdHoldAsk(id) {
+  const ticket = hdTicketById(id); const hold = ticket && hdHold(ticket); if (!hold || hold.startedAt || hold.asked) return;
+  hold.asked = true;
+  hdHistory(ticket, 'Asked the caller before placing them on hold.');
+  hdRerender();
+}
+function hdHoldStart(id, now = hdNowMs()) {
+  const ticket = hdTicketById(id); const hold = ticket && hdHold(ticket); if (!hold || hold.startedAt) return;
+  if (!hold.asked) { hold.unasked = true; hdMoodMove(ticket, 1, hdConsole(ticket).hold.unaskedLine); }
+  hold.startedAt = now; hold.over = false;
+  hdHistory(ticket, 'Caller placed on hold.');
+  hdPracticeEvent('hold_started', { ticket:ticket.id, asked:hold.asked });
+  hdRerender();
+}
+function hdHoldReturn(id, now = hdNowMs()) {
+  const ticket = hdTicketById(id); const hold = ticket && hdHold(ticket); if (!hold || !hold.startedAt) return;
+  hdHoldCheckOver(ticket, now);
+  const seconds = Math.round((now - hold.startedAt) / 1000);
+  hold.holds.push({ seconds, asked:hold.asked, over:hold.over === true });
+  if (hold.holds.length > 20) hold.holds.splice(0, hold.holds.length - 20);
+  hold.startedAt = 0; hold.asked = false; hold.over = false;
+  hdHistory(ticket, `Back from hold after ${seconds} seconds${hold.holds[hold.holds.length - 1].over ? ' (too long)' : ''}.`);
+  hdPracticeEvent('hold_returned', { ticket:ticket.id, seconds });
+  hdRerender();
+}
+function hdHoldTimerText(ticket, now = hdNowMs()) {
+  const hold = hdHold(ticket); if (!hold || !hold.startedAt) return '';
+  const used = Math.max(0, Math.floor((now - hold.startedAt) / 1000)); const limit = Math.round(hdHoldLimit(ticket) / 1000);
+  const text = seconds => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  return `On hold ${text(used)} of ${text(limit)}`;
+}
+
+// Caller and callback number (intake).
+function hdIntake(ticket) {
+  if (!hdConsole(ticket).intake) return null;
+  const state = hdConsoleState(ticket);
+  state.intake = state.intake || { caller:'', callback:'' };
+  return state.intake;
+}
+function hdCallerText(ticket) {
+  const config = hdConsole(ticket).intake;
+  return config && config.caller ? (hdIntake(ticket).caller || 'Not set') : ticket.requester;
+}
+function hdCallbackField(ticket) {
+  const config = hdConsole(ticket).intake;
+  return config && config.callback ? `<div><span>Callback number</span><strong>${hdEsc(hdIntake(ticket).callback || 'Not set')}</strong></div>` : '';
+}
+function hdIntakeSave(id) {
+  const ticket = hdTicketById(id); const intake = ticket && hdIntake(ticket); if (!intake) return;
+  const config = hdConsole(ticket).intake;
+  const caller = String((document.getElementById('hd-intake-caller') || {}).value || '');
+  const callback = String((document.getElementById('hd-intake-callback') || {}).value || '').trim().slice(0, HD_CALLBACK_MAX);
+  if (config.caller && !HD_USERS.some(user => user.name === caller)) { toast('Choose the caller from the directory.'); return; }
+  if (config.callback && !/\d/.test(callback)) { toast('Type the number to call back on, for example an extension.'); return; }
+  if (hdPasswordInText(callback)) { toast(hdRefusePasswordText(ticket, 'callback number')); return; }
+  if (config.caller) intake.caller = caller;
+  if (config.callback) intake.callback = callback;
+  hdClearDraft(ticket, 'callback'); hdClearDraft(ticket, 'caller');
+  hdHistory(ticket, [config.caller ? `Caller set to ${caller}` : '', config.callback ? `callback number ${callback}` : ''].filter(Boolean).join('; ') + '.');
+  hdPracticeEvent('intake_saved', { ticket:ticket.id });
+  hdRerender();
+}
+
+// The plain-words explanation (explain).
+function hdExplainCheck(id) {
+  const ticket = hdTicketById(id); const config = ticket && hdConsole(ticket).explain; if (!config) return;
+  const text = String((document.getElementById('hd-explain-input') || {}).value || '').trim().slice(0, 2000);
+  if (text.length < 10) { toast('Type what you would say to the caller first.'); return; }
+  if (hdPasswordInText(text)) { toast(hdRefusePasswordText(ticket, 'explanation')); return; }
+  const state = hdConsoleState(ticket);
+  const explain = state.explain = state.explain || { tries:[], passed:false, text:'' };
+  const flagged = hdJargonFound(text, config.words);
+  explain.tries.push({ flagged });
+  if (explain.tries.length > 40) explain.tries.splice(0, explain.tries.length - 40);
+  explain.text = text; explain.flagged = flagged;
+  if (!flagged.length) { explain.passed = true; hdClearDraft(ticket, 'explain'); hdHistory(ticket, 'Explained the next step to the caller in plain words.'); }
+  hdPracticeEvent('explained', { ticket:ticket.id, flagged:flagged.join(', ') });
+  hdRerender();
+}
+
+// Read-only evidence cards: each open is recorded.
+function hdEvidenceOpen(id, cardId) {
+  const ticket = hdTicketById(id); const cards = ticket && hdConsole(ticket).evidence;
+  const card = Array.isArray(cards) && cards.find(item => item.id === cardId); if (!card) return;
+  const state = hdConsoleState(ticket);
+  state.evidenceOpened = Array.isArray(state.evidenceOpened) ? state.evidenceOpened : [];
+  if (state.evidenceShown === cardId) { state.evidenceShown = ''; hdRerender(); return; }
+  state.evidenceShown = cardId;
+  state.evidenceOpened.push({ id:cardId, time:hdConsoleTime(ticket) });
+  if (state.evidenceOpened.length > 60) state.evidenceOpened.splice(0, state.evidenceOpened.length - 60);
+  hdPracticeEvent('evidence_opened', { ticket:ticket.id, id:cardId });
+  hdRerender();
+}
+
+// The handoff note: the labels the latest note still needs once the ticket
+// is with another group, or null while it is with the Service Desk.
+function hdHandoffMissing(ticket) {
+  const config = hdConsole(ticket).handoff; if (!config) return null;
+  if ((ticket.assignmentGroup || HD_SERVICE_DESK) === HD_SERVICE_DESK) return null;
+  const parts = Array.isArray(config.parts) && config.parts.length ? config.parts.filter(key => HD_NOTE_PARTS[key]) : HD_HANDOFF_PARTS;
+  const note = (ticket.notes || []).filter(item => item.author === 'Riley Morgan').pop();
+  return note ? hdNoteMissingParts(note.text, parts) : parts.map(key => HD_NOTE_PARTS[key]);
+}
+function hdWarmHandoff(id) {
+  const ticket = hdTicketById(id); if (!ticket || !hdConsole(ticket).warmHandoff || !hdCommsOpen(ticket)) return;
+  const group = ticket.assignmentGroup || HD_SERVICE_DESK;
+  if (group === HD_SERVICE_DESK) { toast('Assign the ticket to the other team first, then call them.'); return; }
+  const state = hdConsoleState(ticket);
+  state.warmHandoffs = Array.isArray(state.warmHandoffs) ? state.warmHandoffs : [];
+  const at = hdShiftIso(ticket);
+  state.warmHandoffs.push({ group, at });
+  hdHistory(ticket, `Called ${group} at ${hdShiftTimeText(at).split(' ')[1]} (warm handoff).`);
+  hdPracticeEvent('warm_handoff', { ticket:ticket.id, group });
+  hdRerender();
+}
+
+// Follow-up date and time, in shift time (UTC); "Go to follow-up time".
+// The input is read as shift time, never the browser's zone: the shift
+// clock the student reads is UTC in every browser (hdShiftTimeText).
+function hdFollowUpValue(iso) { return iso ? new Date(iso).toISOString().slice(0, 16) : ''; }
+function hdFollowUpSet(id) {
+  const ticket = hdTicketById(id); if (!ticket || !hdConsole(ticket).followUp || !hdCommsOpen(ticket)) return;
+  const value = String((document.getElementById('hd-follow-up-input') || {}).value || '').trim();
+  const ms = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value) ? Date.parse(`${value}:00Z`) : NaN;
+  if (Number.isNaN(ms)) { toast('Choose the follow-up date and time.'); return; }
+  if (ms <= hdShiftNow(ticket).getTime()) { toast('Choose a follow-up time later than now.'); return; }
+  const state = hdConsoleState(ticket);
+  state.followUp = new Date(ms).toISOString();
+  hdClearDraft(ticket, 'followUp');
+  hdHistory(ticket, `Follow-up set for ${hdShiftTimeText(state.followUp)}.`);
+  hdPracticeEvent('follow_up_set', { ticket:ticket.id, at:state.followUp });
+  hdRerender();
+}
+function hdFollowUpCanJump(ticket) {
+  const config = hdConsole(ticket).followUp; const state = hdConsoleState(ticket);
+  if (!config || !config.jump || !state.followUp) return false;
+  if (!hdTicketClock(ticket) && !(hdActiveSet() && hdActiveSet().now)) return false;
+  return Date.parse(state.followUp) > hdShiftNow(ticket).getTime();
+}
+function hdFollowUpGo(id) {
+  const ticket = hdTicketById(id); if (!ticket || !hdFollowUpCanJump(ticket)) return;
+  const state = hdConsoleState(ticket);
+  // Only the clock the ticket runs on moves: its own, or else its set's.
+  if (hdTicketClock(ticket)) state.clockNow = state.followUp; else hdState.clockNow = state.followUp;
+  state.followUpVisited = true;
+  hdHistory(ticket, 'Follow-up time reached.');
+  hdPracticeEvent('follow_up_time', { ticket:ticket.id, now:state.followUp });
+  toast(`It's ${hdShiftTimeText(hdShiftNow(ticket))}, the follow-up time.`);
+  hdRerender();
+}
+// A comment posted within 10 minutes of the follow-up time, on the shift clock.
+function hdFollowUpUpdated(ticket) {
+  const at = Date.parse(hdConsoleState(ticket).followUp || ''); if (Number.isNaN(at)) return false;
+  return hdComments(ticket).some(comment => { const ms = Date.parse(comment.at || ''); return ms >= at && ms <= at + 10 * 60000; });
+}
+
+// The customer comment's time check (comments.timeCheck): a time, and no
+// fix-time promise. Patterns are the ticket's own data.
+function hdCommentTimeResult(ticket, text) {
+  const config = hdConsole(ticket).comments;
+  const check = config && typeof config === 'object' ? config.timeCheck : null; if (!check) return null;
+  const test = pattern => { if (!pattern) return false; try { return new RegExp(pattern, 'i').test(String(text || '')); } catch (_) { return false; } };
+  return { hasTime:test(check.time), promise:test(check.promise) };
+}
+function hdCommentTimeTip(ticket, text) {
+  const result = hdCommentTimeResult(ticket, text); if (!result) return '';
+  const check = hdConsole(ticket).comments.timeCheck;
+  const state = hdConsoleState(ticket);
+  state.commentChecks = Array.isArray(state.commentChecks) ? state.commentChecks : [];
+  state.commentChecks.push(result);
+  if (state.commentChecks.length > 40) state.commentChecks.splice(0, state.commentChecks.length - 40);
+  if (result.promise) return ` ${check.promiseLine || ''}`.trimEnd();
+  if (!result.hasTime) return ` ${check.noTimeLine || ''}`.trimEnd();
+  if (check.moodDown) hdMoodMove(ticket, -1, check.goodLine);
+  return '';
+}
+
+// Internal messages to another team, each with its scripted reply.
+function hdTeamMessage(id, messageId) {
+  const ticket = hdTicketById(id); const list = ticket && hdConsole(ticket).teamMessages;
+  const message = Array.isArray(list) && list.find(item => item.id === messageId); if (!message) return;
+  const state = hdConsoleState(ticket);
+  state.teamMessages = Array.isArray(state.teamMessages) ? state.teamMessages : [];
+  if (state.teamMessages.some(entry => entry.id === message.id)) return;
+  state.teamMessages.push({ id:message.id, time:hdConsoleTime(ticket) });
+  hdHistory(ticket, `Internal message to ${message.to} (not customer-visible).`);
+  if (message.assign) { ticket.assignedTechnician = message.assign; hdHistory(ticket, `Assigned to ${message.assign} by ${message.from || message.to}.`); }
+  hdPracticeEvent('team_message', { ticket:ticket.id, message:message.id });
+  hdRerender();
+}
+function hdDuplicateMove(id) {
+  const ticket = hdTicketById(id); const config = ticket && hdConsole(ticket).duplicateMove; if (!config) return;
+  const state = hdConsoleState(ticket);
+  state.duplicateTried = true;
+  hdConsoleCritical(ticket, 'duplicate-ticket', config.critical || `Chose: ${config.text || 'Create new incident'}`);
+  hdPracticeEvent('duplicate_tried', { ticket:ticket.id });
+  hdRerender();
+}
+
+// Rules for this work ("Check my work" and a set's done rules). undefined
+// for a rule that isn't one of these.
+function hdCommsRule(ticket, rule) {
+  const state = hdConsoleState(ticket);
+  if (rule.call) { const call = hdCall(ticket, hdNowMs(), false); return !!(call && call.done); }
+  if (rule.intakeCaller) { const intake = hdIntake(ticket); return !!(intake && intake.caller === rule.intakeCaller); }
+  if (rule.callback) { const intake = hdIntake(ticket); return !!(intake && intake.callback); }
+  if (rule.held) { const hold = hdHold(ticket); return !!(hold && hold.holds.some(entry => entry.asked && !entry.over)); }
+  if (rule.explained) return !!(state.explain && state.explain.passed);
+  if (rule.evidence) return (state.evidenceOpened || []).some(entry => entry.id === rule.evidence);
+  if (rule.handoffNote) { const missing = hdHandoffMissing(ticket); return !!missing && !missing.length; }
+  if (rule.warmHandoff) return (state.warmHandoffs || []).length > 0;
+  if (rule.followUp) return !!state.followUp;
+  if (rule.followUpUpdated) return hdFollowUpUpdated(ticket);
+  if (rule.commentTime) return (state.commentChecks || []).some(entry => entry.hasTime && !entry.promise);
+  if (rule.teamMessage) return (state.teamMessages || []).some(entry => entry.id === rule.teamMessage);
+  if (rule.requestOpen) return !!(ticket.request && ticket.request.state === 'Open' && hdCommsOpen(ticket));
+  return undefined;
+}
+// What a coach reads about this work (in hdConsoleProgress, only for a
+// ticket that turns a feature on). Never the mood meter.
+function hdCommsProgress(ticket) {
+  const config = hdConsole(ticket); const state = hdConsoleState(ticket); const out = {};
+  if (config.conversation) { const call = hdCall(ticket, hdNowMs(), false); if (call) out.call = { stage:call.stage, done:call.done, interruptions:call.interruptions, wrong:call.tries.filter(entry => !entry.pass).map(entry => entry.choice) }; }
+  if (config.intake) out.intake = { ...hdIntake(ticket) };
+  if (config.hold) { const hold = hdHold(ticket); out.hold = { asked:hold.asked, onHold:!!hold.startedAt, unasked:hold.unasked === true, holds:hold.holds.map(entry => ({ ...entry })) }; }
+  if (config.explain) out.explain = state.explain ? { passed:state.explain.passed, tries:state.explain.tries.length, flagged:(state.explain.flagged || []).slice(), text:state.explain.text } : { passed:false, tries:0, flagged:[], text:'' };
+  if (Array.isArray(config.evidence)) out.evidenceOpened = [...new Set((state.evidenceOpened || []).map(entry => entry.id))];
+  if (config.handoff) out.handoffMissing = hdHandoffMissing(ticket);
+  if (config.warmHandoff) out.warmHandoffs = (state.warmHandoffs || []).map(entry => ({ ...entry }));
+  if (config.followUp) out.followUp = { at:state.followUp || '', visited:state.followUpVisited === true, updated:hdFollowUpUpdated(ticket) };
+  if (hdCommentTimeResult(ticket, '')) out.commentChecks = (state.commentChecks || []).map(entry => ({ ...entry }));
+  if (Array.isArray(config.teamMessages)) out.teamMessages = (state.teamMessages || []).map(entry => entry.id);
+  if (config.duplicateMove) out.duplicateTried = state.duplicateTried === true;
+  return out;
+}
+
+// The cards and controls. Each is '' for a ticket without its feature.
+function hdMoodHtml(ticket) {
+  const mood = hdMood(ticket); if (!mood) return '';
+  const last = mood.moves[mood.moves.length - 1];
+  return `<div class="hd-mood" data-hd-mood="${hdEsc(HD_MOODS[mood.level])}" role="status" style="display:grid;gap:4px;margin:0 0 10px"><div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center"><span class="muted">Mood</span>${HD_MOODS.map((name, index) => `<span style="padding:2px 8px;border-radius:999px;border:1px solid #d0d5dd;${index === mood.level ? 'background:#1d2939;color:#fff;font-weight:600' : ''}"${index === mood.level ? ' aria-current="true"' : ''}>${hdEsc(name)}</span>`).join('')}</div>${last && last.line ? `<small>${last.delta > 0 ? '▲' : '▼'} ${hdEsc(last.line)}</small>` : ''}<small class="muted">Feedback only: the meter is never scored.</small></div>`;
+}
+function hdCallCard(ticket, now = hdNowMs()) {
+  const config = hdConsole(ticket).conversation; const call = config && hdCall(ticket, now); if (!call) return '';
+  const name = config.name || ticket.requester;
+  const stage = hdCallStage(ticket);
+  const arrived = stage ? hdCallArrived(ticket, now) : 0;
+  const total = stage && Array.isArray(stage.messages) ? stage.messages.length : 0;
+  const line = entry => `<div><strong>${entry.who === 'you' ? 'You' : hdEsc(name)}${entry.time ? ` · ${hdEsc(entry.time)}` : ''}</strong><p>${hdEsc(entry.text)}</p></div>`;
+  const live = stage && total ? stage.messages.slice(0, arrived).map(text => line({ who:'caller', text })).join('') : '';
+  const log = call.log.map(line).join('') + live;
+  const talking = total && arrived < total ? `<p class="muted" data-hd-call-talking>${hdEsc(name)} is still talking…</p>` : '';
+  const feedback = call.lastLine ? `<div class="callout ${call.lastTone === 'success' ? 'success' : 'warn'}" role="status">${hdEsc(call.lastLine)}</div>` : '';
+  const choices = stage && (!total || arrived > 0) ? `${stage.prompt ? `<p><strong>${hdEsc(stage.prompt)}</strong></p>` : ''}<div style="display:grid;gap:8px">${hdSeededOrder((stage.choices || []).slice(), hdCallSeed(ticket, stage)).map(choice => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} onclick="hdCallChoose('${ticket.id}','${hdEsc(choice.id)}')">${hdEsc(choice.text)}</button>`).join('')}${total ? `<button type="button" class="btn btn-ghost" onclick="hdCallListen('${ticket.id}')">Keep listening</button>` : ''}</div>` : '';
+  const ended = call.done ? '<p class="muted">The scripted part of the conversation is done. Carry on with the ticket.</p>' : '';
+  const kind = config.style === 'chat' ? 'Chat' : 'Phone call';
+  return `<div class="card hd-call" data-hd-call="${hdEsc(stage ? stage.id : 'done')}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${kind}</strong><span class="muted">${hdEsc(name)} · ${config.style === 'chat' ? 'in the chat' : 'on the line'}</span></div><div class="card-body">${hdMoodHtml(ticket)}<div class="hd-note-list">${log || '<p class="muted">The conversation hasn\'t started yet.</p>'}</div>${talking}${feedback}${choices}${ended}</div></div>`;
+}
+function hdIntakeCard(ticket) {
+  const config = hdConsole(ticket).intake; if (!config) return '';
+  const intake = hdIntake(ticket);
+  const callback = hdDraft(ticket, 'callback') || intake.callback;
+  const chosen = hdDraft(ticket, 'caller') || intake.caller;
+  const caller = config.caller ? `<label>Caller<select id="hd-intake-caller" class="select" data-hd-field="caller" onchange="hdKeepDraft('${ticket.id}','caller',this.value)"><option value="">Choose…</option>${HD_USERS.map(user => `<option ${chosen === user.name ? 'selected' : ''}>${hdEsc(user.name)}</option>`).join('')}</select></label>` : '';
+  const number = config.callback ? `<label>Callback number<input id="hd-intake-callback" class="ipt" maxlength="${HD_CALLBACK_MAX}" value="${hdEsc(callback)}" oninput="hdKeepDraft('${ticket.id}','callback',this.value)" placeholder="e.g. ext. 1234"></label>` : '';
+  return `<div class="card hd-intake" data-hd-intake><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Caller details</strong><span class="muted">Get these first, in case the call drops.</span></div><div class="card-body" style="display:grid;gap:8px">${caller}${number}<div><button type="button" class="btn btn-secondary" onclick="hdIntakeSave('${ticket.id}')">Save caller details</button></div></div></div>`;
+}
+function hdHoldCard(ticket, now = hdNowMs()) {
+  const config = hdConsole(ticket).hold; if (!config) return '';
+  const hold = hdHold(ticket);
+  const last = hold.holds[hold.holds.length - 1];
+  const status = hold.startedAt
+    ? `<p id="hd-hold-timer" data-hd-hold="on" role="timer" aria-live="off"><strong>${hdEsc(hdHoldTimerText(ticket, now))}</strong></p>`
+    : `<p class="muted" data-hd-hold="off">${last ? `Last hold: ${hdEsc(String(last.seconds))} seconds${last.over ? ', too long' : ''}.` : 'Not on hold.'}</p>`;
+  const asked = hold.asked ? `<div><strong>You</strong><p>${hdEsc(config.ask)}</p>${config.askReply ? `<strong>${hdEsc((hdConsole(ticket).conversation || {}).name || ticket.requester)}</strong><p>${hdEsc(config.askReply)}</p>` : ''}</div>` : '';
+  const controls = hold.startedAt
+    ? `<button type="button" class="btn btn-primary" onclick="hdHoldReturn('${ticket.id}')">${hdEsc(config.back || 'Thanks for holding.')}</button>`
+    : `<div style="display:grid;gap:8px">${hold.asked ? '' : `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} onclick="hdHoldAsk('${ticket.id}')">${hdEsc(config.ask || 'May I put you on a short hold?')}</button>`}<button type="button" class="btn btn-secondary" onclick="hdHoldStart('${ticket.id}')">Start hold</button></div>`;
+  return `<div class="card hd-hold"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Hold</strong><span class="muted">Ask first, and come back within ${Math.round(hdHoldLimit(ticket) / 60000)} minutes.</span></div><div class="card-body"><div class="hd-note-list">${asked}</div>${status}${controls}</div></div>`;
+}
+function hdExplainCard(ticket) {
+  const config = hdConsole(ticket).explain; if (!config) return '';
+  const explain = hdConsoleState(ticket).explain;
+  const flagged = explain && explain.flagged && explain.flagged.length ? explain.flagged : [];
+  const feedback = !explain ? '' : flagged.length
+    ? `<div class="callout warn" role="status" data-hd-explain="flagged">${hdEsc(String(config.line || 'Say it in plain words: {term}').replace('{term}', flagged[0]))}</div>`
+    : `<div class="callout success" role="status" data-hd-explain="ok">${hdEsc(config.goodLine || 'Plain words: no flagged terms.')}</div>`;
+  const value = hdDraft(ticket, 'explain') || (explain && !explain.passed ? explain.text : '');
+  return `<div class="card hd-explain"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Explain it in plain words</strong><span class="muted">What you say to the caller</span></div><div class="card-body" style="display:grid;gap:8px">${config.prompt ? `<p>${hdEsc(config.prompt)}</p>` : ''}${explain && explain.passed ? `<p><strong>You said:</strong> ${hdEsc(explain.text)}</p>` : `<textarea id="hd-explain-input" class="ipt" rows="4" maxlength="2000" oninput="hdKeepDraft('${ticket.id}','explain',this.value)">${hdEsc(value)}</textarea><div><button type="button" class="btn btn-secondary" onclick="hdExplainCheck('${ticket.id}')">Say it</button></div>`}${feedback}</div></div>`;
+}
+function hdEvidenceCards(ticket) {
+  const cards = hdConsole(ticket).evidence; if (!Array.isArray(cards) || !cards.length) return '';
+  const state = hdConsoleState(ticket);
+  return cards.map(card => {
+    const open = state.evidenceShown === card.id;
+    const rows = open ? `<dl class="hd-dl">${(card.rows || []).map(row => `<dt>${hdEsc(row.label)}</dt><dd>${hdEsc(row.value)}</dd>`).join('')}</dl>` : '';
+    return `<div class="card hd-evidence-card" data-hd-evidence="${hdEsc(card.id)}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(card.title)}</strong><span class="muted">Read-only</span><button type="button" class="btn btn-ghost btn-sm" aria-expanded="${open}" onclick="hdEvidenceOpen('${ticket.id}','${hdEsc(card.id)}')">${open ? 'Close' : 'Open'}</button></div>${open ? `<div class="card-body">${rows}</div>` : ''}</div>`;
+  }).join('');
+}
+function hdHandoffCard(ticket) {
+  const missing = hdHandoffMissing(ticket); if (!missing) return '';
+  const config = hdConsole(ticket).handoff;
+  const parts = Array.isArray(config.parts) && config.parts.length ? config.parts.filter(key => HD_NOTE_PARTS[key]) : HD_HANDOFF_PARTS;
+  return `<div class="card hd-handoff" data-hd-handoff="${missing.length ? 'missing' : 'ok'}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Handoff note</strong><span class="muted">${hdEsc(ticket.assignmentGroup)} reads your latest work note.</span></div><div class="card-body"><ul class="hd-list">${parts.map(key => `<li>${missing.includes(HD_NOTE_PARTS[key]) ? '○' : '✓'} ${hdEsc(HD_NOTE_PARTS[key])}</li>`).join('')}</ul></div></div>`;
+}
+function hdTeamMessagesCard(ticket) {
+  const list = hdConsole(ticket).teamMessages; if (!Array.isArray(list) || !list.length) return '';
+  const sent = hdConsoleState(ticket).teamMessages || [];
+  const log = sent.map(entry => { const message = list.find(item => item.id === entry.id); return message ? `<div data-hd-team="${hdEsc(message.id)}"><strong>You to ${hdEsc(message.to)} · ${hdEsc(entry.time)}</strong><p>${hdEsc(message.text)}</p><strong>${hdEsc(message.from || message.to)}</strong><p>${hdEsc(message.reply)}</p></div>` : ''; }).join('');
+  const open = list.filter(message => !sent.some(entry => entry.id === message.id));
+  return `<div class="card hd-team-messages"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Message another team</strong><span class="muted">Internal: the caller doesn't see this.</span></div><div class="card-body"><div class="hd-note-list">${log || '<p class="muted">No internal messages yet.</p>'}</div>${open.length ? `<div style="display:grid;gap:8px">${open.map(message => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} onclick="hdTeamMessage('${ticket.id}','${hdEsc(message.id)}')">To ${hdEsc(message.to)}: ${hdEsc(message.text)}</button>`).join('')}</div>` : ''}</div></div>`;
+}
+function hdWarmHandoffControl(ticket) {
+  if (!hdConsole(ticket).warmHandoff || !hdCommsOpen(ticket)) return '';
+  const calls = hdConsoleState(ticket).warmHandoffs || [];
+  const away = (ticket.assignmentGroup || HD_SERVICE_DESK) !== HD_SERVICE_DESK;
+  return `<div data-hd-warm="${calls.length}"><button type="button" class="btn btn-secondary" ${away ? '' : 'disabled aria-describedby="hd-warm-why" style="opacity:.55;cursor:not-allowed"'} onclick="hdWarmHandoff('${ticket.id}')">Warm handoff: call ${hdEsc(away ? ticket.assignmentGroup : 'the team')}</button>${away ? '' : '<small id="hd-warm-why" class="muted"> Assign it to the other team first.</small>'}${calls.length ? `<small class="muted"> Called ${hdEsc(hdShiftTimeText(calls[calls.length - 1].at))}</small>` : ''}</div>`;
+}
+function hdFollowUpControl(ticket) {
+  const config = hdConsole(ticket).followUp; if (!config) return '';
+  const state = hdConsoleState(ticket);
+  const open = hdCommsOpen(ticket);
+  // With nothing set, the picker opens on the ticket's shift time (never the
+  // computer's date), so only the time needs changing.
+  const value = hdDraft(ticket, 'followUp') || hdFollowUpValue(state.followUp || hdShiftIso(ticket));
+  const set = open ? `<label>Follow-up (date and time on the shift clock)<input id="hd-follow-up-input" class="ipt" type="datetime-local" value="${hdEsc(value)}" oninput="hdKeepDraft('${ticket.id}','followUp',this.value)"></label><button type="button" class="btn btn-secondary" onclick="hdFollowUpSet('${ticket.id}')">Set follow-up</button>` : '';
+  const shown = state.followUp ? `<p class="muted" style="margin:0">Follow-up: ${hdEsc(hdShiftTimeText(state.followUp))} · now ${hdEsc(hdShiftTimeText(hdShiftNow(ticket)))}</p>` : '';
+  const jump = hdFollowUpCanJump(ticket) ? `<button type="button" class="btn btn-secondary" onclick="hdFollowUpGo('${ticket.id}')">Go to follow-up time</button>` : '';
+  return `<div data-hd-follow-up="${state.followUp ? 'set' : 'none'}" style="display:grid;gap:6px">${set}${shown}${jump}</div>`;
+}
+function hdDuplicateControl(ticket) {
+  const config = hdConsole(ticket).duplicateMove; if (!config) return '';
+  const tried = hdConsoleState(ticket).duplicateTried === true;
+  return `<div data-hd-duplicate="${tried ? 'tried' : 'no'}"><button type="button" class="btn btn-secondary" onclick="hdDuplicateMove('${ticket.id}')">${hdEsc(config.text || 'Create new incident')}</button>${tried && config.feedback ? `<div class="callout bad" role="alert" style="margin-top:6px">${hdEsc(config.feedback)}</div>` : ''}</div>`;
+}
+function hdCommsCards(ticket) {
+  return `${hdCallCard(ticket)}${hdIntakeCard(ticket)}${hdHoldCard(ticket)}${hdEvidenceCards(ticket)}${hdExplainCard(ticket)}${hdHandoffCard(ticket)}${hdTeamMessagesCard(ticket)}`;
+}
+// The tick (every second): a caller message that arrived, or a hold that ran
+// past its time, asks for a redraw. The first look only notes what is shown.
+const hdCommsSeen = {};
+function hdCommsTick(now = hdNowMs()) {
+  if (HD_PROVE || !hdState || !Array.isArray(hdState.tickets)) return false;
+  let changed = false;
+  hdState.tickets.forEach(ticket => {
+    const config = hdConsole(ticket);
+    if (config.hold && hdHoldCheckOver(ticket, now)) changed = true;
+    // Only the open ticket's call, once it has started, asks for a redraw.
+    if (!config.conversation || ticket.id !== hdState.selectedTicketId) return;
+    const call = hdCall(ticket, now, false);
+    if (!call || typeof call.startedAt !== 'number') return;
+    const key = `${call.stage}:${hdCallArrived(ticket, now)}`;
+    if (hdCommsSeen[ticket.id] !== undefined && hdCommsSeen[ticket.id] !== key) changed = true;
+    hdCommsSeen[ticket.id] = key;
+  });
+  return changed;
+}
+function hdHoldTimerRefresh(now = hdNowMs()) {
+  const element = typeof document !== 'undefined' && document.getElementById ? document.getElementById('hd-hold-timer') : null;
+  const ticket = element && hdState ? hdCurrentTicket() : null;
+  if (element && ticket && hdHold(ticket)) element.textContent = hdHoldTimerText(ticket, now);
+}
+
 function hdDirectoryTable(users) {
   // The details KB-0024's caller check uses: the phone number on file and the
   // employee ID. Practice and Prove alike.
@@ -2657,7 +3240,7 @@ function hdSettingsPracticeAction(computerName, printer) {
   const ticket = hdSettingsPracticeTicket(computerName); if (!ticket) return;
   const config = hdConsole(ticket).settingsPrinters;
   const state = hdConsoleState(ticket);
-  if (config.action && !state.actions.some(entry => entry.id === config.action)) state.actions.push({ id:config.action, time:hdConsoleTime() });
+  if (config.action && !state.actions.some(entry => entry.id === config.action)) state.actions.push({ id:config.action, time:hdConsoleTime(ticket) });
   hdHistory(ticket, `On ${computerName}: added ${printer.name} from Settings › Printers & scanners › Add device.`);
   hdPracticeEvent('action_taken', { ticket:ticket.id, action:config.action || 'settings-add-printer', computer:computerName, printer:printer.name });
 }
@@ -3987,3 +4570,24 @@ if (!HD_PROVE && typeof setInterval === 'function') {
     if (content) content.scrollTop = top;
   }, 5000);
 }
+// Module 3 on: a caller's messages arrive and a hold timer counts in real
+// time. The timer text changes in place; a redraw comes only when a message
+// arrives or a hold runs over, and waits while the student is typing.
+// A redraw that waited is owed: the first tick with no focused field does it.
+let hdCommsRedrawOwed = false;
+function hdCommsTimerTick() {
+  hdHoldTimerRefresh();
+  if (hdCommsTick()) { hdSave(); hdCommsRedrawOwed = true; }
+  if (!hdCommsRedrawOwed) return false;
+  // Any focused field waits, empty or not (a date and time picker reads
+  // empty until both parts are set).
+  const active = typeof document !== 'undefined' ? document.activeElement : null;
+  if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName || '')) return false;
+  hdCommsRedrawOwed = false;
+  const content = typeof document !== 'undefined' && document.getElementById ? document.getElementById('content') : null;
+  const top = content ? content.scrollTop : 0;
+  render();
+  if (content) content.scrollTop = top;
+  return true;
+}
+if (!HD_PROVE && typeof setInterval === 'function') setInterval(hdCommsTimerTick, 1000);
