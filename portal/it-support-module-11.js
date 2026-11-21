@@ -1,4 +1,4 @@
-/* Module 11 — IT Help Desk & Career Accelerator ('it-support').
+/* Module 03 (key its-11; was Module 11 before the 2026-11 reorder) — IT Help Desk & Career Accelerator ('it-support').
  * Lesson content sourced from Module_11_Student_Content.docx. Lab is a
  * guided walkthrough of a real ticket ('hd-m11') in the IT Service Desk
  * simulator — see it-support-shared.js's itsRegisterCoachModule.
@@ -6,7 +6,7 @@
 
 const ITS11_LESSONS = [
   {
-    id: 'its-11-lesson-01', number: '11.1', icon: 'ri-quill-pen-line',
+    id: 'its-11-lesson-01', number: '3.1', icon: 'ri-quill-pen-line',
     title: 'Writing Notes the Next Technician Can Actually Use', minutes: 90,
     learn: [
       'What separates a genuinely useful ticket note from a weak one',
@@ -24,7 +24,7 @@ const ITS11_LESSONS = [
     comingUp: 'You\'ll search a small knowledge base for a ticket matching a new issue, then write a complete note that references what you found and adds anything the KB entry didn\'t cover.',
   },
   {
-    id: 'its-11-lesson-02', number: '11.2', icon: 'ri-chat-check-line',
+    id: 'its-11-lesson-02', number: '3.2', icon: 'ri-chat-check-line',
     title: 'Escalation Triggers, User Updates & Expectation Setting', minutes: 120,
     learn: [
       'What specifically should trigger an escalation, beyond just "this is hard"',
@@ -44,7 +44,7 @@ const ITS11_LESSONS = [
 ];
 
 itsRegisterCoachModule({
-  moduleNumber: 11, moduleKey: 'its-11', coachId: 'hd-m11', labKeys: ['lab-its-11-handoff-documentation'],
+  moduleNumber: 3, moduleKey: 'its-11', coachId: 'hd-m11', labKeys: ['lab-its-11-handoff-documentation'],
   lessons: ITS11_LESSONS,
   lede: 'The technical fix is only half the job — this module is about the other half: writing it down well, communicating it clearly, and handing it off cleanly when it\'s not yours to finish.',
   labDescription: 'Work two real tickets end to end in the IT Service Desk simulator, focused on documentation, escalation, and communication under pressure: HD-2113 (an expired VPN gateway certificate) — recognize the escalation trigger and write a note a stranger could act on — then HD-2124, a repeat-contact user frustrated by a stale Outlook credential, where the practice is diagnosing calmly while setting honest expectations instead of overpromising. A coach spotlights each step for you.',

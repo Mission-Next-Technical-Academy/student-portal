@@ -2,13 +2,13 @@
 const SocM12AssessmentState = (() => {
   'use strict';
   const VERSION = 1, MAX_ACTIONS = 1000;
-  const TYPES = Object.freeze(['review-alert','intel-decision','hypothesis','query-run','rule-save','rule-schedule','alert-disposition','incident-link','investigation','evidence-select','attack-map','workflow-design','approval','execute','recovery','report','handoff','closure']);
-  const clone = (x) => JSON.parse(JSON.stringify(x));
+  const TYPES = Object.freeze(['review-alert','intel-decision','hypothesis','query-run','rule-save','rule-schedule','alert-disposition','incident-link','incident-update','investigation','evidence-select','attack-map','workflow-design','approval','execute','recovery','report','handoff','closure']);
+  const clone = (x) => JSON.parse(JSON.stringify(x)), list = (x) => Array.isArray(x)?x:[];
   const scenarioOf = (f) => { if (!f?.scenario?.id) throw new Error('M12 assessment fixture required.'); return f.scenario; };
   const text = (x, max=4000) => { if (typeof x !== 'string' || !x.trim() || x.length > max) throw new Error('M12 action text is invalid.'); return x.trim(); };
   function validTime(at, s) { return typeof at === 'string' && Number.isFinite(Date.parse(at)) && Date.parse(at) >= Date.parse(s.start) && Date.parse(at) <= Date.parse(s.end); }
   function fresh(fixture) { const s=scenarioOf(fixture); return { schemaVersion:VERSION, scenarioId:s.id, rubricVersion:1, actionHistory:[], nextActionSequence:1,
-    alertReviews:{}, intelligence:{}, hypotheses:[], queryRuns:[], generatedAlerts:[], rules:[], schedules:[], dispositions:{}, incidentLinks:[], investigations:[], selectedEvidence:[], attackMappings:[], workflows:[], approvals:[], executions:[], recovery:[], reports:{}, handoffs:[], closure:null }; }
+    alertReviews:{}, intelligence:{}, hypotheses:[], queryRuns:[], generatedAlerts:[], rules:[], schedules:[], dispositions:{}, incidentLinks:[], incidents:{}, investigations:[], selectedEvidence:[], attackMappings:[], workflows:[], approvals:[], executions:[], recovery:[], reports:{}, handoffs:[], closure:null }; }
   function reduce(state, action, fixture) {
     const d=action.details;
     switch(action.type) {
@@ -20,6 +20,7 @@ const SocM12AssessmentState = (() => {
       case 'rule-schedule': state.schedules.push(d); break;
       case 'alert-disposition': state.dispositions[d.alertId]=d.disposition; break;
       case 'incident-link': state.incidentLinks.push(d); break;
+      case 'incident-update': state.incidents[d.incidentId]={status:d.status,disposition:d.disposition,note:d.note,evidenceIds:d.evidenceIds}; break;
       case 'investigation': state.investigations.push(d); break;
       case 'evidence-select': if(d.selected) { if(!state.selectedEvidence.includes(d.evidenceId)) state.selectedEvidence.push(d.evidenceId); } else state.selectedEvidence=state.selectedEvidence.filter(x=>x!==d.evidenceId); break;
       case 'attack-map': state.attackMappings.push(d); break;
@@ -47,6 +48,11 @@ const SocM12AssessmentState = (() => {
       case 'rule-save': if(!exists(s.rules,d.ruleId)&&!packRule(d.ruleId)) throw new Error('Unknown detection rule.'); d.query=text(d.query,4000); d.outcome=['correlated','broad','narrow','other'].includes(d.outcome)?d.outcome:'other'; break;
       case 'rule-schedule': if((!exists(s.rules,d.ruleId)&&!(packRule(d.ruleId)&&exists(state.rules||[],d.ruleId,'ruleId')))||!['hourly','daily','weekly'].includes(d.frequency)) throw new Error('Unknown rule or schedule.'); break;
       case 'incident-link': if(!alertExists(d.alertId)||typeof d.incidentId!=='string') throw new Error('Invalid alert link.'); break;
+      case 'incident-update':
+        if(!list(s.parentCase?.incidents).some(i=>i.id===d.incidentId)||!['in-progress','pending','resolved'].includes(d.status)) throw new Error('Unknown incident or status.');
+        d.disposition=['true-positive','benign-positive','false-positive','needs-investigation'].includes(d.disposition)?d.disposition:'';
+        if(d.status==='resolved'&&(!d.disposition||d.disposition==='needs-investigation')) throw new Error('A resolved incident needs a final disposition.');
+        d.note=text(d.note,1000); d.evidenceIds=s.evidence.filter(e=>new RegExp(`\\b${e.id}\\b`,'i').test(d.note)).map(e=>e.id); break;
       case 'investigation': if(!['identity','email','endpoint','network','exposure','timeline','scope'].includes(d.domain)) throw new Error('Unknown investigation domain.'); d.finding=text(d.finding,1000); d.evidenceIds=(d.evidenceIds||[]).filter(id=>exists(s.evidence,id)); break;
       case 'evidence-select': if(!exists(s.evidence,d.evidenceId)||typeof d.selected!=='boolean') throw new Error('Unknown evidence selection.'); break;
       case 'attack-map': d.technique=text(d.technique,40); d.evidenceIds=(d.evidenceIds||[]).filter(id=>exists(s.evidence,id)); break;
@@ -108,7 +114,7 @@ const SocM12AssessmentState = (() => {
     state.nextActionSequence=seq+1;
     // Preserve explicit historical/versioned state. ModuleTwelveLoad upgrades
     // active work to v2 after replay; direct v1 fixtures stay reproducible.
-    state.rubricVersion=prior.rubricVersion===2?2:1;
+    state.rubricVersion=[2,3].includes(prior.rubricVersion)?prior.rubricVersion:1;
     for(const k of ['labId','anonymousStudentId']) if(typeof prior[k]==='string') state[k]=prior[k];
     return state;
   }

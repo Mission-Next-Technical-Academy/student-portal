@@ -1,5 +1,7 @@
 # Staging automation: what keeps staging in step with master
 
+Updated 2026-11-14.
+
 After every merge to `master`, staging catches up on its own, in this order:
 the staging database's migrations, then the `staging` branch, then the staging
 website. Staging never moves ahead of its database. Edge Functions stay
@@ -85,11 +87,14 @@ write, and that job only posts the text. Pull requests from forks get a
 read-only token and cannot be commented on, so for them the checklist is in
 the job summary only.
 
-**The staging website deploys only two ways:** the `deploy-staging-site` job of
-**Staging sync** above, or a manual run of **Deploy staging site** in
-student-portal-staging (Actions → **Deploy staging site** → **Run workflow**,
-ref `staging`). There is no scheduled deploy. If a deploy fails, fix the cause
-and rerun **Staging sync** from `master`.
+**The staging website deploys only three ways:** the `deploy-staging-site` job of
+**Staging sync** above, the `deploy-site` job of **Staging test branch** (a
+person starts it from `master` to test a feature branch; see "Testing a
+feature on the hosted staging site"), or a manual run of **Deploy staging
+site** in student-portal-staging (Actions → **Deploy staging site** → **Run
+workflow**, ref `staging`). There is no scheduled deploy. If a deploy fails,
+fix the cause and rerun the workflow that started it: **Staging sync** from
+`master`, or **Staging test branch** for a branch test.
 
 ## Never move `staging` by hand
 
@@ -103,30 +108,131 @@ section. If `staging` is ever in the wrong place, stop and ask Randy or Alex.
 
 ## Testing a feature on the hosted staging site
 
+Added 2026-11-13. Use the **Staging test branch** workflow
+(`.github/workflows/staging-test-branch.yml`). One run applies the branch's
+new migrations to the staging database and deploys the branch's exact commit
+to the staging site. It never moves the `staging` branch and never deploys
+Edge Functions.
+
+**Before you start**
+
+- Push the feature branch to student-portal. Its name must be
+  `hdesk/<words>` or `shared/<words>` (lowercase letters, digits, `.`, `_`,
+  `-`).
+- Update it from the latest `master` and push again. The run refuses a
+  branch that doesn't contain the current `master`.
+- Its migrations must be **new files only**, each named
+  `<14-digit timestamp>_<lowercase_words>.sql` and dated after `master`'s
+  newest migration. Create them with `supabase migration new`. A branch that
+  edits, deletes or renames a migration already on `master` is refused.
+- If the branch changes Edge Functions, the run still deploys the site, but
+  the run summary lists the functions to deploy to staging by hand (see
+  "Edge Functions are deployed by hand").
+
+**Start the run** (always from `master`; the **ref** box is the feature
+branch):
+
+```
+gh workflow run staging-test-branch.yml --ref master -f ref=<branch>
+```
+
+Or: Actions → **Staging test branch** → **Run workflow** → **Use workflow
+from: Branch: master** → **ref**: the branch name → **Run workflow**.
+
+**What it does.** Its three jobs run in order; if one fails, the later ones
+don't run.
+
+0. **Check the branch is safe to put on staging** (`preflight`). Read-only:
+   no environment, no secrets, and no code from the branch runs
+   (`bin/ci/check-branch-for-staging.sh`). It checks the name, that the
+   branch exists and contains `master`, and the migration rules above. The
+   run summary lists the commit and the new migrations.
+1. **Apply the branch's new migrations** (`migrate`). Only when the branch
+   adds migrations. It checks out `master`'s scripts, takes only
+   `supabase/migrations/` from the branch's checked commit, checks
+   `STAGING_DB_URL` (Secret 1), and runs the dry run. **It stops before
+   applying anything if the dry run names any file that isn't one of the
+   branch's new migrations** (usually a `master` migration that staging
+   hasn't applied yet: run **Staging sync** from `master` first). Fewer is
+   fine: on a second run of the same branch, files applied by the first run
+   are no longer pending. When the dry run names none of them, the real push
+   is not run at all. A branch with no migrations skips this job, so nothing
+   checks the database: if the last **Staging sync** run failed, fix that
+   first, or the branch's code runs against an older schema.
+2. **Start the staging website deploy** (`deploy-site`). Starts **Deploy
+   staging site** in student-portal-staging with `-f ref=<the branch's full
+   40-character SHA>`, never the branch name. Follow it from the link in the
+   run summary; the site's footer version ends in that commit's short SHA
+   when it is live.
+
+**Afterwards**
+
+- The staging site shows the feature branch until the next merge to
+  `master` redeploys it. To put it back sooner, run **Staging sync** from
+  `master` (see "Starting a run by hand").
+- **Once a branch migration is on staging, Staging sync fails at
+  `migrate-staging` on every merge to `master` until that branch merges**
+  ("Remote migration versions not found in local migrations directory"),
+  because staging's database then has a version `master` doesn't. A test of
+  another branch with migrations fails the same way. So test migrations
+  close to merging, keep the file's exact name until it merges, and tell
+  the team when a branch migration is on staging.
+- **Changing a migration after it reached staging has no effect.** Staging
+  records only the migration's version (the timestamp), not its content, so
+  a rerun sees the file as already applied and the summary says the real
+  push was not run. Put the change in a new migration file instead, or undo
+  the old one on staging by hand (fallback step 1) before testing again. If the branch is
+  abandoned or the migration must be renamed, undo that migration's changes
+  on staging and mark it reverted (fallback step 1 below).
+- **Queueing:** this workflow shares the `staging-sync` queue with Staging
+  sync. GitHub keeps one run waiting per queue: a newer run cancels the one
+  already waiting. If a **Staging sync** run shows as cancelled, run it
+  again from `master`.
+- The branch's SQL runs on staging with full database rights, and anyone
+  with write access to student-portal can start this workflow. Review a
+  branch's migrations before you test it.
+
+### Fallback: by hand
+
+Use these steps only when the workflow can't run (for example, GitHub
+Actions is down or the `staging-sync` environment is broken). A person, never
+an agent, runs them.
+
 1. **Apply its migrations to staging first** (skip if the branch has none).
-   From the feature branch, with the staging ref written out every time:
+   From the feature branch, first check the Supabase CLI is linked to staging:
 
    ```
-   supabase db push --project-ref xbblgtrfwgeiyttdlbue --dry-run
+   cat supabase/.temp/project-ref
    ```
 
-   Check the list, then apply:
+   It must print `xbblgtrfwgeiyttdlbue`. If it prints anything else, link to
+   staging (`supabase link --project-ref xbblgtrfwgeiyttdlbue`) and check
+   again.
+
+   Updated 2026-11-14 (checked with `supabase db push --help`, CLI 2.118.0):
+   a person, never an agent, runs these two commands. Preview, check the list
+   names only this branch's migrations, then apply:
 
    ```
-   supabase db push --project-ref xbblgtrfwgeiyttdlbue
+   supabase db push --linked --project-ref xbblgtrfwgeiyttdlbue --dry-run
    ```
 
-   Never use `eokvngifirjgfozzbieu` (production) or a command without
-   `--project-ref`.
+   ```
+   supabase db push --linked --project-ref xbblgtrfwgeiyttdlbue
+   ```
+
+   Never run these while the CLI is linked to `eokvngifirjgfozzbieu`
+   (production).
 
    **Warning:** once a migration is applied to staging, keep its exact
    filename until it merges to `master`. If the feature is abandoned, undo
    that migration's changes on staging, then mark it reverted:
 
    ```
-   supabase migration repair --status reverted <version> --project-ref xbblgtrfwgeiyttdlbue
+   supabase migration repair --status reverted <version> --linked
    ```
 
+   Run it only while the CLI is linked to staging (check as above).
    `<version>` is the number at the start of the migration's filename.
    Otherwise staging's migration history lists a version that `master` does
    not have, and **Staging sync**'s `migrate-staging` step fails ("Remote
@@ -150,8 +256,9 @@ section. If `staging` is ever in the wrong place, stop and ask Randy or Alex.
 Both secrets are **environment secrets** in a GitHub Environment named
 `staging-sync` in student-portal, not repository secrets. The environment only
 lets runs that started from `master` use them. Only `migrate-staging` and
-`deploy-staging-site` declare `environment: staging-sync`; `sync-branch` and the
-pull request reminder use no secrets.
+`deploy-staging-site` (Staging sync) and `migrate` and `deploy-site` (Staging
+test branch) declare `environment: staging-sync`; `sync-branch`, both
+`preflight` jobs and the pull request reminder use no secrets.
 
 Settings (an admin of student-portal sets these; if you are not an admin, ask
 Randy or Alex):
@@ -244,8 +351,10 @@ Create it:
    **Description**: `Lets student-portal's Staging sync workflow start Deploy staging site.`
 3. **Resource owner**: `Mission-Next-Technical-Academy` (the organization, not your
    personal account).
-4. **Expiration**: **Custom**, a date no more than one year away (the
-   organization may set a shorter limit).
+4. **Expiration**: **Custom**, no more than **90 days** away (Randy's
+   2026-10-27 security directive), on a date that isn't in a freeze, an
+   acceptance run or a launch week. GitHub can't change a token's expiry
+   later; see "Renewing it" below.
 5. **Repository access**: **Only select repositories** → `student-portal-staging`
    only.
 6. **Permissions** → **Repository permissions** → **Actions**: **Read and write**.
@@ -260,10 +369,41 @@ Create it:
 9. Put a calendar reminder **three weeks before the expiry date**: "Replace
    STAGING_DEPLOY_TOKEN (student-portal staging-sync)".
 
-Replace it before it expires: repeat steps 1–7 to make a new token, update the
-`STAGING_DEPLOY_TOKEN` environment secret (pencil icon → paste → save), start a
-manual run to check it, then delete the old token under **Fine-grained tokens**.
-Move the calendar reminder to the new expiry date.
+### Renewing it (every 90 days)
+
+Added 2026-10-29 (Megan).
+
+**Current token:** owned by Megan, last renewed 2026-10-29, expires
+**2027-01-27**. Calendar reminder: 2027-01-11. Update this line on every
+renewal.
+
+Renew it in a quiet week, before the reminder date if you can, and never in a
+freeze, an acceptance run or a launch week. Choose a custom expiry date that
+also avoids those windows.
+
+**Same owner** (the person who owns the current token renews it):
+
+1. GitHub → your profile picture → **Settings** → **Developer settings** →
+   **Personal access tokens** → **Fine-grained tokens** → click the token's name.
+2. **Regenerate token** → **Expiration**: **Custom**, no more than 90 days away
+   → **Regenerate token**. Copy the new value. The old value stops working at
+   once, so do steps 3 and 4 straight away: until then, staging can't redeploy.
+3. In the `staging-sync` environment, click the pencil next to
+   `STAGING_DEPLOY_TOKEN` → paste → **Update secret**.
+4. Start a manual run (see "Starting a run by hand"). Check that **Start the
+   staging website deploy** passed, and that the **Deploy staging site** run it
+   started in student-portal-staging finished green.
+5. Move the calendar reminder to three weeks before the new expiry date, and
+   update the "Current token" line above.
+
+**New owner** (the current owner is leaving or loses access): follow steps 1–8
+under "Create it" above, check it with a manual run (step 4 here), then the
+old owner deletes their token under **Fine-grained tokens**.
+
+If an organization owner sets a maximum token lifetime under the
+organization's **Settings → Personal access tokens**, any existing token
+longer than that limit is blocked from the organization at once. Renew this
+token within the new limit before the limit is switched on.
 
 ## Edge Functions are deployed by hand
 
@@ -284,6 +424,30 @@ The current functions are `admin-provision`, `check-login-geofence`,
 Then release the gate: start **Staging sync** by hand from `master` with
 **functions_deployed** ticked. That run applies any new migrations, moves
 `staging`, and deploys the website.
+
+## Production migrations
+
+Added 2026-11-14. Automation never touches production; this is how a PR's
+migrations reach it (used for PR #107 and PR #109). The agent rule is
+`.claude/rules/database.md` ("Production migrations").
+
+- A person applies a PR's migrations to production **before** merging it,
+  because production deploys on merge.
+- Never link the Supabase CLI to production, and an agent never pushes
+  migrations to production.
+- The person runs two scripts, which an agent may write, in the production
+  project's **SQL Editor**:
+  - **Dry run:** `begin;`, the migrations byte for byte, checks, then a
+    raised `DRY RUN OK, NOTHING SAVED` error, so nothing is kept.
+  - **Apply:** `begin;`, the same migrations, the
+    `supabase_migrations.schema_migrations` insert, then `commit;`.
+- First check the migrations themselves contain no `begin;`, `commit;` or
+  `rollback;`.
+- Keep both scripts in an untracked folder (for example `.claude/work/`),
+  never in git.
+- A migration dated before production's newest one is fine this way.
+- Afterwards, the person confirms every version is in
+  `supabase_migrations.schema_migrations`.
 
 ## Logs are public
 
@@ -378,6 +542,34 @@ workflows must keep that true. `tests/staging-sync-scripts.test.js` checks it.
 - The job passed but the site did not change: open student-portal-staging →
   **Actions** → **Deploy staging site** and read that run. Fix the cause, then
   rerun **Staging sync** from `master`.
+
+**Staging test branch** (nothing is ever moved on the `staging` branch)
+
+- "The branch name must look like hdesk/<words> or shared/<words>": put
+  only the branch name in the **ref** box, for example
+  `hdesk/fix-work-notes-box`.
+- "does not exist on GitHub": push the branch first.
+- "does not contain the latest master": update the branch from `master`,
+  push, and run it again.
+- "changes supabase/migrations/… (git status M, D or R)": the branch edits,
+  deletes or renames a migration already on `master`. Never do that; add a
+  new migration instead.
+- "sorts before master's newest migration": a newer migration reached
+  `master` after this one was created. Create it again with a new timestamp
+  (`supabase migration new`), but only if it was never applied to staging;
+  if it was, ask Alex.
+- "must sit directly in supabase/migrations/ and be named …" or "other than
+  a plain file": rename it to `<14 digits>_<lowercase_words>.sql`, directly
+  in `supabase/migrations/`, as a normal file.
+- "The dry run names migrations that are not this branch's new files":
+  nothing was applied. Usually Staging sync hasn't applied a `master`
+  migration yet: run **Staging sync** from `master`, then run this again.
+- The dry run fails with "Remote migration versions not found in local
+  migrations directory": another branch's migration is on staging (see
+  "Afterwards" above). Wait for that branch to merge, or ask its owner.
+- `deploy-site`: "STAGING_DEPLOY_TOKEN is not set" or HTTP 401/403: see
+  Secret 2. The workflow fails here instead of passing with a notice,
+  because a branch test that deploys nothing is useless.
 
 ## If student-portal is made private
 

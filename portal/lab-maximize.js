@@ -145,6 +145,15 @@
     if (summary) event.preventDefault();
   }, true);
 
+  // Opening another lab from the page should return the maximized lab to its
+  // normal card before the newly opened lab takes focus.
+  document.addEventListener('toggle', (event) => {
+    const opened = event.target;
+    if (opened?.tagName !== 'DETAILS' || !opened.open || !activeCard || activeCard === opened) return;
+    if (!opened.querySelector('[data-lab-max-toggle]')) return;
+    setMaximized(null);
+  }, true);
+
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || !activeCard || event.defaultPrevented) return;
     const target = event.target;

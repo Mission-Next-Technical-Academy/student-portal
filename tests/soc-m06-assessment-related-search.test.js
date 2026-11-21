@@ -47,6 +47,19 @@ const formEnd = initialForm.match(/name="endTime" type="text" value="([^"]+)"/)[
 assert.strictEqual(api.validateScope({ startTime: formStart, endTime: formEnd, entityType: 'device', entityValue: 'ws-318' }, fixture).startTime, formStart,
   'initial search form uses a valid range within the maximum window');
 
+const savedQuery = api.saveQuery(seed, fixture, 'All-host task query', 'eventType == "scheduled_task"', '2026-09-27T09:20:00Z');
+const staleDeviceForm = { get: (name) => ({
+  startTime: '2026-09-27T09:00:00Z',
+  endTime: scenario.scope.timeEnd,
+  entityType: 'all',
+  entityValue: 'ws-318',
+}[name]) };
+const allEntityScope = api.scopeFromForm(staleDeviceForm);
+assert.strictEqual(allEntityScope.entityValue, 'all', 'All entities ignores the stale device selection in the form');
+const allEntitySavedRun = api.runSavedQuery(savedQuery.state, fixture, allEntityScope, savedQuery.definition.id, '2026-09-27T09:20:01Z');
+assert.deepStrictEqual([...new Set(Array.from(allEntitySavedRun.results, (event) => event.device))].sort(), ['ws-318', 'ws-355', 'ws-402'],
+  'saved All entities query includes matching events from every host');
+
 const pivoted = api.pivot(run.state, fixture, 'M06-EVT-001', 'M06-EVT-002', '2026-09-27T09:20:01Z');
 assert.deepStrictEqual(JSON.parse(JSON.stringify(pivoted.state.pivots[0])), {
   fromEventId: 'M06-EVT-001', toEventId: 'M06-EVT-002', field: 'relatedEventIds', value: 'M06-EVT-002', timestamp: '2026-09-27T09:20:01Z',

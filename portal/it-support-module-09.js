@@ -1,4 +1,4 @@
-/* Module 09 — IT Help Desk & Career Accelerator ('it-support').
+/* Module 11 (key its-09; was Module 09 before the 2026-11 reorder) — IT Help Desk & Career Accelerator ('it-support').
  * Lesson content sourced from Module_9_Student_Content.docx. Lab is a
  * guided walkthrough of two real tickets ('hd-m09') in the IT Service Desk
  * simulator — see it-support-shared.js's itsRegisterCoachModule.
@@ -6,7 +6,7 @@
 
 const ITS09_LESSONS = [
   {
-    id: 'its-09-lesson-01', number: '9.1', icon: 'ri-spam-2-line',
+    id: 'its-09-lesson-01', number: '11.1', icon: 'ri-spam-2-line',
     title: 'Recognizing Phishing & Social Engineering', minutes: 60,
     learn: [
       'Common indicators of a phishing attempt, even a well-crafted one',
@@ -24,7 +24,7 @@ const ITS09_LESSONS = [
     comingUp: 'You\'ll review a set of realistic messages and requests, and correctly identify which are legitimate and which need escalation.',
   },
   {
-    id: 'its-09-lesson-02', number: '9.2', icon: 'ri-key-2-line',
+    id: 'its-09-lesson-02', number: '11.2', icon: 'ri-key-2-line',
     title: 'Credential Handling, Least Privilege & MFA Awareness', minutes: 60,
     learn: [
       'Why credential handling discipline matters even for "harmless" internal tasks',
@@ -44,7 +44,7 @@ const ITS09_LESSONS = [
 ];
 
 itsRegisterCoachModule({
-  moduleNumber: 9, moduleKey: 'its-09', coachId: 'hd-m09', labKeys: ['lab-its-09-security-incidents'],
+  moduleNumber: 11, moduleKey: 'its-09', coachId: 'hd-m09', labKeys: ['lab-its-09-security-incidents'],
   lessons: ITS09_LESSONS,
   lede: 'Every technician is also, whether they realize it or not, a frontline defense against security threats. This module gives you the judgment to recognize when something isn\'t right — and to know exactly what to do about it.',
   labDescription: 'Work two real security-incident tickets end to end in the IT Service Desk simulator — a credential-phishing report (SEC-2114) and a malware alert (SEC-2115) — recognizing why L1 escalates rather than resolves. A coach spotlights each step for you.',

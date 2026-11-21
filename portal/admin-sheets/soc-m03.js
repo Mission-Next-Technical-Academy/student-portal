@@ -1,0 +1,605 @@
+/* Submission Sheet — Module 03 Prove It, CASE-MN-517 / INC-MN-517 (overnight
+ * password spray on 203.0.113.77, m.ortiz compromised through legacy IMAP,
+ * inbox forwarding rule). Lab key 'lab-siem-triage'.
+ *
+ * Answer key and scoring: portal/soc-analyst-module-03-environment.js.
+ *   M03E_RUBRIC (competencies, items, points, critical rules)  line ~510
+ *   moduleThreeScoreAssessment(work)                           line ~609
+ *   M03E_CHILD_INCIDENTS, m03eResolutionScore                  lines ~323-380
+ *   M03E_INCIDENT_LINK_EXPECTATIONS                            line ~317
+ * This sheet RE-RUNS moduleThreeScoreAssessment() on the saved attempt
+ * (`scorer` below) and reads each item's hit/miss from its output, so a check
+ * can never disagree with the points the student was given. Labels come from
+ * the rubric items themselves.
+ *
+ * Saved payload (m03eSubmitAssessment): result.case_record = the ticket
+ * (status, severity, affectedUser/Device, verdict, escalation/escalateTo,
+ * accountStatus{}, indicators[], actions[], handoff{4 parts}, notes,
+ * actionHistory, alertIncidentLinks[], incidentResolutions{children,parentClosed}),
+ * result.case_display (ticket rows as the student saw them), result.assessment
+ * (selected_evidence[], pinned_evidence[] lines, query_log (last 40),
+ * query_summary (added 2026-10-17), child_incident_resolutions,
+ * recommended-response labels), result.breakdown ("earned / max" per
+ * competency), result.feedback, result.simulator_performance.
+ */
+(() => {
+  'use strict';
+  if (typeof AdminSubmissionSheet === 'undefined') return;
+
+  const rubric = () => (typeof M03E_RUBRIC !== 'undefined' ? M03E_RUBRIC : null);
+  const prove = () => (typeof M03E_PROVE !== 'undefined' ? M03E_PROVE : null);
+  const children = () => (typeof M03E_CHILD_INCIDENTS !== 'undefined' ? M03E_CHILD_INCIDENTS : []);
+  const list = (name) => ({
+    users: typeof M03E_USER_OPTIONS !== 'undefined' ? M03E_USER_OPTIONS : [],
+    devices: typeof M03E_DEVICE_OPTIONS !== 'undefined' ? M03E_DEVICE_OPTIONS : [],
+    departments: typeof M03E_DEPARTMENT_OPTIONS !== 'undefined' ? M03E_DEPARTMENT_OPTIONS : [],
+    dispositions: typeof M03E_DISPOSITION_OPTIONS !== 'undefined' ? M03E_DISPOSITION_OPTIONS : [],
+    statuses: typeof M03E_ACCOUNT_STATUSES !== 'undefined' ? M03E_ACCOUNT_STATUSES.filter(([id]) => id).map(([id, text]) => ({ id, text })) : [],
+    indicators: typeof M03E_INDICATORS !== 'undefined' ? M03E_INDICATORS.map(([id, text]) => ({ id, text })) : [],
+    actions: typeof M03E_ACTIONS !== 'undefined' ? M03E_ACTIONS.map(([id, text]) => ({ id, text })) : [],
+  }[name] || []);
+  const accounts = () => (typeof M03E_ACCOUNTS_PROVE !== 'undefined' ? M03E_ACCOUNTS_PROVE : []);
+  const accountLabel = (id) => (typeof M03E_IDENTITY_LABEL !== 'undefined' && M03E_IDENTITY_LABEL[id]) || id;
+  const linkRule = () => (typeof M03E_INCIDENT_LINK_EXPECTATIONS !== 'undefined' ? M03E_INCIDENT_LINK_EXPECTATIONS.prove : { incidentId: 'INC-MN-517', supported: [], unrelated: [] });
+  const std = (name, id) => {
+    const options = { status: typeof CASE_RECORD_STATUS_OPTIONS !== 'undefined' ? CASE_RECORD_STATUS_OPTIONS : [],
+      severity: typeof CASE_RECORD_SEVERITY_OPTIONS !== 'undefined' ? CASE_RECORD_SEVERITY_OPTIONS : [],
+      escalation: typeof CASE_RECORD_ESCALATION_OPTIONS !== 'undefined' ? CASE_RECORD_ESCALATION_OPTIONS : [] }[name] || [];
+    return (options.find((option) => option.id === id) || {}).text || id || '';
+  };
+  const byId = (options, id) => options.find((option) => option.id === id) || null;
+  const textOf = (options, id) => (byId(options, id) || {}).text || id || '';
+  // The ticket shows the shared disposition labels (case-record.js) over the module's own.
+  const dispositionLabel = (id) => (typeof CASE_RECORD_DISPOSITION_LABELS !== 'undefined' && CASE_RECORD_DISPOSITION_LABELS[id]) || textOf(list('dispositions'), id);
+  const blankAs = (value) => (value === null ? null : value || 'Left blank');
+
+  const record = (result) => (result.case_record && typeof result.case_record === 'object' ? result.case_record : null);
+  const field = (result, key) => {
+    const r = record(result);
+    return r ? (typeof r[key] === 'string' ? r[key] : '') : null;
+  };
+  const severityOf = (result) => (record(result) ? field(result, 'severity') || field(result, 'priority') : null);
+  const dispositionOf = (result) => (record(result) ? field(result, 'verdict') || field(result, 'disposition') : null);
+  const arrayOf = (result, key) => (record(result) && Array.isArray(record(result)[key]) ? record(result)[key] : null);
+  const statusOf = (result, account) => {
+    const r = record(result);
+    return r && r.accountStatus && typeof r.accountStatus === 'object' ? r.accountStatus[account] || '' : r ? '' : null;
+  };
+  const shown = (ctx, label, fallback) => {
+    const value = ctx.display(label);
+    return value !== null && value !== 'Not provided' ? value : fallback;
+  };
+
+  // ------------------------------------------------ re-run the module scorer
+  function rescore(result) {
+    if (typeof moduleThreeScoreAssessment !== 'function') return null;
+    const r = record(result);
+    if (!r) return null;
+    const a = result.assessment && typeof result.assessment === 'object' ? result.assessment : {};
+    const summary = a.query_summary && typeof a.query_summary === 'object' ? a.query_summary : null;
+    const queryLog = summary
+      ? [{ sources: Array.isArray(summary.sources_queried) ? summary.sources_queried : [], pivot: summary.cross_source_pivot === true }]
+      : (Array.isArray(a.query_log) ? a.query_log : []);
+    return moduleThreeScoreAssessment({
+      determination: r,
+      pins: Array.isArray(a.selected_evidence) ? a.selected_evidence : [],
+      queryLog,
+      incidentLinks: Array.isArray(r.alertIncidentLinks) ? r.alertIncidentLinks : [],
+      incidentResolutions: r.incidentResolutions,
+    });
+  }
+  const hasAssessment = (result) => Boolean(result.assessment && typeof result.assessment === 'object' && Array.isArray(result.assessment.selected_evidence));
+
+  const itemsOf = (compId, predicate = () => true) => {
+    const comp = rubric() && rubric().competencies.find((c) => c.id === compId);
+    return comp ? comp.items.filter(predicate) : [];
+  };
+  const tagOf = (item) => (item.pts > 0 ? `${item.level ? `[${item.level}] ` : ''}${item.label} (+${item.pts})` : `${item.label} (${item.pts})`);
+  // true = the scorer credited (or deducted for) this item; null = cannot tell.
+  function hit(ctx, compId, item) {
+    const comp = ctx.scorerResult && ctx.scorerResult.competencies.find((c) => c.id === compId);
+    if (!comp) return null;
+    return (item.pts > 0 ? comp.evidence : comp.deductions).includes(tagOf(item));
+  }
+  const critical = (id) => (rubric() ? rubric().critical.find((c) => c.id === id) : null);
+  const criticalMet = (ctx, id) => {
+    const c = critical(id);
+    return c && ctx.scorerResult ? !ctx.scorerResult.criticalMisses.includes(c.label) : null;
+  };
+  const lower = (text) => String(text).charAt(0).toLowerCase() + String(text).slice(1);
+  // Scorer labels are past tense ("Pinned the forwarding rule"); a note to the student is an instruction ("pin the forwarding rule").
+  const IMPERATIVE = { queried: 'query', pivoted: 'pivot', pinned: 'pin', linked: 'link', searched: 'search', ran: 'run' };
+  const imperative = (text) => String(text).replace(/^(\w+)\b/, (word) => IMPERATIVE[word.toLowerCase()] || word);
+  const stripLevel = (text) => String(text).replace(/^(Unsupported|Unsafe):\s*/, '');
+
+  /* A scorer-driven group: one ✓/✗ line per rubric item (all = pass, some = ◐,
+   * none = ✗). The framework's evidence group matches terms in a text, so the
+   * text handed to it is the list of item tokens the scorer credited.
+   * `short(item)` names a missed item in the note to the student. */
+  function hitGroup({ label, compId, items, needsAssessment, fix, short }) {
+    const defaultShort = (item) => imperative(lower(item.label)).replace(/^handoff (names|explains|states) /, '').replace(/ written \(40\+ characters\)$/, '');
+    return {
+      label,
+      text: (result, ctx) => {
+        if (!ctx.scorerResult || (needsAssessment && !hasAssessment(result))) return null;
+        return items().map((item, index) => (hit(ctx, compId, item) ? `p${index}` : '')).join(' ');
+      },
+      // short: the scorer label without its "handoff names" / "written (40+…)" frame.
+      pieces: () => items().map((item, index) => ({ name: lower(item.label), short: (short || defaultShort)(item, index), label: item.label, terms: [`p${index}`] })),
+      fix: fix || ((missing) => `Add what is missing: ${missing.join(', ')}.`),
+    };
+  }
+  // 'a', 'a and b', 'a, b and c'
+  // ('… and 3 more' from the framework's shortList already carries its 'and'.)
+  const andList = (names) => (names.length <= 1 ? names.join('')
+    : /^and \d+ more$/.test(names[names.length - 1]) ? names.join(', ')
+      : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
+  const quoted = (text) => `“${text}”`;
+  const indicatorsOf = (result) => (arrayOf(result, 'indicators') || []);
+
+  /* What to tell the student when the scorer deducted for an item, in plain
+   * English that quotes what they actually picked (owner, 2026-10-17). Keyed
+   * by the rubric item's label (M03E_RUBRIC); anything unmatched falls back to
+   * a generic sentence built from the label. */
+  const AVOID_NOTES = [
+    [/t\.nguyen marked/, (result) => `You marked t.nguyen as ${quoted(textOf(list('statuses'), statusOf(result, 't.nguyen')))}. The travel notice (Singapore, expected IP 198.51.100.140) explains that sign-in, so t.nguyen is Not affected.`],
+    [/benign or internal IP/, (result) => {
+      const why = { '198.51.100.140': 'is t.nguyen’s hotel network, covered by the travel notice', '10.20.4.22': 'is m.ortiz’s own office workstation on the corporate LAN' };
+      const listed = indicatorsOf(result).filter((id) => why[id]);
+      return `You listed ${andList(listed.map((id) => quoted(textOf(list('indicators'), id))))} as ${listed.length === 1 ? 'an indicator' : 'indicators'}. ${listed.map((id) => `${id} ${why[id]}`).join('; ')}. Take ${listed.length === 1 ? 'it' : 'them'} off the list so responders don’t block or hunt on a harmless address.`;
+    }],
+    [/S-5601/, () => `You listed ${quoted(textOf(list('indicators'), 'S-5601'))} as an indicator. S-5601 is m.ortiz’s normal office session from 10.20.4.22 with MFA; the attacker’s session is S-5520. Take S-5601 off the list.`],
+    [/action against t\.nguyen/, () => `You recommended ${quoted(textOf(list('actions'), 'reset-nguyen'))}. The travel notice explains t.nguyen’s sign-in, so there is nothing to reset. Drop that step.`],
+    [/disabling every targeted account/, () => `You recommended ${quoted(textOf(list('actions'), 'disable-all'))}. Most of those accounts were only targeted and never signed in, so this locks people out without containing anything. Act on m.ortiz and d.hale only.`],
+    [/deleting log evidence/, () => `You recommended ${quoted(textOf(list('actions'), 'purge-logs'))}. Deleting log records destroys the evidence responders and auditors need, and it contains nothing. Never remove logs.`],
+    [/wiping a laptop/, () => `You recommended ${quoted(textOf(list('actions'), 'wipe-laptop'))}. Nothing in the records touches m.ortiz’s laptop: the attacker used a legacy mail sign-in from 203.0.113.77. Drop that step.`],
+    [/l\.brooks alert linked/, () => {
+      const alert = ((prove() && prove().alerts) || []).find((a) => a.id === 'ALT-5174');
+      return `You linked ALT-5174${alert ? ` (${quoted(alert.title)})` : ''} to ${linkRule().incidentId}. That alert is l.brooks mistyping a password from the usual office address, then signing in normally. It is not part of the spray, so unlink it.`;
+    }],
+  ];
+  const avoidNote = (item, result) => {
+    const match = AVOID_NOTES.find(([pattern]) => pattern.test(item.label));
+    return match ? match[1](result) : `Take out ${lower(stripLevel(item.label))}: the records don’t support it${item.unsafe ? ', and it could cause harm' : ''}.`;
+  };
+  // A scorer deduction: ✓ when the student avoided it; small deductions are
+  // "partly there", unsafe or large ones are ✗.
+  const avoidCheck = (compId, item) => ({
+    label: `Avoided ${item.unsafe ? 'an unsafe step' : 'an unsupported call'}: ${lower(stripLevel(item.label))}`,
+    expected: 'Not done',
+    test: (result, ctx) => {
+      const h = hit(ctx, compId, item);
+      if (h === null) return null;
+      return !h ? true : item.unsafe || item.pts <= -5 ? false : 'partial';
+    },
+    given: 'Done',
+    fix: (result) => avoidNote(item, result),
+  });
+
+  const tierTest = (options, key) => (result) => {
+    const value = field(result, key);
+    if (value === null) return null;
+    const tier = (byId(options, value) || {}).tier;
+    return tier === 'principal' ? true : tier === 'pivot' ? 'partial' : false;
+  };
+  const principalText = (options) => (options.find((o) => o.tier === 'principal') || {}).text || '';
+  const pivotText = (options) => (options.find((o) => o.tier === 'pivot') || {}).text || '';
+
+  const NOT_ASSESSED = 'Left blank';
+  // Child-incident dispositions as the resolution select shows them ('true positive').
+  const spaced = (id) => String(id || 'no disposition').replace(/-/g, ' ');
+  const wrongChildren = (result) => {
+    const rows = (record(result) && record(result).incidentResolutions && record(result).incidentResolutions.children) || {};
+    return children().filter((incident) => rows[incident.id] && rows[incident.id].resolved && rows[incident.id].disposition && rows[incident.id].disposition !== incident.disposition)
+      .map((incident) => ({ incident, row: rows[incident.id] }));
+  };
+  const scopeItems = () => itemsOf('scope');
+  const isIndicator = (item) => /indicator/i.test(item.label);
+
+  AdminSubmissionSheet.register(['lab-siem-triage'], {
+    title: 'Module 03 · PROVE IT — SIEM Alert Triage',
+    fixture: prove,
+    scorer: (result) => rescore(result),
+    caseId: () => `${(prove() && prove().caseId) || 'CASE-MN-517'} · ${linkRule().incidentId}`,
+    rubric: (result, ctx) => {
+      const scored = ctx.scorerResult;
+      const breakdown = result.breakdown && typeof result.breakdown === 'object' && !Array.isArray(result.breakdown) ? result.breakdown : null;
+      if (breakdown) {
+        return Object.entries(breakdown).map(([label, value]) => {
+          const match = /^(-?\d+)\s*\/\s*(\d+)/.exec(String(value));
+          const comp = scored && scored.competencies.find((c) => c.label === label);
+          return { label, earned: match ? Number(match[1]) : String(value), max: match ? Number(match[2]) : null, misses: comp ? comp.misses : [], deductions: comp ? comp.deductions : [], evidence: comp ? comp.evidence : [] };
+        });
+      }
+      return scored ? scored.competencies.map((c) => ({ label: c.label, earned: c.earned, max: c.max, misses: c.misses, deductions: c.deductions, evidence: c.evidence })) : [];
+    },
+    sections: [
+      {
+        id: 'case-status',
+        title: 'Case & status',
+        required: false,
+        answer: (result, ctx) => [
+          ['Case', shown(ctx, 'Case', (prove() && prove().caseId) || '—')],
+          ['Incident', linkRule().incidentId],
+          ['Status', blankAs(record(result) ? shown(ctx, 'Status', std('status', field(result, 'status'))) : null)],
+        ],
+        checks: [{
+          label: 'Case left open while Identity Response acts (In Progress or Pending, not Resolved)',
+          expected: 'In Progress or Pending',
+          // Advisory: moduleThreeScoreAssessment() does not score status.
+          test: (result) => (field(result, 'status') === null ? null : ['in-progress', 'pending'].includes(field(result, 'status'))),
+          given: (result) => std('status', field(result, 'status')) || 'Left blank',
+          fix: 'Keep the case In Progress. The accounts still have to be cleaned up, so it is not resolved yet.',
+        }],
+      },
+      {
+        id: 'severity',
+        title: 'Severity',
+        answer: (result, ctx) => [['Severity', blankAs(record(result) ? shown(ctx, 'Severity', std('severity', severityOf(result))) : null)]],
+        checks: [{
+          label: 'Severity set to High (Critical is also accepted)',
+          expected: 'High or Critical',
+          // Scorer: high/critical = full, medium = partial (variant), anything else none.
+          test: (result, ctx) => {
+            if (severityOf(result) === null) return null;
+            const [full] = itemsOf('verdict', (item) => /severity/i.test(item.label) && !item.variant);
+            const [partial] = itemsOf('verdict', (item) => /severity/i.test(item.label) && item.variant);
+            if (hit(ctx, 'verdict', full)) return true;
+            return partial && hit(ctx, 'verdict', partial) ? 'partial' : false;
+          },
+          given: (result) => std('severity', severityOf(result)) || 'Left blank',
+          fix: 'Set Severity to High. An attacker is inside a Finance mailbox and has downloaded payroll and bank files.',
+          fixPartial: 'Medium under-rates this: an attacker is reading a Finance mailbox and downloaded payroll and bank files. Rate it High.',
+        }],
+      },
+      {
+        id: 'affected-user',
+        title: 'Affected user',
+        required: false,
+        answer: (result) => [['Affected user', blankAs(record(result) ? textOf(list('users'), field(result, 'affectedUser')) : null)]],
+        checks: [{
+          // Advisory: the module notes that user/device picks are informational and unscored.
+          label: 'Names the account the attacker got into (m.ortiz)',
+          expected: () => principalText(list('users')),
+          test: tierTest(list('users'), 'affectedUser'),
+          given: (result) => textOf(list('users'), field(result, 'affectedUser')) || 'Left blank',
+          fix: () => `Put ${principalText(list('users')).split(' (')[0]} in Affected user. That account signed in from the attacker's address and created the forwarding rule.`,
+          fixPartial: () => `${(pivotText(list('users')) || '').split(' (')[0]} had a correct password and a denied MFA push, but the attacker only got into ${principalText(list('users')).split(' (')[0]}. Name that account.`,
+        }],
+      },
+      {
+        id: 'affected-device',
+        title: 'Affected device',
+        required: false,
+        answer: (result) => [['Affected device', blankAs(record(result) ? textOf(list('devices'), field(result, 'affectedDevice')) : null)]],
+        checks: [{
+          label: () => `Names the system where the attacker acted (${principalText(list('devices'))})`,
+          expected: () => principalText(list('devices')),
+          test: tierTest(list('devices'), 'affectedDevice'),
+          given: (result) => textOf(list('devices'), field(result, 'affectedDevice')) || 'Left blank',
+          fix: () => `Put ${principalText(list('devices'))} in Affected device. The forwarding rule and the 212 mailbox reads happened there.`,
+          fixPartial: () => `${pivotText(list('devices'))} holds the downloaded files, but the mailbox rule and mail reads are on ${principalText(list('devices'))}. Name that system.`,
+        }],
+      },
+      {
+        id: 'disposition',
+        title: 'Disposition',
+        answer: (result, ctx) => [['Disposition', blankAs(record(result) ? shown(ctx, 'Disposition', dispositionLabel(dispositionOf(result))) : null)]],
+        checks: [{
+          label: () => `Marked as ${dispositionLabel('true-positive').toLowerCase()} (true positive)`,
+          expected: () => dispositionLabel('true-positive'),
+          test: (result, ctx) => (dispositionOf(result) === null ? null : criticalMet(ctx, 'verdict')),
+          given: (result) => dispositionLabel(dispositionOf(result)) || 'Left blank',
+          fix: 'Record the disposition as confirmed malicious activity. The spray was followed by a legacy-protocol sign-in with no MFA, a forwarding rule and file downloads.',
+        }],
+      },
+      {
+        id: 'escalation',
+        title: 'Escalation required',
+        answer: (result, ctx) => [['Escalation required', blankAs(record(result) ? shown(ctx, 'Escalation required', std('escalation', field(result, 'escalation'))) : null)]],
+        checks: [{
+          label: () => (itemsOf('response', (item) => /^Escalation/.test(item.label))[0] || { label: 'Escalation marked required' }).label,
+          expected: 'Required',
+          test: (result, ctx) => {
+            if (field(result, 'escalation') === null) return null;
+            const [item] = itemsOf('response', (i) => /^Escalation/.test(i.label));
+            return item ? hit(ctx, 'response', item) : field(result, 'escalation') === 'required';
+          },
+          given: (result) => std('escalation', field(result, 'escalation')) || 'Left blank',
+          fix: 'Set Escalation to Required. Resetting passwords and removing the rule is Identity Response work, not an analyst task.',
+        }],
+      },
+      {
+        id: 'route',
+        title: 'Route to department',
+        required: false,
+        answer: (result, ctx) => [['Route to department', record(result) ? (field(result, 'escalation') === 'required' ? blankAs(shown(ctx, 'Route to department', textOf(list('departments'), field(result, 'escalateTo')))) : 'Not applicable') : null]],
+        checks: [{
+          label: 'Routed to the team that resets accounts and sessions (Identity Response)',
+          expected: () => (list('departments').slice().sort((a, b) => b.fit - a.fit)[0] || {}).text,
+          when: (result) => field(result, 'escalation') === 'required',
+          // Advisory: the Module 3 scorer does not score the route.
+          test: (result) => {
+            const chosen = byId(list('departments'), field(result, 'escalateTo'));
+            if (!chosen) return false;
+            return chosen.fit >= 100 ? true : chosen.fit >= 40 ? 'partial' : false;
+          },
+          given: (result) => textOf(list('departments'), field(result, 'escalateTo')) || 'No department chosen',
+          fix: (result) => (byId(list('departments'), field(result, 'escalateTo')) || {}).bounce || 'Route the case to Identity Response, who reset passwords and revoke sessions.',
+          fixPartial: (result) => `route the case to Identity Response: resetting m.ortiz’s password and sessions is their work (you routed it to ${quoted(textOf(list('departments'), field(result, 'escalateTo')))}).`,
+        }],
+      },
+      {
+        id: 'account-scope',
+        title: 'Account scope',
+        answer: (result, ctx) => accounts().map((account) => [accountLabel(account), record(result) ? blankAs(shown(ctx, accountLabel(account), textOf(list('statuses'), statusOf(result, account)))) : null]),
+        checks: [
+          {
+            label: () => (critical('primary-account') || { label: 'm.ortiz marked compromised' }).label,
+            expected: 'Compromised (attacker access)',
+            test: (result, ctx) => (record(result) ? criticalMet(ctx, 'primary-account') : null),
+            given: (result) => textOf(list('statuses'), statusOf(result, 'm.ortiz')) || 'Left blank',
+            fix: 'Mark m.ortiz as Compromised. The attacker signed in as m.ortiz (A-5012), created an app password and a forwarding rule, and downloaded files.',
+          },
+          ...itemsOf('scope', (item) => item.pts < 0 && !isIndicator(item)).map((item) => avoidCheck('scope', item)),
+        ],
+      },
+      {
+        id: 'other-accounts',
+        title: 'Other accounts',
+        required: false,
+        checks: [
+          {
+            label: () => (itemsOf('scope', (item) => /d\.hale/.test(item.label) && !item.variant && item.pts > 0)[0] || { label: 'd.hale marked credential-exposed' }).label,
+            expected: 'Credential exposed (access blocked)',
+            // Scorer: exposed = full (6), compromised = partial (3, over-stated).
+            test: (result, ctx) => {
+              if (!record(result)) return null;
+              const [full] = itemsOf('scope', (item) => /d\.hale/.test(item.label) && !item.variant && item.pts > 0);
+              const [over] = itemsOf('scope', (item) => /d\.hale/.test(item.label) && item.variant);
+              if (full && hit(ctx, 'scope', full)) return true;
+              return over && hit(ctx, 'scope', over) ? 'partial' : false;
+            },
+            given: (result) => textOf(list('statuses'), statusOf(result, 'd.hale')) || 'Left blank',
+            fix: 'Mark d.hale as Credential exposed. The password was right but the MFA push was denied, so the attacker did not get in.',
+            fixPartial: 'd.hale is flagged, but Compromised over-states it: the MFA push was denied, so the attacker did not get in. Use Credential exposed.',
+          },
+          {
+            label: () => (itemsOf('scope', (item) => /targeted-only/.test(item.label))[0] || { label: 'Other sprayed accounts marked targeted-only' }).label,
+            expected: 'Targeted only (no valid credential)',
+            test: (result, ctx) => {
+              if (!record(result)) return null;
+              const [item] = itemsOf('scope', (i) => /targeted-only/.test(i.label));
+              return item ? hit(ctx, 'scope', item) : null;
+            },
+            given: (result) => ['r.kaur', 'p.sato', 'l.brooks', 'a.morgan'].map((a) => `${a}: ${textOf(list('statuses'), statusOf(result, a)) || 'blank'}`).join('; '),
+            fix: 'Mark r.kaur, p.sato, l.brooks and a.morgan as Targeted only. They had failed sign-ins from the attacker address but no successful one.',
+          },
+        ],
+      },
+      {
+        id: 'indicators',
+        title: 'Indicators to hand off',
+        answer: (result) => [['Indicators to hand off', arrayOf(result, 'indicators') === null ? null : arrayOf(result, 'indicators').map((id) => textOf(list('indicators'), id))]],
+        checks: [...itemsOf('scope', (item) => isIndicator(item) && item.pts < 0).map((item) => avoidCheck('scope', item))],
+        evidence: hitGroup({
+          label: 'Indicators the responders need',
+          compId: 'scope',
+          items: () => itemsOf('scope', (item) => isIndicator(item) && item.pts > 0),
+          // 'Attacker IP listed as an indicator' → 'the attacker's IP (IP 203.0.113.77)'
+          short: (item) => (/attacker ip/i.test(item.label) ? `the attacker’s IP (${quoted(textOf(list('indicators'), '203.0.113.77'))})`
+            : /forwarding address/i.test(item.label) ? `the forwarding address (${quoted(textOf(list('indicators'), 'ext-archive@proton-box.example'))})`
+              : lower(item.label)),
+          fix: (missing, result) => {
+            const listed = indicatorsOf(result).map((id) => quoted(textOf(list('indicators'), id)));
+            return `add ${andList(missing)} to the indicators to hand off, so responders can block and search for ${missing.length === 1 ? 'it' : 'them'} (you listed ${listed.length ? listed.join(', ') : 'none'}).`;
+          },
+        }),
+      },
+      {
+        id: 'actions',
+        title: 'Recommended response',
+        answer: (result) => [['Recommended response', arrayOf(result, 'actions') === null ? null : arrayOf(result, 'actions').map((id) => textOf(list('actions'), id))]],
+        checks: itemsOf('response', (item) => item.pts < 0).map((item) => avoidCheck('response', item)),
+        evidence: hitGroup({
+          label: 'Response steps the records support',
+          compId: 'response',
+          items: () => itemsOf('response', (item) => item.pts > 0 && !/^Escalation/.test(item.label)),
+          // Response items are labelled with the action text the student saw.
+          short: (item) => quoted(item.label),
+          fix: (missing) => `also recommend ${andList(missing)}: the records support ${missing.length === 1 ? 'that step' : missing.length === 2 ? 'both steps' : 'each of these steps'}.`,
+        }),
+      },
+      {
+        id: 'handoff',
+        title: 'Analyst handoff & work notes',
+        response: (result) => {
+          const r = record(result);
+          if (!r) return [{ label: 'Analyst handoff · student response', text: null }];
+          const handoff = r.handoff && typeof r.handoff === 'object' ? r.handoff : {};
+          return [
+            ['observations', 'Observations: what the logs show'],
+            ['analysis', 'Analysis: why the observations support the verdict'],
+            ['scope', 'Scope: confirmed and still unknown'],
+            ['nextAction', 'Requested next action'],
+          ].map(([key, label]) => ({ label: `Handoff · ${label}`, text: typeof handoff[key] === 'string' ? handoff[key] : '' }))
+            .concat([{ label: 'Analyst work notes · student response', text: r.notes || '' }]);
+        },
+        evidence: [
+          hitGroup({
+            label: 'All four handoff parts written out (40+ characters each)',
+            compId: 'documentation',
+            items: () => itemsOf('documentation', (item) => /written \(40/.test(item.label)),
+            fix: (missing) => `Write out each handoff part (40+ characters): ${missing.join(', ')}.`,
+          }),
+          hitGroup({
+            label: 'Key evidence named in the handoff and notes',
+            compId: 'documentation',
+            items: () => itemsOf('documentation', (item) => !/written \(40/.test(item.label)),
+            fix: (missing) => `Your handoff doesn’t mention ${missing.join(', ')}.`,
+          }),
+        ],
+      },
+      {
+        id: 'alert-links',
+        title: 'Alert-to-incident links',
+        answer: (result, ctx) => {
+          const links = arrayOf(result, 'alertIncidentLinks');
+          if (links === null) return [['Alerts linked to the incident', ctx.display('Alert-to-incident links')]];
+          const title = (id) => ((prove() && prove().alerts) || []).find((alert) => alert.id === id);
+          return [['Alerts linked to the incident', links.length ? links.map((link) => `${link.alertId}${title(link.alertId) ? ` (${title(link.alertId).title})` : ''} → ${link.incidentId}`) : 'None recorded']];
+        },
+        checks: itemsOf('incident-association', (item) => item.pts < 0).map((item) => avoidCheck('incident-association', item)),
+        evidence: hitGroup({
+          label: () => `Linked the alerts that support ${linkRule().incidentId}`,
+          compId: 'incident-association',
+          items: () => itemsOf('incident-association', (item) => item.pts > 0),
+          // The credited items follow M03E_INCIDENT_LINK_EXPECTATIONS.prove.supported in order.
+          short: (item, index) => {
+            const id = linkRule().supported[index];
+            const alert = ((prove() && prove().alerts) || []).find((a) => a.id === id);
+            return id ? `${id}${alert ? ` (${quoted(alert.title)})` : ''}` : lower(item.label);
+          },
+          fix: (missing, result) => {
+            const links = arrayOf(result, 'alertIncidentLinks') || [];
+            return `link ${andList(missing)} to ${linkRule().incidentId}: ${missing.length === 1 ? 'it is' : 'they are'} part of this attack (you linked ${links.length ? links.map((link) => link.alertId).join(', ') : 'none'}).`;
+          },
+        }),
+      },
+      {
+        id: 'child-incidents',
+        title: 'Child incident resolutions',
+        answer: (result) => {
+          const r = record(result);
+          if (!r || !r.incidentResolutions || typeof r.incidentResolutions !== 'object') return [['Child incidents', null]];
+          const rows = r.incidentResolutions.children || {};
+          return [
+            ...children().map((incident) => {
+              const row = rows[incident.id] || {};
+              return [`${incident.id} · ${incident.label}`, row.resolved ? `Resolved as ${spaced(row.disposition)}; evidence cited: ${row.evidence || 'none'}` : 'Not resolved'];
+            }),
+            ['Parent case', r.incidentResolutions.parentClosed ? 'Closed' : 'Left open'],
+          ];
+        },
+        response: (result) => {
+          const r = record(result);
+          if (!r || !r.incidentResolutions || typeof r.incidentResolutions !== 'object') return [{ label: 'Resolution notes · student response', text: null }];
+          const rows = r.incidentResolutions.children || {};
+          return children().map((incident) => ({ label: `${incident.id} · resolution note`, text: (rows[incident.id] || {}).note || '' }));
+        },
+        checks: [{
+          label: 'No child incident was closed with a disposition the records do not support',
+          expected: 'Supported dispositions only',
+          test: (result, ctx) => {
+            if (!record(result) || !ctx.scorerResult) return null;
+            const comp = ctx.scorerResult.competencies.find((c) => c.id === 'incident-resolution');
+            return comp ? comp.deductions.length === 0 : null;
+          },
+          // Names each incident closed with the wrong disposition, in the
+          // words the student picked (the select shows "true positive" etc.).
+          given: (result) => {
+            const wrong = wrongChildren(result);
+            return wrong.length ? wrong.map(({ incident, row }) => `${incident.id} (${incident.label}) closed as ${spaced(row.disposition)}`).join('; ') : 'None';
+          },
+          fix: (result) => {
+            const wrong = wrongChildren(result);
+            return wrong.length
+              ? wrong.map(({ incident, row }) => `You closed ${incident.id} (${incident.label}) as ${spaced(row.disposition)}, but its records (${andList(incident.evidence)}) support ${spaced(incident.disposition)}.`).join(' ')
+              : 'Re-check each closed child incident against its own alert records.';
+          },
+        }],
+        evidence: {
+          label: 'Each child incident resolved correctly; parent left open or closed only after both',
+          text: (result, ctx) => {
+            const comp = ctx.scorerResult && ctx.scorerResult.competencies.find((c) => c.id === 'incident-resolution');
+            if (!comp || !record(result) || !record(result).incidentResolutions) return null;
+            return [...children().map((incident, index) => (comp.evidence.some((line) => line.startsWith(`${incident.id} resolved with supported`)) ? `c${index}` : '')),
+              comp.evidence.some((line) => line.startsWith('Parent case')) ? 'cparent' : ''].join(' ');
+          },
+          pieces: () => [
+            ...children().map((incident, index) => ({ name: `${incident.id} resolved as ${spaced(incident.disposition)}`, short: `resolve ${incident.id} as ${spaced(incident.disposition)} and cite its evidence (${incident.evidence.join(', ')}) in the note`, label: `${incident.id} (${incident.label}) resolved as ${spaced(incident.disposition)}, citing its records (${incident.evidence.join(', ')}) in the note`, terms: [`c${index}`] })),
+            { name: 'the parent kept open until both children were resolved', short: 'resolve both child incidents before closing the parent', label: 'Parent case not closed before both child incidents were resolved (left open for Identity Response is correct)', terms: ['cparent'] },
+          ],
+          fix: (missing, result) => {
+            const rows = (record(result) && record(result).incidentResolutions && record(result).incidentResolutions.children) || {};
+            const notes = children().map((incident) => {
+              const row = rows[incident.id] || {};
+              const want = spaced(incident.disposition);
+              if (!row.resolved) return `resolve ${incident.id} as ${want}, citing ${incident.evidence.join(', ')} (you left it unresolved)`;
+              // A wrong disposition is already named by the check above.
+              if (row.disposition !== incident.disposition) return '';
+              const cited = String(row.evidence || '').split(/[\s,;]+/).some((id) => incident.evidence.includes(id) && String(row.note || '').includes(id));
+              return cited ? '' : `cite ${incident.evidence.join(' or ')} in your ${incident.id} note`;
+            }).filter(Boolean);
+            return notes.length ? `${notes.join('; ')}.` : false;
+          },
+        },
+      },
+      {
+        id: 'evidence-pinned',
+        title: 'Evidence pinned',
+        answer: (result) => {
+          const a = result.assessment && typeof result.assessment === 'object' ? result.assessment : null;
+          if (!a || !Array.isArray(a.pinned_evidence)) return [['Records pinned to the ticket', null]];
+          return [['Records pinned to the ticket', a.pinned_evidence.length ? a.pinned_evidence : 'None pinned']];
+        },
+        evidence: hitGroup({
+          label: 'Pinned the records the findings rest on',
+          compId: 'evidence',
+          needsAssessment: true,
+          items: () => itemsOf('evidence', (item) => item.pts > 0),
+          fix: (missing, result) => {
+            const pins = result.assessment && Array.isArray(result.assessment.pinned_evidence) ? result.assessment.pinned_evidence : [];
+            const ids = pins.map((pin) => { const m = /record ([A-Z]-\d+)/.exec(String(pin)); return m ? m[1] : String(pin); });
+            return `${missing.join(', ')} (you pinned ${ids.length ? ids.join(', ') : 'nothing'}).`;
+          },
+        }),
+      },
+      {
+        id: 'investigation',
+        title: 'Search technique',
+        required: false,
+        answer: (result) => {
+          const a = result.assessment && typeof result.assessment === 'object' ? result.assessment : null;
+          if (!a) return [['Searches run', null]];
+          const summary = a.query_summary && typeof a.query_summary === 'object' ? a.query_summary : null;
+          const log = Array.isArray(a.query_log) ? a.query_log : [];
+          return [
+            ['Searches run', summary ? String(summary.total) : `${log.length} (last 40 kept)`],
+            ['Data sources searched', summary ? (summary.sources_queried.join(', ') || 'None') : [...new Set(log.flatMap((q) => q.sources || []))].join(', ') || 'None'],
+            ['Combined records from two sources on one IP or session', summary ? (summary.cross_source_pivot ? 'Yes' : 'No') : (log.some((q) => q.pivot === true) ? 'Yes' : 'No')],
+            ['Most recent searches', log.slice(-5).map((q) => String(q.query || '').replace(/\s+/g, ' ').slice(0, 200))],
+          ];
+        },
+        evidence: hitGroup({
+          label: 'Searched the right data and followed the attacker across sources',
+          compId: 'investigation',
+          needsAssessment: true,
+          items: () => itemsOf('investigation', (item) => item.pts > 0),
+          fix: (missing, result) => {
+            const a = result.assessment && typeof result.assessment === 'object' ? result.assessment : {};
+            const summary = a.query_summary && typeof a.query_summary === 'object' ? a.query_summary : null;
+            const total = summary ? summary.total : (Array.isArray(a.query_log) ? a.query_log.length : 0);
+            const sources = summary ? summary.sources_queried : [...new Set((Array.isArray(a.query_log) ? a.query_log : []).flatMap((q) => q.sources || []))];
+            return `${missing.join(', ')} (you ran ${total} search${total === 1 ? '' : 'es'}${sources.length ? ` on ${sources.join(', ')}` : ''}).`;
+          },
+        }),
+      },
+      {
+        id: 'timeline',
+        title: 'Action timeline',
+        required: false,
+        collapsed: true,
+        answer: (result) => {
+          const r = record(result);
+          if (!r || !Array.isArray(r.actionHistory)) return [['Recorded actions', null]];
+          const time = (at) => {
+            const date = at ? new Date(at) : null;
+            return date && !Number.isNaN(date.getTime()) ? date.toLocaleString() : '—';
+          };
+          return [['Recorded actions', r.actionHistory.filter((entry) => entry && entry.action).map((entry) => `${time(entry.at)} · ${entry.action}`)]];
+        },
+      },
+    ],
+  });
+})();

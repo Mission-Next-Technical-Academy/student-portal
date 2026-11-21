@@ -119,6 +119,36 @@ review lifecycle should express the equivalent of:
 NOT SUBMITTED → SUBMITTED / NEEDS REVIEW → REVIEWED or RETURNED
 ```
 
+### Submission persistence is the source of truth
+
+Every student-facing submission message and every local "submitted" or
+"complete" latch must follow a successful durable write. `recordLabAttempt()`
+is the shared persistence boundary for SOC, AI/ML, and Help Desk attempts; keep
+score-to-state mapping, error reporting, and save success/failure semantics
+there instead of reimplementing them in individual modules.
+
+- Await the save result before showing that work reached faculty or recording
+  completion. If the write fails, preserve the learner's draft, clear or roll
+  back any optimistic submitted/completed flag, and show the shared visible
+  save-failure message.
+- On load, reconcile any locally cached submission latch with the server's
+  latest attempt before disabling resubmission. Browser state alone is not
+  proof that a submission exists.
+- Help Desk evidence uploads and their attempt row form one logical submission:
+  if the attempt write fails, remove the uploaded evidence and keep the picked
+  files available for retry.
+- Keep the database passing-score constraint and the verified module-unlock
+  gate intact. A below-pass Prove It can enter instructor review using the
+  `submitted` state, but approval of that attempt must not unlock the next
+  module.
+- Cover the shared writer's below-pass, passing, and failed-write behavior in
+  tests, plus each changed module's rollback/reconciliation behavior. Include
+  both SOC and Help Desk callers when changing shared submission logic.
+
+Do not make a module-specific workaround for a shared write/constraint bug.
+First inspect every caller of `recordLabAttempt()` and the attempt-state
+constraints, queue views, Help Desk evidence cleanup, and module-unlock view.
+
 ## Student writing is first-class assessment data
 
 Any words entered during an assessment—analyst notes, incident summaries,

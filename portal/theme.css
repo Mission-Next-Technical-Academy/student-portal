@@ -11,6 +11,20 @@
   --mn-theme-blue: #1f4e79;
   --mn-theme-accent: #f26a2e;
 }
+
+/* Keep button feedback consistent across the portal. Pressed and focused
+   buttons darken, while disclosures and toggles stay darkened when selected. */
+button:not(:disabled) {
+  transition: filter 120ms ease;
+}
+button:not(:disabled):active,
+button:not(:disabled):focus:not(:focus-visible),
+button:not(:disabled)[aria-expanded="true"],
+button:not(:disabled)[aria-pressed="true"],
+button:not(:disabled)[aria-selected="true"] {
+  filter: brightness(.93);
+}
+
 html[data-mn-theme="night"] {
   color-scheme: dark;
   --mn-theme-page: #0b1828;
