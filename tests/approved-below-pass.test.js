@@ -34,12 +34,14 @@ assert.doesNotMatch(ok, /Approved below pass|data-approved-below-pass-return/);
 assert.match(ctx.adminLabAttemptsPanel({ gradedRows: [{ ...approved, id: 'a3', redo_requested: true }] }), /Returned/);
 
 // B21 migration: approved branch is gated on the server's pass rule.
-const sql = fs.readFileSync(path.join(root, 'supabase/migrations/20261021120000_approved_below_pass_allows_resubmit.sql'), 'utf8');
+const sql = fs.readFileSync(path.join(root, 'supabase/migrations/20261121230614_approved_below_pass_allows_resubmit.sql'), 'utf8');
 assert.match(sql, /create or replace function public\.guard_lab_attempt_single_pending\(\)/);
 assert.match(sql, /la\.state::text = 'complete'/);
 assert.match(sql, /la\.score >= coalesce\(la\.pass_threshold, 70\)/);
 assert.match(sql, /jsonb_array_length\(la\.result->'critical_errors'\), 0\) = 0/);
 assert.match(sql, /prev\.redo_requested = false and prev_passed/);
 assert.match(sql, /one_pending_submission/);
+// The Assessment Lab box guard from 20261029234710 is kept.
+assert.match(sql, /\) and new\.lab_key not like '%-assessment-module' then/);
 assert.match(sql, /ROLLBACK/);
 console.log('approved-below-pass tests passed');
