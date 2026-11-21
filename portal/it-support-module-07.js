@@ -1,4 +1,4 @@
-/* Module 07 — IT Help Desk & Career Accelerator ('it-support').
+/* Module 06 (key its-07; was Module 07 before the 2026-11 reorder) — IT Help Desk & Career Accelerator ('it-support').
  * Lesson content sourced from Module_7_Student_Content.docx. Lab is a
  * guided walkthrough of a real ticket ('hd-m07') in the IT Service Desk
  * simulator — see it-support-shared.js's itsRegisterCoachModule.
@@ -6,7 +6,7 @@
 
 const ITS07_LESSONS = [
   {
-    id: 'its-07-lesson-01', number: '7.1', icon: 'ri-download-2-line',
+    id: 'its-07-lesson-01', number: '6.1', icon: 'ri-download-2-line',
     title: 'Installing, Updating & Removing Software', minutes: 60,
     learn: [
       'How to install and uninstall applications correctly on Windows',
@@ -25,7 +25,7 @@ const ITS07_LESSONS = [
     comingUp: 'You\'ll be asked to install a specified application, confirm it\'s current, and correctly remove a different one a user no longer needs.',
   },
   {
-    id: 'its-07-lesson-02', number: '7.2', icon: 'ri-shield-check-line',
+    id: 'its-07-lesson-02', number: '6.2', icon: 'ri-shield-check-line',
     title: 'Diagnosing Application Problems & Endpoint Security Hygiene', minutes: 60,
     learn: [
       'How to tell an application-specific problem apart from a system-wide one (and how to fix the application-specific kind)',
@@ -48,7 +48,7 @@ const ITS07_LESSONS = [
 ];
 
 itsRegisterCoachModule({
-  moduleNumber: 7, moduleKey: 'its-07', coachId: 'hd-m07', labKeys: ['lab-its-07-app-cert'],
+  moduleNumber: 6, moduleKey: 'its-07', coachId: 'hd-m07', labKeys: ['lab-its-07-app-cert'],
   lessons: ITS07_LESSONS,
   lede: 'You\'ve covered hardware, the operating system, and the network underneath it — this module rounds out the picture with the software layer: installing it, updating it, and diagnosing it when it misbehaves.',
   labDescription: 'Resolve one of five real, correlated tickets end to end in the IT Service Desk simulator — a shared application certificate expiry (HD-2119) — and recognize the pattern across the other four. A coach spotlights each step for you.',

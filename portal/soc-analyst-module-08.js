@@ -1109,6 +1109,7 @@ const MODULE_EIGHT_GUIDED_CONSOLE = (() => {
       caseId: MODULE_EIGHT_GUIDED_CASE_ID, ticketType: 'Exposure prioritization · Vulnerability Response',
       userOptions: [{ id: 'n.owens', text: 'n.owens · API service owner' }, { id: 's.ivanov', text: 's.ivanov · backend owner' }],
       deviceOptions: [{ id: 'api-edge-31', text: 'api-edge-31 · public API edge' }, { id: 'pay-api-09', text: 'pay-api-09 · restricted backend' }],
+      dispositionOptions: MODULE_EIGHT_DISPOSITION_OPTIONS,
       departmentOptions: [{ id: 'vulnerability-response', text: 'Vulnerability Response' }, { id: 'service-owner-remediation', text: 'Service Owner Remediation' }, { id: 'security-lead-review', text: 'Security Lead Review' }],
       formId: 'm08-guided-case-form', saveAttr: 'data-m08-guided-save-case', submitAttr: 'data-m08-guided-submit-case', panelId: 'm08-guided-case-panel',
       notesPlaceholder: 'Explain finding validity, exposure and business context, remediation priority, owner, and the limit of any risk exception.',
@@ -1212,6 +1213,8 @@ function moduleEightHandleLabProgressChange() {
 }
 
 function moduleEightRender(focusId) {
+  const lessonsRoot = document.getElementById('m08-lessons');
+  if (lessonsRoot) lessonsRoot.outerHTML = moduleEightLessonLoopsView();
   const guidedRoot = document.getElementById('m08-guided-lab-dynamic');
   if (guidedRoot) {
     guidedRoot.innerHTML = moduleEightGuidedLabPanel();
@@ -1415,10 +1418,27 @@ function wireModuleEightLab() {
   });
 }
 
+// Snapshot of the records the student saved in the Prove It console, saved with
+// the attempt for the instructor sheet. Read-only copy of the saved state;
+// nothing here feeds the score.
+function moduleEightAssessmentWork(state) {
+  const copy = (value) => JSON.parse(JSON.stringify(value ?? null));
+  const list = (value) => (Array.isArray(value) ? value : []);
+  return {
+    findingReviews: copy(list(state.findingReviews)),
+    incidentLinks: copy(list(state.incidentLinks)),
+    riskAcceptances: copy(list(state.riskAcceptances)),
+    escalations: copy(list(state.escalations)),
+    remediationDecisions: copy(list(state.remediationDecisions)),
+    remediationTransitions: copy(list(state.remediationTransitions)),
+  };
+}
+
 function moduleEightFinalizeProveIt() {
   if (moduleEightState.caseRecord.submitted) return;
   const missing = caseRecordMissing(moduleEightState.caseRecord, moduleEightProveItSpec());
-  const scored = SocM08AssessmentScorer.score(SocM08AssessmentState.load(moduleEightUser, SocM08AssessmentData), SocM08AssessmentData);
+  const huntState = SocM08AssessmentState.load(moduleEightUser, SocM08AssessmentData);
+  const scored = SocM08AssessmentScorer.score(huntState, SocM08AssessmentData);
   const performance = { missing, score: scored.score, breakdown: scored.criteria, feedback: scored.review.feedback, criticalErrors: scored.criticalMisses || [] };
   if (performance.missing.length) {
     moduleEightProveItShowMissing = true;
@@ -1455,6 +1475,10 @@ function moduleEightFinalizeProveIt() {
         case_record: moduleEightState.caseRecord,
         case_display: caseRecordDisplay(moduleEightState.caseRecord, caseSpec),
         case_summary: caseRecordSummary(moduleEightState.caseRecord, caseSpec),
+        // Additive (admin Submission Sheet, 2026-10-17): the student's own finding
+        // reviews, incident link, risk acceptance, escalation and remediation
+        // decision. Never read by scoring.
+        assessment_work: moduleEightAssessmentWork(huntState),
       },
     };
     MODULE_EIGHT_CATALOG_LAB_KEYS.forEach((labKey) => recordLabAttempt(moduleEightUser, labKey, attemptFields));

@@ -9,6 +9,15 @@ const SocM12AssessmentData = (() => {
     id: 'M12-AMBER-FINCH-2026-09-27', caseId: 'INC-4821', stateKey: 'm12-cumulative-soc-assessment-v1', // gitleaks:allow
     start: '2026-09-27T08:00:00Z', end: '2026-09-27T16:00:00Z', fixedAt: '2026-09-27T16:00:00Z',
     shift: { id: 'SHIFT-0927-CAPSTONE', label: 'Day shift 08:00–16:00 UTC', handoffTo: 'Evening incident lead' },
+    // The shift's assigned work container and its child incidents. `caseId`
+    // above stays INC-4821: rubric v1/v2 and the M08/M09 packs read it as the
+    // incident ID. Titles are the opening signal only, never a disposition.
+    parentCase: { id: 'CASE-124821', title: 'Operation Amber Finch', owner: 'Day shift SOC analyst', openedAt: '2026-09-27T08:00:00Z',
+      incidents: [
+        { id: 'INC-4821', title: 'Script execution and outbound connection on WS-204', entityIds: ['ws-204'] },
+        { id: 'INC-4822', title: 'Unfamiliar token refresh for acct-204', entityIds: ['acct-204'] },
+        { id: 'INC-4823', title: 'Rare script host on WS-118', entityIds: ['ws-118'] },
+      ] },
     entities: [
       { id: 'ws-204', kind: 'device', label: 'WS-204', status: 'affected', owner: 'acct-204' },
       { id: 'acct-204', kind: 'identity', label: 'acct-204', status: 'affected' },
@@ -311,6 +320,11 @@ const SocM12AssessmentData = (() => {
     residualRisk: ['policy-remediation', 'monitoring'],
     // Instructor-only (never rendered): why each background row exists, and how each competing alert resolves.
     telemetryPurposes,
+    // Rubric v3: which queue alerts belong to which child incident, and how
+    // each incident should be resolved on the available evidence.
+    incidentAlerts: { 'INC-4821': ['AL-1201'], 'INC-4822': ['AL-1202'], 'INC-4823': ['AL-1203', 'AL-1205'] },
+    incidentDispositions: { 'INC-4821': 'true-positive', 'INC-4822': 'true-positive', 'INC-4823': 'benign-positive' },
+    incidentEvidence: { 'INC-4821': ['EM-212', 'EP-301', 'EP-303', 'NW-501'], 'INC-4822': ['ID-402', 'ID-403', 'EM-212'], 'INC-4823': ['BEN-101', 'NW-504', 'EP-304', 'EP-309'] },
     alertDispositions: { 'AL-1201': 'true-positive', 'AL-1202': 'true-positive', 'AL-1203': 'benign-positive', 'AL-1204': 'benign-positive', 'AL-1205': 'benign-positive', 'AL-1206': 'benign-positive', 'AL-1207': 'benign-positive', 'AL-1208': 'needs-investigation', 'AL-1209': 'benign-positive', 'AL-1210': 'benign-positive', 'AL-1211': 'benign-positive', 'AL-1212': 'false-positive', 'AL-1213': 'benign-positive', 'AL-1214': 'benign-positive' },
     alertDiscriminators: { 'AL-1203': ['EP-304', 'BEN-101'], 'AL-1204': ['ID-411', 'DA-001'], 'AL-1205': ['EP-309'], 'AL-1206': ['EP-311', 'DN-002'], 'AL-1207': ['ID-416', 'FW-004'], 'AL-1208': ['EU-001', 'EU-002', 'EM-218'], 'AL-1209': ['EP-312', 'HB-008'], 'AL-1210': ['BKE-004', 'BKE-005'], 'AL-1211': ['EP-313'], 'AL-1212': ['EP-308', 'FL-002'], 'AL-1213': ['AU-004', 'DA-003'], 'AL-1214': ['AP-005'] },
     benignBackgroundEventIds: Object.keys(telemetryPurposes).filter((id) => /benign|background/.test(telemetryPurposes[id])),

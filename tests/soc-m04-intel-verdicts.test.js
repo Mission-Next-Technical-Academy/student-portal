@@ -23,6 +23,11 @@ const local = (value) => JSON.parse(JSON.stringify(value));
 const truth = fixture.scenario.truth;
 const stamp = '2026-09-24T09:30:00Z';
 
+assert.strictEqual(ui.campaignForEdit({ sourceReportId: 'M04-R-002', campaign: '' }, fixture.scenario.reports),
+  'Northstar Spray Cluster (reported)', 'editing an IOC inherits the campaign displayed from its linked report');
+assert.strictEqual(ui.campaignForEdit({ sourceReportId: 'M04-R-002', campaign: 'Analyst campaign' }, fixture.scenario.reports),
+  'Analyst campaign', 'an IOC-specific campaign remains the editable value');
+
 const RATIONALE = {
   'M04-I-001': 'Five accounts failed from this address within five minutes and acct-44 then signed in (M04-A-006).',
   'M04-C-001': 'acct-17 retries follow the CR-204 credential rotation and succeeded later (M04-A-121).',
@@ -264,13 +269,14 @@ const verdictCriterion = (assessment) => scorer.score({ assessment }, fixture).c
   assert(!ui.renderVerdicts(ga, gf, {}).includes('data-m04-verdict-feedback'), 'feedback never appears outside Practice It');
 
   // The new guide steps point at the verdict cards on the Threat Intelligence tab and cover each verdict kind.
-  const stepsSource = source.slice(source.indexOf('function moduleFourGuidedSteps'), source.indexOf('function moduleFourGuidedDebrief'));
+  const stepsSource = source.slice(source.indexOf('const MODULE_FOUR_GUIDED_SPRAY_QUERY'), source.indexOf('function moduleFourGuidedDebrief'));
   const steps = vm.runInContext(`${stepsSource}; moduleFourGuidedSteps()`, vm.createContext({}));
   const verdictSteps = steps.filter((step) => step.tab === 'intelligence');
   assert.strictEqual(verdictSteps.length, 3);
-  assert(verdictSteps.every((step) => step.title && step.body && step.lookFor && step.lab && /data-m04-verdict-card="GL4-/.test(step.target)));
+  assert(verdictSteps.every((step) => step.title && step.body && step.lookFor && step.task && /data-m04-verdict-card="GL4-/.test(step.target)));
   assert.deepStrictEqual(local(verdictSteps.map((s) => s.target.match(/GL4-[A-Z]-\d+/)[0])), ['GL4-I-301', 'GL4-C-401', 'GL4-I-302']);
-  assert(steps.findIndex((s) => s.tab === 'intelligence') > steps.findIndex((s) => s.tab === 'sources'), 'verdicts come after the evidence has been correlated');
+  // U21: the guide builds and runs the detection first, then enriches its alert.
+  assert(steps.findIndex((s) => s.tab === 'intelligence') > steps.findIndex((s) => s.id === 'alert'), 'verdicts come after the rule has raised and the learner reviewed its alert');
 }
 
 // ---- Console wiring --------------------------------------------------------------------------------------------------------

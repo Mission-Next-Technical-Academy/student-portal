@@ -25,25 +25,232 @@ function itswFormatTimestamp(iso) {
   }
 }
 
-/* Reads a <input type="file"> change event's selected file into the shape
- * every evidence-upload tile persists. Does not read or store the file's
- * bytes — the spec only requires an "Uploaded" status and timestamp, and
- * keeping binary data out of LabRuntime's localStorage-backed state avoids
- * quota issues. */
+/* ---------- Evidence files ----------
+ * A picked file is kept in this page's memory (itswPickedFiles) and, until
+ * Submit, as a copy in this browser's IndexedDB (itswKeepDraftFile below), so
+ * a reload or a crashed tab gets it back. The lab's saved state
+ * (module_progress.case_state) holds just its name, size and time so the tile
+ * can say what was added. Submit uploads the files to the private
+ * 'lab-evidence' bucket and only then records the attempt
+ * (itsUploadEvidence + itsSubmitLabAttempt below). With no copy in this
+ * browser (another browser, or site data cleared) the tile asks for the file
+ * again. Nothing is uploaded before Submit. The bucket enforces the same types and size
+ * (20261015120000_lab_evidence_storage.sql); this check only explains a
+ * refusal before anything is sent. */
+const ITSW_EVIDENCE_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+const ITSW_EVIDENCE_MAX_BYTES = 10 * 1024 * 1024;
+const ITS_EVIDENCE_BUCKET = 'lab-evidence';
+const ITS_ATTEMPT_RUBRIC_VERSION = 'it-support-practice-v1';
+const ITS_ATTEMPT_ENGINE_VERSION = 'it-support-practice-capture-v1';
+
+// Every evidence field's label, shared by the tiles and the faculty panel.
+const ITSW_EVIDENCE_LABELS = {
+  evidence1: 'Sandbox desktop screenshot',
+  evidence2: 'LMS sign-in screenshot',
+  evDesktop: 'Finished Windows desktop',
+  evVmSettings: 'VM settings summary',
+  evSnapshot: 'Snapshot list',
+  evPing1: 'Ping: client → server',
+  evPing2: 'Ping: server → client',
+};
+
+const itswPickedFiles = new Map(); // `${userId}|${field}` -> File
+const itswEvidenceErrors = new Map(); // `${userId}|${field}` -> message
+
+function itswPickedFile(user, field) {
+  return (user && itswPickedFiles.get(`${user.userId}|${field}`)) || null;
+}
+
+// Why a file can't be used, or '' when it can.
+function itswEvidenceFileError(file) {
+  if (!ITSW_EVIDENCE_TYPES[file.type]) return `“${file.name}” wasn’t added: it isn’t a PNG, JPEG or WebP image. Only PNG, JPEG or WebP up to 10 MB is accepted.`;
+  if (file.size > ITSW_EVIDENCE_MAX_BYTES) return `“${file.name}” wasn’t added: it is ${itswFormatBytes(file.size)}. Only PNG, JPEG or WebP up to 10 MB is accepted.`;
+  return '';
+}
+
+/* Reads a <input type="file"> change event's selected file: the tile's
+ * metadata plus the File itself, or { error } when the file can't be used. */
 function itswReadEvidenceFile(fileInput) {
   const file = fileInput.files && fileInput.files[0];
   if (!file) return null;
-  return { name: file.name, sizeLabel: itswFormatBytes(file.size), uploadedAt: new Date().toISOString() };
+  const error = itswEvidenceFileError(file);
+  if (error) return { error };
+  return { name: file.name, sizeLabel: itswFormatBytes(file.size), uploadedAt: new Date().toISOString(), file };
 }
 
-function itswEvidenceTile({ id, label, hint, file }) {
-  const status = file
-    ? `<div class="itsw-evidence-status itsw-evidence-done"><i class="ri-checkbox-circle-fill" aria-hidden="true"></i><span class="itsw-evidence-file"><strong>Uploaded</strong> — ${esc(file.name)} · ${esc(file.sizeLabel)}<time>${esc(itswFormatTimestamp(file.uploadedAt))}</time></span></div>`
-    : `<div class="itsw-evidence-status"><i class="ri-time-line" aria-hidden="true"></i><span>Not uploaded yet</span></div>`;
+/* ---------- Evidence file copies in this browser (IndexedDB) ----------
+ * One record per student, lab and field ("<userId>|<labKey>|<field>"), with
+ * the File and the time it was added (its saved metadata's uploadedAt). A
+ * copy is put back only for the same student, only while the lab can take an
+ * attempt, and only when that time still matches the lab's saved state, so a
+ * file replaced in another browser never comes back here. Copies are deleted
+ * after a successful submit, on a refused pick, and when anyone signs out
+ * (itswWatchSignOut). Without IndexedDB (some private windows) every helper
+ * resolves to null and files stay in page memory only, as before. */
+const ITSW_DRAFT_DB = 'mnt-hdesk-evidence-drafts';
+const ITSW_DRAFT_STORE = 'files';
+const itswDraftRestoring = new Set(); // `${userId}|${field}` while its copy is being looked up
+const itswDraftLookedUp = new Set(); // `${userId}|${field}` already looked up on this page load
+let itswDraftDbPromise = null;
+
+function itswDraftDb() {
+  if (typeof indexedDB === 'undefined' || !indexedDB) return Promise.resolve(null);
+  if (itswDraftDbPromise) return itswDraftDbPromise;
+  itswDraftDbPromise = new Promise((resolve) => {
+    const failed = () => { itswDraftDbPromise = null; resolve(null); };
+    try {
+      const request = indexedDB.open(ITSW_DRAFT_DB, 1);
+      request.onupgradeneeded = () => request.result.createObjectStore(ITSW_DRAFT_STORE);
+      request.onsuccess = () => {
+        const db = request.result;
+        // Clearing site data closes this connection: open a new one next time.
+        db.onversionchange = () => { db.close(); itswDraftDbPromise = null; };
+        db.onclose = () => { itswDraftDbPromise = null; };
+        resolve(db);
+      };
+      request.onerror = failed;
+      request.onblocked = failed;
+    } catch (_) {
+      failed();
+    }
+  });
+  return itswDraftDbPromise;
+}
+
+// Runs fn(store) in one transaction. Resolves to the request fn returns (its
+// result), true when fn returns none, or null on any failure; never rejects.
+function itswDraftRun(mode, fn) {
+  return itswDraftDb().then((db) => new Promise((resolve) => {
+    if (!db) { resolve(null); return; }
+    try {
+      const tx = db.transaction(ITSW_DRAFT_STORE, mode);
+      const request = fn(tx.objectStore(ITSW_DRAFT_STORE));
+      tx.oncomplete = () => resolve(request ? request.result : true);
+      tx.onerror = () => resolve(null);
+      tx.onabort = () => resolve(null);
+    } catch (_) {
+      itswDraftDbPromise = null;
+      resolve(null);
+    }
+  })).catch(() => null);
+}
+
+const itswDraftKey = (userId, labKey, field) => `${userId}|${labKey}|${field}`;
+
+function itswKeepDraftFile(user, labKey, field, file, addedAt) {
+  if (!user || !user.userId || !labKey || !file) return Promise.resolve(null);
+  return itswDraftRun('readwrite', (store) => store.put({ userId: user.userId, labKey, field, addedAt, file }, itswDraftKey(user.userId, labKey, field)));
+}
+
+function itswForgetDraftFiles(user, labKey, fields) {
+  if (!user || !user.userId || !labKey) return Promise.resolve(null);
+  return itswDraftRun('readwrite', (store) => { fields.forEach((field) => store.delete(itswDraftKey(user.userId, labKey, field))); });
+}
+
+function itswForgetAllDraftFiles() {
+  return itswDraftRun('readwrite', (store) => store.clear());
+}
+
+/* Puts this student's file copies back into page memory after a reload.
+ * labs: [{ labKey, fields }] on this page; state: their saved lab state.
+ * Deletes copies that can't come back: another student's, a lab already
+ * waiting or approved, or one whose time no longer matches the saved state.
+ * A field picked again while this runs is left alone. Resolves true when a
+ * tile was waiting on it, so the caller re-renders. */
+function itswRestoreDraftFiles(user, state, labs) {
+  if (!user || !user.userId || !state || typeof indexedDB === 'undefined' || !indexedDB) return Promise.resolve(false);
+  const open = labs.filter((lab) => itsLabAcceptsAttempt(user, lab.labKey));
+  const waiting = [];
+  open.forEach((lab) => lab.fields.forEach((field) => {
+    const key = `${user.userId}|${field}`;
+    if (state[field] && !itswPickedFiles.has(key) && !itswDraftLookedUp.has(key)) { itswDraftRestoring.add(key); waiting.push(key); }
+  }));
+  return itswDraftRun('readonly', (store) => store.getAll()).then((records) => {
+    const discard = [];
+    (Array.isArray(records) ? records : []).forEach((record) => {
+      if (!record || typeof record !== 'object') return;
+      if (record.userId !== user.userId) { discard.push(record); return; }
+      const lab = labs.find((item) => item.labKey === record.labKey);
+      if (!lab) return; // another module's lab: its own page decides
+      const key = `${user.userId}|${record.field}`;
+      if (itswPickedFiles.has(key)) return;
+      const saved = state[record.field];
+      const usable = open.includes(lab) && lab.fields.includes(record.field) && saved && saved.uploadedAt === record.addedAt
+        && record.file && !itswEvidenceFileError(record.file);
+      if (usable) itswPickedFiles.set(key, record.file);
+      else discard.push(record);
+    });
+    if (discard.length) itswDraftRun('readwrite', (store) => { discard.forEach((record) => store.delete(itswDraftKey(record.userId, record.labKey, record.field))); });
+    waiting.forEach((key) => { itswDraftRestoring.delete(key); itswDraftLookedUp.add(key); });
+    return waiting.length > 0;
+  });
+}
+
+/* A student's file copies leave the browser when they sign out. The Sign Out
+ * button, the idle timeout, a session the portal no longer accepts, and an
+ * expired login all end in Supabase Auth's SIGNED_OUT event, which other open
+ * tabs receive too; a page that opens with nobody signed in clears them as
+ * well. Help Desk listens to the Auth client directly, so app.js's sign-out
+ * code needs no change. */
+let itswSignOutWatched = false;
+
+function itswWatchSignOut() {
+  if (itswSignOutWatched || typeof mntSupabase === 'undefined' || !mntSupabase.auth || typeof mntSupabase.auth.onAuthStateChange !== 'function') return;
+  itswSignOutWatched = true;
+  mntSupabase.auth.onAuthStateChange((event, session) => {
+    if (event !== 'SIGNED_OUT' && !(event === 'INITIAL_SESSION' && !session)) return;
+    itswPickedFiles.clear();
+    itswEvidenceErrors.clear();
+    itswDraftRestoring.clear();
+    itswDraftLookedUp.clear();
+    itswForgetAllDraftFiles();
+  });
+}
+
+itswWatchSignOut();
+
+/* Takes a picked file for one field: keeps the File in memory (and a copy in
+ * this browser when labKey is given) and returns the metadata to save in the
+ * lab's state. A refused pick replaces the field's earlier file too, so the
+ * old screenshot can't be submitted in its place: it returns null, the caller
+ * saves the field as empty, and the tile shows why. previous: the field's
+ * saved metadata, if any. */
+function itswTakeEvidence(user, field, picked, previous = null, labKey = null) {
+  if (!user || !picked) return previous;
+  const key = `${user.userId}|${field}`;
+  itswDraftRestoring.delete(key);
+  if (picked.error || !picked.file) {
+    const hadFile = Boolean(previous || itswPickedFiles.has(key));
+    itswPickedFiles.delete(key);
+    if (labKey) itswForgetDraftFiles(user, labKey, [field]);
+    itswEvidenceErrors.set(key, `${picked.error || 'That file wasn’t added.'} ${hadFile ? 'Your earlier file was removed. ' : ''}Choose a file again.`);
+    return null;
+  }
+  itswEvidenceErrors.delete(key);
+  itswPickedFiles.set(key, picked.file);
+  if (labKey) itswKeepDraftFile(user, labKey, field, picked.file, picked.uploadedAt);
+  return { name: picked.name, sizeLabel: picked.sizeLabel, uploadedAt: picked.uploadedAt };
+}
+
+// "Added", not "Uploaded": a picked file stays in this page until Submit.
+// Files are shown as uploaded only after the attempt is saved
+// (itsUploadedEvidenceHtml).
+function itswEvidenceTile({ id, user, field, hint, file }) {
+  const label = ITSW_EVIDENCE_LABELS[field];
+  const picked = itswPickedFile(user, field);
+  const error = user ? itswEvidenceErrors.get(`${user.userId}|${field}`) : '';
+  const status = file && picked
+    ? `<div class="itsw-evidence-status itsw-evidence-done"><i class="ri-checkbox-circle-fill" aria-hidden="true"></i><span class="itsw-evidence-file"><strong>Added</strong> — ${esc(file.name)} · ${esc(file.sizeLabel)}<time>${esc(itswFormatTimestamp(file.uploadedAt))}</time></span></div>`
+    : file && user && itswDraftRestoring.has(`${user.userId}|${field}`)
+      ? `<div class="itsw-evidence-status"><i class="ri-loader-4-line" aria-hidden="true"></i><span class="itsw-evidence-file">Looking for “${esc(file.name)}” in this browser…</span></div>`
+    : file
+      ? `<div class="itsw-evidence-status"><i class="ri-refresh-line" aria-hidden="true"></i><span class="itsw-evidence-file">Choose this file again — “${esc(file.name)}” isn’t in this browser any more. Files you add are kept only in the browser you added them in, until you submit or sign out.</span></div>`
+      : `<div class="itsw-evidence-status"><i class="ri-time-line" aria-hidden="true"></i><span>Not uploaded yet</span></div>`;
   return `<div class="itsw-evidence" data-itsw-evidence="${esc(id)}">
     <div class="itsw-evidence-head"><span class="itsw-evidence-icon"><i class="ri-upload-cloud-2-line" aria-hidden="true"></i></span><div><strong>${esc(label)}</strong><p>${esc(hint)}</p></div></div>
     ${status}
-    <label class="itsw-evidence-button"><i class="ri-upload-2-line" aria-hidden="true"></i> ${file ? 'Replace file' : 'Choose file'}<input type="file" accept="image/*" data-itsw-evidence-input="${esc(id)}" /></label>
+    ${error ? `<p class="itsw-evidence-error" role="alert"><i class="ri-error-warning-line" aria-hidden="true"></i> ${esc(error)}</p>` : ''}
+    <label class="itsw-evidence-button"><i class="ri-upload-2-line" aria-hidden="true"></i> ${file && picked ? 'Replace file' : 'Choose file'}<input type="file" accept="${Object.keys(ITSW_EVIDENCE_TYPES).join(',')}" data-itsw-evidence-input="${esc(id)}" /></label>
   </div>`;
 }
 
@@ -56,9 +263,11 @@ function itswTicketListItem(ticket, isActive, isAnswered) {
 }
 
 /* config: { tickets, activeId, responses (id -> {priority?, category, firstStep, decision, reasoning}),
- *   categoryOptions: [{value, label}], showPriority?: boolean, priorityCount?: number } */
+ *   categoryOptions: [{value, label}], showPriority?: boolean, priorityCount?: number,
+ *   locked?: boolean (answer fields disabled; tickets can still be opened) } */
 function itswTicketQueue(config) {
-  const { tickets, activeId, responses, categoryOptions, showPriority, priorityCount } = config;
+  const { tickets, activeId, responses, categoryOptions, showPriority, priorityCount, locked } = config;
+  const off = locked ? ' disabled' : '';
   const ticket = tickets.find((item) => item.id === activeId) || tickets[0];
   const response = responses[ticket.id] || {};
   return `<div class="itsw-tickets">
@@ -73,30 +282,1564 @@ function itswTicketQueue(config) {
       </div>
       <form class="itsw-ticket-form" data-itsw-ticket-form="${esc(ticket.id)}">
         ${showPriority ? `<label>Priority rank (1 = work first)
-          <select name="priority" data-itsw-field="priority">
+          <select name="priority" data-itsw-field="priority"${off}>
             <option value="">Choose a rank&hellip;</option>
             ${Array.from({ length: priorityCount || tickets.length }, (_, i) => i + 1).map((n) => `<option value="${n}" ${Number(response.priority) === n ? 'selected' : ''}>${n}</option>`).join('')}
           </select>
         </label>` : ''}
         <label>Category
-          <select name="category" data-itsw-field="category">
+          <select name="category" data-itsw-field="category"${off}>
             <option value="">Choose a category&hellip;</option>
             ${categoryOptions.map((opt) => `<option value="${esc(opt.value)}" ${response.category === opt.value ? 'selected' : ''}>${esc(opt.label)}</option>`).join('')}
           </select>
         </label>
         <label>First diagnostic step
-          <textarea name="firstStep" data-itsw-field="firstStep" rows="2" placeholder="What's the first thing you'd check or ask?">${esc(response.firstStep || '')}</textarea>
+          <textarea name="firstStep" data-itsw-field="firstStep" rows="2"${off} placeholder="What's the first thing you'd check or ask?">${esc(response.firstStep || '')}</textarea>
         </label>
         <div class="itsw-ticket-decision" role="radiogroup" aria-label="Resolve or escalate">
-          <label><input type="radio" name="decision" value="resolve" data-itsw-field="decision" ${response.decision === 'resolve' ? 'checked' : ''} /> Resolve</label>
-          <label><input type="radio" name="decision" value="escalate" data-itsw-field="decision" ${response.decision === 'escalate' ? 'checked' : ''} /> Escalate</label>
+          <label><input type="radio" name="decision" value="resolve" data-itsw-field="decision"${off} ${response.decision === 'resolve' ? 'checked' : ''} /> Resolve</label>
+          <label><input type="radio" name="decision" value="escalate" data-itsw-field="decision"${off} ${response.decision === 'escalate' ? 'checked' : ''} /> Escalate</label>
         </div>
         <label>Reasoning
-          <textarea name="reasoning" data-itsw-field="reasoning" rows="2" placeholder="Why that category and that call?">${esc(response.reasoning || '')}</textarea>
+          <textarea name="reasoning" data-itsw-field="reasoning" rows="2"${off} placeholder="Why that category and that call?">${esc(response.reasoning || '')}</textarea>
         </label>
       </form>
     </div>
   </div>`;
+}
+
+/* ---------- Returned for revision (every Help Desk module) ----------
+ * Faculty "send back" marks a lab's newest attempt redo_requested. At sign-in
+ * the portal loads each lab's newest attempt into user.latestLabAttemptByKey
+ * and the instructor's notes into user.openLabRedoFeedbackByLabKey; these
+ * helpers read only those. A returned lab takes exactly one new attempt:
+ * itsSubmitLabAttempt() mirrors the database's one-pending rule
+ * (20261005210000_one_pending_prove_it_submission.sql) and ignores a repeat
+ * call while the first save is still in flight. */
+
+function itsLabAttempt(user, labKey) {
+  return ((user && user.latestLabAttemptByKey) || {})[labKey] || null;
+}
+
+// The newest attempt was returned with a critical error (loaded at sign-in
+// with its grade, or by itsProveRefreshAttempt).
+function itsLabCritical(user, labKey) {
+  return itsLabReturned(user, labKey) && itsLabAttempt(user, labKey).criticalError === true;
+}
+
+function itsLabReturned(user, labKey) {
+  const attempt = itsLabAttempt(user, labKey);
+  return !!(attempt && attempt.completedAt && !attempt.supersededAt && attempt.redoRequested === true);
+}
+
+// A lab takes a new attempt only when it has none yet or its newest was
+// returned; while one waits on faculty, or once approved, the database
+// refuses the insert anyway.
+function itsLabAcceptsAttempt(user, labKey) {
+  const attempt = itsLabAttempt(user, labKey);
+  return !attempt || !attempt.completedAt || !!attempt.supersededAt || attempt.redoRequested === true;
+}
+
+function itsLabTitle(labKey) {
+  const lab = typeof LABS !== 'undefined' ? LABS.find((item) => item.key === labKey) : null;
+  return lab ? lab.title : labKey;
+}
+
+const itsLabSubmissionsInFlight = new Set();
+
+/* evidenceFields: an evidence lab's state fields. Their picked files are
+ * uploaded first, inside the same in-flight guard, and the attempt is then
+ * inserted with the upload folder's id; if the insert is refused, the
+ * uploaded files are removed again. */
+function itsSubmitLabAttempt(user, moduleKey, labKey, fields, evidenceFields = null) {
+  if (!user || typeof recordLabAttempt !== 'function') return Promise.resolve(false);
+  const inFlightKey = `${user.userId}|${labKey}`;
+  if (itsLabSubmissionsInFlight.has(inFlightKey) || !itsLabAcceptsAttempt(user, labKey)) return Promise.resolve(false);
+  itsLabSubmissionsInFlight.add(inFlightKey);
+  // Help Desk defaults; a caller's own versions (the capstone's) win.
+  const attemptMetadata = { rubricVersion: ITS_ATTEMPT_RUBRIC_VERSION, scoringEngineVersion: ITS_ATTEMPT_ENGINE_VERSION };
+  const send = !evidenceFields
+    ? recordLabAttempt(user, labKey, { ...attemptMetadata, ...fields })
+    : itsUploadEvidence(user, moduleKey, labKey, evidenceFields).then((upload) => {
+      if (!upload) return false;
+      return recordLabAttempt(user, labKey, { ...attemptMetadata, ...fields, id: upload.id, result: { ...(fields.result || {}), evidence_files: upload.files } })
+        .then((saved) => {
+          if (!saved) return upload.discard().then(() => false);
+          itsUploadedEvidence.set(inFlightKey, upload.files);
+          evidenceFields.forEach((field) => itswPickedFiles.delete(`${user.userId}|${field}`));
+          itswForgetDraftFiles(user, labKey, evidenceFields);
+          return true;
+        });
+    }).catch((err) => { console.error('lab evidence submit threw', labKey, err); return false; });
+  return send
+    .then((saved) => {
+      if (saved && fields.state === 'complete') {
+        // The new attempt is now the newest one: waiting on faculty.
+        user.latestLabAttemptByKey = { ...(user.latestLabAttemptByKey || {}), [labKey]: { completedAt: new Date().toISOString(), reviewedAt: null, redoRequested: false, supersededAt: null } };
+        if (user.openLabRedoFeedbackByLabKey) delete user.openLabRedoFeedbackByLabKey[labKey];
+        const open = user.openLabRedosByModuleKey && user.openLabRedosByModuleKey[moduleKey];
+        if (open && open.labKey === labKey) delete user.openLabRedosByModuleKey[moduleKey];
+      }
+      return saved;
+    })
+    .finally(() => itsLabSubmissionsInFlight.delete(inFlightKey));
+}
+
+/* Uploads one evidence lab's picked files to
+ * <track>/<user>/<module>/<lab>/<attempt id>/<field>.<ext>. Resolves to
+ * { id, files, discard } once every file is stored, or null (after removing
+ * whatever was stored) when a file is missing, refused or fails. */
+async function itsUploadEvidence(user, moduleKey, labKey, evidenceFields) {
+  if (typeof mntSupabase === 'undefined' || !mntSupabase.storage || typeof crypto === 'undefined' || !crypto.randomUUID) return null;
+  const id = crypto.randomUUID();
+  const folder = [user.trackCode, user.userId, moduleKey, labKey, id].join('/');
+  const bucket = mntSupabase.storage.from(ITS_EVIDENCE_BUCKET);
+  const tried = [];
+  const files = [];
+  // Removes every path tried, in case a failed upload was stored anyway.
+  // Best effort: Storage reports most failures as a returned error, so log
+  // those as well as a thrown one; the submit has already failed either way.
+  const discard = () => (tried.length
+    ? Promise.resolve().then(() => bucket.remove(tried.slice()))
+      .then((res) => { if (res && res.error) console.error('lab evidence cleanup failed', labKey, res.error); })
+      .catch((err) => console.error('lab evidence cleanup failed', labKey, err))
+    : Promise.resolve());
+  for (const field of evidenceFields) {
+    const file = itswPickedFile(user, field);
+    if (!file || itswEvidenceFileError(file)) { await discard(); return null; }
+    const path = `${folder}/${field}.${ITSW_EVIDENCE_TYPES[file.type]}`;
+    tried.push(path);
+    let error = null;
+    try {
+      ({ error } = await bucket.upload(path, file, { contentType: file.type, upsert: false }));
+    } catch (err) {
+      error = err;
+    }
+    if (error) {
+      console.error('lab evidence upload failed', labKey, field, error);
+      await discard();
+      return null;
+    }
+    files.push({ field, label: ITSW_EVIDENCE_LABELS[field] || field, path, name: file.name, size: file.size, type: file.type });
+  }
+  return { id, files, discard };
+}
+
+// Files saved with an attempt on this page load, shown under the lab's status.
+const itsUploadedEvidence = new Map(); // `${userId}|${labKey}` -> evidence_files
+
+function itsUploadedEvidenceHtml(user, labKey) {
+  const files = user ? itsUploadedEvidence.get(`${user.userId}|${labKey}`) : null;
+  if (!files || !itsLabSubmitted(user, labKey)) return '';
+  return `<ul class="itsw-uploaded" data-its-uploaded="${esc(labKey)}">${files.map((file) => `<li><i class="ri-checkbox-circle-fill" aria-hidden="true"></i> <strong>Uploaded</strong> — ${esc(file.label)}: ${esc(file.name)} · ${esc(itswFormatBytes(file.size))}</li>`).join('')}</ul>`;
+}
+
+// A guided walkthrough finished: submit each of its labs that can take an
+// attempt (never submitted, or returned). Waiting/approved labs send nothing.
+// Resolves true when the portal has the work: every lab that could take an
+// attempt saved one (a lab already waiting or approved has nothing to save).
+function itsSubmitWalkthroughLabs(user, moduleKey, labKeys, work = null) {
+  const accepting = labKeys.map((labKey) => itsLabAcceptsAttempt(user, labKey));
+  return Promise.all(labKeys.map((labKey) => itsSubmitLabAttempt(user, moduleKey, labKey, {
+    state: 'complete', result: { source: 'mnt-coach-complete', ...(work ? { work } : {}) },
+  }))).then((saved) => saved.every((ok, i) => ok === true || !accepting[i]));
+}
+
+// The simulator keeps a finished walkthrough's work until this page confirms
+// it was saved (ui/coach.js finishWithReceipt), so every completion message
+// gets an answer: saved, or not (signed out, wrong student, or the save
+// failed). `reason` lets the simulator say which.
+function itsConfirmCoachReceipt(event, saved, reason) {
+  if (!event.source || typeof event.source.postMessage !== 'function') return;
+  event.source.postMessage({ type: 'mnt-coach-received', id: event.data.id, nonce: event.data.nonce, saved: saved === true, ...(reason ? { reason } : {}) }, event.origin);
+}
+
+// Finished work belongs to the student whose launch link opened it (the
+// anonymous id it carried). Saving it for whoever is signed in now could
+// credit another student, so a missing or different id saves nothing.
+// Returns null when the ids match, else the reason to send back.
+function itsCoachStudentMismatch(event, user) {
+  const student = event.data && typeof event.data.student === 'string' ? event.data.student : '';
+  if (!student) return 'no-student';
+  return student === LabRuntime.anonymousStudentId(user) ? null : 'other-student';
+}
+
+// The walkthrough link names the student by the anonymous id (a hash, never
+// the email), so the simulator resumes an unfinished lab only for the same
+// student on a shared browser.
+function itsCoachLaunchHref(coachId, user) {
+  const student = typeof LabRuntime !== 'undefined' ? LabRuntime.anonymousStudentId(user) : '';
+  return `${SIM_ORIGIN}?coach=${encodeURIComponent(coachId)}&restart=1&student=${encodeURIComponent(student)}#/helpdesk/tickets`;
+}
+
+// HD-2101's investigation (Module 1 Practice It, ui/helpdesk.js
+// hdM01Investigation): outcomes, how they were reached and the command/action
+// log in the Prove It event shape. Known fields only, every value bounded.
+const ITS_INVESTIGATION_OUTCOMES = ['identityVerified', 'sourceFound', 'taskInspected', 'credentialFixed', 'unlockedAfterFix', 'verified', 'noteComplete'];
+const ITS_INVESTIGATION_EVENTS = ['command_run', 'evidence_opened', 'identity_checked', 'account_unlocked', 'task_run', 'task_credential_updated', 'verified', 'hint_shown', 'event_filter'];
+const ITS_INVESTIGATION_EVENT_TEXT = { at: 40, command: 200, computer: 24, result: 200, source: 40, label: 120, choice: 20, via: 60, trigger: 40, task: 60, clock: 12, credential: 12, outcome: 30 };
+function itsCleanInvestigation(input) {
+  if (!input || typeof input !== 'object' || input.version !== 1 || input.ticketId !== 'HD-2101') return null;
+  const text = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
+  const list = (value, max, size) => Array.isArray(value) ? value.slice(0, max).map((item) => text(item, size)).filter(Boolean) : [];
+  const count = (value) => Number.isInteger(value) && value >= 0 ? Math.min(value, 999) : 0;
+  const outcomes = {};
+  ITS_INVESTIGATION_OUTCOMES.forEach((key) => { outcomes[key] = input.outcomes && input.outcomes[key] === true; });
+  const identity = input.identity && typeof input.identity === 'object' ? input.identity : {};
+  const end = input.end && typeof input.end === 'object' ? input.end : {};
+  const events = Array.isArray(input.events) ? input.events.slice(-80).filter((event) => event && ITS_INVESTIGATION_EVENTS.includes(event.type)).map((event) => {
+    const clean = { type: event.type };
+    Object.entries(ITS_INVESTIGATION_EVENT_TEXT).forEach(([key, max]) => { if (typeof event[key] === 'string') clean[key] = event[key].slice(0, max); });
+    if (typeof event.relocked === 'boolean') clean.relocked = event.relocked;
+    if (Number.isInteger(event.level)) clean.level = Math.min(Math.max(event.level, 0), 9);
+    return clean;
+  }) : [];
+  return {
+    version: 1, ticketId: 'HD-2101', outcomes,
+    sourceFoundVia: list(input.sourceFoundVia, 4, 80),
+    identity: { choice: text(identity.choice, 20), tries: list(identity.tries, 10, 20) },
+    credentialFixedBy: text(input.credentialFixedBy, 40), credentialFixedAt: text(input.credentialFixedAt, 12),
+    unlocks: Array.isArray(input.unlocks) ? input.unlocks.slice(0, 20).map((unlock) => ({
+      at: text(unlock && unlock.at, 12), credentialCurrent: Boolean(unlock && unlock.credentialCurrent === true), via: text(unlock && unlock.via, 40),
+    })) : [],
+    relocks: count(input.relocks), verifiedBy: text(input.verifiedBy, 80), verifiedAt: text(input.verifiedAt, 12),
+    passwordTyped: input.passwordTyped === true, passwordWritten: input.passwordWritten === true, hintsUsed: count(input.hintsUsed),
+    end: { accountLocked: end.accountLocked === true, taskCredential: ['current', 'old'].includes(end.taskCredential) ? end.taskCredential : '', taskLastResult: text(end.taskLastResult, 16) },
+    events,
+  };
+}
+
+// A console ticket's work (Module 1 Guided Lab 1, HD-2150; ui/helpdesk.js
+// hdConsoleProgress): how the caller was verified, the unlock, the chat, the
+// KB searches and what the ticket still lacked. Known fields only, bounded.
+const ITS_CONSOLE_OUTCOMES = ['verified', 'unlocked', 'confirmed', 'comment', 'note', 'code'];
+function itsCleanConsoleWork(input) {
+  if (!input || typeof input !== 'object') return null;
+  const text = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
+  const list = (value, max, size) => Array.isArray(value) ? value.slice(-max).map((item) => text(item, size)).filter(Boolean) : [];
+  const count = (value) => Number.isInteger(value) && value >= 0 ? Math.min(value, 999) : 0;
+  const verification = input.verification && typeof input.verification === 'object' ? input.verification : {};
+  const outcomes = input.outcomes && typeof input.outcomes === 'object' ? input.outcomes : null;
+  return {
+    kbSearches: list(input.kbSearches, 10, 80), kbOpened: list(input.kbOpened, 10, 16), chatAsked: list(input.chatAsked, 12, 24),
+    verification: { choice: text(verification.choice, 24), tries: list(verification.tries, 10, 24), passed: verification.passed === true, criticalErrors: list(verification.criticalErrors, 5, 24) },
+    accountUnlocked: input.accountUnlocked === true, unlocks: count(input.unlocks),
+    comments: count(input.comments), lastCommentJargon: list(input.lastCommentJargon, 10, 40), commentRepeatLine: input.commentRepeatLine === true,
+    noteMissing: list(input.noteMissing, 6, 24), resolutionCode: text(input.resolutionCode, 60),
+    passwordWritten: input.passwordWritten === true, passwordAsked: input.passwordAsked === true,
+    outcomes: outcomes ? Object.fromEntries(ITS_CONSOLE_OUTCOMES.map((key) => [key, outcomes[key] === true])) : null,
+    ...itsCleanMatrixWork(input),
+  };
+}
+// Module 2 (key its-10) queue work on a matrix ticket (ui/helpdesk.js
+// hdMatrixProgress): triage, the request, the link, knowledge, contact
+// attempts and the rewrite check. Each key only when the ticket sent it, so
+// Module 1's saved work keeps its shape.
+function itsCleanMatrixWork(input) {
+  const text = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
+  const list = (value, max, size) => Array.isArray(value) ? value.slice(-max).map((item) => text(item, size)).filter(Boolean) : [];
+  const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+  const out = {};
+  const matrix = object(input.matrix);
+  if (matrix) {
+    out.matrix = {
+      impact: text(matrix.impact, 2), urgency: text(matrix.urgency, 2), priority: text(matrix.priority, 4), status: text(matrix.status, 60),
+      holdReason: text(matrix.holdReason, 40), assignmentGroup: text(matrix.assignmentGroup, 60), responded: matrix.responded === true,
+      sla: text(matrix.sla, 40), slaPhase: text(matrix.slaPhase, 20),
+    };
+  }
+  const classification = object(input.classification);
+  if (classification) out.classification = { category: text(classification.category, 60), subcategory: text(classification.subcategory, 60), ci: text(classification.ci, 60), contactType: text(classification.contactType, 30) };
+  if ('request' in input) {
+    const request = object(input.request);
+    out.request = request ? {
+      item: text(request.item, 80), requestedFor: text(request.requestedFor, 80), approval: text(request.approval, 20), state: text(request.state, 30),
+      fields: Array.isArray(request.fields) ? request.fields.slice(0, 6).map((field) => ({ id: text(field && field.id, 30), label: text(field && field.label, 60), value: text(field && field.value, 80) })) : [],
+    } : null;
+  }
+  if ('parent' in input) out.parent = text(input.parent, 16);
+  if ('arrived' in input) out.arrived = list(input.arrived, 6, 30);
+  if ('kbAttached' in input) out.kbAttached = list(input.kbAttached, 6, 16);
+  if ('kbDraft' in input) out.kbDraft = text(input.kbDraft, 20);
+  if ('contactAttempts' in input) out.contactAttempts = Number.isInteger(input.contactAttempts) && input.contactAttempts >= 0 ? Math.min(input.contactAttempts, 99) : 0;
+  if ('rewriteMissing' in input) out.rewriteMissing = Array.isArray(input.rewriteMissing) ? list(input.rewriteMissing, 8, 30) : null;
+  if ('lastCommentInternal' in input) out.lastCommentInternal = list(input.lastCommentInternal, 10, 60);
+  return out;
+}
+
+// postMessage data is student-controlled. Store only the small, known work
+// fields needed by the instructor sheet; never persist simulator fixture keys.
+function itsCleanCoachWork(input) {
+  if (!input || typeof input !== 'object' || input.version !== 1 || !Array.isArray(input.tickets)) return null;
+  const text = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
+  const tickets = input.tickets.slice(0, 8).filter((ticket) => ticket && typeof ticket === 'object' && /^[A-Z]{2,4}-\d{4}$/.test(ticket.id || '')).map((ticket) => ({
+    id: text(ticket.id, 16),
+    requester: text(ticket.requester, 120), category: text(ticket.category, 80), subcategory: text(ticket.subcategory, 120),
+    description: text(ticket.description, 500), businessImpact: text(ticket.businessImpact, 240), sla: text(ticket.sla, 80),
+    symptoms: Array.isArray(ticket.symptoms) ? ticket.symptoms.slice(0, 8).map((value) => text(value, 180)).filter(Boolean) : [],
+    systemState: Array.isArray(ticket.systemState) ? ticket.systemState.slice(0, 8).map((value) => text(value, 180)).filter(Boolean) : [],
+    logs: Array.isArray(ticket.logs) ? ticket.logs.slice(0, 8).map((value) => text(value, 280)).filter(Boolean) : [],
+    expectedDiagnosis: text(ticket.expectedDiagnosis, 300), expectedResolution: text(ticket.expectedResolution, 1000),
+    expectedPath: Array.isArray(ticket.expectedPath) ? ticket.expectedPath.slice(0, 8).map((value) => text(value, 200)).filter(Boolean) : [],
+    expectedStatus: ['Resolved', 'Escalated'].includes(ticket.expectedStatus) ? ticket.expectedStatus : '',
+    priority: text(ticket.priority, 8),
+    assignedTechnician: text(ticket.assignedTechnician, 100),
+    status: text(ticket.status, 40),
+    diagnosis: text(ticket.diagnosis, 240),
+    diagnosisCorrect: typeof ticket.diagnosisCorrect === 'boolean' ? ticket.diagnosisCorrect : null,
+    linkedProblem: text(ticket.linkedProblem, 40),
+    checkedSteps: Array.isArray(ticket.checkedSteps) ? ticket.checkedSteps.slice(0, 20).map((value) => text(value, 300)).filter(Boolean) : [],
+    notes: Array.isArray(ticket.notes) ? ticket.notes.slice(-8).map((note) => ({
+      author: text(note && note.author, 80), time: text(note && note.time, 40), text: text(note && note.text, 1500),
+    })).filter((note) => note.text) : [],
+    statusHistory: Array.isArray(ticket.statusHistory) ? ticket.statusHistory.slice(-20).map((entry) => ({
+      time: text(entry && entry.time, 40), action: text(entry && entry.action, 180),
+    })).filter((entry) => entry.action) : [],
+    resolution: text(ticket.resolution, 1200),
+    closureCode: text(ticket.closureCode, 120),
+    // Module 2: the number the student saw, and their rewrite and knowledge
+    // draft, word for word (only when the coach sent them).
+    ...(typeof ticket.number === 'string' ? { number: text(ticket.number, 16) } : {}),
+    ...(ticket.writing && typeof ticket.writing === 'object' ? { writing: {
+      shortDescription: text(ticket.writing.shortDescription, 160), description: text(ticket.writing.description, 4000),
+      kbDraftTitle: text(ticket.writing.kbDraftTitle, 160), kbDraftText: text(ticket.writing.kbDraftText, 4000),
+    } } : {}),
+    ...(ticket.console && typeof ticket.console === 'object' ? {
+      console: itsCleanConsoleWork(ticket.console),
+      customerComments: Array.isArray(ticket.customerComments) ? ticket.customerComments.slice(-8).map((comment) => ({
+        author: text(comment && comment.author, 80), time: text(comment && comment.time, 40), text: text(comment && comment.text, 2000),
+      })).filter((comment) => comment.text) : [],
+    } : {}),
+  }));
+  if (!tickets.length) return null;
+  const work = { version: 1, selectedTicketId: text(input.selectedTicketId, 16), tickets };
+  // Module 2's guided queue: the student's work order and what Check order said.
+  if (Array.isArray(input.workOrder)) {
+    work.workOrder = input.workOrder.slice(0, 8).filter((id) => typeof id === 'string' && /^[A-Z]{2,4}-\d{4}$/.test(id));
+    work.workOrderResult = text(input.workOrderResult, 200);
+  }
+  const investigation = itsCleanInvestigation(input.investigation);
+  if (investigation) work.investigation = investigation;
+  // Keep attempts comfortably below PostgREST's practical JSON payload limits.
+  // The investigation's oldest events go first, then history and notes.
+  while (JSON.stringify(work).length > 48 * 1024 && work.investigation && work.investigation.events.length) work.investigation.events.shift();
+  while (JSON.stringify(work).length > 48 * 1024) {
+    const ticket = work.tickets.find((entry) => entry.statusHistory.length || entry.notes.length || (entry.customerComments || []).length);
+    if (!ticket) break;
+    if (ticket.statusHistory.length) ticket.statusHistory.shift();
+    else if (ticket.notes.length) ticket.notes.shift();
+    else ticket.customerComments.shift();
+  }
+  return work;
+}
+
+/* ---------- Prove It: the simulator's Submit ----------
+ * Same handoff as a walkthrough's Finish: a message from the simulator tab
+ * this page opened, answered with its nonce. The message is student-controlled,
+ * and so is this page's JavaScript, so these checks keep honest mistakes out
+ * (a stale tab, another student signed in on a shared browser); they aren't
+ * what makes the attempt count. Only an instructor's review does, and no score
+ * is ever sent: the answer key isn't in this public repository. */
+const ITS_PROVE_REPLY = 'mnt-prove-received';
+const ITS_PROVE_STATUS = 'mnt-prove-status';
+const ITS_PROVE_SUBMIT = 'mnt-prove-submit';
+const ITS_PROVE_MAX_BYTES = 96 * 1024;
+// kb_search: the words searched (value). action_taken: an action done on a
+// screen rather than by command, e.g. adding a printer from Settings (label).
+// A queue shift (Module 2) adds field_set (a ticket's field, in label, and
+// its value), order_changed (the new place) and ticket_arrived; source holds
+// the ticket's INC number.
+const ITS_PROVE_EVENT_TYPES = ['evidence_opened', 'command_run', 'diagnosis_chosen', 'step_chosen', 'step_cleared', 'decision_chosen', 'kb_search', 'action_taken',
+  'field_set', 'order_changed', 'ticket_arrived'];
+
+// The recorded actions and the laptop's end state, cleaned the same way for a
+// submit (itsCleanProveWork) and for a returned attempt's prefill.
+function itsProveShort(value, max) { return typeof value === 'string' ? value.slice(0, max) : ''; }
+function itsProveCleanEvents(value) {
+  const short = itsProveShort;
+  return (Array.isArray(value) ? value : []).filter((entry) => entry && typeof entry === 'object').slice(-400).filter((entry) => ITS_PROVE_EVENT_TYPES.includes(entry.type)).map((entry) => ({
+    type: entry.type, at: short(entry.at, 40), source: short(entry.source, 80), label: short(entry.label, 120), command: short(entry.command, 200),
+    computer: short(entry.computer, 40), value: short(entry.value, 300), step: short(entry.step, 16),
+  }));
+}
+function itsProveCleanMachine(value) {
+  try {
+    if (value && typeof value === 'object' && !Array.isArray(value) && JSON.stringify(value).length <= 4096) return JSON.parse(JSON.stringify(value));
+  } catch (_) { /* not readable: none */ }
+  return {};
+}
+
+function itsProveLaunchHref(moduleKey, user) {
+  const student = typeof LabRuntime !== 'undefined' ? LabRuntime.anonymousStudentId(user) : '';
+  return `${SIM_ORIGIN}?prove=${encodeURIComponent(moduleKey)}&student=${encodeURIComponent(student)}#/helpdesk/tickets`;
+}
+
+// Resolves { work } with only the known fields, or { reason }. Writing that
+// doesn't fit is refused, never cut; the recorded actions can be trimmed.
+function itsCleanProveWork(input, moduleKey, labKey) {
+  const invalid = { reason: 'invalid' };
+  const tooLarge = { reason: 'too-large' };
+  const rubric = typeof HDESK_PROVE_RUBRICS !== 'undefined' ? HDESK_PROVE_RUBRICS[labKey] : null;
+  if (!rubric || !input || typeof input !== 'object' || input.version !== 1 || input.kind !== 'hdesk-prove') return invalid;
+  if (input.moduleKey !== moduleKey || input.labKey !== labKey || input.rubricVersion !== rubric.version) return invalid;
+  // A queue shift (rubric shape 'queue') has its own package; a package and
+  // a rubric that disagree on the shape are refused.
+  if ((rubric.shape === 'queue') !== (input.shape === 'queue')) return invalid;
+  if (rubric.shape === 'queue') return itsCleanProveQueueWork(input, rubric, moduleKey, labKey);
+  const isText = (value, max) => typeof value === 'string' && value.length <= max;
+  const filled = (value, max) => isText(value, max) && value.trim() !== '';
+  const fields = input.fields;
+  if (!/^[A-Z]{2,4}-\d{4}$/.test(String(input.ticketId || '')) || !isText(input.startedAt, 40) || !fields || typeof fields !== 'object') return invalid;
+  if (!filled(fields.category, 80) || !filled(fields.type, 80) || !['P1', 'P2', 'P3', 'P4'].includes(fields.priority)) return invalid;
+  if (!filled(input.diagnosis, 300) || !['Resolve', 'Escalate'].includes(input.decision)) return invalid;
+  if (!Array.isArray(input.steps) || !Array.isArray(input.stepTexts) || input.steps.length > 20 || input.steps.length !== input.stepTexts.length) return invalid;
+  if (!input.steps.every((id) => /^[a-z0-9_-]{1,16}$/i.test(String(id))) || !input.stepTexts.every((text) => isText(text, 300))) return invalid;
+  if (typeof input.resolutionNote !== 'string' || !input.resolutionNote.trim() || typeof input.userReply !== 'string' || !input.userReply.trim()) return invalid;
+  if (!Array.isArray(input.workNotes) || !input.workNotes.every((note) => typeof note === 'string')) return invalid;
+  if (input.resolutionNote.length > 4000 || input.userReply.length > 4000 || input.workNotes.length > 30 || input.workNotes.some((note) => note.length > 2000)) return tooLarge;
+
+  const short = itsProveShort;
+  const list = (value) => (Array.isArray(value) ? value.filter((entry) => entry && typeof entry === 'object') : []);
+  const commands = list(input.commands).slice(-400).map((entry) => ({ command: short(entry.command, 200), computer: short(entry.computer, 40), at: short(entry.at, 40) })).filter((entry) => entry.command);
+  const events = itsProveCleanEvents(input.events);
+  const machine = itsProveCleanMachine(input.machine);
+  const work = {
+    version: 1, kind: 'hdesk-prove', moduleKey, labKey, rubricVersion: rubric.version, ticketId: input.ticketId, startedAt: input.startedAt,
+    // Pre-set fields (Module 1) are the rubric's, never the message's.
+    fields: rubric.presetFields ? { ...rubric.presetFields } : { category: fields.category, type: fields.type, priority: fields.priority },
+    diagnosis: input.diagnosis, steps: input.steps.slice(), stepTexts: input.stepTexts.slice(), decision: input.decision,
+    resolutionNote: input.resolutionNote, userReply: input.userReply, workNotes: input.workNotes.slice(),
+    // Since 2026-11-20: the one Work notes box is resolutionNote, and the
+    // ticket's assignment and close are recorded, never scored. Optional, so
+    // a simulator tab opened before then still submits.
+    noteIsResolution: input.noteIsResolution === true,
+    assignedTo: short(input.assignedTo, 40), ticketState: short(input.ticketState, 40), resolutionCode: short(input.resolutionCode, 80),
+    commands, events, machine, logTrimmed: false, passwordTyped: input.passwordTyped === true, passwordWritten: input.passwordWritten === true,
+  };
+  while (JSON.stringify(work).length > ITS_PROVE_MAX_BYTES && (work.events.length || work.commands.length)) {
+    work.logTrimmed = true;
+    if (work.events.length) work.events.shift(); else work.commands.shift();
+  }
+  return JSON.stringify(work).length > ITS_PROVE_MAX_BYTES ? tooLarge : { work };
+}
+
+/* A queue shift's package (Module 2), cleaned the same way: only known
+ * fields, writing that doesn't fit is refused and never cut, and the
+ * recorded actions can be trimmed. The course page works out each ticket's
+ * Priority (Impact × Urgency) and its position (its place in order, 1 first)
+ * itself; the browser's values are never kept. It checks the ticket count
+ * and the id pattern, never which tickets: this public file names no Prove
+ * It ticket. A reason is required on the top two and on every P1 or P2;
+ * every reason sent is kept. */
+const ITS_PROVE_QUEUE_CLASSES = ['Incident', 'Service request', 'Security incident'];
+const ITS_PROVE_MATRIX = { 1: { 1: 'P1', 2: 'P2', 3: 'P3' }, 2: { 1: 'P2', 2: 'P3', 3: 'P4' }, 3: { 1: 'P3', 2: 'P4', 3: 'P5' } };
+const ITS_PROVE_QUEUE_LIMITS = { reason: 1000, shortDescription: 160, description: 4000 };
+function itsCleanProveQueueWork(input, rubric, moduleKey, labKey) {
+  const invalid = { reason: 'invalid' };
+  const tooLarge = { reason: 'too-large' };
+  const tickets = input.tickets;
+  if (typeof input.startedAt !== 'string' || input.startedAt.length > 40 || !tickets || typeof tickets !== 'object' || Array.isArray(tickets)) return invalid;
+  const ids = Object.keys(tickets);
+  if (ids.length !== rubric.ticketCount || !ids.every((id) => /^[A-Z]{2,4}-\d{4}$/.test(id))) return invalid;
+  const order = Array.isArray(input.order) ? input.order : [];
+  if (order.length !== ids.length || new Set(order).size !== ids.length || !order.every((id) => ids.includes(id))) return invalid;
+  const clean = {};
+  let long = false;
+  for (const id of ids) {
+    const ticket = tickets[id];
+    if (!ticket || typeof ticket !== 'object') return invalid;
+    if (!['1', '2', '3'].includes(ticket.impact) || !['1', '2', '3'].includes(ticket.urgency) || !ITS_PROVE_QUEUE_CLASSES.includes(ticket.ticketClass)) return invalid;
+    if (!/^INC\d{7}$/.test(String(ticket.number || '')) || typeof ticket.reason !== 'string') return invalid;
+    const parentId = ticket.parentId === '' || ticket.parentId == null ? '' : ticket.parentId;
+    if (parentId !== '' && (!ids.includes(parentId) || parentId === id)) return invalid;
+    if (ticket.reason.length > ITS_PROVE_QUEUE_LIMITS.reason) long = true;
+    clean[id] = {
+      number: ticket.number, impact: ticket.impact, urgency: ticket.urgency, priority: ITS_PROVE_MATRIX[ticket.impact][ticket.urgency],
+      ticketClass: ticket.ticketClass, parentId, position: order.indexOf(id) + 1, reason: ticket.reason,
+    };
+  }
+  // Two tickets each other's parent: not a link the simulator can make.
+  if (ids.some((id) => clean[id].parentId && clean[clean[id].parentId].parentId === id)) return invalid;
+  if (ids.some((id) => (clean[id].position <= 2 || ['P1', 'P2'].includes(clean[id].priority)) && !clean[id].reason.trim())) return invalid;
+  const rewrite = input.rewrite;
+  if (!rewrite || typeof rewrite !== 'object' || !ids.includes(rewrite.ticketId)) return invalid;
+  if (typeof rewrite.shortDescription !== 'string' || !rewrite.shortDescription.trim() || typeof rewrite.description !== 'string' || !rewrite.description.trim()) return invalid;
+  if (rewrite.shortDescription.length > ITS_PROVE_QUEUE_LIMITS.shortDescription || rewrite.description.length > ITS_PROVE_QUEUE_LIMITS.description) long = true;
+  if (long) return tooLarge;
+  const sent = input.interrupt;
+  const interrupt = sent && typeof sent === 'object' && ids.includes(sent.ticketId)
+    ? { ticketId: sent.ticketId, arrivedAt: itsProveShort(sent.arrivedAt, 40), reason: ['triaged', 'minutes', 'earlier-attempt'].includes(sent.reason) ? sent.reason : '' }
+    : null;
+  const elapsed = Number(input.elapsedSeconds);
+  const work = {
+    version: 1, kind: 'hdesk-prove', shape: 'queue', moduleKey, labKey, rubricVersion: rubric.version, startedAt: input.startedAt,
+    elapsedSeconds: Number.isFinite(elapsed) && elapsed >= 0 ? Math.min(Math.round(elapsed), 7 * 24 * 3600) : 0,
+    interrupt, tickets: clean, order: order.slice(),
+    rewrite: { ticketId: rewrite.ticketId, shortDescription: rewrite.shortDescription, description: rewrite.description },
+    events: itsProveCleanEvents(input.events), logTrimmed: false,
+    passwordTyped: input.passwordTyped === true, passwordWritten: input.passwordWritten === true,
+  };
+  while (JSON.stringify(work).length > ITS_PROVE_MAX_BYTES && work.events.length) {
+    work.logTrimmed = true;
+    work.events.shift();
+  }
+  return JSON.stringify(work).length > ITS_PROVE_MAX_BYTES ? tooLarge : { work };
+}
+
+// The newest attempt, read from the server: the copy from sign-in can be out
+// of date (an instructor's return, another browser, a reply lost after an
+// insert landed). A returned attempt's notes come with it, so the course page
+// never says it came back without them. Resolves requiredLabStatus(), or null
+// when the read fails.
+async function itsProveRefreshAttempt(user, moduleKey, labKey) {
+  try {
+    const { data, error } = await mntSupabase.from('lab_attempts')
+      .select('id, completed_at, reviewed_at, redo_requested, superseded_at')
+      .eq('user_id', user.userId)
+      .eq('track_code', user.trackCode)
+      .eq('lab_key', labKey)
+      .not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false })
+      .limit(1);
+    if (error) throw error;
+    const latest = data && data[0];
+    const attempts = { ...(user.latestLabAttemptByKey || {}) };
+    if (latest) attempts[labKey] = { completedAt: latest.completed_at, reviewedAt: latest.reviewed_at || null, redoRequested: latest.redo_requested === true, supersededAt: latest.superseded_at || null };
+    else delete attempts[labKey];
+    let grade = null;
+    if (latest && latest.reviewed_at) {
+      grade = (await fetchOfficialGrades([latest.id])).get(latest.id) || null;
+      attempts[labKey].officialScore = grade ? grade.official_score : null;
+      attempts[labKey].criticalError = !!(grade && grade.critical_error);
+    }
+    user.latestLabAttemptByKey = attempts;
+    if (latest && latest.redo_requested === true) {
+      const { data: rows, error: notesError } = await mntSupabase.from('lab_attempt_feedback')
+        .select('item_label, comment, created_at')
+        .eq('lab_attempt_id', latest.id)
+        .order('created_at', { ascending: true });
+      if (notesError) throw notesError;
+      const feedback = latestDecisionNotes(rows || [], grade).filter((row) => String(row.comment || '').trim());
+      user.openLabRedoFeedbackByLabKey = { ...(user.openLabRedoFeedbackByLabKey || {}), [labKey]: feedback };
+      user.openLabRedosByModuleKey = { ...(user.openLabRedosByModuleKey || {}), [moduleKey]: { labKey, labTitle: itsLabTitle(labKey), feedback } };
+    }
+    return itsLabStatus(user, labKey);
+  } catch (err) {
+    console.error('Prove It: could not read the latest attempt', labKey, err);
+    return null;
+  }
+}
+
+// What a returned attempt's form reopens with: the student's own choices,
+// writing and recorded actions (events, the laptop's end state, the password
+// flags, the ticket's assignment and close) from the saved package, field by
+// field and cleaned as a submit is. Never the instructor's scores or notes,
+// which aren't in the package, and never anything else in it.
+function itsProvePrefillWork(row) {
+  const work = row && row.result;
+  const text = (value) => (typeof value === 'string' ? value : '');
+  // A queue shift: each ticket's fields and reason, the order, the arrival
+  // and the rewrite. The simulator checks every value against its shift.
+  if (work && work.kind === 'hdesk-prove' && work.shape === 'queue' && row.completed_at && work.tickets && typeof work.tickets === 'object') {
+    const tickets = {};
+    Object.entries(work.tickets).forEach(([id, ticket]) => {
+      if (!ticket || typeof ticket !== 'object') return;
+      tickets[id] = { impact: text(ticket.impact), urgency: text(ticket.urgency), ticketClass: text(ticket.ticketClass), parentId: text(ticket.parentId), reason: text(ticket.reason) };
+    });
+    const rewrite = work.rewrite && typeof work.rewrite === 'object' ? work.rewrite : {};
+    const interrupt = work.interrupt && typeof work.interrupt === 'object' ? work.interrupt : {};
+    return {
+      completedAt: row.completed_at, shape: 'queue', tickets,
+      order: Array.isArray(work.order) ? work.order.map(text) : [],
+      interrupt: { arrivedAt: itsProveShort(interrupt.arrivedAt, 40), reason: itsProveShort(interrupt.reason, 20) },
+      rewrite: { shortDescription: text(rewrite.shortDescription), description: text(rewrite.description) },
+      events: itsProveCleanEvents(work.events),
+      passwordTyped: work.passwordTyped === true, passwordWritten: work.passwordWritten === true,
+    };
+  }
+  if (!work || work.kind !== 'hdesk-prove' || !row.completed_at || !work.fields) return null;
+  return {
+    completedAt: row.completed_at, ticketId: text(work.ticketId),
+    fields: { category: text(work.fields.category), type: text(work.fields.type), priority: text(work.fields.priority) },
+    diagnosis: text(work.diagnosis), steps: Array.isArray(work.steps) ? work.steps.map(text) : [], decision: text(work.decision),
+    resolutionNote: text(work.resolutionNote), userReply: text(work.userReply),
+    workNotes: Array.isArray(work.workNotes) ? work.workNotes.map(text) : [],
+    events: itsProveCleanEvents(work.events), machine: itsProveCleanMachine(work.machine),
+    passwordTyped: work.passwordTyped === true, passwordWritten: work.passwordWritten === true,
+    assignedTo: itsProveShort(work.assignedTo, 40), ticketState: itsProveShort(work.ticketState, 40), resolutionCode: itsProveShort(work.resolutionCode, 80),
+  };
+}
+
+// This student's own newest attempt. A failed read just means no prefill.
+async function itsProveLastWork(user, labKey) {
+  const { data, error } = await mntSupabase.from('lab_attempts')
+    .select('completed_at, result')
+    .eq('user_id', user.userId)
+    .eq('track_code', user.trackCode)
+    .eq('lab_key', labKey)
+    .not('completed_at', 'is', null)
+    .order('completed_at', { ascending: false })
+    .limit(1);
+  if (error) { console.error('Prove It: could not read the last submitted work', labKey, error); return null; }
+  return itsProvePrefillWork(data && data[0]);
+}
+
+/* Answers both messages. Every message that names this Prove It gets a reply,
+ * and saved: true is sent only after the server has confirmed the new row.
+ * state 'complete' with no score: the completion view counts only 'complete',
+ * and only once an instructor has reviewed it. */
+async function itsProveReceiveMessage(event, { moduleKey, labKey, onChange }) {
+  const data = event.data;
+  if (!data || (data.type !== ITS_PROVE_SUBMIT && data.type !== ITS_PROVE_STATUS) || data.id !== moduleKey) return;
+  if (event.origin !== new URL(SIM_ORIGIN).origin) return;
+  if (typeof data.nonce !== 'string' || !/^[A-Za-z0-9-]{8,64}$/.test(data.nonce)) return;
+  if (!event.source || typeof event.source.postMessage !== 'function') return;
+  const answer = (fields) => event.source.postMessage({ type: ITS_PROVE_REPLY, id: moduleKey, nonce: data.nonce, saved: false, ...fields }, event.origin);
+  try {
+    const user = await currentUser();
+    if (!user) { answer({ reason: 'signed-out' }); return; }
+    if (user.trackCode !== 'HDESK' || itsCoachStudentMismatch(event, user)) { answer({ reason: 'other-student' }); return; }
+    const before = itsLabStatus(user, labKey);
+    const status = await itsProveRefreshAttempt(user, moduleKey, labKey);
+    if (!status) { answer({ reason: 'unreadable' }); return; }
+    if (status !== before && onChange) onChange();
+    if (data.type === ITS_PROVE_STATUS) {
+      const lastWork = status === 'returned' ? await itsProveLastWork(user, labKey) : null;
+      answer(lastWork ? { status, lastWork } : { status });
+      return;
+    }
+    if (status === 'waiting' || status === 'passed') { answer({ status, reason: 'already-submitted' }); return; }
+    const { work, reason } = itsCleanProveWork(data.work, moduleKey, labKey);
+    if (!work) { answer({ status, reason }); return; }
+    const saved = await itsSubmitLabAttempt(user, moduleKey, labKey, {
+      state: 'complete', score: null, rubricVersion: work.rubricVersion, scoringEngineVersion: 'instructor-review-v1',
+      result: { source: ITS_PROVE_SUBMIT, ...work },
+    });
+    if (!saved) {
+      // Refused or lost: the server's own answer says whether a row landed.
+      const after = await itsProveRefreshAttempt(user, moduleKey, labKey);
+      answer({ status: after || status, reason: 'save-failed' });
+      if (after && after !== status && onChange) onChange();
+      return;
+    }
+    answer({ saved: true, status: 'waiting' });
+    if (onChange) onChange();
+  } catch (err) {
+    console.error('Prove It: could not handle the message', labKey, err);
+    answer({ reason: 'unreadable' });
+  }
+}
+
+/* Faculty Lab Attempts: the student's work as plain text, with the writing
+ * first. Called from the shared review cards for every attempt; it renders only
+ * for a Help Desk Prove It lab. A decided attempt also shows its official grade. */
+function itsProveReviewPanel(row) {
+  const rubric = row && typeof HDESK_PROVE_RUBRICS !== 'undefined' ? HDESK_PROVE_RUBRICS[row.lab_key] : null;
+  if (!rubric) return '';
+  if (row.id) itsProvePanelRows.set(row.id, row);
+  const work = row.result || {};
+  if (work.kind !== 'hdesk-prove') {
+    return `<div class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" data-its-prove-panel="${esc(row.id)}"><strong>No readable Prove It package.</strong> This attempt didn't come from the simulator's Submit. Return it rather than approving it.</div>`;
+  }
+  if (work.shape === 'queue') return itsProveQueueReviewPanel(row, work);
+  const text = (value) => esc(String(value == null ? '' : value));
+  const writing = (label, value) => `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">${label}</h4><p class="mt-1 text-base text-gray-900 whitespace-pre-wrap leading-relaxed">${text(value) || '<span class="text-gray-500">Nothing written.</span>'}</p>`;
+  const fields = work.fields || {};
+  const fact = (label, value) => `<div><dt class="text-xs font-semibold text-gray-600">${label}</dt><dd class="text-sm text-gray-900">${text(value) || '—'}</dd></div>`;
+  const items = (values, empty) => (values.length ? `<ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-gray-900">${values.map((value) => `<li>${text(value)}</li>`).join('')}</ul>` : `<p class="mt-1 text-sm text-gray-500">${empty}</p>`);
+  const array = (value) => (Array.isArray(value) ? value : []);
+  // Since 2026-11-20 the work note is one box, sent as resolutionNote; an
+  // earlier attempt's work notes may still come with it.
+  const oneNote = work.noteIsResolution === true;
+  const notes = array(work.workNotes);
+  const opened =array(work.events).filter((entry) => entry && entry.type === 'evidence_opened').map((entry) => entry.label || entry.source);
+  const searches = array(work.events).filter((entry) => entry && entry.type === 'kb_search' && entry.value).map((entry) => `“${entry.value}”`);
+  const actions = array(work.events).filter((entry) => entry && entry.type === 'action_taken' && entry.label).map((entry) => `${entry.label}${entry.computer ? ` (on ${entry.computer})` : ''}`);
+  const commands = array(work.commands).filter(Boolean).map((entry) => `${entry.command}${entry.computer ? ` (on ${entry.computer})` : ''}`);
+  const machine = Object.entries(work.machine && typeof work.machine === 'object' ? work.machine : {}).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') || '(none)' : typeof value === 'object' ? JSON.stringify(value) : value}`);
+  return `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" data-its-prove-panel="${esc(row.id)}">
+    <h3 class="text-sm font-semibold text-[#1e3a5f]">Student's written work · ${text(work.ticketId)}</h3>
+    ${oneNote ? writing('Work note', work.resolutionNote) : writing('Resolution note', work.resolutionNote)}
+    ${writing('Reply to the user', work.userReply)}
+    ${oneNote && !notes.length ? '' : `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">${oneNote ? 'Earlier work notes' : 'Work notes'}</h4>
+    ${notes.length ? notes.map((note) => `<p class="mt-1 text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">${text(note)}</p>`).join('') : '<p class="mt-1 text-sm text-gray-500">No work notes.</p>'}`}
+    <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">Student's choices</h3>
+    <dl class="mt-1 grid gap-2 sm:grid-cols-3">${fact('Category', fields.category)}${fact('Type', fields.type)}${fact('Priority', fields.priority)}${fact('Diagnosis', work.diagnosis)}${fact('Decision', work.decision)}${oneNote ? `${fact('Assigned to', work.assignedTo)}${fact('Ticket state', work.ticketState)}${fact('Resolution code', work.resolutionCode)}` : ''}</dl>
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Steps the student says they took</h4>
+    ${items(array(work.stepTexts), 'None selected.')}
+    <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">What the student did in the simulator</h3>
+    <h4 class="mt-2 text-xs font-semibold uppercase tracking-wide text-gray-600">Evidence opened</h4>
+    ${items(opened, 'None recorded.')}
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Knowledge base searches</h4>
+    ${items(searches, 'None recorded.')}
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Actions in the simulator</h4>
+    ${items(actions, 'None recorded.')}
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Commands run</h4>
+    ${items(commands, 'None recorded.')}
+    ${work.passwordTyped === true ? '<p class="mt-1 text-sm font-semibold text-amber-900" data-its-prove-password>The student typed a password into the shell. The command was refused and the password was not saved.</p>' : ''}
+    ${work.passwordWritten === true ? '<p class="mt-1 text-sm font-semibold text-amber-900" data-its-prove-password-written>The student wrote a password in a ticket field. It was refused and not saved.</p>' : ''}
+    ${work.logTrimmed ? '<p class="mt-1 text-xs text-gray-500">The oldest recorded actions were left out to fit. All the student\'s writing is above.</p>' : ''}
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Laptop at submit</h4>
+    ${items(machine, 'Not recorded.')}
+    ${itsProveDecisionsHtml(row)}
+  </div>`;
+}
+
+/* A queue shift's work for the instructor: the student's writing first, in
+ * full (the rewrite, then every reason), then each ticket's choices in the
+ * student's work order, the arrival and the recorded actions. Tickets show
+ * their INC number and internal id: staff only. */
+function itsProveQueueReviewPanel(row, work) {
+  const text = (value) => esc(String(value == null ? '' : value));
+  const writing = (label, value) => `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">${label}</h4><p class="mt-1 text-base text-gray-900 whitespace-pre-wrap leading-relaxed">${text(value) || '<span class="text-gray-500">Nothing written.</span>'}</p>`;
+  // Only ticket objects: a row saved around the course page's cleaner can't
+  // break the staff list.
+  const tickets = Object.fromEntries(Object.entries(work.tickets && typeof work.tickets === 'object' ? work.tickets : {}).filter(([, ticket]) => ticket && typeof ticket === 'object'));
+  const name = (id) => (tickets[id] ? `${tickets[id].number || ''} (${id})` : String(id || ''));
+  const order = (Array.isArray(work.order) ? work.order : []).filter((id) => tickets[id]);
+  const listed = [...order, ...Object.keys(tickets).filter((id) => !order.includes(id))];
+  const rewrite = work.rewrite && typeof work.rewrite === 'object' ? work.rewrite : {};
+  const reasons = listed.filter((id) => String(tickets[id].reason || '').trim());
+  // The course page always saves positions that match the order. A row saved
+  // another way may not, and the automatic order checks read the positions.
+  const mismatch = listed.some((id) => tickets[id].position !== order.indexOf(id) + 1);
+  const levels = { 1: '1 – High', 2: '2 – Medium', 3: '3 – Low' };
+  const rows = listed.map((id) => {
+    const ticket = tickets[id];
+    return `<tr class="border-t border-gray-200"><td class="py-1 pr-3 font-semibold">${text(ticket.position)}</td><td class="py-1 pr-3">${text(name(id))}</td><td class="py-1 pr-3">${text(ticket.ticketClass)}</td><td class="py-1 pr-3">${text(levels[ticket.impact] || ticket.impact)}</td><td class="py-1 pr-3">${text(levels[ticket.urgency] || ticket.urgency)}</td><td class="py-1 pr-3">${text(ticket.priority)}</td><td class="py-1 pr-3">${ticket.parentId ? text(name(ticket.parentId)) : '—'}</td></tr>`;
+  }).join('');
+  const events = (Array.isArray(work.events) ? work.events : []).filter((entry) => entry && typeof entry.type === 'string');
+  const moves = events.filter((entry) => entry.type === 'order_changed').length;
+  const minutes = Number.isFinite(Number(work.elapsedSeconds)) ? Math.round(Number(work.elapsedSeconds) / 60) : null;
+  const interrupt = work.interrupt && typeof work.interrupt === 'object' ? work.interrupt : null;
+  const arrival = interrupt ? `${name(interrupt.ticketId)} arrived ${interrupt.reason === 'triaged' ? 'after the student triaged enough tickets' : interrupt.reason === 'minutes' ? 'on the time rule' : 'in an earlier attempt'}${interrupt.arrivedAt ? ` (${new Date(interrupt.arrivedAt).toLocaleString()})` : ''}.` : 'Not recorded.';
+  return `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" data-its-prove-panel="${esc(row.id)}" data-its-prove-shape="queue">
+    ${mismatch ? '<p class="mb-2 rounded border border-amber-200 bg-amber-50 p-2 text-sm font-semibold text-amber-900" data-its-prove-order-mismatch>The ticket positions don\'t match the work order, so this attempt wasn\'t saved by the course page. Return it rather than approving it.</p>' : ''}
+    <h3 class="text-sm font-semibold text-[#1e3a5f]">Student's written work · rewrite of ${text(name(rewrite.ticketId))}</h3>
+    ${writing('Rewritten short description', rewrite.shortDescription)}
+    ${writing('Rewritten description', rewrite.description)}
+    <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">Student's reasons</h3>
+    ${reasons.length ? reasons.map((id) => writing(`Reason on ${text(name(id))} (place ${text(tickets[id].position)})`, tickets[id].reason)).join('') : '<p class="mt-1 text-sm text-gray-500">No reasons written.</p>'}
+    <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">Student's queue, in their work order</h3>
+    <div class="mt-1 overflow-x-auto"><table class="w-full text-left text-sm text-gray-900"><thead><tr class="text-xs font-semibold text-gray-600"><th class="py-1 pr-3">Place</th><th class="py-1 pr-3">Ticket</th><th class="py-1 pr-3">Class</th><th class="py-1 pr-3">Impact</th><th class="py-1 pr-3">Urgency</th><th class="py-1 pr-3">Priority</th><th class="py-1 pr-3">Parent</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">What the student did in the simulator</h3>
+    <dl class="mt-1 grid gap-2 sm:grid-cols-3"><div><dt class="text-xs font-semibold text-gray-600">Time used</dt><dd class="text-sm text-gray-900">${minutes == null ? '—' : `${text(minutes)} min`}</dd></div><div><dt class="text-xs font-semibold text-gray-600">Work order moves</dt><dd class="text-sm text-gray-900">${text(moves)}</dd></div><div><dt class="text-xs font-semibold text-gray-600">New ticket</dt><dd class="text-sm text-gray-900">${text(arrival)}</dd></div></dl>
+    ${work.passwordWritten === true ? '<p class="mt-1 text-sm font-semibold text-amber-900" data-its-prove-password-written>The student wrote a password in a ticket field. It was refused and not saved.</p>' : ''}
+    ${work.logTrimmed ? '<p class="mt-1 text-xs text-gray-500">The oldest recorded actions were left out to fit. All the student\'s writing is above.</p>' : ''}
+    ${itsProveDecisionsHtml(row)}
+  </div>`;
+}
+
+/* ---------- Faculty grading sheet for a Help Desk Prove It ----------
+ * The server (record_lab_grade) enforces every rule here; the sheet only says
+ * what the instructor still has to do. The pass mark comes from the attempt's
+ * pass_threshold, which the database sets on every student insert. */
+
+// Reads what the instructor has typed so far. Pure, so it can be tested:
+// values = { points: { id: text }, why: { id: text }, critical: boolean, criticalReason: text,
+//   parts: { partId: text }, acknowledged: boolean }.
+// rec: the system's recommendation (status 'scored'), or null. With one, a
+// pre-filled competency the instructor changed needs a reason of their own,
+// the writing (judgment parts) is entered by hand and must be acknowledged,
+// and both Approve and Return wait for that.
+// A critical error is an automatic zero: every competency is saved as 0
+// (record_lab_grade does it too), so the typed points and writing parts are
+// ignored and need no justification; a reason and, with a recommendation,
+// the writing acknowledgement are still required, and only Return is open.
+// A recommendation the system zeroed keeps the points its criteria found
+// (earned_before_critical): clearing the critical error starts from those.
+function itsProveGradeState(rubric, passMark, values, rec = null) {
+  const mark = Number(passMark || NaN);
+  const critical = values.critical === true;
+  const criticalReason = String(values.criticalReason ?? '').trim();
+  const found = (comp, field) => (Number.isInteger(comp[`${field}_before_critical`]) ? comp[`${field}_before_critical`] : comp[field]);
+  const recComps = rec && rec.status === 'scored' && Array.isArray(rec.competencies) ? rec.competencies : [];
+  const recFor = (id) => recComps.find((comp) => comp && comp.id === id) || null;
+  const partsOf = (comp) => (comp && comp.judgment && Array.isArray(comp.parts) ? comp.parts : []);
+  const partValues = values.parts || {};
+  const writing = recComps.filter((comp) => comp.judgment).map((comp) => {
+    const parts = partsOf(comp).map((part) => {
+      const raw = critical ? '0' : String(partValues[part.id] ?? '').trim();
+      const valid = /^\d+$/.test(raw) && Number(raw) <= Number(part.points);
+      return { ...part, suggested: found(part, 'suggested'), raw, valid, entered: valid ? Number(raw) : null };
+    });
+    return { id: comp.id, label: comp.label, parts, complete: parts.length > 0 && parts.every((part) => part.valid) };
+  });
+  const writingIds = new Set(writing.map((comp) => comp.id));
+  const rows = rubric.competencies.map((item) => {
+    const hand = writing.find((comp) => comp.id === item.id);
+    const raw = critical ? '0' : hand ? (hand.complete ? String(hand.parts.reduce((sum, part) => sum + part.entered, 0)) : '')
+      : String((values.points || {})[item.id] ?? '').trim();
+    const valid = /^\d+$/.test(raw) && Number(raw) <= item.points;
+    const recComp = writingIds.has(item.id) ? null : recFor(item.id);
+    const recommended = recComp && Number.isInteger(found(recComp, 'earned')) ? found(recComp, 'earned') : null;
+    return { ...item, raw, valid, earned: valid ? Number(raw) : null, why: String((values.why || {})[item.id] ?? '').trim(),
+      recommended, prefilled: recComp ? String(recComp.student_feedback || '').trim() : '' };
+  });
+  const changed = critical ? [] : rows.filter((row) => row.recommended !== null && row.valid && row.earned !== row.recommended);
+  const missingChange = changed.filter((row) => !row.why || row.why === row.prefilled).map((row) => row.label);
+  const writingMissing = critical ? [] : writing.filter((comp) => !comp.complete).map((comp) => comp.label);
+  const writingInvalid = writing.some((comp) => comp.parts.some((part) => part.raw !== '' && !part.valid));
+  const acknowledged = values.acknowledged === true;
+  const fromRecommendation = recComps.length > 0;
+  const entered = rows.some((row) => row.raw !== '');
+  const invalid = rows.some((row) => row.raw !== '' && !row.valid) || writingInvalid;
+  const allScored = rows.every((row) => row.valid);
+  const missingWhy = critical ? [] : rows.filter((row) => row.valid && row.earned < row.points && !row.why).map((row) => row.label);
+  const total = allScored ? rows.reduce((sum, row) => sum + row.earned, 0) : null;
+  const score = critical ? 0 : total;
+  // With a recommendation, nothing can be decided until the writing is read
+  // and entered and every change has its own reason.
+  const gate = !fromRecommendation ? ''
+    : writingInvalid ? 'Each writing part takes whole points from 0 to its maximum.'
+    : writingMissing.length ? `Enter the ${writing.flatMap((comp) => comp.parts.map((part) => part.label.toLowerCase())).join(' and ')} scores by hand.`
+    : writing.length && !acknowledged ? (rubric.writingAck ? 'Tick that you have read the student\'s writing.' : 'Tick that you have read the student\'s work note and reply to the user.')
+    : missingChange.length ? `Say why you changed: ${missingChange.join(', ')}.`
+    : '';
+  const reasonGate = critical && !criticalReason ? 'Give the reason for the critical error.' : '';
+  const blocked = gate || reasonGate || (invalid ? 'Points must be whole numbers from 0 to each competency\'s maximum.'
+    : !allScored ? 'Score every competency to approve.'
+    : missingWhy.length ? `Justify the points for: ${missingWhy.join(', ')}.`
+    : critical ? 'A critical error can\'t pass. Use Return.'
+    : !(score >= mark) ? `Below ${mark}%. A failing attempt is returned, never approved: use Return.`
+    : '');
+  const canReturn = !reasonGate && (!fromRecommendation || (!gate && !invalid && allScored));
+  const zero = 'Critical error: automatic zero · Final 0';
+  // Cleared on a recommendation the system zeroed: the points its criteria found.
+  const sumFound = (judgment) => recComps.filter((comp) => !!comp.judgment === judgment)
+    .reduce((sum, comp) => sum + (Number(found(comp, judgment ? 'suggested' : 'earned')) || 0), 0);
+  const totalLine = !fromRecommendation
+    ? (critical ? zero : total === null ? 'Total: not scored yet' : `Total: ${total} / 100`)
+    : [`Checked automatically: ${critical ? rec.automatic_earned : sumFound(false)} of ${rec.automatic_points}`,
+      `Writing: suggested ${critical ? rec.writing_suggested : sumFound(true)} of ${rec.writing_points}`,
+      critical ? zero : total === null ? '' : `Final ${total}`].filter(Boolean).join(' · ');
+  return { rows, entered, invalid, allScored, missingWhy, critical, criticalReason, total, score, canApprove: !blocked,
+    blocked, canReturn, changed, missingChange, writing, acknowledged, fromRecommendation, totalLine };
+}
+
+/* ---------- The system's recommendation on the grading card ----------
+ * Read from lab_attempt_recommendations, which only staff can read, after
+ * Lab Attempts draws; each Prove It card is then drawn again with it. Keyed
+ * by attempt id: undefined = not loaded yet, null = none. */
+const itsProveRecommendations = new Map();
+const itsProveReviews = new Map(); // attempt id -> lab_attempt_grade_reviews rows
+const itsProveCards = new Map(); // attempt id -> { item, olderAttempt } as last drawn
+const itsProvePanelRows = new Map(); // attempt id -> row its review panel was drawn from
+
+function itsProveDay(value) {
+  return value ? new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+}
+
+// The "System rubric" box. Staff reasons only: student lines are pre-filled
+// into the justification boxes, never shown here as the system's words.
+function itsProveRecommendationHtml(row, rec) {
+  const box = (inner) => `<section class="mb-3 rounded-lg border border-gray-200 bg-gray-50 p-4" data-its-prove-recommendation="${esc(row.id)}" aria-label="System rubric">
+    <h3 class="text-sm font-semibold text-[#1e3a5f]">System rubric <span class="font-normal text-gray-500">(recommendation, your review decides)</span></h3>${inner}</section>`;
+  // Automatic scoring isn't set up on this database yet: the card is as before.
+  if (rec && rec.status === 'not_enabled') return '';
+  if (rec === undefined) return box('<p class="mt-1 text-sm text-gray-600" data-its-prove-rec-status="loading">Loading the system\'s recommendation…</p>');
+  if (rec && rec.status === 'unavailable') return box('<p class="mt-1 text-sm text-amber-900" data-its-prove-rec-status="unavailable">The system\'s recommendation couldn\'t be loaded. Reload this page before deciding.</p>');
+  const decided = !!(row.reviewed_at || row.official_grade);
+  const canRescore = !decided && (!rec || rec.status === 'no_key' || rec.status === 'error');
+  const rescore = canRescore ? `<div class="mt-2 flex flex-wrap items-center gap-2"><button type="button" data-its-prove-rescore="${esc(row.id)}" class="bg-white border border-[#1e3a5f] text-[#1e3a5f] font-semibold text-sm px-3 py-1.5 rounded-lg">Score this attempt</button><span data-its-prove-rescore-status class="text-xs text-gray-600" role="status"></span></div>` : '';
+  if (!rec || rec.status !== 'scored') {
+    const why = !rec || rec.status === 'no_key' ? 'no answer key is loaded for this lab'
+      : rec.status === 'version_mismatch' ? `the attempt's rubric version (${rec.rubric_version || 'none'}) doesn't match the key (${rec.key_rubric_version || 'none'})`
+      : 'scoring failed';
+    return box(`<p class="mt-1 text-sm text-gray-700" data-its-prove-rec-status="${esc(rec ? rec.status : 'none')}">No recommendation: ${esc(why)}. Grade it by hand.</p>
+      ${rec && rec.status === 'error' && rec.error ? `<p class="mt-1 text-xs text-gray-500" data-its-prove-rec-error>Scoring error: ${esc(rec.error)}</p>` : ''}${rescore}`);
+  }
+  const how = rec.scored_on === 'rescore' ? `Scored by the system on rescore, ${itsProveDay(rec.rescored_at)}` : 'Scored by the system at submit';
+  const reasonList = (criteria, suggested) => `<ul class="mt-1 space-y-0.5 text-xs text-gray-700">${(criteria || []).map((c) => `<li>${suggested ? '<span class="font-semibold text-amber-800">Suggested: check this.</span> ' : ''}${c.met === 'met' ? '✓' : c.met === 'partial' ? '◐' : '✗'} ${esc(String(c.reason || ''))} <span class="text-gray-500">(${esc(String(c.earned))} / ${esc(String(c.points))})</span></li>`).join('')}</ul>`;
+  // A critical error zeroes every competency; what the criteria found stays
+  // beside it, so the instructor sees what was done.
+  const foundNote = (value) => (rec.critical_error && Number.isInteger(value) ? ` <span class="font-normal text-gray-500">(criteria found ${esc(String(value))})</span>` : '');
+  const comps = (rec.competencies || []).map((comp) => comp.judgment
+    ? `<div class="px-3 py-2" data-its-prove-rec-comp="${esc(comp.id)}"><div class="flex justify-between gap-3"><span class="text-gray-700">${esc(comp.label)}</span><span class="font-semibold text-amber-800">Suggested ${esc(String(comp.suggested))} / ${esc(String(comp.points))}${foundNote(comp.suggested_before_critical)}</span></div>
+        ${(comp.parts || []).map((part) => `<div class="mt-1 pl-3"><p class="text-xs font-semibold text-gray-700">${esc(part.label)}: suggested ${esc(String(part.suggested))} of ${esc(String(part.points))}${foundNote(part.suggested_before_critical)}</p>${reasonList(part.criteria, true)}</div>`).join('')}</div>`
+    : `<div class="px-3 py-2" data-its-prove-rec-comp="${esc(comp.id)}"><div class="flex justify-between gap-3"><span class="text-gray-700">${esc(comp.label)}</span><span class="font-semibold ${comp.earned >= comp.points ? 'text-green-700' : 'text-amber-700'}">${esc(String(comp.earned))} / ${esc(String(comp.points))}${foundNote(comp.earned_before_critical)}</span></div>${reasonList(comp.criteria, false)}</div>`).join('');
+  const critical = rec.critical_error ? `<p class="mt-2 text-sm text-red-800" data-its-prove-rec-critical><strong>Critical error: automatic zero.</strong> ${esc((rec.critical_reasons || []).map((c) => c.reason).join('; '))} Every competency is recommended as 0.</p>` : '';
+  return box(`<p class="mt-1 text-xs text-gray-500" data-its-prove-rec-how>${esc(how)} · Key ${esc(String(rec.key_rubric_version || ''))} · revision ${esc(String(rec.key_revision ?? ''))}</p>
+    <p class="mt-1 text-xs text-gray-600" data-its-prove-rec-evidence>Scored from the work and actions the student's browser recorded. Check the evidence above before approving.</p>
+    <div class="mt-2 divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white text-sm">${comps}</div>
+    <p class="mt-2 text-sm font-semibold text-gray-800" data-its-prove-rec-total>Checked automatically: ${esc(String(rec.automatic_earned))} of ${esc(String(rec.automatic_points))} · Writing: suggested ${esc(String(rec.writing_suggested))} of ${esc(String(rec.writing_points))}</p>
+    ${critical}`);
+}
+
+// What a past decision recommended and changed (staff only; reviews are
+// matched to their decision by its time, the same transaction's now()).
+function itsProveReviewLineHtml(grade, reviews) {
+  const review = (reviews || []).find((item) => item.created_at && grade.created_at && Date.parse(item.created_at) === Date.parse(grade.created_at));
+  if (!review) return '';
+  const recommended = review.recommended_score === null || review.recommended_score === undefined ? 'none'
+    : `${review.recommended_score}${review.recommended_critical ? ' (critical)' : ''}`;
+  const final = review.final_score === null || review.final_score === undefined ? 'no score' : review.final_score;
+  const changed = (review.changed || []).map((c) => c.id === 'critical' ? `Critical error (${c.recommended ? 'ticked' : 'not ticked'} → ${c.final ? 'ticked' : 'not ticked'})` : `${c.label || c.id} (${c.recommended} → ${c.final})`);
+  const writing = (review.writing_parts || []).map((p) => `${p.label} ${p.entered} (suggested ${p.suggested} of ${p.points})`);
+  return `<p class="mt-2 text-xs text-gray-600" data-its-prove-review-line>Recommended ${esc(String(recommended))} · Final ${esc(String(final))}${changed.length ? ` · changed: ${esc(changed.join(', '))}` : ' · no pre-filled score changed'}${writing.length ? ` · writing entered by hand: ${esc(writing.join(', '))}` : ''}${review.writing_acknowledged_at ? ` · writing read and acknowledged ${esc(new Date(review.writing_acknowledged_at).toLocaleString())}` : ''}</p>`;
+}
+
+// PostgREST/Postgres signals that the scoring tables aren't there yet: the
+// portal reaches production minutes after a merge, before the migration is
+// applied by hand. 42P01 undefined table, PGRST205 table missing from the
+// schema cache. Nothing can have been scored without them, so grading works
+// exactly as before.
+function itsProveScoringTablesMissing(error) {
+  if (!error) return false;
+  if (['42P01', 'PGRST205'].includes(error.code)) return true;
+  const text = `${error.message || ''} ${error.details || ''}`;
+  return /lab_attempt_recommendations|lab_attempt_grade_reviews/i.test(text) && /does not exist|schema cache|could not find/i.test(text);
+}
+
+// Loads the recommendations and decision reviews the cards don't have yet,
+// then draws those cards again. Staff policies apply: a student session gets
+// no rows.
+async function itsProveLoadRecommendations(ids) {
+  const wanted = ids.filter((id) => !itsProveRecommendations.has(id));
+  if (!wanted.length || typeof mntSupabase === 'undefined') return [];
+  const [recs, reviews] = await Promise.all([
+    mntSupabase.from('lab_attempt_recommendations').select('*').in('lab_attempt_id', wanted),
+    mntSupabase.from('lab_attempt_grade_reviews').select('*').in('lab_attempt_id', wanted),
+  ]);
+  if (itsProveScoringTablesMissing(recs.error) || itsProveScoringTablesMissing(reviews.error)) {
+    wanted.forEach((id) => { itsProveRecommendations.set(id, { status: 'not_enabled' }); itsProveReviews.set(id, []); });
+    return wanted;
+  }
+  if (recs.error || reviews.error) {
+    console.error('Prove It recommendations could not be loaded', recs.error || reviews.error);
+    // Not "no key": the card asks for a reload, and the database refuses a
+    // first decision without the recommendation anyway.
+    wanted.forEach((id) => itsProveRecommendations.set(id, { status: 'unavailable' }));
+    return wanted;
+  }
+  wanted.forEach((id) => {
+    itsProveRecommendations.set(id, (recs.data || []).find((row) => row.lab_attempt_id === id) || null);
+    itsProveReviews.set(id, (reviews.data || []).filter((row) => row.lab_attempt_id === id));
+  });
+  return wanted;
+}
+
+function itsProveGradingCard(item, olderAttempt) {
+  const row = item.lead;
+  const rubric = row && typeof HDESK_PROVE_RUBRICS !== 'undefined' ? HDESK_PROVE_RUBRICS[row.lab_key] : null;
+  if (!rubric) return '';
+  itsProveCards.set(row.id, { item, olderAttempt });
+  const rec = itsProveRecommendations.get(row.id);
+  const scored = rec && rec.status === 'scored' ? rec : null;
+  const recComp = (id) => (scored && Array.isArray(scored.competencies) ? scored.competencies.find((comp) => comp.id === id) : null) || null;
+  const label = 'text-xs font-semibold text-gray-600';
+  const box = 'class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"';
+  const writing = scored ? scored.competencies.filter((comp) => comp.judgment) : [];
+  const suggestedParts = writing.flatMap((comp) => comp.parts || []);
+  // A recommendation the system zeroed pre-fills what its criteria found, for
+  // an instructor who clears the critical error; while it's ticked the boxes
+  // are locked and everything saves as 0.
+  const found = (item, field) => (Number.isInteger(item[`${field}_before_critical`]) ? item[`${field}_before_critical`] : item[field]);
+  const zeroed = !!(scored && scored.critical_error);
+  const suggestion = (part) => (zeroed ? `Suggested 0 of ${part.points} while the critical error stands (${found(part, 'suggested')} without it)` : `Suggested ${part.suggested} of ${part.points}`);
+  const competencyBox = (competency) => {
+    const comp = recComp(competency.id);
+    const why = comp && comp.student_feedback ? esc(String(comp.student_feedback)) : '';
+    if (comp && comp.judgment) {
+      // The writing: entered by hand, part by part, never pre-filled.
+      return `<div class="rounded-lg border border-amber-200 bg-white p-3" data-its-prove-writing="${esc(competency.id)}">
+        <p class="text-sm font-semibold text-gray-900">${esc(competency.label)} <span class="font-normal text-gray-600">/ ${esc(String(competency.points))}, entered by hand</span></p>
+        ${(comp.parts || []).map((part) => `<label class="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm text-gray-900">${esc(part.label)}
+          <span class="font-normal text-gray-600"><input type="number" inputmode="numeric" min="0" max="${esc(String(part.points))}" step="1" data-its-prove-part="${esc(part.id)}" aria-label="${esc(part.label)} points" class="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right" /> / ${esc(String(part.points))} <span class="ml-2 text-xs text-amber-800" data-its-prove-suggested="${esc(part.id)}">${esc(suggestion(part))}</span></span>
+        </label>`).join('')}
+        <label class="mt-2 block ${label}">Justification (required below full points)
+          <textarea rows="2" data-its-prove-why="${esc(competency.id)}" ${box}>${why}</textarea>
+        </label>
+      </div>`;
+    }
+    const prefill = comp && Number.isInteger(found(comp, 'earned')) ? ` value="${esc(String(found(comp, 'earned')))}"` : '';
+    return `<div class="rounded-lg border border-gray-200 bg-white p-3">
+        <label class="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-gray-900">${esc(competency.label)}
+          <span class="font-normal text-gray-600"><input type="number" inputmode="numeric" min="0" max="${esc(String(competency.points))}" step="1" data-its-prove-points="${esc(competency.id)}"${prefill} aria-label="${esc(competency.label)} points" class="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right" /> / ${esc(String(competency.points))}</span>
+        </label>
+        ${comp ? `<p class="mt-1 text-xs font-semibold text-amber-800" data-its-prove-changed="${esc(competency.id)}" hidden></p>` : ''}
+        <label class="mt-2 block ${label}">Justification (required below full points${comp ? '; a changed score needs your own reason' : ''})
+          <textarea rows="2" data-its-prove-why="${esc(competency.id)}" ${box}>${why}</textarea>
+        </label>
+      </div>`;
+  };
+  return `<article class="bg-white border border-gray-200 rounded-xl p-5" data-grading-row="${esc(row.id)}" data-its-prove-grade="${esc(row.id)}" data-lab-key="${esc(row.lab_key)}" data-pass-mark="${esc(String(row.pass_threshold ?? ''))}"${scored ? ` data-recommendation-id="${esc(scored.id)}"` : ''}>
+    <div class="mb-3">
+      <p class="text-sm font-semibold text-[#1e3a5f]">${esc(item.name)}${row.attempt ? ` <span class="font-normal text-gray-500">· ${esc(adminAttemptLabel(row))}</span>` : ''}</p>
+      <p class="text-xs text-gray-500 mt-0.5">${esc(item.labTitles.join(' · '))} <span class="text-gray-400">·</span> <span class="font-mono">${esc(row.student_id)}</span>${typeof accountNameHtml === 'function' ? accountNameHtml(row, true) : ''}</p>
+      ${olderAttempt ? '<p class="mt-1 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Older attempt — a newer submission of this lab is below</p>' : ''}
+      <p class="text-xs text-gray-400 mt-0.5">Submitted ${row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}</p>
+    </div>
+    ${itsProveReviewPanel(row)}
+    ${itsProveRecommendationHtml(row, rec)}
+    <section class="mb-3 rounded-lg border border-gray-200 bg-gray-50 p-4" aria-label="Rubric">
+      <h3 class="text-sm font-semibold text-[#1e3a5f]">Rubric ${esc(rubric.version)}</h3>
+      <p class="mt-1 text-sm text-gray-700">${esc(rubric.partialCredit)}</p>
+      <div class="mt-3 space-y-3">${rubric.competencies.map(competencyBox).join('')}</div>
+      ${suggestedParts.length ? `<label class="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-gray-900"><input type="checkbox" data-its-prove-writing-ack class="mt-0.5" /> ${esc(rubric.writingAck || 'I have read the student\'s work note and reply to the user.')} Suggested scores: ${esc(suggestedParts.map((part) => String(part.suggested)).join(' and '))}${zeroed ? ' (critical error: automatic zero)' : ''}.</label>` : ''}
+      ${(rubric.formative || []).map((entry) => `<label class="mt-3 block ${label}">${esc(entry.label)} feedback (earns no points)
+        <textarea rows="2" data-its-prove-efficiency ${box}></textarea>
+      </label>`).join('')}
+      <div class="mt-3 rounded-lg border border-gray-200 bg-white p-3">
+        <label class="flex items-center gap-2 text-sm font-semibold text-gray-900"><input type="checkbox" data-its-prove-critical${scored && scored.critical_error ? ' checked' : ''} /> Critical error</label>
+        <p class="mt-1 text-xs text-gray-600">${esc(rubric.criticalErrorRule)}</p>
+        <label class="mt-2 block ${label}" data-its-prove-critical-reason-row hidden>Reason (required)
+          <textarea rows="2" data-its-prove-critical-reason ${box}>${scored && scored.critical_error ? esc((scored.critical_reasons || []).map((c) => c.feedback).filter(Boolean).join(' ')) : ''}</textarea>
+        </label>
+      </div>
+      <p class="mt-3 text-base font-bold text-[#1e3a5f]" data-its-prove-total aria-live="polite">Total: not scored yet</p>
+      <label class="mt-3 block ${label}">Notes to the student (a return needs at least one note)
+        <textarea rows="3" data-its-prove-note ${box}></textarea>
+      </label>
+    </section>
+    <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
+      <button type="button" data-its-prove-decide="approved" disabled class="bg-green-700 hover:bg-green-800 text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Approve</button>
+      <button type="button" data-its-prove-decide="returned"${scored ? ' disabled' : ''} class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Return</button>
+      <span data-its-prove-blocked class="text-xs text-gray-600"></span>
+      <span data-grading-status class="text-xs text-gray-600" role="status"></span>
+    </div>
+    <details class="mt-3 text-sm">
+      <summary class="cursor-pointer font-semibold text-[#1e3a5f]">Full raw result (for debugging)</summary>
+      <pre class="mt-2 bg-gray-50 border border-gray-100 rounded-lg p-3 text-xs text-gray-600 overflow-x-auto">${esc(JSON.stringify(row.result ?? {}, null, 2))}</pre>
+    </details>
+  </article>`;
+}
+
+function itsProveReadSheet(sheet) {
+  const pick = (attr) => Object.fromEntries(Array.from(sheet.querySelectorAll(`[${attr}]`)).map((el) => [el.getAttribute(attr), el.value]));
+  const fromRecommendation = !!(sheet.dataset && sheet.dataset.recommendationId);
+  return {
+    points: pick('data-its-prove-points'),
+    why: pick('data-its-prove-why'),
+    critical: !!sheet.querySelector('[data-its-prove-critical]')?.checked,
+    criticalReason: sheet.querySelector('[data-its-prove-critical-reason]')?.value || '',
+    parts: fromRecommendation ? pick('data-its-prove-part') : {},
+    acknowledged: fromRecommendation && !!sheet.querySelector('[data-its-prove-writing-ack]')?.checked,
+  };
+}
+
+// The recommendation a card was drawn with (status 'scored'), or null.
+function itsProveSheetRecommendation(sheet) {
+  const rec = sheet.dataset && sheet.dataset.recommendationId ? itsProveRecommendations.get(sheet.dataset.itsProveGrade) : null;
+  return rec && rec.status === 'scored' && rec.id === sheet.dataset.recommendationId ? rec : null;
+}
+
+function itsProveRefreshSheet(sheet) {
+  const rubric = HDESK_PROVE_RUBRICS[sheet.dataset.labKey];
+  const state = itsProveGradeState(rubric, sheet.dataset.passMark, itsProveReadSheet(sheet), itsProveSheetRecommendation(sheet));
+  sheet.querySelector('[data-its-prove-critical-reason-row]').hidden = !state.critical;
+  sheet.querySelector('[data-its-prove-total]').textContent = state.totalLine;
+  sheet.querySelector('[data-its-prove-decide="approved"]').disabled = !state.canApprove;
+  const returnButton = sheet.querySelector('[data-its-prove-decide="returned"]');
+  if (returnButton) returnButton.disabled = !state.canReturn;
+  sheet.querySelector('[data-its-prove-blocked]').textContent = state.blocked;
+  // A critical error is an automatic zero: the points aren't used.
+  sheet.querySelectorAll('[data-its-prove-points], [data-its-prove-part]').forEach((input) => { input.disabled = state.critical; });
+  const changedIds = new Set(state.changed.map((row) => row.id));
+  state.rows.filter((row) => row.recommended !== null).forEach((row) => {
+    const marker = sheet.querySelector(`[data-its-prove-changed="${row.id}"]`);
+    if (!marker) return;
+    const changed = changedIds.has(row.id);
+    marker.hidden = !changed;
+    marker.textContent = changed ? `Changed from ${row.recommended}: say why in the justification.` : '';
+  });
+}
+
+async function itsProveSubmitDecision(sheet, button, onSaved) {
+  const status = sheet.querySelector('[data-grading-status]');
+  const decision = button.dataset.itsProveDecide;
+  const rubric = HDESK_PROVE_RUBRICS[sheet.dataset.labKey];
+  const rec = itsProveSheetRecommendation(sheet);
+  const state = itsProveGradeState(rubric, sheet.dataset.passMark, itsProveReadSheet(sheet), rec);
+  if (state.fromRecommendation && (decision === 'approved' ? !state.canApprove : !state.canReturn)) { status.textContent = state.blocked; return; }
+  if (state.invalid || (state.entered && !state.allScored)) { status.textContent = 'Score every competency, or clear them all to return with no score.'; return; }
+  if (state.missingWhy.length) { status.textContent = `Justify the points for: ${state.missingWhy.join(', ')}.`; return; }
+  const buttons = sheet.querySelectorAll('[data-its-prove-decide]');
+  buttons.forEach((b) => { b.disabled = true; });
+  status.textContent = 'Saving…';
+  const { error } = await mntSupabase.rpc('record_lab_grade', {
+    p_attempt_id: sheet.dataset.itsProveGrade,
+    p_decision: decision,
+    p_competencies: state.allScored ? state.rows.map((row) => ({ id: row.id, label: row.label, points: row.points, earned: row.earned, justification: row.why })) : [],
+    p_critical_error: state.critical,
+    p_critical_reason: state.criticalReason,
+    p_efficiency: sheet.querySelector('[data-its-prove-efficiency]')?.value || '',
+    p_note: sheet.querySelector('[data-its-prove-note]')?.value || '',
+    p_rubric_version: rubric.version,
+    ...(rec ? {
+      p_recommendation_id: rec.id,
+      p_writing_parts: state.writing.flatMap((comp) => comp.parts.map((part) => ({ competency: comp.id, id: part.id, earned: part.entered }))),
+      p_writing_acknowledged: state.acknowledged,
+    } : {}),
+  });
+  if (error) {
+    console.error('record_lab_grade failed', error);
+    status.textContent = `Not saved: ${error.message}`;
+    buttons.forEach((b) => { b.disabled = false; });
+    itsProveRefreshSheet(sheet);
+    return;
+  }
+  status.textContent = 'Saved. Refreshing…';
+  itsProveRecommendations.delete(sheet.dataset.itsProveGrade);
+  await onSaved();
+}
+
+// Staff: score an attempt that has no recommendation or whose scoring failed.
+async function itsProveRescore(button, onSaved) {
+  const id = button.dataset.itsProveRescore;
+  const status = button.parentElement && button.parentElement.querySelector('[data-its-prove-rescore-status]');
+  button.disabled = true;
+  if (status) status.textContent = 'Scoring…';
+  const { data, error } = await mntSupabase.rpc('rescore_lab_attempt', { p_attempt_id: id });
+  if (error) {
+    console.error('rescore_lab_attempt failed', error);
+    if (status) status.textContent = `Not scored: ${error.message}`;
+    button.disabled = false;
+    return;
+  }
+  if (status) status.textContent = data && data.status === 'scored' ? 'Scored. Refreshing…' : 'Still no recommendation. Refreshing…';
+  itsProveRecommendations.delete(id);
+  await onSaved();
+}
+
+/* A decided attempt: the official grade, read-only. */
+// Lab Attempts: every decision on this attempt, newest first. Older ones start
+// collapsed. Only a correction adds a second decision (record_lab_grade), so a
+// decision that isn't the newest was replaced by one.
+function itsProveDecisionLabel(grade) {
+  const decision = grade.decision === 'approved' ? 'Approved' : 'Returned';
+  const score = grade.critical_error ? 'critical error: automatic zero' : grade.official_score === null || grade.official_score === undefined ? 'no score entered' : `${grade.official_score}%`;
+  const day = grade.created_at ? new Date(grade.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'date not recorded';
+  return `${decision} ${score}, ${day}`;
+}
+
+function itsProveDecisionsHtml(row) {
+  if (!row.official_grade) return '';
+  const history = Array.isArray(row.official_grade_history) ? row.official_grade_history : [];
+  if (!history.length) {
+    return `${itsProveGradeSummaryHtml(row.official_grade)}<p class="mt-2 text-sm text-amber-900" data-its-prove-history-missing>Earlier decisions and saved notes couldn't be loaded. Reload this page to try again.</p>`;
+  }
+  const [current, ...older] = history;
+  const reviews = itsProveReviews.get(row.id) || [];
+  return `<div class="mt-4" data-its-prove-decisions>
+    <h3 class="text-sm font-semibold text-[#1e3a5f]">Current decision: ${esc(itsProveDecisionLabel(current))}</h3>
+    ${itsProveGradeSummaryHtml(current)}${itsProveReviewLineHtml(current, reviews)}
+    ${older.map((grade) => `<details class="mt-3 rounded-lg border border-gray-200 bg-white px-3 py-2" data-its-prove-older-decision>
+      <summary class="cursor-pointer text-sm font-semibold text-[#1e3a5f]">${esc(itsProveDecisionLabel(grade))}, replaced by a correction</summary>
+      ${itsProveGradeSummaryHtml(grade)}${itsProveReviewLineHtml(grade, reviews)}
+    </details>`).join('')}
+  </div>`;
+}
+
+// The notes saved with a decision, leaving out the ones the summary already
+// shows beside their competency, Efficiency or the critical error.
+function itsProveDecisionNotes(grade) {
+  const scores = Array.isArray(grade.competency_scores) ? grade.competency_scores : [];
+  const shown = new Set([
+    ...scores.filter((item) => item.justification).map((item) => `${item.label || item.id}|${String(item.justification).trim()}`),
+    `Efficiency|${String(grade.efficiency_feedback || '').trim()}`,
+    `Critical error|${String(grade.critical_error_reason || '').trim()}`,
+  ]);
+  return (grade.notes || []).filter((note) => String(note.comment || '').trim() && !shown.has(`${note.item_label}|${String(note.comment).trim()}`));
+}
+
+function itsProveGradeSummaryHtml(grade) {
+  const scores = Array.isArray(grade.competency_scores) ? grade.competency_scores : [];
+  return `<div class="mt-4 rounded-lg border border-gray-200 bg-white p-3" data-its-prove-grade-summary>
+    <h3 class="text-sm font-semibold text-[#1e3a5f]">Official grade: ${grade.critical_error ? 'Critical error: automatic zero' : grade.official_score === null || grade.official_score === undefined ? 'no score entered' : `${esc(String(grade.official_score))}%`} · ${grade.decision === 'approved' ? 'Approved' : 'Returned'}</h3>
+    ${scores.length ? `<ul class="mt-2 space-y-1 text-sm text-gray-900">${scores.map((item) => `<li><strong>${esc(String(item.label || item.id))}:</strong> ${esc(String(item.earned))} / ${esc(String(item.points))}${item.justification ? ` <span class="text-gray-600">· ${esc(String(item.justification))}</span>` : ''}</li>`).join('')}</ul>` : ''}
+    ${grade.critical_error ? `<p class="mt-2 text-sm text-red-800"><strong>Critical error:</strong> ${esc(String(grade.critical_error_reason || ''))}</p>` : ''}
+    ${grade.efficiency_feedback ? `<p class="mt-2 text-sm text-gray-800"><strong>Efficiency:</strong> ${esc(String(grade.efficiency_feedback))}</p>` : ''}
+    ${grade.correction_reason ? `<p class="mt-2 text-sm text-gray-800"><strong>Correction:</strong> ${esc(String(grade.correction_reason))}</p>` : ''}
+    ${itsProveDecisionNotes(grade).length ? `<h4 class="mt-2 text-xs font-semibold text-gray-600">Notes sent to the student</h4><ul class="mt-1 space-y-1 text-sm text-gray-900">${itsProveDecisionNotes(grade).map((note) => `<li>${note.item_label ? `<strong>${esc(String(note.item_label))}:</strong> ` : ''}${esc(String(note.comment))}</li>`).join('')}</ul>` : ''}
+    ${grade.created_at ? `<p class="mt-2 text-xs text-gray-500">Decided ${esc(new Date(grade.created_at).toLocaleString())}</p>` : ''}
+  </div>`;
+}
+
+/* An approved newest attempt can be returned for another attempt. The full
+ * correction screen comes later; the server already records corrections. */
+function itsProveReturnActionHtml(row, isNewest) {
+  if (!isNewest || !row || !row.official_grade || row.official_grade.decision !== 'approved') return '';
+  const box = 'class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]/20"';
+  return `<details class="mt-3 rounded-lg border border-gray-200 bg-white px-3 py-2" data-its-prove-correction="${esc(row.id)}">
+    <summary class="cursor-pointer text-sm font-semibold text-[#1e3a5f]">Return for another attempt</summary>
+    <p class="mt-2 text-sm text-gray-700">Use this if the approval was a mistake. The module stops counting as complete and the student gets one new attempt. Hours already awarded don't change.</p>
+    <label class="mt-2 block text-xs font-semibold text-gray-600">Why you are correcting this decision (kept in the record)
+      <textarea rows="2" data-its-prove-correction-reason ${box}></textarea>
+    </label>
+    <label class="mt-2 block text-xs font-semibold text-gray-600">Note to the student (required)
+      <textarea rows="2" data-its-prove-correction-note ${box}></textarea>
+    </label>
+    <div class="mt-2 flex flex-wrap items-center gap-2">
+      <button type="button" data-its-prove-correction-submit class="bg-[#1e3a5f] hover:bg-[#16324a] text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">Return</button>
+      <span data-grading-status class="text-xs text-gray-600" role="status"></span>
+    </div>
+  </details>`;
+}
+
+async function itsProveSubmitCorrection(panel, onSaved) {
+  const status = panel.querySelector('[data-grading-status]');
+  const button = panel.querySelector('[data-its-prove-correction-submit]');
+  button.disabled = true;
+  status.textContent = 'Saving…';
+  const { error } = await mntSupabase.rpc('record_lab_grade', {
+    p_attempt_id: panel.dataset.itsProveCorrection,
+    p_decision: 'returned',
+    p_note: panel.querySelector('[data-its-prove-correction-note]').value,
+    p_correction_reason: panel.querySelector('[data-its-prove-correction-reason]').value,
+  });
+  if (error) {
+    console.error('record_lab_grade correction failed', error);
+    status.textContent = `Not saved: ${error.message}`;
+    button.disabled = false;
+    return;
+  }
+  status.textContent = 'Saved. Refreshing…';
+  await onSaved();
+}
+
+// Called after every Lab Attempts render; onSaved re-renders the tab.
+function itsProveWireSheet(sheet, onSaved) {
+  const refresh = () => itsProveRefreshSheet(sheet);
+  // Once the instructor types, a late recommendation never redraws the card.
+  sheet.addEventListener('input', () => { sheet.dataset.touched = '1'; });
+  sheet.addEventListener('input', refresh);
+  sheet.addEventListener('change', refresh);
+  sheet.querySelectorAll('[data-its-prove-decide]').forEach((button) => {
+    button.addEventListener('click', () => itsProveSubmitDecision(sheet, button, onSaved));
+  });
+  sheet.querySelectorAll('[data-its-prove-rescore]').forEach((button) => {
+    button.addEventListener('click', () => itsProveRescore(button, onSaved));
+  });
+  refresh();
+}
+
+function itsProveWireGrading(onSaved) {
+  document.querySelectorAll('[data-its-prove-grade]').forEach((sheet) => itsProveWireSheet(sheet, onSaved));
+  document.querySelectorAll('[data-its-prove-correction]').forEach((panel) => {
+    panel.querySelector('[data-its-prove-correction-submit]').addEventListener('click', () => itsProveSubmitCorrection(panel, onSaved));
+  });
+  // Then the recommendations: each card that gets one is drawn again. A card
+  // the instructor has started typing in is left alone.
+  const ids = Array.from(document.querySelectorAll('[data-its-prove-grade]')).map((sheet) => sheet.dataset.itsProveGrade)
+    .concat(Array.from(document.querySelectorAll('[data-its-prove-panel]')).map((panel) => panel.dataset.itsProvePanel));
+  return itsProveLoadRecommendations([...new Set(ids)]).then((loaded) => {
+    loaded.forEach((id) => {
+      const sheet = document.querySelector(`[data-its-prove-grade="${id}"]`);
+      const card = itsProveCards.get(id);
+      if (sheet && card && !sheet.dataset.touched) {
+        sheet.outerHTML = itsProveGradingCard(card.item, card.olderAttempt);
+        const fresh = document.querySelector(`[data-its-prove-grade="${id}"]`);
+        if (fresh) itsProveWireSheet(fresh, onSaved);
+        return;
+      }
+      // A decided attempt's panel: its decisions gain the review lines.
+      const panel = document.querySelector(`[data-its-prove-panel="${id}"]`);
+      const panelRow = itsProvePanelRows.get(id);
+      if (!sheet && panel && panelRow && (itsProveReviews.get(id) || []).length) panel.outerHTML = itsProveReviewPanel(panelRow);
+    });
+    return loaded;
+  });
+}
+
+/* The student's marked lab for a graded Prove It. A return shows the
+ * instructor's score if one was entered, with no pass/fail. A critical error
+ * shows "Critical Error - Not Passed" instead of any score or points
+ * (ITS_CRITICAL_RESULT); the notes, the critical error's among them, stay. */
+const ITS_CRITICAL_RESULT = 'Critical Error - Not Passed';
+
+function itsProveMarkedLabHtml(row, grade, feedback) {
+  if (!grade) return '';
+  const critical = grade.critical_error === true;
+  const passed = !critical && grade.decision === 'approved' && !row.redo_requested;
+  const scores = critical ? [] : Array.isArray(grade.competency_scores) ? grade.competency_scores : [];
+  const notes = latestDecisionNotes(feedback || [], grade).filter((item) => String(item.comment || '').trim());
+  const hasScore = !critical && grade.official_score !== null && grade.official_score !== undefined;
+  return `<div class="mnt-marked-lab-status" data-its-prove-marked="${critical ? 'critical' : passed ? 'passed' : 'returned'}">
+    <p class="font-semibold text-[#1e3a5f]">${esc(itsLabTitle(row.lab_key))}: ${critical ? ITS_CRITICAL_RESULT : passed ? 'Passed' : 'Returned for revision'}</p>
+    ${critical ? '<p class="mt-1 text-gray-800">Your instructor has returned it for another attempt.</p>' : ''}
+    ${hasScore ? `<p class="mt-1 text-gray-800">${passed ? 'Your score' : 'Your instructor\'s score'}: <strong>${esc(String(grade.official_score))}%</strong></p>` : ''}
+    ${scores.length ? `<ul class="mt-2 space-y-1">${scores.map((item) => `<li>${esc(String(item.label || item.id))}: ${esc(String(item.earned))} / ${esc(String(item.points))}</li>`).join('')}</ul>` : ''}
+    ${notes.length ? `<h3 class="mt-3 font-semibold text-[#1e3a5f]">Your instructor's feedback</h3><ul class="mt-1 list-disc pl-5 space-y-1">${notes.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment)}</li>`).join('')}</ul>` : '<p class="mt-2 text-gray-600">Your instructor did not leave written notes.</p>'}
+  </div>`;
+}
+
+/* Evidence labs: Resubmit stays disabled until the student has added or
+ * replaced at least one file since the return, and every file is picked on
+ * this page (a resubmission uploads its own full set). The files' upload times when
+ * the student first sees the return are kept as a baseline in the lab's own
+ * state (state.redoBaseline), so this only ever compares the student's clock
+ * with itself, never with the reviewer's. Callers save state afterwards. */
+function itsEvidenceRedo(user, state, labKey, fileFields) {
+  if (!itsLabReturned(user, labKey)) return { returned: false, allPresent: false, changed: false };
+  const { reviewedAt } = itsLabAttempt(user, labKey);
+  state.redoBaseline = state.redoBaseline || {};
+  let baseline = state.redoBaseline[labKey];
+  if (!baseline || baseline.reviewedAt !== reviewedAt) {
+    baseline = { reviewedAt, files: Object.fromEntries(fileFields.map((field) => [field, state[field] ? state[field].uploadedAt : null])) };
+    state.redoBaseline[labKey] = baseline;
+  }
+  return {
+    returned: true,
+    allPresent: fileFields.every((field) => state[field] && itswPickedFile(user, field)),
+    changed: fileFields.some((field) => state[field] && state[field].uploadedAt !== baseline.files[field]),
+  };
+}
+
+/* ---------- Lab status on every Help Desk module page ----------
+ * A lab's status, the hero counter and the rail come only from the database:
+ * the newest attempt loaded at sign-in, read with requiredLabStatus() (the
+ * module cards' rule): 'not_submitted', 'waiting', 'passed' or 'returned'.
+ * A Practice It lab (`phase: 'practice'`, Module 1) is never reviewed, so a
+ * saved attempt reads 'practice' instead of 'waiting' (or 'passed', for an
+ * attempt an instructor approved before Practice It stopped being reviewed).
+ * A Return made before then still reads 'returned', with its notes.
+ * The lab's saved state (module_progress.case_state) and this browser's file
+ * copies hold only work not yet sent (files added, the policy checkbox), so
+ * clearing site data never changes what a lab shows. */
+
+function itsLabIsPractice(labKey) {
+  const lab = typeof LABS !== 'undefined' ? LABS.find((item) => item.key === labKey) : null;
+  return Boolean(lab && lab.phase === 'practice');
+}
+
+function itsLabStatus(user, labKey) {
+  const status = requiredLabStatus(itsLabAttempt(user, labKey));
+  return (status === 'waiting' || status === 'passed') && itsLabIsPractice(labKey) ? 'practice' : status;
+}
+
+function itsLabSubmitted(user, labKey) {
+  const status = itsLabStatus(user, labKey);
+  return status === 'waiting' || status === 'passed' || status === 'practice';
+}
+
+function itsSubmittedDay(user, labKey) {
+  const attempt = itsLabAttempt(user, labKey);
+  return attempt ? new Date(attempt.completedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+}
+
+// A save that failed, kept in memory only so the page can offer a retry.
+const itsLabSubmitFailures = new Set();
+
+function itsLabSubmitting(user, labKey) {
+  return !!user && itsLabSubmissionsInFlight.has(`${user.userId}|${labKey}`);
+}
+
+/* The status line for one lab. label: "Lab 2.1", or "Lab" on a one-lab page.
+ * prefix: the module's status classes (its01, its02, itss). ready: every
+ * file the lab needs is added. pendingText: the prompt before anything is
+ * submitted. */
+function itsLabStatusHtml(user, labKey, { label, prefix, pendingText, ready = false }) {
+  const status = itsLabStatus(user, labKey);
+  const officialScore = (itsLabAttempt(user, labKey) || {}).officialScore;
+  const line = status === 'practice' ? { pass: true, icon: 'ri-checkbox-circle-fill', text: `${label}: Complete · ${itsSubmittedDay(user, labKey)}` }
+    : status === 'passed' ? { pass: true, icon: 'ri-checkbox-circle-fill', text: `${label} passed${typeof officialScore === 'number' ? ` · ${officialScore}%` : ''}` }
+    : status === 'waiting' ? { icon: 'ri-send-plane-line', text: `${label} submitted ${itsSubmittedDay(user, labKey)}, waiting for instructor review` }
+    : status === 'returned' && itsLabCritical(user, labKey) ? { icon: 'ri-error-warning-line', text: `${label}: ${ITS_CRITICAL_RESULT} — returned for revision, see your instructor’s notes below.` }
+    : status === 'returned' ? { icon: 'ri-error-warning-line', text: `${label} returned for revision — see your instructor’s notes below.` }
+    : itsLabSubmitting(user, labKey) ? { icon: 'ri-loader-4-line', text: `Submitting ${label}…` }
+    : user && itsLabSubmitFailures.has(`${user.userId}|${labKey}`) ? { icon: 'ri-error-warning-line', text: `${label} wasn’t submitted. Check your connection, then press Submit ${label}.` }
+    : ready ? { icon: 'ri-upload-2-line', text: `Ready to submit ${label}` }
+    : { icon: 'ri-time-line', text: pendingText };
+  return `<div class="${prefix}-lab-status ${prefix}-status-${line.pass ? 'pass' : 'pending'}" data-its-lab-status="${esc(labKey)}" data-status="${status}"><i class="${line.icon}" aria-hidden="true"></i><span>${esc(line.text)}</span></div>`;
+}
+
+// Hero counter: "4 labs · 1 waiting for review · 1 passed · 1 returned";
+// the waiting and returned parts appear only when non-zero. A page with
+// Practice It labs always shows "N practice complete" ("3 labs · 1 practice
+// complete · 0 passed").
+function itsLabCounterText(user, labKeys) {
+  const statuses = labKeys.map((key) => itsLabStatus(user, key));
+  const count = (status) => statuses.filter((s) => s === status).length;
+  const waitingCount = count('waiting');
+  const returnedCount = count('returned');
+  const hasPractice = labKeys.some(itsLabIsPractice);
+  return [
+    `${labKeys.length} lab${labKeys.length === 1 ? '' : 's'}`,
+    hasPractice ? `${count('practice')} practice complete` : '',
+    waitingCount ? `${waitingCount} waiting for review` : '',
+    `${count('passed')} passed`,
+    returnedCount ? `${returnedCount} returned` : '',
+  ].filter(Boolean).join(' · ');
+}
+
+// Rail fields for a row covering labKeys: ticked only when every lab passed
+// (or, for Practice It, is practice complete); "Returned" or "In review"
+// (moduleUnifiedNav's reviewState) otherwise. A ticked row also says
+// "Passed" (every lab passed its review) or "Complete" (Practice It), through
+// moduleUnifiedNav's doneLabel. Only Help Desk rows set doneLabel.
+function itsLabRail(user, labKeys) {
+  const statuses = labKeys.map((key) => itsLabStatus(user, key));
+  const isComplete = statuses.every((status) => status === 'passed' || status === 'practice');
+  const reviewState = statuses.includes('returned') ? 'returned'
+    : !isComplete && statuses.every((status) => status === 'waiting' || status === 'passed' || status === 'practice') ? 'review'
+    : undefined;
+  const doneLabel = !isComplete ? undefined : statuses.every((status) => status === 'passed') ? 'Passed' : 'Complete';
+  return { isComplete, reviewState, doneLabel };
+}
+
+// Walkthrough launch button: redo if any lab was returned, review once every
+// lab is in (finishing again then sends nothing), otherwise start.
+function itsWalkthroughButton(user, labKeys) {
+  if (labKeys.some((key) => itsLabReturned(user, key))) return { icon: 'ri-restart-line', mode: 'redo' };
+  if (labKeys.every((key) => itsLabSubmitted(user, key))) return { icon: 'ri-refresh-line', mode: 'review' };
+  return { icon: 'ri-terminal-box-line', mode: 'start' };
+}
+
+/* A walkthrough is recorded only by the simulator's popup message. Coming
+ * back by link (?coachComplete=) saves nothing, since anyone could type that
+ * link: the page says the walkthrough wasn't recorded instead (ISSUE-041 from
+ * Megan's Student Portal — Code Issues Log). Both sets are keyed
+ * `${userId}|${coachId}` and last until the next page load. */
+const itsUnrecordedWalkthroughs = new Set();
+const itsBlockedWalkthroughs = new Set();
+// A Finish that arrived before the walkthrough's ticket was done (Module 1:
+// HD-2150 resolved with every outcome met).
+const itsIncompleteWalkthroughs = new Set();
+
+function itsNoteCoachReturn(user, coachId, labKeys) {
+  if (new URLSearchParams(location.search).get('coachComplete') !== coachId) return;
+  history.replaceState(null, '', location.pathname + location.hash);
+  if (user && labKeys.some((key) => itsLabAcceptsAttempt(user, key))) itsUnrecordedWalkthroughs.add(`${user.userId}|${coachId}`);
+}
+
+/* Opens the walkthrough in a popup, so it can report back to this page.
+ * Returns false and remembers it when the browser blocks the window. */
+function itsLaunchWalkthrough(event, link, user, coachId) {
+  event.preventDefault();
+  const id = `${user ? user.userId : ''}|${coachId}`;
+  if (!window.open(link.href, '_blank')) {
+    itsBlockedWalkthroughs.add(id);
+    return false;
+  }
+  itsBlockedWalkthroughs.delete(id);
+  itsUnrecordedWalkthroughs.delete(id);
+  itsIncompleteWalkthroughs.delete(id);
+  return true;
+}
+
+// The Start button's text for Modules 3-11; Modules 1 and 2 name their labs.
+const ITS_WALKTHROUGH_START = 'Start guided walkthrough';
+
+/* startLabel: the exact text of this lab's Start button, so the message
+ * names the button the student actually sees. */
+function itsWalkthroughNoticeHtml(user, coachId, labKeys, startLabel) {
+  const id = `${user ? user.userId : ''}|${coachId}`;
+  const text = itsBlockedWalkthroughs.has(id)
+    ? 'Your browser blocked the walkthrough window. Allow pop-ups for this site, then try again.'
+    : itsIncompleteWalkthroughs.has(id)
+      ? 'Your walkthrough wasn’t saved: its ticket isn’t finished yet. Your work is still in the simulator. Finish every part of the ticket there, resolve it, then press Finish again.'
+      : itsUnrecordedWalkthroughs.has(id) && labKeys.some((key) => itsLabAcceptsAttempt(user, key))
+        ? `Your walkthrough finished but wasn’t recorded. Allow pop-ups for this site, then press ${startLabel} again from this page.`
+        : '';
+  return `<div class="itss-walkthrough-notice" data-its-walkthrough-notice="${esc(coachId)}" role="status"${text ? '' : ' hidden'}>${esc(text)}</div>`;
+}
+
+// Re-renders just the notice after a Start click, without redrawing the page.
+function itsRefreshWalkthroughNotice(user, coachId, labKeys, startLabel) {
+  const el = document.querySelector(`[data-its-walkthrough-notice="${coachId}"]`);
+  if (el) el.outerHTML = itsWalkthroughNoticeHtml(user, coachId, labKeys, startLabel);
+}
+
+/* An evidence lab's first submission, from its Submit button: its files,
+ * then one attempt, only when never submitted and every file is added.
+ * onChange re-renders the lab (once for "Submitting…", once for the result). */
+function itsSubmitEvidenceLab(user, moduleKey, labKey, fields, evidenceFields, onChange) {
+  if (!user || itsLabSubmitting(user, labKey) || itsLabStatus(user, labKey) !== 'not_submitted') return Promise.resolve(false);
+  const failureKey = `${user.userId}|${labKey}`;
+  itsLabSubmitFailures.delete(failureKey);
+  const pending = itsSubmitLabAttempt(user, moduleKey, labKey, fields, evidenceFields);
+  onChange();
+  return pending.then((saved) => {
+    if (!saved) itsLabSubmitFailures.add(failureKey);
+    onChange();
+    return saved;
+  });
+}
+
+function itsSubmitButton(labKey, label) {
+  return `<button type="button" class="itsw-evidence-button" data-its-submit="${esc(labKey)}"><i class="ri-send-plane-line" aria-hidden="true"></i> Submit ${esc(label)}</button>`;
+}
+
+function itsResubmitButton(labKey, label, enabled) {
+  return `<button type="button" class="itsw-evidence-button" data-its-resubmit="${esc(labKey)}" ${enabled ? '' : 'disabled aria-disabled="true" style="opacity:.55;cursor:not-allowed"'}><i class="ri-send-plane-line" aria-hidden="true"></i> ${esc(label)}</button>
+    ${enabled ? '' : '<p class="itss-instruction">Add or replace at least one evidence file to enable Resubmit.</p>'}`;
+}
+
+/* labs: [{ key, action }] — action tells the student how to resubmit. One
+ * notice per returned lab, with the instructor's notes. */
+function itsRedoNoticeHtml(user, labs) {
+  const notes = (user && user.openLabRedoFeedbackByLabKey) || {};
+  return labs.filter((lab) => itsLabReturned(user, lab.key)).map((lab) => {
+    const items = notes[lab.key] || [];
+    // The marked-lab view (portal/app.js) shows each note beside its section.
+    const marked = typeof markedLabLinkHtml === 'function' ? `<p>${markedLabLinkHtml(lab.key)}</p>` : '';
+    return `<div class="m01-redo-feedback" role="note" data-its-redo-notice="${esc(lab.key)}"><strong><i class="ri-feedback-line" aria-hidden="true"></i> ${itsLabCritical(user, lab.key) ? `${esc(itsLabTitle(lab.key))}: ${ITS_CRITICAL_RESULT}. Returned for revision` : `Returned for revision: ${esc(itsLabTitle(lab.key))}`}</strong>${items.length
+      ? `<ul>${items.map((item) => `<li>${item.item_label ? `<strong>${esc(item.item_label)}:</strong> ` : ''}${esc(item.comment || '')}</li>`).join('')}</ul>${marked}`
+      : '<p>Your instructor returned this lab without written notes.</p>'}<p>${esc(lab.action)}</p></div>`;
+  }).join('');
+}
+
+/* ---------- Faculty Lab Attempts: evidence files ----------
+ * Called from the shared review card (portal/app.js) for every attempt; it
+ * renders only for rows whose result lists evidence_files. A file gets an
+ * Open button only when its path lies directly in this attempt's own folder,
+ * so a row can never point the reviewer at another student's file. Open asks
+ * Storage for a five-minute link under the reviewer's own session. */
+function itsEvidenceAttemptFolder(row) {
+  const lab = typeof LABS !== 'undefined' ? LABS.find((item) => item.key === row.lab_key) : null;
+  if (!lab || !row.track_code || !row.user_id || !row.id) return null;
+  return `${[row.track_code, row.user_id, lab.module, row.lab_key, row.id].join('/')}/`;
+}
+
+function itsEvidenceReviewPanel(row) {
+  const files = row && row.result && Array.isArray(row.result.evidence_files) ? row.result.evidence_files : null;
+  if (!files) return '';
+  const folder = itsEvidenceAttemptFolder(row);
+  const own = (path) => !!folder && typeof path === 'string' && path.startsWith(folder) && path.length > folder.length && !path.slice(folder.length).includes('/');
+  return `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-3" data-its-evidence-panel="${esc(row.id)}">
+    <p class="text-sm font-semibold text-[#1e3a5f] mb-2">Student evidence files (${files.length})</p>
+    <ul class="space-y-2 text-sm">${files.map((file) => {
+      const item = file && typeof file === 'object' ? file : {};
+      const title = `${esc(String(item.label || ITSW_EVIDENCE_LABELS[item.field] || item.field || 'Evidence file'))}${item.name ? ` · <span class="text-gray-600">${esc(String(item.name))}</span>` : ''}${Number(item.size) ? ` <span class="text-xs text-gray-500">(${esc(itswFormatBytes(item.size))})</span>` : ''}`;
+      return `<li class="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-200 bg-white px-3 py-2"><span class="min-w-0 break-all">${title}</span>${own(item.path)
+        ? `<span class="flex items-center gap-2"><button type="button" data-its-evidence-open="${esc(item.path)}" class="text-xs font-semibold text-white bg-[#1e3a5f] hover:bg-[#16324a] rounded-lg px-3 py-1.5">Open</button><span data-its-evidence-open-status class="text-xs text-gray-600"></span></span>`
+        : '<span class="text-xs font-semibold text-gray-500">File unavailable</span>'}</li>`;
+    }).join('')}</ul>
+  </div>`;
+}
+
+// The tab opens before the link is requested, so pop-up blockers allow it.
+async function itsOpenEvidenceFile(button) {
+  const status = button.parentElement && button.parentElement.querySelector('[data-its-evidence-open-status]');
+  const tab = window.open('', '_blank');
+  if (tab) tab.opener = null;
+  let url = null;
+  try {
+    const { data, error } = await mntSupabase.storage.from(ITS_EVIDENCE_BUCKET).createSignedUrl(button.dataset.itsEvidenceOpen, 300);
+    if (error) console.error('lab evidence link failed', error);
+    url = !error && data && data.signedUrl;
+  } catch (err) {
+    console.error('lab evidence link threw', err);
+  }
+  if (!url) {
+    if (tab) tab.close();
+    if (status) status.textContent = 'File unavailable';
+    return;
+  }
+  if (tab) {
+    tab.location.href = url;
+    if (status) status.textContent = '';
+  } else if (status) {
+    status.innerHTML = `<a href="${esc(url)}" target="_blank" rel="noopener" class="underline">Pop-up blocked: open the file here</a>`;
+  }
+}
+
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('click', (event) => {
+    const button = event.target && event.target.closest && event.target.closest('[data-its-evidence-open]');
+    if (button) itsOpenEvidenceFile(button);
+  });
 }
 
 function itswInDevelopment({ title, previewText }) {
@@ -120,14 +1863,17 @@ function itsSimpleLessonCard(lesson) {
   </details>`;
 }
 
-function itsCoachLaunchCard({ coachId, complete }) {
-  return `<a class="itsw-evidence-button" data-its-coach-launch href="${esc(SIM_ORIGIN)}?coach=${esc(coachId)}&amp;restart=1#/helpdesk/tickets" target="_blank" rel="opener">
-    <i class="${complete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${complete ? 'Review the walkthrough' : 'Start guided walkthrough'}
+function itsCoachLaunchCard({ user, coachId, labKeys }) {
+  const button = itsWalkthroughButton(user, labKeys);
+  const label = { redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: ITS_WALKTHROUGH_START }[button.mode];
+  return `<a class="itsw-evidence-button" data-its-coach-launch href="${esc(itsCoachLaunchHref(coachId, user))}" target="_blank" rel="opener">
+    <i class="${button.icon}" aria-hidden="true"></i> ${label}
   </a>
-  <div class="itss-lab-status ${complete ? 'itss-status-pass' : 'itss-status-pending'}"><i class="${complete ? 'ri-checkbox-circle-fill' : 'ri-time-line'}" aria-hidden="true"></i><span>${complete ? 'Lab complete — resolved in the guided walkthrough.' : 'Complete the guided walkthrough in the simulator to finish this lab.'}</span></div>`;
+  ${itsWalkthroughNoticeHtml(user, coachId, labKeys, ITS_WALKTHROUGH_START)}
+  ${labKeys.map((key) => itsLabStatusHtml(user, key, { label: labKeys.length === 1 ? 'Lab' : itsLabTitle(key), prefix: 'itss', pendingText: 'Complete the guided walkthrough in the simulator to finish this lab.' })).join('')}`;
 }
 
-/* lab: optional { coachId, description, complete }. When present, the Prove
+/* lab: optional { coachId, labKeys, description, notice }. When present, the Prove
  * section is a launch card into the real 'coachId' guided walkthrough
  * (state/onMessage handled by the caller — itsRegisterCoachModule below).
  * When absent, falls back to the original "lab content in development"
@@ -141,7 +1887,7 @@ function itsSimpleModuleView({ user, program, moduleKey, moduleNumber, lessons, 
   const numLabel = String(moduleNumber).padStart(2, '0');
   const navSections = [
     { id: 'learn', title: 'Lessons', type: 'lecture', isComplete: true, scrollId: `itss-lessons-${numLabel}` },
-    { id: 'practice', title: 'Guided lab', type: 'lab', isComplete: lab?.complete === true, scrollId: `itss-lab-${numLabel}` },
+    { id: 'practice', title: 'Guided lab', type: 'lab', ...(lab ? itsLabRail(user, lab.labKeys) : { isComplete: false }), scrollId: `itss-lab-${numLabel}` },
     ...(sources?.length ? [{ id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: `itss-sources-${numLabel}`, gated: false, supplemental: true }] : []),
   ];
   return `<div class="itss-shell">
@@ -156,7 +1902,7 @@ function itsSimpleModuleView({ user, program, moduleKey, moduleNumber, lessons, 
 
       <section class="itss-section its-coach-lab" id="itss-lab-${numLabel}" aria-labelledby="itss-lab-title-${numLabel}"><div class="itss-section-heading"><span>P</span><div><p class="itss-kicker">Practice It${lab ? ' · guided walkthrough' : ''}</p><h2 id="itss-lab-title-${numLabel}">Guided lab</h2></div></div>
         ${lab
-          ? `<p class="itss-instruction">${esc(lab.description)}</p>${itsCoachLaunchCard({ coachId: lab.coachId, complete: lab.complete })}`
+          ? `<p class="itss-instruction">${esc(lab.description)}</p>${lab.notice || ''}${itsCoachLaunchCard({ user, coachId: lab.coachId, labKeys: lab.labKeys })}`
           : itswInDevelopment({ title: 'Lab content in development', previewText: labPreview })}
       </section>
 
@@ -182,12 +1928,7 @@ function itsRegisterCoachModule(config) {
   function load(user) {
     lastUser = user;
     state = LabRuntime.load(stateId, user, defaultState);
-    if (new URLSearchParams(location.search).get('coachComplete') === coachId) {
-      state.consoleStarted = true;
-      state.consoleCompleted = true;
-      LabRuntime.save(stateId, user, state);
-      history.replaceState(null, '', location.pathname + location.hash);
-    }
+    itsNoteCoachReturn(user, coachId, labKeys);
     return state;
   }
 
@@ -195,7 +1936,10 @@ function itsRegisterCoachModule(config) {
     load(user);
     return itsSimpleModuleView({
       user, program, moduleKey, moduleNumber, lessons, lede, sources,
-      lab: { coachId, description: labDescription, complete: state.consoleCompleted === true },
+      lab: {
+        coachId, labKeys, description: labDescription,
+        notice: itsRedoNoticeHtml(user, labKeys.map((key) => ({ key, action: 'Run the walkthrough again to resubmit this lab.' }))),
+      },
     });
   }
 
@@ -203,10 +1947,13 @@ function itsRegisterCoachModule(config) {
     const shell = document.querySelector('.itss-shell');
     if (!shell) return;
     shell.addEventListener('click', (event) => {
-      if (event.target.closest('[data-its-coach-launch]') && lastUser) {
+      const launch = event.target.closest('[data-its-coach-launch]');
+      if (!launch || !lastUser) return;
+      if (itsLaunchWalkthrough(event, launch, lastUser, coachId)) {
         state.consoleStarted = true;
         LabRuntime.save(stateId, lastUser, state);
       }
+      itsRefreshWalkthroughNotice(lastUser, coachId, labKeys, ITS_WALKTHROUGH_START);
     });
   }
 
@@ -214,17 +1961,25 @@ function itsRegisterCoachModule(config) {
     if (!event.data || event.data.type !== 'mnt-coach-complete' || event.data.id !== coachId) return;
     if (event.origin !== new URL(SIM_ORIGIN).origin) return;
     const user = await currentUser();
-    if (!user) return;
+    if (!user) { itsConfirmCoachReceipt(event, false); return; }
+    const wrongStudent = itsCoachStudentMismatch(event, user);
+    if (wrongStudent) { itsConfirmCoachReceipt(event, false, wrongStudent); return; }
 
-    const saved = LabRuntime.load(stateId, user, defaultState);
-    saved.consoleStarted = true;
-    saved.consoleCompleted = true;
-    LabRuntime.save(stateId, user, saved);
-    state = saved;
+    const work = itsCleanCoachWork(event.data.work);
+
+    // Submit first: a lab counts as complete only once the portal has its
+    // attempt (saved now, or already waiting or approved).
+    const received = await itsSubmitWalkthroughLabs(user, moduleKey, labKeys, work);
     lastUser = user;
-
-    if (typeof markModuleLabComplete === 'function') labKeys.forEach((key) => markModuleLabComplete(user, 'it-support', moduleKey, key));
-    if (typeof recordLabAttempt === 'function') labKeys.forEach((key) => recordLabAttempt(user, key, { state: 'complete', result: { source: 'mnt-coach-complete' } }));
+    if (received) {
+      const saved = LabRuntime.load(stateId, user, defaultState);
+      saved.consoleStarted = true;
+      saved.consoleCompleted = true;
+      LabRuntime.save(stateId, user, saved);
+      state = saved;
+      if (typeof markModuleLabComplete === 'function') labKeys.forEach((key) => markModuleLabComplete(user, 'it-support', moduleKey, key));
+    }
+    itsConfirmCoachReceipt(event, received);
 
     const mounted = Boolean(document.querySelector('.itss-shell'));
     if (!mounted) return;

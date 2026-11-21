@@ -78,7 +78,7 @@ assert.match(panel, /data-m05-console-workspace="endpoint"/);
 assert.match(panel, /data-m05-device-select="ws-assess-27"/);
 assert.match(panel, /data-m05-response-request/);
 assert.match(panel, /No isolation or quarantine is performed/);
-assert.match(panel, /pending_approval/);
+assert.match(panel, /Pending approval/);
 assert.doesNotMatch(panel, /expectedTruth|processAncestry|maliciousFile/);
 assert.strictEqual(records.get(legacyKey).notes, 'keep legacy', 'existing lesson/assessment state remains untouched');
 
@@ -91,6 +91,8 @@ const root = {
   dataset: {},
   addEventListener(type, handler) { (listeners[type] ||= []).push(handler); },
   querySelectorAll(selector) { return checkboxes.filter((input) => selector.includes('evidence-event') ? input.kind === 'event' && input.checked : input.kind === 'hash' && input.checked); },
+  // Status lines the console writes into (e.g. [data-m05-preserve-status]).
+  querySelector() { return { textContent: '' }; },
 };
 context.document.getElementById = () => root;
 vm.runInContext('wireModuleFiveAssessmentLab()', context);
@@ -152,7 +154,7 @@ assert.ok(prevented, 'request submit is handled without a browser/form side effe
 assert.strictEqual(withRequest.approvalRequests.at(-1).type, 'endpoint_quarantine_request');
 assert.strictEqual(withRequest.approvalRequests.at(-1).status, 'pending_approval');
 assert.strictEqual(withRequest.approvalRequests.at(-1).deviceId, 'ws-assess-27');
-assert.match(root.innerHTML, /pending_approval/);
+assert.match(root.innerHTML, /Request file quarantine · Pending approval/);
 assert.match(root.innerHTML, /No isolation or quarantine is performed/);
 assert.strictEqual(JSON.stringify(fixture.scenario.telemetry), telemetryBeforeRequest, 'request submit leaves observed fixture telemetry untouched');
 responseForm.values.requestType = 'endpoint_isolation_request';

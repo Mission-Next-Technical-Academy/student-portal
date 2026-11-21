@@ -65,6 +65,13 @@ assert.strictEqual(closed.criticalMisses.length, 1);
 
 const overclaim = scorer.score(fullPath({ residualRisk: 'Fully recovered; no residual risk.' }), fixture);
 assert.strictEqual(points(overclaim)['residual-risk'], 0, 'claiming full recovery loses residual-risk accuracy');
+// UAT U37: a negated phrase is an honest limitation, not an overclaim.
+const fullPoints = points(scorer.score(fullPath(), fixture))['residual-risk'];
+assert.ok(fullPoints > 0, 'baseline residual-risk earns points');
+const honest = scorer.score(fullPath({ residualRisk: 'fs-02 service validation pending; acct-173 credential reset not yet confirmed, so the case is not fully recovered.' }), fixture);
+assert.strictEqual(points(honest)['residual-risk'], fullPoints, '"not fully recovered" keeps the residual-risk points');
+const mixed = scorer.score(fullPath({ residualRisk: 'fs-02 service validation pending; acct-173 credential reset not yet confirmed. ws-173 is fully recovered.' }), fixture);
+assert.strictEqual(points(mixed)['residual-risk'], 0, 'an un-negated overclaim elsewhere still loses the points');
 
 let partial = api.normalize({}, fixture);
 partial = api.setPriority(partial, fixture, ['Q-03', 'Q-04']);

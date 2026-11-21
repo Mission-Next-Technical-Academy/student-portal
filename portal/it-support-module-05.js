@@ -1,4 +1,4 @@
-/* Module 05 — IT Help Desk & Career Accelerator ('it-support').
+/* Module 07 (key its-05; was Module 05 before the 2026-11 reorder) — IT Help Desk & Career Accelerator ('it-support').
  * Lesson content sourced from Module_5_Student_Content.docx. Lab is a
  * guided walkthrough of two real tickets ('hd-m05') in the IT Service Desk
  * simulator — see it-support-shared.js's itsRegisterCoachModule.
@@ -6,7 +6,7 @@
 
 const ITS05_LESSONS = [
   {
-    id: 'its-05-lesson-01', number: '5.1', icon: 'ri-server-line',
+    id: 'its-05-lesson-01', number: '7.1', icon: 'ri-server-line',
     title: 'Windows Server Roles & Server Manager', minutes: 180,
     learn: [
       'What a "server role" is, and a few of the most common ones',
@@ -24,7 +24,7 @@ const ITS05_LESSONS = [
     comingUp: 'You\'ll add a role to your server VM and verify it\'s running correctly.',
   },
   {
-    id: 'its-05-lesson-02', number: '5.2', icon: 'ri-folder-shared-line',
+    id: 'its-05-lesson-02', number: '7.2', icon: 'ri-folder-shared-line',
     title: 'File Sharing, Permissions & DNS/DHCP Role Awareness', minutes: 180,
     learn: [
       'The basic concept behind Windows file/folder sharing',
@@ -42,7 +42,7 @@ const ITS05_LESSONS = [
     comingUp: 'A shared drive is unreachable for one user but not others — you\'ll figure out whether it\'s a permissions issue or something else.',
   },
   {
-    id: 'its-05-lesson-03', number: '5.3', icon: 'ri-file-list-3-line',
+    id: 'its-05-lesson-03', number: '7.3', icon: 'ri-file-list-3-line',
     title: 'Logs, Services & Change Discipline', minutes: 120,
     learn: [
       'Where to look on a server for logs and service status',
@@ -60,7 +60,7 @@ const ITS05_LESSONS = [
     comingUp: 'You\'ll diagnose a service-state issue on your server VM and decide whether to fix it directly or escalate it.',
   },
   {
-    id: 'its-05-lesson-04', number: '5.4', icon: 'ri-organization-chart',
+    id: 'its-05-lesson-04', number: '7.4', icon: 'ri-organization-chart',
     title: 'Active Directory Structure: Domains, OUs, Users, Groups & Computer Objects', minutes: 240,
     learn: [
       'What a domain, organizational unit (OU), user object, group, and computer object each represent',
@@ -81,7 +81,7 @@ const ITS05_LESSONS = [
 ];
 
 itsRegisterCoachModule({
-  moduleNumber: 5, moduleKey: 'its-05', coachId: 'hd-m05', labKeys: ['lab-its-05-server-ad'],
+  moduleNumber: 7, moduleKey: 'its-05', coachId: 'hd-m05', labKeys: ['lab-its-05-server-ad'],
   lessons: ITS05_LESSONS,
   lede: 'You\'ve already built a Windows Server VM — now you\'ll actually configure it, and start managing the directory structure that controls who has access to what across an organization.',
   labDescription: 'Resolve two real Windows Server tickets end to end in the IT Service Desk simulator — a Group Policy scope issue (HD-2108) and a file-server disk-space incident (HD-2117) — using Server Manager and Active Directory Users and Computers. A coach spotlights each step for you.',

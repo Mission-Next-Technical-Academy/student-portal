@@ -36,7 +36,7 @@ Read first, in this order:
                                      Module Agent" section lists your ten deliverables.
   docs/specs/MODULE_STANDARD.md               — the canonical module shape, non-negotiable.
   docs/MNT_DESIGN_TOKENS.md             — colors, type, spacing.
-  docs/operations/PROJECT_GUIDE_FOR_AI.md          — house rules and code patterns.
+  CLAUDE.md + .claude/rules/       — house rules (core, then the domain file for each path).
   portal/soc-analyst-module-01.js + module-labs.css — the reference implementation. Match its depth,
                                      structure and quality. Do not copy it verbatim and do
                                      not produce a reskin of it.

@@ -114,7 +114,17 @@ const LabRuntime = (() => {
     if (!pending) return;
     if (pending.timer) clearTimeout(pending.timer);
     pendingCaseStateWrites.delete(key);
-    persistModuleCaseState(pending.user, pending.moduleKey, pending.labId, pending.state);
+    const write = persistModuleCaseState(pending.user, pending.moduleKey, pending.labId, pending.state);
+    if (!pending.onResult.length) return;
+    // Report the write's result to every caller whose save this one carries.
+    // Only an explicit true or false is a result; anything else is reported
+    // as undefined, which callers must treat as "not known".
+    Promise.resolve(write).then((ok) => ok, () => false).then((ok) => {
+      const result = ok === true || ok === false ? ok : undefined;
+      pending.onResult.forEach((callback) => {
+        try { callback(result); } catch (err) { console.error('case_state onResult threw', err); }
+      });
+    });
   }
 
   function flushAllCaseStateWrites() {
@@ -146,7 +156,11 @@ const LabRuntime = (() => {
     const key = pendingCaseStateKey(labId, moduleKey, user);
     const existing = pendingCaseStateWrites.get(key);
     if (existing && existing.timer) clearTimeout(existing.timer);
-    const pending = { user, moduleKey, labId, state, timer: null };
+    // options.onResult(ok) is optional. A newer save replaces a waiting one,
+    // so it carries the waiting save's callbacks and reports to them too.
+    const onResult = (existing ? existing.onResult : []).slice();
+    if (typeof options.onResult === 'function') onResult.push(options.onResult);
+    const pending = { user, moduleKey, labId, state, timer: null, onResult };
     pending.timer = setTimeout(() => flushCaseStateWrite(key), options.debounceMs || CASE_STATE_DEBOUNCE_MS);
     pendingCaseStateWrites.set(key, pending);
     return state;
@@ -157,7 +171,7 @@ const LabRuntime = (() => {
     return saveCaseState(labId, moduleKey, user, fresh, { debounceMs: 1 });
   }
 
-  return { anonymousStudentId, load, save, reset, storageKey, loadCaseState, saveCaseState, resetCaseState, isFreshState: stateMatchesFreshDefault };
+  return { anonymousStudentId, load, save, reset, storageKey, loadCaseState, saveCaseState, resetCaseState, flushAllCaseStateWrites, isFreshState: stateMatchesFreshDefault };
 })();
 
 /* Shared mechanics for the knowledge checks used by SOC modules. Question

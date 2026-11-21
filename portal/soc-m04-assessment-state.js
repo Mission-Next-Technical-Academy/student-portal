@@ -9,6 +9,7 @@ const SocM04AssessmentState = (() => {
     selectedIocIds: [],
     iocStatusById: {},
     intelVerdicts: {},
+    intelVerdictDrafts: {},
     intelHints: {},
     ruleDraft: {
       id: '',
@@ -68,6 +69,20 @@ const SocM04AssessmentState = (() => {
     });
     return out;
   }
+  function normalizeVerdictDrafts(value, fixture) {
+    const out = {};
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+    const indicatorIds = new Set((fixture?.scenario?.verdictIndicators || []).map((item) => item.id));
+    Object.keys(value).sort().slice(0, 50).forEach((id) => {
+      const draft = value[id];
+      if (!indicatorIds.has(id) || !draft || typeof draft !== 'object' || Array.isArray(draft)) return;
+      const decision = draft.decision === undefined ? '' : draft.decision;
+      if (!['', 'malicious', 'benign', 'unknown'].includes(decision) || typeof draft.rationale !== 'string') return;
+      const rationale = draft.rationale.slice(0, 1000);
+      if (decision || rationale) out[id] = { decision, rationale };
+    });
+    return out;
+  }
   function normalizeHints(value) {
     const out = {};
     if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
@@ -85,6 +100,7 @@ const SocM04AssessmentState = (() => {
     assessment.iocStatusById = source.iocStatusById && typeof source.iocStatusById === 'object' && !Array.isArray(source.iocStatusById)
       ? { ...source.iocStatusById } : {};
     assessment.intelVerdicts = normalizeVerdicts(source.intelVerdicts);
+    assessment.intelVerdictDrafts = normalizeVerdictDrafts(source.intelVerdictDrafts, fixture);
     assessment.intelHints = normalizeHints(source.intelHints);
     assessment.ruleDraft = { ...clone(EMPTY_DEFAULTS.ruleDraft), ...(source.ruleDraft || {}) };
     assessment.ruleDraft.exclusion = { ...clone(EMPTY_DEFAULTS.ruleDraft.exclusion), ...(source.ruleDraft?.exclusion || {}) };

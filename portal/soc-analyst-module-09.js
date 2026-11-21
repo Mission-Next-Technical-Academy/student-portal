@@ -1027,9 +1027,15 @@ function moduleNineGuidedClone(value) {
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, moduleNineGuidedClone(item)]));
   return value;
 }
+// Guided checks and guide text name the Prove It ids; map them through the same replacement the guided
+// fixture uses so they always match what the student sees (UAT U30).
+const moduleNineGuidedId = (id) => moduleNineGuidedClone(id);
 const MODULE_NINE_GUIDED_FIXTURE = (() => {
   const fixture = moduleNineGuidedClone(SocM09AssessmentData);
   fixture.scenario.stateKey = 'm09-guided-incident-actions-v1';
+  // Keep enough simulated time after owner validation for the full 30-minute
+  // recovery monitoring window required by the guided task.
+  fixture.scenario.end = new Date(Date.parse(fixture.scenario.end) + 60 * 60 * 1000).toISOString();
   fixture.scenario.incidentGraph.edges.forEach((edge, index) => { edge.id = `M09-LINK-GUIDED-${String(index + 1).padStart(3, '0')}`; });
   return fixture;
 })();
@@ -1137,6 +1143,17 @@ const MODULE_NINE_GUIDED_CONSOLE = (() => {
       { id: 'm08', ctx: { ...base, fixture: fx.m08, ui: {}, ...SocConsoleTools.embeddedBox(() => moduleNineGuidedState, 'm08', SocM08AssessmentState.normalize, fx.m08, save) } },
       { id: 'm09', ctx: { ...base, fixture: MODULE_NINE_GUIDED_FIXTURE, evidence: MODULE_NINE_GUIDED_EVIDENCE,
         workflowDesigner: true, attemptForm: true, practice: true,
+        practiceActionGate: (type, targetId) => {
+          if (type === 'remove_persistence' && targetId === 'persist-runkey-173'
+            && !moduleNineGuidedPersistencePreserved()) {
+            return moduleNineGuidedClone('Preserve the ws-173 endpoint evidence package in Endpoint before removing persistence.');
+          }
+          if (type === 'restore_backup' && targetId === moduleNineGuidedId('DEV-173')
+            && !moduleNineGuidedPersistenceRemoved()) {
+            return moduleNineGuidedClone('Remove the demonstrated persistence after preserving evidence before restoring ws-173.');
+          }
+          return '';
+        },
         routes: [{ id: 'guided-ir-lead', text: 'Incident Lead + Endpoint/Identity Owners', fit: 100, note: 'Authorized to execute remediation and validate recovery.' }],
         load: () => moduleNineGuidedActionState,
         store: (next) => { moduleNineGuidedActionState = SocM09AssessmentState.save(moduleNineUser, next, MODULE_NINE_GUIDED_FIXTURE); moduleNineGuidedSave(); },
@@ -1162,6 +1179,28 @@ function moduleNineGuidedEvidenceReady() {
     && (state.actionHistory || []).length > 0 && Boolean(workflow.status && cr.status && cr.affectedUser && cr.affectedDevice && cr.severity && cr.disposition && cr.escalateTo && cr.notes?.trim().length >= 35);
 }
 
+function moduleNineGuidedPersistencePreserved() {
+  const pkg = moduleNineGuidedState?.tools?.m05?.evidencePackage;
+  return pkg?.deviceId === moduleNineGuidedId('ws-173') && pkg.eventIds?.length > 0 && pkg.hashes?.length > 0;
+}
+
+function moduleNineGuidedPersistenceRemoved() {
+  return (moduleNineGuidedActionState?.actionHistory || []).some((action) => action.type === 'remove_persistence'
+    && action.outcome === 'success' && action.details.entityId === 'persist-runkey-173');
+}
+
+function moduleNineGuidedRecoveryComplete() {
+  const history = moduleNineGuidedActionState?.actionHistory || [];
+  const successful = (type) => history.some((action) => action.type === type && action.outcome === 'success'
+    && (type === 'remove_persistence' ? action.details.entityId === 'persist-runkey-173'
+      : type === 'monitor_recovery' ? action.details.residualRiskIds.length === 0
+        && Date.parse(action.details.windowEnd) - Date.parse(action.details.windowStart) >= 30 * 60 * 1000
+        : type === 'restore_backup' ? action.details.recoveryPointId === moduleNineGuidedId('RP-WS-173-0918')
+          : action.details.entityId === moduleNineGuidedId('DEV-173')));
+  return moduleNineGuidedPersistencePreserved() && successful('remove_persistence')
+    && ['restore_backup', 'scan_recovery', 'validate_recovery', 'monitor_recovery'].every(successful);
+}
+
 // True when any saved design puts evidence before approval and every
 // containment step behind approval (the order the capstone grades).
 function moduleNineGuidedWorkflowSound(state) {
@@ -1183,6 +1222,9 @@ function moduleNineGuidedScoreItems() {
     ['Reviewed at least three pieces of evidence', (state.reviewedEvidenceIds || []).length >= 3],
     ['Ran an approved, incident-scoped containment action', (state.actionHistory || []).some((action) => containment.includes(action.type))],
     ['Scoped the ticket to the confirmed endpoint and account', cr.affectedDevice === 'ws-294' && cr.affectedUser === 'acct-294'],
+    ['Preserved endpoint evidence before removing persistence', moduleNineGuidedPersistencePreserved() && moduleNineGuidedPersistenceRemoved()],
+    [moduleNineGuidedClone('Restored ws-173 from the selected trusted recovery point with approval'), (state.actionHistory || []).some((action) => action.type === 'restore_backup' && action.outcome === 'success' && action.details.recoveryPointId === moduleNineGuidedId('RP-WS-173-0918') && Boolean(action.details.approval?.approverId))],
+    ['Completed clean recovery validation and monitoring', ['scan_recovery', 'validate_recovery'].every((type) => (state.actionHistory || []).some((action) => action.type === type && action.outcome === 'success')) && (state.actionHistory || []).some((action) => action.type === 'monitor_recovery' && action.outcome === 'success' && action.details.residualRiskIds.length === 0)],
     ['Saved a workflow that preserves evidence before approval and approval before containment', moduleNineGuidedWorkflowSound(state)],
     ['Saw a containment attempt without approval blocked and logged', (state.unsafeAttempts || []).length > 0],
   ];
@@ -1193,7 +1235,12 @@ function moduleNineGuidedSubmit() {
   const at = new Date().toISOString();
   if (caseRecordMissing(cr, { departmentOptions: [{ id: 'guided-ir-lead' }, { id: 'service-desk' }] }).length) {
     cr.showMissing = true;
+  } else if (!moduleNineGuidedRecoveryComplete()) {
+    cr.showMissing = false;
+    cr.recoveryIncomplete = true;
+    cr.actionHistory.push({ action: 'Ticket closure held until approved persistence removal, trusted restore, clean scan, owner validation, and monitoring are complete.', at });
   } else {
+    cr.recoveryIncomplete = false;
     const result = practiceResult(moduleNineGuidedScoreItems());
     cr.showMissing = false;
     cr.practiceResult = result;
@@ -1211,25 +1258,29 @@ function moduleNineGuidedComplete() { return moduleNineGuidedState?.caseRecord?.
 
 function moduleNineGuidedRestart() {
   const cr = moduleNineGuidedState.caseRecord;
-  moduleNineGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', practiceResult: null, showMissing: false, actionHistory: [] };
+  moduleNineGuidedState.caseRecord = { ...cr, status: 'New', affectedUser: '', affectedDevice: '', severity: '', disposition: '', escalation: '', escalateTo: '', findings: {}, notes: '', submitted: false, submittedAt: '', practiceResult: null, recoveryIncomplete: false, showMissing: false, actionHistory: [] };
   moduleNineGuidedState.completed = false; moduleNineGuidedState.guideStep = 0; moduleNineGuidedState.guideDocked = false;
   moduleNineGuidedSave(); moduleNineRenderGuided();
 }
 
 function moduleNineGuidedSteps() {
-  return [
+  return moduleNineGuidedClone([
     { title: 'Read the ticket', body: 'Review the incident request, assigned role, authority, and initial severity.', lookFor: 'The ticket does not establish ransomware or enterprise-wide scope by itself.', lab: 'Confirm the response objective and case boundary.', tab: 'case', target: '.m01-ticket-id' },
     { title: 'Start from the lead alert', body: 'Open the reported endpoint alert and note what it does and does not establish.', lookFor: 'A rapid encryption signal that needs corroboration.', lab: 'Orient to the incident starting point.', tab: 'alerts', target: 'tr[data-m03e-select$=":alert:M09G-ALERT-001"]' },
     { title: 'Correlate incident evidence', body: 'Compare endpoint, identity, and service activity within the same time window.', lookFor: 'Matching entities and timestamps across independent records.', lab: 'Bound the affected user and device.', tab: 'evidence', target: '.m03e-table-wrap' },
+    { title: 'Preserve endpoint evidence', body: 'Before eradication, select ws-173 in the Endpoint inventory, choose at least one relevant event and its file hash, then preserve the package.', lookFor: 'The saved package summary says “Preserved for ws-173” and lists its event and hash. Verify that record before you proceed to eradication.', lab: 'Preserve the evidence package and confirm it appears in the Endpoint panel.', tab: 'endpoint', target: '[data-m05-device-select="ws-173"]' },
     { title: 'Check response outcomes', body: 'Review preservation, containment, and recovery records; confirm authority and results.', lookFor: 'Action approvals and validation evidence, not action names alone.', lab: 'Build a proportionate response plan.', tab: 'evidence', target: '.m03e-table-wrap' },
     { title: 'Separate primary and contributing evidence', body: 'Distinguish records that directly establish impact from related activity that supports context.', lookFor: 'Direct endpoint or identity evidence versus corroborating service records.', lab: 'Describe how each finding supports the scope.', tab: 'evidence', target: '.m03e-table-wrap' },
     { title: 'Plan the order of response', body: 'Before you act, design the workflow: which steps you will use and in what order. Name it, tick the action nodes, and connect them with one from>to line each.', lookFor: 'What each disruptive step could destroy or break if it ran first.', lab: 'Save a workflow that preserves evidence before approval, and approval before containment.', tab: 'response', target: '[data-m09-workflow-designer]' },
     { title: 'Read the workflow check', body: 'Every time you save, the check lists what your order gets right and what is still missing. Hints open up if the design still has gaps.', lookFor: 'Evidence before approval, approval before every disruptive step, and a scan or monitor step after containment.', lab: 'Adjust and save again until every line reads Done.', tab: 'response', target: '[data-m09-workflow-designer]' },
     { title: 'See what an unsafe attempt costs', body: 'Now try the shortcut on purpose: attempt to isolate a device before any approval is recorded.', lookFor: 'The range blocks it, logs it and says why. Nothing changes on the system, but the attempt stays on your record.', lab: 'In the capstone a blocked attempt like this fails the whole attempt (score capped at 69); here and in the Prove It it costs points. Approval comes first.', tab: 'response', target: '[data-m09-attempt]' },
     { title: 'Do it the safe way', body: 'Request approval for the exact action and target, record the incident lead\'s decision, then run the approved action.', lookFor: 'The approval gate reading approved for that action and target before Execute appears.', lab: 'Run one approved, in-scope containment action.', tab: 'response', target: '.m09-approval' },
+    { title: 'Remove persistence after preservation', body: 'In Response, request approval for remove persistence on persist-runkey-173. Record the incident lead\'s approval and execute it only after the ws-173 event and hash package is preserved. The range blocks this action if preservation is missing.', lookFor: 'The action history records successful remove_persistence on persist-runkey-173 after the saved package appears in Endpoint.', lab: 'Remove the demonstrated startup persistence with approval after preserving evidence.', tab: 'response', target: '.m09-approval' },
+    { title: 'Restore the trusted recovery point', body: 'Open Recovery, compare the catalog entries, and select the integrity-verified, known-good pre-incident point RP-WS-173-0918 for DEV-173. Request restore approval for that exact device, record the lead\'s approval, then restore. The range blocks restore until persistence is removed.', lookFor: 'The action history records a successful restore from RP-WS-173-0918 and its approval.', lab: 'Restore only from the selected trusted point after eradication and approval.', tab: 'recovery', target: '[data-m09-console-workspace="recovery"]' },
+    { title: 'Scan, validate, and monitor recovery', body: 'After restore, run Clean scan, then Validate with owner. Record the 30-minute monitoring result and mark each residual-risk check only when observed; any risk reopens the incident.', lookFor: 'Successful scan, owner validation, and monitoring with no residual risk are recorded in that order before closure.', lab: 'Complete clean validation and continued monitoring before the final ticket handoff.', tab: 'recovery', target: '[data-m09-console-workspace="recovery"]' },
     { title: 'Set scope and decide', body: 'Choose the supported severity, disposition, response phases, and escalation owner.', lookFor: 'Confirmed impact, explicit unknowns, and authorized next actions.', lab: 'Complete the bounded incident decision.', tab: 'case', target: '.m01-ticket-grid' },
     { title: 'Submit the ticket', body: 'Document impact, recovery conditions, and next owner in the ITSM ticket, then submit.', lookFor: 'A clear handoff that separates facts from uncertainty.', lab: 'Submit the ticket when the handoff is ready.', tab: 'case', target: '.m01-ticket-actions' },
-  ];
+  ]);
 }
 
 function moduleNineGuidedLabPanel() {
@@ -1259,7 +1310,7 @@ function moduleNineGuidedLabPanel() {
   return `<section class="m09-guided-case"><p class="m09-panel-instruction">Investigate the evidence and response outcomes, then record a bounded handoff.</p>
     ${complete ? '' : guide}
     <div class="m03e-console-host" id="m03e-console-m09-guided">${complete ? consoleHtml.replace('</header>', `${guide}</header>`) : consoleHtml}</div>
-    <p class="m09-guided-status" role="status">${complete ? 'Practice submitted.' : `${moduleNineGuidedEvidenceReady() ? 'Investigation evidence and response work captured. ' : 'Continue correlating and documenting the evidence. '}Submit the ITSM ticket to complete this Guided Lab.`}</p>
+    <p class="m09-guided-status" role="status">${complete ? 'Practice submitted.' : `${moduleNineGuidedState.caseRecord.recoveryIncomplete ? 'Ticket closure is held. Complete approved persistence removal, trusted restore, clean scan, owner validation, and monitoring. ' : ''}${moduleNineGuidedEvidenceReady() ? 'Investigation evidence and response work captured. ' : 'Continue correlating and documenting the evidence. '}Submit the ITSM ticket to complete this Guided Lab.`}</p>
   </section>`;
 }
 
@@ -1584,10 +1635,47 @@ function wireModuleNineLab() {
   });
 }
 
+// Snapshot of the incident response the student worked in the Prove It console,
+// saved with the attempt for the instructor sheet: triage fields, evidence
+// reviewed, every response/recovery action with its approval, workflow events
+// (task completion, escalation) and escalation text; from 2026-10-17 each task's
+// author and completion note/evidence too. Read-only copy of the saved
+// state; nothing here feeds the score. (Workflow designs and blocked attempts
+// are already saved in review_payload.responseReview.)
+function moduleNineAssessmentWork(state) {
+  const copy = (value) => JSON.parse(JSON.stringify(value ?? null));
+  const list = (value) => (Array.isArray(value) ? value : []);
+  const incidentId = SocM09AssessmentData.scenario.incidentGraph.incidentId;
+  const workflow = (state.incidentWorkflows && state.incidentWorkflows[incidentId]) || {};
+  return {
+    workflow: copy({
+      severity: workflow.severity, assigneeId: workflow.assigneeId, status: workflow.status,
+      escalationStatus: workflow.escalationStatus, escalationReason: workflow.escalationReason,
+      approvalStatus: workflow.approvalStatus, approvalReason: workflow.approvalReason,
+      // authorId: 'system' for the default tasks, the Author the student typed for a task they added;
+      // completionEvidence: the Completion note and Evidence ticked when the task was completed.
+      tasks: list(workflow.tasks).map((task) => ({
+        id: task.id, title: task.title, status: task.status, authorId: task.authorId, description: task.description,
+        completionEvidence: task.completionEvidence,
+      })),
+    }),
+    reviewedEvidenceIds: copy(list(state.reviewedEvidenceIds)),
+    actions: list(state.actionHistory).filter((action) => action && action.details && action.details.incidentId === incidentId).map((action) => copy({
+      sequence: action.sequence, type: action.type, outcome: action.outcome, timestamp: action.timestamp,
+      entityId: action.details.entityId, evidenceIds: action.details.evidenceIds,
+      approverId: action.details.approval && action.details.approval.approverId, approvalReason: action.details.approval && action.details.approval.reason,
+      backupId: action.details.backupId, recoveryPointId: action.details.recoveryPointId, residualRiskIds: action.details.residualRiskIds,
+      summary: action.details.execution && action.details.execution.summary,
+    })),
+    workflowEvents: list(state.workflowHistory).filter((entry) => entry && entry.incidentId === incidentId).map((entry) => copy({ sequence: entry.sequence, timestamp: entry.timestamp, field: entry.field, value: entry.value })),
+  };
+}
+
 function moduleNineFinalizeProveIt() {
   if (moduleNineState.caseRecord.submitted) return;
   const missing = caseRecordMissing(moduleNineState.caseRecord, moduleNineProveItSpec());
-  const scored = SocM09AssessmentScorer.score(SocM09AssessmentState.load(moduleNineUser, SocM09AssessmentData), SocM09AssessmentData);
+  const huntState = SocM09AssessmentState.load(moduleNineUser, SocM09AssessmentData);
+  const scored = SocM09AssessmentScorer.score(huntState, SocM09AssessmentData);
   const performance = { missing, score: scored.score, breakdown: scored.criteria, feedback: scored.review.feedback, criticalErrors: scored.criticalMisses };
   if (performance.missing.length) {
     moduleNineProveItShowMissing = true;
@@ -1623,6 +1711,10 @@ function moduleNineFinalizeProveIt() {
         case_record: moduleNineState.caseRecord,
         case_display: caseRecordDisplay(moduleNineState.caseRecord, caseSpec),
         case_summary: caseRecordSummary(moduleNineState.caseRecord, caseSpec),
+        // Additive (admin Submission Sheet, 2026-10-17): the response the student ran
+        // (triage, evidence reviewed, each approved action, recovery steps, escalation).
+        // Never read by scoring.
+        assessment_work: moduleNineAssessmentWork(huntState),
       },
     });
   }

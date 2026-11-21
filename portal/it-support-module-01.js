@@ -1,103 +1,436 @@
 /* Module 01 — IT Help Desk & Career Accelerator ('it-support').
  * Fictional org, tickets, and policy text; no real systems are involved.
- * Lesson content sourced from Module_1_Student_Content.docx. Lab 1.1
- * (evidence-based, real systems) follows MNT_HelpDesk_Module1_Lab_
- * Specifications.docx directly. Lab 1.2 is a guided walkthrough of the
- * real 'hd-m01' ticket in the IT Service Desk simulator (ui/helpdesk.js +
- * ui/coach.js), the same coach engine SOC's Module 1 already uses — not a
- * portal-embedded widget.
+ *
+ * The page, in order:
+ *   - Orientation (Lesson 1.1, ITHD-101.1): how the program runs, the LMS,
+ *     technology setup, the Acceptable Use Policy, getting help and the chain
+ *     of command, policies, the course calendar. Then the orientation tasks:
+ *     acknowledge the policy (saved to the student's account) and the
+ *     orientation check (retake any time). Not graded, not a lab, no lab key.
+ *   - Learn It (Lesson 1.2): three readings with three diagrams, then the
+ *     Learn It and A+ checks (not graded; only "complete" and its date are
+ *     saved, at 70% of first picks).
+ *   - Practice It, never reviewed: Lab 1.1, the guided lab (key
+ *     lab-its-01-ticket-triage, the real 'hd-m01' coach in the IT Service
+ *     Desk simulator, ui/helpdesk.js + ui/coach.js), then Lab 1.2, the
+ *     practice tickets HD-2151, HD-2152, SEC-2153 and HD-2154 (key
+ *     lab-its-01-practice-tickets, not graded). Students see these numbers;
+ *     the keys are older than the numbering.
+ *   - Prove It (HD-2125), reviewed by the instructor.
+ *
+ * The old Lab 1.1 (LMS & Environment Validation, lab-its-01-lms-validation)
+ * is retired: no longer on this page or in the lab lists. Its lab record,
+ * past attempts and instructor sheet are kept; it never gated completion.
  */
 
 const ITS01_SOURCES = [
-  { title: 'CompTIA A+ Certification', org: 'CompTIA', url: 'https://www.comptia.org/certifications/a', note: 'Supplementary public reference for the professional-conduct and help-desk fundamentals this program builds toward.' },
+  { title: 'School Catalog v1.2 (effective 2026-08-25)', org: 'Mission Next Technical Academy', url: '', placeholder: 'link to the published catalog.', note: 'Policies, grading, attendance, grievances, records, withdrawal and refunds.' },
+  { title: 'CompTIA A+ Certification', org: 'CompTIA', url: 'https://www.comptia.org/certifications/a', note: 'A public reference for the certification this course’s content lines up with. No certification exam is required to finish the program.' },
 ];
 
+/* Lesson text. Block types (its01Blocks): h (sub-heading), h5 (a smaller
+ * heading under it), p, ul, ol, placeholder (a marked "to be confirmed" box),
+ * find (the "Find it in the LMS" list), diagram (a key of ITS01_DIAGRAMS),
+ * note ({ title, text }). In p, ul, ol and find text, [[...]] is an inline
+ * "to be confirmed" placeholder and **...** is emphasized.
+ * bin/its-curriculum-check.js reads each lesson's title and minutes from this
+ * file: they must match portal/data.js. */
 const ITS01_LESSONS = [
   {
     id: 'its-01-lesson-01', number: '1.1', icon: 'ri-compass-3-line',
     title: 'Program Orientation, LMS Navigation & Professional Conduct', minutes: 90,
     learn: [
-      'How to find everything you need inside the Mission Next LMS',
-      'How to submit your work and check your grades',
-      "What's expected of you as a student in this program",
-      'What professional conduct looks like on a real help desk, and why it matters from day one',
+      'How this program runs and what you need to finish it',
+      'Where to find everything in the LMS',
+      'What your computer needs for this course',
+      'The Acceptable Use Policy, who to ask for help, and the policies you need to know',
     ],
-    topics: [
-      { heading: 'Finding Your Way Around', body: 'Your LMS is organized the same way your work will be once you’re on the job: modules break down into lessons, lessons lead into labs, and everything you complete gets tracked in your gradebook. Work is scored within 24 hours, excluding weekends and holidays.' },
-      { heading: 'How This Program Runs', body: 'Mission Next is a licensed clock-hour training program — the time you spend in lessons and labs is part of your official record. If something comes up and you’re at risk of falling behind, reach out to your instructor directly rather than letting it slide.' },
-      { heading: 'The Acceptable Use Policy — Read This One For Real', body: 'It covers how you use the lab environment, how you handle your login credentials, and confidentiality. Some labs include realistic but completely fake user data — treat it exactly like a real person’s data on a real job. Never share it, post it, or screenshot it outside the lab.' },
-      { heading: 'What Professional Conduct Looks Like', body: 'Every ticket involves a real person on the other end, even in a simulation: a calm, plain tone, responding within expected timeframes, keeping one user’s issue confidential from another, and a clean handoff when you escalate so the next technician isn’t starting from zero.' },
-      { heading: 'Two Logins, Not One', body: 'Your hands-on lab environment uses a completely separate login from your LMS. Keep them separate and don’t reuse passwords between the two — credential discipline starts now.' },
+    blocks: [
+      { h: 'Program orientation: how this program runs' },
+      { ul: [
+        'Mission Next is a clock-hour program licensed by the Florida Commission for Independent Education (CIE). The time you spend in lessons, labs and live sessions is part of your official record.',
+        'The course runs for 6 weeks, two modules a week, with live sessions and self-paced work in the LMS.',
+        'Every module follows the same rhythm: Learn It (three short readings), Practice It (a coached lab, then practice tickets that aren’t graded) and Prove It (one graded ticket that your instructor reviews).',
+        'To finish the program, you complete all required assignments and projects, score at least 70% overall, attend at least 80% of live sessions, and pay all tuition and fees in full.',
+        'Your instructor grades self-paced lab work and answers questions within 24 hours, not counting weekends and holidays. If you’re falling behind, tell your instructor early rather than letting it slide.',
+        'No certification exam is required to finish the program.',
+      ] },
+      { h: 'LMS navigation' },
+      { ul: ['Modules hold your lessons and labs. Your score and your instructor’s feedback appear on the module’s card once your instructor has finalized them: open See your marked lab.'] },
+      { find: [
+        'The link to Module 2.',
+        'The Acceptable Use Policy.',
+        'How to contact your instructor.',
+        'Where your grades appear.',
+        'Where your live session links come from: [[where the links are posted]].',
+        'Where you open the IT Service Desk simulator.',
+      ] },
+      { h: 'Technology setup' },
+      { ul: [
+        'You need a Windows or macOS laptop with at least 8 GB of RAM, an updated browser, a webcam, a headset and reliable broadband internet (School Catalog).',
+        'Every lab runs in the browser-based IT Service Desk simulator.',
+        'Before your first live session, check that your webcam and headset work in the meeting tool.',
+      ] },
+      { h: 'Acceptable Use Policy' },
+      { p: 'The full policy is in the orientation tasks below. Read it, then acknowledge it in the LMS.' },
+      { h: 'Getting help and the chain of command' },
+      { ul: [
+        'Instructional support (course content, labs, tickets, grades): your instructor, through the LMS or a live session. Faculty respond to academic questions and grade self-paced lab work within 24 hours, not counting weekends and holidays.',
+        'Technical support (you can’t sign in, a page or the simulator won’t load, something looks broken): [[support channel and hours]]. Tell them what you were doing, what you saw (the exact error) and when it happened, with a screenshot if you can. That’s the same habit you’ll use on tickets.',
+        'Administrative support (enrollment documents, tuition and billing, student records, general program information, disability accommodations under the ADA): the Office of Student Services, led by the Director, Administrative & Student Services. Main line (850) 974-5763 · info@mntacademy.com.',
+      ] },
+      { p: 'Chain of command for a concern or complaint (Student Rights and Grievance Procedure):' },
+      { ol: [
+        'Put it in writing to your instructor.',
+        'If it isn’t resolved, the Program Director reviews it.',
+        'If it’s still not resolved, escalate to the On-Site Administrator (Cofounder & President).',
+        'If it’s still not resolved, you may file a complaint with the Florida Commission for Independent Education, 325 West Gaines Street, Suite 1414, Tallahassee, FL 32399-0400, toll-free (888) 224-6684.',
+      ] },
+      { h: 'Policies you need to know' },
+      { p: 'From the School Catalog v1.2. The full policies are in the catalog (see Sources & Further Reading).' },
+      { h5: 'Attendance and identity' },
+      { p: 'Attend at least 80% of live sessions, with your video on during live sessions. Your LMS login is how the school verifies it’s you, so it’s yours alone.' },
+      { h5: 'Academic integrity' },
+      { p: 'Your work must be your own. Plagiarism and cheating are grounds for dismissal under the Student Conduct & Dismissal Policy. [[policy on using AI tools in coursework]].' },
+      { h5: 'Grades and progress' },
+      { p: 'A 90–100, B 80–89, C 70–79 (the minimum passing grade), F below 70. Keep a cumulative grade of 70% or more to stay in good standing. Below 70% you’re on academic probation for one week, and you may be dismissed if it doesn’t improve. Each Prove It allows 3 attempts; after a second fail, you meet with your instructor before trying again.' },
+      { h5: 'Records, privacy, withdrawal and refunds' },
+      { p: 'See the School Catalog’s Student Records & Privacy section and its refund and withdrawal policy.' },
+      { h5: 'Career Readiness Core (M360-101)' },
+      { p: 'A separate 12-hour course that runs alongside this one, with its own lessons and grades.' },
+      { h: 'Course calendar' },
+      { placeholder: 'Cohort start and end dates, live session days and times, and weekly due dates, from your instructor.' },
     ],
-    practice: [
-      'Find the link to Module 2.',
-      'Find where the Acceptable Use Policy lives.',
-      'Find how to contact your instructor.',
-      'Find where your grades will appear.',
-      'Find where you’ll upload evidence for your labs.',
-    ],
-    comingUp: 'Confirm your LMS and lab-environment access both work, submit a test file, and acknowledge the Acceptable Use Policy.',
   },
   {
     id: 'its-01-lesson-02', number: '1.2', icon: 'ri-route-line',
     title: 'The Help Desk Role: Workflow & the Troubleshooting Mindset', minutes: 90,
     learn: [
-      'What Tier 1 (Help Desk) support actually covers, and how it differs from Tier 2 and Tier 3',
-      "A ticket's journey from the moment it lands in your queue to the moment it closes",
-      'A five-step way of thinking through any problem, used in every module from here on',
-      'How to tell the difference between something you should fix yourself and something you should hand off',
+      'What a Tier 1 technician does and doesn’t do',
+      'The troubleshooting method, and how to write down your work',
+      'How to find and follow a knowledge-base article',
+      'How to verify a caller before you touch their account',
     ],
-    topics: [
-      { heading: 'Where You Fit: Tier 1, 2, and 3', body: 'Tier 1 — that’s you — is the front line: password resets, basic connectivity problems, common known issues, and taking in new tickets. A well-run help desk resolves 60–80% of tickets at Tier 1 without a handoff. Escalating isn’t failing — it’s the system working correctly when something is genuinely outside your scope.' },
-      { heading: "A Ticket's Journey", body: 'A ticket lands in your queue. You triage it — what’s urgent, what can wait. You work it with the five-step process below. You document what you did. Then you close it out or escalate it with a handoff clean enough that the next person isn’t starting from zero.' },
-      { heading: 'The Five-Step Troubleshooting Mindset', body: 'Gather information → Reproduce or verify → Isolate (hardware, software, network, or account) → Resolve or escalate → Verify and document. This is the single most important framework in the program — memorize it.' },
-      { heading: 'Seeing It In Action', body: '"I can’t print and I have a deadline in an hour" isolates to a stuck queue, offline printer, driver problem, or network issue — squarely Tier 1, so you resolve it and confirm with the user. "Our department file server won’t boot after last night’s update" uses the same five steps, but the right call is to escalate quickly — server hardware and boot issues are outside Tier 1 here.' },
+    blocks: [
+      { h: 'Reading 1. The help desk role and support tiers' },
+      { ul: [
+        'Companies run on four things you will hear about every day. Endpoints are the devices people use: laptops, desktops, phones, printers. The operating system (OS), such as Windows 11, is the software that runs the device. The network is what connects devices to each other and to the internet. Servers are computers that do one job for everyone, such as storing shared files or checking passwords. Every company device has an asset tag: a label with its ID (for example NS-LT-0215) that links the device to its record, so everyone knows exactly which one it is.',
+        'Support is split into tiers. Tier 1 (you) takes every new contact, fixes known problems (password resets, unlocks, printer queues, basic connectivity), and documents everything. Tier 2 goes deeper: hands-on hardware, reimaging, complex software. Tier 3 owns the systems underneath: servers, network design, security engineering. Escalating an issue is not failing. It is how the system is designed to work when a problem needs access or skills Tier 1 doesn’t have.',
+      ] },
+      { diagram: 'tiers' },
+      { h: 'Reading 2. The troubleshooting method and writing it down' },
+      { p: 'You cannot memorize a fix for every problem. You can follow the same method every time (the troubleshooting methodology the A+ exams test):' },
+      { ol: [
+        'Identify the problem. Ask what they see, when it started, and what changed. Back up data before changing anything.',
+        'Establish a theory of probable cause. Start with the simple and likely. Check the knowledge base (KB).',
+        'Test the theory. If it’s confirmed, plan the fix. If not, form a new theory or escalate.',
+        'Plan the fix and ask who else it affects.',
+        'Implement or escalate.',
+        'Verify it works from the user’s side, and prevent a repeat if you can.',
+        'Document what you found, did and confirmed.',
+      ] },
+      { diagram: 'method' },
+      { p: 'Example, step by step: “I can’t print and I have a deadline in an hour.”' },
+      { ul: [
+        'Identify: ask which printer, what the screen says, and whether it’s only this document. (One printer; the job shows Error; only her report.)',
+        'Theory: start simple. A job stuck in the print queue is the likely cause, and the KB has an article for it.',
+        'Test: open the print queue. The job is stuck, so the theory is confirmed.',
+        'Plan: clear that one job. It affects only her job, nobody else’s.',
+        'Implement: clear the stuck job and send the report again.',
+        'Verify: ask her to check the printer. The report printed.',
+        'Document: write the work note (see “How to write it down” below).',
+      ] },
+      { p: 'Now compare “Our file server won’t boot after last night’s update.” The method is the same, but at step 4 the plan is to escalate fast: servers are Tier 3, and poking at one can make it worse.' },
+      { note: { title: 'How to write it down', text: 'Every work note has three parts the next technician can use. Reported: what the user said, in their words. Tried: what you checked and did, with evidence. Result: what happened and how you confirmed it. If the ticket stays open or goes to another team, add Next action: who does what next, and by when. This is the method’s last step: document findings, actions and outcomes.' } },
+      { note: { title: 'Example note for the printer ticket', text: 'Reported: user can’t print her report; deadline in 1 hour. Tried: confirmed one printer and one document affected; opened the print queue and found the job stuck in Error; cleared it and resent the report. Result: the report printed; the user confirmed it at the printer.' } },
+      { h: 'Reading 3. Verifying callers and using the knowledge base' },
+      { ul: [
+        'Verify before you act. Before any account action (reset, unlock, access change), and before you hand over or swap a device such as a loaner, confirm the caller is who they say they are, using your company’s procedure. At Northstar that is KB-0024: call back on the number in the directory (never a number the caller gives you), and confirm the employee ID. A name and department alone are not verification. **Never ask for, type or write down a user’s password.**',
+        'Confidentiality and tone. Treat lab data as real personal data. Keep one user’s problem private from another. Use plain words: “Your account was locked after too many wrong passwords. I’ve unlocked it,” not “badPwdCount hit threshold.”',
+        'The knowledge base (KB) is the help desk’s shared library of approved fixes and policies. Each article has an ID (KB-0024), an audience (Tier 1 or Tier 2) and steps. Search it by symptom words (“locked out repeated”), not vague phrases. If the user gives you an error code, search with the exact code (“0x80070005”). If a KB article says “Tier 2 only”, you escalate instead of improvising. Some articles give steps you do on the user’s computer, such as adding a printer from Settings. Articles you’ll use this week: KB-0024 (verifying callers, passwords and unlocks), KB-0071 (damaged devices), KB-0059 (adding a department printer) and KB-0058 (local administrator rights are never granted to users).',
+      ] },
+      { p: 'When you can’t verify the caller (KB-0024, last step): make no account change. Log the ticket with Category Security › Suspicious request, set Caller to Unverified, and assign it to Security Operations (SOC) with the caller’s exact words, number and time. That is the whole route; you’ll learn more about social engineering in Module 11.' },
+      { diagram: 'verify' },
+      { note: { title: 'About priority in Module 1', text: 'The simulator pre-sets each ticket’s Priority, and the coach says why in one line. You’ll learn to set it yourself from Impact × Urgency in Module 2.' } },
+      { note: { title: 'Ticket states in Module 1', text: 'New: nobody owns it yet. In Progress: you own it and are working it; Assign to me sets this. Resolved: fixed and confirmed with the user. Escalated: handed to another team (Desktop Support, Security Operations) with your notes. Closed: finished; the system closes resolved tickets later. Module 1 tickets close through one control (Resolve, or Who owns this ticket?). You’ll meet On Hold (waiting on the user or a vendor) and the rest of the ServiceNow states in Module 2.' } },
+      { note: { title: 'Triage in Module 1', text: 'Category and Priority are pre-set and are not scored until Module 2 teaches them. Triage points score who should own the ticket: resolve it at Tier 1, escalate to Tier 2 when the KB says so, or route it to Security Operations (SOC) when the caller can’t be verified (Readings 1 and 3).' } },
     ],
-    practice: [
-      '“My printer won’t print, and there’s a red light blinking on it.” Name the category, write your first question, and decide: resolve or escalate?',
-      '“It says my account is locked out, too many failed attempts.” Name the category, write your first question, and decide: resolve or escalate?',
-      '“My laptop has no internet, but my phone on Wi-Fi works fine.” Name the category, write your first question, and decide: resolve or escalate?',
-    ],
-    comingUp: 'Work Jordan Bell’s account-lockout ticket end to end in the IT Service Desk simulator, applying everything from this lesson for real.',
+    comingUp: 'Work Sam Rivera’s account-lockout ticket end to end in the IT Service Desk simulator (Lab 1.1, the guided lab), applying everything from these readings.',
   },
 ];
 
-const ITS01_AUP_PARAGRAPHS = [
-  'Lab Environment: Use the sandbox and virtual machines issued to you only for coursework in this program. Do not use them to store or process real personal data, connect to production systems, or attempt to access systems outside the scope of an assigned lab.',
-  'Credentials: Your LMS login and your lab-environment login are separate and must not share a password. Do not share either set of credentials with anyone else, including other students.',
-  'Confidentiality: Labs use realistic but entirely fictional user data — names, account numbers, and similar details. Treat it exactly as you would a real person’s data on a real job: never share it, post it, or screenshot it outside the lab environment.',
-];
+/* ------------------------------------------------------------- Diagrams */
 
-const ITS01_LAB1_ID = 'its01-lms-validation-v1';
-const ITS01_LAB1_KEY = 'lab-its-01-lms-validation';
-const ITS01_LAB2_KEY = 'lab-its-01-ticket-triage';
-
-const ITS01_DEFAULT_STATE = {
-  evidence1: null, evidence2: null, aupScrolled: false, aupAcknowledged: false, lab1Complete: false,
-  consoleStarted: false, consoleCompleted: false,
+/* Three diagrams, with the wording of the Week 1 plan. Each is drawn twice
+ * from the same data: a wide layout and a narrow (phone) one, switched by a
+ * container query in it-support-module-01.css. Colours come from CSS classes
+ * (its01-dg-*) so they follow the page's theme variables. */
+const ITS01_DIAGRAMS = {
+  tiers: {
+    title: 'Escalating hands the ticket to the tier with the right access',
+    caption: 'The ticket and its notes move with every escalation, so the next tier starts where you stopped.',
+    boxes: [
+      { title: 'User', sub: 'reports it' },
+      { title: 'Tier 1 (you)', sub: 'Service Desk', lines: ['Takes every new contact', 'Fixes known problems', 'Documents everything'], hl: true },
+      { title: 'Tier 2', sub: 'Desktop Support', lines: ['Hands-on hardware', 'Reimaging', 'Complex software'] },
+      { title: 'Tier 3', sub: 'Systems teams', lines: ['Servers', 'Network design', 'Security engineering'] },
+    ],
+    arrows: ['', 'escalates', 'escalates'],
+    band: 'The ticket and its notes travel with it, so the user never re-explains',
+  },
+  method: {
+    title: 'One method for every problem: if a theory fails, loop back',
+    caption: 'Step 3 is the only place the method loops: a theory that doesn’t hold sends you back to step 2, or up to the next tier.',
+    steps: [
+      { title: 'Identify the problem', text: 'Ask what they see, when it started and what changed. Back up first.' },
+      { title: 'Establish a theory of probable cause', text: 'Start with the simple and likely. Check the knowledge base (KB).' },
+      { title: 'Test the theory', text: 'Confirmed: go on to plan the fix. Not confirmed: loop back.' },
+      { title: 'Plan the fix', text: 'Ask who else it affects before you change anything.' },
+      { title: 'Implement or escalate', text: 'Make the fix, or hand it to the tier that can, with your notes.' },
+      { title: 'Verify', text: 'Confirm it works from the user’s side; prevent a repeat if you can.' },
+      { title: 'Document', text: 'Write down what you found, did and confirmed.' },
+    ],
+    loop: 'Not confirmed: form a new theory or escalate',
+  },
+  verify: {
+    title: 'No verification, no account change',
+    caption: 'Both branches come from KB-0024, and the callback comes before every account action.',
+    ask: { title: 'Caller asks for an account action', lines: ['A reset, an unlock or an access change'] },
+    check: { title: 'Verify the caller (KB-0024)', lines: ['Call back on the directory number, never a number the caller gives you', 'Confirm the employee ID', 'A name and department are not enough'], bullets: true },
+    decision: 'Verified?',
+    yes: { title: 'Verified: follow the KB article', lines: ['Unlock the account, or guide them through the self-service password reset', 'You never ask for or see a password'], bullets: true },
+    no: { title: 'Not verified: make no change', lines: ['Category: Security › Suspicious request', 'Caller: Unverified', 'Assign to Security Operations (SOC)', 'Log their exact words, number and time'], bullets: true, hl: true },
+  },
 };
 
-let its01State = null;
-let its01User = null;
-
-function its01Load(user) {
-  its01User = user;
-  its01State = LabRuntime.load(ITS01_LAB1_ID, user, ITS01_DEFAULT_STATE);
-  // Same-tab fallback for the coach's completion signal — postMessage is the
-  // primary channel (see its01ReceiveCoachCompletion) but doesn't fire if the
-  // student closed and reopened the sim tab without window.opener intact.
-  if (new URLSearchParams(location.search).get('coachComplete') === 'hd-m01') {
-    its01State.consoleStarted = true;
-    its01State.consoleCompleted = true;
-    LabRuntime.save(ITS01_LAB1_ID, user, its01State);
-    history.replaceState(null, '', location.pathname + location.hash);
+// Every word a diagram shows, in reading order: the screen-reader description.
+function its01DiagramWords(key) {
+  const d = ITS01_DIAGRAMS[key];
+  const box = (b) => `${b.title}${b.sub ? `, ${b.sub}` : ''}${b.lines && b.lines.length ? `: ${b.lines.join('; ')}` : ''}`;
+  if (key === 'tiers') {
+    return `${d.boxes.map((b, i) => `${i ? `${d.arrows[i - 1] || 'then'}: ` : ''}${box(b)}`).join('. ')}. ${d.band}.`;
   }
-  if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'it-support', 'its-01');
-  return its01State;
+  if (key === 'method') {
+    return `${d.steps.map((s, i) => `${i + 1}. ${s.title}: ${s.text}`).join(' ')} A loop from step 3 back to step 2: ${d.loop}.`;
+  }
+  return `${box(d.ask)}. Then: ${box(d.check)}. ${d.decision} Yes: ${box(d.yes)}. No: ${box(d.no)}.`;
 }
 
-function its01Save() {
-  if (its01User && its01State) LabRuntime.save(ITS01_LAB1_ID, its01User, its01State);
+// Splits text into lines of at most max characters, at word breaks.
+function its01Wrap(text, max) {
+  const lines = [];
+  let line = '';
+  String(text).split(/\s+/).forEach((word) => {
+    if (line && (line.length + 1 + word.length) > max) { lines.push(line); line = word; } else line = line ? `${line} ${word}` : word;
+  });
+  if (line) lines.push(line);
+  return lines;
+}
+
+const ITS01_DG = { pad: 12, title: 15, text: 13, lh: 18, charW: 0.56 };
+
+// One box's wrapped lines: [{ text, cls }], laid out for width w.
+function its01BoxLines(box, w) {
+  const inner = w - ITS01_DG.pad * 2 - (box.num ? 34 : 0);
+  const titleMax = Math.max(8, Math.floor(inner / (ITS01_DG.title * ITS01_DG.charW)));
+  const textMax = Math.max(8, Math.floor(inner / (ITS01_DG.text * ITS01_DG.charW)));
+  const out = [];
+  its01Wrap(box.title, titleMax).forEach((text) => out.push({ text, cls: 'its01-dg-title' }));
+  if (box.sub) its01Wrap(box.sub, textMax).forEach((text) => out.push({ text, cls: 'its01-dg-sub' }));
+  (box.lines || []).forEach((item) => {
+    its01Wrap(box.bullets ? `• ${item}` : item, textMax).forEach((text, i) => out.push({ text: box.bullets && i ? `  ${text}` : text, cls: 'its01-dg-text', gap: i === 0 }));
+  });
+  if (box.text) its01Wrap(box.text, textMax).forEach((text) => out.push({ text, cls: 'its01-dg-text' }));
+  return out;
+}
+function its01BoxHeight(box, w) {
+  return ITS01_DG.pad * 2 + its01BoxLines(box, w).length * ITS01_DG.lh + 4;
+}
+function its01Box(box, x, y, w, h) {
+  const lines = its01BoxLines(box, w);
+  const textX = x + ITS01_DG.pad + (box.num ? 34 : 0);
+  const num = box.num ? `<circle class="its01-dg-num" cx="${x + ITS01_DG.pad + 13}" cy="${y + ITS01_DG.pad + 12}" r="13"/><text class="its01-dg-num-text" x="${x + ITS01_DG.pad + 13}" y="${y + ITS01_DG.pad + 17}" text-anchor="middle">${box.num}</text>` : '';
+  const text = lines.map((line, i) => `<text class="${line.cls}" x="${textX}" y="${y + ITS01_DG.pad + 14 + i * ITS01_DG.lh}">${esc(line.text)}</text>`).join('');
+  return `<rect class="its01-dg-box${box.hl ? ' its01-dg-hl' : ''}" x="${x}" y="${y}" width="${w}" height="${h}" rx="10"/>${num}${text}`;
+}
+function its01Arrow(x1, y1, x2, y2, id, hl) {
+  return `<line class="its01-dg-line${hl ? ' its01-dg-line-hl' : ''}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" marker-end="url(#${id}${hl ? '-hl' : ''})"/>`;
+}
+function its01Label(text, x, y, anchor = 'middle', hl = false, max = 40) {
+  return its01Wrap(text, max).map((line, i) => `<text class="its01-dg-label${hl ? ' its01-dg-label-hl' : ''}" x="${x}" y="${y + i * 16}" text-anchor="${anchor}">${esc(line)}</text>`).join('');
+}
+function its01Markers(id) {
+  const marker = (suffix, cls) => `<marker id="${id}${suffix}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="${cls}" d="M0,0 L10,5 L0,10 z"/></marker>`;
+  return `<defs>${marker('', 'its01-dg-head')}${marker('-hl', 'its01-dg-head its01-dg-head-hl')}</defs>`;
+}
+function its01Svg(key, layout, width, height, body) {
+  const d = ITS01_DIAGRAMS[key];
+  return `<svg class="its01-dg-${layout}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(d.title)}" aria-describedby="its01-dg-${key}-desc" focusable="false">${body}</svg>`;
+}
+
+function its01TiersSvg(layout) {
+  const d = ITS01_DIAGRAMS.tiers;
+  const id = `its01-dg-tiers-${layout}-arrow`;
+  if (layout === 'wide') {
+    const w = 144, gap = 66, width = 4 * w + 3 * gap;
+    const h = Math.max(...d.boxes.map((b) => its01BoxHeight(b, w)));
+    const top = 4;
+    let body = its01Markers(id);
+    d.boxes.forEach((b, i) => {
+      const x = i * (w + gap);
+      body += its01Box(b, x, top, w, h);
+      if (i) {
+        body += its01Arrow(x - gap + 4, top + 34, x - 4, top + 34, id);
+        if (d.arrows[i - 1]) body += its01Label(d.arrows[i - 1], x - gap / 2, top + 26);
+      }
+    });
+    const bandX = w + gap, bandW = width - bandX, bandY = top + h + 18;
+    const band = its01Wrap(d.band, Math.floor((bandW - 24) / (ITS01_DG.text * ITS01_DG.charW)));
+    const bandH = 20 + band.length * ITS01_DG.lh;
+    body += `<rect class="its01-dg-band" x="${bandX}" y="${bandY}" width="${bandW}" height="${bandH}" rx="8"/>`;
+    body += band.map((line, i) => `<text class="its01-dg-text" x="${bandX + bandW / 2}" y="${bandY + 23 + i * ITS01_DG.lh}" text-anchor="middle">${esc(line)}</text>`).join('');
+    return its01Svg('tiers', layout, width, bandY + bandH + 4, body);
+  }
+  const width = 320, x = 10, w = 300, gap = 46;
+  let y = 4;
+  let body = its01Markers(id);
+  d.boxes.forEach((b, i) => {
+    if (i) {
+      body += its01Arrow(x + w / 2, y + 4, x + w / 2, y + gap - 4, id);
+      if (d.arrows[i - 1]) body += its01Label(d.arrows[i - 1], x + w / 2 + 12, y + gap / 2 + 5, 'start');
+      y += gap;
+    }
+    const h = its01BoxHeight(b, w);
+    body += its01Box(b, x, y, w, h);
+    y += h;
+  });
+  y += 16;
+  const band = its01Wrap(d.band, Math.floor((w - 24) / (ITS01_DG.text * ITS01_DG.charW)));
+  const bandH = 20 + band.length * ITS01_DG.lh;
+  body += `<rect class="its01-dg-band" x="${x}" y="${y}" width="${w}" height="${bandH}" rx="8"/>`;
+  body += band.map((line, i) => `<text class="its01-dg-text" x="${x + w / 2}" y="${y + 23 + i * ITS01_DG.lh}" text-anchor="middle">${esc(line)}</text>`).join('');
+  return its01Svg('tiers', layout, width, y + bandH + 4, body);
+}
+
+function its01MethodSvg(layout) {
+  const d = ITS01_DIAGRAMS.method;
+  const id = `its01-dg-method-${layout}-arrow`;
+  const wide = layout === 'wide';
+  const width = wide ? 700 : 320;
+  const w = wide ? 470 : 212;
+  const channel = w + (wide ? 50 : 22);
+  const gap = 30;
+  let y = 4;
+  const tops = [];
+  const heights = [];
+  let body = its01Markers(id);
+  d.steps.forEach((step, i) => {
+    if (i) {
+      body += its01Arrow(w / 2, y + 3, w / 2, y + gap - 3, id);
+      y += gap;
+    }
+    const box = { ...step, num: i + 1 };
+    const h = its01BoxHeight(box, w);
+    tops.push(y); heights.push(h);
+    body += its01Box(box, 0, y, w, h);
+    y += h;
+  });
+  // The loop: from step 3's right edge out, up, and back into step 2.
+  const from = tops[2] + heights[2] / 2;
+  const to = tops[1] + heights[1] / 2;
+  body += `<path class="its01-dg-line its01-dg-line-hl" d="M${w + 3},${from} H${channel} V${to} H${w + 5}" marker-end="url(#${id}-hl)"/>`;
+  const labelMax = wide ? 21 : 10;
+  const labelLines = its01Wrap(d.loop, labelMax).length;
+  body += its01Label(d.loop, channel + 10, (from + to) / 2 - ((labelLines - 1) * 16) / 2 + 4, 'start', true, labelMax);
+  return its01Svg('method', layout, width, y + 4, body);
+}
+
+function its01VerifySvg(layout) {
+  const d = ITS01_DIAGRAMS.verify;
+  const id = `its01-dg-verify-${layout}-arrow`;
+  const wide = layout === 'wide';
+  const width = wide ? 760 : 320;
+  const gap = 34;
+  let body = its01Markers(id);
+  const cw = wide ? 440 : 300;
+  const cx = width / 2;
+  let y = 4;
+  [d.ask, d.check].forEach((box, i) => {
+    if (i) { body += its01Arrow(cx, y + 3, cx, y + gap - 3, id); y += gap; }
+    const h = its01BoxHeight(box, cw);
+    body += its01Box(box, cx - cw / 2, y, cw, h);
+    y += h;
+  });
+  body += its01Arrow(cx, y + 3, cx, y + gap - 3, id);
+  y += gap;
+  const dw = wide ? 200 : 150, dh = wide ? 84 : 76;
+  body += `<polygon class="its01-dg-box" points="${cx},${y} ${cx + dw / 2},${y + dh / 2} ${cx},${y + dh} ${cx - dw / 2},${y + dh / 2}"/>`;
+  body += `<text class="its01-dg-title" x="${cx}" y="${y + dh / 2 + 5}" text-anchor="middle">${esc(d.decision)}</text>`;
+  const mid = y + dh / 2;
+  if (wide) {
+    const bw = 360, by = y + dh + 30;
+    const hy = Math.max(its01BoxHeight(d.yes, bw), its01BoxHeight(d.no, bw));
+    const yesX = 0, noX = width - bw;
+    body += `<path class="its01-dg-line" d="M${cx - dw / 2},${mid} H${yesX + bw / 2} V${by - 3}" marker-end="url(#${id})"/>`;
+    body += its01Label('Yes', cx - dw / 2 - 14, mid - 8, 'end');
+    body += `<path class="its01-dg-line its01-dg-line-hl" d="M${cx + dw / 2},${mid} H${noX + bw / 2} V${by - 3}" marker-end="url(#${id}-hl)"/>`;
+    body += its01Label('No', cx + dw / 2 + 14, mid - 8, 'start', true);
+    body += its01Box(d.yes, yesX, by, bw, hy);
+    body += its01Box(d.no, noX, by, bw, hy);
+    return its01Svg('verify', layout, width, by + hy + 4, body);
+  }
+  const bw = 276, bx = 10;
+  let by = y + dh + gap;
+  body += its01Arrow(cx, y + dh + 3, cx, by - 3, id);
+  body += its01Label('Yes', cx + 10, y + dh + gap / 2 + 5, 'start');
+  const yh = its01BoxHeight(d.yes, bw);
+  body += its01Box(d.yes, bx, by, bw, yh);
+  const noY = by + yh + gap;
+  const rail = width - 10;
+  body += `<path class="its01-dg-line its01-dg-line-hl" d="M${cx + dw / 2},${mid} H${rail} V${noY + 24} H${bx + bw + 3}" marker-end="url(#${id}-hl)"/>`;
+  body += its01Label('No', cx + dw / 2 + 12, mid - 8, 'start', true);
+  const nh = its01BoxHeight(d.no, bw);
+  body += its01Box(d.no, bx, noY, bw, nh);
+  return its01Svg('verify', layout, width, noY + nh + 4, body);
+}
+
+const ITS01_DIAGRAM_DRAW = { tiers: its01TiersSvg, method: its01MethodSvg, verify: its01VerifySvg };
+
+function its01Diagram(key) {
+  const d = ITS01_DIAGRAMS[key];
+  const draw = ITS01_DIAGRAM_DRAW[key];
+  return `<figure class="its01-dg" data-its01-diagram="${esc(key)}">
+    <p class="its01-dg-heading">${esc(d.title)}</p>
+    ${draw('wide')}
+    ${draw('narrow')}
+    <p class="its01-sr-only" id="its01-dg-${esc(key)}-desc">${esc(its01DiagramWords(key))}</p>
+    <figcaption>${esc(d.caption)}</figcaption>
+  </figure>`;
+}
+
+/* ------------------------------------------------------------- Lessons */
+
+// Escaped text; [[...]] becomes a marked "to be confirmed" placeholder and
+// **...** emphasized text. Both run on the escaped text, so no markup gets in.
+function its01Text(text) {
+  return esc(text)
+    .replace(/\[\[(.+?)\]\]/g, (_, what) => `<span class="its01-placeholder-inline" data-its01-placeholder>To be confirmed: ${what}</span>`)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+}
+
+function its01Blocks(blocks) {
+  return blocks.map((block) => {
+    if (block.h) return `<h4>${esc(block.h)}</h4>`;
+    if (block.h5) return `<h5>${esc(block.h5)}</h5>`;
+    if (block.p) return `<p>${its01Text(block.p)}</p>`;
+    if (block.ul) return `<ul>${block.ul.map((item) => `<li>${its01Text(item)}</li>`).join('')}</ul>`;
+    if (block.ol) return `<ol>${block.ol.map((item) => `<li>${its01Text(item)}</li>`).join('')}</ol>`;
+    if (block.placeholder) return `<div class="its01-placeholder" data-its01-placeholder><strong>To be confirmed</strong><p>${esc(block.placeholder)}</p></div>`;
+    if (block.find) return `<div class="its01-practice"><strong><i class="ri-search-line" aria-hidden="true"></i> Find it in the LMS</strong><ol>${block.find.map((item) => `<li>${its01Text(item)}</li>`).join('')}</ol></div>`;
+    if (block.diagram) return its01Diagram(block.diagram);
+    if (block.note) return `<div class="its01-note"><strong>${esc(block.note.title)}</strong><p>${esc(block.note.text)}</p></div>`;
+    return '';
+  }).join('');
 }
 
 function its01LessonCard(lesson) {
@@ -106,136 +439,665 @@ function its01LessonCard(lesson) {
     <div class="its01-lesson-body">
       <h4>What You'll Learn</h4>
       <ul>${lesson.learn.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>
-      ${lesson.topics.map((topic) => `<div class="its01-lesson-topic"><strong>${esc(topic.heading)}</strong><p>${esc(topic.body)}</p></div>`).join('')}
-      <div class="its01-practice"><strong><i class="ri-flashlight-line" aria-hidden="true"></i> Try It Yourself</strong><ol>${lesson.practice.map((item) => `<li>${esc(item)}</li>`).join('')}</ol></div>
-      <div class="its01-preview"><i class="ri-arrow-right-circle-line" aria-hidden="true"></i><span><strong>Coming up in your lab:</strong> ${esc(lesson.comingUp)}</span></div>
+      ${its01Blocks(lesson.blocks)}
+      ${lesson.comingUp ? `<div class="its01-preview"><i class="ri-arrow-right-circle-line" aria-hidden="true"></i><span><strong>Coming up in your lab:</strong> ${esc(lesson.comingUp)}</span></div>` : ''}
     </div>
   </details>`;
 }
 
-function its01Lessons() {
-  return `<div class="its01-lesson-grid">${ITS01_LESSONS.map(its01LessonCard).join('')}</div>`;
+/* ------------------------------------------------ Acceptable Use Policy */
+
+/* An orientation task, not a lab: the acknowledgement is saved to the
+ * student's account (module_progress.case_state) under the id Lab 1.1 used,
+ * so acknowledgements already given are still found. The policy text last
+ * changed on 2026-11-15 (the confidentiality wording), so an acknowledgement
+ * of an earlier version asks the student to acknowledge again. */
+const ITS01_AUP_VERSION = '2026-11-15';
+const ITS01_AUP_VERSION_DAY = 'Nov 15, 2026';
+const ITS01_AUP_PARAGRAPHS = [
+  'Use the simulator and course materials only for coursework. Don’t try to reach any system outside an assigned lab.',
+  'Credentials: keep your LMS login to yourself. Don’t share it with anyone, including other students. The simulator never needs a real password, so never type one into it.',
+  'Confidentiality: the people, company and data in the labs are fictional. Treat them as real personal data anyway: never share, post or screenshot them for use outside this course.',
+];
+
+// The case-state id Lab 1.1 used; kept so earlier acknowledgements carry over.
+const ITS01_STATE_ID = 'its01-lms-validation-v1';
+// Students see the guided lab as Lab 1.1 and the practice tickets as Lab 1.2;
+// the keys are older than that numbering.
+const ITS01_LAB2_KEY = 'lab-its-01-ticket-triage';
+const ITS01_PRACTICE_KEY = 'lab-its-01-practice-tickets';
+const ITS01_PROVE_KEY = 'lab-its-01-prove-it';
+
+const ITS01_LAB_KEYS = [ITS01_LAB2_KEY, ITS01_PRACTICE_KEY, ITS01_PROVE_KEY];
+const ITS01_LAB2_START = 'Start Lab 1.1 walkthrough';
+
+const ITS01_DEFAULT_STATE = {
+  aupReadVersion: null, aupAcknowledged: false, aupVersion: null, aupAcknowledgedAt: null,
+  orientationCheckCompleted: false, orientationCheckCompletedAt: null,
+  learnCheckCompleted: false, learnCheckCompletedAt: null,
+  aplusCheckCompleted: false, aplusCheckCompletedAt: null,
+  consoleStarted: false, consoleCompleted: false,
+};
+
+let its01State = null;
+let its01User = null;
+
+function its01Load(user) {
+  // Check answers live in page memory: a different student signing in
+  // without a reload starts every check fresh.
+  const userId = user && user.userId;
+  if (userId !== its01CheckAnswersUser) {
+    its01CheckAnswersUser = userId;
+    Object.keys(its01CheckAnswers).forEach((key) => { its01CheckAnswers[key] = {}; its01CheckPicks[key] = {}; its01CheckSaveFailed[key] = false; });
+  }
+  its01User = user;
+  // Saved to the student's account (module_progress.case_state), so the
+  // policy acknowledgement and the orientation check come back in any
+  // browser after sign-in.
+  its01State = LabRuntime.loadCaseState(ITS01_STATE_ID, 'its-01', user, ITS01_DEFAULT_STATE);
+  // The simulator's popup message is the only way a walkthrough is recorded;
+  // a return by link only shows that it wasn't (see itsNoteCoachReturn).
+  itsNoteCoachReturn(user, 'hd-m01', [ITS01_LAB2_KEY]);
+  if (typeof markModuleContentOpened === 'function') markModuleContentOpened(user, 'it-support', 'its-01');
+  return its01State;
 }
 
-function its01Lab1Status() {
-  const done = its01State.lab1Complete;
-  return `<div class="its01-lab-status ${done ? 'its01-status-pass' : 'its01-status-pending'}"><i class="${done ? 'ri-checkbox-circle-fill' : 'ri-time-line'}" aria-hidden="true"></i><span>${done ? 'Lab 1.1 complete — both evidence files uploaded and the Acceptable Use Policy is acknowledged.' : 'Upload both evidence files and acknowledge the Acceptable Use Policy to complete this lab.'}</span></div>`;
+function its01Save(onResult) {
+  if (its01User && its01State) LabRuntime.saveCaseState(ITS01_STATE_ID, 'its-01', its01User, its01State, onResult ? { onResult } : {});
 }
 
-function its01Lab1() {
-  return `<section class="its01-section its01-lab-section" id="its01-lab-1-1" aria-labelledby="its01-lab-1-1-title">
-    <div class="its01-section-heading"><span>1</span><div><p class="its01-kicker">Lab 1.1 · evidence-based · real systems</p><h2 id="its01-lab-1-1-title">LMS &amp; Environment Validation</h2></div></div>
-    <p class="its01-instruction">Confirm your LMS login and your separate lab-sandbox login both work, submit a test file through the evidence-upload workflow below, and formally acknowledge the Acceptable Use Policy.</p>
-    <div class="its01-evidence-grid">
-      ${itswEvidenceTile({ id: 'its01-evidence-1', label: 'Sandbox desktop screenshot', hint: 'A screenshot of the sandbox desktop after a successful login.', file: its01State.evidence1 })}
-      ${itswEvidenceTile({ id: 'its01-evidence-2', label: 'Evidence-upload confirmation', hint: 'A screenshot of this tile showing an “Uploaded” status and timestamp.', file: its01State.evidence2 })}
-    </div>
-    <div class="its01-aup">
-      <strong>Acceptable Use Policy</strong>
-      <div class="its01-aup-text" data-its01-aup-text tabindex="0" aria-label="Acceptable Use Policy, scroll to read in full">
-        ${ITS01_AUP_PARAGRAPHS.map((p) => `<p>${esc(p)}</p>`).join('')}
-      </div>
-      ${its01AupAck()}
-    </div>
-    ${its01Lab1Status()}
-  </section>`;
+function its01AupCurrent() {
+  return Boolean(its01State && its01State.aupAcknowledged === true && its01State.aupVersion === ITS01_AUP_VERSION);
+}
+function its01AupRead() {
+  return Boolean(its01State && its01State.aupReadVersion === ITS01_AUP_VERSION);
+}
+function its01Day(iso) {
+  const date = iso ? new Date(iso) : null;
+  return date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 }
 
 function its01AupAck() {
+  if (its01AupCurrent()) {
+    const day = its01Day(its01State.aupAcknowledgedAt);
+    return `<div class="its01-aup-ack-wrap" data-its01-aup-done>
+      <div class="its01-aup-ack">
+        <input type="checkbox" id="its01-aup-checkbox" data-its01-aup-checkbox checked disabled />
+        <label for="its01-aup-checkbox">I have read and acknowledge the Acceptable Use Policy.</label>
+      </div>
+      <p class="its01-aup-hint"><i class="ri-check-line" aria-hidden="true"></i> Acknowledged${day ? ` on ${esc(day)}` : ''}.</p>
+    </div>`;
+  }
+  const earlier = its01State.aupAcknowledged === true;
+  const read = its01AupRead();
   return `<div class="its01-aup-ack-wrap">
+    ${earlier ? `<p class="its01-aup-changed" role="status">The Acceptable Use Policy changed on ${ITS01_AUP_VERSION_DAY}. Read it again and acknowledge the new version.</p>` : ''}
     <div class="its01-aup-ack">
-      <input type="checkbox" id="its01-aup-checkbox" data-its01-aup-checkbox ${its01State.aupAcknowledged ? 'checked' : ''} ${its01State.aupScrolled ? '' : 'disabled'} />
+      <input type="checkbox" id="its01-aup-checkbox" data-its01-aup-checkbox ${read ? '' : 'disabled'} />
       <label for="its01-aup-checkbox">I have read and acknowledge the Acceptable Use Policy.</label>
     </div>
-    ${its01State.aupScrolled ? '' : '<p class="its01-aup-hint">Scroll to the end of the policy text to enable acknowledgment.</p>'}
+    <p class="its01-aup-hint">${read ? 'Tick the box to acknowledge the policy.' : 'Scroll to the end of the policy text to enable acknowledgment.'}</p>
   </div>`;
 }
 
+function its01Aup() {
+  return `<div class="its01-aup" id="its01-aup">
+    <strong>Acceptable Use Policy</strong>
+    <div class="its01-aup-text" data-its01-aup-text tabindex="0" aria-label="Acceptable Use Policy, scroll to read in full">
+      ${ITS01_AUP_PARAGRAPHS.map((p) => `<p>${esc(p)}</p>`).join('')}
+    </div>
+    ${its01AupAck()}
+  </div>`;
+}
+
+/* ------------------------------------------------------------- Checks */
+
+/* Three checks, answered one question at a time with feedback straight away.
+ * A wrong pick shows why that choice is wrong (its ifWrong line), never the
+ * right answer, and the student picks again. A right pick shows the Why.
+ * Only the first pick on each question counts:
+ *   - orientation: an orientation task, complete when all six first picks
+ *     are right.
+ *   - learn, aplus: complete when 70% or more of the first picks are right
+ *     (6 of 8, 3 of 4).
+ * Once complete, a check stays complete; Start again is a retake. Only
+ * "complete" and its time are saved to the case state (its01Save), never the
+ * answers or a score. No check records a lab attempt or a lab key, and none
+ * gates anything in Module 1. The completion is worked out in the browser,
+ * like the orientation check. */
+const ITS01_CHECKS = {
+  orientation: {
+    title: 'Orientation check',
+    intro: 'Six questions on getting help and the Acceptable Use Policy. Retake it as often as you like. It’s complete when all six of your first answers are right.',
+    questions: [
+      { q: 'Your simulator won’t load before a lab. Who do you contact first?', choices: ['Your instructor', 'Technical support', 'The Office of Student Services', 'Another student'], answer: 1,
+        ifWrong: ['Your instructor helps with course content, labs and grades, not with a page that won’t load.', null, 'Student Services handles enrollment, billing and records, not technical problems.', 'Another student can’t fix the system, and you lose time. Use the route the school set up.'] },
+      { q: 'You’re stuck on a Practice It ticket. Who do you ask?', choices: ['Technical support', 'The Office of Student Services', 'Your instructor', 'The Commission for Independent Education'], answer: 2,
+        ifWrong: ['Technical support fixes things that are broken. The ticket works; you need help with the content.', 'Student Services handles enrollment, billing and records, not coursework.', null, 'The Commission is the last step of a complaint, not a place for coursework questions.'] },
+      { q: 'You need a copy of your enrollment documents. Who handles it?', choices: ['Your instructor', 'Technical support', 'The Office of Student Services', 'The Program Director'], answer: 2,
+        ifWrong: ['Your instructor handles coursework, not enrollment records.', 'Technical support handles sign-in and broken pages, not records.', null, 'The Program Director reviews concerns that weren’t resolved; records come from another office.'] },
+      { q: 'You raised a concern in writing with your instructor and it wasn’t resolved. What’s the next step?', choices: ['File with the Commission for Independent Education', 'The Program Director reviews it', 'Post about it in the course chat', 'Stop attending'], answer: 1,
+        ifWrong: ['The Commission comes last, after the school’s own steps.', null, 'Posting in the chat skips the chain of command and doesn’t get the concern resolved.', 'Missing sessions hurts your attendance record and resolves nothing.'] },
+      { q: 'A classmate asks to borrow your LMS login for one night. What do you do?', choices: ['Share it, it’s only one night', 'Share it but change it after', 'Don’t share it: your login is yours alone (Acceptable Use Policy)', 'Ask your instructor to share theirs instead'], answer: 2,
+        ifWrong: ['Even one night breaks the policy: your login is how the school verifies it’s you.', 'Changing it afterwards doesn’t undo the sharing; anything done in that time is recorded as you.', null, 'Nobody shares a login, instructors included.'] },
+      { q: 'You want to show a friend a lab ticket that includes a fictional user’s details. What does the Acceptable Use Policy say?', choices: ['Fine, the data is fake', 'Fine if you blur the name', 'Don’t: treat lab data as real personal data and never share, post or screenshot it outside the course', 'Ask the user in the ticket'], answer: 2,
+        ifWrong: ['The data is fictional, but the policy says to treat it as real personal data.', 'Blurring the name still shares the rest of the record.', null, 'The user in the ticket is fictional, so their say-so means nothing; the policy decides, and it says don’t share.'] },
+    ],
+  },
+  learn: {
+    title: 'Learn It knowledge check',
+    intro: 'Eight questions in all, after the lessons they cover. It’s complete when 6 of your first answers are right.',
+    questions: [
+      { reading: 1, q: 'A user calls with a problem Tier 1 can’t fix because it needs server access. What does escalating mean here?', choices: ['The technician failed', 'The problem goes to the tier with the right access, with the notes attached', 'The user must call back later', 'The ticket is closed'], answer: 1,
+        why: 'Escalating isn’t failing: the ticket goes to the tier with the access or skills the problem needs, and your notes travel with it so the user never re-explains (Reading 1).',
+        ifWrong: ['Escalating isn’t failing; it’s how the tiers are designed to work.', null, 'Asking the user to call back leaves the problem with nobody.', 'Closing it leaves the problem unfixed.'] },
+      { reading: 3, q: 'A caller gives their name and department and asks for an unlock. Under KB-0024, is that enough?', choices: ['Yes, if they sound sure', 'Yes, for executives', 'No: call back on the directory number and confirm the employee ID', 'No: ask for their current password'], answer: 2,
+        why: 'A name and department alone are not verification. KB-0024: call back on the number in the directory, never one the caller gives you, and confirm the employee ID. Never ask for a password (Reading 3).',
+        ifWrong: ['Sounding sure proves nothing; anyone can learn a name and a department.', 'Executives are verified the same way, and they’re the most common target.', null, 'Never ask for a password, for any reason.'] },
+      { reading: 3, q: 'A user reads you the error on their screen: 0x80070005. Which is the best KB search?', choices: ['“computer broken”', '“0x80070005”', '“help”', '“Windows”'], answer: 1,
+        why: 'Search the KB by symptom words and error codes, not vague phrases. When the user gives you an error code, search with the exact code: it finds the article that covers it (Reading 3).',
+        ifWrong: ['Vague words match too many articles or none; use the code the user gave you.', null, 'Vague words match too many articles or none; use the code the user gave you.', 'A product name matches hundreds of articles; the code narrows it to one.'] },
+      { reading: 3, q: 'A KB article says “Tier 2 only.” What should a Tier 1 technician do?', choices: ['Try the steps anyway', 'Escalate to Tier 2', 'Ask the user to try', 'Skip the article'], answer: 1,
+        why: '“Tier 2 only” means the steps need access or skills Tier 1 doesn’t have. Escalate with your notes instead of improvising (Reading 3).',
+        ifWrong: ['“Tier 2 only” means the steps need access or skills Tier 1 doesn’t have; trying them can make it worse.', null, 'Users shouldn’t run Tier 2 steps either.', 'Skipping it leaves you improvising; the article tells you to escalate.'] },
+      { reading: 3, q: 'Which customer message is written correctly?', choices: ['“badPwdCount hit threshold; cleared.”', '“Your account was locked after too many wrong passwords. I’ve unlocked it.”', '“Fixed.”', '“Per KB-0024 step 3, unlocked.”'], answer: 1,
+        why: 'Use plain words that tell the user what happened and what you did. Codes, jargon and one-word replies don’t (Reading 3).',
+        ifWrong: ['badPwdCount is internal jargon the user won’t understand.', null, '“Fixed” doesn’t say what happened or what to do next.', 'KB step numbers are internal; the user needs plain words.'] },
+      { reading: 3, q: 'A caller can’t be verified and refuses a callback, but insists on a reset. What does KB-0024 say to do?', choices: ['Reset it to avoid a complaint', 'Make no change; log it as Security › Suspicious request and assign it to the SOC', 'Hang up and do nothing', 'Email the new password to the account owner'], answer: 1,
+        why: 'No verification, no account change. KB-0024’s last step: log it as Security › Suspicious request, set Caller to Unverified, and assign it to Security Operations (SOC) with the caller’s exact words, number and time (Reading 3).',
+        ifWrong: ['A threatened complaint is never a reason to skip verification; that pressure is a red flag.', null, 'Hanging up loses the evidence; log it and route it.', 'No verification means no account change, wherever the password would go.'] },
+      { reading: 2, q: 'Your first theory is confirmed. What comes next in the method?', choices: ['Document', 'Establish a plan of action and identify who else is affected', 'Escalate', 'Close the ticket'], answer: 1,
+        why: 'After a confirmed theory comes step 4: plan the fix and ask who else it affects before you change anything (Reading 2).',
+        ifWrong: ['Documenting comes last, after the fix is done and verified.', null, 'A theory you can fix at Tier 1 doesn’t need escalating; plan the fix first.', 'Closing now skips the plan, the fix and the check with the user.'] },
+      { reading: 2, q: 'Which part of a work note records what happened and how you confirmed it?', choices: ['Reported', 'Tried', 'Next action', 'Result'], answer: 3,
+        why: 'Result is what happened and how you confirmed it. Reported is what the user said, Tried is what you checked and did, and Next action is who does what next (Reading 2).',
+        ifWrong: ['Reported is what the user said, in their words.', 'Tried is what you checked and did.', 'Next action is who does what next, when the ticket stays open.', null] },
+    ],
+  },
+  aplus: {
+    title: 'A+ check',
+    intro: 'Four questions in the style of the A+ exams. It’s complete when 3 of your first answers are right.',
+    questions: [
+      { q: 'A user says their laptop won’t connect to Wi-Fi. What should a technician do first?', choices: ['Replace the wireless card', 'Question the user and identify any recent changes', 'Reinstall the driver', 'Escalate to Tier 2'], answer: 1,
+        why: 'Step 1 is identify the problem: question the user and find out what changed.',
+        ifWrong: ['Replacing hardware before you know the cause skips step 1, identify the problem.', null, 'Reinstalling a driver is a fix to test later, not the first step.', 'Nothing yet shows Tier 2 is needed; start by questioning the user.'] },
+      { q: 'A technician’s first theory is not confirmed by testing. What is the next step?', choices: ['Document findings', 'Implement the solution anyway', 'Establish a new theory or escalate', 'Verify full system functionality'], answer: 2,
+        why: 'When testing doesn’t confirm the theory, the method loops back: establish a new theory, or escalate. It’s the only place the method loops (step 3).',
+        ifWrong: ['Documenting comes at the end, once the problem is solved.', 'An untested fix can make things worse.', null, 'There’s nothing to verify yet: the theory didn’t hold.'] },
+      { q: 'After fixing a problem and confirming the user can work, what remains?', choices: ['Establish a theory', 'Document findings, actions and outcomes', 'Question the obvious', 'Back up data'], answer: 1,
+        why: 'Documentation is the final step.',
+        ifWrong: ['You form a theory before the fix, not after it.', null, 'Questioning the obvious is part of forming a theory.', 'Backups come before you make changes.'] },
+      { q: 'Before replacing a user’s hard drive, which step protects the user?', choices: ['Test the theory', 'Perform a backup', 'Implement preventive measures', 'Escalate'], answer: 1,
+        why: 'Back up data before making changes (part of identify the problem).',
+        ifWrong: ['Testing a theory doesn’t protect the user’s data.', null, 'Preventive measures come after the fix.', 'Escalating doesn’t protect the data either; back it up first.'] },
+    ],
+  },
+};
+const ITS01_LETTERS = ['A', 'B', 'C', 'D'];
+// The share of first picks a Learn It or A+ check needs, in tenths (70%).
+const ITS01_CHECK_PASS_TENTHS = 7;
+// The saved completion fields for each check.
+const ITS01_CHECK_SAVED = {
+  orientation: ['orientationCheckCompleted', 'orientationCheckCompletedAt'],
+  learn: ['learnCheckCompleted', 'learnCheckCompletedAt'],
+  aplus: ['aplusCheckCompleted', 'aplusCheckCompletedAt'],
+};
+
+// This page's picks, by check, kept in page memory only (a reload starts
+// every check again):
+//   its01CheckAnswers: { questionIndex: the first pick }, the one that counts.
+//   its01CheckPicks: { questionIndex: [every pick, in order] }.
+const its01CheckAnswers = { orientation: {}, learn: {}, aplus: {} };
+const its01CheckPicks = { orientation: {}, learn: {}, aplus: {} };
+// Checks whose completion the account reported it didn't save (page memory).
+const its01CheckSaveFailed = { orientation: false, learn: false, aplus: false };
+let its01CheckAnswersUser = null;
+
+// Every question has a first pick: a full pass, ready to count.
+function its01CheckDone(key) {
+  const check = ITS01_CHECKS[key];
+  return check.questions.every((_, i) => Object.prototype.hasOwnProperty.call(its01CheckAnswers[key], i));
+}
+function its01CheckRightCount(key) {
+  return ITS01_CHECKS[key].questions.filter((question, i) => its01CheckAnswers[key][i] === question.answer).length;
+}
+// Orientation needs every first pick right; the other checks need 70%.
+// Whole numbers only, so 5.6 of 8 can never round down to a pass.
+function its01CheckPassed(key) {
+  const total = ITS01_CHECKS[key].questions.length;
+  const right = its01CheckRightCount(key);
+  return key === 'orientation' ? right === total : right * 10 >= total * ITS01_CHECK_PASS_TENTHS;
+}
+function its01CheckCompleted(key) {
+  return Boolean(its01State && its01State[ITS01_CHECK_SAVED[key][0]] === true);
+}
+
+function its01CheckQuestion(key, question, index) {
+  const picks = its01CheckPicks[key][index] || [];
+  const last = picks.length ? picks[picks.length - 1] : undefined;
+  const settled = picks.includes(question.answer);
+  // Only the student's own picks are marked: a wrong pick never marks or
+  // names the right answer.
+  const choices = question.choices.map((choice, c) => {
+    const picked = picks.includes(c);
+    const cls = picked ? (c === question.answer ? ' is-answer' : ' is-wrong') : '';
+    return `<button type="button" class="its01-choice${cls}" data-its01-answer data-check="${key}" data-q="${index}" data-choice="${c}" aria-pressed="${picked}" ${settled || picked ? 'disabled' : ''}><span>${ITS01_LETTERS[c]}</span> ${esc(choice)}</button>`;
+  }).join('');
+  const why = settled && question.why ? `<p class="its01-check-why">${esc(question.why)}</p>` : '';
+  const wrongLine = !settled && last !== undefined && question.ifWrong && question.ifWrong[last] ? `<p class="its01-check-why">${esc(question.ifWrong[last])}</p>` : '';
+  const feedback = last === undefined ? ''
+    : settled
+      ? `<p class="its01-check-result is-right"><i class="ri-check-line" aria-hidden="true"></i> <strong>Correct.</strong></p>${why}`
+      : `<p class="its01-check-result is-wrong"><i class="ri-close-line" aria-hidden="true"></i> <strong>Not quite.</strong> Try another answer.</p>${wrongLine}`;
+  return `<li class="its01-check-q" data-its01-q="${key}-${index}">
+    <p class="its01-check-prompt" id="its01-${key}-q${index}">${esc(question.q)}</p>
+    <div class="its01-choices" role="group" aria-labelledby="its01-${key}-q${index}">${choices}</div>
+    <div class="its01-check-feedback" id="its01-${key}-q${index}-feedback" tabindex="-1" aria-live="polite">${feedback}</div>
+  </li>`;
+}
+
+// The status line: a failed full pass asks for a retake (no score shown);
+// a completion the account didn't save asks to try the save again;
+// otherwise a saved completion shows with its date.
+function its01CheckFooter(key) {
+  const anyAnswered = Object.keys(its01CheckAnswers[key]).length > 0;
+  const reset = anyAnswered ? `<button type="button" class="its01-check-reset" data-its01-check-reset="${key}"><i class="ri-restart-line" aria-hidden="true"></i> Start again</button>` : '';
+  // The failed-save message only while the answers still pass: after Start
+  // again (or a retake below 70%) the normal status shows instead.
+  const saveFailed = its01CheckSaveFailed[key] && its01CheckDone(key) && its01CheckPassed(key);
+  const retry = saveFailed ? `<button type="button" class="its01-check-reset" data-its01-check-retry="${key}"><i class="ri-refresh-line" aria-hidden="true"></i> Try again</button>` : '';
+  let status = '';
+  if (saveFailed) {
+    status = '<i class="ri-error-warning-line" aria-hidden="true"></i> Your result didn’t save. Try again.';
+  } else if (its01CheckDone(key) && !its01CheckPassed(key)) {
+    status = key === 'orientation' ? 'Some answers weren’t right. Press Start again to retake the check.' : 'Retake: you need 70%. Press Start again to retake the check.';
+  } else if (its01CheckCompleted(key)) {
+    const day = its01Day(its01State[ITS01_CHECK_SAVED[key][1]]);
+    status = `<i class="ri-check-line" aria-hidden="true"></i> ${esc(ITS01_CHECKS[key].title)} complete${day ? ` (${esc(day)})` : ''}. You can retake it any time.`;
+  }
+  return `<div class="its01-check-footer" data-its01-check-footer="${key}"><p class="its01-check-status" role="status" tabindex="-1">${status}</p><span class="its01-check-actions">${retry}${reset}</span></div>`;
+}
+
+// The Learn It check's questions sit after the lesson they cover (each
+// question's reading). The array order, and so every question's index, stays
+// as it is; the list numbers run on from lesson to lesson.
+function its01LearnCheckPart(reading, last) {
+  const check = ITS01_CHECKS.learn;
+  const shown = [];
+  for (let r = 1; r <= reading; r += 1) check.questions.forEach((question, i) => { if (question.reading === r) shown.push({ r, question, i }); });
+  const mine = shown.filter((item) => item.r === reading);
+  if (!mine.length && !last) return '';
+  const first = shown.length - mine.length + 1;
+  return `<div class="its01-check its01-check-part" ${reading === 1 ? 'id="its01-check-learn" data-its01-check="learn"' : ''} data-its01-check-part="learn-${reading}">
+    <h3>Check: Lesson ${esc(ITS01_READING_LESSONS[reading - 1])}</h3>
+    ${reading === 1 ? `<p class="its01-instruction">${esc(check.intro)}</p>` : ''}
+    ${mine.length ? `<ol class="its01-check-list" start="${first}">${mine.map((item) => its01CheckQuestion('learn', item.question, item.i)).join('')}</ol>` : ''}
+    ${last ? its01CheckFooter('learn') : ''}
+  </div>`;
+}
+
+function its01Check(key) {
+  const check = ITS01_CHECKS[key];
+  return `<div class="its01-check" data-its01-check="${key}" id="its01-check-${key}">
+    <h3>${esc(check.title)}</h3>
+    <p class="its01-instruction">${esc(check.intro)}</p>
+    <ol class="its01-check-list">${check.questions.map((question, i) => its01CheckQuestion(key, question, i)).join('')}</ol>
+    ${its01CheckFooter(key)}
+  </div>`;
+}
+
+/* ----------------------------------------------------------- Sections */
+
+function its01Orientation() {
+  return `<section class="its01-section" id="its01-orientation" aria-labelledby="its01-orientation-title">
+    <div class="its01-section-heading"><span><i class="ri-compass-3-line" aria-hidden="true"></i></span><div><p class="its01-kicker">Orientation</p><h2 id="its01-orientation-title">Start here: Program Orientation</h2></div></div>
+    <p class="its01-instruction">Do this first, before Learn It. Orientation isn’t graded and isn’t a lab.</p>
+    <div class="its01-lesson-grid">${its01LessonCard(ITS01_LESSONS[0])}</div>
+    <div class="its01-tasks" id="its01-orientation-tasks">
+      <h3>Before you begin</h3>
+      <ul>
+        <li>Read the Acceptable Use Policy and acknowledge it in the LMS.</li>
+        <li>Take the orientation check below. You can retake it as often as you like.</li>
+      </ul>
+      ${its01Aup()}
+      ${its01Check('orientation')}
+    </div>
+  </section>`;
+}
+
+// Lesson 1.2's entry (one id, its minutes) holds three readings. The page
+// shows each reading as its own lesson, 1.2 to 1.4, with that reading's
+// check questions after it. The lesson ids and minutes don't change.
+const ITS01_READING_LESSONS = ['1.2', '1.3', '1.4'];
+
+function its01ReadingParts(lesson) {
+  const parts = [];
+  lesson.blocks.forEach((block) => {
+    if (block.h && /^Reading \d+\./.test(block.h)) parts.push({ title: block.h, blocks: [] });
+    else if (parts.length) parts[parts.length - 1].blocks.push(block);
+  });
+  return parts;
+}
+
+function its01ReadingCard(lesson, part, index, last) {
+  return `<details class="its01-lesson" data-its01-lesson="${esc(lesson.id)}" data-its01-reading="${index + 1}">
+    <summary><span class="its01-lesson-icon"><i class="${esc(lesson.icon)}" aria-hidden="true"></i></span><span><strong>Lesson ${esc(ITS01_READING_LESSONS[index])} · ${esc(part.title)}</strong></span><i class="ri-arrow-down-s-line its01-chevron" aria-hidden="true"></i></summary>
+    <div class="its01-lesson-body">
+      ${its01Blocks(part.blocks)}
+      ${last && lesson.comingUp ? `<div class="its01-preview"><i class="ri-arrow-right-circle-line" aria-hidden="true"></i><span><strong>Coming up in your lab:</strong> ${esc(lesson.comingUp)}</span></div>` : ''}
+    </div>
+  </details>`;
+}
+
+function its01Learn() {
+  const lesson = ITS01_LESSONS[1];
+  const parts = its01ReadingParts(lesson);
+  return `<section class="its01-section" id="its01-lessons" aria-labelledby="its01-lessons-title">
+    <div class="its01-section-heading"><span>L</span><div><p class="its01-kicker">Learn It</p><h2 id="its01-lessons-title">Lessons 1.2 to 1.4</h2></div></div>
+    <p class="its01-instruction">Three lessons, one reading each. Together they take 60 minutes. Open each lesson, then answer its check questions below it. A wrong answer tells you why it’s wrong, and you try again; a right one tells you why it’s right. Your first answer to each question is the one that counts. Not graded: your answers aren’t sent to your instructor.</p>
+    <h3 class="its01-learn-heading">What you’ll learn</h3>
+    <ul class="its01-learn-list">${lesson.learn.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>
+    ${parts.map((part, i) => `<div class="its01-lesson-grid">${its01ReadingCard(lesson, part, i, i === parts.length - 1)}</div>
+    ${its01LearnCheckPart(i + 1, i === parts.length - 1)}`).join('')}
+  </section>`;
+}
+
+function its01Checks() {
+  return `<section class="its01-section" id="its01-checks" aria-labelledby="its01-checks-title">
+    <div class="its01-section-heading"><span><i class="ri-question-line" aria-hidden="true"></i></span><div><p class="its01-kicker">Learn It · not graded</p><h2 id="its01-checks-title">Check your understanding</h2></div></div>
+    <p class="its01-instruction">Choose an answer. A wrong answer tells you why it’s wrong, and you try again; a right one tells you why it’s right. Your first answer to each question is the one that counts. Not graded: your answers aren’t sent to your instructor.</p>
+    ${its01Check('aplus')}
+  </section>`;
+}
+
 function its01Lab2Status() {
-  const done = its01State.consoleCompleted;
-  return `<div class="its01-lab-status ${done ? 'its01-status-pass' : 'its01-status-pending'}"><i class="${done ? 'ri-checkbox-circle-fill' : 'ri-time-line'}" aria-hidden="true"></i><span>${done ? 'Lab 1.2 complete — HD-2101 resolved in the guided walkthrough.' : 'Complete the guided walkthrough in the simulator to finish this lab.'}</span></div>`;
+  return itsLabStatusHtml(its01User, ITS01_LAB2_KEY, { label: 'Lab 1.1', prefix: 'its01', pendingText: 'Complete the guided walkthrough in the simulator to finish this lab.' });
 }
 
 function its01Lab2() {
-  const complete = its01State.consoleCompleted === true;
+  const button = itsWalkthroughButton(its01User, [ITS01_LAB2_KEY]);
   return `<section class="its01-section its01-lab-section" id="its01-lab-1-2" aria-labelledby="its01-lab-1-2-title">
-    <div class="its01-section-heading"><span>2</span><div><p class="its01-kicker">Lab 1.2 · guided walkthrough</p><h2 id="its01-lab-1-2-title">A Day in the Life of an L1 Technician</h2></div></div>
-    <p class="its01-instruction">Work Jordan Bell’s account-lockout ticket (HD-2101) end to end in the IT Service Desk simulator: read the evidence, work the troubleshooting path, diagnose against the log rather than the obvious guess, document it, and resolve it. A coach spotlights each step for you.</p>
-    <a class="itsw-evidence-button" data-its01-console-launch href="${esc(SIM_ORIGIN)}?coach=hd-m01&amp;restart=1#/helpdesk/tickets" target="_blank" rel="opener">
-      <i class="${complete ? 'ri-refresh-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${complete ? 'Review the walkthrough' : 'Start Lab 1.2 walkthrough'}
+    <div class="its01-section-heading"><span>1</span><div><p class="its01-kicker">Practice It · coached</p><h2 id="its01-lab-1-2-title">${esc(itsLabTitle(ITS01_LAB2_KEY))}</h2></div></div>
+    <p class="its01-instruction">Practice: not graded. Work your first ticket end to end in the IT Service Desk simulator: INC0010150, Sam Rivera’s account lockout. Take the ticket, verify Sam the way KB-0024 says, find out what changed, unlock the account, confirm Sam can sign in, tell Sam what to do if it happens again, and write the work note. A coach walks you through every step. No commands needed.</p>
+    <a class="itsw-evidence-button" data-its01-console-launch href="${esc(itsCoachLaunchHref('hd-m01', its01User))}" target="_blank" rel="opener">
+      <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: ITS01_LAB2_START }[button.mode]}
     </a>
+    ${itsWalkthroughNoticeHtml(its01User, 'hd-m01', [ITS01_LAB2_KEY], ITS01_LAB2_START)}
     ${its01Lab2Status()}
+    ${itsRedoNoticeHtml(its01User, [{ key: ITS01_LAB2_KEY, action: 'Run the walkthrough again to resubmit this lab.' }])}
   </section>`;
+}
+
+// Lab 1.2, Module 1's unguided tickets (1-A to 1-D), not graded: the
+// simulator opens just these tickets in their own saved shift
+// (?practice=its-01, ui/helpdesk.js), with feedback but no score. Opened
+// with an opener, so once all four are closed the simulator can report it
+// (its01ReceivePracticeCompletion).
+function its01PracticeTicketsHref(user) {
+  const student = typeof LabRuntime !== 'undefined' ? LabRuntime.anonymousStudentId(user) : '';
+  return `${SIM_ORIGIN}?practice=its-01&student=${encodeURIComponent(student)}#/helpdesk/tickets`;
+}
+function its01PracticeTickets() {
+  return `<section class="its01-section its01-lab-section" id="its01-practice-tickets" aria-labelledby="its01-practice-tickets-title">
+    <div class="its01-section-heading"><span>2</span><div><p class="its01-kicker">Practice It · on your own</p><h2 id="its01-practice-tickets-title">${esc(itsLabTitle(ITS01_PRACTICE_KEY))}</h2></div></div>
+    <p class="its01-instruction">Four more tickets to work on your own: Leah Brooks has forgotten her password, Ravi Shah has cracked his laptop screen, a caller wants an executive’s password reset in a hurry, and Hana Okafor needs her team printer added to her laptop. Use the method, search the knowledge base and verify callers with KB-0024. Press Check my work on a ticket for feedback.</p>
+    <p class="its01-instruction">Practice: not graded. Your answers aren’t sent. Finish all four tickets: resolve, escalate or route each one. The simulator then tells this page, and your account records that you completed Lab 1.2.</p>
+    <a class="itsw-evidence-button" data-its01-practice-launch href="${esc(its01PracticeTicketsHref(its01User))}" target="_blank" rel="opener">
+      <i class="ri-play-list-line" aria-hidden="true"></i> Open the practice tickets
+    </a>
+    ${itsLabStatusHtml(its01User, ITS01_PRACTICE_KEY, { label: 'Lab 1.2', prefix: 'its01', pendingText: 'Finish all four tickets: resolve, escalate or route each one.' })}
+  </section>`;
+}
+
+// Module 1's Prove It: one independent ticket in the simulator, reviewed by the
+// instructor. Practice It is recommended first, never required. A submitted
+// attempt has nothing left to open. What it shows comes from the server's
+// attempt (itsLabStatus); the simulator reports back by message
+// (itsProveReceiveMessage).
+function its01Prove() {
+  const user = its01User;
+  const returned = itsLabReturned(user, ITS01_PROVE_KEY);
+  return `<section class="its01-section its01-lab-section" id="its01-prove-it" aria-labelledby="its01-prove-it-title">
+    <div class="its01-section-heading"><span>3</span><div><p class="its01-kicker">Prove It · Assessment Lab · instructor reviewed</p><h2 id="its01-prove-it-title">${esc(itsLabTitle(ITS01_PROVE_KEY))}</h2></div></div>
+    <p class="its01-instruction">Work one new ticket on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Your instructor reviews your work.</p>
+    ${itsLabRail(user, [ITS01_LAB2_KEY]).isComplete ? '' : '<p class="its01-instruction">Complete Lab 1.1, the guided lab, first: it prepares you for this.</p>'}
+    ${itsLabSubmitted(user, ITS01_PROVE_KEY) ? '' : `<a class="itsw-evidence-button" data-its01-prove-launch href="${esc(itsProveLaunchHref('its-01', user))}" target="_blank" rel="opener">
+      <i class="${returned ? 'ri-restart-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${returned ? 'Reopen the Prove It' : 'Start the Prove It'}
+    </a>`}
+    <div class="itss-walkthrough-notice" data-its01-prove-notice role="status" hidden></div>
+    ${itsLabStatusHtml(user, ITS01_PROVE_KEY, { label: 'Prove It', prefix: 'its01', pendingText: 'Press Submit in the simulator when you finish the ticket.' })}
+    ${itsLabStatus(user, ITS01_PROVE_KEY) === 'passed' && typeof markedLabLinkHtml === 'function' ? `<p>${markedLabLinkHtml(ITS01_PROVE_KEY, 'See your score and feedback')}</p>` : ''}
+    ${itsRedoNoticeHtml(user, [{ key: ITS01_PROVE_KEY, action: 'Reopen the Prove It, make your changes, then press Resubmit in the simulator. You can resubmit once for each return.' }])}
+  </section>`;
+}
+
+// Sources: a source with no link yet shows its placeholder instead.
+function its01Sources() {
+  return `<div class="msources-block">
+    <h3 class="msources-title">Further Reading</h3>
+    <ul class="msources-list">
+      ${ITS01_SOURCES.map((source) => `<li class="msources-item">
+        ${source.url
+          ? `<a href="${esc(source.url)}" target="_blank" rel="noopener noreferrer" class="msources-link"><span class="msources-title-text">${esc(source.title)}</span><span class="msources-org">${esc(source.org)}</span></a>`
+          : `<span class="msources-link"><span class="msources-title-text">${esc(source.title)}</span><span class="msources-org">${esc(source.org)}</span></span><p class="its01-placeholder-inline" data-its01-placeholder>To be confirmed: ${esc(source.placeholder)}</p>`}
+        ${source.note ? `<p class="msources-note">${esc(source.note)}</p>` : ''}
+      </li>`).join('')}
+    </ul>
+  </div>`;
+}
+
+/* The rail. Orientation (the policy acknowledgement), the orientation check,
+ * the three labs and the Learn It and A+ checks count toward the module's
+ * percent (shown only; it saves nothing); Sources doesn't. The two checks
+ * come last in the list, so they never lock a lab (moduleNavStatuses locks
+ * only rows after an unfinished one), and neverLocked keeps them open while
+ * Lab 1.1 isn't done. The rail still shows them under Learn It, in page
+ * order. */
+function its01NavSections(user) {
+  return [
+    { id: 'orientation', title: 'Orientation', type: 'lecture', phase: 'learn', isComplete: its01AupCurrent(), scrollId: 'its01-orientation' },
+    { id: 'orientation-check', title: 'Orientation check', type: 'quiz', phase: 'learn', isComplete: its01State.orientationCheckCompleted === true, doneLabel: 'Complete', scrollId: 'its01-check-orientation' },
+    { id: 'lessons', title: 'Readings', type: 'lecture', phase: 'learn', isComplete: true, scrollId: 'its01-lessons' },
+    { id: 'service-desk', title: 'Service desk walkthrough', navTitle: 'Lab 1.1 · Guided Lab', type: 'lab', ...itsLabRail(user, [ITS01_LAB2_KEY]), scrollId: 'its01-lab-1-2' },
+    // Counts toward the percent, but never locked: the practice tickets can
+    // be opened at any time.
+    { id: 'unguided', title: 'Lab 1.2 · Practice tickets', navTitle: 'Lab 1.2 · Practice tickets', type: 'lab', phase: 'practice', neverLocked: true, ...itsLabRail(user, [ITS01_PRACTICE_KEY]), scrollId: 'its01-practice-tickets' },
+    // Named so the platform's generic Assessment Lab box isn't added
+    // (normalizeModuleStages).
+    { id: 'assessment', title: 'Assessment Lab', type: 'review', neverLocked: true, ...itsLabRail(user, [ITS01_PROVE_KEY]), scrollId: 'its01-prove-it' },
+    { id: 'learn-check', title: 'Learn It knowledge check', type: 'quiz', phase: 'learn', neverLocked: true, isComplete: its01CheckCompleted('learn'), doneLabel: 'Complete', scrollId: 'its01-check-learn' },
+    { id: 'aplus-check', title: 'A+ check', type: 'quiz', phase: 'learn', neverLocked: true, isComplete: its01CheckCompleted('aplus'), doneLabel: 'Complete', scrollId: 'its01-check-aplus' },
+    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'its01-sources', gated: false, supplemental: true },
+  ];
+}
+function its01Rail(user) {
+  return moduleProgressShell(its01NavSections(user), { moduleKey: 'its01', stageKey: 'its-01' });
 }
 
 function viewItsModuleOne(user, program) {
   its01Load(user);
   const module = program.modules['its-01'];
-  const labsComplete = (its01State.lab1Complete ? 1 : 0) + (its01State.consoleCompleted ? 1 : 0);
-  const navSections = [
-    { id: 'lessons', title: 'Foundation lessons', type: 'lecture', isComplete: true, scrollId: 'its01-lessons' },
-    { id: 'environment', title: 'Environment validation', type: 'lab', isComplete: its01State.lab1Complete, scrollId: 'its01-lab-1-1' },
-    { id: 'service-desk', title: 'Service desk walkthrough', type: 'lab', isComplete: its01State.consoleCompleted, scrollId: 'its01-lab-1-2' },
-    { id: 'sources', title: 'Sources & Further Reading', type: 'read', isComplete: null, scrollId: 'its01-sources', gated: false, supplemental: true },
-  ];
   return `<div class="its01-shell">
     ${moduleTopbar(user, program)}
-    ${moduleProgressShell(navSections, { moduleKey: 'its01', stageKey: 'its-01' })}
+    ${its01Rail(user)}
     <main class="its01-main">
-      <section class="its01-hero" aria-labelledby="its01-title"><div><p class="its01-kicker">Module 01 · ${formatInstructionalMinutes(module.durationMinutes)} · Week 1</p><h1 id="its01-title">${esc(module.title)}</h1><p class="its01-lede">Get set up in the LMS and your lab environment, then build the five-step troubleshooting mindset you'll use in every module that follows.</p></div><dl class="its01-progress" aria-label="Saved module progress"><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Guided labs</dt><dd>2</dd></div><div><dt>Labs complete</dt><dd id="its01-status">${labsComplete}/2</dd></div></dl></section>
+      <section class="its01-hero" aria-labelledby="its01-title"><div><p class="its01-kicker">Module 01 · ${formatInstructionalMinutes(module.durationMinutes)} · Week 1</p><h1 id="its01-title">${esc(module.title)}</h1><p class="its01-lede">Start with orientation, then learn what a Tier 1 technician does, the troubleshooting method and how to verify a caller, and work your first tickets in the IT Service Desk simulator.</p></div><dl class="its01-progress" aria-label="Saved module progress"><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Guided labs</dt><dd>1</dd></div><div><dt>Labs</dt><dd id="its01-status">${itsLabCounterText(user, ITS01_LAB_KEYS)}</dd></div></dl></section>
 
-      <section class="its01-section" id="its01-lessons" aria-labelledby="its01-lessons-title"><div class="its01-section-heading"><span>L</span><div><p class="its01-kicker">Learn</p><h2 id="its01-lessons-title">Two foundation lessons</h2></div></div><p class="its01-instruction">Open each lesson for the full walkthrough, then work its Try It Yourself exercise.</p>${its01Lessons()}</section>
-
-      ${its01Lab1()}
+      ${its01Orientation()}
+      ${its01Learn()}
+      ${its01Checks()}
       ${its01Lab2()}
+      ${its01PracticeTickets()}
+      ${its01Prove()}
 
-      <section class="its01-section" id="its01-sources" aria-labelledby="its01-sources-title"><div class="its01-section-heading"><span><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="its01-kicker">Reference — not a graded step</p><h2 id="its01-sources-title">Sources &amp; Further Reading</h2></div></div>${moduleSourcesBlock(ITS01_SOURCES)}</section>
+      <section class="its01-section" id="its01-sources" aria-labelledby="its01-sources-title"><div class="its01-section-heading"><span><i class="ri-book-open-line" aria-hidden="true"></i></span><div><p class="its01-kicker">Reference — not a graded step</p><h2 id="its01-sources-title">Sources &amp; Further Reading</h2></div></div>${its01Sources()}</section>
     </main>
   </div>`;
 }
 
-function its01RenderLab1() {
-  const section = document.getElementById('its01-lab-1-1');
-  if (!section) return;
-  const grid = section.querySelector('.its01-evidence-grid');
-  if (grid) grid.outerHTML = `<div class="its01-evidence-grid">
-    ${itswEvidenceTile({ id: 'its01-evidence-1', label: 'Sandbox desktop screenshot', hint: 'A screenshot of the sandbox desktop after a successful login.', file: its01State.evidence1 })}
-    ${itswEvidenceTile({ id: 'its01-evidence-2', label: 'Evidence-upload confirmation', hint: 'A screenshot of this tile showing an “Uploaded” status and timestamp.', file: its01State.evidence2 })}
-  </div>`;
-  const statusEl = section.querySelector('.its01-lab-status');
-  if (statusEl) statusEl.outerHTML = its01Lab1Status();
-  const ackWrap = section.querySelector('.its01-aup-ack-wrap');
+/* --------------------------------------------------------- Re-renders */
+
+// Updates the rail's rows and percent in place, so its open groups, drawer
+// and listeners stay as they are.
+function its01RefreshRail() {
+  const rail = document.querySelector('.its01-shell [data-mquick-nav-rail]');
+  if (!rail || !its01User) return;
+  const holder = document.createElement('div');
+  holder.innerHTML = its01Rail(its01User);
+  const fresh = holder.querySelector('[data-mquick-nav-rail]');
+  if (!fresh) return;
+  const percent = rail.querySelector('.munified-percent');
+  const freshPercent = fresh.querySelector('.munified-percent');
+  if (percent && freshPercent) percent.textContent = freshPercent.textContent;
+  fresh.querySelectorAll('a.munified-row').forEach((row) => {
+    const old = rail.querySelector(`a.munified-row[href="${row.getAttribute('href')}"]`);
+    if (!old) return;
+    old.className = row.className;
+    ['aria-disabled', 'data-mnav-locked-reason', 'data-mnav-locked-target'].forEach((name) => {
+      if (row.hasAttribute(name)) old.setAttribute(name, row.getAttribute(name)); else old.removeAttribute(name);
+    });
+    old.innerHTML = row.innerHTML;
+  });
+}
+
+function its01RenderAup() {
+  const ackWrap = document.querySelector('.its01-shell .its01-aup-ack-wrap');
   if (ackWrap) ackWrap.outerHTML = its01AupAck();
-  its01RenderHeroStatus();
+  its01RefreshRail();
 }
 
-function its01RenderHeroStatus() {
-  const status = document.getElementById('its01-status');
-  if (status) status.textContent = `${(its01State.lab1Complete ? 1 : 0) + (its01State.consoleCompleted ? 1 : 0)}/2`;
-}
-
-function its01CheckLab1Complete() {
-  const wasComplete = its01State.lab1Complete;
-  its01State.lab1Complete = Boolean(its01State.evidence1 && its01State.evidence2 && its01State.aupAcknowledged);
-  if (its01State.lab1Complete && !wasComplete) {
-    if (typeof recordLabAttempt === 'function') recordLabAttempt(its01User, ITS01_LAB1_KEY, { state: 'complete', score: 100, result: { evidence: 2, aup: true } });
-    if (typeof markModuleLabComplete === 'function') markModuleLabComplete(its01User, 'it-support', 'its-01', ITS01_LAB1_KEY);
+function its01RenderCheck(key, focusIndex) {
+  ITS01_CHECKS[key].questions.forEach((question, i) => {
+    const li = document.querySelector(`.its01-shell [data-its01-q="${key}-${i}"]`);
+    if (li) li.outerHTML = its01CheckQuestion(key, question, i);
+  });
+  // The footer is updated in place: the status line keeps its element, so a
+  // screen reader announces its new text (a replaced live region often isn't).
+  const footer = document.querySelector(`.its01-shell [data-its01-check-footer="${key}"]`);
+  if (footer) {
+    const next = document.createElement('div');
+    next.innerHTML = its01CheckFooter(key);
+    const status = footer.querySelector('.its01-check-status');
+    const actions = footer.querySelector('.its01-check-actions');
+    const nextStatus = next.querySelector('.its01-check-status');
+    const nextActions = next.querySelector('.its01-check-actions');
+    if (status && actions && nextStatus && nextActions) {
+      if (status.innerHTML !== nextStatus.innerHTML) status.innerHTML = nextStatus.innerHTML;
+      actions.replaceWith(nextActions);
+    } else {
+      footer.outerHTML = its01CheckFooter(key);
+    }
   }
+  if (focusIndex !== undefined) {
+    const target = document.getElementById(`its01-${key}-q${focusIndex}-feedback`);
+    if (target && typeof target.focus === 'function') target.focus({ preventScroll: true });
+  }
+  its01RefreshRail();
+}
+
+/* ------------------------------------------------------------ Actions */
+
+// The policy text was read to its end (scrolled, or it fits without a
+// scrollbar): the checkbox turns on.
+function its01MarkAupRead() {
+  if (!its01State || its01AupRead()) return;
+  its01State.aupReadVersion = ITS01_AUP_VERSION;
+  its01Save();
+  its01RenderAup();
+}
+
+// Ticking the box saves the acknowledgement, its version and its time to the
+// account (a debounced write that only logs a failure, so the page never
+// claims it was saved). Once acknowledged, the box stays ticked.
+function its01AcknowledgeAup() {
+  if (!its01State || !its01AupRead() || its01AupCurrent()) return false;
+  its01State.aupAcknowledged = true;
+  its01State.aupVersion = ITS01_AUP_VERSION;
+  its01State.aupAcknowledgedAt = new Date().toISOString();
+  its01Save();
+  its01RenderAup();
+  return true;
+}
+
+// One pick on one question. After a wrong pick the student picks again; once
+// the right answer is picked the question is settled (Start again clears the
+// check). The first pick is the one that counts. A check is complete, and
+// saved as such (complete and its time only), the first time a full pass of
+// first picks passes. The save is the same debounced case-state write as the
+// policy acknowledgement. The tick shows at once; if the account reports the
+// save failed, the tick comes off and the page offers Try again.
+function its01Answer(key, index, choice) {
+  const check = ITS01_CHECKS[key];
+  if (!check || !check.questions[index] || !(choice >= 0 && choice < check.questions[index].choices.length)) return;
+  const picks = its01CheckPicks[key][index] || [];
+  if (picks.includes(check.questions[index].answer) || picks.includes(choice)) return;
+  its01CheckPicks[key][index] = picks.concat(choice);
+  if (its01CheckAnswers[key][index] === undefined) its01CheckAnswers[key][index] = choice;
+  const [done, doneAt] = ITS01_CHECK_SAVED[key];
+  if (its01State && its01CheckDone(key) && its01CheckPassed(key) && its01State[done] !== true) its01SaveCheckDone(key);
+  its01RenderCheck(key, index);
+}
+
+// Ticks a check and saves it. Only an explicit false from the save takes the
+// tick off again (an unknown result leaves it), and only if the same student
+// still has the same completion (a render reloads its01State, so it's
+// matched by its time, not by object). The untick is saved the same way, so
+// this page, this browser's copy and the session's copy of the row agree.
+function its01SaveCheckDone(key) {
+  const [done, doneAt] = ITS01_CHECK_SAVED[key];
+  const userId = its01User && its01User.userId;
+  const at = new Date().toISOString();
+  its01State[done] = true;
+  its01State[doneAt] = at;
+  its01CheckSaveFailed[key] = false;
+  its01Save((ok) => {
+    const state = its01State;
+    if (ok !== false || !state || !its01User || its01User.userId !== userId || state[doneAt] !== at) return;
+    state[done] = false;
+    state[doneAt] = null;
+    its01CheckSaveFailed[key] = true;
+    its01Save();
+    // Keep focus where it was, unless it was on a button this render removes.
+    const active = document.activeElement;
+    const footer = document.querySelector(`.its01-shell [data-its01-check-footer="${key}"]`);
+    const focusInFooter = Boolean(footer && active && footer.contains && footer.contains(active));
+    its01RenderCheck(key);
+    if (focusInFooter) its01FocusCheckStatus(key);
+  });
+}
+
+function its01FocusCheckStatus(key) {
+  const status = document.querySelector(`.its01-shell [data-its01-check-footer="${key}"] .its01-check-status`);
+  if (status && typeof status.focus === 'function') status.focus({ preventScroll: true });
+}
+
+// Try again: the answers are still in page memory, so save the pass again.
+function its01RetryCheckSave(key) {
+  if (!its01CheckSaveFailed[key] || !its01State || !its01CheckDone(key) || !its01CheckPassed(key)) return;
+  its01SaveCheckDone(key);
+  its01RenderCheck(key);
+  its01FocusCheckStatus(key);
+}
+
+function its01ResetCheck(key) {
+  if (!its01CheckAnswers[key]) return;
+  its01CheckAnswers[key] = {};
+  its01CheckPicks[key] = {};
+  its01CheckSaveFailed[key] = false;
+  its01RenderCheck(key);
+  const first = document.querySelector(`.its01-shell [data-its01-answer][data-check="${key}"]`);
+  if (first && typeof first.focus === 'function') first.focus({ preventScroll: true });
 }
 
 // On wide screens the policy text can fit inside its box with no scrollbar,
 // so the scroll listener below never fires and the checkbox would stay
 // disabled forever. If the whole policy is already visible, treat it as read.
 function its01EnableAupIfFits() {
-  if (!its01State || its01State.aupScrolled) return;
+  if (!its01State || its01AupRead()) return;
   const aupText = document.querySelector('.its01-shell [data-its01-aup-text]');
   // clientHeight is 0 while hidden/not laid out; don't count that as "fits".
   if (!aupText || aupText.clientHeight === 0) return;
-  if (aupText.scrollHeight <= aupText.clientHeight + 8) {
-    its01State.aupScrolled = true;
-    its01Save();
-    its01RenderLab1();
-  }
+  if (aupText.scrollHeight <= aupText.clientHeight + 8) its01MarkAupRead();
 }
 
 // wire() runs after every render, so the window listener is added only once.
@@ -254,62 +1116,100 @@ function wireItsModuleOneLab() {
   }
 
   shell.addEventListener('change', (event) => {
-    const evidenceInput = event.target.closest('[data-itsw-evidence-input]');
-    if (evidenceInput) {
-      const file = itswReadEvidenceFile(evidenceInput);
-      if (!file) return;
-      const id = evidenceInput.dataset.itswEvidenceInput;
-      if (id === 'its01-evidence-1') its01State.evidence1 = file;
-      if (id === 'its01-evidence-2') its01State.evidence2 = file;
-      its01CheckLab1Complete();
-      its01Save();
-      its01RenderLab1();
-      return;
-    }
-
-    if (event.target.matches('[data-its01-aup-checkbox]')) {
-      its01State.aupAcknowledged = event.target.checked;
-      its01CheckLab1Complete();
-      its01Save();
-      its01RenderLab1();
-    }
+    if (event.target.matches('[data-its01-aup-checkbox]') && event.target.checked) its01AcknowledgeAup();
   });
 
   shell.addEventListener('scroll', (event) => {
     const aupText = event.target.closest && event.target.closest('[data-its01-aup-text]');
     if (!aupText) return;
-    if (aupText.scrollTop + aupText.clientHeight >= aupText.scrollHeight - 8 && !its01State.aupScrolled) {
-      its01State.aupScrolled = true;
-      its01Save();
-      its01RenderLab1();
-    }
+    if (aupText.scrollTop + aupText.clientHeight >= aupText.scrollHeight - 8) its01MarkAupRead();
   }, true);
 
   shell.addEventListener('click', (event) => {
-    if (event.target.closest('[data-its01-console-launch]')) {
-      its01State.consoleStarted = true;
-      its01Save();
+    const answer = event.target.closest('[data-its01-answer]');
+    if (answer) {
+      if (!answer.disabled) its01Answer(answer.dataset.check, Number(answer.dataset.q), Number(answer.dataset.choice));
+      return;
+    }
+    const reset = event.target.closest('[data-its01-check-reset]');
+    if (reset) {
+      its01ResetCheck(reset.dataset.its01CheckReset);
+      return;
+    }
+    const retry = event.target.closest('[data-its01-check-retry]');
+    if (retry) {
+      its01RetryCheckSave(retry.dataset.its01CheckRetry);
+      return;
+    }
+    const proveLaunch = event.target.closest('[data-its01-prove-launch]');
+    if (proveLaunch) {
+      // Opened as a popup so the simulator can report back to this page.
+      event.preventDefault();
+      const notice = shell.querySelector('[data-its01-prove-notice]');
+      const opened = window.open(proveLaunch.href, '_blank');
+      if (notice) {
+        notice.hidden = Boolean(opened);
+        notice.textContent = opened ? '' : 'Your browser blocked the Prove It window. Allow pop-ups for this site, then try again.';
+      }
+      return;
+    }
+    const launch = event.target.closest('[data-its01-console-launch]');
+    if (launch) {
+      if (itsLaunchWalkthrough(event, launch, its01User, 'hd-m01')) {
+        its01State.consoleStarted = true;
+        its01Save();
+      }
+      itsRefreshWalkthroughNotice(its01User, 'hd-m01', [ITS01_LAB2_KEY], ITS01_LAB2_START);
     }
   });
+}
+
+// Lab 1.2's finished work: INC0010150 (HD-2150) resolved, with every outcome
+// the simulator recorded for it (ui/helpdesk.js hdConsoleOutcomes): caller
+// verified, account unlocked, sign-in confirmed, the "if it happens again"
+// comment, a complete note and a resolution code. A critical verification
+// choice is shown to the instructor but never blocks the save.
+const ITS01_PRACTICE_TICKET = 'HD-2150';
+function its01PracticeComplete(work) {
+  const ticket = work && Array.isArray(work.tickets) ? work.tickets.find((entry) => entry.id === ITS01_PRACTICE_TICKET) : null;
+  const outcomes = ticket && ticket.console && ticket.console.outcomes;
+  return Boolean(ticket && ticket.status === 'Resolved' && outcomes && ITS_CONSOLE_OUTCOMES.every((key) => outcomes[key] === true));
 }
 
 async function its01ReceiveCoachCompletion(event) {
   if (!event.data || event.data.type !== 'mnt-coach-complete' || event.data.id !== 'hd-m01') return;
   if (event.origin !== new URL(SIM_ORIGIN).origin) return;
   const user = await currentUser();
-  if (!user) return;
+  if (!user) { itsConfirmCoachReceipt(event, false); return; }
+  const wrongStudent = itsCoachStudentMismatch(event, user);
+  if (wrongStudent) { itsConfirmCoachReceipt(event, false, wrongStudent); return; }
 
-  const saved = LabRuntime.load(ITS01_LAB1_ID, user, ITS01_DEFAULT_STATE);
-  saved.consoleStarted = true;
-  saved.consoleCompleted = true;
-  LabRuntime.save(ITS01_LAB1_ID, user, saved);
-  its01State = saved;
-  its01User = user;
-
-  if (typeof markModuleLabComplete === 'function') markModuleLabComplete(user, 'it-support', 'its-01', ITS01_LAB2_KEY);
-  if (typeof recordLabAttempt === 'function') {
-    recordLabAttempt(user, ITS01_LAB2_KEY, { state: 'complete', result: { source: 'mnt-coach-complete' } });
+  // Lab 1.2 saves only finished work: HD-2150 resolved with every outcome
+  // met. The coach shows Finish only after the ticket is resolved, but a
+  // reopened ticket or an old tab could still send one.
+  const work = itsCleanCoachWork(event.data.work);
+  const coachKey = `${user.userId}|hd-m01`;
+  if (!its01PracticeComplete(work)) {
+    itsIncompleteWalkthroughs.add(coachKey);
+    itsRefreshWalkthroughNotice(user, 'hd-m01', [ITS01_LAB2_KEY], ITS01_LAB2_START);
+    itsConfirmCoachReceipt(event, false, 'incomplete');
+    return;
   }
+  itsIncompleteWalkthroughs.delete(coachKey);
+
+  // Submit first: Lab 1.2 counts as complete only once the portal has its
+  // attempt (saved now, or already waiting or approved).
+  const received = await itsSubmitWalkthroughLabs(user, 'its-01', [ITS01_LAB2_KEY], work);
+  its01User = user;
+  if (received) {
+    const saved = LabRuntime.load(ITS01_STATE_ID, user, ITS01_DEFAULT_STATE);
+    saved.consoleStarted = true;
+    saved.consoleCompleted = true;
+    LabRuntime.save(ITS01_STATE_ID, user, saved);
+    its01State = saved;
+    if (typeof markModuleLabComplete === 'function') markModuleLabComplete(user, 'it-support', 'its-01', ITS01_LAB2_KEY);
+  }
+  itsConfirmCoachReceipt(event, received);
 
   const mounted = Boolean(document.querySelector('.its01-shell'));
   if (!mounted) return;
@@ -318,7 +1218,98 @@ async function its01ReceiveCoachCompletion(event) {
   if (section) section.scrollIntoView({ block: 'start' });
 }
 
+// Lab 1.2's completion: the simulator's practice set says all four tickets
+// are closed (ui/helpdesk.js hdPracticeReport). Saved once, as a lab attempt
+// with no score and no answers: completion, its time and the ticket ids.
+// Every message gets an answer, so the simulator can say whether it was
+// saved: signed out, another student, not every ticket, or a failed save.
+const ITS01_PRACTICE_TICKETS = ['HD-2151', 'HD-2152', 'SEC-2153', 'HD-2154'];
+async function its01ReceivePracticeCompletion(event) {
+  const data = event.data;
+  if (!data || data.type !== 'mnt-practice-complete' || data.id !== 'its-01') return;
+  if (event.origin !== new URL(SIM_ORIGIN).origin) return;
+  const reply = (saved, reason) => {
+    if (!event.source || typeof event.source.postMessage !== 'function') return;
+    event.source.postMessage({ type: 'mnt-practice-received', id: 'its-01', nonce: data.nonce, saved: saved === true, ...(reason ? { reason } : {}) }, event.origin);
+  };
+  const user = await currentUser();
+  if (!user) { reply(false, 'signed-out'); return; }
+  const wrongStudent = itsCoachStudentMismatch(event, user);
+  if (wrongStudent) { reply(false, wrongStudent); return; }
+  const tickets = Array.isArray(data.tickets) ? data.tickets : [];
+  if (tickets.length !== ITS01_PRACTICE_TICKETS.length || !ITS01_PRACTICE_TICKETS.every((id) => tickets.includes(id))) { reply(false, 'incomplete'); return; }
+  // Already recorded (as loaded at sign-in, or saved on this page).
+  if (itsLabSubmitted(user, ITS01_PRACTICE_KEY)) { reply(true); return; }
+  if (itsLabSubmitting(user, ITS01_PRACTICE_KEY)) { reply(false, 'busy'); return; }
+  // lab_attempts allows many rows per lab and this lab has no
+  // course_module_labs row, so the database won't refuse a second record.
+  // Another course page tab in this browser may be saving right now (the
+  // lock), or may already have saved (the database read): either way, no
+  // second record.
+  const lock = `mnt.practice-save.${user.userId}.${ITS01_PRACTICE_KEY}`;
+  const held = Number(its01StorageGet(lock)) || 0;
+  if (Date.now() - held < ITS01_PRACTICE_LOCK_MS) { reply(false, 'busy'); return; }
+  its01StorageSet(lock, String(Date.now()));
+  let saved = false;
+  try {
+    const existing = await its01SavedPracticeAttempt(user);
+    if (existing === null) { reply(false, 'save-failed'); return; }
+    if (existing) {
+      user.latestLabAttemptByKey = { ...(user.latestLabAttemptByKey || {}), [ITS01_PRACTICE_KEY]: existing };
+      saved = true;
+    } else {
+      saved = await itsSubmitLabAttempt(user, 'its-01', ITS01_PRACTICE_KEY, {
+        state: 'complete', result: { source: 'mnt-practice-complete', practiceSet: 'its-01', tickets: ITS01_PRACTICE_TICKETS.slice() },
+      });
+    }
+  } finally {
+    its01StorageRemove(lock);
+  }
+  if (saved && typeof markModuleLabComplete === 'function') markModuleLabComplete(user, 'it-support', 'its-01', ITS01_PRACTICE_KEY);
+  reply(saved, saved ? '' : 'save-failed');
+  its01User = user;
+  if (document.querySelector('.its01-shell')) render();
+}
+
+// How long another tab's save holds the lock (a save that never finished
+// stops holding it after this).
+const ITS01_PRACTICE_LOCK_MS = 15000;
+function its01StorageGet(key) { try { return localStorage.getItem(key); } catch (_) { return null; } }
+function its01StorageSet(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* storage blocked: no lock */ } }
+function its01StorageRemove(key) { try { localStorage.removeItem(key); } catch (_) { /* storage blocked */ } }
+
+// The student's saved Lab 1.2 record, read from the database: the attempt
+// (in the shape latestLabAttemptByKey holds), false when there is none, or
+// null when the read failed. A superseded record (the academy set it aside,
+// e.g. a progress reset) doesn't count: the new work gets its own record.
+async function its01SavedPracticeAttempt(user) {
+  if (typeof mntSupabase === 'undefined') return null;
+  try {
+    const { data, error } = await mntSupabase.from('lab_attempts')
+      .select('completed_at, reviewed_at, redo_requested, superseded_at')
+      .eq('user_id', user.userId).eq('lab_key', ITS01_PRACTICE_KEY)
+      .not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false });
+    if (error) { console.error('Lab 1.2 completion read failed', error); return null; }
+    const row = Array.isArray(data) ? data.find((entry) => entry && !entry.superseded_at && entry.redo_requested !== true) : null;
+    return row ? { completedAt: row.completed_at, reviewedAt: row.reviewed_at || null, redoRequested: row.redo_requested === true, supersededAt: row.superseded_at || null } : false;
+  } catch (error) {
+    console.error('Lab 1.2 completion read threw', error);
+    return null;
+  }
+}
+
+// A Prove It message changed the attempt: show it if this page is open.
+function its01ProveChanged() {
+  if (document.querySelector('.its01-shell')) render();
+}
+
+function its01OnMessage(event) {
+  itsProveReceiveMessage(event, { moduleKey: 'its-01', labKey: ITS01_PROVE_KEY, onChange: its01ProveChanged });
+  return Promise.all([its01ReceivePracticeCompletion(event), its01ReceiveCoachCompletion(event)]);
+}
+
 registerModuleLab({
   program: 'it-support', moduleNumber: 1, moduleKey: 'its-01',
-  view: viewItsModuleOne, wire: wireItsModuleOneLab, onMessage: its01ReceiveCoachCompletion,
+  view: viewItsModuleOne, wire: wireItsModuleOneLab, onMessage: its01OnMessage,
 });

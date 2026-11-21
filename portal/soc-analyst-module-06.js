@@ -925,16 +925,20 @@ function moduleSixLessonComplete(lesson) {
   return Boolean(work.taskDone && lesson.questions.every((question) => work.answers?.[question.id] === question.correct));
 }
 
-function moduleSixLessonLoops() {
+function moduleSixLessonLoops(activeLesson = 1) {
   return `<div class="m06-lesson-grid mf-lesson-grid" id="m06-lessons">${MODULE_SIX_LESSONS.map((lesson) => {
     const work = moduleSixLessonWork(lesson.number);
     const complete = moduleSixLessonComplete(lesson);
-    return `<details class="m06-lesson mf-lesson" ${lesson.number === 1 ? 'open' : ''} data-m06-lesson="${lesson.number}">
+    return `<details class="m06-lesson mf-lesson" ${lesson.number === Number(activeLesson) ? 'open' : ''} data-m06-lesson="${lesson.number}">
       <summary><span class="m06-lesson-number mf-lesson-number">${String(lesson.number).padStart(2, '0')}</span><span class="mf-lesson-icon"><i class="${esc(lesson.icon || 'ri-book-2-line')}" aria-hidden="true"></i></span><span class="mf-lesson-title"><strong>${esc(lesson.title)}</strong><small>${complete ? 'Complete' : 'Scenario → theory → check → applied task'}</small></span>${complete ? '<span class="mf-lesson-done" aria-label="Lesson complete"><i class="ri-check-line" aria-hidden="true"></i></span>' : ''}<i class="ri-arrow-down-s-line mf-chevron" aria-hidden="true"></i></summary>
       <div class="m06-lesson-body mf-lesson-body"><div class="m06-lesson-scenario"><p class="m06-kicker">Scenario</p><p>${esc(lesson.scenario)}</p></div><div class="m06-lesson-theory"><p class="m06-kicker">Theory</p><p>${esc(lesson.theory)}</p></div>
       <div class="m06-lesson-check"><h4>Knowledge check</h4>${lesson.questions.map((question) => { const selected = work.answers?.[question.id]; const answered = selected !== undefined; return `<fieldset><legend>${esc(question.prompt)}</legend>${question.options.map((option, index) => `<label><input type="radio" name="m06-lesson-${lesson.number}-${question.id}" data-m06-lesson-answer data-lesson="${lesson.number}" data-question="${esc(question.id)}" value="${index}" ${selected === index ? 'checked' : ''} /><span>${esc(option)}</span></label>`).join('')}${answered ? `<p class="m06-lesson-feedback ${selected === question.correct ? 'is-pass' : 'is-remediate'}" role="status">${esc(selected === question.correct ? question.good : question.bad)}</p>` : ''}</fieldset>`; }).join('')}</div>
       <div class="m06-lesson-task"><p class="m06-kicker">Applied task</p><p>${esc(lesson.task)}</p><textarea data-m06-lesson-task="${lesson.number}" rows="3" maxlength="600" placeholder="Apply the idea to this hunt…">${esc(work.taskText || '')}</textarea><button type="button" data-m06-lesson-submit="${lesson.number}">${complete ? 'Completed' : 'Mark task complete'}</button></div></div></details>`;
   }).join('')}</div>`;
+}
+
+function moduleSixReplaceLessonLoops(list, activeLesson) {
+  if (list) list.outerHTML = moduleSixLessonLoops(activeLesson);
 }
 
 function moduleSixQuizQuestion(selected, index) {
@@ -1518,6 +1522,7 @@ function moduleSixGuidedSteps() {
     { title: 'Start from the lead', body: 'Treat the alert or seed observation as a lead to test, not a verdict.', lookFor: 'What the initial signal establishes and what it leaves open.', lab: 'Ticket field: Findings', tab: 'hunting', target: '.m06-seed-review' },
     { title: 'Correlate the records', body: 'Follow the related records across the console and compare the suspicious activity with its baseline.', lookFor: 'Which source identifies the activity and which records corroborate timing, scope, or context.', lab: 'Ticket fields: Affected User, Affected Device, Findings', tab: 'timeline', target: '.m03e-timeline' },
     { title: 'Separate source from contributing evidence', body: 'A correlated record can strengthen the timeline even when it is not the originating source.', lookFor: 'Whether each record shows where activity began or only confirms that it happened.', lab: 'Ticket field: Findings', tab: 'sources', target: '[data-m03e-select="m06-guided:source:DeviceProcessEvents"]' },
+    { title: 'Map only demonstrated behavior', body: 'In ATT&CK, choose a technique only when the observed behavior matches it, then cite the record that shows that behavior. For this case, M06-GUIDE-202 and M06-GUIDE-203 show PowerShell running an unsigned script, supporting a PowerShell execution mapping. M06-GUIDE-204 shows an allowed connection on port 443, but no transferred tool or payload; do not claim tool transfer from that connection alone. Record that claim as unsupported and explain the evidence limit.', lookFor: 'A supported technique linked to the process/file records, and an unsupported technique linked to the connection record with a rationale explaining what is missing.', lab: 'ATT&CK mappings: status, evidence, and rationale', tab: 'attack', target: '[data-m06-mapping-panel]' },
     { title: 'Scope and decide', body: 'Choose a severity, disposition, and escalation that match the evidence and confirmed scope.', lookFor: 'The difference between confirmed impact and unresolved questions.', lab: 'Ticket fields: Severity, Disposition, Escalation, Department', tab: 'case', target: '.m01-ticket-grid' },
     { title: 'Write the handoff and submit', body: 'Summarize the evidence, scope, uncertainty, and next action in work notes, then submit the ITSM ticket.', lookFor: 'A concise record another analyst can act on.', lab: 'Ticket field: Work Notes · Submit completes this Guided Lab', tab: 'case', target: '.m01-ticket-notes' },
   ];
@@ -1617,6 +1622,30 @@ function moduleSixRenderAssessment() {
   if (!root) return;
   root.innerHTML = moduleSixAssessmentLabPanel();
   m03eAttachEditor('m06');
+}
+
+// Snapshot of what the student built in the Prove It hunt console, saved with
+// the attempt so the instructor sheet can show it (hypothesis text, searches,
+// pivots, evidence set, ATT&CK mappings, handoff, conclusion). Read-only copy
+// of the saved hunt state; nothing here feeds the score.
+function moduleSixAssessmentWork(state) {
+  const copy = (value) => JSON.parse(JSON.stringify(value ?? null));
+  const list = (value) => (Array.isArray(value) ? value : []);
+  const techniques = typeof SocM06AssessmentRelatedSearch !== 'undefined' ? SocM06AssessmentRelatedSearch.TECHNIQUES : {};
+  return {
+    hypotheses: copy(list(state.hypotheses).map((item) => ({ text: item.text, rationale: item.rationale, confidence: item.confidence, relatedEventIds: item.relatedEventIds }))),
+    queryHistory: copy(list(state.queryHistory).map((item) => ({ entityType: item.entityType, entityValue: item.entityValue, startTime: item.startTime, endTime: item.endTime, query: item.query, resultEventIds: item.resultEventIds }))),
+    savedQueries: copy(list(state.savedQueries)),
+    savedQueryRuns: copy(list(state.savedQueryRuns).map((item) => ({ savedQueryId: item.savedQueryId, name: item.name, query: item.query, resultEventIds: item.resultEventIds }))),
+    pivots: copy(list(state.pivots).map((item) => ({ fromEventId: item.fromEventId, toEventId: item.toEventId }))),
+    bookmarks: copy(list(state.bookmarks)),
+    collections: copy(list(state.collections)),
+    mappings: copy(list(state.mappings).map((item) => ({ tacticId: item.tacticId, techniqueId: item.techniqueId, techniqueName: techniques[item.techniqueId]?.name || '', status: item.status, confidence: item.confidence, eventIds: item.eventIds, rationale: item.rationale }))),
+    // statusHistory (added 2026-10-17): each "Update status" with the student's Analyst note.
+    handoffs: copy(list(state.handoffs).map((item) => ({ id: item.id, destination: item.destination, eventIds: item.eventIds, rationale: item.rationale, recommendation: item.recommendation, status: item.status,
+      statusHistory: list(item.statusHistory).map((entry) => ({ fromStatus: entry.fromStatus, status: entry.status, timestamp: entry.timestamp, note: entry.note || '' })) }))),
+    conclusions: copy(list(state.conclusions).map((item) => ({ text: item.text, eventIds: item.eventIds, disposition: item.disposition }))),
+  };
 }
 
 function moduleSixExactSelection(selected, expected, points) {
@@ -1799,7 +1828,8 @@ function wireModuleSixAssessmentLab() {
         return;
       }
       moduleSixIndependentProveItShowMissing = false;
-      const result = SocM06AssessmentScorer.score(SocM06AssessmentState.load(moduleSixUser, SocM06AssessmentData), SocM06AssessmentData);
+      const huntState = SocM06AssessmentState.load(moduleSixUser, SocM06AssessmentData);
+      const result = SocM06AssessmentScorer.score(huntState, SocM06AssessmentData);
       const submittedAt = new Date().toISOString();
       lab.caseRecord.submitted = true;
       lab.caseRecord.submittedAt = submittedAt;
@@ -1828,6 +1858,9 @@ function wireModuleSixAssessmentLab() {
             case_record: lab.caseRecord,
             case_display: caseRecordDisplay(lab.caseRecord, spec),
             case_summary: caseRecordSummary(lab.caseRecord, spec),
+            // Additive (admin Submission Sheet, 2026-10-17): the student's own hunt
+            // work, which the scorer only reports as event ids. Never read by scoring.
+            assessment_work: moduleSixAssessmentWork(huntState),
           },
         }).then((saved) => { if (saved && moduleSixIndependentRedoRequested()) delete moduleSixUser.openLabRedosByModuleKey['soc-06-independent']; });
       }
@@ -1931,8 +1964,7 @@ function wireModuleSix() {
       const work = moduleSixState.lessonWork[number] || (moduleSixState.lessonWork[number] = { answers: {}, taskText: '', taskDone: false });
       work.answers = { ...(work.answers || {}), [answer.dataset.question]: Number(answer.value) };
       moduleSixSave();
-      const list = shell.querySelector('#m06-lessons');
-      if (list) list.outerHTML = moduleSixLessonLoops();
+      moduleSixReplaceLessonLoops(shell.querySelector('#m06-lessons'), number);
     }
   });
   shell.addEventListener('input', (event) => {
@@ -1955,8 +1987,7 @@ function wireModuleSix() {
       }
       work.taskDone = true;
       moduleSixSave();
-      const list = shell.querySelector('#m06-lessons');
-      if (list) list.outerHTML = moduleSixLessonLoops();
+      moduleSixReplaceLessonLoops(shell.querySelector('#m06-lessons'), number);
     }
   });
 }
