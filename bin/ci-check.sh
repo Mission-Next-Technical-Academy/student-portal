@@ -63,6 +63,7 @@ node tests/hdesk-prove-auto-score-sheet.test.js
 
 echo '== SOC Prove It: server recommendation on the Submission Sheet =='
 node tests/soc-prove-server-recommendation.test.js
+node tests/signout-prove-caches.test.js
 
 echo '== Help Desk curriculum minutes =='
 node bin/its-curriculum-check.js
