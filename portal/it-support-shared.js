@@ -1000,6 +1000,9 @@ function itsProveQueueReviewPanel(row, work) {
   const listed = [...order, ...Object.keys(tickets).filter((id) => !order.includes(id))];
   const rewrite = work.rewrite && typeof work.rewrite === 'object' ? work.rewrite : {};
   const reasons = listed.filter((id) => String(tickets[id].reason || '').trim());
+  // The course page always saves positions that match the order. A row saved
+  // another way may not, and the automatic order checks read the positions.
+  const mismatch = listed.some((id) => tickets[id].position !== order.indexOf(id) + 1);
   const levels = { 1: '1 – High', 2: '2 – Medium', 3: '3 – Low' };
   const rows = listed.map((id) => {
     const ticket = tickets[id];
@@ -1011,6 +1014,7 @@ function itsProveQueueReviewPanel(row, work) {
   const interrupt = work.interrupt && typeof work.interrupt === 'object' ? work.interrupt : null;
   const arrival = interrupt ? `${name(interrupt.ticketId)} arrived ${interrupt.reason === 'triaged' ? 'after the student triaged enough tickets' : interrupt.reason === 'minutes' ? 'on the time rule' : 'in an earlier attempt'}${interrupt.arrivedAt ? ` (${new Date(interrupt.arrivedAt).toLocaleString()})` : ''}.` : 'Not recorded.';
   return `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" data-its-prove-panel="${esc(row.id)}" data-its-prove-shape="queue">
+    ${mismatch ? '<p class="mb-2 rounded border border-amber-200 bg-amber-50 p-2 text-sm font-semibold text-amber-900" data-its-prove-order-mismatch>The ticket positions don\'t match the work order, so this attempt wasn\'t saved by the course page. Return it rather than approving it.</p>' : ''}
     <h3 class="text-sm font-semibold text-[#1e3a5f]">Student's written work · rewrite of ${text(name(rewrite.ticketId))}</h3>
     ${writing('Rewritten short description', rewrite.shortDescription)}
     ${writing('Rewritten description', rewrite.description)}

@@ -333,6 +333,10 @@ function testReviewPanelAndGradingCard(saved) {
   Object.values(saved.tickets).filter((t) => t.reason).forEach((t) => assert.ok(html.includes(t.reason), 'every reason in full'));
   assert.ok(html.includes(saved.rewrite.shortDescription) && html.includes(saved.rewrite.description), 'the rewrite in full');
   assert.match(html, /in their work order/);
+  assert.doesNotMatch(html, /data-its-prove-order-mismatch/, 'a saved attempt has matching positions');
+  const forged = plain(saved);
+  forged.tickets[forged.order[0]].position = 4;
+  assert.match(prun('itsProveReviewPanel')({ ...row, result: forged }), /data-its-prove-order-mismatch/, 'positions that disagree with the order are flagged');
   // The grading card: two competencies, the writing parts and the rubric's
   // own acknowledgement line.
   prun(`itsProveRecommendations.set('att-m02-1', ${JSON.stringify({
