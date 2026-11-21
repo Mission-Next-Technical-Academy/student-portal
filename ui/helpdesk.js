@@ -2911,6 +2911,8 @@ function hdWarmHandoff(id) {
 }
 
 // Follow-up date and time, in shift time (UTC); "Go to follow-up time".
+// The input is read as shift time, never the browser's zone: the shift
+// clock the student reads is UTC in every browser (hdShiftTimeText).
 function hdFollowUpValue(iso) { return iso ? new Date(iso).toISOString().slice(0, 16) : ''; }
 function hdFollowUpSet(id) {
   const ticket = hdTicketById(id); if (!ticket || !hdConsole(ticket).followUp || !hdCommsOpen(ticket)) return;
@@ -3115,7 +3117,7 @@ function hdFollowUpControl(ticket) {
   const state = hdConsoleState(ticket);
   const open = hdCommsOpen(ticket);
   const value = hdDraft(ticket, 'followUp') || hdFollowUpValue(state.followUp);
-  const set = open ? `<label>Follow-up (date and time)<input id="hd-follow-up-input" class="ipt" type="datetime-local" value="${hdEsc(value)}" oninput="hdKeepDraft('${ticket.id}','followUp',this.value)"></label><button type="button" class="btn btn-secondary" onclick="hdFollowUpSet('${ticket.id}')">Set follow-up</button>` : '';
+  const set = open ? `<label>Follow-up (date and time on the shift clock)<input id="hd-follow-up-input" class="ipt" type="datetime-local" value="${hdEsc(value)}" oninput="hdKeepDraft('${ticket.id}','followUp',this.value)"></label><button type="button" class="btn btn-secondary" onclick="hdFollowUpSet('${ticket.id}')">Set follow-up</button>` : '';
   const shown = state.followUp ? `<p class="muted" style="margin:0">Follow-up: ${hdEsc(hdShiftTimeText(state.followUp))} · now ${hdEsc(hdShiftTimeText(hdShiftNow(ticket)))}</p>` : '';
   const jump = hdFollowUpCanJump(ticket) ? `<button type="button" class="btn btn-secondary" onclick="hdFollowUpGo('${ticket.id}')">Go to follow-up time</button>` : '';
   return `<div data-hd-follow-up="${state.followUp ? 'set' : 'none'}" style="display:grid;gap:6px">${set}${shown}${jump}</div>`;
