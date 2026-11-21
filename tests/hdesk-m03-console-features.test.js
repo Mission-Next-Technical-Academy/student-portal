@@ -493,9 +493,65 @@ function testPracticeSetDoneRulesAndTicketWork() {
   assert.equal(tab.history('HD-9312').time, 'Thu 11:05');
 }
 
+// A ticket whose conversation has no stages list: the tick skips it and
+// does not throw (hdCall returns null for it).
+function testTickSkipsConversationWithoutStages() {
+  const tab = coached();
+  tab.setNow(T0);
+  tab.run("HD_TICKET_TEMPLATES.find((t) => t.id === 'HD-9301').console.conversation = { name: 'Amir Patel', style: 'phone' }");
+  tab.run("hdState.selectedTicketId = 'HD-9301'");
+  assert.equal(tab.run('hdCall(hdTicketById(\'HD-9301\'), __now, false)'), null);
+  assert.doesNotThrow(() => tab.run('hdCommsTick()'));
+  assert.equal(tab.run('hdCommsTick()'), false);
+  assert.doesNotThrow(() => tab.run('hdCommsTimerTick()'));
+}
+
+// The 1-second timer: a redraw put off by a focused field is owed, and the
+// first tick with no focused field does it once, then clears the flag.
+function testTimerRedrawsOnceAfterFocusLeaves() {
+  const tab = coached();
+  const id = 'HD-9301';
+  let renders = 0;
+  tab.ctx.render = () => { renders += 1; };
+  const focus = () => { tab.ctx.document.activeElement = { tagName: 'TEXTAREA', value: '' }; };
+  const blur = () => { tab.ctx.document.activeElement = null; };
+  tab.setNow(T0);
+  tab.open(id);
+  assert.equal(tab.run('hdCommsTimerTick()'), false, 'the first look only notes what is shown');
+  tab.setNow(T0 + 1000);
+  tab.run(`hdCallChoose('${id}', 'good')`);
+  renders = 0; // count only the timer's redraws, not the choice's own
+  tab.setNow(T0 + 2000);
+  assert.equal(tab.run('hdCommsTimerTick()'), true, 'the next stage redraws');
+  assert.equal(renders, 1);
+  // (a) The second message arrives while a field has focus: no redraw yet.
+  focus();
+  tab.setNow(T0 + 5100);
+  assert.equal(tab.run('hdCommsTimerTick()'), false);
+  assert.equal(tab.run('hdCommsRedrawOwed'), true, 'the skipped redraw is owed');
+  tab.setNow(T0 + 6000);
+  assert.equal(tab.run('hdCommsTick()'), false, 'no new change on this tick');
+  assert.equal(tab.run('hdCommsTimerTick()'), false);
+  assert.equal(renders, 1, 'no redraw while the field has focus');
+  // Focus leaves: the first tick redraws, though nothing new changed.
+  blur();
+  tab.setNow(T0 + 6500);
+  assert.equal(tab.run('hdCommsTimerTick()'), true);
+  assert.equal(renders, 2);
+  assert.match(tab.open(id), /TEST two/);
+  // (b) The flag is cleared: the next ticks do not redraw.
+  assert.equal(tab.run('hdCommsRedrawOwed'), false);
+  tab.setNow(T0 + 7000);
+  assert.equal(tab.run('hdCommsTimerTick()'), false);
+  tab.setNow(T0 + 8000);
+  assert.equal(tab.run('hdCommsTimerTick()'), false);
+  assert.equal(renders, 2);
+}
+
 const tests = [
   testOldTicketsTurnNothingOn, testProveGetsNoneOfTheNewFeatures, testTicketClocksAndFollowUp, testConversationAndMoodMeter,
   testCallerDetailsHoldAndPlainWords, testEvidenceHandoffWarmHandoffAndComments, testPracticeSetDoneRulesAndTicketWork,
+  testTickSkipsConversationWithoutStages, testTimerRedrawsOnceAfterFocusLeaves,
 ];
 let failed = 0;
 for (const test of tests) {

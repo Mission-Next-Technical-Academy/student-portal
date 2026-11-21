@@ -3147,7 +3147,7 @@ function hdCommsTick(now = hdNowMs()) {
     // Only the open ticket's call, once it has started, asks for a redraw.
     if (!config.conversation || ticket.id !== hdState.selectedTicketId) return;
     const call = hdCall(ticket, now, false);
-    if (typeof call.startedAt !== 'number') return;
+    if (!call || typeof call.startedAt !== 'number') return;
     const key = `${call.stage}:${hdCallArrived(ticket, now)}`;
     if (hdCommsSeen[ticket.id] !== undefined && hdCommsSeen[ticket.id] !== key) changed = true;
     hdCommsSeen[ticket.id] = key;
@@ -4573,18 +4573,21 @@ if (!HD_PROVE && typeof setInterval === 'function') {
 // Module 3 on: a caller's messages arrive and a hold timer counts in real
 // time. The timer text changes in place; a redraw comes only when a message
 // arrives or a hold runs over, and waits while the student is typing.
-if (!HD_PROVE && typeof setInterval === 'function') {
-  setInterval(() => {
-    hdHoldTimerRefresh();
-    if (!hdCommsTick()) return;
-    hdSave();
-    // Any focused field waits, empty or not (a date and time picker reads
-    // empty until both parts are set); the next action redraws.
-    const active = typeof document !== 'undefined' ? document.activeElement : null;
-    if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName || '')) return;
-    const content = typeof document !== 'undefined' && document.getElementById ? document.getElementById('content') : null;
-    const top = content ? content.scrollTop : 0;
-    render();
-    if (content) content.scrollTop = top;
-  }, 1000);
+// A redraw that waited is owed: the first tick with no focused field does it.
+let hdCommsRedrawOwed = false;
+function hdCommsTimerTick() {
+  hdHoldTimerRefresh();
+  if (hdCommsTick()) { hdSave(); hdCommsRedrawOwed = true; }
+  if (!hdCommsRedrawOwed) return false;
+  // Any focused field waits, empty or not (a date and time picker reads
+  // empty until both parts are set).
+  const active = typeof document !== 'undefined' ? document.activeElement : null;
+  if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName || '')) return false;
+  hdCommsRedrawOwed = false;
+  const content = typeof document !== 'undefined' && document.getElementById ? document.getElementById('content') : null;
+  const top = content ? content.scrollTop : 0;
+  render();
+  if (content) content.scrollTop = top;
+  return true;
 }
+if (!HD_PROVE && typeof setInterval === 'function') setInterval(hdCommsTimerTick, 1000);
