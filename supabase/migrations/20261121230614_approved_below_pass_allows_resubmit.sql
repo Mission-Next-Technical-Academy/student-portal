@@ -1,6 +1,14 @@
 -- UAT B21 (P1): an instructor approval of a BELOW-PASS Prove It no longer
 -- locks the lab against resubmission.
 --
+-- History (2026-11-21): this file was first merged in PR #79 as
+-- 20261021120000_approved_below_pass_allows_resubmit.sql. That date sorts
+-- before migrations staging already had, so `supabase db push` refused it and
+-- Staging sync stopped. It never reached staging. It is renamed to today's
+-- date. Its body was also written before
+-- 20261029234710_portfolio_artifact_module_assessment_kind.sql, so it dropped
+-- that migration's Assessment Lab box guard. This body keeps both changes.
+--
 -- guard_lab_attempt_single_pending() refused any new submit with
 -- 'already_approved' whenever the latest attempt had reviewed_at set and
 -- redo_requested = false, regardless of score. An approved 37% attempt does
@@ -8,17 +16,28 @@
 -- score), so the learner was stuck: no completion and no resubmit.
 --
 -- Change: only the "approved" branch. An approved attempt blocks a new submit
--- only if it PASSED, using the exact rule of student_verified_module_progress
+-- only if it PASSED, using the rule of student_verified_module_progress
 -- (20261017130000_module_one_completion_case_console.sql):
 --   state = 'complete'
 --   and (score is null or score >= coalesce(pass_threshold, 70))
 --   and coalesce(jsonb_array_length(result->'critical_errors'), 0) = 0
+-- The current view (20261030221555_faculty_official_lab_grades.sql) skips the
+-- score test on official-grade labs. That does not change this rule: the
+-- constraint lab_attempts_complete_needs_passing_score already refuses a
+-- 'complete' row that scores below the pass mark.
+--
+-- Kept from 20261029234710: the Assessment Lab box keys
+-- ('<module key>-assessment-module') are guarded too, and an approved box
+-- attempt always refuses a new one. A box attempt is saved as 'submitted'
+-- with no score and review never changes its state, so the pass rule above
+-- would always call it "not passed" and unlock it after approval.
 -- The pending-review branch and everything else are unchanged.
 --
 -- ROLLBACK: re-run the function body from
--- 20261005210000_one_pending_prove_it_submission.sql section 3 (the approved
--- branch there is `elsif prev.redo_requested = false then raise ...`). The
--- trigger itself is not recreated here, so no trigger change is needed.
+-- 20261029234710_portfolio_artifact_module_assessment_kind.sql (the
+-- create or replace of guard_lab_attempt_single_pending() and its revoke).
+-- The approved branch there is `elsif prev.redo_requested = false then raise ...`.
+-- The trigger itself is not recreated here, so no trigger change is needed.
 
 create or replace function public.guard_lab_attempt_single_pending()
 returns trigger
@@ -40,7 +59,7 @@ begin
   if not exists (
     select 1 from public.course_module_labs r
     where r.track_code = new.track_code and r.lab_key = new.lab_key
-  ) then
+  ) and new.lab_key not like '%-assessment-module' then
     return new;
   end if;
 
@@ -63,7 +82,7 @@ begin
   limit 1;
 
   if found then
-    prev_passed := coalesce(prev.passed, false);
+    prev_passed := coalesce(prev.passed, false) or new.lab_key like '%-assessment-module';
     if prev.reviewed_at is null then
       raise exception 'This lab already has a submission awaiting instructor review.'
         using errcode = 'P0001', hint = 'one_pending_submission';
