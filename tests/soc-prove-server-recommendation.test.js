@@ -3,10 +3,12 @@
 // tested in supabase/tests/soc_prove_it_server_scoring.sql; this covers the
 // portal's side:
 //
-//   - Module 1's Prove It sends its work package marked kind 'soc-prove',
-//     with the raw ticket (case_record) and the rubric version the key is
-//     loaded under; nothing the student sees changes;
-//   - the instructor's Submission Sheet for Module 1 has a "Server
+//   - Modules 1-4's Prove Its send their work package marked kind
+//     'soc-prove', with the raw ticket (case_record) and the rubric version
+//     the key is loaded under; nothing the student sees changes (Module 3's
+//     and Module 4's payloads are checked in m03-incident-resolutions.test.js
+//     and soc-m04-assessment-submit.test.js, which drive those submits);
+//   - the instructor's Submission Sheets for Modules 1-4 have a "Server
 //     recommendation" box; other sheets and the student's marked lab don't;
 //   - the box: competencies with their reasons, the recommended score, flag /
 //     cap / zero rules, the not-scored states, and "Score this attempt"
@@ -84,7 +86,38 @@ test('Module 1 sends kind soc-prove, the raw ticket and the key\'s rubric versio
   assert.ok(row.result.breakdown && Array.isArray(row.result.feedback), 'the browser\'s own breakdown is still saved (removed in a later sprint)');
 });
 
-test('the Module 1 sheet has the box; other sheets and the student view do not', () => {
+test('Module 2 sends kind soc-prove, the raw ticket and the key\'s rubric version', async () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  // The Module 2 console is a closure; re-run it with a hook that exposes its submit.
+  const src = fs.readFileSync(path.join(__dirname, '..', 'portal', 'soc-analyst-module-02-environment.js'), 'utf8');
+  const end = src.lastIndexOf('}());');
+  assert.ok(end > 0, 'the Module 2 console closure ends where expected');
+  vm.runInContext(`${src.slice(0, end)}globalThis.__m02Test = { load, submitProve, get state() { return state; }, findings: CASE_FINDINGS.map((f) => f.name) };\n${src.slice(end)}`, portal, { filename: 'm02-hooked.js' });
+  const inserts = [];
+  portal.supabaseResponder = (call) => {
+    if (call.table === 'lab_attempts' && call.op === 'insert') inserts.push(copy(call.payload));
+    return { data: [], error: null };
+  };
+  // Made-up ticket values: only the payload's shape is checked.
+  run(`__m02Test.load({ userId: 'u-2', trackCode: 'SOCAN', email: 'y@test.local', latestLabAttemptByKey: {}, openLabRedosByModuleKey: {} });
+    Object.assign(__m02Test.state.practice.caseRecord, { status: 'in-progress', affectedUser: 'u.test', affectedDevice: 'DEV-TEST', severity: 's-test',
+      disposition: 'd-test', escalation: 'e-test', escalateTo: '', notes: 'n'.repeat(90),
+      findings: Object.fromEntries(__m02Test.findings.map((name) => [name, 'f-test'])) });
+    __m02Test.submitProve();`);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(inserts.length, 1, 'one attempt saved');
+  const row = inserts[0];
+  assert.equal(row.lab_key, 'lab-identity-investigation');
+  assert.equal(row.result.kind, 'soc-prove');
+  assert.equal(row.rubric_version, 'soc-m02-prove-v1');
+  assert.equal(row.result.case_record.notes, 'n'.repeat(90), 'the raw ticket is saved');
+  assert.equal(row.result.case_record.affectedUser, 'u.test');
+  assert.equal(row.result.case_record.submitted, true);
+  assert.ok(row.result.breakdown && Array.isArray(row.result.feedback) && row.result.access_review, 'the browser\'s own breakdown and review panel are still saved');
+});
+
+test('the Module 1-4 sheets have the box; other sheets and the student view do not', () => {
   const sheet = run('AdminSubmissionSheet');
   const html = sheet.render(ROW, { item: { lead: ROW, rows: [ROW], ids: [ROW.id] } });
   assert.match(html, /data-sheet-server-rec="attempt-1" data-sheet-server-rec-decided="0"/);
@@ -94,7 +127,12 @@ test('the Module 1 sheet has the box; other sheets and the student view do not',
   const student = sheet.renderStudent(ROW, { feedback: [] });
   assert.ok(student, 'the student view renders');
   assert.doesNotMatch(student, /data-sheet-server-rec|Server recommendation/);
-  const other = { ...ROW, id: 'attempt-2', lab_key: 'lab-identity-investigation' };
+  ['lab-identity-investigation', 'lab-siem-triage', 'lab-detection-rule'].forEach((labKey, i) => {
+    const moved = { ...ROW, id: `attempt-m${i + 2}`, lab_key: labKey };
+    assert.match(sheet.render(moved, {}), new RegExp(`data-sheet-server-rec="attempt-m${i + 2}"`), `${labKey} has the box`);
+    assert.doesNotMatch(sheet.renderStudent(moved, { feedback: [] }) || '', /data-sheet-server-rec|Server recommendation/, `${labKey}: not in the student view`);
+  });
+  const other = { ...ROW, id: 'attempt-2', lab_key: 'lab-endpoint-investigation' };
   assert.doesNotMatch(sheet.render(other, {}), /data-sheet-server-rec/, 'a module not moved yet has no box');
 });
 

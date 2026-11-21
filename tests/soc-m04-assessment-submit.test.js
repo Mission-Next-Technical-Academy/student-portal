@@ -139,6 +139,10 @@ assert.ok(attempts.some((entry) => entry.catalog?.[2]?.result?.review_payload?.c
 const firstCatalogAttempt = attempts.find((entry) => entry.catalog)?.catalog;
 assert.strictEqual(firstCatalogAttempt[1], 'lab-detection-rule', 'submission preserves the established catalog lab key');
 assert.strictEqual(firstCatalogAttempt[2].state, 'complete');
+assert.strictEqual(firstCatalogAttempt[2].result.kind, 'soc-prove', 'the Prove It is marked for server-side scoring');
+assert.strictEqual(firstCatalogAttempt[2].rubricVersion, 'soc-m04-prove-v1', 'the attempt carries the rubric version the server key is loaded under');
+assert.deepStrictEqual(JSON.parse(JSON.stringify(firstCatalogAttempt[2].result.work)), first.assessment, 'result.work is the console state the scorer read');
+assert.notStrictEqual(firstCatalogAttempt[2].result.work, vm.runInContext('moduleFourState.assessment', context), 'result.work is a copy, not the live state');
 assert.strictEqual(firstCatalogAttempt[2].result.case_record.caseId, 'CASE-044424');
 assert.strictEqual(firstCatalogAttempt[2].result.case_record.scenarioId, first.caseRecord.scenarioId,
   'instructor attempt case record carries the fixture case and scenario identity');

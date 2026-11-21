@@ -11,6 +11,9 @@
 (function () {
   const LAB_ID = 'm02-console-guide-v1';
   const LAB_KEY = 'lab-identity-investigation';
+  // Saved as lab_attempts.rubric_version on the Prove It; the server-side
+  // answer key for LAB_KEY is loaded under this version.
+  const PROVE_RUBRIC_VERSION = 'soc-m02-prove-v1';
 
   const DATA = {
     users: [
@@ -750,7 +753,11 @@
     // CASE_RECORD_MIGRATION.md #4): the shared case-record ticket shape, plus
     // `access_review` so adminModuleTwoAccessReviewPanel() (app.js) keeps
     // rendering this module's own review panel too.
+    // kind 'soc-prove' (2026-11-19): the database scores this work package
+    // (case_record) against the lab's answer key at submit, as a staff-only
+    // recommendation (migration 20261119204423).
     const result = {
+      kind: 'soc-prove',
       breakdown: performance.breakdown,
       feedback: performance.feedback,
       critical_errors: performance.criticalErrors,
@@ -761,7 +768,7 @@
     };
 
     if (typeof recordProveItAttempt === 'function') {
-      recordProveItAttempt(user, LAB_KEY, { state: 'complete', score: performance.score, result }, () => {
+      recordProveItAttempt(user, LAB_KEY, { state: 'complete', score: performance.score, rubricVersion: PROVE_RUBRIC_VERSION, result }, () => {
         state.practice.caseRecord.submitted = false;
         state.practice.complete = false;
         state.completed = false;

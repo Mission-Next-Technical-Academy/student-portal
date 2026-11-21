@@ -64,6 +64,9 @@ node tests/hdesk-prove-auto-score-sheet.test.js
 echo '== SOC Prove It: server recommendation on the Submission Sheet =='
 node tests/soc-prove-server-recommendation.test.js
 node tests/signout-prove-caches.test.js
+# Modules 3 and 4: their submit tests also check the soc-prove payload.
+node tests/m03-incident-resolutions.test.js
+node tests/soc-m04-assessment-submit.test.js
 
 echo '== Help Desk curriculum minutes =='
 node bin/its-curriculum-check.js
