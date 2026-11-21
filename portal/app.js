@@ -623,6 +623,8 @@ async function signOut(reason = 'user_signed_out') {
   ACCOUNT_NAMES.byStudentId.clear();
   ACCOUNT_NAMES.byUserId.clear();
   ACCOUNT_NAMES.ready = null;
+  // The SOC Instructor Guide holds answer keys: drop it with the session.
+  if (typeof SocInstructorGuide !== 'undefined') SocInstructorGuide.reset();
   // Purge defender-lab.* keys, or the next student on this browser inherits
   // the previous one's lab environment. PLATFORM_ARCHITECTURE.md §7.2.
   Object.keys(localStorage)
@@ -7348,12 +7350,17 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
   // Grading and Graded are one "Lab Attempts" tab now (data key 'grading').
   const requestedTab = requestedAdminTab === 'graded' ? 'grading' : requestedAdminTab;
   let activeTab = (!activeTrackCode && requestedTab === 'grading') ? 'progress' : requestedTab;
-  if (instructorDashboard && !['progress', 'grading', 'graded', 'messages'].includes(activeTab)) activeTab = 'progress';
+  if (instructorDashboard && !['progress', 'grading', 'graded', 'messages', 'guide'].includes(activeTab)) activeTab = 'progress';
   const activeTrack = activeTrackCode ? adminTrackMeta(activeTrackCode) : null;
   // Administrators supervise every course workspace. Instructors remain
   // limited to their explicit faculty_course_assignments.
   const canManageTrackMessages = Boolean(activeTrackCode && (user.isAdmin || facultyMessageTrackCodes.has(activeTrackCode)));
   if (!canManageTrackMessages && activeTab === 'messages') activeTab = 'progress';
+  // The Instructor Guide tab exists only in the SOC Analyst workspace. Its
+  // content is read from public.instructor_guides, which RLS limits to admins
+  // and that course's assigned instructors (soc-instructor-guide.js).
+  const showInstructorGuide = canManageTrackMessages && typeof SocInstructorGuide !== 'undefined' && activeTrackCode === SocInstructorGuide.track;
+  if (!showInstructorGuide && activeTab === 'guide') activeTab = 'progress';
   const rosterRows = normalizedTrackData.rosterRows || filterByTrack(rows, activeTrackCode);
   // The All Students workspace intentionally retains its cross-track detail
   // picker. A track workspace must not expose another track's student record.
@@ -7450,6 +7457,9 @@ function viewAdmin(user, rows, error, activeStudents, extra) {
           </button>
 ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${tabIsActive('messages')}" data-admin-tab="messages" class="${tabBtnClass('messages')} inline-flex items-center gap-1.5" aria-label="Course messages${(unreadMessageCountsByTrack.get(activeTrackCode) || 0) ? `, ${unreadMessageCountsByTrack.get(activeTrackCode)} unread` : ''}">
             <i class="ri-notification-3-line" aria-hidden="true"></i> Messages${(unreadMessageCountsByTrack.get(activeTrackCode) || 0) ? ` <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">${unreadMessageCountsByTrack.get(activeTrackCode)}</span>` : ''}
+          </button>` : ''}
+${showInstructorGuide ? `<button type="button" role="tab" aria-selected="${tabIsActive('guide')}" data-admin-tab="guide" class="${tabBtnClass('guide')} inline-flex items-center gap-1.5">
+            <i class="ri-book-open-line" aria-hidden="true"></i> Instructor Guide
           </button>` : ''}` : ''}
         </div>
 
@@ -7978,6 +7988,9 @@ ${canManageTrackMessages ? `<button type="button" role="tab" aria-selected="${ta
         </div>` : ''}
         ${activeTrackCode ? `<div id="admin-tab-panel-messages" ${tabIsActive('messages') ? '' : 'hidden'}>
           ${adminMessageInboxPanel(trackFacultyMessageRows)}
+        </div>` : ''}
+        ${showInstructorGuide ? `<div id="admin-tab-panel-guide" ${tabIsActive('guide') ? '' : 'hidden'}>
+          ${SocInstructorGuide.panel()}
         </div>` : ''}
 
         ${!instructorDashboard ? `<div class="mt-8">
@@ -9508,7 +9521,10 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
     grading: document.getElementById('admin-tab-panel-grading'),
     graded: document.getElementById('admin-tab-panel-graded'),
     messages: document.getElementById('admin-tab-panel-messages'),
+    guide: document.getElementById('admin-tab-panel-guide'),
   };
+  const mountInstructorGuide = () => { if (tabPanels.guide && !tabPanels.guide.hidden && typeof SocInstructorGuide !== 'undefined') SocInstructorGuide.mount(); };
+  mountInstructorGuide();
   tabButtons.forEach((btn) => {
     btn.addEventListener('click', async () => {
       const target = btn.dataset.adminTab;
@@ -9522,6 +9538,7 @@ function wireAdmin(dashboardRows, activeStudents, cheatingFlagsByUserId, grading
         b.classList.toggle('text-gray-500', !active);
       });
       Object.entries(tabPanels).forEach(([key, panel]) => { if (panel) panel.hidden = key !== target; });
+      if (target === 'guide') { mountInstructorGuide(); return; }
       if (!['progress', 'grading', 'graded', 'messages'].includes(target) && (!adminLazyTabData[target] || (target === 'activity' && adminLazyTabData.activity.activityLoadError))) {
         await ensureAdminLazyTab(target);
         await render({ reuseAdminRoster: true });
