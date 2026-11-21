@@ -755,7 +755,9 @@ const HD_PROVE_SHIFTS = {
       { id: 'HD-2141', number: 'INC0010463', title: 'Second monitor flickering',
         requester: 'Dina Foster', requesterTitle: 'Executive Assistant', department: 'Executive Office', createdAt: '2026-08-17T07:53:00Z', contactType: 'Email',
         description: 'URGENT!!! My second monitor keeps flickering. Please fix ASAP.',
-        conversation: [] },
+        conversation: [
+          { from: 'Dina Foster', role: 'Executive Assistant', text: 'It\'s only the second screen. My laptop screen is fine and I can keep working on it.' },
+        ] },
       { id: 'SEC-2142', number: 'INC0010461', title: 'Text from "IT" about MFA',
         requester: 'Jordan Bell', requesterTitle: 'Financial Analyst', department: 'Finance', createdAt: '2026-08-17T07:55:00Z', contactType: 'Phone',
         description: 'Got a text from \'IT\' saying re-register MFA or lose access. I tapped the link, it looked weird, I closed it. Didn\'t type anything.',

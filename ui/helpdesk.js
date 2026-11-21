@@ -3393,16 +3393,17 @@ function hdProveQueueMove(number, delta) {
   const button = typeof document !== 'undefined' && document.querySelector ? document.querySelector(`[data-hd-prove-move="${delta < 0 ? 'up' : 'down'}:${number}"]`) : null;
   if (button && !button.disabled && typeof button.focus === 'function') button.focus();
 }
-// Tickets that need a reason: the student's own top two, and any set to P1.
+// Tickets that need a reason: the student's own top two, and any they set to
+// P1 or P2. Which boxes are required follows only the student's choices.
 function hdProveQueueNeedsReason() {
   const order = hdState.prove.order;
-  return hdState.tickets.filter(ticket => order.indexOf(ticket.id) > -1 && order.indexOf(ticket.id) < 2 || ticket.priority === 'P1');
+  return hdState.tickets.filter(ticket => order.indexOf(ticket.id) > -1 && order.indexOf(ticket.id) < 2 || ['P1', 'P2'].includes(ticket.priority));
 }
 // Completeness only, as hdProveMissing: never whether a choice is right.
 function hdProveQueueMissing() {
   const prove = hdState.prove;
   const missing = [];
-  if (hdState.tickets.length < HD_PROVE.shift.tickets.length) missing.push('every ticket in the queue (one hasn\'t come in yet)');
+  if (hdState.tickets.length < HD_PROVE.shift.tickets.length) missing.push('the rest of the queue (keep working: it is still coming in)');
   hdState.tickets.slice().sort(hdProveQueueByCreated).forEach(ticket => {
     const parts = [!ticket.impact && 'Impact', !ticket.urgency && 'Urgency', !ticket.ticketClass && 'Class'].filter(Boolean);
     if (parts.length) missing.push(`${parts.join(', ')} on ${ticket.number}`);
@@ -3486,7 +3487,7 @@ function hdProveQueueSla(ticket) {
   return `<span data-sla="${hdEsc(sla.cls)}"><small class="muted">${hdEsc(sla.phase || '')} </small>${hdBadge(sla.label, sla.cls)}</span>`;
 }
 function hdProveQueuePriority(ticket) { return ticket.priority ? hdBadge(ticket.priority, ticket.priority.toLowerCase()) : '<span class="muted">Not set</span>'; }
-const HD_PROVE_QUEUE_INTRO = '<div class="callout info"><strong>Prove It.</strong> Work this queue on your own: there is no coach and no feedback before you submit. On every ticket set Impact, Urgency and Class. Link a ticket to its parent when two tickets are about one outage. Put the queue in the order you would work it, give a reason on your top two tickets and on any P1, and rewrite the ticket marked for a rewrite. Your instructor reviews your work.</div>';
+const HD_PROVE_QUEUE_INTRO = '<div class="callout info"><strong>Prove It.</strong> Work this queue on your own: there is no coach and no feedback before you submit. On every ticket set Impact, Urgency and Class, and link a ticket to a parent ticket where that applies. Put the queue in the order you would work it, and give a reason on your top two tickets and on any P1 or P2. One ticket has a Rewrite box: rewrite that ticket. Your instructor reviews your work.</div>';
 function hdProveQueueSubmitBlock() {
   return `<div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Submit</strong></div><div class="card-body hd-control-stack"><p id="hd-prove-time" class="muted" role="status">${hdEsc(hdProveTimeText())}</p>${hdProveSubmitCard()}</div></div>`;
 }
@@ -3521,7 +3522,9 @@ function hdProveQueueTicketView(ticket) {
   const off = locked ? 'disabled' : '';
   const number = hdEsc(ticket.number);
   const levels = ['1', '2', '3'].map(value => [value, HD_IMPACT_LABELS[value]]);
-  const parents = hdState.tickets.filter(item => item.id !== ticket.id && item.parentId !== ticket.id).sort(hdProveQueueByCreated);
+  // By INC number, which says nothing about the tickets (created order would
+  // put the oldest ticket first).
+  const parents = hdState.tickets.filter(item => item.id !== ticket.id && item.parentId !== ticket.id).sort((a, b) => String(a.number).localeCompare(String(b.number)));
   const parent = ticket.parentId ? hdTicketById(ticket.parentId) : null;
   const children = hdState.tickets.filter(item => item.parentId === ticket.id);
   const replies = ticket.conversation.length ? `<div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Ticket replies</strong></div><div class="card-body hd-note-list">${ticket.conversation.map(reply => `<div><strong>${hdEsc(reply.from)} · ${hdEsc(reply.role)}</strong><p>${hdEsc(reply.text)}</p></div>`).join('')}</div></div>` : '';
@@ -3534,7 +3537,7 @@ function hdProveQueueTicketView(ticket) {
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Requester statement</strong>${hdBadge('New', 'new')}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid"><div><span>Caller</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Title</span><strong>${hdEsc(ticket.requesterTitle)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div><div><span>Created</span><strong>${hdEsc(hdShiftTimeText(ticket.createdTimestamp))}</strong></div><div><span>SLA</span><strong>${hdProveQueueSla(ticket)}</strong></div></div></div></div>
         ${replies}
         ${rewrite}
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Reason</strong><span class="muted">Needed on your top two tickets and on any P1: why this priority and this place in the queue.</span></div><div class="card-body"><textarea id="hd-prove-reason" class="ipt hd-note-input" aria-label="Reason for ${number}" rows="4" maxlength="${HD_PROVE_QUEUE_LIMITS.reason}" ${off} oninput="hdProveQueueText('${number}','reason',this.value)">${hdEsc(ticket.reason)}</textarea></div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Reason</strong><span class="muted">Needed on your top two tickets and on any P1 or P2: why this priority and this place in the queue.</span></div><div class="card-body"><textarea id="hd-prove-reason" class="ipt hd-note-input" aria-label="Reason for ${number}" rows="4" maxlength="${HD_PROVE_QUEUE_LIMITS.reason}" ${off} oninput="hdProveQueueText('${number}','reason',this.value)">${hdEsc(ticket.reason)}</textarea></div></div>
       </div>
       <aside class="hd-ticket-side">
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Ticket fields</strong></div><div class="card-body hd-control-stack">

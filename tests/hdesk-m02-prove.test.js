@@ -184,7 +184,7 @@ function testReloadKeepsTheWork() {
 function testSubmitWaitsAndPackage() {
   const tab = sim('stu-submit');
   assert.ok(tab.run('hdProveMissing().length') > 0);
-  assert.match(tab.run('hdProveMissing().join(" | ")'), /hasn't come in yet/);
+  assert.match(tab.run('hdProveMissing().join(" | ")'), /still coming in/);
   fillEverything(tab);
   fillEverything(tab); // the late ticket's fields, once it is there
   same(tab.run('hdProveMissing()').slice(), []);

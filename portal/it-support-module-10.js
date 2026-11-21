@@ -586,7 +586,7 @@ const ITS10_SOURCES = [
 // started. Never answers or a score.
 const ITS10_STATE_ID = 'its10-page-v1';
 // Students see the guided lab as Lab 2.1; its key is older than that
-// numbering. Lab 2.1 still gates Module 2 until the Prove It does.
+// numbering. Module 2 completes on its Prove It; Lab 2.1 is Practice It.
 const ITS10_LAB1_KEY = 'lab-its-10-priority-queue';
 const ITS10_PRACTICE_KEY = 'lab-its-10-practice-tickets';
 const ITS10_PROVE_KEY = 'lab-its-10-prove-it';

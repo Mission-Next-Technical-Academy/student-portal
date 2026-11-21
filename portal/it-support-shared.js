@@ -729,8 +729,8 @@ function itsCleanProveWork(input, moduleKey, labKey) {
  * Priority (Impact × Urgency) and its position (its place in order, 1 first)
  * itself; the browser's values are never kept. It checks the ticket count
  * and the id pattern, never which tickets: this public file names no Prove
- * It ticket. A reason is required on the top two and on every P1; every
- * reason sent is kept. */
+ * It ticket. A reason is required on the top two and on every P1 or P2;
+ * every reason sent is kept. */
 const ITS_PROVE_QUEUE_CLASSES = ['Incident', 'Service request', 'Security incident'];
 const ITS_PROVE_MATRIX = { 1: { 1: 'P1', 2: 'P2', 3: 'P3' }, 2: { 1: 'P2', 2: 'P3', 3: 'P4' }, 3: { 1: 'P3', 2: 'P4', 3: 'P5' } };
 const ITS_PROVE_QUEUE_LIMITS = { reason: 1000, shortDescription: 160, description: 4000 };
@@ -760,7 +760,7 @@ function itsCleanProveQueueWork(input, rubric, moduleKey, labKey) {
   }
   // Two tickets each other's parent: not a link the simulator can make.
   if (ids.some((id) => clean[id].parentId && clean[clean[id].parentId].parentId === id)) return invalid;
-  if (ids.some((id) => (clean[id].position <= 2 || clean[id].priority === 'P1') && !clean[id].reason.trim())) return invalid;
+  if (ids.some((id) => (clean[id].position <= 2 || ['P1', 'P2'].includes(clean[id].priority)) && !clean[id].reason.trim())) return invalid;
   const rewrite = input.rewrite;
   if (!rewrite || typeof rewrite !== 'object' || !ids.includes(rewrite.ticketId)) return invalid;
   if (typeof rewrite.shortDescription !== 'string' || !rewrite.shortDescription.trim() || typeof rewrite.description !== 'string' || !rewrite.description.trim()) return invalid;
@@ -992,7 +992,9 @@ function itsProveReviewPanel(row) {
 function itsProveQueueReviewPanel(row, work) {
   const text = (value) => esc(String(value == null ? '' : value));
   const writing = (label, value) => `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">${label}</h4><p class="mt-1 text-base text-gray-900 whitespace-pre-wrap leading-relaxed">${text(value) || '<span class="text-gray-500">Nothing written.</span>'}</p>`;
-  const tickets = work.tickets && typeof work.tickets === 'object' ? work.tickets : {};
+  // Only ticket objects: a row saved around the course page's cleaner can't
+  // break the staff list.
+  const tickets = Object.fromEntries(Object.entries(work.tickets && typeof work.tickets === 'object' ? work.tickets : {}).filter(([, ticket]) => ticket && typeof ticket === 'object'));
   const name = (id) => (tickets[id] ? `${tickets[id].number || ''} (${id})` : String(id || ''));
   const order = (Array.isArray(work.order) ? work.order : []).filter((id) => tickets[id]);
   const listed = [...order, ...Object.keys(tickets).filter((id) => !order.includes(id))];
@@ -1087,7 +1089,7 @@ function itsProveGradeState(rubric, passMark, values, rec = null) {
   const gate = !fromRecommendation ? ''
     : writingInvalid ? 'Each writing part takes whole points from 0 to its maximum.'
     : writingMissing.length ? `Enter the ${writing.flatMap((comp) => comp.parts.map((part) => part.label.toLowerCase())).join(' and ')} scores by hand.`
-    : writing.length && !acknowledged ? 'Tick that you have read the student\'s work note and reply to the user.'
+    : writing.length && !acknowledged ? (rubric.writingAck ? 'Tick that you have read the student\'s writing.' : 'Tick that you have read the student\'s work note and reply to the user.')
     : missingChange.length ? `Say why you changed: ${missingChange.join(', ')}.`
     : '';
   const reasonGate = critical && !criticalReason ? 'Give the reason for the critical error.' : '';
