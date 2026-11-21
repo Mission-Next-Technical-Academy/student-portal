@@ -586,7 +586,7 @@ const ITS10_SOURCES = [
 // started. Never answers or a score.
 const ITS10_STATE_ID = 'its10-page-v1';
 // Students see the guided lab as Lab 2.1; its key is older than that
-// numbering. Lab 2.1 still gates Module 2 until the Prove It does.
+// numbering. Module 2 completes on its Prove It; Lab 2.1 is Practice It.
 const ITS10_LAB1_KEY = 'lab-its-10-priority-queue';
 const ITS10_PRACTICE_KEY = 'lab-its-10-practice-tickets';
 const ITS10_PROVE_KEY = 'lab-its-10-prove-it';
@@ -729,14 +729,15 @@ function its10Checks() {
 }
 
 // Lab 2.1: the hd-m10 coach on the practice queue in the IT Service Desk
-// simulator (ui/helpdesk-coaches.js). Until Module 2's Prove It gates
-// completion, the instructor still reviews this lab, so the page doesn't call
-// it "not graded"; there is no score.
+// simulator (ui/helpdesk-coaches.js). Since 2026-11-20 Module 2 completes on
+// its Prove It (course_module_labs, 20261120213000), so this lab is
+// Practice It: not graded, no score.
 function its10Lab1() {
   const button = itsWalkthroughButton(its10User, [ITS10_LAB1_KEY]);
   return `<section class="its01-section its01-lab-section" id="its10-lab-2-1" aria-labelledby="its10-lab-2-1-title">
     <div class="its01-section-heading"><span>1</span><div><p class="its01-kicker">Practice It · coached</p><h2 id="its10-lab-2-1-title">${esc(itsLabTitle(ITS10_LAB1_KEY))}</h2></div></div>
-    <p class="its01-instruction">Work a six-ticket morning queue in the IT Service Desk simulator. Add the queue columns, set Impact and Urgency on every ticket, convert a request, link two tickets about one outage, put the queue in order, send a security ticket to the SOC, pause a ticket while you wait on the caller, attach a knowledge article, write a work note and a customer comment, and resolve a ticket with a knowledge draft. A coach walks you through every step. Feedback only, no score.</p>
+    <p class="its01-instruction">Work a six-ticket morning queue in the IT Service Desk simulator. Add the queue columns, set Impact and Urgency on every ticket, convert a request, link two tickets about one outage, put the queue in order, send a security ticket to the SOC, pause a ticket while you wait on the caller, attach a knowledge article, write a work note and a customer comment, and resolve a ticket with a knowledge draft. A coach walks you through every step.</p>
+    <p class="its01-instruction">Practice: not graded. Feedback only, no score.</p>
     <a class="itsw-evidence-button" data-its10-console-launch href="${esc(itsCoachLaunchHref(ITS10_COACH_ID, its10User))}" target="_blank" rel="opener">
       <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: ITS10_LAB1_START }[button.mode]}
     </a>
@@ -767,13 +768,24 @@ function its10PracticeTickets() {
   </section>`;
 }
 
-// Module 2's Prove It isn't built yet: the card says so and opens nothing.
-// No launch link and no message handler until its shift and scoring exist.
+// Module 2's Prove It, on Module 1's pattern (its01Prove): a new ticket queue
+// in the simulator (?prove=its-10), reviewed by the instructor. Practice It is
+// recommended first, never required. A submitted attempt has nothing left to
+// open. What it shows comes from the server's attempt (itsLabStatus); the
+// simulator reports back by message (itsProveReceiveMessage).
 function its10Prove() {
+  const user = its10User;
+  const returned = itsLabReturned(user, ITS10_PROVE_KEY);
   return `<section class="its01-section its01-lab-section" id="its10-prove-it" aria-labelledby="its10-prove-it-title">
     <div class="its01-section-heading"><span>3</span><div><p class="its01-kicker">Prove It · Assessment Lab · instructor reviewed</p><h2 id="its10-prove-it-title">${esc(itsLabTitle(ITS10_PROVE_KEY))}</h2></div></div>
-    <p class="its01-instruction">Work a new ticket queue on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Your instructor reviews your work.</p>
-    <p class="its01-lab-status" data-its10-prove-soon role="status"><i class="ri-time-line" aria-hidden="true"></i> Opens soon. Nothing to do here yet: work Labs 2.1 and 2.2 first.</p>
+    <p class="its01-instruction">Work a new ticket queue on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Set Impact, Urgency and Class on every ticket, link tickets about one outage, put the queue in work order, give your reasons and rewrite one weak ticket. Plan on about 20 minutes. Your instructor reviews your work.</p>
+    ${itsLabRail(user, [ITS10_LAB1_KEY]).isComplete ? '' : '<p class="its01-instruction">Work Lab 2.1, the guided lab, first: it prepares you for this.</p>'}
+    ${itsLabSubmitted(user, ITS10_PROVE_KEY) ? '' : `<a class="itsw-evidence-button" data-its10-prove-launch href="${esc(itsProveLaunchHref('its-10', user))}" target="_blank" rel="opener">
+      <i class="${returned ? 'ri-restart-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${returned ? 'Reopen the Prove It' : 'Start the Prove It'}
+    </a>`}
+    ${itsLabStatusHtml(user, ITS10_PROVE_KEY, { label: 'Prove It', prefix: 'its01', pendingText: 'Press Submit in the simulator when you finish the queue.' })}
+    ${itsLabStatus(user, ITS10_PROVE_KEY) === 'passed' && typeof markedLabLinkHtml === 'function' ? `<p>${markedLabLinkHtml(ITS10_PROVE_KEY, 'See your score and feedback')}</p>` : ''}
+    ${itsRedoNoticeHtml(user, [{ key: ITS10_PROVE_KEY, action: 'Reopen the Prove It, make your changes, then press Resubmit in the simulator. You can resubmit once for each return.' }])}
   </section>`;
 }
 
@@ -1048,7 +1060,13 @@ async function its10SavedPracticeAttempt(user) {
   }
 }
 
+// A Prove It message changed the attempt: show it if this page is open.
+function its10ProveChanged() {
+  if (document.querySelector('.its10-shell')) render();
+}
+
 function its10OnMessage(event) {
+  itsProveReceiveMessage(event, { moduleKey: 'its-10', labKey: ITS10_PROVE_KEY, onChange: its10ProveChanged });
   return Promise.all([its10ReceivePracticeCompletion(event), its10ReceiveCoachCompletion(event)]);
 }
 

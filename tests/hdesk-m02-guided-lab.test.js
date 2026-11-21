@@ -392,9 +392,20 @@ function testPortalAndSheet(work) {
 
 /* ------------------------------------------- nothing from the graded queue */
 
-// The graded Prove It queue is built later, from its own spec section. Its
-// ticket numbers are a range; its requesters and story words are kept here
-// only as short hashes, so this file names none of them.
+// The graded Prove It queue lives only in HD_PROVE_SHIFTS['its-10'] (built
+// 2026-11-20), the last block of ui/helpdesk-data.js. Its ticket numbers are
+// a range; its requesters and story words are kept here only as short hashes,
+// so this file names none of them. The scan skips that one block and checks
+// that the graded tickets are there.
+const PROVE_QUEUE_START = "\n  'its-10': {";
+function outsideProveQueue(file, source) {
+  if (file !== 'ui/helpdesk-data.js') return source;
+  const shifts = source.indexOf('const HD_PROVE_SHIFTS');
+  const start = source.indexOf(PROVE_QUEUE_START, shifts);
+  assert.ok(shifts > -1 && start > shifts, 'the queue Prove shift is inside HD_PROVE_SHIFTS');
+  assert.ok(/^\s*},?\s*};\s*$/.test(source.slice(source.lastIndexOf('\n  },', source.length))), 'the queue Prove shift is the last block in the file');
+  return source.slice(0, start);
+}
 const GRADED_NUMBERS = [];
 for (let n = 2137; n <= 2142; n += 1) ['HD', 'SR', 'SEC'].forEach((p) => GRADED_NUMBERS.push(`${p}-${n}`, `INC00${10000 + n}`));
 const GRADED_WORDS = new Set(['60f91a742458ae60', 'db729480ba4a55cb', 'f9bfd1cc6928630f', '3e04da76d7473719', 'ae1fd358c7612a02', '6105d8625ada3c9b', '438287bf455f1f46', 'ed07e8161bc6033f']);
@@ -406,11 +417,16 @@ function testNothingFromTheGradedQueue() {
   const files = ['ui/helpdesk-data.js', 'ui/helpdesk-coaches.js', 'ui/helpdesk.js', 'portal/admin-sheets/hdesk.js', 'portal/it-support-shared.js', 'portal/it-support-module-10.js',
     'tests/hdesk-m02-guided-lab.test.js', 'tests/hdesk-m02-practice-tickets.test.js', 'tests/hdesk-m02-console-features.test.js'];
   for (const file of files) {
-    const source = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    const source = outsideProveQueue(file, fs.readFileSync(path.join(ROOT, file), 'utf8'));
     GRADED_NUMBERS.forEach((id) => assert.ok(!new RegExp(`\\b${id}\\b`).test(source), `${file} has no graded ticket number`));
   }
   // Module 2's own content: its tickets, KB articles and coach text.
   const tab = sim(launchUrl());
+  // The graded tickets are the queue Prove shift's six, all from the range.
+  const proveIds = JSON.parse(tab.run("JSON.stringify(HD_PROVE_SHIFTS['its-10'].tickets.map((t) => t.id))"));
+  assert.equal(proveIds.length, 6, 'the queue Prove shift has six tickets');
+  proveIds.forEach((id) => assert.ok(GRADED_NUMBERS.includes(id), 'each queue Prove ticket is a graded ticket'));
+  assert.ok(!JSON.stringify(tab.run('JSON.stringify(HD_TICKET_TEMPLATES.map((t) => t.id))')).match(/-21(3[7-9]|4[0-2])\b/), 'no graded ticket is a Practice ticket');
   const content = tab.run(`JSON.stringify({
     tickets: HD_TICKET_TEMPLATES.filter((t) => t.ownSet),
     kb: HD_KB_ARTICLES.filter((a) => ['KB-0062', 'KB-0063'].includes(a.id)),

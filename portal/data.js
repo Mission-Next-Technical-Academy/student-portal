@@ -2316,10 +2316,9 @@ const LABS = [
     description: 'A coach-guided walkthrough of tickets SEC-2114 (credential phishing) and SEC-2115 (malware alert) in the IT Service Desk simulator.',
     skills: ['Security Awareness', 'Phishing Recognition', 'Incident Escalation'], portalEntry: '#/program/it-support/module/11' }),
   // Module 2's guided lab. Students see it as Lab 2.1; the key is older than
-  // that numbering. Until Module 2's Prove It gates completion it stays the
-  // gating lab (course_module_labs), so it has no `phase: 'practice'`: an
-  // instructor still reviews and approves it.
-  itsLab({ key: 'lab-its-10-priority-queue', module: 'its-10', title: 'Lab 2.1 · Guided Lab: queue shift', difficulty: 'Foundational', minutes: 35,
+  // that numbering. Since 2026-11-20 Module 2's Prove It gates completion
+  // (20261120213000_hdesk_its10_prove_queue.sql) and this lab is Practice It.
+  itsLab({ key: 'lab-its-10-priority-queue', module: 'its-10', title: 'Lab 2.1 · Guided Lab: queue shift', difficulty: 'Foundational', minutes: 35, phase: 'practice',
     parentAllocations: [allocation('ITHD-101.2', 35)], objective: 'Work a six-ticket morning queue: set Impact and Urgency on every ticket, convert a request, link two tickets about one outage, order the queue, route a security ticket, pause a ticket while waiting on the caller, and write for two audiences.',
     description: 'A coach-guided queue shift in the IT Service Desk simulator: six practice tickets, each step with a why and what success looks like. Feedback only, no score.',
     skills: ['Ticket Management', 'Prioritization', 'SLAs'], portalEntry: '#/program/it-support/module/2' }),
@@ -2331,10 +2330,10 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.2', 20)], objective: 'Work three tickets on your own: convert a request and wait for the owner’s approval, reopen a ticket and link the related ones, and follow the three-attempt contact policy before closing.',
     description: 'Three unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all three and a completion record is saved to your account.',
     skills: ['Incident vs Request', 'Ticket States', 'Documentation'], portalEntry: '#/program/it-support/module/2' }),
-  // Module 2's Prove It. The page shows "Opens soon" and launches nothing
-  // until its simulator shift, scoring and gating row are built.
+  // Module 2's Prove It: the queue shift (?prove=its-10), scored on the
+  // server and graded by the instructor. It gates Module 2's completion.
   itsLab({ key: 'lab-its-10-prove-it', module: 'its-10', title: 'Prove It: queue shift', difficulty: 'Foundational', minutes: 20,
-    parentAllocations: [allocation('ITHD-101.2', 20)], objective: 'Independently work a new ticket queue: classify and prioritize every ticket, order the queue by priority and SLA time left, route each ticket, and document the work.',
+    parentAllocations: [allocation('ITHD-101.2', 20)], objective: 'Independently work a new ticket queue: classify and prioritize every ticket, link tickets about one outage, order the queue by priority and SLA time left, and document the work.',
     description: 'An independent Prove It on a queue you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
     skills: ['Ticket Triage', 'Prioritization', 'Documentation'], portalEntry: '#/program/it-support/module/2' }),
   itsLab({ key: 'lab-its-11-handoff-documentation', module: 'its-11', title: 'Writing the Handoff That Actually Helps', difficulty: 'Foundational', minutes: 75,

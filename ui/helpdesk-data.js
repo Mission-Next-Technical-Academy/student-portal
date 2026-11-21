@@ -50,6 +50,7 @@ const HD_USERS = [
   { id:'u-1019', employeeId:'E-48634', phone:'ext. 4326', name:'Nina Patel', username:'npatel', email:'nina.patel@northstar.example', department:'Sales', title:'Sales Assistant', ou:'OU=Sales,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:2, groups:['GG-Sales-Users'], manager:'Omar Haddad', mfa:'Registered' },
   { id:'u-1020', employeeId:'E-49748', phone:'ext. 4472', name:'Marcus Lee', username:'mlee', email:'marcus.lee@northstar.example', department:'Marketing', title:'Marketing Specialist', ou:'OU=Marketing,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:57, groups:['GG-Marketing-Users'], manager:'Owen Price', mfa:'Registered' },
   { id:'u-1021', employeeId:'E-50862', phone:'ext. 4105', name:'Ines Calder', username:'icalder', email:'ines.calder@northstar.example', department:'Front Desk', title:'Receptionist', ou:'OU=Front Desk,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:19, groups:['GG-FrontDesk-Users'], manager:'Caleb Wright', mfa:'Registered' },
+  { id:'u-1022', employeeId:'E-51274', phone:'ext. 4229', name:'Monica Hall', username:'mhall', email:'monica.hall@northstar.example', department:'Logistics', title:'Logistics Manager', ou:'OU=Logistics,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:27, groups:['GG-Logistics-Users','GG-Warehouse-Print'], manager:'Caleb Wright', mfa:'Registered' },
 ];
 
 const HD_GROUPS = [
@@ -712,5 +713,55 @@ const HD_PROVE_SHIFTS = {
     },
     // Event Viewer entries from these computers belong to other tickets' stories.
     hideEventsFrom: ['NS-PRINT01'],
+  },
+  /* Module 2 (key its-10): the queue shift. Six short tickets on a fixed
+   * Monday 08:05 shift clock (ui/helpdesk.js queue Prove mode). The student
+   * sets Impact, Urgency and Class on each, links tickets about one outage,
+   * puts the queue in work order, writes reasons and rewrites the ticket
+   * marked `rewrite`. The queue and the ticket show only the INC number.
+   * `arrives` keeps a ticket out of the queue until the student has triaged
+   * `afterTriaged` tickets or `afterMinutes` real minutes have passed since
+   * the attempt started; it is created at the shift clock. Only what the
+   * student sees lives here: no expected values. */
+  'its-10': {
+    title: 'Prove It: queue shift',
+    labKey: 'lab-its-10-prove-it',
+    rubricVersion: 'hdesk-its-10-prove-v1',
+    queue: true,
+    now: '2026-08-17T08:05:00Z',
+    timeBoxMinutes: 20,
+    tickets: [
+      { id: 'HD-2137', number: 'INC0010462', title: 'Warehouse can\'t print labels or scan',
+        requester: 'Monica Hall', requesterTitle: 'Logistics Manager', department: 'Logistics', createdAt: '2026-08-17T07:40:00Z', contactType: 'Phone',
+        description: 'Nobody at the warehouse can print shipping labels or scan. We\'re doing it on paper. Trucks leave at 11.',
+        conversation: [
+          { from: 'Monica Hall', role: 'Logistics Manager', text: 'It\'s all of dock A: every handheld scanner and both label printers. It started around 07:40.' },
+        ] },
+      { id: 'HD-2138', number: 'INC0010465', title: 'scanner says no network', rewrite: true,
+        requester: 'Elena Ruiz', requesterTitle: 'Logistics Coordinator', department: 'Logistics', createdAt: '2026-08-17T07:52:00Z', contactType: 'Chat',
+        description: 'scanner says no network',
+        conversation: [
+          { from: 'Elena Ruiz', role: 'Logistics Coordinator', text: 'It\'s my handheld, HS-14, at dock A. The screen says "No network", since about 07:40. I restarted it and got the same thing. We\'re picking orders on paper for now.' },
+        ] },
+      { id: 'HD-2139', number: 'INC0010464', title: 'Payroll export to the bank failed',
+        requester: 'Evan Parker', requesterTitle: 'Payroll Specialist', department: 'Finance', contactType: 'Chat',
+        arrives: { afterTriaged: 3, afterMinutes: 8 },
+        description: 'Quick question, no rush: the payroll export to the bank failed with \'cannot connect to server\'. Payroll is due at noon.',
+        conversation: [] },
+      { id: 'SR-2140', number: 'INC0010460', title: 'Visio install',
+        requester: 'Grace Kim', requesterTitle: 'Recruiting Coordinator', department: 'Human Resources', createdAt: '2026-08-17T07:51:00Z', contactType: 'Self-service',
+        description: 'Can I get Visio installed? My manager approved it.',
+        conversation: [] },
+      { id: 'HD-2141', number: 'INC0010463', title: 'Second monitor flickering',
+        requester: 'Dina Foster', requesterTitle: 'Executive Assistant', department: 'Executive Office', createdAt: '2026-08-17T07:53:00Z', contactType: 'Email',
+        description: 'URGENT!!! My second monitor keeps flickering. Please fix ASAP.',
+        conversation: [
+          { from: 'Dina Foster', role: 'Executive Assistant', text: 'It\'s only the second screen. My laptop screen is fine and I can keep working on it.' },
+        ] },
+      { id: 'SEC-2142', number: 'INC0010461', title: 'Text from "IT" about MFA',
+        requester: 'Jordan Bell', requesterTitle: 'Financial Analyst', department: 'Finance', createdAt: '2026-08-17T07:55:00Z', contactType: 'Phone',
+        description: 'Got a text from \'IT\' saying re-register MFA or lose access. I tapped the link, it looked weird, I closed it. Didn\'t type anything.',
+        conversation: [] },
+    ],
   },
 };

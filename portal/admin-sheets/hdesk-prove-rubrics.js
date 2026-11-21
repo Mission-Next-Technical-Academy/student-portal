@@ -29,6 +29,26 @@
       partialCredit: 'Each competency can earn partial credit, justified in the feedback for that competency. Different valid ways of working the ticket earn the same credit.',
       facultyFinal: true,
     },
+    // Module 2: a queue of tickets worked on one screen (the simulator's queue
+    // Prove mode). shape 'queue' picks the queue package in the course page
+    // (itsCleanProveQueueWork) and the queue review panel.
+    'lab-its-10-prove-it': {
+      version: 'hdesk-its-10-prove-v1',
+      moduleKey: 'its-10',
+      shape: 'queue',
+      ticketCount: 6,
+      technicalPoints: 100,
+      competencies: [
+        { id: 'triage', label: 'Triage', points: 61 },
+        { id: 'documentation', label: 'Documentation and communication', points: 39 },
+      ],
+      // Feedback only; never adds or removes points.
+      formative: [{ id: 'efficiency', label: 'Efficiency' }],
+      criticalErrorRule: 'A critical error is an automatic zero: the attempt and every competency score 0, and it is returned, never approved.',
+      partialCredit: 'Each competency can earn partial credit, justified in the feedback for that competency. Different valid work orders within the same priority bands earn the same credit.',
+      writingAck: 'I have read the student\'s rewritten ticket and every reason they wrote.',
+      facultyFinal: true,
+    },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = { HDESK_PROVE_RUBRICS };
   if (typeof window !== 'undefined') window.HDESK_PROVE_RUBRICS = HDESK_PROVE_RUBRICS;
