@@ -83,10 +83,14 @@ assert.match(m02AssessmentSubmit, /state\.practice\.caseRecord/);
 assert.match(m02Environment, /\$\{practicePanel\(\)\}/, 'M02 page continues to mount Assessment Lab');
 
 const m12 = fs.readFileSync(path.join(portal, 'soc-analyst-module-12.js'), 'utf8');
-const feedbackStart = m12.indexOf('function moduleTwelveFeedback()');
-const feedbackEnd = m12.indexOf('function moduleTwelveReviewStatus()', feedbackStart);
-assert.ok(feedbackStart >= 0 && feedbackEnd > feedbackStart, 'M12 student feedback function exists');
-assert.doesNotMatch(m12.slice(feedbackStart, feedbackEnd).replaceAll('m12-score-empty', ''), /score|points|breakdown|feedback\)/i, 'M12 student feedback hides rubric results');
-assert.match(m12, /if \(moduleTwelveState\.submitted\) return `<div class="m12-assessment"/);
+// The score feedback panel was removed (c89cce7): the student sees only the ticket review status line.
+const statusStart = m12.indexOf('function moduleTwelveReviewStatus()');
+const statusEnd = m12.indexOf('function moduleTwelveMissionStatus()', statusStart);
+assert.ok(statusStart >= 0 && statusEnd > statusStart, 'M12 student review status function exists');
+assert.doesNotMatch(m12.slice(statusStart, statusEnd), /score|points|breakdown|rubric/i, 'M12 student review status hides rubric results');
+assert.doesNotMatch(m12, /moduleTwelveFeedback\(\)/, 'M12 no longer renders the score feedback panel');
+// Submitted state: the shared case record locks and shows the faculty-review message (no score).
+assert.match(m12, /disabled: moduleTwelveState\.submitted === true/, 'M12 ticket locks once submitted');
+assert.match(m12, /lockedMessage: 'Your incident ticket and range actions are recorded for faculty review\.'/, 'M12 submitted ticket explains faculty review');
 
 console.log('Guided Lab console guide rules passed.');
