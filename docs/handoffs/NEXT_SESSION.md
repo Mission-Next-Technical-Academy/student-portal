@@ -1,4 +1,4 @@
-**2026-11-22 (Megan; branch `shared/ci-migration-order`, "CI refuses a migration dated before master's newest"; shared: `.github/workflows/ci.yml`, `bin/ci-check.sh`, new `bin/ci/check-migration-order.sh`, `bin/ci/check-branch-for-staging.sh`, `tests/staging-sync-scripts.test.js` — please review those):**
+**2026-11-22 (Megan; PR #135 "CI refuses a migration dated before master's newest"; shared: `.github/workflows/ci.yml`, `bin/ci-check.sh`, new `bin/ci/check-migration-order.sh`, `bin/ci/check-branch-for-staging.sh`, `tests/staging-sync-scripts.test.js` — please review those):**
 - `bin/ci-check.sh` now fails when a branch adds a file in `supabase/migrations/` whose 14-digit timestamp is the same as or older than the newest one on `origin/master`. PR #79's file was dated that way, and Staging sync broke after the merge.
 - Fix for a failing branch: create the migration again with a newer timestamp (`supabase migration new`). If the old file already reached staging or production, ask first.
 - Update an old branch from `master` and run the check again before merging: GitHub does not re-run it when `master` moves.
