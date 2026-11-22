@@ -155,6 +155,15 @@ function test3B() {
   // A comment with no time is told to give one.
   const notime = sim(); notime.open(id); notime.comment(id, 'Hi Karen, we are on it. – Riley');
   assert.match(notime.lastToast(), /Tell Karen when she will hear from you next/);
+  // A time promised for the 16-inch model is the critical error; the standard
+  // model's 8:00 (Desktop Support's own time) and an honest "can't" are not.
+  const says = (text) => { const t = sim(); t.open(id); t.comment(id, text); return t.lastToast(); };
+  ['Hi Karen, the 16-inch model will be ready by 8:00 tomorrow.', 'We will have a 16 inch laptop on his desk for 8:00.', 'The 16-inch will be here by tomorrow, and I\'ll update you at 4:00.']
+    .forEach((text) => assert.match(says(text), /Critical error in a real shift: the 16-inch model/, text));
+  [B_COMMENT, 'The 16-inch model can\'t be ready by 8:00.', 'The 16-inch model isn\'t in stock, so a standard one will be ready by 8:00.', 'The 16-inch needs approval. The standard laptop is ready by 8:00.']
+    .forEach((text) => assert.doesNotMatch(says(text), /Critical error/, text));
+  // Everyday words CALM teaches are not jargon.
+  assert.doesNotMatch(says('Hi Karen, I understand the urgency and the impact. I will update you by 4:00.'), /won't know/);
 }
 
 function work3C(tab) {

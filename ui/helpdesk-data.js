@@ -243,6 +243,9 @@ const HD_M03_CATEGORIES = {
 // short interval ("in 30 minutes", "within an hour").
 const HD_M03_TIME = '\\b\\d{1,2}:\\d{2}\\b|\\b\\d{1,2}\\s*(a\\.?m\\b\\.?|p\\.?m\\b\\.?)|\\b(in|within)\\s+(an?|\\d{1,3})\\s*(minutes?|mins?|hours?)\\b';
 const HD_M03_PROMISE = '\\b(fixed|working|ready|repaired|done)\\s+by\\s+\\d';
+// 3-B only: a time promised for the 16-inch model. The standard model's 8:00
+// is Desktop Support's own time, so a plain "ready by 8:00" is not a promise here.
+const HD_M03_PROMISE_16 = '16[- ]?inch(?:(?!standard|approv|stock|\\bnot\\b|n[\'’]t\\b|cannot)[^.;!?])*\\b(by|before|for|at)\\s+(\\d|tomorrow|tonight)';
 
 const HD_TICKET_TEMPLATES = [
   hdTicket({ id:'HD-2101', requester:'Jordan Bell', department:'Finance', category:'Incident', subcategory:'Account lockout', priority:'P2', businessImpact:'Payroll analyst blocked', sla:'8 hours', createdMinutesAgo:86, description:'My account unlocks, then locks again a few minutes later.', symptoms:['Lockout repeats after successful sign-in','Other Finance users unaffected'], logs:[], systemState:['Account enabled','Password changed 3 days ago','Service desk unlocked the account at 08:09; it locked again at 08:11'], plausibleCauses:['User typing old password','Mobile mail cache','Scheduled task credential'], correctPath:['Verify identity','Trace caller computer','Inspect stored credentials','Correct approved task credential','Unlock once and monitor'], hiddenRootCause:'Scheduled task FinanceReportSync stores the previous password.', expectedResolution:'Update the task through the approved service credential workflow, unlock the account, and verify no new 4740 event.', escalationCriteria:['Unknown lockout source across multiple devices','Signs of credential compromise'] }),
@@ -735,7 +738,7 @@ const HD_TICKET_TEMPLATES = [
         { id:'blame', text:'Tell Priya the problem is something she clicked', critical:true, feedback:'Critical error. Never tell a caller the problem is their fault. Priya has a real deadline. Acknowledge it, then check Outlook with her.' },
       ],
       comments:true, resolutionCode:{ required:true },
-      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['P1', 'P2', 'P3', 'SLA', 'Impact', 'Urgency', 'Tier 1', 'Tier 2', 'CI', 'KB-0064'] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['P1', 'P2', 'P3', 'SLA', 'Tier 1', 'Tier 2', 'CI', 'KB-0064'] },
       feedback:[
         { area:'Triage', checks:[{ priority:'P3', missing:'Set Impact 3 (one person) and Urgency 1 (a client deadline this afternoon). That makes the ticket P3.' }], good:'The priority is P3, and it stays P3 however angry the email is.', fix:'Set Impact 3 (one person) and Urgency 1 (a client deadline this afternoon). The ticket is P3. Anger does not raise it to P1.' },
         { area:'Investigation', checks:[{ kb:'KB-0064', missing:'Search the KB for "outlook not sending" and open KB-0064.' }, { chat:['outbox', 'status'], missing:'Ask Priya what is in her Outbox and what the bottom of the Outlook window says.' }], good:'You used KB-0064 and asked about the Outbox and the Outlook status bar.', fix:'Search the KB for "outlook not sending", open KB-0064, and ask Priya about her Outbox and the bottom of the Outlook window.' },
@@ -776,8 +779,8 @@ const HD_TICKET_TEMPLATES = [
         { id:'order-16', text:'Order the 16-inch model now', critical:true, feedback:'Critical error. A non-standard model needs the IT manager\'s approval on the request before it is ordered (KB-0066).' },
       ],
       handoff:{}, followUp:{},
-      comments:{ timeCheck:{ time:HD_M03_TIME, noTimeLine:'Tell Karen when she will hear from you next.' } },
-      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['RITM', 'Tier 2', 'SLA', 'P3', 'Impact', 'Urgency', 'KB-0024', 'KB-0066', 'catalog item'] },
+      comments:{ timeCheck:{ time:HD_M03_TIME, promise:HD_M03_PROMISE_16, promiseLine:'Critical error in a real shift: the 16-inch model isn\'t in stock and needs approval, so never promise a time for it.', noTimeLine:'Tell Karen when she will hear from you next.' } },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['RITM', 'Tier 2', 'SLA', 'P3', 'KB-0024', 'KB-0066', 'catalog item'] },
       feedback:[
         { area:'Triage', checks:[{ converted:true, missing:'Open the request "Executive laptop replacement" from the incident.' }, { requestOpen:true, missing:'Keep both records open: the incident for the broken laptop and the request for the new one.' }, { requestFor:'Martin Alvarez', missing:'Set Requested for to Martin Alvarez: the laptop is for him, not for Karen.' }, { priority:'P3', missing:'Set Impact 2 and Urgency 2 from the facts: P3. The VIP flag speeds the response; it does not raise the priority.' }], good:'Two records, both open: the incident for the broken laptop and the request for the new one.', fix:'A broken laptop is an incident. The replacement is a request. Open the request from the incident and keep both records open (KB-0066).' },
         { area:'Investigation', checks:[{ verified:true, missing:'Verify Karen first: call her back on her directory number and confirm her employee ID (KB-0024).' }, { evidence:'stock', missing:'Open the Hardware stock card to see what is in stock.' }, { kb:'KB-0066', missing:'Search the KB for "replacement laptop" and open KB-0066.' }], good:'You verified Karen before any handover, checked the stock and used KB-0066.', fix:'Verify Karen first (KB-0024), open the Hardware stock card, and search the KB for "replacement laptop" (KB-0066).' },
@@ -806,7 +809,7 @@ const HD_TICKET_TEMPLATES = [
       duplicateMove:{ text:'Create new incident', feedback:'Critical error in a real shift: a second ticket splits the history and restarts the clock. INC0010388 already exists: add her chat to it.' },
       followUp:{},
       comments:{ timeCheck:{ time:HD_M03_TIME, promise:HD_M03_PROMISE, promiseLine:'A fix time is not yours to promise. Say who has the ticket and when they will call.', noTimeLine:'Tell Sofia when she will hear from the team.' } },
-      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Tier 1', 'Tier 2', 'SLA', 'P3', 'P4', 'Impact', 'Urgency'] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Tier 1', 'Tier 2', 'SLA', 'P3', 'P4'] },
       feedback:[
         { area:'Triage', checks:[{ status:['Escalated'], missing:'Work on the existing ticket, INC0010388. Do not open a new incident.' }, { call:true, missing:'Answer Sofia\'s chat on INC0010388, her existing ticket.' }], good:'You used the existing ticket, INC0010388, so the history stays in one place.', fix:'Sofia already has a ticket: INC0010388. Add her chat to it. A second ticket splits the history and restarts the clock.' },
         { area:'Investigation', checks:[{ call:true, missing:'Reply to Sofia in the chat. Answer fast, then acknowledge her.' }], good:'You answered fast and acknowledged her without blaming anyone.', fix:'Reply to Sofia quickly in the chat, then acknowledge the wait. Never blame the other team.' },
