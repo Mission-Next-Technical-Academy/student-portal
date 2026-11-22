@@ -403,14 +403,16 @@ const PROGRAMS = [
             objective: 'Set a ticket’s priority from Impact × Urgency, order a queue by priority and SLA time left, and write a work note and a customer comment for the same ticket.' }),
         ],
         skills: ['Ticket Management', 'SLAs', 'Queue Prioritization'] },
-      'its-11': { number: 3, week: 2, title: 'Customer Service, Documentation & Escalation', hours: '3.5 Hours', durationMinutes: 210, creditMinutes: 210, lessons: 2, labs: 1,
+      // Lesson 3.2 holds Readings 2 and 3 on the page; both share this lesson's
+      // filed minutes (it-support-module-11.js).
+      'its-11': { number: 3, week: 2, title: 'Customer Service, Documentation & Escalation', hours: '3.5 Hours', durationMinutes: 210, creditMinutes: 210, lessons: 2, labs: 3,
         status: 'authored',
-        summary: 'The technical fix is only half the job — write it down well, communicate it clearly, and hand it off cleanly when it\'s not yours to finish.',
+        summary: 'Calm a frustrated user, explain a technical problem in plain words, hand a ticket off so nobody repeats work, and keep users updated without promising what you don’t control.',
         curriculumItems: [
           itsItem({ key: 'its-11-lesson-01', title: 'Writing Notes the Next Technician Can Actually Use', durationMinutes: 60, parentAllocations: [allocation('ITHD-101.2', 60)],
-            objective: 'Write a ticket note a stranger could act on and use the knowledge base effectively before writing a fix from scratch.' }),
+            objective: 'Use the four CALM moves to settle a stressed caller, and explain a technical problem in plain words, with no jargon and no blame.' }),
           itsItem({ key: 'its-11-lesson-02', title: 'Escalation Triggers, User Updates & Expectation Setting', durationMinutes: 75, parentAllocations: [allocation('ITHD-101.2', 75)],
-            objective: 'Recognize real escalation triggers and set fair expectations with a user from the first response onward.' }),
+            objective: 'Run a phone, chat or email conversation to the desk’s standard, recognize escalation triggers, write a handoff note a stranger can act on, and tell the user what happens next.' }),
         ],
         skills: ['Documentation', 'Knowledge Base', 'Escalation', 'Customer Communication'] },
       'its-12': { number: 12, week: 6, title: 'IT Support Capstone', hours: '4 Hours', durationMinutes: 240, creditMinutes: 240, lessons: 1, labs: 1, isCapstone: true,
@@ -2336,10 +2338,28 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.2', 20)], objective: 'Independently work a new ticket queue: classify and prioritize every ticket, link tickets about one outage, order the queue by priority and SLA time left, and document the work.',
     description: 'An independent Prove It on a queue you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
     skills: ['Ticket Triage', 'Prioritization', 'Documentation'], portalEntry: '#/program/it-support/module/2' }),
-  itsLab({ key: 'lab-its-11-handoff-documentation', module: 'its-11', title: 'Writing the Handoff That Actually Helps', difficulty: 'Foundational', minutes: 75,
-    parentAllocations: [allocation('ITHD-101.2', 75)], objective: 'Recognize an escalation trigger and write a complete, stranger-actionable handoff note; diagnose and resolve a real ticket while calmly setting expectations for an already-frustrated user.',
-    description: 'A coach-guided walkthrough of tickets HD-2113 (expired VPN gateway certificate) and HD-2124 (a repeat-contact user blocked by a stale Outlook credential) in the IT Service Desk simulator, focused on documentation, escalation, and communication under pressure.',
+  // Module 3's guided lab. Students see it as Lab 3.1; the key is older than
+  // that numbering. Until Module 3's Prove It gates completion it stays the
+  // gating lab (course_module_labs), so it has no `phase: 'practice'`: an
+  // instructor still reviews and approves it.
+  itsLab({ key: 'lab-its-11-handoff-documentation', module: 'its-11', title: 'Lab 3.1 · Guided Lab: a frustrated caller', difficulty: 'Foundational', minutes: 25,
+    parentAllocations: [allocation('ITHD-101.2', 25)], objective: 'Take a call from a frustrated user: let him finish, ask the questions that set the priority, explain the next step in plain words, hand the ticket to the right team with a note they can act on, and keep the update time you promised.',
+    description: 'A coach-guided phone call in the IT Service Desk simulator, each step with a why and what success looks like. Feedback only, no score.',
     skills: ['Documentation', 'Escalation', 'Customer Communication'], portalEntry: '#/program/it-support/module/3' }),
+  // Module 3's three unguided practice tickets: not graded, no score. The
+  // simulator reports when all three are done and the course page saves a
+  // completion record (it-support-module-11.js). No course_module_labs row:
+  // it never gates completion.
+  itsLab({ key: 'lab-its-11-practice-tickets', module: 'its-11', title: 'Lab 3.2 · Practice tickets', difficulty: 'Foundational', minutes: 20, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.2', 20)], objective: 'Work three tickets on your own: settle an upset caller and fix the problem, set an honest expectation on a VIP request that needs approval, and chase a stalled ticket with the team that owns it.',
+    description: 'Three unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all three and a completion record is saved to your account.',
+    skills: ['Customer Communication', 'Escalation', 'Expectation Setting'], portalEntry: '#/program/it-support/module/3' }),
+  // Module 3's Prove It. The page shows "Opens soon" and launches nothing
+  // until its simulator shift, scoring and gating row are built.
+  itsLab({ key: 'lab-its-11-prove-it', module: 'its-11', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 30,
+    parentAllocations: [allocation('ITHD-101.2', 30)], objective: 'Independently work a new ticket: find what is wrong, decide what to do with it, and write for both the next technician and the user.',
+    description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
+    skills: ['Triage', 'Customer Communication', 'Documentation'], portalEntry: '#/program/it-support/module/3' }),
   itsLab({ key: 'lab-its-12-capstone', module: 'its-12', title: 'IT Support Capstone', difficulty: 'Advanced', minutes: 210, isCapstone: true,
     parentAllocations: [allocation('ITHD-101.9', 210)], objective: 'Prioritize and resolve or escalate a realistic multi-category L1 ticket queue, then produce a KB article and after-action review.',
     description: 'A six-ticket integrated scenario spanning identity, endpoint, network, peripheral, server, and security issues, scored across triage, technical accuracy, communication, escalation judgment, security judgment, documentation, and reflection.',

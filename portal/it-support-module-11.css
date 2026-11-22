@@ -1,0 +1,22 @@
+/* Module 3 (IT Help Desk, key its-11). The page reuses Module 1's inner
+ * classes (its01-hero, its01-section, its01-lesson, its01-check, its01-dg) and
+ * Module 2's table classes (its10-table), so it looks the same. Only its shell
+ * lives here. Loaded after it-support-module-01.css and -10.css. */
+
+.its11-shell { min-height: 100vh; color: #172033; background: rgba(248, 250, 252, .76); overflow-x: clip; }
+.its11-shell :focus-visible { outline: 3px solid var(--its-accent-border); outline-offset: 2px; }
+
+/* The shared rail as a left pane beside main, as on Module 1
+   (module-labs.css does this for .its01-shell). */
+@media (min-width: 961px) {
+  .its11-shell > .munified-nav {
+    float: left;
+    margin: 12px 24px 24px max(20px, calc((100vw - 1180px) / 2));
+  }
+  .its11-shell > .munified-nav ~ main {
+    display: flow-root;
+    width: auto;
+    margin-left: 0;
+    margin-right: max(20px, calc((100vw - 1180px) / 2));
+  }
+}

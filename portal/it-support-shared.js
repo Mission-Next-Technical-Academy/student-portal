@@ -1775,14 +1775,18 @@ function itsLaunchWalkthrough(event, link, user, coachId) {
 // The Start button's text for Modules 3-11; Modules 1 and 2 name their labs.
 const ITS_WALKTHROUGH_START = 'Start guided walkthrough';
 
+// The message for a Finish that arrived too early, unless a page passes its
+// own (a lab whose ticket isn't meant to be resolved).
+const ITS_WALKTHROUGH_INCOMPLETE = 'Your walkthrough wasn’t saved: its ticket isn’t finished yet. Your work is still in the simulator. Finish every part of the ticket there, resolve it, then press Finish again.';
+
 /* startLabel: the exact text of this lab's Start button, so the message
  * names the button the student actually sees. */
-function itsWalkthroughNoticeHtml(user, coachId, labKeys, startLabel) {
+function itsWalkthroughNoticeHtml(user, coachId, labKeys, startLabel, incompleteText = ITS_WALKTHROUGH_INCOMPLETE) {
   const id = `${user ? user.userId : ''}|${coachId}`;
   const text = itsBlockedWalkthroughs.has(id)
     ? 'Your browser blocked the walkthrough window. Allow pop-ups for this site, then try again.'
     : itsIncompleteWalkthroughs.has(id)
-      ? 'Your walkthrough wasn’t saved: its ticket isn’t finished yet. Your work is still in the simulator. Finish every part of the ticket there, resolve it, then press Finish again.'
+      ? incompleteText
       : itsUnrecordedWalkthroughs.has(id) && labKeys.some((key) => itsLabAcceptsAttempt(user, key))
         ? `Your walkthrough finished but wasn’t recorded. Allow pop-ups for this site, then press ${startLabel} again from this page.`
         : '';
@@ -1790,9 +1794,9 @@ function itsWalkthroughNoticeHtml(user, coachId, labKeys, startLabel) {
 }
 
 // Re-renders just the notice after a Start click, without redrawing the page.
-function itsRefreshWalkthroughNotice(user, coachId, labKeys, startLabel) {
+function itsRefreshWalkthroughNotice(user, coachId, labKeys, startLabel, incompleteText) {
   const el = document.querySelector(`[data-its-walkthrough-notice="${coachId}"]`);
-  if (el) el.outerHTML = itsWalkthroughNoticeHtml(user, coachId, labKeys, startLabel);
+  if (el) el.outerHTML = itsWalkthroughNoticeHtml(user, coachId, labKeys, startLabel, incompleteText);
 }
 
 /* An evidence lab's first submission, from its Submit button: its files,

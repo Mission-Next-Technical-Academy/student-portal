@@ -45,7 +45,9 @@
     'lab-its-10-priority-queue': 'Module 02 · Lab 2.1 · Guided Lab: queue shift',
     'lab-its-10-practice-tickets': 'Module 02 · Lab 2.2 · Practice tickets (not graded)',
     'lab-its-10-prove-it': 'Module 02 · Prove It: queue shift',
-    'lab-its-11-handoff-documentation': 'Module 03 · Handoff Documentation',
+    'lab-its-11-handoff-documentation': 'Module 03 · Lab 3.1 · Guided Lab: a frustrated caller',
+    'lab-its-11-practice-tickets': 'Module 03 · Lab 3.2 · Practice tickets (not graded)',
+    'lab-its-11-prove-it': 'Module 03 · Prove It: Independent Ticket',
     'lab-its-12-capstone': 'Module 12 · IT Help Desk Capstone',
   };
   const workTickets = (result) => result.work && Array.isArray(result.work.tickets) ? result.work.tickets : [];
@@ -581,8 +583,8 @@
     AdminSubmissionSheet.register(key, { title: TITLES[key], sections: evidenceSections });
   });
 
-  // Module 1's and Module 2's practice tickets: a completion record only.
-  ['lab-its-01-practice-tickets', 'lab-its-10-practice-tickets'].forEach((key) => {
+  // Modules 1 to 3's practice tickets: a completion record only.
+  ['lab-its-01-practice-tickets', 'lab-its-10-practice-tickets', 'lab-its-11-practice-tickets'].forEach((key) => {
     AdminSubmissionSheet.register(key, {
       title: TITLES[key],
       caseId: (result) => (Array.isArray(result.tickets) ? result.tickets.filter((id) => typeof id === 'string').join(', ') : '') || null,
