@@ -1,3 +1,11 @@
+**2026-11-22 (Megan; PR #135 "CI refuses a migration dated before master's newest"; shared: `.github/workflows/ci.yml`, `bin/ci-check.sh`, new `bin/ci/check-migration-order.sh`, `bin/ci/check-branch-for-staging.sh`, `tests/staging-sync-scripts.test.js` — please review those):**
+- `bin/ci-check.sh` now fails when a branch adds a file in `supabase/migrations/` whose 14-digit timestamp is the same as or older than the newest one on `origin/master`. PR #79's file was dated that way, and Staging sync broke after the merge.
+- Fix for a failing branch: create the migration again with a newer timestamp (`supabase migration new`). If the old file already reached staging or production, ask first.
+- Repository setting, live since 2026-11-22: the `protect-master` ruleset blocks a merge into `master` unless "Static application checks" passes and the branch is up to date with `master`. No one can bypass it, and direct pushes to `master` need the check too. Update your PR from `master` and let CI pass again before you merge. PR #133 needs this now.
+- It also runs on a push to `master`, compared with the first parent, so it runs before the production Pages deploy. If an old-dated file does get merged, that deploy fails for that commit, and Staging sync stays broken until the file is renamed.
+- It needs `origin/master` and history. Locally, run `git fetch origin` first. In a workflow, check out with `fetch-depth: 0`.
+- Staging test branch runs the same script, and now also refuses an equal timestamp.
+
 **2026-11-21 (Megan; PR #134 "Rename the PR #79 migration to today so staging sync works"; shared: `supabase/migrations/`, `supabase/tests/`, `tests/approved-below-pass.test.js`):**
 - PR #79's migration `20261021120000_approved_below_pass_allows_resubmit.sql` is renamed to `20261121230614_approved_below_pass_allows_resubmit.sql`. The old date sorted before migrations staging already had, so Staging sync refused it on every merge after #79. It never reached staging.
 - `guard_lab_attempt_single_pending()` is now the Oct 29 body (`20261029234710`) plus Alex's below-pass rule. An approved below-pass attempt, or one with a critical error, allows a resubmit. An approved passing attempt refuses one.
