@@ -162,11 +162,15 @@ function test3B() {
   const says = (text) => { const t = sim(); t.open(id); t.comment(id, text); return t.lastToast(); };
   ['Hi Karen, the 16-inch model will be ready by 8:00 tomorrow.', 'We will have a 16 inch laptop on his desk for 8:00.', 'The 16-inch will be here by tomorrow, and I\'ll update you at 4:00.']
     .forEach((text) => assert.match(says(text), /Critical error in a real shift: the 16-inch model/, text));
-  [B_COMMENT, 'The 16-inch model can\'t be ready by 8:00.', 'The 16-inch model isn\'t in stock, so a standard one will be ready by 8:00.', 'The 16-inch needs approval. The standard laptop is ready by 8:00.']
+  [B_COMMENT, 'I can\'t promise the 16-inch model by 8:00 tomorrow.', 'We cannot get the 16-inch model by 8:00, so the desktop team will have a standard one ready.',
+    'I have requested the 16-inch model and I will update you by 4:00 today.', 'The 16-inch model takes about 5 business days to arrive, and the desktop team will have a laptop ready for him by 8:00 tomorrow.',
+    'We don\'t have the 16-inch model, but the desktop team confirmed a replacement laptop will be ready by 7:30.', 'The 16-inch model can\'t be ready by 8:00.', 'The 16-inch model isn\'t in stock, so a standard one will be ready by 8:00.', 'The 16-inch needs approval. The standard laptop is ready by 8:00.']
     .forEach((text) => assert.doesNotMatch(says(text), /Critical error/, text));
-  // "Check my work" lists it too, even after a corrected comment.
-  const fix = sim(); fix.open(id); fix.comment(id, 'The 16-inch model will be ready by 8:00.'); fix.comment(id, B_COMMENT);
+  // "Check my work" lists it too, until a corrected comment is posted.
+  const fix = sim(); fix.open(id); fix.comment(id, 'The 16-inch model will be ready by 8:00.');
   assert.deepEqual(fix.feedback(id).critical, ['Promised Karen a time for the 16-inch model']);
+  fix.comment(id, B_COMMENT);
+  assert.deepEqual(fix.feedback(id).critical, []);
   assert.deepEqual(tab.feedback(id).critical, [], 'the model work has none');
   // Everyday words CALM teaches are not jargon.
   assert.doesNotMatch(says('Hi Karen, I understand the urgency and the impact. I will update you by 4:00.'), /won't know/);

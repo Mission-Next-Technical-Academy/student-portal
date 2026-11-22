@@ -1516,6 +1516,9 @@ function hdConsoleFeedback(ticket) {
   const critical = [
     ...state.verification.criticalErrors.map(id => { const option = verify.find(item => item.id === id); return option ? `Chose: ${option.text}` : id; }),
     ...state.critical.map(entry => entry.text),
+    // promiseCritical (3-B): the latest comment promises a time it must not. A
+    // corrected comment clears it: a text pattern is too weak to be permanent.
+    ...(hdCommentPromiseCritical(ticket) ? [hdCommentPromiseCritical(ticket)] : []),
   ];
   const flags = [
     ...(ticket.passwordAsked ? ['Asked for a password in the chat (refused, never sent).'] : []),
@@ -2963,6 +2966,11 @@ function hdCommentTimeResult(ticket, text) {
   const test = pattern => { if (!pattern) return false; try { return new RegExp(pattern, 'i').test(String(text || '')); } catch (_) { return false; } };
   return { hasTime:test(check.time), promise:test(check.promise) };
 }
+function hdCommentPromiseCritical(ticket) {
+  const check = (hdConsole(ticket).comments || {}).timeCheck; if (!check || !check.promiseCritical) return '';
+  const last = (hdConsoleState(ticket).commentChecks || []).slice(-1)[0];
+  return last && last.promise ? check.promiseCritical : '';
+}
 function hdCommentTimeTip(ticket, text) {
   const result = hdCommentTimeResult(ticket, text); if (!result) return '';
   const check = hdConsole(ticket).comments.timeCheck;
@@ -2970,8 +2978,6 @@ function hdCommentTimeTip(ticket, text) {
   state.commentChecks = Array.isArray(state.commentChecks) ? state.commentChecks : [];
   state.commentChecks.push(result);
   if (state.commentChecks.length > 40) state.commentChecks.splice(0, state.commentChecks.length - 40);
-  // promiseCritical (3-B): the promise is a critical error "Check my work" lists.
-  if (result.promise && check.promiseCritical) hdConsoleCritical(ticket, 'comment-promise', check.promiseCritical);
   if (result.promise) return ` ${check.promiseLine || ''}`.trimEnd();
   if (!result.hasTime) return ` ${check.noTimeLine || ''}`.trimEnd();
   if (check.moodDown) hdMoodMove(ticket, -1, check.goodLine);
