@@ -1,7 +1,7 @@
 **2026-11-22 (Megan; PR #135 "CI refuses a migration dated before master's newest"; shared: `.github/workflows/ci.yml`, `bin/ci-check.sh`, new `bin/ci/check-migration-order.sh`, `bin/ci/check-branch-for-staging.sh`, `tests/staging-sync-scripts.test.js` — please review those):**
 - `bin/ci-check.sh` now fails when a branch adds a file in `supabase/migrations/` whose 14-digit timestamp is the same as or older than the newest one on `origin/master`. PR #79's file was dated that way, and Staging sync broke after the merge.
 - Fix for a failing branch: create the migration again with a newer timestamp (`supabase migration new`). If the old file already reached staging or production, ask first.
-- Update an old branch from `master` and run the check again before merging: GitHub does not re-run it when `master` moves.
+- Repository setting, live since 2026-11-22: the `protect-master` ruleset blocks a merge into `master` unless "Static application checks" passes and the branch is up to date with `master`. No one can bypass it, and direct pushes to `master` need the check too. Update your PR from `master` and let CI pass again before you merge. PR #133 needs this now.
 - It also runs on a push to `master`, compared with the first parent, so it runs before the production Pages deploy. If an old-dated file does get merged, that deploy fails for that commit, and Staging sync stays broken until the file is renamed.
 - It needs `origin/master` and history. Locally, run `git fetch origin` first. In a workflow, check out with `fetch-depth: 0`.
 - Staging test branch runs the same script, and now also refuses an equal timestamp.
