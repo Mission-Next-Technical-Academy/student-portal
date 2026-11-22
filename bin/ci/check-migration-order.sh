@@ -26,7 +26,7 @@ head="${2:-HEAD}"
 head_sha="$(git rev-parse --verify --quiet "$head^{commit}")" \
   || cannot_check "$head is not a commit here."
 base_sha="$(git rev-parse --verify --quiet "$base^{commit}")" \
-  || cannot_check "$base is not a commit here. Run: git fetch origin master (in a workflow: checkout with fetch-depth: 0)."
+  || cannot_check "$base is not a commit here. Run: git fetch origin master:refs/remotes/origin/master (in a workflow: checkout with fetch-depth: 0)."
 
 if [ "$#" -eq 0 ] && git merge-base --is-ancestor "$head_sha" "$base_sha"; then
   base="the first parent of $head"

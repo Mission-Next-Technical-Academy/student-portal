@@ -917,7 +917,7 @@ const refused = (res, pattern) => {
   assert.match(fs.readFileSync(path.join(ROOT, 'bin', 'ci-check.sh'), 'utf8'), /^bash bin\/ci\/check-migration-order\.sh$/m);
   for (const file of ['ci.yml', 'pages.yml']) {
     const text = fs.readFileSync(path.join(WORKFLOWS, file), 'utf8');
-    assert.match(text, /^ {6}- uses: actions\/checkout@v7\n {8}with:\n(?: {10}#.*\n)* {10}fetch-depth: 0$/m, `${file} runs bin/ci-check.sh, so it needs full history`);
+    assert.match(text, /^ {6}- uses: actions\/checkout@v\d+\n {8}with:\n(?: {10}#.*\n)* {10}fetch-depth: 0$/m, `${file} runs bin/ci-check.sh, so it needs full history`);
   }
 }
 
