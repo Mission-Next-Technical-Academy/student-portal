@@ -80,6 +80,8 @@ const C_COMMENT = 'Hi Sofia, I\'m sorry nobody got back to you. That shouldn\'t 
 function testSetOpensOnItsOwnClocks() {
   const tab = sim();
   assert.deepEqual(plain(tab.run('hdState.tickets.map((t) => t.id)')).sort(), ['HD-2165', 'HD-2166', 'HD-2167']);
+  // The queue opens on All incidents: INC0010388 sits with another team.
+  assert.match(tab.run("VIEWS['helpdesk/tickets']()"), /INC0010388/);
   const now = (id) => tab.run(`hdShiftNow(hdTicketById('${id}')).toISOString()`);
   assert.equal(now('HD-2165'), '2026-08-20T13:12:00.000Z');
   assert.equal(now('HD-2166'), '2026-08-20T11:05:00.000Z');
@@ -162,6 +164,10 @@ function test3B() {
     .forEach((text) => assert.match(says(text), /Critical error in a real shift: the 16-inch model/, text));
   [B_COMMENT, 'The 16-inch model can\'t be ready by 8:00.', 'The 16-inch model isn\'t in stock, so a standard one will be ready by 8:00.', 'The 16-inch needs approval. The standard laptop is ready by 8:00.']
     .forEach((text) => assert.doesNotMatch(says(text), /Critical error/, text));
+  // "Check my work" lists it too, even after a corrected comment.
+  const fix = sim(); fix.open(id); fix.comment(id, 'The 16-inch model will be ready by 8:00.'); fix.comment(id, B_COMMENT);
+  assert.deepEqual(fix.feedback(id).critical, ['Promised Karen a time for the 16-inch model']);
+  assert.deepEqual(tab.feedback(id).critical, [], 'the model work has none');
   // Everyday words CALM teaches are not jargon.
   assert.doesNotMatch(says('Hi Karen, I understand the urgency and the impact. I will update you by 4:00.'), /won't know/);
 }

@@ -215,6 +215,8 @@
     const notes = has ? savedNotes(ticket).filter((note) => note.author === 'Riley Morgan' || !note.author) : [];
     const yes = (value) => (value ? 'Yes' : 'No');
     const v = (value) => (has ? value : null);
+    // The simulator's clock is saved as an ISO time; staff read "2026-08-19 11:30".
+    const when = (at) => String(at || '').replace(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}).*$/, '$1 $2');
     // A second follow-up set after the update can clear "updated"; "kept"
     // (the simulator's check that a comment came after the jump) still
     // shows the update was posted.
@@ -229,7 +231,7 @@
           ['Interrupted the caller', call ? String(call.interruptions) : v(null)],
           ['Wrong replies tried first', call ? (call.wrong.length ? call.wrong : 'None') : v(null)],
           ['Questions asked', has ? (work.chatAsked.length ? work.chatAsked : 'None') : null],
-          ['Holds', has ? (holds.length ? holds.map((hold) => `${hold.seconds} seconds · ${hold.asked ? 'asked first' : 'not asked'}${hold.over ? ' · too long' : ''}`) : 'None') : null],
+          ['Holds', has ? (holds.length ? holds.map((hold) => `${hold.seconds} ${hold.seconds === 1 ? 'second' : 'seconds'} · ${hold.asked ? 'asked first' : 'not asked'}${hold.over ? ' · too long' : ''}`) : 'None') : null],
           ['Evidence opened', has ? (Array.isArray(work.evidenceOpened) && work.evidenceOpened.length ? work.evidenceOpened : 'None') : null],
           ['Knowledge Base articles opened', has ? (work.kbOpened.length ? work.kbOpened : 'None') : null],
         ],
@@ -264,7 +266,7 @@
         id: 'handoff-hd-2164', title: `Handoff · ${label}`, recordedSince: '2026-11-21',
         instructorPrompt: 'The note Desktop Support reads. Look for his words and the 3:00 deadline (Reported), what was checked, found and ruled out (Tried), why it can’t be finished at Tier 1 (Result), and the exact ask, who, by when and when Wes hears next (Next action). It’s time-critical, so a warm handoff is expected.',
         response: notes.length ? noteResponses(notes) : [{ label: 'Student work notes', text: v('None') }],
-        answer: [['Assignment group', matrix ? matrix.assignmentGroup || 'Service Desk (Tier 1)' : v(null)], ['Warm handoff', has ? (warm.length ? warm.map((entry) => `Called ${entry.group} · ${entry.at}`) : 'None') : null]],
+        answer: [['Assignment group', matrix ? matrix.assignmentGroup || 'Service Desk (Tier 1)' : v(null)], ['Warm handoff', has ? (warm.length ? warm.map((entry) => `Called ${entry.group} · ${when(entry.at)}`) : 'None') : null]],
         checks: [
           { label: `Assigned to ${CALL_GROUP}`, expected: CALL_GROUP, test: () => (matrix ? matrix.assignmentGroup === CALL_GROUP : v(false)), given: () => (matrix ? matrix.assignmentGroup || 'Service Desk (Tier 1)' : v('Not set')), fix: 'A failing disk needs hands-on repair: reassign to Desktop Support.' },
           { label: 'Handoff note has all four labels', expected: 'Reported, Tried, Result, Next action', test: () => (has ? Array.isArray(work.handoffMissing) && !work.handoffMissing.length : null), given: () => (has ? (Array.isArray(work.handoffMissing) ? (work.handoffMissing.length ? `Missing: ${work.handoffMissing.join(', ')}` : 'All four') : 'Not reassigned') : null), fix: 'Write the latest work note with Reported, Tried, Result and Next action, so a stranger can act on it.' },
@@ -275,10 +277,10 @@
         id: 'updates-hd-2164', title: `Updates to Wes · ${label}`, recordedSince: '2026-11-21', mechanics: false,
         instructorPrompt: 'Look for who has it, what happens next and when he’ll hear again, with an update time and never a fix time (Desktop Support sets that). Then an update at the follow-up time, even with no news.',
         response: comments.length ? comments.map((comment) => ({ label: `Customer comment · ${comment.time || ''}`, text: comment.text })) : [{ label: 'Customer comment', text: v('No customer comment') }],
-        answer: [['Follow-up', follow ? (follow.at || 'Not set') : v(null)], ['Went to the follow-up time', follow ? yes(follow.visited) : v(null)]],
+        answer: [['Follow-up', follow ? (when(follow.at) || 'Not set') : v(null)], ['Went to the follow-up time', follow ? yes(follow.visited) : v(null)]],
         checks: [
           { label: 'A comment with an update time and no fix-time promise', expected: 'Yes', test: () => (has ? checksMade.some((entry) => entry.hasTime && !entry.promise) : null), given: () => (has ? `${checksMade.length} comment(s) checked${checksMade.some((entry) => entry.promise) ? ' · one promised a fix time first' : ''}` : null), fix: 'Commit to when you’ll update him, not when it will be fixed.' },
-          { label: 'Follow-up set', expected: 'A follow-up time on the ticket', test: () => (follow ? Boolean(follow.at) : v(false)), given: () => (follow ? follow.at || 'Not set' : v('Not set')), fix: 'Set a Follow-up on the ticket for the time you promised.' },
+          { label: 'Follow-up set', expected: 'A follow-up time on the ticket', test: () => (follow ? Boolean(follow.at) : v(false)), given: () => (follow ? when(follow.at) || 'Not set' : v('Not set')), fix: 'Set a Follow-up on the ticket for the time you promised.' },
           { label: 'Update posted at the follow-up time', expected: 'Within 10 minutes of the follow-up', test: () => (follow ? updated : v(false)), given: () => (follow ? yes(updated) : v('No')), fix: 'At the follow-up time, post the update you promised, even when there’s no news yet.' },
         ],
       },

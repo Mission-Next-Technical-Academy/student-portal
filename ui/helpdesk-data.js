@@ -203,7 +203,7 @@ const HD_PRACTICE_SETS = {
   // Module 3 Lab 3.2: each ticket runs on its own clock (console.now), so the
   // set has none. HD-2165 counts as done when it is Resolved; the other two
   // count as done by their rules (handed on, with the follow-up set).
-  'its-11': { title:'Module 3 practice tickets', tickets:['HD-2165', 'HD-2166', 'HD-2167'], complete:['HD-2165', 'HD-2166', 'HD-2167'], queue:true,
+  'its-11': { title:'Module 3 practice tickets', tickets:['HD-2165', 'HD-2166', 'HD-2167'], complete:['HD-2165', 'HD-2166', 'HD-2167'], queue:true, queueList:'all',
     done:{ 'HD-2166':[{ group:'Desktop Support (Tier 2)' }, { requestOpen:true }, { handoffNote:true }, { commentTime:true }, { followUp:true }],
       'HD-2167':[{ status:'Escalated' }, { teamMessage:'lead' }, { commentTime:true }, { followUp:true }] } },
 };
@@ -779,7 +779,7 @@ const HD_TICKET_TEMPLATES = [
         { id:'order-16', text:'Order the 16-inch model now', critical:true, feedback:'Critical error. A non-standard model needs the IT manager\'s approval on the request before it is ordered (KB-0066).' },
       ],
       handoff:{}, followUp:{},
-      comments:{ timeCheck:{ time:HD_M03_TIME, promise:HD_M03_PROMISE_16, promiseLine:'Critical error in a real shift: the 16-inch model isn\'t in stock and needs approval, so never promise a time for it.', noTimeLine:'Tell Karen when she will hear from you next.' } },
+      comments:{ timeCheck:{ time:HD_M03_TIME, promise:HD_M03_PROMISE_16, promiseCritical:'Promised Karen a time for the 16-inch model', promiseLine:'Critical error in a real shift: the 16-inch model isn\'t in stock and needs approval, so never promise a time for it.', noTimeLine:'Tell Karen when she will hear from you next.' } },
       notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['RITM', 'Tier 2', 'SLA', 'P3', 'KB-0024', 'KB-0066', 'catalog item'] },
       feedback:[
         { area:'Triage', checks:[{ converted:true, missing:'Open the request "Executive laptop replacement" from the incident.' }, { requestOpen:true, missing:'Keep both records open: the incident for the broken laptop and the request for the new one.' }, { requestFor:'Martin Alvarez', missing:'Set Requested for to Martin Alvarez: the laptop is for him, not for Karen.' }, { priority:'P3', missing:'Set Impact 2 and Urgency 2 from the facts: P3. The VIP flag speeds the response; it does not raise the priority.' }], good:'Two records, both open: the incident for the broken laptop and the request for the new one.', fix:'A broken laptop is an incident. The replacement is a request. Open the request from the incident and keep both records open (KB-0066).' },

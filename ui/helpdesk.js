@@ -2970,6 +2970,8 @@ function hdCommentTimeTip(ticket, text) {
   state.commentChecks = Array.isArray(state.commentChecks) ? state.commentChecks : [];
   state.commentChecks.push(result);
   if (state.commentChecks.length > 40) state.commentChecks.splice(0, state.commentChecks.length - 40);
+  // promiseCritical (3-B): the promise is a critical error "Check my work" lists.
+  if (result.promise && check.promiseCritical) hdConsoleCritical(ticket, 'comment-promise', check.promiseCritical);
   if (result.promise) return ` ${check.promiseLine || ''}`.trimEnd();
   if (!result.hasTime) return ` ${check.noTimeLine || ''}`.trimEnd();
   if (check.moodDown) hdMoodMove(ticket, -1, check.goodLine);
@@ -3072,7 +3074,7 @@ function hdHoldCard(ticket, now = hdNowMs()) {
   const last = hold.holds[hold.holds.length - 1];
   const status = hold.startedAt
     ? `<p id="hd-hold-timer" data-hd-hold="on" role="timer" aria-live="off"><strong>${hdEsc(hdHoldTimerText(ticket, now))}</strong></p>`
-    : `<p class="muted" data-hd-hold="off">${last ? `Last hold: ${hdEsc(String(last.seconds))} seconds${last.over ? ', too long' : ''}.` : 'Not on hold.'}</p>`;
+    : `<p class="muted" data-hd-hold="off">${last ? `Last hold: ${hdEsc(String(last.seconds))} ${last.seconds === 1 ? 'second' : 'seconds'}${last.over ? ', too long. Ask again, start a new hold and come back sooner' : last.asked ? '' : ', started without asking. Ask, then start a new hold'}.` : 'Not on hold.'}</p>`;
   const asked = hold.asked ? `<div><strong>You</strong><p>${hdEsc(config.ask)}</p>${config.askReply ? `<strong>${hdEsc((hdConsole(ticket).conversation || {}).name || ticket.requester)}</strong><p>${hdEsc(config.askReply)}</p>` : ''}</div>` : '';
   const controls = hold.startedAt
     ? `<button type="button" class="btn btn-primary" onclick="hdHoldReturn('${ticket.id}')">${hdEsc(config.back || 'Thanks for holding.')}</button>`

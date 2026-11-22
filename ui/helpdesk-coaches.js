@@ -924,7 +924,7 @@
         route: '#/helpdesk/ticket',
         target: '#hd-assignment-group, #hd-note-input, .hd-handoff, [data-hd-warm]',
         title: 'Hand it to Desktop Support',
-        instruction: 'Set <strong>Assignment group</strong> to <strong>Desktop Support (Tier 2)</strong>. Write a <strong>work note</strong> with the four labels: Reported, Tried, Result and Next action. Then press <strong>Warm handoff</strong>.',
+        instruction: 'Set <strong>Assignment group</strong> to <strong>Desktop Support (Tier 2)</strong> and press <strong>Assign to group</strong>. Write a <strong>work note</strong> with the four labels: Reported, Tried, Result and Next action. Then press <strong>Warm handoff</strong>.',
         body: 'Why: a failing disk needs hands-on repair that Tier 1 cannot do, and the next team should not have to start from zero. Success looks like: the note has all four labels with his words and the deadline, what you checked and ruled out, where it stands, and the exact ask with a time. The history shows “Called Desktop Support”. A warm handoff because it is time-critical: the disk could fail before his 3:00 deadline. A routine ticket would go by reassignment with the note. If a label is missing, the feedback names it: add it and save again.',
         waitLabel: 'Next Step: Assigned, noted and called',
         check: () => hd11Rule({ group: 'Desktop Support (Tier 2)' }) && hd11Rule({ handoffNote: true }) && hd11Rule({ warmHandoff: true }),
