@@ -799,6 +799,128 @@ const refused = (res, pattern) => {
   refused(checkBranch('shared/exec'), /\(git mode 100755\)/);
 }
 
+{ // Same timestamp as master's newest, later name: refused too.
+  pushBranch('shared/same-date', (w) => write(w, 'supabase/migrations/20260201000000_third.sql', 'x'));
+  refused(checkBranch('shared/same-date'), /20260201000000_third\.sql, which has the same timestamp as master's newest migration 20260201000000_second\.sql/);
+}
+
+// ---------------------------------------------------- check-migration-order.sh
+// Throwaway repos, as bin/ci-check.sh runs it: no arguments, from the checkout.
+{
+  const order = (cwd, ...args) => run('bash', [path.join(CI, 'check-migration-order.sh'), ...args], { cwd });
+  const mig = (ts, name) => `supabase/migrations/${ts}_${name}.sql`;
+  const { remote, work } = syncFixture('order');
+  const first = commit(work, mig('20260101000000', 'base'), 'select 1;\n');
+  const master = commit(work, mig('20260201000000', 'second'), 'select 2;\n');
+  git(work, 'push', '-q', 'origin', 'master');
+  const branch = (name, from = master) => git(work, 'checkout', '-q', '-B', name, from);
+  const fails = (res, pattern) => {
+    assert.equal(res.status, 1, res.out);
+    assert.match(res.out, pattern);
+  };
+  const passes = (res, count) => {
+    assert.equal(res.status, 0, res.out);
+    assert.match(res.out, new RegExp(`Migration order OK: ${count} new migration`));
+  };
+
+  // Older than master's newest: names the file, its timestamp and master's newest.
+  branch('older');
+  commit(work, mig('20260115000000', 'late'), 'x');
+  fails(order(work), /Adds supabase\/migrations\/20260115000000_late\.sql, .*20260201000000_second\.sql \(timestamp 20260115000000; master's newest is 20260201000000\)/);
+  // One bad file among good ones still fails.
+  commit(work, mig('20260301000000', 'fine'), 'x');
+  fails(order(work), /20260115000000_late\.sql/);
+  assert.doesNotMatch(order(work).out, /20260301000000_fine/);
+
+  branch('equal');
+  commit(work, mig('20260201000000', 'third'), 'x');
+  fails(order(work), /20260201000000_third\.sql, which has the same timestamp as master's newest/);
+
+  branch('newer');
+  commit(work, mig('20260301000000', 'new'), 'x');
+  passes(order(work), 1);
+
+  // No new migrations: code only, an edited migration, a subfolder file.
+  branch('none');
+  commit(work, 'portal/x.js', '1');
+  commit(work, mig('20260101000000', 'base'), 'select 11;\n');
+  commit(work, 'supabase/migrations/archive/20250101000000_old.sql', 'x');
+  passes(order(work), 0);
+
+  branch('no-timestamp');
+  commit(work, 'supabase/migrations/2026_x.sql', 'x');
+  fails(order(work), /2026_x\.sql, which does not start with a 14-digit timestamp/);
+
+  // A rename counts as an added file: to an older date fails, to a newer passes.
+  branch('rename-older');
+  git(work, 'mv', mig('20260201000000', 'second'), mig('20260110000000', 'second'));
+  git(work, 'commit', '-q', '-m', 'rename');
+  fails(order(work), /20260110000000_second\.sql/);
+  branch('rename-newer');
+  git(work, 'mv', mig('20260201000000', 'second'), mig('20260301000000', 'second'));
+  git(work, 'commit', '-q', '-m', 'rename');
+  passes(order(work), 1);
+
+  // Behind master: compared with master's newest now, not the branch's start.
+  branch('behind', first);
+  commit(work, mig('20260115000000', 'was_newest'), 'x');
+  fails(order(work), /20260115000000_was_newest\.sql/);
+  // A pull-request merge commit (what CI checks out) gives the same answer.
+  git(work, 'checkout', '-q', '--detach', master);
+  git(work, 'merge', '-q', '--no-ff', '-m', 'PR merge', 'behind');
+  fails(order(work), /20260115000000_was_newest\.sql/);
+
+  // Explicit commits (Staging test branch): HEAD is not looked at.
+  git(work, 'checkout', '-q', 'master');
+  fails(order(work, master, 'older'), /20260115000000_late\.sql/);
+  passes(order(work, master, 'newer'), 1);
+
+  // Push to master: HEAD is on origin/master, so compare with its first parent.
+  passes(order(work), 1);
+  commit(work, 'portal/y.js', '1');
+  git(work, 'push', '-q', 'origin', 'master');
+  passes(order(work), 0);
+  const bad = commit(work, mig('20260115000000', 'squashed_late'), 'x');
+  git(work, 'push', '-q', 'origin', 'master');
+  fails(order(work), /20260115000000_squashed_late\.sql/);
+  // The next push to master is not blamed for it, and renaming it passes.
+  branch('fix', bad);
+  git(work, 'mv', mig('20260115000000', 'squashed_late'), mig('20260401000000', 'squashed_late'));
+  git(work, 'commit', '-q', '-m', 'rename');
+  passes(order(work), 1);
+  // A branch that started from the bad commit did not add the old file itself,
+  // even after master renames it.
+  branch('started-from-bad', bad);
+  commit(work, 'portal/z.js', '1');
+  git(work, 'checkout', '-q', 'master');
+  git(work, 'merge', '-q', '--ff-only', 'fix');
+  git(work, 'push', '-q', 'origin', 'master');
+  passes(order(work), 1);
+  git(work, 'checkout', '-q', 'started-from-bad');
+  passes(order(work), 0);
+  // An older master commit (a deploy of it) uses its own first parent too.
+  git(work, 'checkout', '-q', '--detach', master);
+  passes(order(work), 1);
+
+  // Nothing to compare with: fails with the reason, never passes.
+  const oneCommit = path.join(tmp, 'order-one-commit');
+  git(tmp, 'clone', '-q', '--depth', '1', '--branch', 'master', `file://${remote}`, oneCommit);
+  fails(order(oneCommit), /could not be checked: the first parent of HEAD is not in this checkout/);
+  git(oneCommit, 'update-ref', '-d', 'refs/remotes/origin/master');
+  fails(order(oneCommit), /could not be checked: origin\/master is not a commit here/);
+  git(oneCommit, 'fetch', '-q', '--depth', '1', 'origin', 'master:refs/remotes/origin/master');
+  git(oneCommit, 'checkout', '-q', '--orphan', 'unrelated');
+  commit(oneCommit, 'portal/o.js', '1');
+  fails(order(oneCommit), /could not be checked: no common history/);
+
+  // The wiring: CI runs it through bin/ci-check.sh with full history.
+  assert.match(fs.readFileSync(path.join(ROOT, 'bin', 'ci-check.sh'), 'utf8'), /^bash bin\/ci\/check-migration-order\.sh$/m);
+  for (const file of ['ci.yml', 'pages.yml']) {
+    const text = fs.readFileSync(path.join(WORKFLOWS, file), 'utf8');
+    assert.match(text, /^ {6}- uses: actions\/checkout@v7\n {8}with:\n(?: {10}#.*\n)* {10}fetch-depth: 0$/m, `${file} runs bin/ci-check.sh, so it needs full history`);
+  }
+}
+
 // --------------------------------------- migrate-staging.sh, EXPECTED_MIGRATIONS
 // Staging test branch: stop after the dry run if it names any file that is
 // not one of the branch's new ones. Fewer is fine (applied by an earlier run).

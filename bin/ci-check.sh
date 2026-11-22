@@ -125,6 +125,9 @@ node bin/render_all.js
 echo '== SOC entity identity lint (strict, read-only) =='
 node scripts/soc-entity-identity-lint.js --strict --no-write
 
+echo "== New migrations are dated after master's newest =="
+bash bin/ci/check-migration-order.sh
+
 echo '== Staging automation scripts and workflow boundaries (offline, throwaway git repos) =='
 node tests/staging-sync-scripts.test.js
 

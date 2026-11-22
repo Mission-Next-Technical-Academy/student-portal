@@ -11,8 +11,8 @@
 #   - against master, every change under supabase/migrations/ is an Added
 #     file (no edits, deletes or renames: renames count as delete + add),
 #     a plain file (no symlinks, no subfolders), named
-#     <14 digits>_<lowercase words>.sql, and sorting after master's newest
-#     migration.
+#     <14 digits>_<lowercase words>.sql, and dated after master's newest
+#     migration (check-migration-order.sh).
 # Changes under supabase/functions/ do not fail the check; they are listed
 # in the job summary as "deploy by hand".
 #
@@ -67,9 +67,6 @@ if ! git merge-base --is-ancestor "$master_sha" "$sha"; then
   fail "Branch $branch does not contain the latest master (${master_sha:0:12}). Update it from master, push, and run this workflow again."
 fi
 
-newest="$(git ls-tree --name-only "$master_sha" supabase/migrations/ \
-  | sed 's#.*/##' | grep '\.sql$' | sort | tail -n 1 || true)"
-
 migrations=()
 while IFS=$'\t' read -r status file; do
   [ -n "$status" ] || continue
@@ -84,11 +81,12 @@ while IFS=$'\t' read -r status file; do
   if [ "$mode" != "100644" ]; then
     fail "Branch $branch adds $file as something other than a plain file (git mode $mode). Symlinks and executable files are refused."
   fi
-  if [ -n "$newest" ] && ! [[ "$name" > "$newest" ]]; then
-    fail "Branch $branch adds $name, which sorts before master's newest migration $newest. Create it again with a newer timestamp (supabase migration new) before testing on staging."
-  fi
   migrations+=("$name")
 done < <(git diff --no-renames --name-status "$master_sha" "$sha" -- supabase/migrations/)
+
+if ! order="$("$here/check-migration-order.sh" "$master_sha" "$sha" 2>&1)"; then
+  fail "Branch $branch: ${order//$'\n'/ }"
+fi
 
 has_migrations=false
 [ "${#migrations[@]}" -eq 0 ] || has_migrations=true
