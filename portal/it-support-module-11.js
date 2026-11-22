@@ -47,7 +47,7 @@ itsRegisterCoachModule({
   moduleNumber: 3, moduleKey: 'its-11', coachId: 'hd-m11', labKeys: ['lab-its-11-handoff-documentation'],
   lessons: ITS11_LESSONS,
   lede: 'The technical fix is only half the job — this module is about the other half: writing it down well, communicating it clearly, and handing it off cleanly when it\'s not yours to finish.',
-  labDescription: 'Work two real tickets end to end in the IT Service Desk simulator, focused on documentation, escalation, and communication under pressure: HD-2113 (an expired VPN gateway certificate) — recognize the escalation trigger and write a note a stranger could act on — then HD-2124, a repeat-contact user frustrated by a stale Outlook credential, where the practice is diagnosing calmly while setting honest expectations instead of overpromising. A coach spotlights each step for you.',
+  labDescription: 'Take a call from a frustrated user whose laptop has been slow for days and who has a deadline today. In the IT Service Desk simulator you greet him, let him finish, ask your questions, put him on a short hold, explain the next step in plain words, hand the ticket to the desktop team with a note they can act on, and keep the update time you promised. A mood meter shows how he feels (feedback only, never a score). A coach guides each step.',
   sources: [
     { title: 'CompTIA A+ Certification', org: 'CompTIA', url: 'https://www.comptia.org/certifications/a', note: 'Supplementary public reference for the documentation and communication objectives this module builds toward.' },
   ],

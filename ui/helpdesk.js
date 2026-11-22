@@ -1498,6 +1498,8 @@ function hdConsoleRule(ticket, rule) {
   if (rule.child) { const child = hdTicketById(rule.child); return !!(child && child.parentId === ticket.id); }
   if (rule.status) return [].concat(rule.status).some(value => value === ticket.status || value === hdStatusText(ticket));
   if (rule.group) return ticket.assignmentGroup === rule.group;
+  // Module 3: the ticket's calculated priority (3-A stays P3 however angry).
+  if (rule.priority) return ticket.priority === rule.priority;
   if (rule.attempts) return hdContactAttempts(ticket).length >= rule.attempts;
   if (rule.code) return (state.resolutionCode || ticket.closureCode) === rule.code;
   if (rule.rewrite) return !!(state.rewrite && !state.rewrite.missing.length);
@@ -1514,6 +1516,9 @@ function hdConsoleFeedback(ticket) {
   const critical = [
     ...state.verification.criticalErrors.map(id => { const option = verify.find(item => item.id === id); return option ? `Chose: ${option.text}` : id; }),
     ...state.critical.map(entry => entry.text),
+    // promiseCritical (3-B): the latest comment promises a time it must not. A
+    // corrected comment clears it: a text pattern is too weak to be permanent.
+    ...(hdCommentPromiseCritical(ticket) ? [hdCommentPromiseCritical(ticket)] : []),
   ];
   const flags = [
     ...(ticket.passwordAsked ? ['Asked for a password in the chat (refused, never sent).'] : []),
@@ -2961,6 +2966,11 @@ function hdCommentTimeResult(ticket, text) {
   const test = pattern => { if (!pattern) return false; try { return new RegExp(pattern, 'i').test(String(text || '')); } catch (_) { return false; } };
   return { hasTime:test(check.time), promise:test(check.promise) };
 }
+function hdCommentPromiseCritical(ticket) {
+  const check = (hdConsole(ticket).comments || {}).timeCheck; if (!check || !check.promiseCritical) return '';
+  const last = (hdConsoleState(ticket).commentChecks || []).slice(-1)[0];
+  return last && last.promise ? check.promiseCritical : '';
+}
 function hdCommentTimeTip(ticket, text) {
   const result = hdCommentTimeResult(ticket, text); if (!result) return '';
   const check = hdConsole(ticket).comments.timeCheck;
@@ -3070,7 +3080,7 @@ function hdHoldCard(ticket, now = hdNowMs()) {
   const last = hold.holds[hold.holds.length - 1];
   const status = hold.startedAt
     ? `<p id="hd-hold-timer" data-hd-hold="on" role="timer" aria-live="off"><strong>${hdEsc(hdHoldTimerText(ticket, now))}</strong></p>`
-    : `<p class="muted" data-hd-hold="off">${last ? `Last hold: ${hdEsc(String(last.seconds))} seconds${last.over ? ', too long' : ''}.` : 'Not on hold.'}</p>`;
+    : `<p class="muted" data-hd-hold="off">${last ? `Last hold: ${hdEsc(String(last.seconds))} ${last.seconds === 1 ? 'second' : 'seconds'}${last.over ? ', too long. Ask again, start a new hold and come back sooner' : last.asked ? '' : ', started without asking. Ask, then start a new hold'}.` : 'Not on hold.'}</p>`;
   const asked = hold.asked ? `<div><strong>You</strong><p>${hdEsc(config.ask)}</p>${config.askReply ? `<strong>${hdEsc((hdConsole(ticket).conversation || {}).name || ticket.requester)}</strong><p>${hdEsc(config.askReply)}</p>` : ''}</div>` : '';
   const controls = hold.startedAt
     ? `<button type="button" class="btn btn-primary" onclick="hdHoldReturn('${ticket.id}')">${hdEsc(config.back || 'Thanks for holding.')}</button>`

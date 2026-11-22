@@ -156,15 +156,18 @@ function testOldTicketsTurnNothingOn() {
   assert.deepEqual(Object.keys(tab.run("hdTicketById('HD-2150').customerComments.slice(-1)[0]")).sort(), ['author', 'text', 'time']);
   assert.match(tab.open('HD-2150'), /<strong>Caller chat<\/strong>/);
   assert.equal(tab.run('hdCommsTick()'), false);
-  // Module 2's sets: every ticket as before, on the set's clock.
-  for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter((k) => !k.startsWith('test-'))) {
+  // Older modules' sets: every ticket as before, on the set's clock. Module 3's
+  // own sets (its-11, its-11-guided) turn these features on by design.
+  const MODULE3_SETS = ['its-11', 'its-11-guided'];
+  const older = (k) => !k.startsWith('test-') && !MODULE3_SETS.includes(k);
+  for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter(older)) {
     const set = practice(key);
     for (const id of set.run('hdState.tickets.map((t) => t.id)')) {
       assert.doesNotMatch(set.open(id), NEW_MARKERS, `${key} ${id}`);
       assert.equal(set.run(`hdTicketClock(hdTicketById(${JSON.stringify(id)}))`), null);
     }
   }
-  for (const key of Object.keys(tab.run('HD_COACHED_SETS')).filter((k) => !k.startsWith('test-'))) {
+  for (const key of Object.keys(tab.run('HD_COACHED_SETS')).filter(older)) {
     const set = sim(); assert.equal(set.run(`hdUseTicketSet(${JSON.stringify(key)})`), true);
     for (const id of set.run('hdState.tickets.map((t) => t.id)')) assert.doesNotMatch(set.open(id), NEW_MARKERS, `${key} ${id}`);
   }

@@ -530,7 +530,44 @@ function itsCleanConsoleWork(input) {
     passwordWritten: input.passwordWritten === true, passwordAsked: input.passwordAsked === true,
     outcomes: outcomes ? Object.fromEntries(ITS_CONSOLE_OUTCOMES.map((key) => [key, outcomes[key] === true])) : null,
     ...itsCleanMatrixWork(input),
+    ...itsCleanCommsWork(input),
   };
+}
+// Module 3 (key its-11) call and handoff work (ui/helpdesk.js
+// hdCommsProgress): the call's progress, caller details, holds, the
+// plain-words explanation, evidence cards opened, the handoff check, warm
+// handoffs, the follow-up, the comment time checks, team messages and the
+// duplicate move. Each key only when the ticket sent it, so Module 1's and
+// Module 2's saved work keep their shape. The mood meter is never sent and
+// never kept.
+function itsCleanCommsWork(input) {
+  const text = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
+  const list = (value, max, size) => Array.isArray(value) ? value.slice(-max).map((item) => text(item, size)).filter(Boolean) : [];
+  const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+  const count = (value, max) => Number.isInteger(value) && value >= 0 ? Math.min(value, max) : 0;
+  const out = {};
+  const call = object(input.call);
+  if (call) out.call = { stage: count(call.stage, 20), done: call.done === true, interruptions: count(call.interruptions, 99), wrong: list(call.wrong, 20, 30) };
+  const intake = object(input.intake);
+  if (intake) out.intake = { caller: text(intake.caller, 80), callback: text(intake.callback, 40) };
+  const hold = object(input.hold);
+  if (hold) {
+    out.hold = {
+      asked: hold.asked === true, onHold: hold.onHold === true, unasked: hold.unasked === true,
+      holds: Array.isArray(hold.holds) ? hold.holds.slice(-20).filter((entry) => object(entry)).map((entry) => ({ seconds: count(entry.seconds, 86400), asked: entry.asked === true, over: entry.over === true })) : [],
+    };
+  }
+  const explain = object(input.explain);
+  if (explain) out.explain = { passed: explain.passed === true, tries: count(explain.tries, 99), flagged: list(explain.flagged, 10, 40), text: text(explain.text, 2000) };
+  if ('evidenceOpened' in input) out.evidenceOpened = list(input.evidenceOpened, 10, 40);
+  if ('handoffMissing' in input) out.handoffMissing = Array.isArray(input.handoffMissing) ? list(input.handoffMissing, 6, 24) : null;
+  if ('warmHandoffs' in input) out.warmHandoffs = Array.isArray(input.warmHandoffs) ? input.warmHandoffs.slice(-10).filter((entry) => object(entry)).map((entry) => ({ group: text(entry.group, 60), at: text(entry.at, 40) })) : [];
+  const followUp = object(input.followUp);
+  if (followUp) out.followUp = { at: text(followUp.at, 40), visited: followUp.visited === true, updated: followUp.updated === true, kept: followUp.kept === true };
+  if ('commentChecks' in input) out.commentChecks = Array.isArray(input.commentChecks) ? input.commentChecks.slice(-20).filter((entry) => object(entry)).map((entry) => ({ hasTime: entry.hasTime === true, promise: entry.promise === true })) : [];
+  if ('teamMessages' in input) out.teamMessages = list(input.teamMessages, 10, 30);
+  if ('duplicateTried' in input) out.duplicateTried = input.duplicateTried === true;
+  return out;
 }
 // Module 2 (key its-10) queue work on a matrix ticket (ui/helpdesk.js
 // hdMatrixProgress): triage, the request, the link, knowledge, contact
