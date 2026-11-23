@@ -1349,7 +1349,7 @@ const HD_PROVE_SHIFTS = {
     machineTools: true,
     printerSummary: true,
     tickets: [{
-      id: 'HD-2136', number: 'INC0010476', title: 'Label printer says Offline',
+      id: 'HD-2136', number: 'INC0010499', title: 'Label printer says Offline',
       requester: 'Theo Grant', requesterTitle: 'Logistics Coordinator', department: 'Logistics',
       device: 'NS-WH-PC07', cc: '', contactType: 'Phone', createdAt: '2026-08-19T09:36:00Z',
       status: 'New', assignedTechnician: 'Unassigned',
