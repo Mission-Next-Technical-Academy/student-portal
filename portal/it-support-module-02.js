@@ -951,12 +951,17 @@ function its02CoachLaunch(coachId) {
     </a>
     ${itsWalkthroughNoticeHtml(its02User, coachId, [lab.labKey], lab.start, ITS02_COACH_INCOMPLETE)}`;
 }
-// Upload boxes from before the simulator lab: shown open only to a student
-// who already picked files or whose upload was returned.
+// Upload boxes from before the simulator lab: shown only to a student who
+// already picked files for it (or just had a pick refused) or whose upload
+// was returned. Everyone else completes the lab in the simulator, where the
+// VM is checked, so two unrelated images can't stand in for the build.
 function its02OlderEvidence(labKey, tiles) {
   const lab = ITS02_EVIDENCE_LABS[labKey];
-  const open = itsEvidenceRedo(its02User, its02State, labKey, lab.fields).returned || lab.fields.some((field) => Boolean(its02State[field]));
-  return `<details class="its02-older-evidence"${open ? ' open' : ''}><summary>Started this lab before the simulator version? Upload your evidence instead</summary>${tiles}</details>`;
+  const userId = its02User && its02User.userId;
+  const show = itsEvidenceRedo(its02User, its02State, labKey, lab.fields).returned
+    || lab.fields.some((field) => Boolean(its02State[field]) || itswEvidenceErrors.has(`${userId}|${field}`));
+  if (!show) return '';
+  return `<details class="its02-older-evidence" open><summary>Started this lab before the simulator version? Upload your evidence instead</summary>${tiles}</details>`;
 }
 
 function its02Lab21() {

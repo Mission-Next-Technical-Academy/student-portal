@@ -89,6 +89,25 @@ function chooseLab21() {
   choose('its02AddEvidence', 'its02-ev-vmsettings', pick('settings.jpg', 'image/jpeg', 4096));
 }
 
+// The simulator replaced the screenshot upload: a student with no files and
+// nothing returned sees no upload box on either VM lab.
+async function testFreshStudentGetsNoUploadBox() {
+  const user = hdUser();
+  fresh(user);
+  const html = moduleLab(2).view(user, HD);
+  assert.doesNotMatch(html, /its02-older-evidence/, 'no upload box');
+  assert.doesNotMatch(html, /id="its02-ev-(desktop|vmsettings|snapshot|ping1|ping2)"/, 'no upload tiles');
+  assert.equal(submitButton(html, LAB21), null, 'no Submit button');
+
+  // One file picked, then a refused replacement empties the field: the box
+  // and the refusal message stay so the student can pick again.
+  choose('its02AddEvidence', 'its02-ev-desktop', pick('desktop.png'));
+  choose('its02AddEvidence', 'its02-ev-desktop', pick('photo.heic', 'image/heic'));
+  const after = moduleLab(2).view(user, HD);
+  assert.match(after, /its02-older-evidence/, 'the box stays after a refused pick');
+  assert.match(section(after, 'its02-lab-2-1'), /“photo\.heic” wasn’t added/);
+}
+
 async function testRefusesWrongTypeAndSize() {
   const user = hdUser();
   fresh(user);
@@ -539,7 +558,7 @@ async function testSecondStudentSeesNothingOfTheFirst() {
   await settle();
   const html = moduleLab(2).view(second, HD);
   assert.doesNotMatch(html, /desktop\.png|settings\.jpg/, 'no file name of the first student');
-  assert.match(tile(html, 'its02-ev-desktop'), /Not uploaded yet/);
+  assert.doesNotMatch(html, /its02-older-evidence|id="its02-ev-desktop"/, 'a student with no files of their own gets no upload box');
   assert.equal(submitButton(html, LAB21), null);
   assert.deepEqual(copyKeys(), [], "the first student's copies are deleted");
 }
@@ -596,6 +615,7 @@ async function testConsoleCompletedIsOnlyWrittenNeverRead() {
 
 (async () => {
   const tests = [
+    testFreshStudentGetsNoUploadBox,
     testRefusesWrongTypeAndSize,
     testRefusedReplacementRemovesTheEarlierFile,
     testRefusedPickKeepsResubmitOff,
