@@ -561,9 +561,9 @@
     const kb = text(result.kbArticle);
     const after = text(result.afterAction);
     sections.push({
-      id: 'knowledge-article', title: 'Knowledge base article', instructorPrompt: 'Help the learner make this reusable: symptom, cause, approved fix, and how to verify it worked.', recordedSince: '2026-10-17',
+      id: 'knowledge-article', title: 'Knowledge base article', instructorPrompt: 'Help the learner make this reusable: symptom, cause, fix or workaround, result and owner.', recordedSince: '2026-10-17',
       response: [{ label: 'Student article', text: kb }],
-      checks: [{ label: 'Article includes a useful troubleshooting sequence', test: () => !kb ? null : kb.trim().length >= 80 && /(symptom|cause|fix|resolv|verif)/i.test(kb), given: () => kb ? `${kb.length} characters` : null, fix: 'Add the symptom, likely cause, approved fix, and verification result so another technician can follow it.' }],
+      checks: [{ label: 'Article includes a useful troubleshooting sequence', test: () => !kb ? null : kb.trim().length >= 80 && /(symptom|cause|fix|resolv|verif)/i.test(kb), given: () => kb ? `${kb.length} characters` : null, fix: 'Add the symptom, cause, fix or workaround, result and owner so another technician can follow it.' }],
     }, {
       id: 'after-action', title: 'After-action review', instructorPrompt: 'Invite a specific reflection: what worked, what they would change, and what they learned.', recordedSince: '2026-10-17',
       response: [{ label: 'Student reflection', text: after }],

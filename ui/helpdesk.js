@@ -2281,8 +2281,8 @@ function hdKbCreateDraft(id) {
   if (!['Resolved', 'Closed'].includes(ticket.status)) { toast('Resolve the ticket first: a knowledge draft records a fix that worked.'); return; }
   const title = String((document.getElementById('hd-kb-draft-title') || {}).value || '').trim().slice(0, 160);
   const text = String((document.getElementById('hd-kb-draft-text') || {}).value || '').trim().slice(0, 4000);
-  if (title.length < 5) { toast('Give the knowledge draft a title that names the symptom and the fix.'); return; }
-  if (text.length < 10) { toast('Write the steps that fixed it in the knowledge draft.'); return; }
+  if (title.length < 5) { toast('Give the knowledge draft a title that names the symptom and the fix or workaround.'); return; }
+  if (text.length < 10) { toast('Write the knowledge draft: symptom, cause, fix or workaround, result and owner.'); return; }
   if (hdPasswordInText(title) || hdPasswordInText(text)) { toast(hdRefusePasswordText(ticket, 'knowledge draft')); return; }
   state.kbDraft = { title, text, state:'Review', at:(hdActiveSet() && hdActiveSet().now) || hdTicketClock(ticket) ? hdShiftIso(ticket) : new Date().toISOString() };
   hdClearDraft(ticket, 'kbTitle'); hdClearDraft(ticket, 'kbText');
@@ -2604,7 +2604,7 @@ function hdKnowledgeCard(ticket) {
     draft = state.kbDraft
       ? `<div data-hd-kb-draft="review"><strong>Knowledge draft</strong> ${hdBadge(`State: ${state.kbDraft.state}`, 'in-progress')}<p><strong>${hdEsc(state.kbDraft.title)}</strong></p><p>${hdEsc(state.kbDraft.text)}</p></div>`
       : ['Resolved', 'Closed'].includes(ticket.status)
-        ? `<div style="display:grid;gap:8px"><label>Knowledge draft title<input id="hd-kb-draft-title" class="ipt" maxlength="160" value="${hdEsc(hdDraft(ticket, 'kbTitle'))}" oninput="hdKeepDraft('${ticket.id}','kbTitle',this.value)" placeholder="Symptom: the fix"></label><label>Steps that fixed it<textarea id="hd-kb-draft-text" class="ipt" rows="4" maxlength="4000" oninput="hdKeepDraft('${ticket.id}','kbText',this.value)">${hdEsc(hdDraft(ticket, 'kbText') || ticket.resolution || '')}</textarea></label><div><button type="button" class="btn btn-secondary" onclick="hdKbCreateDraft('${ticket.id}')">Create knowledge draft</button></div></div>`
+        ? `<div style="display:grid;gap:8px"><label>Knowledge draft title<input id="hd-kb-draft-title" class="ipt" maxlength="160" value="${hdEsc(hdDraft(ticket, 'kbTitle'))}" oninput="hdKeepDraft('${ticket.id}','kbTitle',this.value)" placeholder="Symptom: the fix or workaround"></label><label>Symptom, cause, fix or workaround, result and owner<textarea id="hd-kb-draft-text" class="ipt" rows="4" maxlength="4000" oninput="hdKeepDraft('${ticket.id}','kbText',this.value)">${hdEsc(hdDraft(ticket, 'kbText') || ticket.resolution || '')}</textarea></label><div><button type="button" class="btn btn-secondary" onclick="hdKbCreateDraft('${ticket.id}')">Create knowledge draft</button></div></div>`
         : '<p class="muted">Create knowledge draft: available once the ticket is resolved.</p>';
   }
   return `<div class="card hd-related-knowledge"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Related › Knowledge</strong></div><div class="card-body">${list}${draft}</div></div>`;
