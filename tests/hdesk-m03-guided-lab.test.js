@@ -399,11 +399,32 @@ const hash = (value) => crypto.createHash('sha256').update(value).digest('hex').
 const GRADED = new Set(['dfade819cfc9e427', '6d5163fc1bef8d75', 'b8ac8f70a7dc5793', '3f013f2382d874bf', 'eb4731ac58bda05e']);
 const FILES = ['ui/helpdesk-data.js', 'ui/helpdesk-coaches.js', 'ui/helpdesk.js', 'portal/admin-sheets/hdesk.js', 'portal/it-support-shared.js', 'portal/it-support-module-11.js',
   'tests/hdesk-m03-guided-lab.test.js', 'tests/hdesk-m03-practice-tickets.test.js', 'tests/hdesk-m03-console-features.test.js'];
+// Since the Prove It part (2026-11-22), the graded ticket lives in one place:
+// Module 3's Prove shift, HD_PROVE_SHIFTS['its-11'] in ui/helpdesk-data.js.
+// The scan skips that block only; everything else still names nothing from it.
+function withoutProveShift(file, source) {
+  if (file !== 'ui/helpdesk-data.js') return source;
+  const start = source.indexOf("\n  'its-11': {\n    title: 'Prove It");
+  assert.ok(start > source.indexOf('const HD_PROVE_SHIFTS'), "HD_PROVE_SHIFTS['its-11'] is where the scan expects it");
+  const end = source.indexOf('\n};', start);
+  assert.ok(end > start, "HD_PROVE_SHIFTS['its-11'] ends where the scan expects it");
+  return source.slice(0, start) + source.slice(end);
+}
 function testNothingFromTheGradedTicket() {
   for (const file of FILES) {
-    const words = new Set(fs.readFileSync(path.join(ROOT, file), 'utf8').split(/[^A-Za-z0-9-]+/).filter(Boolean).map((w) => hash(w.toLowerCase())));
+    const source = withoutProveShift(file, fs.readFileSync(path.join(ROOT, file), 'utf8'));
+    const words = new Set(source.split(/[^A-Za-z0-9-]+/).filter(Boolean).map((w) => hash(w.toLowerCase())));
     GRADED.forEach((h) => assert.ok(!words.has(h), `${file} names nothing from the graded ticket`));
   }
+}
+// The Prove shift itself is where the graded ticket is: the narrowed scan
+// would miss a word that moved anywhere else.
+function testGradedTicketOnlyInProveShift() {
+  const source = fs.readFileSync(path.join(ROOT, 'ui/helpdesk-data.js'), 'utf8');
+  const start = source.indexOf("\n  'its-11': {\n    title: 'Prove It");
+  const block = source.slice(start, source.indexOf('\n};', start));
+  const words = new Set(block.split(/[^A-Za-z0-9-]+/).filter(Boolean).map((w) => hash(w.toLowerCase())));
+  assert.ok([...GRADED].some((h) => words.has(h)), "the graded ticket is in HD_PROVE_SHIFTS['its-11']");
 }
 function testGuardFindsAWord() {
   // The scan finds a word it is given: Module 3's own ticket number.
@@ -411,7 +432,7 @@ function testGuardFindsAWord() {
   assert.ok(words.has(hash('inc0010440')));
 }
 
-const tests = [testTheLabOpensOnItsOwnSet, testKnowledgeArticlesAreFound, testSecondFollowUpStillFinishes, testOldWalkthroughStartsFresh, testNothingFromTheGradedTicket, testGuardFindsAWord];
+const tests = [testTheLabOpensOnItsOwnSet, testKnowledgeArticlesAreFound, testSecondFollowUpStillFinishes, testOldWalkthroughStartsFresh, testNothingFromTheGradedTicket, testGradedTicketOnlyInProveShift, testGuardFindsAWord];
 let failed = 0;
 let work = null;
 try { work = testWalkthroughEndToEnd(); console.log('ok   testWalkthroughEndToEnd'); } catch (error) { failed += 1; console.error(`FAIL testWalkthroughEndToEnd\n${error.stack}`); }

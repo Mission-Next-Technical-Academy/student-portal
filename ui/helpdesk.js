@@ -368,6 +368,25 @@ function hdProvePreset() {
   const ticket = HD_PROVE && (HD_PROVE.shift.tickets || [])[0];
   return ticket && ticket.preset ? { category:'', type:'', priority:'', ...ticket.preset } : null;
 }
+// The one-ticket Prove shift's ticket as the shift data gives it, or null.
+function hdProveSpec() { return HD_PROVE && !hdProveQueue() ? (HD_PROVE.shift.tickets || [])[0] || null : null; }
+// Module 3's ticket fields: the student sets Class, Category, Impact, Urgency
+// (Priority calculates) and the assignment group. Module 1 keeps Category,
+// Type and Priority.
+function hdProveMatrix() { const spec = hdProveSpec(); return !!(spec && spec.matrix === true); }
+const HD_PROVE_MATRIX_FIELDS = ['ticketClass', 'category', 'impact', 'urgency', 'group'];
+// The writing boxes a Prove ticket may add, beyond the work note and reply.
+const HD_PROVE_EXTRA_TEXT = ['keyFinding', 'kbDraft'];
+function hdProveEmptyFields() {
+  return hdProveMatrix() ? { ticketClass:'', category:'', impact:'', urgency:'', priority:'', group:'' } : { category:'', type:'', priority:'' };
+}
+// Module 3's extra writing boxes (writing: { keyFinding, kbDraft }), each
+// with its label, hint, rows and limit. Module 1 has none.
+function hdProveWriting() { const spec = hdProveSpec(); return spec && spec.writing && typeof spec.writing === 'object' ? spec.writing : {}; }
+function hdProveLabels() {
+  const spec = hdProveSpec();
+  return { resolutionNote:'Work notes', resolutionHint:'Reported / Tried / Result (+ Next action if it stays open or goes to another team)', userReply:'Reply to the user', ...((spec && spec.labels) || {}) };
+}
 // A fresh Prove shift: the Practice shift builder with the module's own
 // tickets, fixtures and machine state. Ticket fields start empty (the student
 // sets them) unless the ticket pre-sets them, and the option lists are
@@ -380,6 +399,11 @@ function hdFreshProveState() {
   const requester = HD_USERS.find(user => user.name === shift.tickets[0].requester);
   state.tickets.forEach(ticket => { ticket.priority = ''; ticket.category = ''; ticket.subcategory = ''; ticket.notes = []; });
   const ticket = state.tickets[0];
+  // Module 3: the ticket's own clock times, and no SLA text or business impact
+  // that could show before the student sets the fields.
+  if (ticket.matrix === true) { ticket.sla = ''; ticket.businessImpact = ''; }
+  // Module 3's extra writing boxes start empty.
+  const writing = Object.fromEntries(Object.keys(ticket.writing || {}).filter(field => HD_PROVE_EXTRA_TEXT.includes(field)).map(field => [field, '']));
   return {
     ...state, mode:'prove', moduleKey:HD_PROVE.moduleKey, student:HD_PROVE.student,
     selectedComputer:shift.selectedComputer, selectedUserId:requester ? requester.id : state.selectedUserId,
@@ -390,8 +414,8 @@ function hdFreshProveState() {
         diagnosis:hdSeededOrder(ticket.diagnosisOptions, state.seed),
         path:hdSeededOrder(ticket.pathPool.map(step => step.id), state.seed ^ 0x5bd1e995),
       },
-      fields:hdProvePreset() || { category:'', type:'', priority:'' },
-      diagnosis:'', steps:[], decision:'', resolutionNote:'', userReply:'',
+      fields:hdProvePreset() || hdProveEmptyFields(),
+      diagnosis:'', steps:[], decision:'', resolutionNote:'', userReply:'', ...writing,
       events:[], opened:[], passwordTyped:false,
     },
   };
@@ -494,7 +518,7 @@ function hdScrubSavedCommands(state) {
     (Array.isArray(ticket.notes) ? ticket.notes : []).forEach(note => scrubText(note, 'text', owner));
     (Array.isArray(ticket.customerComments) ? ticket.customerComments : []).forEach(comment => scrubText(comment, 'text', owner));
   });
-  if (state.prove) ['resolutionNote', 'userReply'].forEach(field => scrubText(state.prove, field, state.prove));
+  if (state.prove) ['resolutionNote', 'userReply', ...HD_PROVE_EXTRA_TEXT].forEach(field => scrubText(state.prove, field, state.prove));
   // A queue shift's writing: each ticket's reason and the rewrite.
   if (state.prove && state.prove.shape === 'queue') {
     (Array.isArray(state.tickets) ? state.tickets : []).forEach(ticket => scrubText(ticket, 'reason', state.prove));
@@ -1832,8 +1856,9 @@ function hdTicketClock(ticket) {
   return new Date(moved && !Number.isNaN(Date.parse(moved)) ? moved : now);
 }
 function hdShiftNow(ticket) {
-  // A queue Prove shift (Module 2) runs on its own fixed clock, never moved.
-  if (HD_PROVE && HD_PROVE.shift.queue === true && HD_PROVE.shift.now) return new Date(HD_PROVE.shift.now);
+  // A Prove shift with its own clock (Module 2's queue, Module 3's ticket)
+  // runs on it, never moved. Module 1's Prove shift has none.
+  if (HD_PROVE && HD_PROVE.shift.now) return new Date(HD_PROVE.shift.now);
   const own = hdTicketClock(ticket); if (own) return own;
   const set = hdActiveSet();
   return set && set.now ? new Date(hdState.clockNow || set.now) : HD_SHIFT_NOW;
@@ -2256,8 +2281,8 @@ function hdKbCreateDraft(id) {
   if (!['Resolved', 'Closed'].includes(ticket.status)) { toast('Resolve the ticket first: a knowledge draft records a fix that worked.'); return; }
   const title = String((document.getElementById('hd-kb-draft-title') || {}).value || '').trim().slice(0, 160);
   const text = String((document.getElementById('hd-kb-draft-text') || {}).value || '').trim().slice(0, 4000);
-  if (title.length < 5) { toast('Give the knowledge draft a title that names the symptom and the fix.'); return; }
-  if (text.length < 10) { toast('Write the steps that fixed it in the knowledge draft.'); return; }
+  if (title.length < 5) { toast('Give the knowledge draft a title that names the symptom and the fix or workaround.'); return; }
+  if (text.length < 10) { toast('Write the knowledge draft: symptom, cause, fix or workaround, result and owner.'); return; }
   if (hdPasswordInText(title) || hdPasswordInText(text)) { toast(hdRefusePasswordText(ticket, 'knowledge draft')); return; }
   state.kbDraft = { title, text, state:'Review', at:(hdActiveSet() && hdActiveSet().now) || hdTicketClock(ticket) ? hdShiftIso(ticket) : new Date().toISOString() };
   hdClearDraft(ticket, 'kbTitle'); hdClearDraft(ticket, 'kbText');
@@ -2579,7 +2604,7 @@ function hdKnowledgeCard(ticket) {
     draft = state.kbDraft
       ? `<div data-hd-kb-draft="review"><strong>Knowledge draft</strong> ${hdBadge(`State: ${state.kbDraft.state}`, 'in-progress')}<p><strong>${hdEsc(state.kbDraft.title)}</strong></p><p>${hdEsc(state.kbDraft.text)}</p></div>`
       : ['Resolved', 'Closed'].includes(ticket.status)
-        ? `<div style="display:grid;gap:8px"><label>Knowledge draft title<input id="hd-kb-draft-title" class="ipt" maxlength="160" value="${hdEsc(hdDraft(ticket, 'kbTitle'))}" oninput="hdKeepDraft('${ticket.id}','kbTitle',this.value)" placeholder="Symptom: the fix"></label><label>Steps that fixed it<textarea id="hd-kb-draft-text" class="ipt" rows="4" maxlength="4000" oninput="hdKeepDraft('${ticket.id}','kbText',this.value)">${hdEsc(hdDraft(ticket, 'kbText') || ticket.resolution || '')}</textarea></label><div><button type="button" class="btn btn-secondary" onclick="hdKbCreateDraft('${ticket.id}')">Create knowledge draft</button></div></div>`
+        ? `<div style="display:grid;gap:8px"><label>Knowledge draft title<input id="hd-kb-draft-title" class="ipt" maxlength="160" value="${hdEsc(hdDraft(ticket, 'kbTitle'))}" oninput="hdKeepDraft('${ticket.id}','kbTitle',this.value)" placeholder="Symptom: the fix or workaround"></label><label>Symptom, cause, fix or workaround, result and owner<textarea id="hd-kb-draft-text" class="ipt" rows="4" maxlength="4000" oninput="hdKeepDraft('${ticket.id}','kbText',this.value)">${hdEsc(hdDraft(ticket, 'kbText') || ticket.resolution || '')}</textarea></label><div><button type="button" class="btn btn-secondary" onclick="hdKbCreateDraft('${ticket.id}')">Create knowledge draft</button></div></div>`
         : '<p class="muted">Create knowledge draft: available once the ticket is resolved.</p>';
   }
   return `<div class="card hd-related-knowledge"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Related › Knowledge</strong></div><div class="card-body">${list}${draft}</div></div>`;
@@ -4156,12 +4181,66 @@ window.hdProveQueueSet=hdProveQueueSet; window.hdProveQueueText=hdProveQueueText
  * which choice is right; scoring is not in the simulator. */
 function hdProveSetField(field, value) {
   // Pre-set fields (Module 1) can't be changed.
-  if (hdProveLocked() || hdProvePreset() || !['category','type','priority'].includes(field)) return;
+  if (hdProveLocked() || hdProvePreset()) return;
+  if (hdProveMatrix()) { hdProveSetMatrixField(field, value); return; }
+  if (!['category','type','priority'].includes(field)) return;
   hdState.prove.fields[field] = String(value || '');
   hdProveEdited();
   hdSave();
   hdProveSyncSubmit();
 }
+// Module 3: only values the ticket offers. Priority is Impact x Urgency, as in
+// Lab 2.1, and redraws in place; nothing says whether a choice is right.
+function hdProveMatrixValue(field, value) {
+  const spec = hdProveSpec();
+  const text = String(value || '');
+  const offered = {
+    ticketClass:HD_PROVE_CLASSES, category:(spec && spec.categoryOptions) || [], impact:['1', '2', '3'], urgency:['1', '2', '3'], group:HD_ASSIGNMENT_GROUPS,
+  }[field] || [];
+  return offered.includes(text) ? text : '';
+}
+function hdProveSetMatrixField(field, value) {
+  if (!HD_PROVE_MATRIX_FIELDS.includes(field)) return;
+  const fields = hdState.prove.fields;
+  fields[field] = hdProveMatrixValue(field, value);
+  fields.priority = hdMatrixPriority(fields.impact, fields.urgency) || '';
+  hdProveEdited();
+  hdSave();
+  const shown = typeof document !== 'undefined' && document.getElementById ? document.getElementById('hd-prove-priority') : null;
+  if (shown) shown.innerHTML = hdProvePriorityHtml(fields.priority);
+  const warm = typeof document !== 'undefined' && document.getElementById ? document.getElementById('hd-prove-warm') : null;
+  if (warm) warm.disabled = !fields.group;
+  hdProveSyncSubmit();
+}
+function hdProvePriorityHtml(priority) {
+  return priority ? `${hdBadge(priority, priority.toLowerCase())} ${hdEsc(HD_PRIORITY_NAMES[priority] || '')}` : '<span class="muted">Not set</span>';
+}
+// Module 3: an evidence card or an earlier call, opened on its own and
+// recorded once (evidence_opened, source card:<id> or history:<id>).
+function hdProveOpenCard(kind, id) {
+  const spec = hdProveSpec();
+  const list = spec && (kind === 'history' ? spec.history : kind === 'card' ? spec.evidence : null);
+  const item = Array.isArray(list) ? list.find(entry => entry.id === id) : null;
+  if (hdProveLocked() || !item) return;
+  hdProveOpened(`${kind}:${id}`, item.title);
+  render();
+}
+// Module 3: a warm handoff, a call to the chosen assignment group, logged in
+// the ticket history on the shift clock. Once per group. Never scored; the
+// instructor sees it.
+function hdProveWarmHandoff() {
+  const spec = hdProveSpec();
+  const ticket = hdState.tickets[0];
+  const group = hdState.prove && hdState.prove.fields.group;
+  if (hdProveLocked() || !spec || spec.warmHandoff !== true || !ticket || !group) return;
+  if (hdState.prove.events.some(event => event.type === 'warm_handoff' && event.value === group)) return;
+  const label = `Called ${group} at ${hdShiftTimeText(hdShiftNow())}`;
+  hdProveEvent('warm_handoff', { value:group, label });
+  hdHistory(ticket, `${label}.`);
+  hdSave();
+  render();
+}
+window.hdProveOpenCard=hdProveOpenCard; window.hdProveWarmHandoff=hdProveWarmHandoff;
 function hdProveChoose(field, value) {
   if (hdProveLocked() || !['diagnosis','decision'].includes(field)) return;
   hdState.prove[field] = String(value || '');
@@ -4253,10 +4332,12 @@ window.hdProveAssign=hdProveAssign; window.hdProveSetCode=hdProveSetCode; window
 const HD_PROVE_TEXT_LABELS = { resolutionNote:'work note', userReply:'reply to the user' };
 const hdProveRefused = {};
 function hdProveText(field, value) {
-  if (hdProveLocked() || !['resolutionNote','userReply'].includes(field)) return;
-  const text = String(value || '').slice(0, 4000);
+  const extra = hdProveWriting()[field];
+  if (hdProveLocked() || !(['resolutionNote','userReply'].includes(field) || (HD_PROVE_EXTRA_TEXT.includes(field) && extra))) return;
+  const text = String(value || '').slice(0, extra ? extra.max || 4000 : 4000);
   if (hdPasswordInText(text)) {
-    if (!hdProveRefused[field]) hdProveRefused[field] = `${hdRefusePasswordText(null, HD_PROVE_TEXT_LABELS[field])} Remove it to submit.`;
+    const name = extra ? String(extra.label || field).toLowerCase() : HD_PROVE_TEXT_LABELS[field];
+    if (!hdProveRefused[field]) hdProveRefused[field] = `${hdRefusePasswordText(null, name)} Remove it to submit.`;
     hdProveSyncSubmit();
     return;
   }
@@ -4289,7 +4370,14 @@ function hdProvePackage() {
     events:prove.events.map(event => (typeof event.command === 'string' ? { ...event, command:hdRedactCommand(event.command) } : event)),
     machine:hdClone(hdMachine(shift.selectedComputer) || {}),
     passwordTyped:prove.passwordTyped === true, passwordWritten:prove.passwordWritten === true,
+    // Module 3: the extra writing and the time used (the efficiency band).
+    ...hdProveExtraPackage(prove),
   };
+}
+function hdProveExtraPackage(prove) {
+  if (!hdProveMatrix()) return {};
+  const writing = Object.fromEntries(Object.keys(hdProveWriting()).filter(field => HD_PROVE_EXTRA_TEXT.includes(field)).map(field => [field, String(prove[field] || '')]));
+  return { ...writing, elapsedSeconds:Math.max(0, Math.round((Date.now() - (Date.parse(prove.startedAt) || Date.now())) / 1000)) };
 }
 
 // Which required parts are still empty. Completeness only: nothing here looks
@@ -4298,6 +4386,19 @@ function hdProveMissing() {
   if (hdProveQueue()) return hdProveQueueMissing();
   const prove = hdState.prove;
   const ticket = hdState.tickets[0];
+  if (hdProveMatrix()) {
+    const labels = hdProveLabels();
+    const writing = hdProveWriting();
+    return [
+      ['Assign to me', hdProveAssigned(ticket) ? 'yes' : ''],
+      ['class', prove.fields.ticketClass], ['category', prove.fields.category], ['impact', prove.fields.impact], ['urgency', prove.fields.urgency],
+      ['assignment group', prove.fields.group], ['diagnosis', prove.diagnosis], ['decision', prove.decision],
+      ...Object.keys(writing).filter(field => HD_PROVE_EXTRA_TEXT.includes(field) && field !== 'kbDraft').map(field => [String(writing[field].label || field).toLowerCase(), prove[field]]),
+      [labels.resolutionNote.toLowerCase(), prove.resolutionNote], [labels.userReply.toLowerCase(), prove.userReply],
+      ...(writing.kbDraft ? [['KB draft', prove.kbDraft]] : []),
+      ['close the ticket', hdProveClosed(ticket) ? 'yes' : ''],
+    ].filter(([, value]) => !String(value || '').trim()).map(([name]) => name);
+  }
   return [
     ['Assign to me', hdProveAssigned(ticket) ? 'yes' : ''],
     ['category', prove.fields.category], ['type', prove.fields.type], ['priority', prove.fields.priority],
@@ -4356,7 +4457,13 @@ function hdProvePrefill(work) {
   const fields = work.fields || {};
   const offered = (value, options) => (options.includes(value) ? value : '');
   const steps = Array.isArray(work.steps) ? work.steps : [];
-  prove.fields = hdProvePreset() || {
+  if (hdProveMatrix()) {
+    prove.fields = Object.fromEntries(HD_PROVE_MATRIX_FIELDS.map(field => [field, hdProveMatrixValue(field, fields[field])]));
+    prove.fields.priority = hdMatrixPriority(prove.fields.impact, prove.fields.urgency) || '';
+    Object.keys(hdProveWriting()).filter(field => HD_PROVE_EXTRA_TEXT.includes(field)).forEach(field => {
+      prove[field] = hdMaskPasswordText(String(work[field] || '').slice(0, hdProveWriting()[field].max || 4000));
+    });
+  } else prove.fields = hdProvePreset() || {
     category:offered(fields.category, ticket.categoryOptions), type:offered(fields.type, ticket.typeOptions),
     priority:offered(fields.priority, ['P1','P2','P3','P4']),
   };
@@ -4395,6 +4502,10 @@ function hdProvePrefillActions(work, prove, ticket) {
   }
   if (work.passwordTyped === true) prove.passwordTyped = true;
   if (work.passwordWritten === true) prove.passwordWritten = true;
+  // Module 3: a warm handoff from the earlier attempt stays in the history.
+  prove.events.filter(event => event.type === 'warm_handoff' && event.label).forEach(event => {
+    if (!ticket.troubleshootingHistory.some(entry => entry.action === `${event.label}.`)) ticket.troubleshootingHistory.push({ time:'Earlier attempt', action:`${event.label}.` });
+  });
   if (work.assignedTo === 'Riley Morgan') {
     ticket.assignedTechnician = 'Riley Morgan';
     ticket.closureCode = HD_PROVE_RESOLUTION_CODES.includes(work.resolutionCode) ? work.resolutionCode : '';
@@ -4472,12 +4583,27 @@ function hdProveMark(input) {
   group.forEach(item => { const label = item.closest('label'); if (label) label.setAttribute('style', hdProveChoiceStyle(item.checked)); });
 }
 const HD_PROVE_SUBMIT_OFF = 'background:#d0d5dd;border-color:#d0d5dd;color:#475467;cursor:not-allowed';
+// Module 3: Class, Category, group and decision are shuffled per attempt
+// (seeded, so a reload keeps the order), so no right answer has a fixed
+// place. Saved work is restored by value, never by position. Module 1 keeps
+// its fixed order.
+function hdProveListOrder(options, salt) { return hdProveMatrix() ? hdSeededOrder(options.slice(), ((hdState && hdState.seed) || 1) ^ salt) : options; }
 function hdProveSelect(field, label, options, value, locked) {
   return `<label>${hdEsc(label)}<select class="select" ${locked ? 'disabled' : ''} onchange="hdProveSetField('${field}',this.value)"><option value="">Choose…</option>${options.map(option => `<option ${option === value ? 'selected' : ''}>${hdEsc(option)}</option>`).join('')}</select></label>`;
 }
 // Ticket fields: the student's to set, or (Module 1) set for them and shown
 // read-only, with no control to change them.
 function hdProveFieldsCard(ticket, prove, locked) {
+  if (hdProveMatrix()) {
+    const levels = ['1', '2', '3'];
+    const select = (field, label, options, names) => `<label>${hdEsc(label)}<select class="select" data-hd-field="${field}" ${locked ? 'disabled' : ''} onchange="hdProveSetField('${field}',this.value)"><option value="">Choose…</option>${options.map(option => `<option value="${hdEsc(option)}" ${option === prove.fields[field] ? 'selected' : ''}>${hdEsc(names ? names[option] : option)}</option>`).join('')}</select></label>`;
+    return `<div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Ticket fields</strong></div><div class="card-body hd-control-stack">
+      ${select('ticketClass', 'Class', hdProveListOrder(HD_PROVE_CLASSES, 0x27d4eb2f))}${select('category', 'Category', hdProveListOrder(ticket.categoryOptions || [], 0x165667b1))}
+      ${select('impact', 'Impact', levels, HD_IMPACT_LABELS)}${select('urgency', 'Urgency', levels, HD_IMPACT_LABELS)}
+      <div class="hd-priority-preset"><span>Priority</span> <span id="hd-prove-priority">${hdProvePriorityHtml(prove.fields.priority)}</span><p class="muted" style="margin:4px 0 0">Calculated from Impact × Urgency. You don't type it.</p></div>
+      ${select('group', 'Assignment group', hdProveListOrder(HD_ASSIGNMENT_GROUPS, 0x1b873593))}
+    </div></div>`;
+  }
   const preset = hdProvePreset();
   const body = preset
     ? `<div class="hd-field-grid" data-hd-prove-preset>${[['Category', preset.category], ['Type', preset.type], ['Priority', preset.priority]].map(([label, value]) => `<div><span>${label}</span><strong>${hdEsc(value)}</strong></div>`).join('')}</div><p class="muted">Set for you in Module 1.</p>`
@@ -4493,25 +4619,62 @@ function hdProveTicketView(ticket) {
   Object.keys(hdProveRefused).forEach(field => { delete hdProveRefused[field]; });
   const off = locked ? 'disabled' : '';
   const steps = prove.order.path.map(id => ticket.pathPool.find(step => step.id === id)).filter(Boolean);
-  return `${hdPageHeader(ticket.id, ticket.title, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/tickets')">← Queue</button>${locked || hdProveAssigned(ticket) ? '' : `<button id="hd-prove-assign" class="btn btn-primary" onclick="hdProveAssign('${ticket.id}')">Assign to me</button>`}`)}
+  const labels = hdProveLabels();
+  const clock = !!HD_PROVE.shift.now;
+  const created = clock ? hdShiftTimeText(ticket.createdTimestamp) : new Date(ticket.createdTimestamp).toLocaleString();
+  return `${hdPageHeader(hdTicketLabel(ticket), ticket.title, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/tickets')">← Queue</button>${locked || hdProveAssigned(ticket) ? '' : `<button id="hd-prove-assign" class="btn btn-primary" onclick="hdProveAssign('${ticket.id}')">Assign to me</button>`}`)}
     <div class="callout info"><strong>Prove It.</strong> Work this ticket on your own: there is no coach and no feedback before you submit. Your instructor reviews your work.</div>
     <div class="hd-ticket-layout">
       <div class="hd-ticket-main">
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Requester statement</strong>${hdBadge(ticket.status)}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid"><div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Title</span><strong>${hdEsc(ticket.requesterTitle)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Device</span><strong>${hdEsc(ticket.device)}</strong></div><div><span>CC</span><strong>${hdEsc(ticket.cc)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div></div></div></div>
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Ticket replies</strong></div><div class="card-body hd-note-list">${ticket.conversation.map(reply => `<div><strong>${hdEsc(reply.from)} · ${hdEsc(reply.role)}</strong><p>${hdEsc(reply.text)}</p></div>`).join('')}</div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Requester statement</strong>${hdBadge(ticket.status)}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid"><div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Title</span><strong>${hdEsc(ticket.requesterTitle)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Device</span><strong>${hdEsc(ticket.device)}</strong></div>${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.cc || !ticket.contactType ? `<div><span>CC</span><strong>${hdEsc(ticket.cc)}</strong></div>` : ''}<div><span>Created</span><strong>${hdEsc(created)}</strong></div>${clock ? `<div><span>Now</span><strong>${hdEsc(hdShiftTimeText(hdShiftNow()))}</strong></div>` : ''}<div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div></div></div></div>
+        ${ticket.conversation.length ? `<div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Ticket replies</strong></div><div class="card-body hd-note-list">${ticket.conversation.map(reply => `<div><strong>${hdEsc(reply.from)} · ${hdEsc(reply.role)}</strong><p>${hdEsc(reply.text)}</p></div>`).join('')}</div></div>` : ''}
+        ${hdProveOpenList('history', 'Earlier calls on this ticket', 'Open an entry to read it.', ticket.history, locked)}
+        ${hdProveOpenList('card', 'Evidence', 'Open a card to see it.', ticket.evidence, locked)}
         ${hdConsoleKbCard(ticket)}
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your diagnosis</strong></div><div class="card-body"><select id="hd-prove-diagnosis" class="select" ${off} onchange="hdProveChoose('diagnosis',this.value)"><option value="">Choose what this ticket is…</option>${prove.order.diagnosis.map(value => `<option ${prove.diagnosis === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></div></div>
+        ${hdProveWritingCard('keyFinding', prove, off)}
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Steps you took</strong><span class="muted">Select every step you actually took.</span></div><div class="card-body"><div class="hd-path">${steps.map(step => `<label style="${hdProveChoiceStyle(prove.steps.includes(step.id))}"><input type="checkbox" ${off} onchange="hdProveToggleStep('${step.id}',this.checked);hdProveMark(this)" ${prove.steps.includes(step.id) ? 'checked' : ''}>${hdEsc(step.text)}</label>`).join('')}</div></div></div>
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your decision</strong></div><div class="card-body"><div class="hd-path">${['Resolve','Escalate'].map(value => `<label style="${hdProveChoiceStyle(prove.decision === value)}"><input type="radio" name="hd-prove-decision" ${off} onchange="hdProveChoose('decision','${value}');hdProveMark(this)" ${prove.decision === value ? 'checked' : ''}>${value}</label>`).join('')}</div></div></div>
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Work notes</strong><span class="muted">Reported / Tried / Result (+ Next action if it stays open or goes to another team)</span></div><div class="card-body"><textarea id="hd-prove-note" class="ipt hd-note-input" aria-label="Work note" rows="7" maxlength="4000" ${off} oninput="hdProveText('resolutionNote',this.value)">${hdEsc(prove.resolutionNote)}</textarea>${ticket.notes.length ? `<p class="muted">Earlier notes:</p><div class="hd-note-list">${ticket.notes.map(note => `<div><strong>${hdEsc(note.author)} · ${hdEsc(note.time)}</strong><p>${hdEsc(note.text)}</p></div>`).join('')}</div>` : ''}</div></div>
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Reply to the user</strong><span class="muted">Written to ${hdEsc(ticket.requester)}, in your own words.</span></div><div class="card-body"><textarea id="hd-prove-reply" class="ipt hd-note-input" aria-label="Reply to the user" rows="7" maxlength="4000" ${off} oninput="hdProveText('userReply',this.value)">${hdEsc(prove.userReply)}</textarea></div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your decision</strong></div><div class="card-body"><div class="hd-path">${hdProveListOrder(['Resolve','Escalate'], 0x85ebca6b).map(value => `<label style="${hdProveChoiceStyle(prove.decision === value)}"><input type="radio" name="hd-prove-decision" ${off} onchange="hdProveChoose('decision','${value}');hdProveMark(this)" ${prove.decision === value ? 'checked' : ''}>${value}</label>`).join('')}</div></div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>${hdEsc(labels.resolutionNote)}</strong><span class="muted">${hdEsc(labels.resolutionHint)}</span></div><div class="card-body"><textarea id="hd-prove-note" class="ipt hd-note-input" aria-label="${hdEsc(labels.resolutionNote === 'Work notes' ? 'Work note' : labels.resolutionNote)}" rows="7" maxlength="4000" ${off} oninput="hdProveText('resolutionNote',this.value)">${hdEsc(prove.resolutionNote)}</textarea>${ticket.notes.length ? `<p class="muted">Earlier notes:</p><div class="hd-note-list">${ticket.notes.map(note => `<div><strong>${hdEsc(note.author)} · ${hdEsc(note.time)}</strong><p>${hdEsc(note.text)}</p></div>`).join('')}</div>` : ''}</div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>${hdEsc(labels.userReply)}</strong><span class="muted">Written to ${hdEsc(ticket.requester)}, in your own words.</span></div><div class="card-body"><textarea id="hd-prove-reply" class="ipt hd-note-input" aria-label="${hdEsc(labels.userReply)}" rows="7" maxlength="4000" ${off} oninput="hdProveText('userReply',this.value)">${hdEsc(prove.userReply)}</textarea></div></div>
+        ${hdProveWritingCard('kbDraft', prove, off)}
       </div>
       <aside class="hd-ticket-side">
         ${hdProveFieldsCard(ticket, prove, locked)}
+        ${hdProveWarmCard(ticket, prove, locked)}
         ${hdProveCloseCard(ticket, locked)}
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Submit</strong></div><div class="card-body hd-control-stack">${hdProveSubmitCard()}</div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Submit</strong></div><div class="card-body hd-control-stack">${HD_PROVE.shift.timeBoxMinutes ? `<p id="hd-prove-time" class="muted" role="status">${hdEsc(hdProveTimeText())}</p>` : ''}${hdProveSubmitCard()}</div></div>
       </aside>
     </div>`;
+}
+// Module 3: the earlier calls and the evidence cards. Each shows its title
+// and an Open button; its text shows once opened (recorded once). Nothing
+// says which entries matter. Shows nothing on a ticket with none (Module 1).
+function hdProveOpenList(kind, title, hint, items, locked) {
+  if (!Array.isArray(items) || !items.length) return '';
+  const opened = hdState.prove.opened;
+  const body = items.map(item => {
+    const source = `${kind}:${item.id}`;
+    const open = opened.includes(source);
+    const text = kind === 'history'
+      ? `<p>${hdEsc(item.text)}</p>`
+      : `${(item.lines || []).map(line => `<p><strong>${hdEsc(line)}</strong></p>`).join('')}${(item.notes || []).map(line => `<p class="muted">${hdEsc(line)}</p>`).join('')}`;
+    return `<div data-hd-prove-open="${hdEsc(source)}"><strong>${hdEsc(item.title)}</strong>${kind === 'history' && item.author ? ` <small class="muted">${hdEsc(item.author)}</small>` : ''}${open ? text : locked ? '<p class="muted">Not opened.</p>' : `<p><button type="button" class="btn btn-secondary btn-sm" onclick="hdProveOpenCard('${kind}','${hdEsc(item.id)}')">Open</button></p>`}</div>`;
+  }).join('');
+  return `<div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>${hdEsc(title)}</strong><span class="muted">${hdEsc(hint)}</span></div><div class="card-body hd-note-list">${body}</div></div>`;
+}
+// Module 3's extra writing boxes (hdProveWriting). Nothing for Module 1.
+function hdProveWritingCard(field, prove, off) {
+  const box = hdProveWriting()[field];
+  if (!box || !HD_PROVE_EXTRA_TEXT.includes(field)) return '';
+  return `<div class="card" data-hd-prove-writing="${field}"><div class="card-header" ${HD_PROVE_HEADER}><strong>${hdEsc(box.label)}</strong><span class="muted">${hdEsc(box.hint || '')}</span></div><div class="card-body"><textarea id="hd-prove-${field}" class="ipt hd-note-input" aria-label="${hdEsc(box.label)}" rows="${Number(box.rows) || 5}" maxlength="${Number(box.max) || 4000}" ${off} oninput="hdProveText('${field}',this.value)">${hdEsc(prove[field] || '')}</textarea></div></div>`;
+}
+// Module 3: Warm handoff calls the chosen assignment group and logs it.
+function hdProveWarmCard(ticket, prove, locked) {
+  const spec = hdProveSpec();
+  if (!spec || spec.warmHandoff !== true) return '';
+  const calls = prove.events.filter(event => event.type === 'warm_handoff' && event.label).map(event => `<p>${hdEsc(event.label)}</p>`).join('');
+  return `<div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Warm handoff</strong></div><div class="card-body hd-control-stack"><p class="muted">Calls the assignment group you chose and logs the call on the ticket.</p>${locked ? '' : `<button id="hd-prove-warm" type="button" class="btn btn-secondary" ${prove.fields.group ? '' : 'disabled'} onclick="hdProveWarmHandoff()">Call the assignment group</button>`}${calls || '<p class="muted">No calls logged.</p>'}</div></div>`;
 }
 window.hdProveSetField=hdProveSetField; window.hdProveChoose=hdProveChoose; window.hdProveToggleStep=hdProveToggleStep;
 window.hdProveText=hdProveText; window.hdProvePackage=hdProvePackage; window.hdProveMark=hdProveMark; window.hdProveSubmit=hdProveSubmit;
@@ -4545,6 +4708,18 @@ if (HD_PROVE) {
         const active = typeof document !== 'undefined' ? document.activeElement : null;
         if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName || '')) return;
         hdProveQueueRender();
+      }, 15000);
+    }
+  }
+  // A one-ticket shift with its own clock (Module 3): the dashboard is the
+  // queue (its metrics would count an SLA the ticket doesn't show), and the
+  // time-used line updates every 15 seconds without a redraw.
+  if (!hdProveQueue() && HD_PROVE.shift.now && !HD_PROVE.blocked) {
+    VIEWS['helpdesk/dashboard'] = () => VIEWS['helpdesk/tickets']();
+    if (HD_PROVE.shift.timeBoxMinutes && typeof setInterval === 'function') {
+      setInterval(() => {
+        const time = typeof document !== 'undefined' && document.getElementById ? document.getElementById('hd-prove-time') : null;
+        if (time) time.textContent = hdProveTimeText();
       }, 15000);
     }
   }

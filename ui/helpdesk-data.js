@@ -946,4 +946,69 @@ const HD_PROVE_SHIFTS = {
         conversation: [] },
     ],
   },
+  /* Module 3 (key its-11): one ticket on a fixed Tuesday 10:15 shift clock,
+   * worked on Module 1's one-ticket Prove form with Module 3's extra parts
+   * (ui/helpdesk.js): the student sets Class, Category, Impact and Urgency
+   * (Priority calculates) and the assignment group, opens the earlier calls
+   * and the evidence cards (each opening is recorded), and writes a
+   * key-finding note, the handoff note, the customer update and a KB draft.
+   * A Warm handoff control logs a call to the chosen group. No typed commands
+   * and no SLA bar. Screens show the INC number only. Only what the student
+   * sees lives here: no expected values. */
+  'its-11': {
+    title: 'Prove It: Independent Ticket',
+    labKey: 'lab-its-11-prove-it',
+    rubricVersion: 'hdesk-its-11-prove-v1',
+    now: '2026-08-18T10:15:00Z',
+    timeBoxMinutes: 30,
+    selectedComputer: 'NS-LT-0190',
+    tickets: [{
+      id: 'HD-2133', number: 'INC0010402', title: 'NorthLedger won\'t open on new laptop',
+      requester: 'Jordan Bell', requesterTitle: 'Financial Analyst', department: 'Finance',
+      device: 'NS-LT-0190', cc: '', contactType: 'Phone', createdAt: '2026-08-14T09:20:00Z',
+      status: 'New', assignedTechnician: 'Unassigned',
+      description: 'This is my THIRD call. Month-end close is tomorrow at 9 and I still can\'t run my reports. Someone promised me yesterday it would be fixed by end of day. I need a real answer, not another \'we\'re looking into it\'.',
+      conversation: [],
+      // The student sets Class, Category, Impact and Urgency (Priority is
+      // Impact x Urgency) and the assignment group (ui/helpdesk.js).
+      matrix: true,
+      categoryOptions: ['Account / access', 'Application', 'Hardware', 'Network', 'Security'],
+      // Earlier calls on this ticket. Each opens on its own and is recorded.
+      history: [
+        { id: 'fri', title: 'Friday · first call', author: 'Service Desk', text: 'New laptop NS-LT-0190: Outlook and the Finance drive weren\'t set up. Fixed both.' },
+        { id: 'mon', title: 'Monday · second call', author: 'Service Desk', text: 'NorthLedger won\'t open. Reinstalled NorthLedger from Software Center. Told the user it would be fixed by end of day.' },
+      ],
+      // Read-only evidence cards, given in place of commands (no reading has
+      // taught one). Each opens on its own and is recorded.
+      evidence: [
+        { id: 'northledger', title: 'NorthLedger on NS-LT-0190', lines: ['Required runtime NLRuntime 6 not found. Contact your administrator.'] },
+        { id: 'software-center', title: 'Software Center on NS-LT-0190', lines: ['NorthLedger 2026.2: Succeeded', 'NLRuntime 6: Failed', 'Install type: device-wide'],
+          notes: ['A runtime is an add-on a program needs before it will start.', 'A device-wide install changes the laptop for every user.'] },
+        { id: 'finance-laptops', title: 'Other Finance laptops', lines: ['Finance laptops set up before this month run NorthLedger normally. NS-LT-0190 has the new standard setup that new laptops get.'] },
+        { id: 'loaners', title: 'Service Desk loaner pool', lines: ['2 laptops with the earlier setup are available today. NorthLedger runs on them.'] },
+      ],
+      diagnosisOptions: ['Account permissions', 'NorthLedger server down', 'Runtime missing on the new laptop setup', 'User needs training'],
+      // Ids are this ticket's own, so no other Prove It's steps land on them.
+      pathPool: [
+        { id: 'q1', text: 'Read both earlier calls on the ticket before answering Jordan' },
+        { id: 'q2', text: 'Reproduce the error on NS-LT-0190' },
+        { id: 'q3', text: 'Check the Software Center install status' },
+        { id: 'q4', text: 'Confirm that older Finance laptops run NorthLedger' },
+        { id: 'q5', text: 'Escalate the ticket' },
+        { id: 'q6', text: 'Offer a loaner laptop' },
+        { id: 'q7', text: 'Reinstall NorthLedger from Software Center again' },
+      ],
+      // Module 3's writing boxes beside the work note and the reply.
+      labels: { resolutionNote: 'Handoff note', resolutionHint: 'Reported / Tried / Result / Next action, for the team that takes it next', userReply: 'Customer update' },
+      writing: {
+        keyFinding: { label: 'Key finding', hint: 'One or two sentences: what you found and why it matters.', rows: 3, max: 600 },
+        kbDraft: { label: 'KB draft: NorthLedger won\'t open on a new Finance laptop', hint: 'Symptom, cause, fix or workaround, result and owner.', rows: 6, max: 4000 },
+      },
+      warmHandoff: true,
+    }],
+    computers: [
+      { name:'NS-LT-0190', user:'Jordan Bell', os:'Windows 11 Enterprise 24H2', ip:'10.20.20.190', ou:'OU=Finance,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy', uptimeDays:4 },
+    ],
+    machines: {},
+  },
 };

@@ -103,7 +103,7 @@ function testCatalogue() {
   ], 'the filed lesson keys, titles and minutes');
   const labs = copy(run('LABS').filter((l) => l.module === 'its-11'));
   assert.deepEqual(labs.map((l) => [l.key, l.title, l.instructionalMinutes, l.phase || null]), [
-    [GUIDED, 'Lab 3.1 · Guided Lab: a frustrated caller', 25, null],
+    [GUIDED, 'Lab 3.1 · Guided Lab: a frustrated caller', 25, 'practice'],
     [PRACTICE, 'Lab 3.2 · Practice tickets', 20, 'practice'],
     [PROVE, 'Prove It: Independent Ticket', 30, null],
   ]);
@@ -132,7 +132,8 @@ function testPageContent() {
   ['CALM: four moves when a caller is stressed', 'Three ways users reach you, one standard', 'Escalating well: decide, hand off, tell the user'].forEach((title) => {
     assert.equal((html.match(new RegExp(`role="img" aria-label="${title}"`, 'g')) || []).length, 2, `${title}: a wide and a narrow drawing`);
   });
-  assert.equal((html.match(/<table class="its10-table"/g) || []).length, 3, 'the three reference tables');
+  assert.equal((html.match(/<table class="its10-table"/g) || []).length, 5, 'the five reference tables');
+  ['The parts of a KB draft', 'Ticket classes'].forEach((caption) => assert.ok(html.includes(`<caption>${esc(caption)}</caption>`), `the ${caption} table`));
   ['You don’t need to know what DHCP or a spooler is yet.', 'Security Operations (SOC)', 'The exact ask: which team, what you need them to do, and by when.',
     'Need the priority matrix or the SLA table? They’re in Module 2, Lesson 2.2.', 'as you practiced in Lab 1.2 with the caller from the CFO’s office'].forEach((text) => assert.ok(html.includes(esc(text)), `the page shows: ${text}`));
   // No typed command is asked for anywhere in the module.
@@ -175,21 +176,26 @@ function testLabCardsAndRail() {
   // Students first use this control in Lab 3.2: where it is, and when to use it.
   assert.match(words(practice), /a Message another team card, you’ll find it just above Work notes; use it when another team owns the next step and you need their answer or a time\./);
   assert.equal(statusLine(html, PRACTICE), 'Finish all three tickets: resolve each one, or hand it on and set a Follow-up.');
-  // The Prove It opens nothing yet.
+  // Since 2026-11-22 the Prove It opens Module 3's ticket.
   const prove = section(html, 'its11-prove-it');
-  assert.match(prove, /Opens soon/);
-  assert.doesNotMatch(prove, /<a |<button|\?prove=/, 'the Prove It card opens nothing');
-  assert.doesNotMatch(html, /\?prove=its-11/);
+  assert.match(prove, /\?prove=its-11&amp;student=/, 'the Prove It card opens the Module 3 ticket');
+  assert.match(prove, /Start the Prove It/);
+  assert.doesNotMatch(prove, /Opens soon/);
+  assert.match(guided, /Practice: not graded/, 'Lab 3.1 says it is not graded');
+  assert.doesNotMatch(guided, /instructor reviews/i);
   ['its11-prove-it', 'its11-check', 'its11-practice-tickets', 'its11-lab-3-1'].forEach((id) => assert.equal(railRow(html, id).locked, false, `${id} is not locked`));
 
-  // Lab 3.1 still gates Module 3: a saved attempt waits for the instructor.
+  // Lab 3.1 is Practice It: a saved attempt is never "waiting for
+  // instructor review".
   const waiting = hdUser({ [GUIDED]: submitted() });
   fresh(waiting);
-  assert.match(statusLine(page().view(waiting, HD), GUIDED), /^Lab 3\.1 submitted .+, waiting for instructor review$/);
-  assert.equal(railRow(page().view(waiting, HD), 'its11-lab-3-1').ticked, false);
-  const passed = hdUser({ [GUIDED]: { ...submitted(), reviewedAt: '2026-11-22T16:00:00Z' } });
-  fresh(passed);
-  assert.equal(statusLine(page().view(passed, HD), GUIDED), 'Lab 3.1 passed');
+  assert.doesNotMatch(statusLine(page().view(waiting, HD), GUIDED), /waiting for instructor review/);
+  // A submitted Prove It has nothing left to open, and waits for review.
+  const proved = hdUser({ [PROVE]: submitted() });
+  fresh(proved);
+  const provedHtml = page().view(proved, HD);
+  assert.doesNotMatch(section(provedHtml, 'its11-prove-it'), /\?prove=/, 'a submitted Prove It opens nothing');
+  assert.match(statusLine(provedHtml, PROVE), /waiting for instructor review/);
 }
 
 /* -------------------------------------------------------- knowledge check */
@@ -353,7 +359,8 @@ async function testGuidedLabSave() {
     assert.deepEqual([row.state, row.score, row.track_code], ['complete', null, 'HDESK']);
     assert.equal(row.result.work.tickets[0].console.followUp.kept, true);
     assert.deepEqual(catcher.replies.map((r) => r.data.saved), [true]);
-    assert.match(statusLine(page().view(user, HD), GUIDED), /waiting for instructor review$/);
+    // Practice It since 2026-11-22: complete once saved, no instructor review.
+    assert.match(statusLine(page().view(user, HD), GUIDED), /^Lab 3\.1: Complete/);
   }
 
   // The save fails: not received, nothing shows submitted.
@@ -453,7 +460,10 @@ function testInstructorSheets() {
   assert.match(html, /No: Practice It, no score and no answers saved/);
   assert.equal(copy(run('adminGradingLabMeta')({ lab_key: PRACTICE, track_code: 'HDESK' })).kind, 'PRACTICE IT');
   assert.equal(run('adminNeedsInstructorReview')({ lab_key: PRACTICE, track_code: 'HDESK' }), false, 'Lab 3.2 is never in the review queue');
-  assert.equal(run('adminNeedsInstructorReview')({ lab_key: GUIDED, track_code: 'HDESK' }), true, 'Lab 3.1 still is, until the Prove It gates the module');
+  // Since 2026-11-22 the Prove It gates Module 3: Lab 3.1 is Practice It and
+  // leaves the review queue; the Prove It is in it.
+  assert.equal(run('adminNeedsInstructorReview')({ lab_key: GUIDED, track_code: 'HDESK' }), false, 'Lab 3.1 is no longer in the review queue');
+  assert.equal(run('adminNeedsInstructorReview')({ lab_key: PROVE, track_code: 'HDESK' }), true, 'the Prove It is in the review queue');
   const guided = sheet.render({ ...base, id: 'm03g-1', lab_key: GUIDED, result: { source: 'mnt-coach-complete', work: { version: 1, tickets: [] } } });
   assert.match(guided, /Module 03 · Lab 3\.1 · Guided Lab: a frustrated caller/);
 }

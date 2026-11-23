@@ -687,8 +687,18 @@ const ITS_PROVE_MAX_BYTES = 96 * 1024;
 // A queue shift (Module 2) adds field_set (a ticket's field, in label, and
 // its value), order_changed (the new place) and ticket_arrived; source holds
 // the ticket's INC number.
+// Module 3 adds warm_handoff: a call to the assignment group (value) logged
+// on the ticket (label).
 const ITS_PROVE_EVENT_TYPES = ['evidence_opened', 'command_run', 'diagnosis_chosen', 'step_chosen', 'step_cleared', 'decision_chosen', 'kb_search', 'action_taken',
-  'field_set', 'order_changed', 'ticket_arrived'];
+  'field_set', 'order_changed', 'ticket_arrived', 'warm_handoff'];
+// The assignment groups a Prove ticket can go to (ui/helpdesk.js HD_ASSIGNMENT_GROUPS).
+const ITS_PROVE_GROUPS = ['Service Desk (Tier 1)', 'Desktop Support (Tier 2)', 'Network Operations', 'Server & Identity', 'Messaging & Collaboration', 'Security Operations (SOC)', 'Facilities'];
+// Seconds since the attempt started, as the simulator counted them; never
+// negative and at most a week.
+function itsProveElapsed(value) {
+  const elapsed = Number(value);
+  return Number.isFinite(elapsed) && elapsed >= 0 ? Math.min(Math.round(elapsed), 7 * 24 * 3600) : 0;
+}
 
 // The recorded actions and the laptop's end state, cleaned the same way for a
 // submit (itsCleanProveWork) and for a returned attempt's prefill.
@@ -728,7 +738,20 @@ function itsCleanProveWork(input, moduleKey, labKey) {
   const filled = (value, max) => isText(value, max) && value.trim() !== '';
   const fields = input.fields;
   if (!/^[A-Z]{2,4}-\d{4}$/.test(String(input.ticketId || '')) || !isText(input.startedAt, 40) || !fields || typeof fields !== 'object') return invalid;
-  if (!filled(fields.category, 80) || !filled(fields.type, 80) || !['P1', 'P2', 'P3', 'P4'].includes(fields.priority)) return invalid;
+  // Module 3 (rubric matrixFields): Class, Category, Impact, Urgency and the
+  // assignment group; the course page works out Priority itself (P1 to P5).
+  // Module 1 keeps Category, Type and Priority (P1 to P4).
+  const matrix = rubric.matrixFields === true;
+  if (matrix) {
+    if (!ITS_PROVE_QUEUE_CLASSES.includes(fields.ticketClass) || !filled(fields.category, 80) || !['1', '2', '3'].includes(fields.impact) || !['1', '2', '3'].includes(fields.urgency) || !ITS_PROVE_GROUPS.includes(fields.group)) return invalid;
+  } else if (!filled(fields.category, 80) || !filled(fields.type, 80) || !['P1', 'P2', 'P3', 'P4'].includes(fields.priority)) return invalid;
+  // Module 3's extra writing (rubric writing: { field: limit }): each one
+  // required, and refused (never cut) above its limit.
+  const extra = rubric.writing && typeof rubric.writing === 'object' ? rubric.writing : {};
+  for (const [field, max] of Object.entries(extra)) {
+    if (typeof input[field] !== 'string' || !input[field].trim()) return invalid;
+    if (input[field].length > max) return tooLarge;
+  }
   if (!filled(input.diagnosis, 300) || !['Resolve', 'Escalate'].includes(input.decision)) return invalid;
   if (!Array.isArray(input.steps) || !Array.isArray(input.stepTexts) || input.steps.length > 20 || input.steps.length !== input.stepTexts.length) return invalid;
   if (!input.steps.every((id) => /^[a-z0-9_-]{1,16}$/i.test(String(id))) || !input.stepTexts.every((text) => isText(text, 300))) return invalid;
@@ -744,7 +767,11 @@ function itsCleanProveWork(input, moduleKey, labKey) {
   const work = {
     version: 1, kind: 'hdesk-prove', moduleKey, labKey, rubricVersion: rubric.version, ticketId: input.ticketId, startedAt: input.startedAt,
     // Pre-set fields (Module 1) are the rubric's, never the message's.
-    fields: rubric.presetFields ? { ...rubric.presetFields } : { category: fields.category, type: fields.type, priority: fields.priority },
+    fields: rubric.presetFields ? { ...rubric.presetFields }
+      : matrix ? { ticketClass: fields.ticketClass, category: fields.category, impact: fields.impact, urgency: fields.urgency, priority: ITS_PROVE_MATRIX[fields.impact][fields.urgency], group: fields.group }
+        : { category: fields.category, type: fields.type, priority: fields.priority },
+    ...Object.fromEntries(Object.keys(extra).map((field) => [field, input[field]])),
+    ...(matrix ? { elapsedSeconds: itsProveElapsed(input.elapsedSeconds) } : {}),
     diagnosis: input.diagnosis, steps: input.steps.slice(), stepTexts: input.stepTexts.slice(), decision: input.decision,
     resolutionNote: input.resolutionNote, userReply: input.userReply, workNotes: input.workNotes.slice(),
     // Since 2026-11-20: the one Work notes box is resolutionNote, and the
@@ -898,9 +925,12 @@ function itsProvePrefillWork(row) {
   if (!work || work.kind !== 'hdesk-prove' || !row.completed_at || !work.fields) return null;
   return {
     completedAt: row.completed_at, ticketId: text(work.ticketId),
-    fields: { category: text(work.fields.category), type: text(work.fields.type), priority: text(work.fields.priority) },
+    fields: { category: text(work.fields.category), type: text(work.fields.type), priority: text(work.fields.priority),
+      // Module 3's fields, only on its work; the simulator checks each against its ticket.
+      ...('ticketClass' in work.fields ? { ticketClass: text(work.fields.ticketClass), impact: text(work.fields.impact), urgency: text(work.fields.urgency), group: text(work.fields.group) } : {}) },
     diagnosis: text(work.diagnosis), steps: Array.isArray(work.steps) ? work.steps.map(text) : [], decision: text(work.decision),
     resolutionNote: text(work.resolutionNote), userReply: text(work.userReply),
+    ...('keyFinding' in work ? { keyFinding: text(work.keyFinding) } : {}), ...('kbDraft' in work ? { kbDraft: text(work.kbDraft) } : {}),
     workNotes: Array.isArray(work.workNotes) ? work.workNotes.map(text) : [],
     events: itsProveCleanEvents(work.events), machine: itsProveCleanMachine(work.machine),
     passwordTyped: work.passwordTyped === true, passwordWritten: work.passwordWritten === true,
@@ -995,6 +1025,7 @@ function itsProveReviewPanel(row) {
   const actions = array(work.events).filter((entry) => entry && entry.type === 'action_taken' && entry.label).map((entry) => `${entry.label}${entry.computer ? ` (on ${entry.computer})` : ''}`);
   const commands = array(work.commands).filter(Boolean).map((entry) => `${entry.command}${entry.computer ? ` (on ${entry.computer})` : ''}`);
   const machine = Object.entries(work.machine && typeof work.machine === 'object' ? work.machine : {}).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') || '(none)' : typeof value === 'object' ? JSON.stringify(value) : value}`);
+  if (rubric.matrixFields === true) return itsProveMatrixReviewPanel(row, work, { text, writing, fact, items, opened, notes });
   return `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" data-its-prove-panel="${esc(row.id)}">
     <h3 class="text-sm font-semibold text-[#1e3a5f]">Student's written work · ${text(work.ticketId)}</h3>
     ${oneNote ? writing('Work note', work.resolutionNote) : writing('Resolution note', work.resolutionNote)}
@@ -1019,6 +1050,39 @@ function itsProveReviewPanel(row) {
     ${work.logTrimmed ? '<p class="mt-1 text-xs text-gray-500">The oldest recorded actions were left out to fit. All the student\'s writing is above.</p>' : ''}
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Laptop at submit</h4>
     ${items(machine, 'Not recorded.')}
+    ${itsProveDecisionsHtml(row)}
+  </div>`;
+}
+
+/* Module 3's one-ticket work for the instructor (rubric matrixFields): the
+ * Student Analyst Response first, every piece of writing in full (the key
+ * finding, the handoff note, the customer update and the KB draft), then the
+ * student's fields and choices, the steps, what they opened (and didn't),
+ * the warm handoff (shown as "exceeds", never scored) and the time used. */
+function itsProveMatrixReviewPanel(row, work, { text, writing, fact, items, opened, notes }) {
+  const fields = work.fields || {};
+  const levels = { 1: '1 – High', 2: '2 – Medium', 3: '3 – Low' };
+  const events = (Array.isArray(work.events) ? work.events : []).filter((entry) => entry && typeof entry.type === 'string');
+  const calls = events.filter((entry) => entry.type === 'warm_handoff').map((entry) => entry.label || `Called ${entry.value || 'a team'}`);
+  const minutes = Number.isFinite(Number(work.elapsedSeconds)) ? Math.round(Number(work.elapsedSeconds) / 60) : null;
+  return `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" data-its-prove-panel="${esc(row.id)}" data-its-prove-shape="matrix">
+    <h3 class="text-sm font-semibold text-[#1e3a5f]">Student Analyst Response · ${text(work.ticketId)}</h3>
+    ${writing('Key finding', work.keyFinding)}
+    ${writing('Handoff note', work.resolutionNote)}
+    ${writing('Customer update', work.userReply)}
+    ${writing('KB draft', work.kbDraft)}
+    ${notes.length ? `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Earlier work notes</h4>${notes.map((note) => `<p class="mt-1 text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">${text(note)}</p>`).join('')}` : ''}
+    <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">Student's choices</h3>
+    <dl class="mt-1 grid gap-2 sm:grid-cols-3">${fact('Class', fields.ticketClass)}${fact('Category', fields.category)}${fact('Impact', levels[fields.impact] || fields.impact)}${fact('Urgency', levels[fields.urgency] || fields.urgency)}${fact('Priority', fields.priority)}${fact('Assignment group', fields.group)}${fact('Diagnosis', work.diagnosis)}${fact('Decision', work.decision)}${fact('Assigned to', work.assignedTo)}${fact('Ticket state', work.ticketState)}${fact('Time used', minutes == null ? '' : `${minutes} min`)}</dl>
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Steps the student says they took</h4>
+    ${items(Array.isArray(work.stepTexts) ? work.stepTexts : [], 'None selected.')}
+    <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">What the student did in the simulator</h3>
+    <h4 class="mt-2 text-xs font-semibold uppercase tracking-wide text-gray-600">Earlier calls and evidence cards opened</h4>
+    ${items(opened, 'None opened.')}
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Warm handoff</h4>
+    ${calls.length ? `<p class="mt-1 text-sm text-gray-900" data-its-prove-warm>Exceeds: ${calls.map(text).join('; ')}. No score change.</p>` : '<p class="mt-1 text-sm text-gray-500" data-its-prove-warm>No warm handoff logged. No score change.</p>'}
+    ${work.passwordWritten === true ? '<p class="mt-1 text-sm font-semibold text-amber-900" data-its-prove-password-written>The student wrote a password in a ticket field. It was refused and not saved.</p>' : ''}
+    ${work.logTrimmed ? '<p class="mt-1 text-xs text-gray-500">The oldest recorded actions were left out to fit. All the student\'s writing is above.</p>' : ''}
     ${itsProveDecisionsHtml(row)}
   </div>`;
 }

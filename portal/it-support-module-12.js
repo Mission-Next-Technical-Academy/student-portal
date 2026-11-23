@@ -245,8 +245,8 @@ function its12ExtrasAndActions() {
   const lock = its12Locked() ? ' disabled' : '';
   return `<div class="its12-extra">
     <label for="its12-kb">Knowledge-base article</label>
-    <p class="its12-extra-hint">Write at least one KB article based on something you worked through above — symptom, cause, and fix, so the next technician doesn't have to re-diagnose it from scratch.</p>
-    <textarea id="its12-kb" data-its12-kb rows="3"${lock} placeholder="Symptom… Cause… Fix… Verification…">${esc(its12State.kbArticle)}</textarea>
+    <p class="its12-extra-hint">Write at least one KB article based on something you worked through above — symptom, cause, fix or workaround, result and owner, so the next technician doesn't have to re-diagnose it from scratch.</p>
+    <textarea id="its12-kb" data-its12-kb rows="3"${lock} placeholder="Symptom… Cause… Fix or workaround… Result… Owner…">${esc(its12State.kbArticle)}</textarea>
   </div>
   <div class="its12-extra">
     <label for="its12-after-action">After-action review</label>
