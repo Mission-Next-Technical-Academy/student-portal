@@ -1034,11 +1034,18 @@ function hdM01InvestigationCard(scenario) {
  * ticket.customerComments, created only for a ticket that has the feature. */
 function hdConsole(ticket) {
   if (!ticket) return {};
-  // A Prove ticket can turn on the knowledge base search and nothing else:
-  // no caller chat, verification, actions, owner, comments or feedback.
+  // A Prove ticket can turn on the knowledge base search and (Module 4) a
+  // user's plain late reply that waits for a machine value, and nothing else:
+  // no caller chat, verification, actions, owner, comments, feedback, or an
+  // arrival that reopens, resumes or approves anything.
   if (HD_PROVE) {
     const proveTicket = (HD_PROVE.shift.tickets || []).find(item => item.id === ticket.id);
-    return proveTicket && proveTicket.console && proveTicket.console.kb === true ? { kb:true } : {};
+    const config = proveTicket && proveTicket.console;
+    if (!config) return {};
+    const arrivals = (Array.isArray(config.arrivals) ? config.arrivals : [])
+      .filter(item => item && item.id && item.text && item.when && item.when.machine && !item.reopen && !item.resume && !item.approve && !item.at)
+      .map(item => ({ id:item.id, from:item.from, text:item.text, when:{ machine:item.when.machine } }));
+    return { ...(config.kb === true ? { kb:true } : {}), ...(arrivals.length ? { arrivals } : {}) };
   }
   const template = HD_TICKET_TEMPLATES.find(item => item.id === ticket.id);
   return (template && template.console) || {};
@@ -5590,11 +5597,42 @@ function hdProvePackage() {
     assignedTo:ticket.assignedTechnician, ticketState:ticket.status, resolutionCode:ticket.status === 'Resolved' ? ticket.closureCode || '' : '',
     commands:prove.events.filter(event => event.type === 'command_run').map(event => ({ command:hdRedactCommand(event.command || ''), computer:event.computer, at:event.at })),
     events:prove.events.map(event => (typeof event.command === 'string' ? { ...event, command:hdRedactCommand(event.command) } : event)),
-    machine:hdClone(hdMachine(shift.selectedComputer) || {}),
+    machine:shift.printerSummary === true ? hdProvePrinterSummary(shift.selectedComputer) : hdClone(hdMachine(shift.selectedComputer) || {}),
     passwordTyped:prove.passwordTyped === true, passwordWritten:prove.passwordWritten === true,
     // Module 3: the extra writing and the time used (the efficiency band).
     ...hdProveExtraPackage(prove),
   };
+}
+// Module 4 (shift printerSummary): a small summary of the selected computer's
+// print queues instead of the whole machine, so the package stays inside the
+// course page's 4 KB machine limit. Per queue: port, driver, paper size and
+// the job counts. Nothing says which values are right.
+function hdProvePrinterSummary(name) {
+  const machine = hdMachine(name) || {};
+  const queues = hdPrintQueues(machine) || {};
+  return { printQueues:Object.fromEntries(Object.keys(queues).slice(0, 8).map(printer => {
+    const queue = queues[printer];
+    const printed = Array.isArray(queue.printed) ? queue.printed : [];
+    return [printer, {
+      port:String(queue.port || ''), driver:String(queue.driver || ''), media:String(queue.media || ''),
+      queued:Array.isArray(queue.jobs) ? queue.jobs.length : 0, printed:printed.length,
+      testPages:printed.filter(job => job && job.document === 'Test Page').length,
+    }];
+  })) };
+}
+// A returned attempt's printer summary back onto the selected computer: each
+// queue's port, driver and paper size, only where this computer offers them.
+function hdProvePrefillPrinters(summary, machine) {
+  const queues = hdPrintQueues(machine);
+  const saved = summary && summary.printQueues && typeof summary.printQueues === 'object' ? summary.printQueues : null;
+  if (!queues || !saved) return;
+  Object.keys(queues).forEach(printer => {
+    const queue = queues[printer]; const was = saved[printer];
+    if (!was || typeof was !== 'object') return;
+    if (typeof was.port === 'string' && (hdMachinePort(machine, was.port) || was.port === queue.port)) queue.port = was.port;
+    if (typeof was.driver === 'string' && (hdPrinterDrivers(machine, queue).includes(was.driver) || was.driver === hdOutsideDriver(queue))) queue.driver = was.driver;
+    if (typeof was.media === 'string' && (queue.mediaSizes || []).includes(was.media)) queue.media = was.media;
+  });
 }
 function hdProveExtraPackage(prove) {
   if (!hdProveMatrix()) return {};
@@ -5720,6 +5758,7 @@ function hdProvePrefillActions(work, prove, ticket) {
       if (Array.isArray(fixture[key]) && Array.isArray(value)) machine[key] = value.filter(item => typeof item === 'string');
       else if (typeof fixture[key] === typeof value && typeof value !== 'object') machine[key] = value;
     });
+    if (HD_PROVE.shift.printerSummary === true) hdProvePrefillPrinters(work.machine, machine);
     hdState.machines = { ...(hdState.machines || {}), [name]:machine };
   }
   if (work.passwordTyped === true) prove.passwordTyped = true;
@@ -5849,7 +5888,7 @@ function hdProveTicketView(ticket) {
     <div class="hd-ticket-layout">
       <div class="hd-ticket-main">
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Requester statement</strong>${hdBadge(ticket.status)}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid"><div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Title</span><strong>${hdEsc(ticket.requesterTitle)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Device</span><strong>${hdEsc(ticket.device)}</strong></div>${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.cc || !ticket.contactType ? `<div><span>CC</span><strong>${hdEsc(ticket.cc)}</strong></div>` : ''}<div><span>Created</span><strong>${hdEsc(created)}</strong></div>${clock ? `<div><span>Now</span><strong>${hdEsc(hdShiftTimeText(hdShiftNow()))}</strong></div>` : ''}<div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div></div></div></div>
-        ${ticket.conversation.length ? `<div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Ticket replies</strong></div><div class="card-body hd-note-list">${ticket.conversation.map(reply => `<div><strong>${hdEsc(reply.from)} · ${hdEsc(reply.role)}</strong><p>${hdEsc(reply.text)}</p></div>`).join('')}</div></div>` : ''}
+        ${hdProveRepliesCard(ticket)}
         ${hdProveOpenList('history', 'Earlier calls on this ticket', 'Open an entry to read it.', ticket.history, locked)}
         ${hdProveOpenList('card', 'Evidence', 'Open a card to see it.', ticket.evidence, locked)}
         ${hdConsoleKbCard(ticket)}
@@ -5868,6 +5907,14 @@ function hdProveTicketView(ticket) {
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Submit</strong></div><div class="card-body hd-control-stack">${HD_PROVE.shift.timeBoxMinutes ? `<p id="hd-prove-time" class="muted" role="status">${hdEsc(hdProveTimeText())}</p>` : ''}${hdProveSubmitCard()}</div></div>
       </aside>
     </div>`;
+}
+// The ticket's replies: the ones it opens with, then (Module 4) a user's late
+// reply once it has arrived (console.arrivals). Nothing when there are none.
+function hdProveRepliesCard(ticket) {
+  const arrived = ticket.consoleState && Array.isArray(ticket.consoleState.arrived) ? ticket.consoleState.arrived : [];
+  const replies = [...ticket.conversation, ...arrived.map(entry => ({ from:entry.from, role:`${ticket.requesterTitle} · ${entry.time}`, text:entry.text }))];
+  if (!replies.length) return '';
+  return `<div class="card" data-hd-prove-replies><div class="card-header" ${HD_PROVE_HEADER}><strong>Ticket replies</strong></div><div class="card-body hd-note-list">${replies.map(reply => `<div><strong>${hdEsc(reply.from)} · ${hdEsc(reply.role)}</strong><p>${hdEsc(reply.text)}</p></div>`).join('')}</div></div>`;
 }
 // Module 3: the earlier calls and the evidence cards. Each shows its title
 // and an Open button; its text shows once opened (recorded once). Nothing

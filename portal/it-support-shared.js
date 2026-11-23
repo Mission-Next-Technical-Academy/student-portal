@@ -1116,7 +1116,7 @@ function itsProveReviewPanel(row) {
   const actions = array(work.events).filter((entry) => entry && entry.type === 'action_taken' && entry.label).map((entry) => `${entry.label}${entry.computer ? ` (on ${entry.computer})` : ''}`);
   const commands = array(work.commands).filter(Boolean).map((entry) => `${entry.command}${entry.computer ? ` (on ${entry.computer})` : ''}`);
   const machine = Object.entries(work.machine && typeof work.machine === 'object' ? work.machine : {}).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') || '(none)' : typeof value === 'object' ? JSON.stringify(value) : value}`);
-  if (rubric.matrixFields === true) return itsProveMatrixReviewPanel(row, work, { text, writing, fact, items, opened, notes });
+  if (rubric.matrixFields === true) return itsProveMatrixReviewPanel(row, work, { text, writing, fact, items, opened, notes, rubric, searches, actions, commands });
   return `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" data-its-prove-panel="${esc(row.id)}">
     <h3 class="text-sm font-semibold text-[#1e3a5f]">Student's written work · ${text(work.ticketId)}</h3>
     ${oneNote ? writing('Work note', work.resolutionNote) : writing('Resolution note', work.resolutionNote)}
@@ -1150,18 +1150,27 @@ function itsProveReviewPanel(row) {
  * finding, the handoff note, the customer update and the KB draft), then the
  * student's fields and choices, the steps, what they opened (and didn't),
  * the warm handoff (shown as "exceeds", never scored) and the time used. */
-function itsProveMatrixReviewPanel(row, work, { text, writing, fact, items, opened, notes }) {
+// Module 4 (rubric panelWriting and simulatorWork): its own writing headings
+// (a work note and a reply), and what the student did on the computers: the
+// knowledge base searches, the actions on the screens, every typed command in
+// full and each print queue at submit (machine.printQueues).
+const ITS_PROVE_MATRIX_WRITING = [['keyFinding', 'Key finding'], ['resolutionNote', 'Handoff note'], ['userReply', 'Customer update'], ['kbDraft', 'KB draft']];
+function itsProvePrinterLines(work) {
+  const queues = work.machine && work.machine.printQueues && typeof work.machine.printQueues === 'object' ? work.machine.printQueues : {};
+  return Object.entries(queues).filter(([, queue]) => queue && typeof queue === 'object')
+    .map(([name, queue]) => `${name}: port ${queue.port || '(none)'}, driver ${queue.driver || '(none)'}, paper ${queue.media || '(none)'}, ${Number(queue.queued) || 0} queued, ${Number(queue.printed) || 0} printed (${Number(queue.testPages) || 0} test pages)`);
+}
+function itsProveMatrixReviewPanel(row, work, { text, writing, fact, items, opened, notes, rubric, searches, actions, commands }) {
   const fields = work.fields || {};
+  const headings = Array.isArray(rubric && rubric.panelWriting) ? rubric.panelWriting : ITS_PROVE_MATRIX_WRITING;
+  const simulator = rubric && rubric.simulatorWork === true;
   const levels = { 1: '1 – High', 2: '2 – Medium', 3: '3 – Low' };
   const events = (Array.isArray(work.events) ? work.events : []).filter((entry) => entry && typeof entry.type === 'string');
   const calls = events.filter((entry) => entry.type === 'warm_handoff').map((entry) => entry.label || `Called ${entry.value || 'a team'}`);
   const minutes = Number.isFinite(Number(work.elapsedSeconds)) ? Math.round(Number(work.elapsedSeconds) / 60) : null;
   return `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" data-its-prove-panel="${esc(row.id)}" data-its-prove-shape="matrix">
     <h3 class="text-sm font-semibold text-[#1e3a5f]">Student Analyst Response · ${text(work.ticketId)}</h3>
-    ${writing('Key finding', work.keyFinding)}
-    ${writing('Handoff note', work.resolutionNote)}
-    ${writing('Customer update', work.userReply)}
-    ${writing('KB draft', work.kbDraft)}
+    ${headings.map(([field, label]) => writing(text(label), work[field])).join('\n    ')}
     ${notes.length ? `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Earlier work notes</h4>${notes.map((note) => `<p class="mt-1 text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">${text(note)}</p>`).join('')}` : ''}
     <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">Student's choices</h3>
     <dl class="mt-1 grid gap-2 sm:grid-cols-3">${fact('Class', fields.ticketClass)}${fact('Category', fields.category)}${fact('Impact', levels[fields.impact] || fields.impact)}${fact('Urgency', levels[fields.urgency] || fields.urgency)}${fact('Priority', fields.priority)}${fact('Assignment group', fields.group)}${fact('Diagnosis', work.diagnosis)}${fact('Decision', work.decision)}${fact('Assigned to', work.assignedTo)}${fact('Ticket state', work.ticketState)}${fact('Time used', minutes == null ? '' : `${minutes} min`)}</dl>
@@ -1170,8 +1179,18 @@ function itsProveMatrixReviewPanel(row, work, { text, writing, fact, items, open
     <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">What the student did in the simulator</h3>
     <h4 class="mt-2 text-xs font-semibold uppercase tracking-wide text-gray-600">Earlier calls and evidence cards opened</h4>
     ${items(opened, 'None opened.')}
-    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Warm handoff</h4>
-    ${calls.length ? `<p class="mt-1 text-sm text-gray-900" data-its-prove-warm>Exceeds: ${calls.map(text).join('; ')}. No score change.</p>` : '<p class="mt-1 text-sm text-gray-500" data-its-prove-warm>No warm handoff logged. No score change.</p>'}
+    ${simulator ? `<div data-its-prove-simulator>
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Knowledge base searches</h4>
+    ${items(searches, 'None recorded.')}
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Actions in the simulator</h4>
+    ${items(actions, 'None recorded.')}
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Commands run</h4>
+    ${items(commands, 'None recorded.')}
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Print queues at submit</h4>
+    ${items(itsProvePrinterLines(work), 'Not recorded.')}
+    ${work.passwordTyped === true ? '<p class="mt-1 text-sm font-semibold text-amber-900" data-its-prove-password>The student typed a password into the shell. The command was refused and the password was not saved.</p>' : ''}
+    </div>` : `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Warm handoff</h4>
+    ${calls.length ? `<p class="mt-1 text-sm text-gray-900" data-its-prove-warm>Exceeds: ${calls.map(text).join('; ')}. No score change.</p>` : '<p class="mt-1 text-sm text-gray-500" data-its-prove-warm>No warm handoff logged. No score change.</p>'}`}
     ${work.passwordWritten === true ? '<p class="mt-1 text-sm font-semibold text-amber-900" data-its-prove-password-written>The student wrote a password in a ticket field. It was refused and not saved.</p>' : ''}
     ${work.logTrimmed ? '<p class="mt-1 text-xs text-gray-500">The oldest recorded actions were left out to fit. All the student\'s writing is above.</p>' : ''}
     ${itsProveDecisionsHtml(row)}

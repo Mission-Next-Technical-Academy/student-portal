@@ -607,13 +607,25 @@ function testNothingFromTheGradedTicket() {
   assert.ok(!patterns[3].test('the dock bay'));
   const files = childProcess.execFileSync('git', ['ls-files', 'ui', 'portal', 'tests'], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean);
   assert.ok(files.length > 50, 'git ls-files lists the committed files');
+  // Since the Prove It part (2026-11-23) the graded ticket lives in its own
+  // Prove shift, HD_PROVE_SHIFTS['its-02'] (the last entry, with its comment):
+  // that block alone is left out of the scan.
+  const withoutProveShift = (file, source) => {
+    if (file !== 'ui/helpdesk-data.js') return source;
+    const start = source.indexOf('/* Module 4 (key its-02): one ticket on a fixed');
+    assert.ok(start > source.indexOf('const HD_PROVE_SHIFTS'), 'the Module 4 Prove shift sits inside HD_PROVE_SHIFTS');
+    const end = source.indexOf('\n};', start);
+    assert.ok(end > start, 'and ends HD_PROVE_SHIFTS');
+    return source.slice(0, start) + source.slice(end);
+  };
   const hits = [];
   for (const file of files) {
     let source;
     try { source = fs.readFileSync(path.join(ROOT, file), 'utf8'); } catch { continue; }
+    source = withoutProveShift(file, source);
     patterns.forEach((pattern) => { if (pattern.test(source)) hits.push(`${file} ${pattern}`); });
   }
-  assert.deepEqual(hits, [], 'no committed file names the graded ticket, its printer or its dock');
+  assert.deepEqual(hits, [], 'no committed file outside the Prove shift names the graded ticket, its printer or its dock');
 }
 
 function testCiRunsThisFile() {

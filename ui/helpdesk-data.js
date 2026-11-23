@@ -1329,4 +1329,97 @@ const HD_PROVE_SHIFTS = {
     ],
     machines: {},
   },
+  /* Module 4 (key its-02): one ticket on a fixed Wednesday 09:40 shift clock,
+   * on Module 3's one-ticket form (matrix fields) with Module 4's typed
+   * commands and printer screens on two dock B stations (machine state below;
+   * ui/helpdesk.js "Machine-state console features"). machineTools shows every
+   * tool on both stations, and every queue offers a driver from the
+   * manufacturer's website, so neither points at the case. printerSummary: the
+   * package carries each queue's port, driver and paper size on the selected
+   * computer (ui/helpdesk.js hdProvePrinterSummary). Theo's reply arrives once
+   * the first job prints from his queue. Only what the student sees lives
+   * here: no expected values. */
+  'its-02': {
+    title: 'Prove It: Independent Ticket',
+    labKey: 'lab-its-02-prove-it',
+    rubricVersion: 'hdesk-its-02-prove-v1',
+    now: '2026-08-19T09:40:00Z',
+    timeBoxMinutes: 20,
+    selectedComputer: 'NS-WH-PC07',
+    machineTools: true,
+    printerSummary: true,
+    tickets: [{
+      id: 'HD-2136', number: 'INC0010476', title: 'Label printer says Offline',
+      requester: 'Theo Grant', requesterTitle: 'Logistics Coordinator', department: 'Logistics',
+      device: 'NS-WH-PC07', cc: '', contactType: 'Phone', createdAt: '2026-08-19T09:36:00Z',
+      status: 'New', assignedTechnician: 'Unassigned',
+      description: 'The label printer at dock B says Offline on my PC. The printer itself says Ready. We ship at 11.',
+      conversation: [],
+      matrix: true,
+      categoryOptions: ['Account / access', 'Docking station', 'Network', 'Printer', 'Software'],
+      // The knowledge base search, and Theo's reply once a job prints from
+      // his queue (the only console features a Prove ticket can turn on).
+      console: {
+        kb: true,
+        arrivals: [{ id: 'theo-printed', from: 'Theo Grant', text: 'It printed! But the barcode is cut off at the bottom.',
+          when: { machine: { computer: 'NS-WH-PC07', path: ['printQueues', 'NS-WH-LABEL02', 'printed', '0', 'owner'], value: 'Theo Grant' } } }],
+      },
+      // Read-only evidence cards. Each opens on its own and is recorded.
+      evidence: [
+        { id: 'windows-update', title: 'Windows Update history on NS-WH-PC07', lines: ['ZetaLabel ZT driver 5.1: installed today 02:10'], notes: ['Windows Update can install a newer printer driver by itself.'] },
+        { id: 'software-catalog', title: 'Software Catalog: label printer drivers', lines: ['NS-WH-LABEL02: approved driver ZetaLabel ZT 4.6'], notes: ['Install printer drivers only from the catalog.'] },
+        { id: 'asset-record', title: 'Asset record: NS-WH-LABEL02', lines: ['Location: warehouse dock B', 'Connection: direct IP, Standard TCP/IP port, address 10.20.30.15', 'Labels: 4 × 6 in'] },
+        { id: 'label-stock', title: 'Label stock at dock B', lines: ['Loaded roll: about half full', '3 spare rolls of 4 × 6 in labels on the shelf'] },
+      ],
+      diagnosisOptions: ['Driver update changed the printer port', 'Network outage on dock B', 'Print server spooler crash', 'Printer out of labels'],
+      // Ids are this ticket's own, so no other Prove It's steps land on them.
+      pathPool: [
+        { id: 'w1', text: 'Check the printer\'s status and ask Theo whether the other dock B station prints' },
+        { id: 'w2', text: 'Ping the printer' },
+        { id: 'w3', text: 'Open the printer\'s properties and check its port' },
+        { id: 'w4', text: 'Open the Windows Update history' },
+        { id: 'w5', text: 'Set the port back to Standard TCP/IP 10.20.30.15' },
+        { id: 'w6', text: 'Roll back to the approved ZT 4.6 driver from the catalog' },
+        { id: 'w7', text: 'Set the paper size to 4 × 6 in and print a test label' },
+        { id: 'w8', text: 'Confirm with Theo that the 11:00 labels scan' },
+        { id: 'w9', text: 'Restart the print server\'s spooler' },
+        { id: 'w10', text: 'Replace the label roll' },
+        { id: 'w11', text: 'Delete the 14 queued shipping labels to clear the queue' },
+        { id: 'w12', text: 'Install a driver downloaded from the manufacturer\'s website' },
+      ],
+    }],
+    computers: [
+      { name:'NS-WH-PC07', user:'Theo Grant', os:'Windows 11 Enterprise 24H2', ip:'10.20.30.107', ou:'OU=Logistics,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy', uptimeDays:6 },
+      { name:'NS-WH-PC08', user:'Dock B shared station', os:'Windows 11 Enterprise 24H2', ip:'10.20.30.108', ou:'OU=Logistics,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy', uptimeDays:6 },
+    ],
+    // Both dock B stations print to NS-WH-LABEL02 directly (no print server).
+    machines: {
+      'NS-WH-PC07': {
+        printers: ['Microsoft Print to PDF', 'NS-WH-LABEL02'], pendingPolicyPrinters: [], localAdministrators: ['NORTHSTAR\\Domain Admins', 'NS-WH-PC07\\MNT-Support'],
+        computer: { ip:'10.20.30.107', health:'Healthy' },
+        spooler: 'Running',
+        ports: [{ name:'WSD-7f3a', type:'WSD', works:false }, { name:'IP_10.20.30.15', type:'Standard TCP/IP', address:'10.20.30.15' }],
+        driverCatalog: ['ZetaLabel ZT 4.6', 'Generic / Text Only'],
+        reachable: { '10.20.30.15':[9100] },
+        printQueues: {
+          'NS-WH-LABEL02': { port:'WSD-7f3a', driver:'ZetaLabel ZT 5.1', drivers:['ZetaLabel ZT 5.1'], outsideDriver:'ZetaLabel ZT 5.2 (manufacturer download)',
+            media:'4 × 3 in', mediaSizes:['4 × 3 in', '4 × 6 in', 'Letter'], offline:false, paused:false, printed:[],
+            jobs: Array.from({ length:14 }, (_, i) => ({ id:401 + i, document:`Shipping label ${String(8811 + i)}`, pages:1, owner:'Theo Grant', status:'Spooling' })) },
+        },
+      },
+      'NS-WH-PC08': {
+        printers: ['Microsoft Print to PDF', 'NS-WH-LABEL02'], pendingPolicyPrinters: [], localAdministrators: ['NORTHSTAR\\Domain Admins', 'NS-WH-PC08\\MNT-Support'],
+        computer: { ip:'10.20.30.108', health:'Healthy' },
+        spooler: 'Running',
+        ports: [{ name:'IP_10.20.30.15', type:'Standard TCP/IP', address:'10.20.30.15' }],
+        driverCatalog: ['ZetaLabel ZT 4.6', 'Generic / Text Only'],
+        reachable: { '10.20.30.15':[9100] },
+        printQueues: {
+          'NS-WH-LABEL02': { port:'IP_10.20.30.15', driver:'ZetaLabel ZT 4.6', drivers:['ZetaLabel ZT 4.6'], outsideDriver:'ZetaLabel ZT 5.2 (manufacturer download)',
+            media:'4 × 6 in', mediaSizes:['4 × 3 in', '4 × 6 in', 'Letter'], offline:false, paused:false, jobs:[],
+            printed: [{ document:'Shipping label 8807', pages:1, owner:'Dock B shared station' }, { document:'Shipping label 8808', pages:1, owner:'Dock B shared station' }] },
+        },
+      },
+    },
+  },
 };

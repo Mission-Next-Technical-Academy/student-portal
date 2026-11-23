@@ -47,6 +47,7 @@ node tests/hdesk-m04-vm-screen.test.js
 node tests/hdesk-m04-guided-labs.test.js
 node tests/hdesk-m04-practice-tickets.test.js
 node tests/hdesk-m04-page.test.js
+node tests/hdesk-m04-prove.test.js
 node tests/hdesk-m03-guided-lab.test.js
 node tests/hdesk-m03-practice-tickets.test.js
 node tests/hdesk-m03-page.test.js

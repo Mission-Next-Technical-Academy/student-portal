@@ -228,7 +228,8 @@ async function testUploadThenInsertWithTheSameId() {
   assert.equal(calls(BUCKET, 'remove').length, 0, 'nothing is removed after a successful submit');
 
   const html = moduleLab(2).view(user, HD);
-  assert.match(statusLine(html, LAB21), /^Lab 4\.1 submitted .+, waiting for instructor review$/);
+  // Practice It since Module 4's Prove It moved the gate: saved reads Complete.
+  assert.match(statusLine(html, LAB21), /^Lab 4\.1: Complete · .+$/);
   assert.match(section(html, 'its02-lab-2-1'), /<strong>Uploaded<\/strong> — Finished Windows desktop: desktop\.png/);
   assert.match(section(html, 'its02-lab-2-1'), /<strong>Uploaded<\/strong> — VM settings summary: settings\.jpg/);
   assert.equal(run(`itswPickedFile(${JSON.stringify(user)}, 'evDesktop')`), null, 'picked files are released once saved');
