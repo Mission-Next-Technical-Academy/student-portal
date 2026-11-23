@@ -485,6 +485,25 @@ function testTheCoachHookupCoversTheVmCoaches() {
   assert.equal(plain(tab.run("MODULE_COACHES.find((c) => c.id === 'hd-m01').collectWork()")).vm, undefined);
 }
 
+// Lab 4.2: lower-case names still get the lab's Internal addresses, so the
+// "Ping both ways" step can pass.
+function testLowerCaseNamesGetTheInternalAddresses() {
+  const tab = sim();
+  tab.run("HD_VM.lab.addresses = JSON.parse(JSON.stringify(HD_VM_LABS['its-02'].addresses))");
+  build(tab, { name: 'ns-test-w11', image: 'client', network: 'Internal' });
+  build(tab, { name: 'ns-test-srv', image: 'server', network: 'Internal' });
+  assert.equal(tab.vm('ns-test-w11').state, 'Running');
+  assert.equal(tab.vm('ns-test-srv').state, 'Running');
+  assert.equal(tab.run("hdVmAddress(hdVmByName('ns-test-w11'))"), '10.0.5.20');
+  assert.equal(tab.run("hdVmAddress(hdVmByName('ns-test-srv'))"), '10.0.5.10');
+  const there = tab.console('ns-test-w11', 'ping 10.0.5.10');
+  assert.equal((there.match(/Reply from 10\.0\.5\.10/g) || []).length, 4, 'four replies from the server');
+  const back = tab.console('ns-test-srv', 'ping 10.0.5.20');
+  assert.equal((back.match(/Reply from 10\.0\.5\.20/g) || []).length, 4, 'four replies from the client');
+  assert.deepEqual(tab.vm('ns-test-w11').pings.map((p) => [p.to, p.ok]), [['10.0.5.10', true]]);
+  assert.deepEqual(tab.vm('ns-test-srv').pings.map((p) => [p.to, p.ok]), [['10.0.5.20', true]]);
+}
+
 function testCiRunsThisFile() {
   assert.match(fs.readFileSync(path.join(ROOT, 'bin', 'ci-check.sh'), 'utf8'), /tests\/hdesk-m04-vm-screen\.test\.js/);
 }
@@ -493,6 +512,7 @@ function testCiRunsThisFile() {
   testOffUnlessTheLabsCoachRuns();
   testBuildTheClientVm();
   testSnapshotServerAndPing();
+  testLowerCaseNamesGetTheInternalAddresses();
   testSaveWaitsForTheFirstAnswerAndSendsTheSummaryOnly();
   testANewerUnconfirmedSaveInThisBrowserBeatsTheServer();
   testANewSignInGetsTheServerCopy();

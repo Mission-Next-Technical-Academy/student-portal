@@ -4499,7 +4499,12 @@ function hdVmAddress(vm) {
   const state = hdVmState();
   const index = Math.max(0, state.vms.indexOf(vm));
   if (vm.network === 'NAT') return addresses.nat || '10.0.2.15';
-  if (vm.network === 'Internal') return (addresses.internal && addresses.internal[vm.name]) || `10.0.5.${100 + index}`;
+  if (vm.network === 'Internal') {
+    // Names match without case, the way hdVmByName does.
+    const internal = addresses.internal || {};
+    const key = Object.keys(internal).find(name => name.toLowerCase() === String(vm.name || '').toLowerCase());
+    return (key && internal[key]) || `10.0.5.${100 + index}`;
+  }
   if (vm.network === 'Host-only') return `${addresses.hostOnly || '192.168.56.'}${101 + index}`;
   return `${addresses.bridged || '10.20.99.'}${150 + index}`;
 }
