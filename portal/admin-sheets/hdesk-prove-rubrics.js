@@ -49,6 +49,31 @@
       writingAck: 'I have read the student\'s rewritten ticket and every reason they wrote.',
       facultyFinal: true,
     },
+    // Module 3: one ticket on Module 1's form with the student setting Class,
+    // Category, Impact, Urgency and the assignment group (matrixFields; the
+    // course page works out Priority), and four pieces of writing. writing:
+    // the extra boxes and their limits, besides the work note and the reply.
+    'lab-its-11-prove-it': {
+      version: 'hdesk-its-11-prove-v1',
+      moduleKey: 'its-11',
+      matrixFields: true,
+      writing: { keyFinding: 600, kbDraft: 4000 },
+      technicalPoints: 100,
+      competencies: [
+        { id: 'triage', label: 'Triage', points: 11 },
+        { id: 'investigation', label: 'Investigation', points: 11 },
+        { id: 'diagnosis', label: 'Diagnosis', points: 11 },
+        { id: 'action', label: 'Action and decision', points: 17 },
+        { id: 'documentation', label: 'Documentation and communication', points: 50 },
+      ],
+      // Feedback only; never adds or removes points. A warm handoff is shown
+      // as "exceeds" and never changes the score.
+      formative: [{ id: 'efficiency', label: 'Efficiency' }],
+      criticalErrorRule: 'A critical error is an automatic zero: the attempt and every competency score 0, and it is returned, never approved. Where the recommendation says "check this", read the student\'s writing and confirm or clear it.',
+      partialCredit: 'Each competency can earn partial credit, justified in the feedback for that competency. Different valid ways of working the ticket earn the same credit. Criteria marked "check this" read the student\'s writing: confirm or change their points.',
+      writingAck: 'I have read the student\'s key finding, handoff note, customer update and KB draft in full.',
+      facultyFinal: true,
+    },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = { HDESK_PROVE_RUBRICS };
   if (typeof window !== 'undefined') window.HDESK_PROVE_RUBRICS = HDESK_PROVE_RUBRICS;

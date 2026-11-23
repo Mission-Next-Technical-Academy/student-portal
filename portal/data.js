@@ -2339,10 +2339,9 @@ const LABS = [
     description: 'An independent Prove It on a queue you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
     skills: ['Ticket Triage', 'Prioritization', 'Documentation'], portalEntry: '#/program/it-support/module/2' }),
   // Module 3's guided lab. Students see it as Lab 3.1; the key is older than
-  // that numbering. Until Module 3's Prove It gates completion it stays the
-  // gating lab (course_module_labs), so it has no `phase: 'practice'`: an
-  // instructor still reviews and approves it.
-  itsLab({ key: 'lab-its-11-handoff-documentation', module: 'its-11', title: 'Lab 3.1 · Guided Lab: a frustrated caller', difficulty: 'Foundational', minutes: 25,
+  // that numbering. Since 2026-11-22 Module 3's Prove It gates completion
+  // (the its11 Prove It migration) and this lab is Practice It.
+  itsLab({ key: 'lab-its-11-handoff-documentation', module: 'its-11', title: 'Lab 3.1 · Guided Lab: a frustrated caller', difficulty: 'Foundational', minutes: 25, phase: 'practice',
     parentAllocations: [allocation('ITHD-101.2', 25)], objective: 'Take a call from a frustrated user: let him finish, ask the questions that set the priority, explain the next step in plain words, hand the ticket to the right team with a note they can act on, and keep the update time you promised.',
     description: 'A coach-guided phone call in the IT Service Desk simulator, each step with a why and what success looks like. Feedback only, no score.',
     skills: ['Documentation', 'Escalation', 'Customer Communication'], portalEntry: '#/program/it-support/module/3' }),
@@ -2354,8 +2353,8 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.2', 20)], objective: 'Work three tickets on your own: settle an upset caller and fix the problem, set an honest expectation on a VIP request that needs approval, and chase a stalled ticket with the team that owns it.',
     description: 'Three unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all three and a completion record is saved to your account.',
     skills: ['Customer Communication', 'Escalation', 'Expectation Setting'], portalEntry: '#/program/it-support/module/3' }),
-  // Module 3's Prove It. The page shows "Opens soon" and launches nothing
-  // until its simulator shift, scoring and gating row are built.
+  // Module 3's Prove It: one ticket (?prove=its-11), scored on the server and
+  // graded by the instructor. It gates Module 3's completion.
   itsLab({ key: 'lab-its-11-prove-it', module: 'its-11', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 30,
     parentAllocations: [allocation('ITHD-101.2', 30)], objective: 'Independently work a new ticket: find what is wrong, decide what to do with it, and write for both the next technician and the user.',
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',

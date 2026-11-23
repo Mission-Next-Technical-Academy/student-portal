@@ -498,8 +498,8 @@ const ITS11_SOURCES = [
 // started. Never answers or a score.
 const ITS11_STATE_ID = 'its11-page-v1';
 // Students see the guided lab as Lab 3.1; its key is older than that
-// numbering. Lab 3.1 is Module 3's gating lab (course_module_labs) until the
-// Prove It opens, so an instructor still reviews it.
+// numbering. Since 2026-11-22 Module 3 completes on its Prove It
+// (course_module_labs, the its11 Prove It migration); Lab 3.1 is Practice It.
 const ITS11_LAB1_KEY = 'lab-its-11-handoff-documentation';
 const ITS11_PRACTICE_KEY = 'lab-its-11-practice-tickets';
 const ITS11_PROVE_KEY = 'lab-its-11-prove-it';
@@ -674,7 +674,7 @@ function its11Lab1() {
   return `<section class="its01-section its01-lab-section" id="its11-lab-3-1" aria-labelledby="its11-lab-3-1-title">
     <div class="its01-section-heading"><span>1</span><div><p class="its01-kicker">Practice It · coached</p><h2 id="its11-lab-3-1-title">${esc(itsLabTitle(ITS11_LAB1_KEY))}</h2></div></div>
     <p class="its01-instruction">Take a call from Wes Turner, whose laptop has been slow for days and who has a deadline today. In the IT Service Desk simulator you greet him, let him finish, ask your questions, set the priority from the facts, put him on a short hold, explain the next step in plain words, hand the ticket to the desktop team with a note they can act on, and keep the update time you promised. A coach guides each step.</p>
-    <p class="its01-instruction">A mood meter shows how he feels. Feedback only, no score. Your instructor reviews your finished call.</p>
+    <p class="its01-instruction">A mood meter shows how he feels. Practice: not graded. Feedback only, no score.</p>
     <a class="itsw-evidence-button" data-its11-console-launch href="${esc(itsCoachLaunchHref(ITS11_COACH_ID, its11User))}" target="_blank" rel="opener">
       <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: ITS11_LAB1_START }[button.mode]}
     </a>
@@ -706,12 +706,24 @@ function its11PracticeTickets() {
   </section>`;
 }
 
-// The Prove It opens nothing yet: its simulator shift isn't built.
+// Module 3's Prove It, on Module 1's and Module 2's pattern: a new ticket in
+// the simulator (?prove=its-11), reviewed by the instructor. Practice It is
+// recommended first, never required. A submitted attempt has nothing left to
+// open. What it shows comes from the server's attempt (itsLabStatus); the
+// simulator reports back by message (itsProveReceiveMessage).
 function its11Prove() {
+  const user = its11User;
+  const returned = itsLabReturned(user, ITS11_PROVE_KEY);
   return `<section class="its01-section its01-lab-section" id="its11-prove-it" aria-labelledby="its11-prove-it-title">
     <div class="its01-section-heading"><span>3</span><div><p class="its01-kicker">Prove It · Assessment Lab · instructor reviewed</p><h2 id="its11-prove-it-title">${esc(itsLabTitle(ITS11_PROVE_KEY))}</h2></div></div>
-    <p class="its01-instruction">Work a new ticket on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Your instructor reviews your work.</p>
-    <p class="its01-lab-status its01-status-pending" data-its11-prove-soon role="status"><i class="ri-time-line" aria-hidden="true"></i> Opens soon. Nothing to do here yet: work Labs 3.1 and 3.2 first.</p>
+    <p class="its01-instruction">Work a new ticket on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Read what is already on the ticket, open the evidence you need, set the ticket fields, decide what happens next, and write for the next team and for the user. Plan on about 30 minutes. Your instructor reviews your work.</p>
+    ${itsLabRail(user, [ITS11_LAB1_KEY]).isComplete ? '' : '<p class="its01-instruction">Work Lab 3.1, the guided lab, first: it prepares you for this.</p>'}
+    ${itsLabSubmitted(user, ITS11_PROVE_KEY) ? '' : `<a class="itsw-evidence-button" data-its11-prove-launch href="${esc(itsProveLaunchHref('its-11', user))}" target="_blank" rel="opener">
+      <i class="${returned ? 'ri-restart-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${returned ? 'Reopen the Prove It' : 'Start the Prove It'}
+    </a>`}
+    ${itsLabStatusHtml(user, ITS11_PROVE_KEY, { label: 'Prove It', prefix: 'its01', pendingText: 'Press Submit in the simulator when you finish the ticket.' })}
+    ${itsLabStatus(user, ITS11_PROVE_KEY) === 'passed' && typeof markedLabLinkHtml === 'function' ? `<p>${markedLabLinkHtml(ITS11_PROVE_KEY, 'See your score and feedback')}</p>` : ''}
+    ${itsRedoNoticeHtml(user, [{ key: ITS11_PROVE_KEY, action: 'Reopen the Prove It, make your changes, then press Resubmit in the simulator. You can resubmit once for each return.' }])}
   </section>`;
 }
 
@@ -1029,7 +1041,13 @@ async function its11SavedPracticeAttempt(user) {
   }
 }
 
+// A Prove It message changed the attempt: show it if this page is open.
+function its11ProveChanged() {
+  if (document.querySelector('.its11-shell')) render();
+}
+
 function its11OnMessage(event) {
+  itsProveReceiveMessage(event, { moduleKey: 'its-11', labKey: ITS11_PROVE_KEY, onChange: its11ProveChanged });
   return Promise.all([its11ReceivePracticeCompletion(event), its11ReceiveCoachCompletion(event)]);
 }
 
