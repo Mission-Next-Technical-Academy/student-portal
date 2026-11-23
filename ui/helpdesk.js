@@ -5639,13 +5639,19 @@ function hdProvePrefillPrinters(summary, machine) {
     if (typeof was.port === 'string' && (hdMachinePort(machine, was.port) || was.port === queue.port)) queue.port = was.port;
     if (typeof was.driver === 'string' && (hdPrinterDrivers(machine, queue).includes(was.driver) || was.driver === hdOutsideDriver(queue))) queue.driver = was.driver;
     if (typeof was.media === 'string' && (queue.mediaSizes || []).includes(was.media)) queue.media = was.media;
-    // The jobs the student's attempt printed stay printed, so a resubmission
-    // never sends them again or shows them queued.
-    const printed = Number(was.printed) || 0;
-    if (was.queued === 0 && printed > 0 && Array.isArray(queue.jobs)) {
-      queue.printed = [...(Array.isArray(queue.printed) ? queue.printed : []), ...queue.jobs.map(job => ({ document:job.document, pages:job.pages || 1, owner:job.owner || '' }))];
-      queue.jobs = [];
-    }
+    // The saved counts back, no more: jobs print in order, so the first ones
+    // the attempt printed are printed again here, its test pages are added,
+    // and only as many jobs as it left queued stay queued (the rest were
+    // cancelled). A resubmission never sends them twice or invents a print.
+    if (!Number.isInteger(was.printed) || !Number.isInteger(was.queued) || !Array.isArray(queue.jobs)) return;
+    const before = Array.isArray(queue.printed) ? queue.printed : [];
+    const tests = Math.max(0, Number.isInteger(was.testPages) ? was.testPages : 0);
+    const labels = Math.max(0, Math.min(queue.jobs.length, was.printed - tests - before.length));
+    const owner = (hdComputerByName(HD_PROVE.shift.selectedComputer) || {}).user || '';
+    queue.printed = [...before, ...queue.jobs.slice(0, labels).map(job => ({ document:job.document, pages:job.pages || 1, owner:job.owner || '' })),
+      ...Array.from({ length:Math.min(tests, 60) }, () => ({ document:'Test Page', pages:1, owner }))];
+    const rest = queue.jobs.slice(labels);
+    queue.jobs = rest.slice(0, Math.max(0, Math.min(rest.length, was.queued)));
   });
 }
 function hdProveExtraPackage(prove) {

@@ -265,7 +265,13 @@ function testPrefillPutsTheQueueBack(saved) {
   assert.equal(queue.driver, saved.machine.printQueues[PRINTER].driver);
   assert.equal(queue.media, saved.machine.printQueues[PRINTER].media);
   assert.equal(queue.jobs.length, 0, 'what the attempt printed stays printed');
-  assert.equal(plain(tab.run('hdProvePackage()')).machine.printQueues[PRINTER].queued, 0, 'a resubmission shows nothing queued again');
+  same(plain(tab.run('hdProvePackage()')).machine, saved.machine, 'a resubmission sends the same queue summary');
+  // A test page printed and the rest cancelled: nothing is invented as printed.
+  const cancelled = plain(lastWork);
+  cancelled.machine.printQueues[PRINTER] = { ...saved.machine.printQueues[PRINTER], queued: 0, printed: 1, testPages: 1 };
+  const third = sim('its-02', 'stu-prefill-cancelled');
+  assert.equal(third.run('hdProvePrefill')(cancelled), true);
+  same(plain(third.run('hdProvePackage()')).machine.printQueues[PRINTER], cancelled.machine.printQueues[PRINTER], 'only what was printed');
   same(tab.prove().fields, saved.fields, 'every field');
   // Values the computer no longer offers are not taken.
   const stale = plain(lastWork);
