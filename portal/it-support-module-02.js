@@ -59,7 +59,6 @@ const ITS02_LESSONS = [
         'A **snapshot** is a checkpoint before a risky change. It is not a backup.',
         '**Containers** package one app and share the host’s operating system, so they’re lighter than VMs.',
       ] },
-      { diagram: 'cloud' },
       { h5: 'The cloud' },
       { p: 'The **cloud** is someone else’s data centre, used over the internet and paid for by use. Three models differ in how much you manage:' },
       { ul: [
@@ -67,6 +66,7 @@ const ITS02_LESSONS = [
         '**PaaS** gives you a ready platform for your own code.',
         '**SaaS** is a finished app you just use, like Microsoft 365 or ServiceNow.',
       ] },
+      { diagram: 'cloud' },
       { p: '**Public**, **private**, **hybrid** and **community** clouds differ in who shares the infrastructure. Northstar is hybrid: its own on-site servers plus Microsoft 365.' },
       { p: 'Exam words to know: shared resources, **rapid elasticity** (grows and shrinks with demand), **metered utilization** (pay for what you use), high availability, and **file synchronization** (OneDrive).' },
       { p: 'For support, SaaS means the vendor fixes the service. So your first job is telling a vendor outage from a problem on the user’s own computer.' },
@@ -119,6 +119,7 @@ const ITS02_LESSONS = [
           ['`Test-NetConnection 10.20.70.20 -Port 9100`', 'Whether this computer can reach the printer on its print port (`TcpTestSucceeded : True`)', 'No'],
         ],
       } },
+      { p: 'Three words in the table come back in Lesson 4.4. The **Print Spooler** is the Windows service every print job passes through. A **port** is the address and channel the computer uses to reach the printer. The **driver** translates documents for that printer.' },
       { p: 'Commands are a job skill, and a head start on A+ Core 2. Core 1 tests what they reveal (ports, drivers, connectivity), not the commands themselves.' },
       { p: 'In this module the coach shows each command in full, so you can type it exactly.' },
       { check: 'build' },
@@ -195,7 +196,7 @@ const ITS02_LESSONS = [
       { h5: 'Print quality' },
       { p: 'Smears, streaks, faded or blank pages are usually a supply or a part. The printer’s **supplies page** shows what’s low. Hardware repairs go to the print vendor.' },
     ],
-    comingUp: 'Fix a stuck queue and an offline printer in Lab 4.3, then take the A+ check.',
+    comingUp: 'Take the A+ check below, then fix a stuck queue and an offline printer in Lab 4.3.',
   },
 ];
 
@@ -204,12 +205,6 @@ const ITS02_CARD_SORT = {
   intro: 'Put each service in the box that matches how much you manage: pick a box under each card. Knowing who manages what tells you who fixes it. Not graded: a wrong box tells you why, and you try again.',
   buckets: ['SaaS', 'IaaS', 'PaaS'],
   cards: [
-    { id: 'm365', label: 'Microsoft 365', answer: 'SaaS',
-      why: 'Microsoft 365 is a finished app you just use, and the vendor runs everything behind it. Knowing who manages what tells you who fixes it: when it breaks, you check for a vendor outage first.',
-      ifWrong: {
-        IaaS: 'With this model you rent servers and storage, and you manage the operating system yourself. Nobody sets up a server to use Microsoft 365.',
-        PaaS: 'With this model a team brings its own code to run on a ready platform. People using Microsoft 365 aren’t running any code of their own.',
-      } },
     { id: 'azure-vm', label: 'An Azure VM', answer: 'IaaS',
       why: 'An Azure VM is a rented server. You manage its operating system, and the vendor manages the hardware. Knowing who manages what tells you who fixes it: a bad Windows setting on that VM is yours.',
       ifWrong: {
@@ -221,6 +216,12 @@ const ITS02_CARD_SORT = {
       ifWrong: {
         SaaS: 'With this model there is no code of your own to run: you just use a finished app. A web-app platform needs you to bring the code.',
         IaaS: 'With this model you rent a bare server and manage its operating system yourself. This service already manages the operating system for you.',
+      } },
+    { id: 'm365', label: 'Microsoft 365', answer: 'SaaS',
+      why: 'Microsoft 365 is a finished app you just use, and the vendor runs everything behind it. Knowing who manages what tells you who fixes it: when it breaks, you check for a vendor outage first.',
+      ifWrong: {
+        IaaS: 'With this model you rent servers and storage, and you manage the operating system yourself. Nobody sets up a server to use Microsoft 365.',
+        PaaS: 'With this model a team brings its own code to run on a ready platform. People using Microsoft 365 aren’t running any code of their own.',
       } },
   ],
 };
