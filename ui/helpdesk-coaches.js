@@ -529,11 +529,12 @@
         check: () => hd2Triaged(HD2_SERVER_TICKET, 'Software', 'Virtual desktop (VDI)', 'VDI-POOL-MKTG', 'P4'),
       },
       {
-        route: '#/helpdesk/virtual-desktops', target: '[data-hd-vdi]',
+        route: '#/helpdesk/ticket', target: '[data-hd-vdi-open], [data-hd-vdi]',
         title: 'Check the whole pool',
         instruction: 'Open the <strong>Virtual Desktops</strong> screen from the ticket and look at every session in VDI-POOL-MKTG.',
         body: 'Why: scope first. One user, or the whole pool? Success looks like: the other sessions are Active; Leah’s is “Disconnected – hung, 9 h”.',
-        continueLabel: 'Got it',
+        waitLabel: 'Next Step: Pool checked',
+        check: () => hd2Did(HD2_SERVER_TICKET, 'vdi-viewed'),
       },
       {
         route: '#/helpdesk/ticket', target: '.hd-kb-search, #hd-kb-input',

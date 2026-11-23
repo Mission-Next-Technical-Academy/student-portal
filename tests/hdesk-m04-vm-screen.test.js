@@ -347,6 +347,18 @@ function testANewSignInGetsTheServerCopy() {
   const waiting = sim({ opener: silent });
   waiting.flush();
   assert.match(waiting.view('helpdesk/vm-manager'), /didn’t confirm/);
+  // A change after that asks for the saved VMs again; it never sends this
+  // tab's copy over VMs saved elsewhere.
+  waiting.run('hdVmNew()');
+  waiting.flush(1000);
+  assert.deepEqual(silent.sent.map((m) => m.data.type), ['mnt-vm-state', 'mnt-vm-state']);
+  waiting.deliver({ type: 'mnt-vm-state-reply', id: 'test-vm', nonce: silent.sent[1].data.nonce, saved: true, state: server });
+  assert.deepEqual(waiting.state().vms.map((v) => v.name), ['TEST-CLI'], 'the saved VMs win');
+  assert.match(waiting.lastToast(), /Changes made in this tab before they loaded were replaced/);
+  waiting.run("hdVmSnapshot('TEST-CLI', 'After')");
+  waiting.flush(1000);
+  assert.equal(silent.sent[2].data.type, 'mnt-vm-save', 'then changes are sent');
+  assert.equal(silent.sent[2].data.state.vms[0].snapshots.slice(-1)[0].name, 'After');
   // A malformed saved copy in this browser is dropped, not trusted.
   const bad = store([[`defender-lab.helpdesk.vm.v1.test-vm.${STUDENT}`, JSON.stringify({ version: 1, lab: 'test-vm', vms: [{ name: '<script>' }, { name: 'OK-1', memoryGb: 999, network: 'Wormhole' }] })]]);
   const cleaned = sim({ local: bad });

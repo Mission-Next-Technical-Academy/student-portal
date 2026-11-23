@@ -4100,8 +4100,22 @@ function hdConsoleMachinesCard(ticket) {
   const vdi = hdConsole(ticket).vdi && hdVdiPools().length;
   if (!names.length && !vdi) return '';
   const buttons = names.map(name => `<button type="button" class="btn btn-secondary" onclick="hdSelectComputer('${hdJsArg(name)}','#/helpdesk/windows')">Open ${hdEsc(name)}</button>`).join('');
-  return `<div class="card hd-computer" data-hd-machines><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Computers and desktops</strong><span class="muted">Tools open on the computer you choose</span></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:8px">${buttons}${vdi ? `<button type="button" class="btn btn-secondary" onclick="navigate('#/helpdesk/virtual-desktops')">Virtual Desktops</button>` : ''}</div></div></div>`;
+  return `<div class="card hd-computer" data-hd-machines><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Computers and desktops</strong><span class="muted">Tools open on the computer you choose</span></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:8px">${buttons}${vdi ? `<button type="button" class="btn btn-secondary" data-hd-vdi-open onclick="hdVdiOpen()">Virtual Desktops</button>` : ''}</div></div></div>`;
 }
+// Opening the pools from a ticket is the scope check: recorded once per
+// ticket (action vdi-viewed), so feedback and a coach can read it.
+function hdVdiOpen() {
+  hdVdiPools().forEach(pool => {
+    const ticket = hdTicketById(pool.ticketId); if (!ticket) return;
+    const state = hdConsoleState(ticket);
+    if (state.actions.some(action => action.id === 'vdi-viewed' && action.pool === pool.name)) return;
+    state.actions.push({ id:'vdi-viewed', time:hdConsoleTime(ticket), pool:pool.name });
+    hdPracticeEvent('action_taken', { ticket:ticket.id, action:'vdi-viewed', pool:pool.name });
+  });
+  hdSave();
+  navigate('#/helpdesk/virtual-desktops');
+}
+window.hdVdiOpen = hdVdiOpen;
 // A late message can wait for a machine value (arrival when.machine).
 function hdMachineValueIs(rule) {
   if (!rule || typeof rule !== 'object' || !Array.isArray(rule.path)) return false;
@@ -4162,7 +4176,7 @@ function hdVmKey() { return `defender-lab.helpdesk.vm.v1.${HD_VM.key}.${HD_VM.st
 function hdVmFresh() { return { version:1, lab:HD_VM ? HD_VM.key : '', vms:[], form:null, selected:'', modesViewed:[], cpuSeen:false, taskTab:'processes', savedAt:'' }; }
 // The sync status: phase 'asking' until the course page answers (or not);
 // unsynced: the savedAt the server hasn't confirmed; status for the line.
-let hdVmSync = { phase:'asking', status:'', unsynced:'', loadedUnsynced:'', sending:false, timer:0 };
+let hdVmSync = { phase:'asking', status:'', unsynced:'', loadedUnsynced:'', sending:false, timer:0, serverSeen:false, asked:0 };
 let hdVm = null;
 let hdVmConsoleLines = {};
 function hdVmUnsyncedKey() { return `${hdVmKey()}.unsynced`; }
@@ -4272,6 +4286,9 @@ function hdVmAsk(type, extra, replyType, done) {
 }
 function hdVmSend() {
   if (!HD_VM || hdVmSync.phase !== 'ready' || !hdVmSync.unsynced || hdVmSync.sending) return;
+  // Never answered with the saved VMs (a timeout, or signed out then): ask
+  // again first, so this tab's copy can't replace VMs saved elsewhere.
+  if (!hdVmSync.serverSeen) { hdVmAskServer(); return; }
   const sentAt = hdVmSync.unsynced;
   hdVmSync.sending = true;
   hdVmAsk('mnt-vm-save', { state:hdVmSummary() }, 'mnt-vm-received', (reply, reason) => {
@@ -4290,13 +4307,20 @@ function hdVmAskServer() {
   if (!HD_VM) return;
   hdVmState();
   hdVmSync.phase = 'asking';
+  hdVmSync.asked = (hdVmSync.asked || 0) + 1;
   hdVmAsk('mnt-vm-state', {}, 'mnt-vm-state-reply', (reply, reason) => {
     hdVmSync.phase = 'ready';
     if (!reply) { hdVmSync.status = reason === 'closed' ? 'closed' : 'unconfirmed'; hdVmRefresh(); return; }
     if (reply.saved === false && reply.reason) { hdVmSync.status = reply.reason; hdVmRefresh(); return; }
+    const later = hdVmSync.asked > 1;
+    hdVmSync.serverSeen = true;
     const server = hdVmClean(reply.state);
     const local = hdVm;
-    const localNewer = Boolean(hdVmSync.loadedUnsynced) && (!server || !server.savedAt || hdVmSync.loadedUnsynced > server.savedAt);
+    // A later answer (after a timeout) treats this tab's changes like an
+    // unconfirmed save from an earlier visit only if the account has none.
+    const localNewer = (Boolean(hdVmSync.loadedUnsynced) && (!server || !server.savedAt || hdVmSync.loadedUnsynced > server.savedAt))
+      || (later && (!server || !server.vms.length));
+    if (later && server && server.vms.length && !localNewer && hdVmSync.unsynced) toast('Your VMs saved to your course were loaded. Changes made in this tab before they loaded were replaced.');
     if (server && server.lab === HD_VM.key && !localNewer) {
       // The view the student is on (Task Manager tab) stays this tab's own.
       hdVm = { ...server, taskTab:local.taskTab };

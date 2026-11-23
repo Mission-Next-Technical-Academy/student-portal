@@ -1,12 +1,11 @@
 /* Module 04 (key its-02; was Module 02 before the 2026-11 reorder) — IT Help Desk & Career Accelerator ('it-support').
- * Fictional scenarios; no real systems involved beyond the student's own VM
- * build. Labs 4.1/4.2 are physical, evidence-based labs (the student's own
- * VirtualBox build) — unchanged from the original design. Labs 4.3/4.4 are a
- * single guided walkthrough of two real print-driver tickets ('hd-m02') in
- * the IT Service Desk simulator (ui/helpdesk.js + ui/coach.js), the same
- * coach engine Module 1's Lab 1.2 and SOC's Module 1 already use — not a
- * portal-embedded Device Manager/Print Spooler widget. Lesson content
- * sourced from Module_2_Student_Content.docx.
+ * Fictional scenarios only. From 2026-11-23 every lab runs in the IT Service
+ * Desk simulator (ui/helpdesk.js + ui/coach.js): Lab 4.1 (coach hd-m02-vm)
+ * and Lab 4.2 (hd-m02-server) build simulated VMs, checked and not graded;
+ * Lab 4.3 (hd-m02) works one printer and peripherals ticket; Lab 4.4 is the
+ * practice set ?practice=its-02. Earlier evidence uploads for Labs 4.1 and
+ * 4.2 still open. The lesson text is still the older content (sourced from
+ * Module_2_Student_Content.docx) until the page part rebuilds this file.
  */
 
 const ITS02_SOURCES = [
@@ -432,6 +431,8 @@ const ITS02_LAB_DONE = {
     return Boolean(client && server && ticket) && client.snapshots.length > 0 && client.restored > 0 && server.installed && server.image === 'winsrv'
       && client.pings.some((p) => p.ok && p.to === '10.0.5.10') && server.pings.some((p) => p.ok && p.to === '10.0.5.20') && ticket.status === 'Resolved';
   },
+    // The coach checks the printer, camera and dock steps in order before
+  // Finish; the saved work keeps no action list, so the page checks the end.
   'hd-m02': (work) => { const ticket = its02TicketIn(work, 'HD-2134'); return Boolean(ticket) && ticket.status === 'Resolved'; },
 };
 

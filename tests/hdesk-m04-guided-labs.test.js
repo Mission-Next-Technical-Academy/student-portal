@@ -320,7 +320,11 @@ function testLab42(local) {
   at(tab, 6, 'V1 waits for the triage');
   tab.triage(LEAH, 'Software', 'Virtual desktop (VDI)', 'VDI-POOL-MKTG', '3', '2');
   assert.equal(tab.ticket(LEAH).priority, 'P4');
-  // V2: the pool, a "Got it" step.
+  // V2: the pool, opened from the ticket (recorded as vdi-viewed).
+  tab.advance();
+  assert.equal(tab.coachStep(), 7, 'V2 waits until the pool is opened from the ticket');
+  assert.match(tab.open(LEAH), /data-hd-vdi-open/);
+  tab.run('hdVdiOpen()');
   html = tab.view('helpdesk/virtual-desktops');
   assert.match(html, /data-hd-vdi="VDI-POOL-MKTG"/);
   assert.match(html, /4 of 5 sessions Active/);

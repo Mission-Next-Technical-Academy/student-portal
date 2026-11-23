@@ -275,7 +275,8 @@ function work4D(tab) {
   tab.open(id);
   tab.triage(id, 'Software', 'Virtual desktop (VDI)', 'VDI-POOL-CLAIMS', '3', '2');
   assert.equal(tab.ticket(id).priority, 'P4');
-  // Scope: the pool first.
+  // Scope: the pool first, opened from the ticket.
+  tab.run('hdVdiOpen()');
   const html = tab.view('helpdesk/virtual-desktops');
   assert.match(html, /data-hd-vdi="VDI-POOL-CLAIMS"/);
   assert.match(html, /12 of 13 sessions Active/);
