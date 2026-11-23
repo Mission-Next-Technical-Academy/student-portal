@@ -600,9 +600,11 @@
     const describe = (vm) => `${VM_IMAGES[vm.image] || vm.image || 'no image'} · ${vm.memoryGb} GB · ${vm.cores} cores · ${vm.diskGb} GB ${vm.diskType === 'fixed' ? 'fixed' : 'dynamic'} disk · ${vm.network} · ${vm.installed ? 'installed' : 'not installed'}`;
     const pings = (vm) => (Array.isArray(vm.pings) ? vm.pings : []).map((p) => `${p.to} on ${p.mode || '?'}: ${p.ok ? 'replies' : 'timed out'}`);
     const client = find('NS-TEST-W11');
-    const checks = Object.keys(VM_TARGET).map((field) => ({
+    // Lab 4.2 moves the client to Internal on purpose, so its network isn't checked there.
+    const fields = Object.keys(VM_TARGET).filter((field) => ctx.row.lab_key === 'lab-its-02-vm-build' || field !== 'network');
+    const checks = fields.map((field) => ({
       label: `NS-TEST-W11 ${field}`, expected: String(VM_TARGET[field]),
-      test: () => (client ? (ctx.row.lab_key === 'lab-its-02-vm-build' || field !== 'network' ? client[field] === VM_TARGET[field] : null) : null),
+      test: () => (client ? client[field] === VM_TARGET[field] : null),
       given: () => (client ? String(client[field]) : 'No VM named NS-TEST-W11'),
       fix: `Set NS-TEST-W11's ${field} to ${VM_TARGET[field]}.`,
     }));
