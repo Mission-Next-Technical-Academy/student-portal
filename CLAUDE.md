@@ -1,6 +1,6 @@
 # Student portal: core agent rules
 
-Updated 2026-11-19. Always loaded, for every agent. Domain rules live in
+Updated 2026-11-23. Always loaded, for every agent. Domain rules live in
 `.claude/rules/` and load by file path in Claude Code. Other agents: open the
 matching file from the index at the bottom before editing those paths.
 
@@ -60,6 +60,7 @@ matching file from the index at the bottom before editing those paths.
 ### Git and review
 
 - Branch from current `master`. One track or one shared task per PR.
+- Autopilot exception: a module part may branch from the open PR branch of the part before it. Open it as a draft (`gh pr create --draft`); a person merges the parts in order.
 - Never push to `master` or `staging`, and never force-push.
 - Never merge. A person merges on GitHub, using squash and merge.
 - Never use the `pull_request_target` workflow trigger.
