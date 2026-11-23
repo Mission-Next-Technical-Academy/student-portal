@@ -45,10 +45,16 @@
     'hd-m09': ['SEC-2114', 'SEC-2115'],
     'hd-m10': ['HD-2158', 'HD-2159', 'HD-2160', 'SR-2161', 'HD-2162', 'SEC-2163'],
     'hd-m11': ['HD-2164'],
+    // Module 4 (key its-02) Lab 4.1 builds a VM and works no ticket. An
+    // empty list, not a missing one: no tickets are sent.
+    'hd-m02-vm': [],
   };
+  // Coaches whose work includes the student's VMs (ui/helpdesk.js VM screen).
+  const HD_VM_COACHES = ['hd-m02-vm', 'hd-m02-server'];
   function hdCollectCoachWork(coach) {
     if (typeof hdState === 'undefined' || !Array.isArray(hdState.tickets)) return null;
     const ids = HD_COACH_TICKET_IDS[coach && coach.id];
+    const vm = coach && HD_VM_COACHES.includes(coach.id) && typeof hdVmSummary === 'function' ? hdVmSummary() : null;
     const tickets = hdState.tickets.filter((ticket) => Boolean(ids) && ids.includes(ticket.id));
     // Module 2's guided queue: the student's work order lives on the shift.
     const queue = coach && coach.id === 'hd-m10' && Array.isArray(hdState.workOrder)
@@ -58,6 +64,7 @@
     return {
       version: 1,
       ...(investigation ? { investigation } : {}),
+      ...(vm ? { vm } : {}),
       ...queue,
       selectedTicketId: hdState.selectedTicketId || '',
       tickets: tickets.map((ticket) => ({
@@ -964,7 +971,8 @@
 
   // coach.js resets a coach's tickets (resetState) only when it starts it
   // fresh; a reload or a relaunch of an unfinished lab resumes the saved work.
-  MODULE_COACHES.filter((coach) => /^hd-m\d+$/.test(coach.id)).forEach((coach) => {
+  // Module 4's lab coaches add a word: hd-m02-vm, hd-m02-server.
+  MODULE_COACHES.filter((coach) => /^hd-m\d+(-[a-z]+)?$/.test(coach.id)).forEach((coach) => {
     coach.collectWork = () => hdCollectCoachWork(coach);
     coach.resumeAcrossLaunches = true;
   });

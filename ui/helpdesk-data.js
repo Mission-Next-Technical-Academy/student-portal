@@ -218,6 +218,11 @@ const HD_COACHED_SETS = {
   'its-11-guided': { title:'Lab 3.1 · Guided Lab: a frustrated caller', tickets:['HD-2164'], now:'2026-08-19T10:10:00Z' },
 };
 
+// VM labs (ui/helpdesk.js "VM screen"): the simulated host, its install
+// images and the coaches that turn the VM Manager on. The VMs themselves are
+// the student's own, never listed here.
+const HD_VM_LABS = {};
+
 // Categories for the Module 2 queue tickets; each ticket adds its own CI list.
 const HD_M02_CATEGORIES = {
   Software:['Phone app', 'Email', 'Browser'],

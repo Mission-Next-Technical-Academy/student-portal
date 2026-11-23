@@ -875,6 +875,7 @@ VIEWS['helpdesk/dashboard'] = () => {
     <div class="two-col hd-dashboard-grid">
       <div class="card"><div class="card-header"><strong>Priority work</strong><button class="btn btn-ghost btn-sm" onclick="navigate('#/helpdesk/tickets')">View all</button></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Priority</th><th>Requester</th><th>Issue</th><th>Status</th><th>SLA</th><th>Owner</th></tr></thead><tbody>${hdQueueRows(urgent)}</tbody></table></div></div>
       <div class="hd-side-stack">
+        ${hdVmDashboardCard()}
         ${HD_PROVE || !correlated ? '' : `<div class="card hd-correlation"><div class="card-header"><strong>Correlation opportunity</strong>${hdBadge(`${cluster.length} reports`,'warn')}</div><div class="card-body"><h3>Purchasing sign-in failures</h3><p>Users in five departments report the same secure-connection error. Treat the shared timing and evidence as a possible broader incident.</p><button class="btn btn-primary btn-sm" onclick="hdSelectTicket('${cluster[0] ? cluster[0].id : ''}')">Investigate cluster</button></div></div>`}
         <div class="card"><div class="card-header"><strong>Shift discipline</strong></div><div class="card-body">${hdList(['Prioritize business impact and urgency','Own every handoff until accepted','Preserve security evidence','Verify fixes from the user perspective','Close with complete resolution notes'])}</div></div>
       </div>
@@ -4111,6 +4112,491 @@ function hdMachineValueIs(rule) {
 window.hdOpenMachineScreen=hdOpenMachineScreen; window.hdQueueToggle=hdQueueToggle; window.hdQueueCancel=hdQueueCancel; window.hdQueueClearStuck=hdQueueClearStuck;
 window.hdQueueTestPage=hdQueueTestPage; window.hdPrinterSet=hdPrinterSet; window.hdPrinterTab=hdPrinterTab; window.hdSettingsAddByIp=hdSettingsAddByIp;
 window.hdDeviceOpen=hdDeviceOpen; window.hdDeviceDriver=hdDeviceDriver; window.hdDockDo=hdDockDo; window.hdVdiLogOff=hdVdiLogOff; window.hdVdiRestartPool=hdVdiRestartPool;
+
+/* ---------- VM screen (added for Module 4, key its-02) ----------
+ * A VirtualBox-style VM Manager on a simulated host, plus Task Manager ›
+ * Performance › CPU on that host. Off unless a lab in HD_VM_LABS
+ * (ui/helpdesk-data.js) lists the coach this tab runs (?coach=, or the coach
+ * a reload resumes). Nothing is installed and it isn't real Windows: the
+ * student's settings are data, and the coach's checks read them.
+ *   HD_VM_LABS['<key>'] = { coaches:[ids], host:{ name, ramGb, cores, cpu,
+ *     virtualization }, images:[{ id, label, kind:'client'|'server', minRamGb,
+ *     os }], addresses:{ internal:{ '<vm name>':'<ip>' }, nat, hostOnly,
+ *     bridged }, modes:{ '<mode>':'<what it means>' }, shortcut, finishCards:
+ *     [{ title, text }] }
+ * The VMs are the student's own, never seeded. They are saved in this
+ * browser per student (defender-lab.helpdesk.vm.v1.<student>), and to the
+ * student's account through the course page that opened this tab: each
+ * change sends mnt-vm-save (answered by mnt-vm-received), and at launch the
+ * tab asks with mnt-vm-state (answered by mnt-vm-state-reply). The server
+ * copy wins, unless this browser holds a newer save the server never
+ * confirmed. Nothing is sent before that first answer (or its timeout), so
+ * an empty screen after a new sign-in can't overwrite the saved VMs. */
+const HD_VM_MODES = ['NAT', 'Bridged', 'Internal', 'Host-only'];
+const HD_VM_INSTALL_MS = 4000;
+const HD_VM_REPLY_MS = 8000;
+const HD_VM_SAVE_DELAY_MS = 600;
+const HD_VM_MAX = 4;
+function hdVmLabs() { return typeof HD_VM_LABS === 'undefined' || !HD_VM_LABS ? {} : HD_VM_LABS; }
+// The lab this tab runs: the one whose coaches include the launching coach.
+const HD_VM = (() => {
+  if (HD_PROVE || HD_PRACTICE_SET) return null;
+  const labs = hdVmLabs();
+  let coach = '';
+  try { coach = new URLSearchParams(location.search).get('coach') || ''; } catch (_) { coach = ''; }
+  if (!coach) { try { const saved = JSON.parse(sessionStorage.getItem('mnt.coach.state') || 'null'); coach = saved && typeof saved.id === 'string' ? saved.id : ''; } catch (_) { coach = ''; } }
+  const key = Object.keys(labs).find(name => Array.isArray(labs[name].coaches) && labs[name].coaches.includes(coach));
+  if (!key) return null;
+  // ui/coach.js removes student= once the page loads; a reload finds it here.
+  const remembered = 'defender-lab.helpdesk.vm.student';
+  let student = '';
+  try { student = new URLSearchParams(location.search).get('student') || ''; } catch (_) { student = ''; }
+  student = student.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+  try {
+    if (student) sessionStorage.setItem(remembered, student);
+    else student = (sessionStorage.getItem(remembered) || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+  } catch (_) { /* storage blocked: this load only */ }
+  return { key, lab:labs[key], student };
+})();
+function hdVmKey() { return `defender-lab.helpdesk.vm.v1.${HD_VM.key}.${HD_VM.student || 'anonymous'}`; }
+function hdVmFresh() { return { version:1, lab:HD_VM ? HD_VM.key : '', vms:[], form:null, selected:'', modesViewed:[], cpuSeen:false, taskTab:'processes', savedAt:'' }; }
+// The sync status: phase 'asking' until the course page answers (or not);
+// unsynced: the savedAt the server hasn't confirmed; status for the line.
+let hdVmSync = { phase:'asking', status:'', unsynced:'', loadedUnsynced:'', sending:false, timer:0 };
+let hdVm = null;
+let hdVmConsoleLines = {};
+function hdVmUnsyncedKey() { return `${hdVmKey()}.unsynced`; }
+
+// The same rules the course page applies (portal/it-support-shared.js
+// itsCleanVmState): known fields only, bounded. Anything else is dropped.
+function hdVmCleanVm(vm) {
+  if (!vm || typeof vm !== 'object' || typeof vm.name !== 'string' || !/^[A-Za-z0-9-]{1,15}$/.test(vm.name)) return null;
+  const int = (value, min, max, fallback) => Number.isInteger(value) && value >= min && value <= max ? value : fallback;
+  const snapshots = Array.isArray(vm.snapshots) ? vm.snapshots.slice(0, 5).filter(item => item && typeof item.name === 'string' && item.name.trim()).map(item => ({ name:item.name.slice(0, 40), shortcut:item.shortcut !== false, at:typeof item.at === 'string' ? item.at.slice(0, 40) : '' })) : [];
+  const pings = Array.isArray(vm.pings) ? vm.pings.slice(-20).filter(item => item && typeof item.to === 'string').map(item => ({ to:item.to.slice(0, 40), ok:item.ok === true, mode:HD_VM_MODES.includes(item.mode) ? item.mode : '' })) : [];
+  return {
+    name:vm.name, image:typeof vm.image === 'string' && /^[a-z0-9-]{1,20}$/.test(vm.image) ? vm.image : '',
+    memoryGb:int(vm.memoryGb, 1, 64, 1), cores:int(vm.cores, 1, 16, 1), diskGb:int(vm.diskGb, 1, 2048, 64),
+    diskType:vm.diskType === 'fixed' ? 'fixed' : 'dynamic', network:HD_VM_MODES.includes(vm.network) ? vm.network : 'NAT',
+    state:['Off', 'Installing', 'Running'].includes(vm.state) ? vm.state : 'Off', installed:vm.installed === true,
+    installStartedAt:Number.isFinite(vm.installStartedAt) ? vm.installStartedAt : 0, shortcut:vm.shortcut !== false,
+    snapshots, pings, restored:int(vm.restored, 0, 99, 0), shortcutDeleted:vm.shortcutDeleted === true,
+  };
+}
+function hdVmCleanForm(form) {
+  if (!form || typeof form !== 'object') return null;
+  const int = (value, min, max, fallback) => Number.isInteger(value) && value >= min && value <= max ? value : fallback;
+  return {
+    name:typeof form.name === 'string' ? form.name.replace(/[^A-Za-z0-9-]/g, '').slice(0, 15) : '',
+    image:typeof form.image === 'string' && /^[a-z0-9-]{0,20}$/.test(form.image) ? form.image : '',
+    memoryGb:int(form.memoryGb, 1, 64, 2), cores:int(form.cores, 1, 16, 1), diskGb:int(form.diskGb, 1, 2048, 32),
+    diskType:form.diskType === 'fixed' ? 'fixed' : (form.diskType === 'dynamic' ? 'dynamic' : ''),
+    network:HD_VM_MODES.includes(form.network) ? form.network : '', lowRamSeen:form.lowRamSeen === true,
+  };
+}
+function hdVmClean(state) {
+  if (!state || typeof state !== 'object' || state.version !== 1) return null;
+  const vms = Array.isArray(state.vms) ? state.vms.slice(0, HD_VM_MAX).map(hdVmCleanVm).filter(Boolean) : [];
+  const names = new Set();
+  return {
+    version:1, lab:typeof state.lab === 'string' ? state.lab.slice(0, 20) : '',
+    vms:vms.filter(vm => (names.has(vm.name.toLowerCase()) ? false : names.add(vm.name.toLowerCase()))),
+    form:hdVmCleanForm(state.form), selected:typeof state.selected === 'string' ? state.selected.slice(0, 15) : '',
+    modesViewed:Array.isArray(state.modesViewed) ? HD_VM_MODES.filter(mode => state.modesViewed.includes(mode)) : [],
+    viewMode:HD_VM_MODES.includes(state.viewMode) ? state.viewMode : '',
+    cpuSeen:state.cpuSeen === true, taskTab:['processes', 'performance'].includes(state.taskTab) ? state.taskTab : 'processes',
+    savedAt:typeof state.savedAt === 'string' ? state.savedAt.slice(0, 40) : '',
+  };
+}
+// What leaves the tab: the VM summary only (no ticket data, no console text).
+function hdVmSummary() {
+  if (!HD_VM) return null;
+  const state = hdVmState();
+  const { taskTab, ...summary } = hdClone(state);
+  return summary;
+}
+function hdVmState() {
+  if (!HD_VM) return null;
+  if (!hdVm) {
+    let saved = null;
+    try { saved = hdVmClean(JSON.parse(localStorage.getItem(hdVmKey()) || 'null')); } catch (_) { saved = null; }
+    hdVm = saved && saved.lab === HD_VM.key ? saved : hdVmFresh();
+    try { hdVmSync.unsynced = localStorage.getItem(hdVmUnsyncedKey()) || ''; } catch (_) { hdVmSync.unsynced = ''; }
+    // Only a save from an earlier visit that the server never confirmed can
+    // beat the server copy; a change made while the first answer is on its
+    // way can't.
+    hdVmSync.loadedUnsynced = saved && hdVmSync.unsynced && saved.savedAt === hdVmSync.unsynced ? hdVmSync.unsynced : '';
+  }
+  // An install that ran its time while the tab was away finishes now.
+  hdVm.vms.forEach(vm => { if (vm.state === 'Installing' && hdNowMs() - vm.installStartedAt >= HD_VM_INSTALL_MS) hdVmFinishInstall(vm.name, true); });
+  return hdVm;
+}
+function hdVmImage(id) { return (HD_VM && Array.isArray(HD_VM.lab.images) ? HD_VM.lab.images : []).find(image => image.id === id) || null; }
+function hdVmByName(name) { const state = hdVmState(); return state ? state.vms.find(vm => vm.name.toLowerCase() === String(name || '').toLowerCase()) || null : null; }
+function hdVmHost() { const host = HD_VM && HD_VM.lab.host || {}; return { name:host.name || 'Host PC', ramGb:host.ramGb || 16, cores:host.cores || 8, cpu:host.cpu || 'Simulated CPU', virtualization:host.virtualization || 'Enabled' }; }
+// Every guest's share comes out of the host, including the one being made.
+function hdVmRamUsed() { const state = hdVmState(); return state.vms.reduce((sum, vm) => sum + vm.memoryGb, 0) + (state.form ? state.form.memoryGb : 0); }
+function hdVmRamLeft() { return hdVmHost().ramGb - hdVmRamUsed(); }
+
+// Saved here at once; to the server after a short pause, once the first
+// answer is in.
+function hdVmSave() {
+  if (!HD_VM || !hdVm) return;
+  hdVm.savedAt = new Date().toISOString();
+  try { localStorage.setItem(hdVmKey(), JSON.stringify(hdVm)); localStorage.setItem(hdVmUnsyncedKey(), hdVm.savedAt); } catch (_) { /* storage blocked */ }
+  hdVmSync.unsynced = hdVm.savedAt;
+  hdVmQueueSend();
+}
+function hdVmOpener() { return window.opener && !window.opener.closed ? window.opener : null; }
+function hdVmNonce() { return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`; }
+function hdVmQueueSend() {
+  if (hdVmSync.phase !== 'ready' || !hdVmSync.unsynced) return;
+  clearTimeout(hdVmSync.timer);
+  hdVmSync.timer = setTimeout(hdVmSend, HD_VM_SAVE_DELAY_MS);
+}
+function hdVmAsk(type, extra, replyType, done) {
+  const opener = hdVmOpener();
+  if (!opener) { done(null, 'closed'); return; }
+  const origin = hdPortalOrigin();
+  const nonce = hdVmNonce();
+  let timer = 0;
+  function onReply(event) {
+    const data = event.data;
+    if (event.source !== opener || event.origin !== origin) return;
+    if (!data || data.type !== replyType || data.id !== HD_VM.key || data.nonce !== nonce) return;
+    clearTimeout(timer); window.removeEventListener('message', onReply); done(data, '');
+  }
+  window.addEventListener('message', onReply);
+  timer = setTimeout(() => { window.removeEventListener('message', onReply); done(null, 'unconfirmed'); }, HD_VM_REPLY_MS);
+  opener.postMessage({ type, id:HD_VM.key, nonce, student:HD_VM.student, ...extra }, origin);
+}
+function hdVmSend() {
+  if (!HD_VM || hdVmSync.phase !== 'ready' || !hdVmSync.unsynced || hdVmSync.sending) return;
+  const sentAt = hdVmSync.unsynced;
+  hdVmSync.sending = true;
+  hdVmAsk('mnt-vm-save', { state:hdVmSummary() }, 'mnt-vm-received', (reply, reason) => {
+    hdVmSync.sending = false;
+    if (reply && reply.saved === true) {
+      if (hdVmSync.unsynced === sentAt) { hdVmSync.unsynced = ''; try { localStorage.removeItem(hdVmUnsyncedKey()); } catch (_) { /* storage blocked */ } }
+      hdVmSync.status = 'saved';
+    } else hdVmSync.status = (reply && reply.reason) || reason || 'unconfirmed';
+    // A change made while this one was on its way goes next.
+    if (hdVmSync.unsynced && hdVmSync.unsynced !== sentAt) hdVmQueueSend();
+    hdVmRefresh();
+  });
+}
+// At launch: the server copy, unless this browser's newer save never landed.
+function hdVmAskServer() {
+  if (!HD_VM) return;
+  hdVmState();
+  hdVmSync.phase = 'asking';
+  hdVmAsk('mnt-vm-state', {}, 'mnt-vm-state-reply', (reply, reason) => {
+    hdVmSync.phase = 'ready';
+    if (!reply) { hdVmSync.status = reason === 'closed' ? 'closed' : 'unconfirmed'; hdVmRefresh(); return; }
+    if (reply.saved === false && reply.reason) { hdVmSync.status = reply.reason; hdVmRefresh(); return; }
+    const server = hdVmClean(reply.state);
+    const local = hdVm;
+    const localNewer = Boolean(hdVmSync.loadedUnsynced) && (!server || !server.savedAt || hdVmSync.loadedUnsynced > server.savedAt);
+    if (server && server.lab === HD_VM.key && !localNewer) {
+      // The view the student is on (Task Manager tab) stays this tab's own.
+      hdVm = { ...server, taskTab:local.taskTab };
+      try { localStorage.setItem(hdVmKey(), JSON.stringify(hdVm)); localStorage.removeItem(hdVmUnsyncedKey()); } catch (_) { /* storage blocked */ }
+      hdVmSync.unsynced = '';
+      hdVmSync.status = 'saved';
+    } else if (hdVmSync.unsynced) hdVmQueueSend();
+    else hdVmSync.status = 'saved';
+    hdVmRefresh();
+  });
+}
+function hdVmRefresh() { if (typeof render === 'function') render(); }
+function hdVmSaveLine() {
+  const line = {
+    closed:'Open this lab from the course page to save your VMs. Until then they are kept in this browser only.',
+    'signed-out':'You’re signed out on your course page, so your VMs are kept in this browser only. Sign in there to save them.',
+    'other-student':'Your course page is signed in as a different student, so your VMs are kept in this browser only.',
+    'no-student':'This lab wasn’t opened from your course page, so your VMs are kept in this browser only.',
+    invalid:'Your course page couldn’t read your VMs, so they are kept in this browser only.',
+    unconfirmed:'Your course page didn’t confirm the save yet. Your VMs are kept in this browser, and the next change tries again.',
+  };
+  if (hdVmSync.phase === 'asking') return '<p class="muted" data-hd-vm-save="asking">Loading your saved VMs…</p>';
+  if (hdVmSync.status === 'saved' && !hdVmSync.unsynced) return '<p class="muted" data-hd-vm-save="saved">Your VMs are saved to your course.</p>';
+  if (line[hdVmSync.status]) return `<p class="muted" data-hd-vm-save="${hdEsc(hdVmSync.status)}">${hdEsc(line[hdVmSync.status])}</p>`;
+  return hdVmSync.unsynced ? '<p class="muted" data-hd-vm-save="saving">Saving your VMs to your course…</p>' : '';
+}
+
+// Each change: saved, then drawn again.
+function hdVmChanged() { hdVmSave(); hdVmRefresh(); }
+function hdVmNew() {
+  const state = hdVmState(); if (!state) return;
+  if (state.vms.length >= HD_VM_MAX) { toast(`This host holds ${HD_VM_MAX} practice VMs. Delete one first.`); return; }
+  state.form = hdVmCleanForm({ name:'', image:'', memoryGb:2, cores:1, diskGb:32, diskType:'', network:'' });
+  hdVmChanged();
+}
+function hdVmCancelNew() { const state = hdVmState(); if (!state) return; state.form = null; hdVmChanged(); }
+// One form field. Memory below the image's minimum shows the warning, and
+// the form remembers it was seen.
+function hdVmFormSet(field, value) {
+  const state = hdVmState(); if (!state || !state.form) return;
+  const form = state.form;
+  if (field === 'name') form.name = String(value || '').replace(/[^A-Za-z0-9-]/g, '').slice(0, 15);
+  else if (field === 'image') form.image = hdVmImage(value) ? value : '';
+  else if (['memoryGb', 'cores', 'diskGb'].includes(field)) {
+    const max = { memoryGb:hdVmHost().ramGb, cores:hdVmHost().cores, diskGb:2048 }[field];
+    const number = Math.round(Number(value));
+    if (!Number.isInteger(number) || number < 1 || number > max) return;
+    form[field] = number;
+  } else if (field === 'diskType') form.diskType = value === 'fixed' ? 'fixed' : 'dynamic';
+  else if (field === 'network') { if (!HD_VM_MODES.includes(value)) return; form.network = value; hdVmModeViewed(value); }
+  else return;
+  const image = hdVmImage(form.image);
+  if (image && form.memoryGb < (image.minRamGb || 0)) form.lowRamSeen = true;
+  hdVmChanged();
+}
+function hdVmModeViewed(mode) { const state = hdVmState(); if (HD_VM_MODES.includes(mode) && !state.modesViewed.includes(mode)) state.modesViewed = HD_VM_MODES.filter(item => item === mode || state.modesViewed.includes(item)); }
+// Just looking at a mode's diagram (the student hasn't chosen it).
+function hdVmViewMode(mode) { const state = hdVmState(); if (!state || !HD_VM_MODES.includes(mode)) return; hdVmModeViewed(mode); state.viewMode = mode; hdVmChanged(); }
+function hdVmFormProblems(form) {
+  const state = hdVmState();
+  const problems = [];
+  if (!form.name) problems.push('Type a name for the VM.');
+  else if (state.vms.some(vm => vm.name.toLowerCase() === form.name.toLowerCase())) problems.push(`A VM named ${form.name} already exists.`);
+  if (!hdVmImage(form.image)) problems.push('Pick an install image.');
+  if (!form.diskType) problems.push('Choose Dynamically allocated or Fixed size for the disk.');
+  if (!form.network) problems.push('Choose a network mode.');
+  if (hdVmRamLeft() < 0) problems.push('The host doesn’t have that much memory left.');
+  return problems;
+}
+function hdVmCreate() {
+  const state = hdVmState(); if (!state || !state.form) return;
+  const problems = hdVmFormProblems(state.form);
+  if (problems.length) { toast(problems[0]); return; }
+  const { lowRamSeen, ...form } = state.form;
+  state.vms.push(hdVmCleanVm({ ...form, state:'Off', installed:false, shortcut:true, snapshots:[], pings:[] }));
+  state.selected = form.name;
+  state.form = null;
+  hdVmChanged();
+}
+function hdVmSelect(name) { const state = hdVmState(); if (!state || !hdVmByName(name)) return; state.selected = hdVmByName(name).name; hdVmChanged(); }
+// Settings on a VM that exists: network mode any time; memory and cores
+// while it is off.
+function hdVmSet(name, field, value) {
+  const vm = hdVmByName(name); if (!vm) return;
+  if (field === 'network') { if (!HD_VM_MODES.includes(value)) return; vm.network = value; hdVmModeViewed(value); }
+  else if (field === 'memoryGb' || field === 'cores') {
+    if (vm.state !== 'Off') { toast('Power off the VM to change its memory or CPU cores.'); return; }
+    const number = Math.round(Number(value));
+    const max = field === 'memoryGb' ? hdVmHost().ramGb : hdVmHost().cores;
+    if (!Number.isInteger(number) || number < 1 || number > max) return;
+    const before = vm[field];
+    vm[field] = number;
+    if (field === 'memoryGb' && hdVmRamLeft() < 0) { vm[field] = before; toast('The host doesn’t have that much memory left.'); return; }
+  } else return;
+  hdVmChanged();
+}
+function hdVmStart(name) {
+  const vm = hdVmByName(name); if (!vm || vm.state !== 'Off') return;
+  if (!vm.installed) {
+    vm.state = 'Installing'; vm.installStartedAt = hdNowMs();
+    setTimeout(() => { hdVmFinishInstall(vm.name); }, HD_VM_INSTALL_MS);
+  } else vm.state = 'Running';
+  hdVmChanged();
+}
+// The simulated install, fast-forwarded to a desktop.
+function hdVmFinishInstall(name, quiet) {
+  const vm = (hdVm ? hdVm.vms : []).find(item => item.name === name);
+  if (!vm || vm.state !== 'Installing') return;
+  vm.state = 'Running'; vm.installed = true;
+  if (quiet) { hdVmSave(); return; }
+  hdVmChanged();
+}
+function hdVmPowerOff(name) { const vm = hdVmByName(name); if (!vm || vm.state !== 'Running') return; vm.state = 'Off'; hdVmChanged(); }
+function hdVmDelete(name) {
+  const state = hdVmState(); const vm = hdVmByName(name); if (!vm) return;
+  if (typeof confirm === 'function' && !confirm(`Delete ${vm.name}? Its disk and snapshots go with it.`)) return;
+  state.vms = state.vms.filter(item => item !== vm);
+  if (state.selected === vm.name) state.selected = '';
+  delete hdVmConsoleLines[vm.name];
+  hdVmChanged();
+}
+function hdVmSnapshot(name, snapshotName) {
+  const vm = hdVmByName(name); if (!vm) return;
+  const label = String(snapshotName || '').trim().slice(0, 40);
+  if (!label) { toast('Type a name for the snapshot.'); return; }
+  if (vm.snapshots.length >= 5) { toast('This VM already has five snapshots. Real snapshots fill the host’s disk too.'); return; }
+  vm.snapshots.push({ name:label, shortcut:vm.shortcut, at:new Date(hdNowMs()).toISOString() });
+  hdVmChanged();
+}
+function hdVmRestore(name, index) {
+  const vm = hdVmByName(name); if (!vm) return;
+  const snapshot = vm.snapshots[Number(index)]; if (!snapshot) return;
+  vm.shortcut = snapshot.shortcut;
+  vm.restored = Math.min((vm.restored || 0) + 1, 99);
+  hdVmChanged();
+}
+function hdVmDeleteShortcut(name) { const vm = hdVmByName(name); if (!vm || vm.state !== 'Running' || !vm.shortcut) return; vm.shortcut = false; vm.shortcutDeleted = true; hdVmChanged(); }
+
+// A VM's address on its network mode right now.
+function hdVmAddress(vm) {
+  const addresses = (HD_VM && HD_VM.lab.addresses) || {};
+  const state = hdVmState();
+  const index = Math.max(0, state.vms.indexOf(vm));
+  if (vm.network === 'NAT') return addresses.nat || '10.0.2.15';
+  if (vm.network === 'Internal') return (addresses.internal && addresses.internal[vm.name]) || `10.0.5.${100 + index}`;
+  if (vm.network === 'Host-only') return `${addresses.hostOnly || '192.168.56.'}${101 + index}`;
+  return `${addresses.bridged || '10.20.99.'}${150 + index}`;
+}
+// Who a guest can reach: another running guest on the same mode, except NAT
+// (each NAT guest sits behind its own router, so guests never meet there).
+function hdVmReaches(from, address) {
+  if (!from || from.state !== 'Running') return false;
+  if (address === hdVmAddress(from)) return true;
+  if (from.network === 'NAT') return false;
+  return hdVmState().vms.some(vm => vm !== from && vm.state === 'Running' && vm.network === from.network && hdVmAddress(vm) === address);
+}
+function hdVmCommand(name, command) {
+  const vm = hdVmByName(name); if (!vm) return '';
+  const text = String(command || '').trim().slice(0, 200);
+  if (!text) return '';
+  const lines = hdVmConsoleLines[vm.name] = hdVmConsoleLines[vm.name] || [];
+  let output;
+  const ping = /^ping(?:\s+-[nt](?:\s+\d+)?)?\s+([^\s-]\S*)$/i.exec(text);
+  if (vm.state !== 'Running') output = `${vm.name} isn’t running. Start it first.`;
+  else if (ping) {
+    const target = ping[1];
+    const ok = hdVmReaches(vm, target);
+    output = hdPingText(target, ok ? [] : null);
+    vm.pings.push({ to:target.slice(0, 40), ok, mode:vm.network });
+    if (vm.pings.length > 20) vm.pings.splice(0, vm.pings.length - 20);
+    hdVmSave();
+  } else if (/^ipconfig$/i.test(text)) output = `Ethernet adapter Ethernet:\n\n   IPv4 Address. . . . . . . . . . . : ${hdVmAddress(vm)}\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0`;
+  else if (/^hostname$/i.test(text)) output = vm.name;
+  else if (/^(get-help|help)$/i.test(text)) output = 'Supported in this training console: ping <address>, ipconfig, hostname';
+  else output = `'${text.split(/\s+/)[0]}' isn’t supported in this training console. Supported: ping <address>, ipconfig, hostname`;
+  lines.push({ type:'command', text:`C:\\> ${text}` }, { type:'output', text:output });
+  if (lines.length > 24) lines.splice(0, lines.length - 24);
+  return output;
+}
+function hdVmRunConsole(event, name) {
+  if (event && event.preventDefault) event.preventDefault();
+  const input = document.getElementById('hd-vm-console-input');
+  const command = input ? input.value : '';
+  hdVmCommand(name, command);
+  if (input) input.value = '';
+  hdVmRefresh();
+}
+function hdVmTaskTab(tab) {
+  const state = hdVmState(); if (!state) return;
+  if (tab === 'cpu') { state.taskTab = 'performance'; state.cpuSeen = true; }
+  else if (['processes', 'performance'].includes(tab)) state.taskTab = tab;
+  else return;
+  hdVmChanged();
+}
+
+function hdVmMissing(title) {
+  return `${hdPageHeader(title, 'Not available in this shift.', `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/dashboard')">← Dashboard</button>`)}<div class="card"><div class="card-body"><p class="muted">Open the virtualization lab from your course page to use this screen.</p></div></div>`;
+}
+function hdVmRamBar() {
+  const host = hdVmHost(); const used = Math.min(hdVmRamUsed(), host.ramGb); const left = hdVmRamLeft();
+  const pct = Math.round((used / host.ramGb) * 100);
+  return `<div data-hd-vm-ram="${left}"><div class="hd-progress" role="img" aria-label="Host memory: ${used} of ${host.ramGb} GB given to VMs"><i style="width:${pct}%"></i></div><p class="muted">${used} GB given to VMs · <strong>${Math.max(left, 0)} GB left</strong> for the host of ${host.ramGb} GB${left < 0 ? ' · over the host’s memory' : left < 2 ? ' · the host will starve' : ''}</p></div>`;
+}
+function hdVmModeDiagram(mode) {
+  const modes = (HD_VM && HD_VM.lab.modes) || {};
+  const reach = { NAT:['VM', '→ host', '→ internet'], Bridged:['VM', '= another PC', 'on the network'], Internal:['VM', '⇄ VM', '(nothing else)'], 'Host-only':['VM', '⇄ host', '⇄ VM'] }[mode] || [];
+  return `<div data-hd-vm-diagram="${hdEsc(mode)}" class="callout info"><strong>${hdEsc(mode)}</strong> <span style="font-family:monospace">${reach.map(hdEsc).join(' ')}</span>${modes[mode] ? `<p>${hdEsc(modes[mode])}</p>` : ''}</div>`;
+}
+function hdVmForm(form) {
+  const images = (HD_VM.lab.images || []).map(image => `<option value="${hdEsc(image.id)}" ${form.image === image.id ? 'selected' : ''}>${hdEsc(image.label)}</option>`).join('');
+  const image = hdVmImage(form.image);
+  const low = image && form.memoryGb < (image.minRamGb || 0) ? `<div class="callout warning" role="alert" data-hd-vm-warning="memory">${hdEsc(image.os || image.label)} needs at least ${hdEsc(image.minRamGb)} GB of memory. With ${form.memoryGb} GB it will crawl or fail to install.</div>` : '';
+  const host = hdVmHost();
+  const state = hdVmState();
+  const viewed = state.viewMode && HD_VM_MODES.includes(state.viewMode) ? state.viewMode : form.network;
+  const modeButtons = HD_VM_MODES.map(mode => `<button type="button" class="btn btn-secondary btn-sm" data-hd-vm-mode="${hdEsc(mode)}" aria-pressed="${viewed === mode}" onclick="hdVmViewMode('${mode}')">${hdEsc(mode)}</button>`).join('');
+  const problems = hdVmFormProblems(form);
+  return `<div class="card" data-hd-vm-form><div class="card-header" ${HD_CONSOLE_HEADER}><strong>New virtual machine</strong><span class="muted">${hdEsc(host.name)}</span></div><div class="card-body">
+    <div class="hd-field-grid">
+      <label>Name <input class="input" id="hd-vm-name" value="${hdEsc(form.name)}" maxlength="15" autocomplete="off" onchange="hdVmFormSet('name',this.value)"></label>
+      <label>Install image (ISO) <select class="select" id="hd-vm-image" onchange="hdVmFormSet('image',this.value)"><option value="">Choose an image…</option>${images}</select></label>
+      <label>Memory: <strong>${form.memoryGb} GB</strong> <input type="range" id="hd-vm-memory" min="1" max="${host.ramGb}" step="1" value="${form.memoryGb}" aria-label="Memory in GB" onchange="hdVmFormSet('memoryGb',this.value)"></label>
+      <label>CPU cores: <strong>${form.cores}</strong> <input type="range" id="hd-vm-cores" min="1" max="${host.cores}" step="1" value="${form.cores}" aria-label="CPU cores" onchange="hdVmFormSet('cores',this.value)"></label>
+      <label>Disk size (GB) <input class="input" type="number" id="hd-vm-disk" min="1" max="2048" value="${form.diskGb}" onchange="hdVmFormSet('diskGb',this.value)"></label>
+      <fieldset><legend>Disk file</legend><label><input type="radio" name="hd-vm-disk-type" ${form.diskType === 'dynamic' ? 'checked' : ''} onchange="hdVmFormSet('diskType','dynamic')"> Dynamically allocated (grows as it fills)</label> <label><input type="radio" name="hd-vm-disk-type" ${form.diskType === 'fixed' ? 'checked' : ''} onchange="hdVmFormSet('diskType','fixed')"> Fixed size (takes all ${form.diskGb} GB now)</label></fieldset>
+    </div>
+    ${low}
+    ${hdVmRamBar()}
+    <div><strong>Network mode</strong> <span class="muted">Click each mode to see who the VM can talk to.</span><div style="display:flex;flex-wrap:wrap;gap:6px">${modeButtons}</div>${viewed ? hdVmModeDiagram(viewed) : ''}${viewed ? `<button type="button" class="btn btn-secondary btn-sm" data-hd-vm-choose="${hdEsc(viewed)}" ${form.network === viewed ? 'disabled' : ''} onclick="hdVmFormSet('network','${viewed}')">${form.network === viewed ? `${hdEsc(viewed)} chosen` : `Use ${hdEsc(viewed)}`}</button>` : ''}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"><button type="button" class="btn btn-primary" data-hd-vm-create ${problems.length ? 'aria-disabled="true"' : ''} onclick="hdVmCreate()">Create</button><button type="button" class="btn btn-ghost" onclick="hdVmCancelNew()">Cancel</button></div>
+    ${problems.length ? `<ul class="hd-list muted">${problems.map(item => `<li>${hdEsc(item)}</li>`).join('')}</ul>` : ''}
+  </div></div>`;
+}
+function hdVmScreen(vm) {
+  const image = hdVmImage(vm.image) || {};
+  const name = hdJsArg(vm.name);
+  if (vm.state === 'Off') return `<div class="hd-windows-screen" data-hd-vm-screen="off"><div class="hd-window-body"><p class="muted">${hdEsc(vm.name)} is powered off.</p></div></div>`;
+  if (vm.state === 'Installing') {
+    const pct = Math.min(99, Math.round(((hdNowMs() - vm.installStartedAt) / HD_VM_INSTALL_MS) * 100));
+    return `<div class="hd-windows-screen" data-hd-vm-screen="installing"><div class="hd-window-body"><strong>Installing ${hdEsc(image.os || image.label || 'the guest OS')}…</strong><div class="hd-progress"><i style="width:${Math.max(pct, 5)}%"></i></div><p class="muted">Fast-forwarded: a real install takes 20 to 40 minutes.</p></div></div>`;
+  }
+  const lines = (hdVmConsoleLines[vm.name] || []).map(row => `<pre class="${row.type}">${hdEsc(row.text)}</pre>`).join('');
+  const shortcut = vm.shortcut ? `<div data-hd-vm-shortcut="present">📄 ${hdEsc((HD_VM.lab.shortcut) || 'Shortcut')} <button type="button" class="btn btn-ghost btn-sm" onclick="hdVmDeleteShortcut('${name}')">Delete</button></div>` : '<div data-hd-vm-shortcut="gone" class="muted">The desktop shortcut is gone.</div>';
+  const server = image.kind === 'server' ? `<div class="card" data-hd-vm-server-manager><div class="card-header"><strong>Server Manager</strong><span class="muted">${hdEsc(vm.name)} · Local Server</span></div><div class="card-body"><p class="muted">Roles and features: none yet. You’ll work in Server Manager in a later module.</p></div></div>` : '';
+  return `<div class="hd-windows-screen" data-hd-vm-screen="running"><div class="hd-window-bar"><span>${hdEsc(vm.name)} · ${hdEsc(image.os || image.label || '')} · ${hdEsc(vm.network)} · ${hdEsc(hdVmAddress(vm))}</span><span>Running</span></div><div class="hd-window-body">${shortcut}${server}
+    <div class="hd-terminal"><div class="hd-terminal-title">Command Prompt · ${hdEsc(vm.name)}</div><div class="hd-terminal-output" data-hd-vm-console="${hdEsc(vm.name)}">${lines}</div><form onsubmit="hdVmRunConsole(event,'${name}')" class="hd-terminal-input"><span>C:\\&gt;</span><input id="hd-vm-console-input" autocomplete="off" spellcheck="false" placeholder="ping 10.0.5.10" aria-label="Command for ${hdEsc(vm.name)}"><button>Run</button></form></div>
+  </div></div>`;
+}
+function hdVmDetail(vm) {
+  const image = hdVmImage(vm.image) || {};
+  const name = hdJsArg(vm.name);
+  const off = vm.state === 'Off';
+  const snapshots = vm.snapshots.map((snapshot, index) => `<li data-hd-vm-snapshot="${hdEsc(snapshot.name)}">📸 ${hdEsc(snapshot.name)} <button type="button" class="btn btn-secondary btn-sm" onclick="hdVmRestore('${name}',${index})">Restore</button></li>`).join('');
+  const network = HD_VM_MODES.map(mode => `<option ${vm.network === mode ? 'selected' : ''}>${hdEsc(mode)}</option>`).join('');
+  return `<div class="card" data-hd-vm-detail="${hdEsc(vm.name)}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(vm.name)}</strong>${hdBadge(vm.state === 'Running' ? 'Running' : vm.state === 'Installing' ? 'Installing' : 'Powered off', vm.state === 'Running' ? 'ok' : 'warn')}
+    <span style="display:flex;gap:6px;flex-wrap:wrap">${off ? `<button type="button" class="btn btn-primary btn-sm" data-hd-vm-start onclick="hdVmStart('${name}')">Start</button>` : ''}${vm.state === 'Running' ? `<button type="button" class="btn btn-secondary btn-sm" onclick="hdVmPowerOff('${name}')">Power off</button>` : ''}<button type="button" class="btn btn-ghost btn-sm" onclick="hdVmDelete('${name}')">Delete VM</button></span></div><div class="card-body">
+    <dl class="hd-dl"><dt>Install image</dt><dd>${hdEsc(image.label || '—')}</dd><dt>Memory</dt><dd>${off ? `<input class="input" type="number" min="1" max="${hdVmHost().ramGb}" value="${vm.memoryGb}" aria-label="Memory in GB" onchange="hdVmSet('${name}','memoryGb',this.value)"> GB` : `${vm.memoryGb} GB`}</dd><dt>CPU cores</dt><dd>${off ? `<input class="input" type="number" min="1" max="${hdVmHost().cores}" value="${vm.cores}" aria-label="CPU cores" onchange="hdVmSet('${name}','cores',this.value)">` : vm.cores}</dd><dt>Disk</dt><dd>${vm.diskGb} GB, ${vm.diskType === 'fixed' ? 'fixed size' : 'dynamically allocated'}</dd><dt>Network</dt><dd><select class="select" aria-label="Network mode for ${hdEsc(vm.name)}" onchange="hdVmSet('${name}','network',this.value)">${network}</select></dd></dl>
+    ${hdVmModeDiagram(vm.network)}
+    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Snapshots</strong><span class="muted">A checkpoint on the same disk, not a backup</span></div><div class="card-body"><form onsubmit="event.preventDefault();hdVmSnapshot('${name}',(document.getElementById('hd-vm-snapshot-name')||{}).value)" style="display:flex;gap:6px;flex-wrap:wrap"><input class="input" id="hd-vm-snapshot-name" maxlength="40" placeholder="Snapshot name" aria-label="Snapshot name"><button class="btn btn-secondary btn-sm">Take snapshot</button></form>${snapshots ? `<ul class="hd-list">${snapshots}</ul>` : '<p class="muted">No snapshots yet.</p>'}</div></div>
+    ${hdVmScreen(vm)}
+  </div></div>`;
+}
+function hdVmFinishCards() {
+  const cards = Array.isArray(HD_VM.lab.finishCards) ? HD_VM.lab.finishCards : [];
+  if (!cards.length || !hdVmState().vms.some(vm => vm.installed)) return '';
+  return `<div class="card" data-hd-vm-finish><div class="card-header"><strong>Where Tier 1 meets VMs at work</strong></div><div class="card-body"><div class="hd-tool-grid">${cards.map(card => `<div class="card"><div class="card-body"><strong>${hdEsc(card.title)}</strong><p class="muted">${hdEsc(card.text)}</p></div></div>`).join('')}</div></div></div>`;
+}
+VIEWS['helpdesk/vm-manager'] = () => {
+  if (!HD_VM) return hdVmMissing('VM Manager');
+  const state = hdVmState(); const host = hdVmHost();
+  const list = state.vms.map(vm => `<button type="button" class="hd-device-card${state.selected === vm.name ? ' active' : ''}" data-hd-vm="${hdEsc(vm.name)}" onclick="hdVmSelect('${hdJsArg(vm.name)}')"><strong>${hdEsc(vm.name)}</strong><small>${hdEsc(vm.state === 'Off' ? 'Powered off' : vm.state)} · ${vm.memoryGb} GB · ${vm.cores} core${vm.cores === 1 ? '' : 's'} · ${hdEsc(vm.network)}</small></button>`).join('');
+  const selected = hdVmByName(state.selected);
+  return `${hdPageHeader('VM Manager', `${host.name} · a Type 2 hypervisor app on the host`, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/task-manager')">Task Manager</button><button class="btn btn-primary" data-hd-vm-new onclick="hdVmNew()" ${state.form ? 'disabled' : ''}>New</button>`)}
+    <div class="callout info">Simulated: nothing is installed on your computer, and the guests aren’t real Windows. The lab checks the settings you choose.</div>
+    ${hdVmSaveLine()}
+    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Host: ${hdEsc(host.name)}</strong><span class="muted">${host.ramGb} GB memory · ${host.cores} cores</span></div><div class="card-body">${hdVmRamBar()}</div></div>
+    ${state.form ? hdVmForm(state.form) : ''}
+    <div class="hd-endpoint-layout"><aside class="card"><div class="card-header"><strong>Virtual machines</strong></div><div class="hd-device-list">${list || '<p class="muted" style="padding:12px">No VMs yet. Click New to make one.</p>'}</div></aside><div>${selected ? hdVmDetail(selected) : ''}</div></div>
+    ${hdVmFinishCards()}`;
+};
+VIEWS['helpdesk/task-manager'] = () => {
+  if (!HD_VM) return hdVmMissing('Task Manager');
+  const state = hdVmState(); const host = hdVmHost();
+  const tab = (id, label, on) => `<button type="button" class="btn ${on ? 'btn-primary' : 'btn-secondary'} btn-sm" data-hd-task-tab="${id}" aria-pressed="${on}" onclick="hdVmTaskTab('${id}')">${label}</button>`;
+  const performance = state.taskTab === 'performance';
+  const body = performance
+    ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${tab('cpu', 'CPU', state.cpuSeen)}</div>${state.cpuSeen ? `<dl class="hd-dl" data-hd-task-cpu><dt>Processor</dt><dd>${hdEsc(host.cpu)}</dd><dt>Cores</dt><dd>${host.cores}</dd><dt>Virtualization</dt><dd><strong>${hdEsc(host.virtualization)}</strong></dd><dt>Memory</dt><dd>${host.ramGb} GB installed</dd></dl>` : '<p class="muted">Choose CPU to see the processor.</p>'}`
+    : `<div class="table-wrap"><table><thead><tr><th>Name</th><th>CPU</th><th>Memory</th></tr></thead><tbody><tr><td>VM Manager</td><td>1%</td><td>180 MB</td></tr><tr><td>Desktop Window Manager</td><td>1%</td><td>90 MB</td></tr><tr><td>Microsoft Edge</td><td>0%</td><td>420 MB</td></tr></tbody></table></div>`;
+  return `${hdPageHeader('Task Manager', host.name, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/vm-manager')">VM Manager</button>`)}<div class="card" data-hd-task-manager><div class="card-header" ${HD_CONSOLE_HEADER}>${tab('processes', 'Processes', !performance)}${tab('performance', 'Performance', performance)}</div><div class="card-body">${body}</div></div>`;
+};
+// The dashboard's way in, only in the virtualization lab.
+function hdVmDashboardCard() {
+  if (!HD_VM) return '';
+  return `<div class="card" data-hd-vm-card><div class="card-header"><strong>Virtualization lab</strong></div><div class="card-body"><p>Build and test practice VMs on ${hdEsc(hdVmHost().name)}.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="navigate('#/helpdesk/vm-manager')">VM Manager</button><button class="btn btn-secondary btn-sm" onclick="navigate('#/helpdesk/task-manager')">Task Manager</button></div></div></div>`;
+}
+window.hdVmNew=hdVmNew; window.hdVmCancelNew=hdVmCancelNew; window.hdVmFormSet=hdVmFormSet; window.hdVmViewMode=hdVmViewMode; window.hdVmCreate=hdVmCreate;
+window.hdVmSelect=hdVmSelect; window.hdVmSet=hdVmSet; window.hdVmStart=hdVmStart; window.hdVmPowerOff=hdVmPowerOff; window.hdVmDelete=hdVmDelete;
+window.hdVmSnapshot=hdVmSnapshot; window.hdVmRestore=hdVmRestore; window.hdVmDeleteShortcut=hdVmDeleteShortcut; window.hdVmRunConsole=hdVmRunConsole; window.hdVmTaskTab=hdVmTaskTab;
+window.hdVmState=hdVmState; window.hdVmByName=hdVmByName; window.hdVmSummary=hdVmSummary; window.hdVmAddress=hdVmAddress;
+if (HD_VM) hdVmAskServer();
 
 /* ---------- HD-2101 Practice scenario: runtime ---------- */
 // The scenario, while this Practice shift has the HD-2101 ticket.
