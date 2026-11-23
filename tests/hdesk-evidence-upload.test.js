@@ -130,7 +130,7 @@ async function testRefusedReplacementRemovesTheEarlierFile() {
   assert.match(section(html, 'its02-lab-2-1'), /“photo\.heic” wasn’t added: it isn’t a PNG, JPEG or WebP image\. Only PNG, JPEG or WebP up to 10 MB is accepted\. Your earlier file was removed\. Choose a file again\./);
   assert.doesNotMatch(section(html, 'its02-lab-2-1'), /Added<\/strong> — desktop\.png/, 'the earlier file is no longer shown');
   assert.doesNotMatch(html, /data-its-submit="lab-its-02-vm-build"/, 'not ready after a refused replacement');
-  assert.equal(statusLine(html, LAB21), 'Upload both evidence files to complete this lab.');
+  assert.equal(statusLine(html, LAB21), 'Finish Lab 4.1 in the simulator to complete this lab.');
   assert.ok(!LabRuntime.load('its02-lab-state-v1', user, {}).evDesktop, 'the earlier name is gone from browser storage');
   assert.equal(await run('its02SubmitLab')(LAB21), false, 'Submit does nothing');
   assert.equal(calls(BUCKET).length + inserts().length, 0, 'nothing uploaded or recorded');
@@ -457,7 +457,7 @@ async function testClearedSiteDataAsksForTheFileAgain() {
   const html = moduleLab(2).view(again, HD);
   assert.doesNotMatch(html, /Looking for/, 'no copy to look for once the lookup ends');
   assert.match(tile(html, 'its02-ev-vmsettings'), /Choose this file again — “settings\.jpg” isn’t in this browser any more/);
-  assert.equal(statusLine(html, LAB21), 'Upload both evidence files to complete this lab.');
+  assert.equal(statusLine(html, LAB21), 'Finish Lab 4.1 in the simulator to complete this lab.');
 }
 
 async function testFileReplacedInAnotherBrowserIsNotRestored() {

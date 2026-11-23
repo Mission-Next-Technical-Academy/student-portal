@@ -607,8 +607,11 @@ function itsCleanMatrixWork(input) {
 
 // postMessage data is student-controlled. Store only the small, known work
 // fields needed by the instructor sheet; never persist simulator fixture keys.
-function itsCleanCoachWork(input) {
+// coachId (optional): a VM lab coach (ITS_VM_COACHES) keeps the student's VM
+// summary, and may send no tickets at all. Every other caller is unchanged.
+function itsCleanCoachWork(input, coachId) {
   if (!input || typeof input !== 'object' || input.version !== 1 || !Array.isArray(input.tickets)) return null;
+  const vm = ITS_VM_COACHES.includes(coachId) ? itsCleanVmState(input.vm) : null;
   const text = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
   const tickets = input.tickets.slice(0, 8).filter((ticket) => ticket && typeof ticket === 'object' && /^[A-Z]{2,4}-\d{4}$/.test(ticket.id || '')).map((ticket) => ({
     id: text(ticket.id, 16),
@@ -649,8 +652,9 @@ function itsCleanCoachWork(input) {
       })).filter((comment) => comment.text) : [],
     } : {}),
   }));
-  if (!tickets.length) return null;
+  if (!tickets.length && !vm) return null;
   const work = { version: 1, selectedTicketId: text(input.selectedTicketId, 16), tickets };
+  if (vm) work.vm = vm;
   // Module 2's guided queue: the student's work order and what Check order said.
   if (Array.isArray(input.workOrder)) {
     work.workOrder = input.workOrder.slice(0, 8).filter((id) => typeof id === 'string' && /^[A-Z]{2,4}-\d{4}$/.test(id));
@@ -669,6 +673,93 @@ function itsCleanCoachWork(input) {
     else ticket.customerComments.shift();
   }
   return work;
+}
+
+/* ---------- Module 4 (key its-02): the student's VMs ----------
+ * The simulator's VM screen (ui/helpdesk.js "VM screen") saves the student's
+ * practice VMs to their account through the course page that opened it:
+ * mnt-vm-save (answered by mnt-vm-received) on each change, and mnt-vm-state
+ * (answered by mnt-vm-state-reply) at launch. They are kept in
+ * module_progress.case_state under their own id (LabRuntime), beside the
+ * page's own state, so a refresh, a browser restart or a new sign-in keeps
+ * them. The message is student-controlled: only the known, bounded fields
+ * below are kept, and anything malformed or over the size limit is refused.
+ * Checked, not graded: nothing here is a score or a completion. */
+const ITS_VM_COACHES = ['hd-m02-vm', 'hd-m02-server'];
+const ITS_VM_MODES = ['NAT', 'Bridged', 'Internal', 'Host-only'];
+const ITS_VM_MAX_CHARS = 8192;
+function itsCleanVmState(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input) || input.version !== 1 || !Array.isArray(input.vms) || input.vms.length > 4) return null;
+  let size = 0;
+  try { size = JSON.stringify(input).length; } catch (_) { return null; }
+  if (size > ITS_VM_MAX_CHARS) return null;
+  const text = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
+  const int = (value, min, max, fallback) => Number.isInteger(value) && value >= min && value <= max ? value : fallback;
+  const name = (value) => typeof value === 'string' && /^[A-Za-z0-9-]{1,15}$/.test(value) ? value : '';
+  const image = (value) => typeof value === 'string' && /^[a-z0-9-]{1,20}$/.test(value) ? value : '';
+  const mode = (value) => ITS_VM_MODES.includes(value) ? value : '';
+  const vms = [];
+  for (const vm of input.vms) {
+    if (!vm || typeof vm !== 'object' || !name(vm.name) || vms.some((item) => item.name.toLowerCase() === vm.name.toLowerCase())) return null;
+    vms.push({
+      name: vm.name, image: image(vm.image),
+      memoryGb: int(vm.memoryGb, 1, 64, 1), cores: int(vm.cores, 1, 16, 1), diskGb: int(vm.diskGb, 1, 2048, 64),
+      diskType: vm.diskType === 'fixed' ? 'fixed' : 'dynamic', network: mode(vm.network) || 'NAT',
+      state: ['Off', 'Installing', 'Running'].includes(vm.state) ? vm.state : 'Off', installed: vm.installed === true,
+      installStartedAt: Number.isFinite(vm.installStartedAt) ? vm.installStartedAt : 0, shortcut: vm.shortcut !== false,
+      snapshots: Array.isArray(vm.snapshots) ? vm.snapshots.slice(0, 5).filter((item) => item && typeof item.name === 'string' && item.name.trim())
+        .map((item) => ({ name: text(item.name, 40), shortcut: item.shortcut !== false, at: text(item.at, 40) })) : [],
+      pings: Array.isArray(vm.pings) ? vm.pings.slice(-20).filter((item) => item && typeof item.to === 'string')
+        .map((item) => ({ to: text(item.to, 40), ok: item.ok === true, mode: mode(item.mode) })) : [],
+      restored: int(vm.restored, 0, 99, 0), shortcutDeleted: vm.shortcutDeleted === true,
+    });
+  }
+  const form = input.form && typeof input.form === 'object' && !Array.isArray(input.form) ? {
+    name: text(input.form.name, 15).replace(/[^A-Za-z0-9-]/g, ''), image: image(input.form.image),
+    memoryGb: int(input.form.memoryGb, 1, 64, 2), cores: int(input.form.cores, 1, 16, 1), diskGb: int(input.form.diskGb, 1, 2048, 32),
+    diskType: ['dynamic', 'fixed'].includes(input.form.diskType) ? input.form.diskType : '', network: mode(input.form.network),
+    lowRamSeen: input.form.lowRamSeen === true,
+  } : null;
+  return {
+    version: 1, lab: text(input.lab, 20), vms, form, selected: text(input.selected, 15),
+    modesViewed: Array.isArray(input.modesViewed) ? ITS_VM_MODES.filter((item) => input.modesViewed.includes(item)) : [],
+    viewMode: mode(input.viewMode), cpuSeen: input.cpuSeen === true, savedAt: text(input.savedAt, 40),
+  };
+}
+// The saved VMs (LabRuntime state { vm }), or null.
+function itsVmSaved(user, moduleKey, stateId) {
+  const saved = LabRuntime.loadCaseState(stateId, moduleKey, user, { vm: null });
+  return saved && saved.vm ? itsCleanVmState(saved.vm) : null;
+}
+// Answers both messages. Resolves once the answer is sent.
+async function itsVmReceiveMessage(event, { moduleKey, stateId }) {
+  const data = event && event.data;
+  if (!data || !['mnt-vm-save', 'mnt-vm-state'].includes(data.type) || data.id !== moduleKey) return;
+  if (event.origin !== new URL(SIM_ORIGIN).origin) return;
+  const replyType = data.type === 'mnt-vm-save' ? 'mnt-vm-received' : 'mnt-vm-state-reply';
+  const reply = (fields) => {
+    if (!event.source || typeof event.source.postMessage !== 'function') return;
+    event.source.postMessage({ type: replyType, id: moduleKey, nonce: data.nonce, ...fields }, event.origin);
+  };
+  const user = await currentUser();
+  if (!user) { reply({ saved: false, reason: 'signed-out' }); return; }
+  const wrongStudent = itsCoachStudentMismatch(event, user);
+  if (wrongStudent) { reply({ saved: false, reason: wrongStudent }); return; }
+  if (data.type === 'mnt-vm-state') { reply({ saved: true, state: itsVmSaved(user, moduleKey, stateId) }); return; }
+  const vm = itsCleanVmState(data.state);
+  if (!vm) { reply({ saved: false, reason: 'invalid' }); return; }
+  // A save names the saved copy it started from (base). Another tab saved
+  // since then: refuse, and hand back the newer copy instead of losing it.
+  const current = itsVmSaved(user, moduleKey, stateId);
+  if (typeof data.base === 'string' && current && current.savedAt && current.savedAt !== data.base) {
+    reply({ saved: false, reason: 'stale', state: current });
+    return;
+  }
+  const state = { ...LabRuntime.load(stateId, user, { vm: null }), vm };
+  const saved = await new Promise((resolve) => {
+    LabRuntime.saveCaseState(stateId, moduleKey, user, state, { debounceMs: 1, onResult: (ok) => resolve(ok === true) });
+  });
+  reply(saved ? { saved: true } : { saved: false, reason: 'unconfirmed' });
 }
 
 /* ---------- Prove It: the simulator's Submit ----------

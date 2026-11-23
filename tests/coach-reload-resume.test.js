@@ -161,7 +161,7 @@ function testFirstLaunchStartsFreshAndCleansAddress() {
   // A previous coach's leftover tickets and a note in the shared save.
   const before = sim(launchUrl('hd-m01'), { local });
   assert.equal(before.screenTickets().length, 4, 'Module 1 page shows its four tickets');
-  assert.deepEqual(sim(launchUrl('hd-m02'), { local: store() }).screenTickets().sort(), ['HD-2106', 'HD-2112'], 'Module 2 page shows its two tickets');
+  assert.deepEqual(sim(launchUrl('hd-m02'), { local: store() }).screenTickets().sort(), ['HD-2134'], 'Module 4 Lab 4.3 shows its one ticket');
   before.run(`hdState.tickets[0].notes.push({ author: 'x', time: 't', text: 'old note' }); hdSave();`);
 
   const tab = sim(launchUrl('hd-m03'), { local });
