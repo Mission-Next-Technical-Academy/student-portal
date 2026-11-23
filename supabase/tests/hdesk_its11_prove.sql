@@ -10,7 +10,7 @@
 --     (both of two, or one for partial), path_contains on steps and a 0-point
 --     "not" of it, path_matches on the four pieces of writing with all/any,
 --     note_parts with "next", three judgment parts, a 0-point jsonpath on
---     elapsedSeconds, and a critical promise rule with a negative look-behind;
+--     elapsedSeconds, and a made-up critical rule with a negative look-behind;
 --   - the lab standard's matrix, with scores other than 100.
 --
 -- Run against the local stack:  bin/db-security-check.sh
@@ -113,10 +113,10 @@ insert into k values ($key${
             { "type": "path_matches", "path": ["kbDraft"], "pattern": "workaround" } ] },
           "feedback": "Give the article what a reader needs." } ] } ] } ],
   "critical": [
-    { "id": "promise-fix", "reason": "Promised a fix time the desk can't keep.",
+    { "id": "token-shared", "reason": "Gave out a made-up token.",
       "check": { "type": "all", "checks": [
-        { "type": "path_matches", "path": ["userReply"], "pattern": "(?<!would be )fixed by \\d" },
-        { "type": "not", "check": { "type": "path_matches", "path": ["userReply"], "pattern": "(can't|cannot) promise" } } ] } } ]
+        { "type": "path_matches", "path": ["userReply"], "pattern": "(?<!old )token z\\d" },
+        { "type": "not", "check": { "type": "path_matches", "path": ["userReply"], "pattern": "(won't|will not) say" } } ] } } ]
 }$key$::jsonb);
 
 do $$ begin perform public.prove_validate_key((select key from k)); perform pg_temp.check(true, 'the made-up one-ticket key validates'); end $$;
@@ -239,21 +239,21 @@ begin
     and (pg_temp.comp(v_perfect, 'documentation')->>'suggested')::int = 40,
     'the writing is suggested in three parts, never pre-scored');
 
-  -- The critical promise: a plain promise is an automatic zero.
-  v := pg_temp.score(pg_temp.work('{"userReply":"Here is an update: it will be fixed by 5 today, and the next step is ours."}'::jsonb));
+  -- The made-up critical rule: a match is an automatic zero.
+  v := pg_temp.score(pg_temp.work('{"userReply":"Here is an update: your token z7 is set, and the next step is ours."}'::jsonb));
   perform pg_temp.check((v->>'critical_error')::boolean and (v->>'recommended_score')::int = 0
-    and (v->>'automatic_earned_before_critical')::int = 60 and v->'critical_reasons'->0->>'id' = 'promise-fix',
-    'a plain promise: critical error, an automatic zero, what was found kept for staff');
-  -- Quoting what someone else promised is not a promise (the look-behind).
+    and (v->>'automatic_earned_before_critical')::int = 60 and v->'critical_reasons'->0->>'id' = 'token-shared',
+    'a critical match: critical error, an automatic zero, what was found kept for staff');
+  -- The look-behind: the excluded word in front means no match.
   v := pg_temp.score(pg_temp.work(jsonb_build_object('diagnosis', 'Made-up other cause',
-    'userReply', 'Here is an update: you were told it would be fixed by 5, and the next step is with another team.')));
+    'userReply', 'Here is an update: the old token z7 is gone, and the next step is with another team.')));
   perform pg_temp.check(not (v->>'critical_error')::boolean and (v->>'recommended_score')::int = 90,
-      'a quoted past promise: no critical error (90)');
-  -- Saying you can't promise is not a promise.
+      'the look-behind excludes a match: no critical error (90)');
+  -- The "not" check: the excluded phrase anywhere means no match.
   v := pg_temp.score(pg_temp.work(jsonb_build_object('diagnosis', 'Made-up other cause',
-    'userReply', 'Here is an update: I can''t promise it will be fixed by 5, but the next step is with another team.')));
+    'userReply', 'Here is an update: I won''t say token z7 here, but the next step is with another team.')));
   perform pg_temp.check(not (v->>'critical_error')::boolean and (v->>'recommended_score')::int = 90,
-    'a negated promise: no critical error (90)');
+    'the "not" check excludes a match: no critical error (90)');
 
   -- Strings and numbers are not the same: an impact of 2 is not "2".
   perform pg_temp.check(not (public.prove_check(pg_temp.work('{"fields":{"impact":2}}'::jsonb),
