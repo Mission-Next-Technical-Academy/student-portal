@@ -4355,6 +4355,28 @@ function hdVmFormSet(field, value) {
 function hdVmModeViewed(mode) { const state = hdVmState(); if (HD_VM_MODES.includes(mode) && !state.modesViewed.includes(mode)) state.modesViewed = HD_VM_MODES.filter(item => item === mode || state.modesViewed.includes(item)); }
 // Just looking at a mode's diagram (the student hasn't chosen it).
 function hdVmViewMode(mode) { const state = hdVmState(); if (!state || !HD_VM_MODES.includes(mode)) return; hdVmModeViewed(mode); state.viewMode = mode; hdVmChanged(); }
+// The lab's target settings for a VM of this name (HD_VM_LABS targets): one
+// line per setting that is off, naming it. Practice feedback only.
+function hdVmTargetHints(settings) {
+  const targets = HD_VM && HD_VM.lab.targets && typeof HD_VM.lab.targets === 'object' ? HD_VM.lab.targets : {};
+  const key = Object.keys(targets).find(name => name.toLowerCase() === String(settings && settings.name || '').toLowerCase());
+  if (!key) return [];
+  const want = targets[key];
+  const hints = [];
+  if (want.image && settings.image !== want.image) hints.push(`Install image: this lab uses ${(hdVmImage(want.image) || {}).label || want.image}.`);
+  if (want.memoryGb && settings.memoryGb !== want.memoryGb) hints.push(`Memory is ${settings.memoryGb} GB: this lab asks for ${want.memoryGb} GB.`);
+  if (want.cores && settings.cores !== want.cores) hints.push(`CPU cores: ${settings.cores}; this lab asks for ${want.cores}.`);
+  if (want.diskGb && settings.diskGb !== want.diskGb) hints.push(`Disk size is ${settings.diskGb} GB: this lab asks for ${want.diskGb} GB.`);
+  if (want.diskType && settings.diskType && settings.diskType !== want.diskType) hints.push(`Disk file: this lab asks for ${want.diskType === 'dynamic' ? 'Dynamically allocated' : 'Fixed size'}.`);
+  if (want.network && settings.network && settings.network !== want.network) hints.push(`Network mode is ${settings.network}: this lab asks for ${want.network}.`);
+  return hints;
+}
+function hdVmHintsHtml(settings, created) {
+  const hints = hdVmTargetHints(settings);
+  if (!hints.length) return '';
+  const fix = created ? 'Power the VM off to change memory or cores. A wrong image or disk means Delete VM and build it again.' : 'Fix it here before you click Create.';
+  return `<div class="callout warning" data-hd-vm-hints="${hints.length}"><strong>Check your settings.</strong><ul class="hd-list">${hints.map(item => `<li>${hdEsc(item)}</li>`).join('')}</ul><p class="muted">${hdEsc(fix)}</p></div>`;
+}
 function hdVmFormProblems(form) {
   const state = hdVmState();
   const problems = [];
@@ -4524,6 +4546,7 @@ function hdVmForm(form) {
       <fieldset><legend>Disk file</legend><label><input type="radio" name="hd-vm-disk-type" ${form.diskType === 'dynamic' ? 'checked' : ''} onchange="hdVmFormSet('diskType','dynamic')"> Dynamically allocated (grows as it fills)</label> <label><input type="radio" name="hd-vm-disk-type" ${form.diskType === 'fixed' ? 'checked' : ''} onchange="hdVmFormSet('diskType','fixed')"> Fixed size (takes all ${form.diskGb} GB now)</label></fieldset>
     </div>
     ${low}
+    ${form.name && form.image ? hdVmHintsHtml(form, false) : ''}
     ${hdVmRamBar()}
     <div><strong>Network mode</strong> <span class="muted">Click each mode to see who the VM can talk to.</span><div style="display:flex;flex-wrap:wrap;gap:6px">${modeButtons}</div>${viewed ? hdVmModeDiagram(viewed) : ''}${viewed ? `<button type="button" class="btn btn-secondary btn-sm" data-hd-vm-choose="${hdEsc(viewed)}" ${form.network === viewed ? 'disabled' : ''} onclick="hdVmFormSet('network','${viewed}')">${form.network === viewed ? `${hdEsc(viewed)} chosen` : `Use ${hdEsc(viewed)}`}</button>` : ''}</div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"><button type="button" class="btn btn-primary" data-hd-vm-create ${problems.length ? 'aria-disabled="true"' : ''} onclick="hdVmCreate()">Create</button><button type="button" class="btn btn-ghost" onclick="hdVmCancelNew()">Cancel</button></div>
@@ -4554,6 +4577,7 @@ function hdVmDetail(vm) {
   return `<div class="card" data-hd-vm-detail="${hdEsc(vm.name)}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(vm.name)}</strong>${hdBadge(vm.state === 'Running' ? 'Running' : vm.state === 'Installing' ? 'Installing' : 'Powered off', vm.state === 'Running' ? 'ok' : 'warn')}
     <span style="display:flex;gap:6px;flex-wrap:wrap">${off ? `<button type="button" class="btn btn-primary btn-sm" data-hd-vm-start onclick="hdVmStart('${name}')">Start</button>` : ''}${vm.state === 'Running' ? `<button type="button" class="btn btn-secondary btn-sm" onclick="hdVmPowerOff('${name}')">Power off</button>` : ''}<button type="button" class="btn btn-ghost btn-sm" onclick="hdVmDelete('${name}')">Delete VM</button></span></div><div class="card-body">
     <dl class="hd-dl"><dt>Install image</dt><dd>${hdEsc(image.label || '—')}</dd><dt>Memory</dt><dd>${off ? `<input class="input" type="number" min="1" max="${hdVmHost().ramGb}" value="${vm.memoryGb}" aria-label="Memory in GB" onchange="hdVmSet('${name}','memoryGb',this.value)"> GB` : `${vm.memoryGb} GB`}</dd><dt>CPU cores</dt><dd>${off ? `<input class="input" type="number" min="1" max="${hdVmHost().cores}" value="${vm.cores}" aria-label="CPU cores" onchange="hdVmSet('${name}','cores',this.value)">` : vm.cores}</dd><dt>Disk</dt><dd>${vm.diskGb} GB, ${vm.diskType === 'fixed' ? 'fixed size' : 'dynamically allocated'}</dd><dt>Network</dt><dd><select class="select" aria-label="Network mode for ${hdEsc(vm.name)}" onchange="hdVmSet('${name}','network',this.value)">${network}</select></dd></dl>
+    ${hdVmHintsHtml(vm, true)}
     ${hdVmModeDiagram(vm.network)}
     <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Snapshots</strong><span class="muted">A checkpoint on the same disk, not a backup</span></div><div class="card-body"><form onsubmit="event.preventDefault();hdVmSnapshot('${name}',(document.getElementById('hd-vm-snapshot-name')||{}).value)" style="display:flex;gap:6px;flex-wrap:wrap"><input class="input" id="hd-vm-snapshot-name" maxlength="40" placeholder="Snapshot name" aria-label="Snapshot name"><button class="btn btn-secondary btn-sm">Take snapshot</button></form>${snapshots ? `<ul class="hd-list">${snapshots}</ul>` : '<p class="muted">No snapshots yet.</p>'}</div></div>
     ${hdVmScreen(vm)}

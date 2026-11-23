@@ -143,7 +143,7 @@ async function testModuleTwoLocalFlagsAloneAreNotSubmitted() {
   assert.equal(submitButton(html, LAB21), null, 'no Submit button until the files are chosen again');
   assert.match(section(html, 'its02-lab-2-1'), /Choose this file again — “d\.png”/);
   assert.equal(counter(html, 'its02-status'), '4 labs · 0 passed');
-  assert.match(section(html, 'its02-lab-2-3'), /Start Labs 4\.3 &(amp;)? 4\.4 walkthrough/);
+  assert.match(section(html, 'its02-lab-2-3'), /Start Lab 4\.3 walkthrough/);
   for (const id of ['its02-lab-2-1', 'its02-lab-2-2', 'its02-lab-2-3']) assert.equal(railRow(html, id).ticked, false, `${id} not ticked`);
 }
 
@@ -496,7 +496,8 @@ function testLaunchLinksNameTheStudent() {
   assert.match(student, /^student-/);
   for (const [n, coach] of [[1, 'hd-m01'], [2, 'hd-m02'], [3, 'hd-m03'], [11, 'hd-m11']]) {
     const html = moduleLab(n).view(user, HD);
-    const href = (new RegExp(`href="([^"]*coach=${coach}[^"]*)"`).exec(html) || [])[1];
+    // coach=hd-m02& exactly: Module 4 also links hd-m02-vm and hd-m02-server.
+    const href = (new RegExp(`href="([^"]*coach=${coach}&[^"]*)"`).exec(html) || [])[1];
     assert.ok(href, `Module ${n}: walkthrough link`);
     assert.ok(href.includes(`coach=${coach}&amp;restart=1&amp;student=${student}#/helpdesk/tickets`), `Module ${n}: ${href}`);
     assert.ok(!href.includes('hdesk%40') && !href.includes('hdesk@'), `Module ${n}: no email in the link`);
@@ -520,7 +521,7 @@ const returnLink = (coachId) => run(`location.search = ${JSON.stringify(coachId 
 async function testReturnLinkRecordsNothing() {
   const cases = [
     [1, 'hd-m01', 'its01-lab-1-2', 'lab-its-01-ticket-triage', 'its01-lab-1-2', 'Start Lab 1.1 walkthrough'],
-    [2, 'hd-m02', 'its02-lab-2-3', LAB23, 'its02-lab-2-3', 'Start Labs 4.3 &amp; 4.4 walkthrough'],
+    [2, 'hd-m02', 'its02-lab-2-3', LAB23, 'its02-lab-2-3', 'Start Lab 4.3 walkthrough'],
     [3, 'hd-m03', null, 'lab-its-03-blank-desktop', 'itss-lab-05', 'Start guided walkthrough'],
     [7, 'hd-m07', null, run('LABS').find((l) => l.module === 'its-07').key, 'itss-lab-06', 'Start guided walkthrough'],
   ];

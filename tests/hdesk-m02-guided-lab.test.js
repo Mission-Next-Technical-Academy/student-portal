@@ -434,7 +434,23 @@ function testNothingFromTheGradedQueue() {
   })`).toLowerCase();
   const words = content.split(/[^a-z0-9-]+/).filter(Boolean);
   words.forEach((word) => assert.ok(!GRADED_WORDS.has(hash(word)), 'no graded story word in Module 2 content'));
-  for (let i = 0; i + 1 < words.length; i += 1) assert.ok(!GRADED_NAMES.has(hash(`${words[i]} ${words[i + 1]}`)), 'no graded requester in Module 2 content');
+  // Module 2's own tickets name no graded requester at all. A later module's
+  // own-set ticket may name one directory user the Module 4 spec chose as a
+  // requester (call 5, ticket 4-A); every other graded name stays refused.
+  const module2 = new Set([...JSON.parse(tab.run("JSON.stringify(HD_COACHED_SETS['its-10-guided'].tickets)")), ...JSON.parse(tab.run("JSON.stringify(HD_PRACTICE_SETS['its-10'].tickets)"))]);
+  const REUSED_BY_LATER_MODULES = new Set([...GRADED_NAMES].filter((h) => h === hash('grace kim')));
+  assert.equal(REUSED_BY_LATER_MODULES.size, 1, 'the one reused name is a graded name');
+  const pairs = (text) => { const list = text.split(/[^a-z0-9-]+/).filter(Boolean); return list.slice(1).map((w, i) => hash(`${list[i]} ${w}`)); };
+  const own = JSON.parse(tab.run('JSON.stringify(HD_TICKET_TEMPLATES.filter((t) => t.ownSet))'));
+  own.forEach((ticket) => pairs(JSON.stringify(ticket).toLowerCase()).forEach((h) => {
+    const allowed = !module2.has(ticket.id) && REUSED_BY_LATER_MODULES.has(h);
+    assert.ok(allowed || !GRADED_NAMES.has(h), `no graded requester in ${ticket.id}`);
+  }));
+  const rest = tab.run(`JSON.stringify({
+    kb: HD_KB_ARTICLES.filter((a) => ['KB-0062', 'KB-0063'].includes(a.id)),
+    coach: MODULE_COACHES.find((c) => c.id === 'hd-m10').steps.map((s) => [s.title, s.instruction, s.body]),
+  })`).toLowerCase();
+  pairs(rest).forEach((h) => assert.ok(!GRADED_NAMES.has(h), 'no graded requester in Module 2 content'));
 }
 
 const tests = [

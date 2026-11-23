@@ -32,6 +32,7 @@ const LAB = {
   ],
   addresses: { internal: { 'TEST-SRV': '10.99.5.10', 'TEST-CLI': '10.99.5.20' }, nat: '10.0.2.15' },
   modes: { NAT: 'TEST nat line', Bridged: 'TEST bridged line', Internal: 'TEST internal line', 'Host-only': 'TEST host-only line' },
+  targets: { 'TEST-CLI': { image: 'client', memoryGb: 4, cores: 2, diskGb: 64, diskType: 'dynamic' } },
   shortcut: 'TEST notes',
   finishCards: [{ title: 'TEST card', text: 'TEST card text' }],
 };
@@ -152,6 +153,11 @@ function testBuildTheClientVm() {
   assert.match(html, /data-hd-vm-warning="memory"/);
   assert.match(html, /needs at least 4 GB/);
   assert.equal(tab.state().form.lowRamSeen, true);
+  // A setting that is off is named (the lab's targets).
+  assert.match(html, /data-hd-vm-hints="3"/);
+  assert.match(html, /Memory is 1 GB: this lab asks for 4 GB/);
+  assert.match(html, /CPU cores: 1; this lab asks for 2/);
+  assert.match(html, /Disk size is 32 GB: this lab asks for 64 GB/);
   tab.set('memoryGb', 4); tab.set('cores', 2);
   html = tab.view('helpdesk/vm-manager');
   assert.doesNotMatch(html, /data-hd-vm-warning/);
@@ -167,6 +173,7 @@ function testBuildTheClientVm() {
   });
   assert.deepEqual(tab.state().modesViewed, ['NAT', 'Bridged', 'Internal', 'Host-only']);
   assert.equal(tab.state().form.network, '', 'looking is not choosing');
+  assert.doesNotMatch(tab.view('helpdesk/vm-manager'), /data-hd-vm-hints/, 'every setting matches');
   tab.run('hdVmCreate()');
   assert.match(tab.lastToast(), /network mode/);
   tab.set('network', 'NAT');

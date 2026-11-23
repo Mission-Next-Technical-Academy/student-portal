@@ -12,8 +12,13 @@
   // show as ungraded context.
   const TICKETS_BY_LAB = {
     'lab-its-01-ticket-triage': ['HD-2150'],
-    'lab-its-02-device-manager': ['HD-2106'],
+    // Module 4 (key its-02), from 2026-11-23: Lab 4.3 is HD-2134 and Lab 4.2
+    // ends with HD-2173. Lab 4.4 is a practice-set completion now; its
+    // walkthrough attempts from before then hold HD-2112 (see the
+    // registrations at the end of this file).
+    'lab-its-02-device-manager': ['HD-2134'],
     'lab-its-02-print-spooler': ['HD-2112'],
+    'lab-its-02-vm-snapshot-server': ['HD-2173'],
     'lab-its-03-blank-desktop': ['HD-2109'],
     'lab-its-04-connectivity': ['HD-2104', 'HD-2105'],
     'lab-its-05-server-ad': ['HD-2108', 'HD-2117'],
@@ -25,7 +30,8 @@
   };
   // Lab 1.2 used HD-2101 until 2026-11-09: an attempt saved before then holds
   // HD-2101 and no HD-2150, and keeps the sheet it was worked against.
-  const EARLIER_TICKETS_BY_LAB = { 'lab-its-01-ticket-triage': ['HD-2101'] };
+  // Lab 4.3 walked HD-2106 until 2026-11-23, the same way.
+  const EARLIER_TICKETS_BY_LAB = { 'lab-its-01-ticket-triage': ['HD-2101'], 'lab-its-02-device-manager': ['HD-2106'] };
   const TITLES = {
     // Retired 2026-11-10; kept so its past attempts still open.
     'lab-its-01-lms-validation': 'Module 01 · LMS & Environment Validation',
@@ -425,7 +431,10 @@
       const saved = (list) => list.some((id) => tickets.some((ticket) => ticket.id === id));
       return earlier && !saved(current) && saved(earlier) ? earlier : current;
     };
-    const ids = Array.from(new Set(Object.keys(TICKETS_BY_LAB).filter((labKey) => cardKeys.has(labKey)).flatMap(ticketsFor)));
+    // Another lab in the card counts only when its tickets were saved: a
+    // newer Lab 4.4 practice record holds none.
+    const savedAny = (list) => list.some((id) => tickets.some((ticket) => ticket.id === id));
+    const ids = Array.from(new Set(Object.keys(TICKETS_BY_LAB).filter((labKey) => cardKeys.has(labKey) && (labKey === key || savedAny(ticketsFor(labKey)))).flatMap(ticketsFor)));
     return ids.flatMap((id) => {
       const ticket = tickets.find((entry) => entry.id === id) || null;
       const saved = Boolean(ticket);
@@ -579,8 +588,39 @@
     sections: coachSections,
   }));
 
-  ['lab-its-01-lms-validation', 'lab-its-02-vm-build', 'lab-its-02-vm-snapshot-server'].forEach((key) => {
-    AdminSubmissionSheet.register(key, { title: TITLES[key], sections: evidenceSections });
+  AdminSubmissionSheet.register('lab-its-01-lms-validation', { title: TITLES['lab-its-01-lms-validation'], sections: evidenceSections });
+
+  // Module 4's VM labs: the student's practice VMs from the simulator
+  // (checked, not graded), or an earlier attempt's evidence files.
+  const VM_TARGET = { image: 'win11', memoryGb: 4, cores: 2, diskGb: 64, diskType: 'dynamic', network: 'NAT' };
+  const VM_IMAGES = { win11: 'Windows 11', winsrv: 'Windows Server' };
+  function vmSections(result, ctx) {
+    const vms = result.work && result.work.vm && Array.isArray(result.work.vm.vms) ? result.work.vm.vms : [];
+    const find = (name) => vms.find((vm) => vm && String(vm.name).toLowerCase() === name.toLowerCase()) || null;
+    const describe = (vm) => `${VM_IMAGES[vm.image] || vm.image || 'no image'} · ${vm.memoryGb} GB · ${vm.cores} cores · ${vm.diskGb} GB ${vm.diskType === 'fixed' ? 'fixed' : 'dynamic'} disk · ${vm.network} · ${vm.installed ? 'installed' : 'not installed'}`;
+    const pings = (vm) => (Array.isArray(vm.pings) ? vm.pings : []).map((p) => `${p.to} on ${p.mode || '?'}: ${p.ok ? 'replies' : 'timed out'}`);
+    const client = find('NS-TEST-W11');
+    const checks = Object.keys(VM_TARGET).map((field) => ({
+      label: `NS-TEST-W11 ${field}`, expected: String(VM_TARGET[field]),
+      test: () => (client ? (ctx.row.lab_key === 'lab-its-02-vm-build' || field !== 'network' ? client[field] === VM_TARGET[field] : null) : null),
+      given: () => (client ? String(client[field]) : 'No VM named NS-TEST-W11'),
+      fix: `Set NS-TEST-W11's ${field} to ${VM_TARGET[field]}.`,
+    }));
+    const sections = [{
+      id: 'practice-vms', title: 'Practice VMs (checked, not graded)', required: false,
+      instructorPrompt: 'The VMs are simulated. Ask the learner why each setting matters: memory and cores come out of the host, the disk is a file on the host, and the network mode decides who the VM can reach.',
+      answer: vms.length ? vms.map((vm) => [vm.name, `${describe(vm)}${Array.isArray(vm.snapshots) && vm.snapshots.length ? ` · snapshots: ${vm.snapshots.map((s) => s.name).join(', ')}` : ''}${vm.restored ? ` · restored ${vm.restored}×` : ''}`])
+        .concat(vms.filter((vm) => Array.isArray(vm.pings) && vm.pings.length).map((vm) => [`Pings from ${vm.name}`, pings(vm)])) : [['VMs', null]],
+      checks,
+    }];
+    return ctx.row.lab_key === 'lab-its-02-vm-snapshot-server' ? sections.concat(coachSections(result, ctx)) : sections;
+  }
+  ['lab-its-02-vm-build', 'lab-its-02-vm-snapshot-server'].forEach((key) => {
+    AdminSubmissionSheet.register(key, {
+      title: TITLES[key],
+      caseId: (result) => (result && result.work && result.work.vm ? 'Practice VMs' : null),
+      sections: (result, ctx) => (result && result.work && result.work.vm ? vmSections(result, ctx) : evidenceSections(result, ctx)),
+    });
   });
 
   // Modules 1 to 3's practice tickets: a completion record only.
@@ -590,6 +630,13 @@
       caseId: (result) => (Array.isArray(result.tickets) ? result.tickets.filter((id) => typeof id === 'string').join(', ') : '') || null,
       sections: practiceCompletionSections,
     });
+  });
+  // Module 4's Lab 4.4 (from 2026-11-23): a practice-set completion; an
+  // earlier walkthrough attempt keeps its HD-2112 sheet.
+  AdminSubmissionSheet.register('lab-its-02-print-spooler', {
+    title: TITLES['lab-its-02-print-spooler'],
+    caseId: (result) => (result && result.source === 'mnt-practice-complete' ? (Array.isArray(result.tickets) ? result.tickets.filter((id) => typeof id === 'string').join(', ') : '') : workTickets(result).map((ticket) => ticket.id).join(', ')) || null,
+    sections: (result, ctx) => (result && result.source === 'mnt-practice-complete' ? practiceCompletionSections(result, ctx) : coachSections(result, ctx)),
   });
 
   AdminSubmissionSheet.register('lab-its-12-capstone', {

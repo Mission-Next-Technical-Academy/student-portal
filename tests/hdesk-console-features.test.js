@@ -110,7 +110,10 @@ function testExistingTicketsTurnNothingOn() {
   // Module 3's (key its-11) tickets, the same way (tests/hdesk-m03-guided-lab.test.js
   // and tests/hdesk-m03-practice-tickets.test.js).
   const MODULE_3 = ['HD-2164', 'HD-2165', 'HD-2166', 'HD-2167'];
-  for (const id of ids.filter((item) => !MODULE_1.includes(item) && !MODULE_2.includes(item) && !MODULE_3.includes(item))) {
+  // Module 4's (key its-02) tickets, the same way (tests/hdesk-m04-guided-labs.test.js
+  // and tests/hdesk-m04-practice-tickets.test.js).
+  const MODULE_4 = ['HD-2134', 'HD-2173', 'HD-2169', 'HD-2170', 'HD-2171', 'HD-2172'];
+  for (const id of ids.filter((item) => !MODULE_1.includes(item) && !MODULE_2.includes(item) && !MODULE_3.includes(item) && !MODULE_4.includes(item))) {
     assert.equal(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === ${JSON.stringify(id)}).console`), undefined, `${id} has no console settings`);
     const html = tab.open(id);
     assert.doesNotMatch(html, NEW_MARKERS, `${id} shows no new feature`);

@@ -274,4 +274,28 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
       assert.match(lab23Student, /data-student-overall-notes[\s\S]*Recheck the Print Spooler crash event/);
     },
   },
+  // Module 4 from 2026-11-23: Lab 4.3 grades HD-2134; older attempts keep HD-2106 (above).
+  {
+    name: 'Lab 4.3 new attempt grades HD-2134',
+    row: coachRow('hdesk-m04-lab43', lab23, [savedTicket('HD-2134', { worked: true })]),
+    expect: { html: ['data-sheet-section="scenario-hd-2134"'], notHtml: ['data-sheet-section="scenario-hd-2106"'] },
+  },
+  {
+    name: 'Lab 4.4 practice completion shows the four tickets, no walkthrough sections',
+    row: { id: 'hdesk-m04-lab44', lab_key: lab24, track_code: 'HDESK', student_id: 'synthetic-hdesk', completed_at: '2026-11-23T10:00:00Z', result: { source: 'mnt-practice-complete', practiceSet: 'its-02', tickets: ['HD-2169', 'HD-2170', 'HD-2171', 'HD-2172'] } },
+    expect: { html: ['HD-2169', 'HD-2172'], notHtml: ['data-sheet-section="scenario-hd-2112"'] },
+  },
+  (() => {
+    const vm = (name, extra) => ({ name, image: 'win11', memoryGb: 4, cores: 2, diskGb: 64, diskType: 'dynamic', network: 'NAT', state: 'Running', installed: true, snapshots: [], pings: [], ...extra });
+    return {
+      name: 'Lab 4.1 simulator attempt shows the practice VMs; a wrong setting is named',
+      row: { id: 'hdesk-m04-lab41', lab_key: 'lab-its-02-vm-build', track_code: 'HDESK', student_id: 'synthetic-hdesk', completed_at: '2026-11-23T10:00:00Z', result: { source: 'mnt-coach-complete', work: { version: 1, tickets: [], vm: { version: 1, vms: [vm('NS-TEST-W11', { cores: 1 })] } } } },
+      expect: { html: ['Practice VMs (checked, not graded)', 'NS-TEST-W11', '4 GB · 1 cores'], notHtml: ['Evidence files'] },
+    };
+  })(),
+  {
+    name: 'Lab 4.1 evidence attempt from before the simulator keeps its evidence sheet',
+    row: { id: 'hdesk-m04-lab41-old', lab_key: 'lab-its-02-vm-build', track_code: 'HDESK', student_id: 'synthetic-hdesk', completed_at: '2026-10-23T10:00:00Z', result: { evidence: 2, evidence_files: [{ field: 'evDesktop', name: 'd.png', size: 2048 }] } },
+    expect: { html: ['Evidence files', 'Finished Windows desktop'], notHtml: ['Practice VMs'] },
+  },
 ];

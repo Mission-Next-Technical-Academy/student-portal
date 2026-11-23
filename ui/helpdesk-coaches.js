@@ -35,7 +35,10 @@
   // deliberately excluded; this is only the student's recorded work.
   const HD_COACH_TICKET_IDS = {
     'hd-m01': ['HD-2150'],
-    'hd-m02': ['HD-2106', 'HD-2112'],
+    // Module 4 (key its-02) Lab 4.3. Older attempts keep HD-2106 and HD-2112
+    // on their sheet (portal/admin-sheets/hdesk.js).
+    'hd-m02': ['HD-2134'],
+    'hd-m02-server': ['HD-2173'],
     'hd-m03': ['HD-2109'],
     'hd-m04': ['HD-2104', 'HD-2105', 'HD-2113'],
     'hd-m05': ['HD-2108', 'HD-2117'],
@@ -317,111 +320,385 @@
   });
 
   /* ---------------------------------------------------------- hd-m02 ---- */
-  /* Covers what were "Lab 2.3 The Misbehaving Peripheral" and "Lab 2.4 The
-   * Stuck Queue and the Offline Printer" in the original lab-spec docx.
-   * Neither a Device Manager UI nor a full Print Spooler console exists in
-   * this simulator (confirmed by search) — but both tickets' real data
-   * already carries that exact driver-crash-then-rollback narrative through
-   * the generic evidence/diagnose/note/resolve flow, so this coach walks
-   * both real tickets through that flow rather than inventing new UI. */
+  /* Module 4 (key its-02). Three coached labs, feedback only, no points:
+   *   hd-m02-vm      Lab 4.1, build a Windows 11 client VM (the VM screen).
+   *   hd-m02-server  Lab 4.2, snapshot, a server VM, ping both ways, then the
+   *                  virtual desktop ticket HD-2173 (coached set its-02-server).
+   *   hd-m02         Lab 4.3, printers and peripherals on HD-2134 (coached
+   *                  set its-02-guided). Its old two-ticket steps (HD-2106 and
+   *                  HD-2112) were replaced on 2026-11-23; both tickets stay in
+   *                  the data for Module 12 and older attempts.
+   * Every check reads saved state (the VMs, the ticket, the computer), never
+   * a tick box, so a step done early passes when it comes up. The coach shows
+   * each command in full: Module 4 is the first time a student types one. */
+  const hd2Vm = (name) => (typeof hdVmByName === 'function' ? hdVmByName(name) : null);
+  const hd2VmState = () => (typeof hdVmState === 'function' ? hdVmState() : null);
+  // The VM being made (the New form) or already made, by name.
+  const hd2Draft = (name) => {
+    const made = hd2Vm(name); if (made) return made;
+    const state = hd2VmState(); const form = state && state.form;
+    return form && form.name.toLowerCase() === name.toLowerCase() ? form : null;
+  };
+  // Pings from one VM, oldest first: [{ to, ok, mode }].
+  const hd2Pings = (name) => { const vm = hd2Vm(name); return vm ? vm.pings : []; };
+  const hd2Ticket = (id) => (typeof hdTicketById === 'function' ? hdTicketById(id) : null);
+  const hd2Rule = (id, rule) => { const t = hd2Ticket(id); return Boolean(t) && typeof hdConsoleRule === 'function' && hdConsoleRule(t, rule) === true; };
+  const hd2Actions = (id) => { const t = hd2Ticket(id); return t && typeof hdConsoleState === 'function' ? hdConsoleState(t).actions : []; };
+  const hd2Did = (id, action, test) => hd2Actions(id).some((a) => a.id === action && (!test || test(a)));
+  const hd2Triaged = (id, category, subcategory, ci, priority) => {
+    const t = hd2Ticket(id);
+    const c = t && typeof hdClassification === 'function' ? hdClassification(t) : null;
+    return Boolean(t && c) && c.category === category && c.subcategory === subcategory && c.ci === ci && t.priority === priority;
+  };
+  // A command typed in the ticket's PowerShell on that computer.
+  const hd2Typed = (computer, pattern) => (typeof hdState !== 'undefined' && Array.isArray(hdState.practiceLog) ? hdState.practiceLog : [])
+    .some((e) => e && e.type === 'command_run' && e.computer === computer && pattern.test(String(e.command || '').trim()));
+  const hd2Machine = (name) => (typeof hdMachine === 'function' ? hdMachine(name) : null);
+  const hd2Queue = () => { const m = hd2Machine('NS-LT-0094'); return m && m.printQueues ? m.printQueues['NS-HR-MFP01'] : null; };
+  const hd2InSet = (key) => typeof hdState !== 'undefined' && hdState && hdState.ticketSet === key;
+  const HD2_VM_ROUTES = ['#/helpdesk/dashboard', '#/helpdesk/vm-manager', '#/helpdesk/task-manager'];
 
-  const HD2_TICKETS = ['HD-2106', 'HD-2112'];
-
-  function hd2Reset() {
-    if (typeof hdState === 'undefined' || typeof window.hdFreshState !== 'function') return;
-    const fresh = window.hdFreshState();
-    hdState.tickets = fresh.tickets.filter((t) => HD2_TICKETS.includes(t.id));
-    // Unlike hd1Reset's 4-ticket set, this coach only has 2 tickets, so
-    // hdFreshState()'s random shuffle has a genuine 50% chance of already
-    // selecting 'HD-2106' — which would silently pre-satisfy step 1's "open
-    // it yourself" check before the student has clicked anything. Force a
-    // clean slate every time instead of leaving it to chance.
-    hdState.selectedTicketId = null;
-    if (typeof hdSave === 'function') hdSave();
-    // The page was drawn from the old tickets before the coach booted.
-    if (typeof render === 'function') render();
+  // A saved run of a coach whose steps no longer fit the shift it would
+  // resume on starts fresh (ui/coach.js reads these keys): the old two-ticket
+  // hd-m02, or a VM-lab ticket step on a shift without its set.
+  function hd2ForgetStale(id, setKey) {
+    if ((typeof HD_PRACTICE_SET !== 'undefined' && HD_PRACTICE_SET) || (typeof HD_PROVE !== 'undefined' && HD_PROVE)) return;
+    if (typeof hdState === 'undefined' || !hdState || hdState.ticketSet === setKey) return;
+    const stale = (raw) => { try { const saved = JSON.parse(raw || 'null'); return Boolean(saved && saved.id === id); } catch { return false; } };
+    try { if (stale(localStorage.getItem('mnt.coach.resume'))) localStorage.removeItem('mnt.coach.resume'); } catch { /* storage blocked */ }
+    try { if (stale(sessionStorage.getItem('mnt.coach.state'))) sessionStorage.removeItem('mnt.coach.state'); } catch { /* storage blocked */ }
   }
+  hd2ForgetStale('hd-m02', 'its-02-guided');
+  hd2ForgetStale('hd-m02-server', 'its-02-server');
 
-  function hd2TicketSteps(ticketId, opening) {
-    return [
+  /* ------------------------------------------------------- Lab 4.1 ------ */
+  MODULE_COACHES.push({
+    id: 'hd-m02-vm', module: 4, name: 'Guided Lab: build a Windows client VM', role: 'Tier 1 Help Desk Technician',
+    summary: 'Build a Windows 11 client VM on a simulated host: check the host’s CPU, then choose the name, install image, memory, CPU cores, disk and network mode, and start it. Nothing is installed on your computer. The lab checks your settings; there is no score.',
+    completionToken: 'hd-m02-vm', home: '#/helpdesk/vm-manager',
+    // Your VMs are kept: Lab 4.2 uses this one. A redo shows what you built.
+    resetState: () => {},
+    allow: HD2_VM_ROUTES,
+    steps: [
       {
-        route: '#/helpdesk/tickets',
-        target: `tr[onclick*="${ticketId}"]`,
-        require: true,
-        title: opening ? 'Open your first ticket' : 'Open the second ticket',
-        instruction: `Next Step: open <strong>${ticketId}</strong>.`,
-        body: opening
-          ? 'A label printer is stuck mid-job and the printer itself claims it’s Ready — that mismatch between what the printer reports and what the queue shows is the first clue.'
-          : 'This one came in from monitoring, not a person — the Print Spooler service itself is crashing on the print server. Same underlying cause, different vantage point.',
-        waitLabel: 'Next Step: Opened the ticket',
-        nudge: `Click the ${ticketId} row to open it.`,
-        check: () => typeof hdState !== 'undefined' && hdState.selectedTicketId === ticketId,
+        route: '#/helpdesk/task-manager', target: '[data-hd-task-tab="performance"], [data-hd-task-tab="cpu"], [data-hd-task-cpu]',
+        title: 'Check the host’s CPU',
+        instruction: 'On the host, open <strong>Task Manager › Performance › CPU</strong>.',
+        body: 'Why: the host’s CPU must have virtualization (Intel VT-x or AMD-V) switched on in firmware, or no VM will start. Success looks like: you’ve found 16 GB RAM, 8 cores and “Virtualization: Enabled”.',
+        waitLabel: 'Next Step: CPU checked',
+        check: () => { const s = hd2VmState(); return Boolean(s && s.cpuSeen); },
       },
       {
-        route: '#/helpdesk/ticket',
-        target: '.hd-evidence',
-        title: 'Check the evidence',
-        instruction: 'Read the log line before you guess.',
-        body: 'Out of labels and a bad network port are the tempting first guesses on a stuck print job — but the print-service log line about the driver terminating is the actual clue.',
+        route: '#/helpdesk/vm-manager', target: '[data-hd-vm-new]',
+        title: 'Open the hypervisor',
+        instruction: 'Open the <strong>VM Manager</strong> and click <strong>New</strong>.',
+        body: 'Why: a Type 2 hypervisor runs on a normal OS, like VirtualBox. Type 1 runs straight on server hardware (ESXi, Hyper-V). Success looks like: the new-VM form is open.',
+        waitLabel: 'Next Step: New VM form open',
+        check: () => { const s = hd2VmState(); return Boolean(s && (s.form || hd2Vm('NS-TEST-W11'))); },
+      },
+      {
+        route: '#/helpdesk/vm-manager', target: '#hd-vm-name, #hd-vm-image',
+        title: 'Name it and pick the image',
+        instruction: 'Type the name <code>NS-TEST-W11</code> and pick the <strong>Windows 11</strong> install image (ISO).',
+        body: 'Why: an ISO is a disc image of the installer. The VM is the guest; your PC is the host. Success looks like: the name and install image are set. If the screen says a setting is off, it names it.',
+        waitLabel: 'Next Step: Name and image set',
+        check: () => { const d = hd2Draft('NS-TEST-W11'); return Boolean(d) && d.image === 'win11'; },
+      },
+      {
+        route: '#/helpdesk/vm-manager', target: '#hd-vm-memory, #hd-vm-cores, [data-hd-vm-ram]',
+        title: 'Memory and CPU cores',
+        instruction: 'Set memory to <strong>1 GB</strong> and read the warning. Then set <strong>4 GB</strong> and <strong>2 CPU cores</strong>.',
+        body: 'Why: too little and the VM crawls; too much and the host starves. Every VM’s share comes out of the host. Success looks like: 4 GB and 2 cores, and the host’s bar shows 12 GB left.',
+        waitLabel: 'Next Step: 4 GB and 2 cores',
+        check: () => {
+          const s = hd2VmState(); const made = hd2Vm('NS-TEST-W11'); const form = s && s.form;
+          if (made) return made.memoryGb === 4 && made.cores === 2;
+          return Boolean(form && form.name.toLowerCase() === 'ns-test-w11' && form.lowRamSeen && form.memoryGb === 4 && form.cores === 2);
+        },
+      },
+      {
+        route: '#/helpdesk/vm-manager', target: '#hd-vm-disk, [name="hd-vm-disk-type"]',
+        title: 'The virtual disk',
+        instruction: 'Choose a <strong>64 GB</strong> disk, then <strong>Dynamically allocated</strong>.',
+        body: 'Why: dynamic saves space; fixed is a little faster. Both live as files on the host’s drive. Success looks like: 64 GB, dynamically allocated.',
+        waitLabel: 'Next Step: 64 GB, dynamic',
+        check: () => { const d = hd2Draft('NS-TEST-W11'); return Boolean(d) && d.diskGb === 64 && d.diskType === 'dynamic'; },
+      },
+      {
+        route: '#/helpdesk/vm-manager', target: '[data-hd-vm-mode], [data-hd-vm-choose], [data-hd-vm-create]',
+        title: 'Network mode',
+        instruction: 'Click each network mode to see its diagram: <strong>NAT</strong>, <strong>Bridged</strong>, <strong>Internal</strong> and <strong>Host-only</strong>. Then choose <strong>NAT</strong> and click <strong>Create</strong>.',
+        body: 'Why: NAT: the VM reaches the internet through the host. Bridged: it looks like another PC on the network. Internal: VMs talk only to each other. Host-only: VMs and the host only. Success looks like: NAT selected, and NS-TEST-W11 is in the list.',
+        waitLabel: 'Next Step: NAT chosen, VM created',
+        check: () => { const s = hd2VmState(); const made = hd2Vm('NS-TEST-W11'); return Boolean(s && made) && s.modesViewed.length === 4 && made.network === 'NAT'; },
+      },
+      {
+        route: '#/helpdesk/vm-manager', target: '[data-hd-vm-start], [data-hd-vm-screen]',
+        title: 'Start it',
+        instruction: 'Click <strong>Start</strong> on NS-TEST-W11.',
+        body: 'Why: a guest OS needs its own license, updates and antivirus, just like a real PC. Success looks like: the install fast-forwards to a Windows 11 desktop and the VM shows Running. The lab checks 4 GB, 2 cores, a 64 GB dynamic disk, NAT and Windows 11 installed; if one is off, the screen names it.',
+        waitLabel: 'Next Step: Windows 11 installed and running',
+        check: () => {
+          const vm = hd2Vm('NS-TEST-W11');
+          return Boolean(vm) && vm.image === 'win11' && vm.memoryGb === 4 && vm.cores === 2 && vm.diskGb === 64 && vm.diskType === 'dynamic' && vm.network === 'NAT' && vm.installed && vm.state === 'Running';
+        },
+      },
+      {
+        route: '#/helpdesk/vm-manager', target: '[data-hd-vm-finish]',
+        title: 'Finish the lab',
+        instruction: 'VM built. Read the four cards on where Tier 1 meets VMs at work, then press <strong>Finish</strong> to send your work to your course page.',
+        body: 'Your VM settings count once your course page confirms it saved them. There is no score. Keep NS-TEST-W11: Lab 4.2 uses it.',
+        finish: { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/4', 'hd-m02-vm') },
+      },
+    ],
+  });
+
+  /* ------------------------------------------------------- Lab 4.2 ------ */
+  const HD2_SERVER_TICKET = 'HD-2173';
+  MODULE_COACHES.push({
+    id: 'hd-m02-server', module: 4, name: 'Guided Lab: snapshot, server and a virtual desktop', role: 'Tier 1 Help Desk Technician',
+    summary: 'Take a snapshot of NS-TEST-W11 and undo a change with it, build a server VM, put both VMs on an Internal network and ping both ways, then help a user whose virtual desktop is stuck. Checked, not graded.',
+    completionToken: 'hd-m02-server', home: '#/helpdesk/vm-manager',
+    // The ticket set is fresh; the VMs from Lab 4.1 are kept.
+    resetState: () => { if (typeof hdUseTicketSet === 'function') hdUseTicketSet('its-02-server'); },
+    allow: [...HD2_VM_ROUTES, '#/helpdesk/tickets', '#/helpdesk/ticket', '#/helpdesk/virtual-desktops', '#/helpdesk/knowledge-base'],
+    steps: [
+      {
+        route: '#/helpdesk/vm-manager', target: '#hd-vm-snapshot-name, [data-hd-vm-snapshot]',
+        title: 'Take a snapshot',
+        instruction: 'Select <strong>NS-TEST-W11</strong>. Click <strong>Take snapshot</strong> and name it <code>Before-change</code>. (No NS-TEST-W11 in the list? Build it as in Lab 4.1 first.)',
+        body: 'Why: a snapshot is a checkpoint before a risky change, not a backup: it lives on the same disk. Success looks like: the snapshot is listed.',
+        waitLabel: 'Next Step: Snapshot taken',
+        check: () => { const vm = hd2Vm('NS-TEST-W11'); return Boolean(vm && vm.installed) && vm.snapshots.some((s) => s.name.toLowerCase() === 'before-change'); },
+      },
+      {
+        route: '#/helpdesk/vm-manager', target: '[data-hd-vm-shortcut], [data-hd-vm-snapshot]',
+        title: 'Break it, then restore',
+        instruction: 'In the VM, <strong>Delete</strong> the shortcut on the desktop. Then click <strong>Restore</strong> on <code>Before-change</code>.',
+        body: 'Why: a bad change is undone in seconds. Success looks like: the shortcut is back.',
+        waitLabel: 'Next Step: Shortcut back',
+        check: () => { const vm = hd2Vm('NS-TEST-W11'); return Boolean(vm) && vm.shortcutDeleted && vm.restored > 0 && vm.shortcut; },
+      },
+      {
+        route: '#/helpdesk/vm-manager', target: '[data-hd-vm-new], [data-hd-vm-form], [data-hd-vm-start]',
+        title: 'Build a server VM',
+        instruction: 'Click <strong>New</strong>, type the name <code>NS-TEST-SRV</code>, pick the <strong>Windows Server</strong> image, set <strong>4 GB</strong>, <strong>2 cores</strong> and a <strong>64 GB</strong> disk, choose a network mode, click <strong>Create</strong>, then <strong>Start</strong>.',
+        body: 'Why: every guest takes its share from the same host: two 4 GB guests leave this 16 GB host 8 GB. A server runs roles for many users. Success looks like: Server Manager opens in NS-TEST-SRV, and the host’s bar shows 8 GB left.',
+        waitLabel: 'Next Step: Server installed',
+        check: () => { const vm = hd2Vm('NS-TEST-SRV'); return Boolean(vm) && vm.image === 'winsrv' && vm.memoryGb === 4 && vm.cores === 2 && vm.diskGb === 64 && vm.installed; },
+      },
+      {
+        route: '#/helpdesk/vm-manager', target: '[data-hd-vm-detail] select',
+        title: 'Put both on Internal',
+        instruction: 'Set the network mode of <strong>both</strong> VMs to <strong>Internal</strong>.',
+        body: 'Why: Internal: the guests talk only to each other. A safe place to test. Success looks like: both VMs on Internal.',
+        waitLabel: 'Next Step: Both on Internal',
+        check: () => {
+          const a = hd2Vm('NS-TEST-W11'); const b = hd2Vm('NS-TEST-SRV');
+          const pinged = hd2Pings('NS-TEST-W11').some((p) => p.ok && p.to === '10.0.5.10');
+          return Boolean(a && b) && ((a.network === 'Internal' && b.network === 'Internal') || pinged);
+        },
+      },
+      {
+        route: '#/helpdesk/vm-manager', target: '[data-hd-vm-console], #hd-vm-console-input',
+        title: 'Ping both ways',
+        instruction: 'In <strong>NS-TEST-W11</strong>’s console type <code>ping 10.0.5.10</code>. Then select <strong>NS-TEST-SRV</strong> and in its console type <code>ping 10.0.5.20</code>. Both VMs must be running.',
+        body: 'Why: a reply means one machine can reach the other. You’ll use ping on real networks in Module 9. Success looks like: four replies each way.',
+        waitLabel: 'Next Step: Replies both ways',
+        check: () => hd2Pings('NS-TEST-W11').some((p) => p.ok && p.to === '10.0.5.10') && hd2Pings('NS-TEST-SRV').some((p) => p.ok && p.to === '10.0.5.20'),
+      },
+      {
+        route: '#/helpdesk/vm-manager', target: '[data-hd-vm-detail] select, #hd-vm-console-input',
+        title: 'Change the mode, ping again',
+        instruction: 'Switch <strong>NS-TEST-W11</strong> to <strong>NAT</strong> and type <code>ping 10.0.5.10</code> again. Then switch it back to <strong>Internal</strong> and ping once more.',
+        body: 'Why: the network mode decides who a guest can talk to. When two VMs can’t reach each other, check the mode first. Success looks like: “Request timed out”, then replies again.',
+        waitLabel: 'Next Step: Timed out, then replies',
+        check: () => {
+          const pings = hd2Pings('NS-TEST-W11').filter((p) => p.to === '10.0.5.10');
+          const nat = pings.findIndex((p) => !p.ok && p.mode === 'NAT');
+          const vm = hd2Vm('NS-TEST-W11');
+          return nat >= 0 && pings.slice(nat + 1).some((p) => p.ok && p.mode === 'Internal') && Boolean(vm) && vm.network === 'Internal';
+        },
+      },
+      {
+        route: '#/helpdesk/ticket', target: 'select[data-hd-field="category"], select[data-hd-field="impact"], select[data-hd-field="urgency"]',
+        title: 'A user’s virtual desktop',
+        instruction: 'Open the ticket in your queue (Leah Brooks, Marketing). Set <strong>Category</strong> Software › Virtual desktop (VDI), <strong>Configuration item</strong> VDI-POOL-MKTG, <strong>Impact</strong> 3 and <strong>Urgency</strong> 2.',
+        body: 'Why: a virtual desktop is a VM on a server, so closing the window on her laptop doesn’t restart it. Success looks like: Priority calculates as P4.',
+        waitLabel: 'Next Step: Triaged at P4',
+        check: () => hd2Triaged(HD2_SERVER_TICKET, 'Software', 'Virtual desktop (VDI)', 'VDI-POOL-MKTG', 'P4'),
+      },
+      {
+        route: '#/helpdesk/virtual-desktops', target: '[data-hd-vdi]',
+        title: 'Check the whole pool',
+        instruction: 'Open the <strong>Virtual Desktops</strong> screen from the ticket and look at every session in VDI-POOL-MKTG.',
+        body: 'Why: scope first. One user, or the whole pool? Success looks like: the other sessions are Active; Leah’s is “Disconnected – hung, 9 h”.',
         continueLabel: 'Got it',
       },
       {
-        target: '.hd-path',
-        require: true,
-        title: 'Work the troubleshooting path',
-        instruction: 'Check off each step as you work through it.',
-        body: 'Preserve the queued jobs before you touch anything — confidential print jobs and print-service evidence matter here, same as any other ticket.',
-        waitLabel: 'Next Step: Checked a troubleshooting step',
-        nudge: 'Check at least one box in the troubleshooting path.',
-        check: () => document.querySelectorAll('.hd-path input:checked').length > 0,
+        route: '#/helpdesk/ticket', target: '.hd-kb-search, #hd-kb-input',
+        title: 'Read the KB first',
+        instruction: 'Search the knowledge base for <code>virtual desktop black screen</code> and open <strong>KB-0072</strong>.',
+        body: 'Why: the KB says what Tier 1 may do and what it may not. Success looks like: KB-0072 is open; it names Log off session and says the pool and host restarts are Tier 2.',
+        waitLabel: 'Next Step: KB-0072 open',
+        check: () => hd2Rule(HD2_SERVER_TICKET, { kb: 'KB-0072' }),
       },
       {
-        target: '.hd-diagnosis-row',
-        require: true,
-        title: 'Choose your diagnosis',
-        instruction: 'Select the cause the evidence actually supports, then click Check diagnosis.',
-        body: 'The other options sound plausible, but only one matches what the print-service log actually reported.',
-        waitLabel: 'Next Step: Diagnosis confirmed',
-        nudge: 'Pick a cause and click Check diagnosis — if it’s not supported by the evidence, you’ll be told to recheck.',
-        check: () => typeof hdCurrentTicket === 'function' && hdCurrentTicket() && hdCurrentTicket().diagnosisCorrect === true,
+        route: '#/helpdesk/ticket', target: '.hd-chat, .hd-caller',
+        title: 'Ask before you act',
+        instruction: 'Tell Leah that unsaved work in the stuck session may be lost, and ask if you can go ahead.',
+        body: 'Why: her work, her call. Success looks like: Leah says “Go ahead, I saved before lunch.”',
+        waitLabel: 'Next Step: Leah agreed',
+        check: () => hd2Rule(HD2_SERVER_TICKET, { chat: ['consent'] }),
       },
       {
-        target: '#hd-note-input, #hd-note-input ~ button',
-        require: true,
-        title: 'Document what you found',
-        instruction: 'Write a work note: what you checked, what you found, what you’re about to do.',
-        body: 'The expected resolution here is a driver rollback under change control — say so, not just "fixed the printer."',
-        waitLabel: 'Next Step: Note added',
-        nudge: 'Type a note and click Add work note.',
-        check: () => typeof hdCurrentTicket === 'function' && hdCurrentTicket() && hdCurrentTicket().notes.length > 0,
+        route: '#/helpdesk/virtual-desktops', target: '[data-hd-session-state="hung"], [data-hd-session]',
+        title: 'Log off her session only',
+        instruction: 'Click <strong>Log off session</strong> on Leah’s session only. Then go back to the ticket and ask her to reconnect.',
+        body: 'Why: the smallest action that fixes it. Restart pool is a Tier 2 action that drops everyone. Success looks like: her new session is Active, and Leah confirms her desktop loads.',
+        waitLabel: 'Next Step: Leah’s desktop loads',
+        check: () => hd2Did(HD2_SERVER_TICKET, 'vdi-logoff', (a) => a.user === 'leah.brooks') && hd2Rule(HD2_SERVER_TICKET, { confirmed: 'reconnect' }),
       },
       {
-        target: '.hd-control-stack .btn-primary',
-        require: true,
-        title: 'Close the loop',
-        instruction: 'Resolve the ticket.',
-        body: 'Resolving is gated on your diagnosis actually being correct, same as every ticket in this program.',
-        waitLabel: 'Next Step: Ticket resolved',
-        nudge: 'Click Resolve / escalate to close this ticket out.',
-        check: () => typeof hdCurrentTicket === 'function' && hdCurrentTicket() && hdCurrentTicket().status === 'Resolved',
+        route: '#/helpdesk/ticket', target: '#hd-note-input, .hd-comments, #hd-resolution-code',
+        title: 'Resolve it',
+        instruction: 'Write a <strong>work note</strong> that starts its lines with Reported:, Tried: and Result:, including Leah’s consent and its time. Post a <strong>comment</strong> to Leah in plain words. Set the resolution code and resolve the ticket.',
+        body: 'Why: same standard every time. Success looks like: the checker confirms the three parts, the comment has no flagged terms, and the ticket is Resolved.',
+        waitLabel: 'Next Step: Resolved with a note and comment',
+        check: () => hd2Rule(HD2_SERVER_TICKET, { note: true }) && hd2Rule(HD2_SERVER_TICKET, { comment: true }) && hd2Rule(HD2_SERVER_TICKET, { status: 'Resolved' }),
       },
-    ];
-  }
+      {
+        title: 'Finish the lab',
+        instruction: 'Lab done. Press <strong>Finish</strong> to send your work to your course page.',
+        body: 'Your VMs, pings and ticket work count once your course page confirms it saved them. There is no score.',
+        finish: { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/4', 'hd-m02-server') },
+      },
+    ],
+  });
 
-  const hd2Steps = hd2TicketSteps('HD-2106', true).concat(hd2TicketSteps('HD-2112', false));
-  hd2Steps[hd2Steps.length - 1].finish = { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/4', 'hd-m02') };
-
+  /* ------------------------------------------------------- Lab 4.3 ------ */
+  const HD2_ID = 'HD-2134';
   MODULE_COACHES.push({
-    id: 'hd-m02',
-    module: 4,
-    name: 'The Misbehaving Peripheral & The Stuck Queue',
-    role: 'Tier 1 Help Desk Technician',
-    summary: 'Work two real print-driver tickets end to end — a stuck label queue and a crashing Print Spooler service — tracing both back to the same root cause and resolving them under change control.',
-    completionToken: 'hd-m02',
-    home: '#/helpdesk/tickets',
-    resetState: hd2Reset,
-    allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket'],
-    steps: hd2Steps,
+    id: 'hd-m02', module: 4, name: 'Guided Lab: printers and peripherals', role: 'Tier 1 Help Desk Technician',
+    summary: 'Priya Shah in HR can’t print. Check her print queue, clear a stuck job in the right order, put the printer back online and test it. Then add a new label printer by its address, fix a webcam with a driver rollback and set up two monitors on a dock. Feedback only, no score.',
+    completionToken: 'hd-m02', home: '#/helpdesk/tickets',
+    resetState: () => {
+      if (typeof hdUseTicketSet === 'function') hdUseTicketSet('its-02-guided');
+      if (typeof hdState !== 'undefined' && hdState) hdState.selectedTicketId = null;
+    },
+    allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket', '#/helpdesk/windows', '#/helpdesk/powershell', '#/helpdesk/print-queue', '#/helpdesk/printer-properties',
+      '#/helpdesk/settings-printers', '#/helpdesk/device-manager', '#/helpdesk/camera', '#/helpdesk/dock', '#/helpdesk/settings-network', '#/helpdesk/knowledge-base', '#/helpdesk/event-viewer'],
+    steps: [
+      {
+        route: '#/helpdesk/ticket', target: 'select[data-hd-field="category"], select[data-hd-field="impact"], [data-hd-machines]',
+        title: 'Open the ticket and look first',
+        instruction: 'Open Priya Shah’s ticket. Set <strong>Category</strong> Hardware › Printer, <strong>Configuration item</strong> NS-HR-MFP01, <strong>Impact</strong> 3 and <strong>Urgency</strong> 2. Then open <strong>NS-LT-0094</strong> from the ticket, open <strong>PowerShell</strong> and type <code>Get-Service Spooler</code>, then <code>Get-PrintJob -PrinterName NS-HR-MFP01</code>.',
+        body: 'Why: step 1 of the printer order is to see the queue before you change anything. Success looks like: the priority is P4, the spooler is Running, and four jobs are listed, the first in Error.',
+        waitLabel: 'Next Step: Triaged, spooler and queue read',
+        check: () => hd2Triaged(HD2_ID, 'Hardware', 'Printer', 'NS-HR-MFP01', 'P4')
+          && hd2Typed('NS-LT-0094', /^get-service\s+(-name\s+)?["']?spooler["']?$/i)
+          && hd2Typed('NS-LT-0094', /^get-printjob\s+(-printername\s+)?["']?ns-hr-mfp01["']?$/i),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '.hd-chat, .hd-caller',
+        title: 'Check the scope, and ask',
+        instruction: 'Open the <strong>PrintService log</strong> card on the ticket. Then ask Priya whether anyone else in HR can print, and whether you may cancel her 612-page job.',
+        body: 'Why: the log names the job that failed. One user and her own job means Tier 1 can fix it here; a whole team would be the print server’s problem. Success looks like: the log shows job 18 failed to render, and Priya says “Everyone else is printing fine.” and “Yes, cancel it.”',
+        waitLabel: 'Next Step: Log read, scope and consent',
+        check: () => hd2Rule(HD2_ID, { evidence: 'printservice' }) && hd2Rule(HD2_ID, { chat: ['others', 'cancel'] }),
+      },
+      {
+        route: '#/helpdesk/print-queue', target: '[data-hd-queue]',
+        title: 'Clear the stuck job',
+        instruction: 'In the <strong>print queue window</strong> for NS-HR-MFP01, cancel the first job (Benefits_Guide.pdf). It stays “Deleting”. In PowerShell type <code>Stop-Service Spooler</code>, click <strong>Clear stuck job</strong>, then type <code>Start-Service Spooler</code>.',
+        body: 'Why: a job the spooler can’t cancel is cleared with the spooler stopped. Success looks like: <code>Get-Service Spooler</code> shows Running and the stuck job is gone. Her other three documents wait behind the offline flag until the next step.',
+        waitLabel: 'Next Step: Stuck job cleared, spooler running',
+        check: () => {
+          const acts = hd2Actions(HD2_ID).map((a) => a.id);
+          const cleared = acts.indexOf('job-clear-stuck');
+          const queue = hd2Queue(); const machine = hd2Machine('NS-LT-0094');
+          return hd2Did(HD2_ID, 'job-cancel', (a) => a.stuck === true) && cleared >= 0 && acts.lastIndexOf('spooler-start') > cleared
+            && Boolean(queue && machine) && machine.spooler === 'Running' && !queue.jobs.some((job) => job.stuck);
+        },
+      },
+      {
+        route: '#/helpdesk/print-queue', target: '[role="menu"]',
+        title: 'Put the printer back online',
+        instruction: 'In the queue’s <strong>Printer</strong> menu, untick <strong>Use Printer Offline</strong>. Notice <strong>Pause Printing</strong> beside it.',
+        body: 'Why: step 3 of the order, and the flag you’ll meet weekly. Success looks like: status Ready.',
+        waitLabel: 'Next Step: Printer online',
+        check: () => { const queue = hd2Queue(); return Boolean(queue) && queue.offline === false && queue.paused === false; },
+      },
+      {
+        route: '#/helpdesk/powershell', target: '#hd-ps-input',
+        title: 'Can the PC reach the printer?',
+        instruction: 'In PowerShell type <code>Test-NetConnection 10.20.70.20 -Port 9100</code>.',
+        body: 'Why: this checks whether this PC can reach the printer on its print port. Success looks like: <code>TcpTestSucceeded : True</code>.',
+        waitLabel: 'Next Step: Print port answers',
+        check: () => hd2Typed('NS-LT-0094', /^test-netconnection\s+(-computername\s+)?10\.20\.70\.20\s+-port\s+9100$/i),
+      },
+      {
+        route: '#/helpdesk/print-queue', target: '[role="menu"], .hd-chat, .hd-caller',
+        title: 'Test, then confirm with Priya',
+        instruction: 'Click <strong>Print test page</strong>. Then ask Priya to check that her other three documents came out.',
+        body: 'Why: verify with a test page, then with the user. Her three documents printed once the printer was back online. Success looks like: the test page prints, and Priya confirms all three came out.',
+        waitLabel: 'Next Step: Test page and Priya confirms',
+        check: () => hd2Did(HD2_ID, 'test-page') && hd2Rule(HD2_ID, { confirmed: 'resend' }),
+      },
+      {
+        route: '#/helpdesk/settings-printers', target: '[data-hd-addip], [data-hd-props]',
+        title: 'Add a printer by its address',
+        instruction: 'HR has a new label printer. In <strong>Settings › Printers &amp; scanners</strong>, add it by address: Standard TCP/IP, <code>10.20.70.51</code>, name <code>NS-HR-LABEL01</code>. Open its <strong>Printer properties › Ports</strong>, then type <code>Get-Printer -Name NS-HR-LABEL01 | Format-List Name, PortName, DriverName</code>.',
+        body: 'Why: a direct install has no print server; the port is how the PC finds the printer. Success looks like: the Ports tab shows a Standard TCP/IP port for 10.20.70.51, and the command shows the same port name.',
+        waitLabel: 'Next Step: Label printer added and checked',
+        check: () => hd2Rule(HD2_ID, { printerInstalled: { computer: 'NS-LT-0094', printer: 'NS-HR-LABEL01' } })
+          && hd2Typed('NS-LT-0094', /^get-printer\s+(-name\s+)?["']?ns-hr-label01["']?\s*\|\s*(format-list|fl)\b/i),
+      },
+      {
+        route: '#/helpdesk/device-manager', target: '[data-hd-device], [data-hd-devmgr]',
+        title: 'Find the faulty device',
+        instruction: 'Open the test laptop <strong>NS-LT-0244</strong> from the ticket, then <strong>Device Manager</strong>. Find the device with a yellow triangle and open its <strong>Properties</strong>.',
+        body: 'Why: the status code says whether it’s the driver or the device. Success looks like: Integrated Camera: “Windows has stopped this device because it has reported problems. (Code 43)”.',
+        waitLabel: 'Next Step: Camera properties open',
+        check: () => {
+          const view = typeof hdState !== 'undefined' && hdState.machineView ? hdState.machineView : {};
+          return (view.computer === 'NS-LT-0244' && view.device === 'camera') || hd2Did(HD2_ID, 'driver-rollback');
+        },
+      },
+      {
+        route: '#/helpdesk/device-manager', target: '[data-hd-device]',
+        title: 'Roll back the driver',
+        instruction: 'On the <strong>Driver</strong> tab, read the driver date, then click <strong>Roll Back Driver</strong>. Then open the <strong>Camera</strong> app.',
+        body: 'Why: this is the fix when a recent update broke a device. Success looks like: the driver date is yesterday before the rollback; afterwards “This device is working properly”, and the Camera app shows video.',
+        waitLabel: 'Next Step: Camera works',
+        check: () => hd2Did(HD2_ID, 'driver-rollback') && hd2Did(HD2_ID, 'camera-checked', (a) => a.working === true),
+      },
+      {
+        route: '#/helpdesk/dock', target: '[data-hd-dock], [data-hd-projection], [data-hd-displays]',
+        title: 'Dock it and set up the monitors',
+        instruction: 'Connect the laptop to the dock. Press <strong>Win + P › Extend</strong>, then in <strong>Settings › Display</strong> click <strong>Detect</strong>.',
+        body: 'Why: this is the routine for a dock and monitors. Success looks like: both monitors are shown in Display settings.',
+        waitLabel: 'Next Step: Both monitors shown',
+        check: () => {
+          const m = hd2Machine('NS-LT-0244');
+          return Boolean(m && m.dock && m.dock.docked) && m.projection === 'Extend' && hd2Did(HD2_ID, 'display-detect');
+        },
+      },
+      {
+        route: '#/helpdesk/ticket', target: '#hd-note-input, .hd-comments, #hd-resolution-code',
+        title: 'Resolve it',
+        instruction: 'Write a <strong>work note</strong> that starts its lines with Reported:, Tried: and Result:. Post a <strong>comment</strong> to Priya in plain words. Set the resolution code to <strong>Solution provided</strong> and resolve the ticket.',
+        body: 'Why: same standard every time. Success looks like: the checker confirms the three parts, the comment has no flagged terms, and the ticket is Resolved.',
+        waitLabel: 'Next Step: Resolved with a note and comment',
+        check: () => hd2Rule(HD2_ID, { note: true }) && hd2Rule(HD2_ID, { comment: true }) && hd2Rule(HD2_ID, { code: 'Solution provided' }) && hd2Rule(HD2_ID, { status: 'Resolved' }),
+      },
+      {
+        title: 'Finish the lab',
+        instruction: 'Ticket worked. Press <strong>Finish</strong> to send your work to your course page.',
+        body: 'Your triage, commands, queue work, notes and comment count once your course page confirms it saved them. There is no score.',
+        finish: { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/4', 'hd-m02') },
+      },
+    ],
   });
 
   /* ------------------------------------------------------ hd-m03..hd-m11 -
