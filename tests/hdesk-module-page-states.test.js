@@ -139,7 +139,7 @@ async function testModuleTwoLocalFlagsAloneAreNotSubmitted() {
   assert.doesNotMatch(html, /Lab 4\.1 complete|Lab 4\.2 complete|Labs 4\.3 &(amp;)? 4\.4 complete/);
   // Picked files live only in the page that picked them: after a reload each
   // tile asks for its file again, and nothing is ready to submit.
-  assert.equal(statusLine(html, LAB21), 'Upload both evidence files to complete this lab.');
+  assert.equal(statusLine(html, LAB21), 'Finish Lab 4.1 in the simulator to complete this lab.');
   assert.equal(submitButton(html, LAB21), null, 'no Submit button until the files are chosen again');
   assert.match(section(html, 'its02-lab-2-1'), /Choose this file again — “d\.png”/);
   assert.equal(counter(html, 'its02-status'), '4 labs · 0 passed');
@@ -336,7 +336,49 @@ function replyCatcher() {
 // tests/hdesk-m01-guided-lab.test.js covers that rule).
 const M01_FINISHED_WORK = { version: 1, tickets: [{ id: 'HD-2150', status: 'Resolved', console: {
   outcomes: { verified: true, unlocked: true, confirmed: true, comment: true, note: true, code: true } } }] };
-const finishMessage = (id, source, student = signedIn ? studentOf(signedIn) : '') => ({ data: { type: 'mnt-coach-complete', id, nonce: 'n-1', student, work: id === 'hd-m01' ? M01_FINISHED_WORK : { version: 1, tickets: [{ id: 'HD-2109' }] } }, origin: SIM, source });
+// Module 4's Lab 4.3 counts only finished work: HD-2134 resolved.
+const M02_FINISHED_WORK = { version: 1, tickets: [{ id: 'HD-2134', status: 'Resolved' }] };
+const finishMessage = (id, source, student = signedIn ? studentOf(signedIn) : '') => ({ data: { type: 'mnt-coach-complete', id, nonce: 'n-1', student, work: id === 'hd-m01' ? M01_FINISHED_WORK : id === 'hd-m02' ? M02_FINISHED_WORK : { version: 1, tickets: [{ id: 'HD-2109' }] } }, origin: SIM, source });
+
+// Module 4 (key its-02): each lab saves its own record, only for finished work.
+async function testModuleFourLabRecords() {
+  const user = hdUser();
+  fresh(user);
+  const before = ctx.supabaseCalls.length;
+  const inserts = (labKey) => ctx.supabaseCalls.slice(before).filter((c) => c.table === 'lab_attempts' && c.op === 'insert' && (!labKey || c.payload.lab_key === labKey));
+  moduleLab(2).view(user, HD);
+  let reply = replyCatcher();
+  await moduleLab(2).onMessage(finishMessage('hd-m02', reply.source));
+  await settle();
+  assert.deepEqual([...inserts().map((c) => c.payload.lab_key)], [LAB23], 'Lab 4.3 only');
+  assert.equal(reply.replies[0].data.saved, true);
+  // Unfinished VM work: no record.
+  reply = replyCatcher();
+  await moduleLab(2).onMessage({ data: { type: 'mnt-coach-complete', id: 'hd-m02-vm', nonce: 'n-2', student: studentOf(user), work: { version: 1, tickets: [], vm: { version: 1, vms: [] } } }, origin: SIM, source: reply.source });
+  await settle();
+  assert.deepEqual([reply.replies[0].data.saved, reply.replies[0].data.reason], [false, 'incomplete']);
+  assert.equal(inserts(LAB21).length, 0);
+  // Lab 4.4: the four practice tickets, once.
+  const practice = (tickets, nonce) => { const r = replyCatcher(); return moduleLab(2).onMessage({ data: { type: 'mnt-practice-complete', id: 'its-02', nonce, student: studentOf(user), tickets }, origin: SIM, source: r.source }).then(() => r); };
+  reply = await practice(['HD-2169', 'HD-2170'], 'p-1');
+  assert.deepEqual([reply.replies[0].data.saved, reply.replies[0].data.reason], [false, 'incomplete']);
+  assert.equal(inserts(LAB24).length, 0);
+  reply = await practice(['HD-2169', 'HD-2170', 'HD-2171', 'HD-2172'], 'p-2');
+  await settle();
+  assert.equal(reply.replies[0].data.saved, true);
+  assert.equal(inserts(LAB24).length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(inserts(LAB24)[0].payload.result)), { source: 'mnt-practice-complete', practiceSet: 'its-02', tickets: ['HD-2169', 'HD-2170', 'HD-2171', 'HD-2172'] }, 'no answers, no score');
+  // A failed save: not saved, nothing marked.
+  const other = hdUser();
+  fresh(other);
+  ctx.supabaseResponder = failInserts;
+  moduleLab(2).view(other, HD);
+  const failed = replyCatcher();
+  await moduleLab(2).onMessage({ data: { type: 'mnt-practice-complete', id: 'its-02', nonce: 'p-3', student: studentOf(other), tickets: ['HD-2169', 'HD-2170', 'HD-2171', 'HD-2172'] }, origin: SIM, source: failed.source });
+  await settle();
+  assert.deepEqual([failed.replies[0].data.saved, failed.replies[0].data.reason], [false, 'save-failed']);
+  assert.equal(completion(other, 'its-02', LAB24, 'its02-lab-state-v1').labMarked, false);
+}
 
 async function testReceiptSavedAfterSubmit() {
   const user = hdUser();
@@ -610,6 +652,7 @@ async function testBlockedPopupShowsMessage() {
     testLaunchLinksNameTheStudent,
     testReturnLinkRecordsNothing,
     testBlockedPopupShowsMessage,
+    testModuleFourLabRecords,
   ];
   let failed = 0;
   for (const test of tests) {

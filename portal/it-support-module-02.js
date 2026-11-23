@@ -118,8 +118,8 @@ const ITS02_LAB24_KEY = 'lab-its-02-print-spooler';
 // submitted), its name, prompt, and the Resubmit label used when faculty
 // return it.
 const ITS02_EVIDENCE_LABS = {
-  [ITS02_LAB21_KEY]: { fields: ['evDesktop', 'evVmSettings'], label: 'Lab 4.1', pendingText: 'Upload both evidence files to complete this lab.', resubmitLabel: 'Resubmit Lab 4.1' },
-  [ITS02_LAB22_KEY]: { fields: ['evSnapshot', 'evPing1', 'evPing2'], label: 'Lab 4.2', pendingText: 'Upload all three evidence files to complete this lab.', resubmitLabel: 'Resubmit Lab 4.2' },
+  [ITS02_LAB21_KEY]: { fields: ['evDesktop', 'evVmSettings'], label: 'Lab 4.1', pendingText: 'Finish Lab 4.1 in the simulator to complete this lab.', resubmitLabel: 'Resubmit Lab 4.1' },
+  [ITS02_LAB22_KEY]: { fields: ['evSnapshot', 'evPing1', 'evPing2'], label: 'Lab 4.2', pendingText: 'Finish Lab 4.2 in the simulator to complete this lab.', resubmitLabel: 'Resubmit Lab 4.2' },
 };
 const ITS02_EVIDENCE_FIELD_BY_INPUT = {
   'its02-ev-desktop': 'evDesktop', 'its02-ev-vmsettings': 'evVmSettings',
