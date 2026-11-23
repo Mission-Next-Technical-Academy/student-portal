@@ -2303,7 +2303,7 @@ const LABS = [
   itsLab({ key: 'lab-its-02-prove-it', module: 'its-02', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 20,
     parentAllocations: [allocation('ITHD-101.4', 20)], objective: 'Independently work a new hardware ticket: find what is wrong, fix it in the right order, verify it with the user, and write for both the next technician and the user.',
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
-    skills: ['Printer Triage', 'Evidence-Based Diagnosis', 'Documentation'], portalEntry: '#/program/it-support/module/4' }),
+    skills: ['Hardware Triage', 'Evidence-Based Diagnosis', 'Documentation'], portalEntry: '#/program/it-support/module/4' }),
   itsLab({ key: 'lab-its-03-blank-desktop', module: 'its-03', title: 'The Blank Desktop', difficulty: 'Foundational', minutes: 60,
     parentAllocations: [allocation('ITHD-101.4', 60)], objective: 'Diagnose a corrupted Windows profile against the evidence and resolve it using the approved runbook.',
     description: 'A coach-guided walkthrough of ticket HD-2109 (a blank desktop after sign-in) in the IT Service Desk simulator.',
