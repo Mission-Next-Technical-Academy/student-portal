@@ -572,6 +572,14 @@ function hdPracticeSetUpgrade(saved) {
     const account = hdConsole(ticket).account;
     if (account && account.locked) saved.userOverrides = { ...(saved.userOverrides || {}), [account.userId]:{ ...((saved.userOverrides || {})[account.userId] || {}), locked:true } };
   });
+  // The new tickets' own machine state (console.machines, console.vdi). A
+  // computer another saved ticket already seeded keeps the student's work.
+  const added = hdSeedTicketMachines({ tickets:saved.tickets.filter(ticket => missing.includes(ticket.id)), machines:{} });
+  saved.machines = saved.machines || {};
+  Object.keys(added.machines).forEach(name => {
+    if (!saved.machines[name] || !saved.machines[name].seededBy) saved.machines[name] = { ...(saved.machines[name] || {}), ...added.machines[name] };
+  });
+  if (added.vdi) saved.vdi = { ...added.vdi, ...(saved.vdi || {}) };
   if (!saved.selectedTicketId) saved.selectedTicketId = saved.tickets[0].id;
   return saved;
 }
@@ -3251,7 +3259,7 @@ VIEWS['helpdesk/active-directory'] = () => {
 
 function hdSelectComputer(name, route) { hdState.selectedComputer=name; hdProveOpened(`computer:${name}`, `Endpoint · ${name}`); hdSave(); if(route) navigate(route); else render(); }
 function hdEndpointCards() { return hdComputers().map(base=>{const c=hdComputerByName(base.name);return `<button class="hd-device-card ${hdState.selectedComputer===c.name?'active':''}" onclick="hdSelectComputer('${c.name}')"><strong>${hdEsc(c.name)}</strong><span>${hdEsc(c.user)}</span><small>${hdEsc(c.health)} · ${hdEsc(c.lastSeen)}</small></button>`}).join(''); }
-VIEWS['helpdesk/windows'] = () => { const c=hdComputerByName(hdState.selectedComputer)||hdComputerByName('NS-LT-0042'); return `${hdPageHeader('Windows Desktop', 'Inspect a managed Windows 11 endpoint before choosing a repair.')}<div class="hd-endpoint-layout"><aside class="card"><div class="card-header"><strong>Endpoints</strong></div><div class="hd-device-list">${hdEndpointCards()}</div></aside><div class="hd-windows-screen"><div class="hd-window-bar"><span>${hdEsc(c.name)} · Remote session</span><span>— □ ×</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows 11 Enterprise</strong><span>${hdEsc(c.os)}</span></div><div class="hd-field-grid"><div><span>Signed-in user</span><strong>${hdEsc(c.user)}</strong></div><div><span>IPv4</span><strong>${hdEsc(c.ip)}</strong></div><div><span>Domain trust</span><strong>${hdEsc(c.trust)}</strong></div><div><span>BitLocker</span><strong>${hdEsc(c.bitlocker)}</strong></div><div><span>OU</span><strong>${hdEsc(c.ou)}</strong></div><div><span>Health</span><strong>${hdEsc(c.health)}</strong></div>${c.uptimeDays ? `<div><span>Uptime</span><strong>${hdEsc(c.uptimeDays)} days</strong></div>` : ''}</div><div class="hd-tool-grid"><button onclick="navigate('#/helpdesk/event-viewer')">📋 Event Viewer</button><button onclick="navigate('#/helpdesk/powershell')">&gt;_ PowerShell</button><button onclick="navigate('#/helpdesk/active-directory')">🗂 Directory</button><button onclick="navigate('#/helpdesk/remote-support')">🖥 Remote Support</button>${hdSettingsPrinterPaths(c.name).length || hdPrintQueues(hdFeatureMachine(c.name)) ? `<button onclick="navigate('#/helpdesk/settings-printers')">⚙ Settings › Printers &amp; scanners</button>` : ''}${hdFeatureToolButtons(c.name)}</div></div></div></div>`; };
+VIEWS['helpdesk/windows'] = () => { const c=hdComputerByName(hdState.selectedComputer)||hdComputerByName('NS-LT-0042'); return `${hdPageHeader('Windows Desktop', 'Inspect a managed Windows 11 endpoint before choosing a repair.')}<div class="hd-endpoint-layout"><aside class="card"><div class="card-header"><strong>Endpoints</strong></div><div class="hd-device-list">${hdEndpointCards()}</div></aside><div class="hd-windows-screen"><div class="hd-window-bar"><span>${hdEsc(c.name)} · Remote session</span><span>— □ ×</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows 11 Enterprise</strong><span>${hdEsc(c.os)}</span></div><div class="hd-field-grid"><div><span>Signed-in user</span><strong>${hdEsc(c.user)}</strong></div><div><span>IPv4</span><strong>${hdEsc(c.ip)}</strong></div><div><span>Domain trust</span><strong>${hdEsc(c.trust)}</strong></div><div><span>BitLocker</span><strong>${hdEsc(c.bitlocker)}</strong></div><div><span>OU</span><strong>${hdEsc(c.ou)}</strong></div><div><span>Health</span><strong>${hdEsc(c.health)}</strong></div>${c.uptimeDays ? `<div><span>Uptime</span><strong>${hdEsc(c.uptimeDays)} days</strong></div>` : ''}</div><div class="hd-tool-grid"><button onclick="navigate('#/helpdesk/event-viewer')">📋 Event Viewer</button><button onclick="navigate('#/helpdesk/powershell')">&gt;_ PowerShell</button><button onclick="navigate('#/helpdesk/active-directory')">🗂 Directory</button><button onclick="navigate('#/helpdesk/remote-support')">🖥 Remote Support</button>${hdSettingsPrinterPaths(c.name).length || hdPrintQueues(hdFeatureMachine(c.name)) || (hdProveAllTools() && hdFeatureMachine(c.name)) ? `<button onclick="navigate('#/helpdesk/settings-printers')">⚙ Settings › Printers &amp; scanners</button>` : ''}${hdFeatureToolButtons(c.name)}</div></div></div></div>`; };
 
 /* ---------- Settings › Printers & scanners ----------
  * The approved way for a standard user to add a published printer: Add
@@ -3606,18 +3614,26 @@ function hdPingText(target, open) {
   if (open === null && !/^\d{1,3}(\.\d{1,3}){3}$/.test(target)) return `Ping request could not find host ${target}. Please check the name and try again.`;
   const ok = open !== null;
   const lines = [`Pinging ${target} with 32 bytes of data:`];
-  for (let i = 0; i < 4; i += 1) lines.push(ok ? `Reply from ${target}: bytes=32 time=1ms TTL=128` : 'Request timed out.');
+  for (let i = 0; i < 4; i += 1) lines.push(ok ? `Reply from ${target}: bytes=32 time<1ms TTL=128` : 'Request timed out.');
   lines.push('', `Ping statistics for ${target}:`, `    Packets: Sent = 4, Received = ${ok ? 4 : 0}, Lost = ${ok ? 0 : 4} (${ok ? 0 : 100}% loss),`);
+  if (ok) lines.push('Approximate round trip times in milli-seconds:', '    Minimum = 0ms, Maximum = 1ms, Average = 0ms');
   return lines.join('\n');
 }
-function hdTestNetText(target, port, open, source) {
+// interfaceAlias: the machine's own (default Ethernet; a laptop off its dock
+// is on Wi-Fi).
+function hdTestNetText(target, port, open, source, alias) {
   const rows = [['ComputerName', target], ['RemoteAddress', target]];
   if (port) rows.push(['RemotePort', port]);
-  rows.push(['InterfaceAlias', 'Ethernet'], ['SourceAddress', source || '']);
-  if (port) rows.push(['TcpTestSucceeded', open !== null && open.includes(Number(port)) ? 'True' : 'False']);
-  else rows.push(['PingSucceeded', open !== null ? 'True' : 'False']);
-  const text = rows.map(([key, value]) => `${key.padEnd(16)} : ${value}`).join('\n');
-  return open === null ? `WARNING: Ping to ${target} failed with status: TimedOut\n${text}` : text;
+  rows.push(['InterfaceAlias', alias || 'Ethernet'], ['SourceAddress', source || '']);
+  const tcp = !!(open !== null && open.includes(Number(port)));
+  if (port) rows.push(['TcpTestSucceeded', tcp ? 'True' : 'False']);
+  else rows.push(['PingSucceeded', open !== null ? 'True' : 'False'], ['PingReplyDetails (RTT)', open !== null ? '0 ms' : '0 ms']);
+  const width = Math.max(...rows.map(([key]) => key.length), 16);
+  const text = rows.map(([key, value]) => `${key.padEnd(width)} : ${value}`).join('\n');
+  const warnings = [];
+  if (port && !tcp) warnings.push(`WARNING: TCP connect to (${target} : ${port}) failed`);
+  if (open === null) warnings.push(`WARNING: Ping to ${target} failed with status: TimedOut`);
+  return [...warnings, text].join('\n');
 }
 function hdFormatList(pairs) {
   const width = Math.max(...pairs.map(([key]) => key.length));
@@ -3660,10 +3676,11 @@ function hdFeatureCommand(command, normalized, computer) {
   }
   const printer = /^get-printer\s+(?:-name\s+)?("[^"]*"|'[^']*'|[^\s|]+)\s*(?:\|\s*(\S+)\s*(.*))?$/i.exec(trimmed);
   if (queues && printer) {
+    if (machine.spooler === 'Stopped') return 'Get-Printer : The spooler service is not reachable. Ensure the spooler service is running.';
     const name = hdQueueName(machine, printer[1]);
     if (!name) return `Get-Printer : No printer found with name '${printer[1].replace(/^["']|["']$/g, '')}'.`;
     const queue = queues[name];
-    const all = [['Name', name], ['ComputerName', computer.name], ['Type', 'Local'], ['DriverName', queue.driver || ''], ['PortName', queue.port || ''], ['PrinterStatus', hdQueueStatus(machine, name)]];
+    const all = [['Name', name], ['ComputerName', computer.name], ['Type', 'Local'], ['DriverName', queue.driver || ''], ['PortName', queue.port || ''], ['PrinterStatus', ({ Ready:'Normal' })[hdQueueStatus(machine, name)] || hdQueueStatus(machine, name)]];
     if (printer[2] && /^(format-list|fl)$/i.test(printer[2])) {
       const wanted = printer[3].split(/[\s,]+/).filter(Boolean).map(item => item.toLowerCase());
       const shown = wanted.length && !wanted.includes('*') ? wanted.map(item => all.find(([key]) => key.toLowerCase() === item)).filter(Boolean) : all;
@@ -3679,14 +3696,17 @@ function hdFeatureCommand(command, normalized, computer) {
       if (!target) return 'Test-NetConnection : Add the address to test, for example Test-NetConnection <address> -Port <port>.';
       const port = hdParam(command, 'port');
       if (port && !/^\d{1,5}$/.test(port)) return `Test-NetConnection : Cannot validate argument on parameter 'Port'.`;
-      return hdTestNetText(target.replace(/^["']|["']$/g, ''), port, hdOpenPorts(machine, target.replace(/^["']|["']$/g, '')), hdComputerByName(computer.name).ip);
+      return hdTestNetText(target.replace(/^["']|["']$/g, ''), port, hdOpenPorts(machine, target.replace(/^["']|["']$/g, '')), hdComputerByName(computer.name).ip,
+        machine.interfaceAlias || (machine.dock && !hdDockLive(machine) ? 'Wi-Fi' : 'Ethernet'));
     }
   }
   return null;
 }
 // Get-Help's extra lines on a machine with the features.
+// Never in a Prove It: on only the computers a case is about, the list would
+// point at the case. The commands still run there.
 function hdFeatureHelp(computer) {
-  const machine = computer && hdFeatureMachine(computer.name); if (!machine) return '';
+  const machine = !HD_PROVE && computer && hdFeatureMachine(computer.name); if (!machine) return '';
   const lines = [];
   if (hdPrintQueues(machine)) lines.push('Printing: Get-Service Spooler, Stop-Service Spooler, Start-Service Spooler, Get-PrintJob -PrinterName <name>, Get-Printer -Name <name> | Format-List Name, PortName, DriverName');
   if (machine.reachable) lines.push('Network: ping <address>, Test-NetConnection <address> -Port <port>');
@@ -3715,7 +3735,11 @@ function hdMachineBack(computer) {
   const ticket = hdMachineTicket(computer.name);
   return `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/windows')">← ${hdEsc(computer.name)}</button>${ticket ? `<button class="btn btn-secondary" onclick="hdSelectTicket('${hdJsArg(ticket.id)}')">← ${hdEsc(hdTicketLabel(ticket))}</button>` : ''}`;
 }
+// A Prove shift with machineTools: true shows every tool on every one of
+// its computers, so which buttons appear never points at the case.
+function hdProveAllTools() { return !!(HD_PROVE && HD_PROVE.shift.machineTools === true); }
 function hdMachineMissing(title) {
+  if (hdProveAllTools()) return `${hdPageHeader(title, 'Nothing to show on this computer.', `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/windows')">← Windows Desktop</button>`)}`;
   return `${hdPageHeader(title, 'Not available on this computer in this shift.', `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/windows')">← Windows Desktop</button>`)}<div class="card"><div class="card-body"><p class="muted">Open a computer from a ticket to use this screen.</p></div></div>`;
 }
 // The view's computer and its machine, or null.
@@ -3728,12 +3752,13 @@ function hdViewMachine() {
 function hdFeatureToolButtons(name) {
   const machine = hdFeatureMachine(name); if (!machine) return '';
   const open = (screen, label) => `<button data-hd-tools="${screen}" onclick="hdOpenMachineScreen('${hdJsArg(name)}','${screen}')">${label}</button>`;
-  const devices = Array.isArray(machine.devices) && machine.devices.length;
+  const all = hdProveAllTools();
+  const devices = all || (Array.isArray(machine.devices) && machine.devices.length);
   return [
     devices ? open('device-manager', '🧩 Device Manager') : '',
-    devices && machine.devices.some(device => device && device.camera) ? open('camera', '📷 Camera') : '',
-    machine.dock ? open('dock', '🖥 Dock &amp; displays') : '',
-    machine.dock ? open('settings-network', '⚙ Settings › Network &amp; internet') : '',
+    all || (devices && machine.devices.some(device => device && device.camera)) ? open('camera', '📷 Camera') : '',
+    all || machine.dock ? open('dock', '🖥 Dock &amp; displays') : '',
+    all || machine.dock ? open('settings-network', '⚙ Settings › Network &amp; internet') : '',
   ].join('');
 }
 // A shared printer's machine action: guard, change, settle, record, redraw.
@@ -3743,7 +3768,8 @@ function hdMachineChange(computerName, change) {
   const result = change(machine);
   if (result === false) { hdSave(); render(); return; }
   const printed = hdMachineSettle(machine);
-  if (printed && typeof toast === 'function') toast(`${printed} job${printed === 1 ? '' : 's'} printed.`);
+  // Practice only: a Prove It shows the result on the screen, never in a toast.
+  if (printed && !HD_PROVE && typeof toast === 'function') toast(`${printed} job${printed === 1 ? '' : 's'} printed.`);
   hdProveEdited();
   hdRerender();
 }
@@ -3759,7 +3785,7 @@ function hdQueueToggle(computerName, printer, flag) {
 }
 function hdQueueCancel(computerName, printer, jobId) {
   hdMachineChange(computerName, machine => {
-    const queue = hdPrintQueues(machine)[printer]; if (!queue) return false;
+    const queue = hdPrintQueues(machine)[printer]; if (!queue || machine.spooler === 'Stopped') return false;
     const index = queue.jobs.findIndex(job => String(job.id) === String(jobId)); if (index < 0) return false;
     const job = queue.jobs[index];
     if (job.stuck) {
@@ -3777,7 +3803,7 @@ function hdQueueClearStuck(computerName, printer) {
     if (machine.spooler !== 'Stopped') { toast('Clear stuck job works only while the Print Spooler is stopped.'); return false; }
     const before = queue.jobs.length;
     queue.jobs = queue.jobs.filter(job => job.status !== 'Deleting');
-    if (queue.jobs.length === before) { toast('No job is stuck in Deleting.'); return false; }
+    if (queue.jobs.length === before) return false;
     hdMachineAction(computerName, 'job-clear-stuck', `cleared the stuck job from ${printer}`, { printer });
   });
 }
@@ -3785,7 +3811,9 @@ function hdQueueTestPage(computerName, printer) {
   hdMachineChange(computerName, machine => {
     const queue = hdPrintQueues(machine)[printer]; if (!queue) return false;
     const next = 1 + queue.jobs.concat(queue.printed).reduce((max, job) => Math.max(max, Number(job.id) || 0), 0);
-    queue.jobs.push({ id:next, document:'Test Page', pages:1, owner:'Riley Morgan', status:'Spooling' });
+    if (machine.spooler === 'Stopped') return false;
+    const computer = hdComputerByName(computerName);
+    queue.jobs.push({ id:next, document:'Test Page', pages:1, owner:computer ? computer.user : '', status:'Spooling' });
     hdMachineAction(computerName, 'test-page', `printed a test page to ${printer}`, { printer });
   });
 }
@@ -3798,12 +3826,14 @@ VIEWS['helpdesk/print-queue'] = () => {
   const args = `'${hdJsArg(computer.name)}','${hdJsArg(name)}'`;
   const check = (on, text, flag) => `<button type="button" class="btn btn-secondary btn-sm" role="menuitemcheckbox" aria-checked="${on}" ${locked} onclick="hdQueueToggle(${args},'${flag}')">${on ? '☑' : '☐'} ${text}</button>`;
   const stuck = queue.jobs.some(job => job.status === 'Deleting');
-  const rows = queue.jobs.map(job => `<tr data-hd-job="${hdEsc(job.id)}"><td>${hdEsc(job.document)}</td><td>${hdBadge(job.status, job.status === 'Error' || job.status === 'Deleting' ? 'bad' : 'warn')}</td><td>${hdEsc(job.owner || '')}</td><td>${hdEsc(job.pages || 1)}</td><td><button type="button" class="btn btn-ghost btn-sm" ${locked || (job.status === 'Deleting' ? 'disabled' : '')} onclick="hdQueueCancel(${args},'${hdJsArg(job.id)}')">Cancel</button></td></tr>`).join('');
+  // With the spooler stopped the queue can't be changed, as in Windows.
+  const stopped = machine.spooler === 'Stopped' ? 'disabled' : '';
+  const rows = queue.jobs.map(job => `<tr data-hd-job="${hdEsc(job.id)}"><td>${hdEsc(job.document)}</td><td>${hdBadge(job.status, job.status === 'Error' || job.status === 'Deleting' ? 'bad' : 'warn')}</td><td>${hdEsc(job.owner || '')}</td><td>${hdEsc(job.pages || 1)}</td><td><button type="button" class="btn btn-ghost btn-sm" ${locked || stopped || (job.status === 'Deleting' ? 'disabled' : '')} onclick="hdQueueCancel(${args},'${hdJsArg(job.id)}')">Cancel</button></td></tr>`).join('');
   const printed = queue.printed.length ? `<ul class="hd-list">${queue.printed.slice(-8).map(job => `<li>${hdEsc(job.document)}</li>`).join('')}</ul>` : '<p class="muted">Nothing printed yet.</p>';
-  return `${hdPageHeader(`${hdEsc(name)} · Print queue`, `${hdEsc(computer.name)} · ${hdBadge(status, status === 'Ready' || status === 'Printing' ? 'ok' : status === 'Paused' ? 'warn' : 'bad')}`, hdMachineBack(computer))}
+  return `${hdPageHeader(`${name} · Print queue`, `${computer.name} · ${status}`, hdMachineBack(computer))}
     <div data-hd-queue="${hdEsc(name)}" class="hd-settings-view">
-    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Printer</strong><span class="muted">Status: ${hdEsc(status)}</span></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:8px" role="menu" aria-label="Printer menu">${check(queue.offline === true, 'Use Printer Offline', 'offline')}${check(queue.paused === true, 'Pause Printing', 'paused')}<button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdQueueTestPage(${args})">Print test page</button><button type="button" class="btn btn-secondary btn-sm" onclick="hdOpenMachineScreen(${args.split(',')[0]},'printer-properties',{printer:'${hdJsArg(name)}',tab:'ports'})">Printer properties</button></div></div></div>
-    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Documents</strong><span class="muted">${queue.jobs.length} in the queue · Print Spooler ${hdEsc(machine.spooler || 'Running')}</span></div><div class="table-wrap"><table><thead><tr><th>Document</th><th>Status</th><th>Owner</th><th>Pages</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="muted">No documents waiting.</td></tr>'}</tbody></table></div>${stuck ? `<div class="card-body"><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-clear-stuck onclick="hdQueueClearStuck(${args})">Clear stuck job</button> <span class="muted">Works only while the Print Spooler is stopped.</span></div>` : ''}</div>
+    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Printer</strong><span class="muted">Status: ${hdEsc(status)}</span></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:8px" role="menu" aria-label="Printer menu">${check(queue.offline === true, 'Use Printer Offline', 'offline')}${check(queue.paused === true, 'Pause Printing', 'paused')}<button type="button" class="btn btn-secondary btn-sm" ${locked || stopped} onclick="hdQueueTestPage(${args})">Print test page</button><button type="button" class="btn btn-secondary btn-sm" onclick="hdOpenMachineScreen('${hdJsArg(computer.name)}','printer-properties',{printer:'${hdJsArg(name)}',tab:'ports'})">Printer properties</button></div></div></div>
+    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Documents</strong><span class="muted">${queue.jobs.length} in the queue · Print Spooler ${hdEsc(machine.spooler || 'Running')}</span></div><div class="table-wrap"><table><thead><tr><th>Document</th><th>Status</th><th>Owner</th><th>Pages</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="muted">No documents waiting.</td></tr>'}</tbody></table></div><div class="card-body"><button type="button" class="btn btn-secondary btn-sm" ${locked || (stuck ? '' : 'disabled')} data-hd-clear-stuck="${stuck ? 'on' : 'off'}" onclick="hdQueueClearStuck(${args})">Clear stuck job</button> <span class="muted">Works only while the Print Spooler is stopped.</span></div></div>
     <div class="card"><div class="card-header"><strong>Printed from ${hdEsc(computer.name)}</strong></div><div class="card-body">${printed}</div></div>
     </div>`;
 };
@@ -3835,6 +3865,9 @@ function hdPrinterSet(computerName, printer, field, value) {
 function hdPrinterDrivers(machine, queue) {
   return [...new Set([queue.driver, ...(Array.isArray(queue.drivers) ? queue.drivers : []), ...(Array.isArray(machine.driverCatalog) ? machine.driverCatalog : [])].filter(item => typeof item === 'string' && item))];
 }
+// The "driver from the manufacturer's website" choice shows only where the
+// data offers it; a Prove shift gives every printer one (with machineTools),
+// so the choice never points at the case.
 function hdOutsideDriver(queue) { return typeof queue.outsideDriver === 'string' && queue.outsideDriver ? queue.outsideDriver : ''; }
 function hdPrinterTab(tab) { hdState.machineView = { ...hdMachineView(), tab }; hdSave(); render(); }
 VIEWS['helpdesk/printer-properties'] = () => {
@@ -3850,14 +3883,14 @@ VIEWS['helpdesk/printer-properties'] = () => {
   if (tab === 'ports') {
     const ports = Array.isArray(machine.ports) ? machine.ports.slice() : [];
     if (queue.port && !ports.some(port => port.name === queue.port)) ports.unshift({ name:queue.port, type:'' });
-    body = `<div class="table-wrap"><table><thead><tr><th>Port</th><th>Type</th><th>Address</th><th></th></tr></thead><tbody>${ports.map(port => `<tr data-hd-port="${hdEsc(port.name)}"><td>${port.name === queue.port ? '✓ ' : ''}${hdEsc(port.name)}</td><td>${hdEsc(port.type || '')}</td><td>${hdEsc(port.address || '')}</td><td>${port.name === queue.port ? '<span class="muted">In use</span>' : `<button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdPrinterSet(${args},'port','${hdJsArg(port.name)}')">Use this port</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+    body = `<div class="table-wrap"><table><thead><tr><th>Port</th><th>Description</th><th>Address</th><th></th></tr></thead><tbody>${ports.map(port => `<tr data-hd-port="${hdEsc(port.name)}"><td>${port.name === queue.port ? '✓ ' : ''}${hdEsc(port.name)}</td><td>${hdEsc(port.type ? `${port.type} Port` : '')}</td><td>${hdEsc(port.address || '')}</td><td>${port.name === queue.port ? '<span class="muted">In use</span>' : `<button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdPrinterSet(${args},'port','${hdJsArg(port.name)}')">Use this port</button>`}</td></tr>`).join('')}</tbody></table></div>`;
   } else if (tab === 'advanced') {
     const outside = hdOutsideDriver(queue);
     body = `<p>Driver in use: <strong data-hd-driver>${hdEsc(queue.driver || '')}</strong></p><div class="table-wrap"><table><thead><tr><th>Driver</th><th></th></tr></thead><tbody>${hdPrinterDrivers(machine, queue).map(driver => choose('driver', driver, queue.driver)).join('')}</tbody></table></div>${outside && outside !== queue.driver ? `<div style="margin-top:8px"><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-outside-driver onclick="hdPrinterSet(${args},'outside','')">Install a driver from the manufacturer's website</button></div>` : ''}`;
   } else {
     body = `<p>Paper size: <strong data-hd-media>${hdEsc(queue.media || '')}</strong></p><div class="table-wrap"><table><thead><tr><th>Paper size</th><th></th></tr></thead><tbody>${(queue.mediaSizes || []).map(size => choose('media', size, queue.media)).join('')}</tbody></table></div>`;
   }
-  return `${hdPageHeader(`${hdEsc(name)} · Printer properties`, `${hdEsc(computer.name)}`, `${hdMachineBack(computer)}<button class="btn btn-secondary" onclick="hdOpenMachineScreen(${args.split(',')[0]},'print-queue',{printer:'${hdJsArg(name)}'})">Print queue</button>`)}
+  return `${hdPageHeader(`${name} · Printer properties`, computer.name, `${hdMachineBack(computer)}<button class="btn btn-secondary" onclick="hdOpenMachineScreen('${hdJsArg(computer.name)}','print-queue',{printer:'${hdJsArg(name)}'})">Print queue</button>`)}
     <div class="card" data-hd-props="${tab}"><div class="card-header" ${HD_CONSOLE_HEADER}><div style="display:flex;flex-wrap:wrap;gap:6px" role="tablist">${tabs}</div></div><div class="card-body">${body}</div></div>`;
 };
 
@@ -3893,13 +3926,25 @@ function hdSettingsQueueCards(computer) {
 }
 
 // Device Manager and the Camera app, built from machine.devices.
-function hdDeviceStatusText(device) { return device.status === 'OK' ? 'This device is working properly.' : (device.problem || `This device cannot start. (Code ${device.status})`); }
+const HD_DEVICE_CODES = {
+  10:'This device cannot start. (Code 10)', 22:'This device is disabled. (Code 22)', 28:'The drivers for this device are not installed. (Code 28)',
+  43:'Windows has stopped this device because it has reported problems. (Code 43)',
+};
+function hdDeviceStatusText(device) { return device.status === 'OK' ? 'This device is working properly.' : (device.problem || HD_DEVICE_CODES[device.status] || `Windows reported a problem with this device. (Code ${device.status})`); }
+function hdDeviceMark(device) { return device.status === 'OK' ? '' : String(device.status) === '22' ? '↓ ' : '⚠ '; }
 function hdDeviceOpen(computerName, deviceId, tab) { hdOpenMachineScreen(computerName, 'device-manager', { device:deviceId, tab:tab || 'general' }); }
 function hdDeviceDriver(computerName, deviceId, which) {
   hdMachineChange(computerName, machine => {
     const device = (machine.devices || []).find(item => item && item.id === deviceId); if (!device) return false;
     const next = which === 'rollback' ? device.previous : which === 'update' ? device.update : null;
+    // Update Driver with nothing newer: Windows' own answer, shown on the tab.
+    if (which === 'update' && (!next || typeof next !== 'object')) {
+      device.updateChecked = true;
+      hdMachineAction(computerName, 'driver-update-none', `searched for an updated driver for ${device.name}; the best driver is already installed`, { device:deviceId });
+      return;
+    }
     if (!next || typeof next !== 'object') return false;
+    device.updateChecked = false;
     const { status, problem, ...driver } = next;
     if (which === 'rollback') { device.update = device.update || null; device.previous = null; } else { device.previous = device.driver; device.update = null; }
     device.driver = driver;
@@ -3915,7 +3960,7 @@ VIEWS['helpdesk/device-manager'] = () => {
   const locked = hdProveLocked() ? 'disabled' : '';
   const name = `'${hdJsArg(computer.name)}'`;
   const categories = [...new Set(devices.map(device => device.category || 'Other devices'))].sort();
-  const tree = categories.map(category => `<li><strong>${hdEsc(category)}</strong><ul class="hd-list">${devices.filter(device => (device.category || 'Other devices') === category).map(device => `<li data-hd-device="${hdEsc(device.id)}" data-hd-device-status="${device.status === 'OK' ? 'ok' : 'problem'}"><button type="button" class="btn btn-ghost btn-sm" onclick="hdDeviceOpen(${name},'${hdJsArg(device.id)}')">${device.status === 'OK' ? '' : '⚠ '}${hdEsc(device.name)}</button></li>`).join('')}</ul></li>`).join('');
+  const tree = categories.map(category => `<li><strong>${hdEsc(category)}</strong><ul class="hd-list">${devices.filter(device => (device.category || 'Other devices') === category).map(device => `<li data-hd-device="${hdEsc(device.id)}" data-hd-device-status="${device.status === 'OK' ? 'ok' : 'problem'}"><button type="button" class="btn btn-ghost btn-sm" onclick="hdDeviceOpen(${name},'${hdJsArg(device.id)}')">${hdDeviceMark(device)}${hdEsc(device.name)}</button></li>`).join('')}</ul></li>`).join('');
   const device = devices.find(item => item.id === view.device);
   let props = '<p class="muted">Choose a device to see its properties.</p>';
   if (device) {
@@ -3924,17 +3969,17 @@ VIEWS['helpdesk/device-manager'] = () => {
     const driver = device.driver || {};
     props = `<div style="display:flex;gap:6px" role="tablist">${tabs}</div>${tab === 'general'
       ? `<dl class="hd-dl"><dt>Device</dt><dd>${hdEsc(device.name)}</dd><dt>Device type</dt><dd>${hdEsc(device.category || 'Other devices')}</dd><dt>Device status</dt><dd data-hd-device-text>${hdEsc(hdDeviceStatusText(device))}</dd></dl>`
-      : `<dl class="hd-dl"><dt>Driver Provider</dt><dd>${hdEsc(driver.provider || '')}</dd><dt>Driver Date</dt><dd data-hd-driver-date>${hdEsc(driver.date || '')}</dd><dt>Driver Version</dt><dd>${hdEsc(driver.version || '')}</dd></dl><div style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="btn btn-secondary btn-sm" ${locked || (device.previous ? '' : 'disabled')} onclick="hdDeviceDriver(${name},'${hdJsArg(device.id)}','rollback')">Roll Back Driver</button><button type="button" class="btn btn-secondary btn-sm" ${locked || (device.update ? '' : 'disabled')} onclick="hdDeviceDriver(${name},'${hdJsArg(device.id)}','update')">Update Driver</button></div>`}`;
+      : `<dl class="hd-dl"><dt>Driver Provider</dt><dd>${hdEsc(driver.provider || '')}</dd><dt>Driver Date</dt><dd data-hd-driver-date>${hdEsc(driver.date || '')}</dd><dt>Driver Version</dt><dd>${hdEsc(driver.version || '')}</dd></dl><div style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="btn btn-secondary btn-sm" ${locked || (device.previous ? '' : 'disabled')} onclick="hdDeviceDriver(${name},'${hdJsArg(device.id)}','rollback')">Roll Back Driver</button><button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdDeviceDriver(${name},'${hdJsArg(device.id)}','update')">Update Driver</button></div>${device.updateChecked ? '<p class="muted" data-hd-driver-best>The best drivers for your device are already installed.</p>' : ''}`}`;
   }
-  return `${hdPageHeader('Device Manager', hdEsc(computer.name), hdMachineBack(computer))}<div class="two-col" data-hd-devmgr><div class="card"><div class="card-header"><strong>${hdEsc(computer.name)}</strong></div><div class="card-body"><ul class="hd-list">${tree}</ul></div></div><div class="card"><div class="card-header"><strong>${device ? `${hdEsc(device.name)} Properties` : 'Properties'}</strong></div><div class="card-body">${props}</div></div></div>`;
+  return `${hdPageHeader('Device Manager', computer.name, hdMachineBack(computer))}<div class="two-col" data-hd-devmgr><div class="card"><div class="card-header"><strong>${hdEsc(computer.name)}</strong></div><div class="card-body"><ul class="hd-list">${tree}</ul></div></div><div class="card"><div class="card-header"><strong>${device ? `${hdEsc(device.name)} Properties` : 'Properties'}</strong></div><div class="card-body">${props}</div></div></div>`;
 };
 VIEWS['helpdesk/camera'] = () => {
   const found = hdViewMachine(); const camera = found && (found.machine.devices || []).find(device => device && device.camera);
   if (!camera) return hdMachineMissing('Camera');
   const working = camera.status === 'OK';
-  return `${hdPageHeader('Camera', hdEsc(found.computer.name), hdMachineBack(found.computer))}<div class="card" data-hd-camera="${working ? 'video' : 'none'}"><div class="card-body">${working
+  return `${hdPageHeader('Camera', found.computer.name, hdMachineBack(found.computer))}<div class="card" data-hd-camera="${working ? 'video' : 'none'}"><div class="card-body">${working
     ? `<div role="img" aria-label="Camera preview showing video" style="min-height:160px;display:grid;place-items:center;border-radius:8px;border:1px solid currentColor"><strong>● Live video</strong></div>`
-    : `<div class="callout bad" role="status">We can't find your camera. Check that it's connected and not in use by another app.</div>`}</div></div>`;
+    : `<div class="callout bad" role="status">We can't find your camera. Check to be sure it's connected and installed properly, that it isn't being blocked by antivirus software, and that your camera drivers are up to date. Error code 0xA00F4244.</div>`}</div></div>`;
 };
 
 // Dock and displays.
@@ -3989,19 +4034,19 @@ VIEWS['helpdesk/dock'] = () => {
   const active = hdActiveMonitors(machine);
   const displays = [`<li>1 · Built-in display${machine.projection === 'Second screen only' && active.length ? ' (off)' : ''}</li>`, ...active.map((monitor, index) => `<li data-hd-display="${hdEsc(monitor.id)}">${index + 2} · ${hdEsc(monitor.name || monitor.id)}${index > 0 ? ` <button type="button" class="btn btn-ghost btn-sm" ${locked} onclick="hdDockDo(${name},'left','${hdJsArg(monitor.id)}')">Move left</button>` : ''}</li>`)].join('');
   const peripherals = (Array.isArray(dock.peripherals) ? dock.peripherals : []).map(item => `<li>${hdEsc(item)}: ${live ? 'working' : 'not responding'}</li>`).join('');
-  return `${hdPageHeader('Dock and displays', `${hdEsc(computer.name)} · ${hdEsc(dock.name || 'Dock')}`, hdMachineBack(computer))}
+  return `${hdPageHeader('Dock and displays', `${computer.name} · ${dock.name || 'Dock'}`, hdMachineBack(computer))}
     <div data-hd-dock="${live ? 'live' : 'dark'}" class="hd-settings-view">
-    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(dock.name || 'Dock')}</strong><span class="muted">Dock light: ${dock.power ? 'on' : 'off'} · ${dock.docked ? 'laptop connected' : 'laptop not connected'}</span></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:8px">${dock.power ? '' : `<button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdDockDo(${name},'power')">Plug in the dock's power</button>`}<button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdDockDo(${name},'dock')">${dock.docked ? 'Disconnect the laptop' : 'Connect the laptop to the dock'}</button></div>${peripherals ? `<ul class="hd-list">${peripherals}</ul>` : ''}</div></div>
+    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(dock.name || 'Dock')}</strong><span class="muted">Dock light: ${dock.power ? 'on' : 'off'} · ${dock.docked ? 'laptop connected' : 'laptop not connected'}</span></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="btn btn-secondary btn-sm" ${locked || (dock.power ? 'disabled' : '')} onclick="hdDockDo(${name},'power')">${dock.power ? 'Dock power connected' : "Plug in the dock's power"}</button><button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdDockDo(${name},'dock')">${dock.docked ? 'Disconnect the laptop' : 'Connect the laptop to the dock'}</button></div>${peripherals ? `<ul class="hd-list">${peripherals}</ul>` : ''}</div></div>
     ${monitors}
     <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Win + P</strong><span class="muted">Project</span></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:6px" data-hd-projection="${hdEsc(machine.projection || '')}">${modes}</div></div></div>
-    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Settings › System › Display</strong><button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdDockDo(${name},'detect')">Detect</button></div><div class="card-body"><ul class="hd-list" data-hd-displays>${displays}</ul></div></div>
+    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Settings › System › Display</strong><span class="muted">Multiple displays · Detect other display</span><button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdDockDo(${name},'detect')">Detect</button></div><div class="card-body"><ul class="hd-list" data-hd-displays>${displays}</ul></div></div>
     </div>`;
 };
 VIEWS['helpdesk/settings-network'] = () => {
   const found = hdViewMachine(); if (!found || !found.machine.dock) return hdMachineMissing('Settings › Network & internet');
   const { computer, machine } = found; const live = hdDockLive(machine);
   const ethernet = machine.dock.ethernet ? `<li data-hd-ethernet="${live ? 'connected' : 'unplugged'}">Ethernet (${hdEsc(machine.dock.ethernet)}): ${live ? 'Connected' : 'Network cable unplugged'}</li>` : '';
-  return `${hdPageHeader('Settings', `${hdEsc(computer.name)} · Network & internet`, hdMachineBack(computer))}<div class="card" data-hd-netset><div class="card-body"><ul class="hd-list">${ethernet}<li>Wi-Fi: Connected</li></ul></div></div>`;
+  return `${hdPageHeader('Settings', `${computer.name} · Network & internet`, hdMachineBack(computer))}<div class="card" data-hd-netset><div class="card-body"><ul class="hd-list">${ethernet}<li>Wi-Fi: Connected</li></ul></div></div>`;
 };
 
 // Virtual Desktops: pools and sessions from a ticket's console.vdi.

@@ -195,10 +195,11 @@ function testCommands() {
   assert.match(tab.ps('get-printer test-mfp | fl'), /PrinterStatus : Offline/);
   assert.match(tab.ps('Get-Printer'), /TEST-MFP\s+Local\s+Test Driver A/);
   assert.match(tab.ps('Test-NetConnection 192.0.2.20 -Port 9100'), /RemotePort       : 9100\nInterfaceAlias   : Ethernet\nSourceAddress    : 192\.0\.2\.11\nTcpTestSucceeded : True$/);
-  assert.match(tab.ps('Test-NetConnection 192.0.2.30 -Port 9100'), /TcpTestSucceeded : False$/);
-  assert.match(tab.ps('Test-NetConnection 192.0.2.99 -Port 9100'), /^WARNING: Ping to 192\.0\.2\.99 failed[\s\S]*TcpTestSucceeded : False$/);
-  assert.match(tab.ps('Test-NetConnection 192.0.2.20'), /PingSucceeded    : True$/);
-  assert.match(tab.ps('ping 192.0.2.20'), /Reply from 192\.0\.2\.20: bytes=32[\s\S]*Received = 4, Lost = 0 \(0% loss\)/);
+  assert.match(tab.ps('Test-NetConnection 192.0.2.30 -Port 9100'), /^WARNING: TCP connect to \(192\.0\.2\.30 : 9100\) failed\n[\s\S]*TcpTestSucceeded : False$/);
+  assert.match(tab.ps('Test-NetConnection 192.0.2.99 -Port 9100'), /^WARNING: TCP connect[^\n]*\nWARNING: Ping to 192\.0\.2\.99 failed[\s\S]*TcpTestSucceeded : False$/);
+  assert.match(tab.ps('Test-NetConnection 192.0.2.20'), /PingSucceeded\s+: True\nPingReplyDetails \(RTT\) : 0 ms$/);
+  assert.match(tab.ps('ping 192.0.2.20'), /Reply from 192\.0\.2\.20: bytes=32 time<1ms[\s\S]*Received = 4, Lost = 0 \(0% loss\),\nApproximate round trip times/);
+  assert.match(tab.ps('Get-Printer -Name TEST-MFP | Format-List PrinterStatus'), /^PrinterStatus : Offline$/);
   assert.match(tab.ps('ping 192.0.2.99'), /Request timed out\.[\s\S]*Received = 0, Lost = 4 \(100% loss\)/);
   // Commands not in the set stay unsupported.
   for (const command of ['Remove-PrintJob -PrinterName TEST-MFP -ID 7', 'Get-PnpDevice', 'Remove-Item C:\\spool\\x -Force', 'Restart-Service Spooler']) {
@@ -211,6 +212,7 @@ function testCommands() {
   assert.equal(tab.ps('Stop-Service Spooler'), '');
   assert.match(tab.ps('Get-Service Spooler'), /Stopped  Spooler/);
   assert.match(tab.ps('Get-PrintJob -PrinterName TEST-MFP'), /spooler service is not reachable/);
+  assert.match(tab.ps('Get-Printer -Name TEST-MFP | Format-List'), /^Get-Printer : The spooler service is not reachable/);
   assert.equal(tab.machine('TEST-PC-02').spooler, 'Running');
   tab.ps('Start-Service Spooler');
   assert.equal(tab.machine('TEST-PC-01').spooler, 'Running');
@@ -234,13 +236,18 @@ function testPrintQueueWindow() {
   tab.run("hdQueueCancel('TEST-PC-01','TEST-MFP','7')");
   assert.equal(tab.machine('TEST-PC-01').printQueues['TEST-MFP'].jobs[0].status, 'Deleting');
   html = tab.view('helpdesk/print-queue');
-  assert.match(html, /data-hd-clear-stuck/);
+  assert.match(html, /data-hd-clear-stuck="on"/);
   // Refused while the spooler runs.
   tab.run("hdQueueClearStuck('TEST-PC-01','TEST-MFP')");
   assert.match(tab.lastToast(), /only while the Print Spooler is stopped/);
   assert.equal(tab.machine('TEST-PC-01').printQueues['TEST-MFP'].jobs.length, 4);
   tab.select('TEST-PC-01');
   tab.ps('Stop-Service Spooler');
+  // With the spooler stopped the queue can't be changed, except Clear stuck job.
+  assert.match(tab.view('helpdesk/print-queue'), /disabled onclick="hdQueueCancel/);
+  tab.run("hdQueueCancel('TEST-PC-01','TEST-MFP','8')");
+  tab.run("hdQueueTestPage('TEST-PC-01','TEST-MFP')");
+  assert.equal(tab.machine('TEST-PC-01').printQueues['TEST-MFP'].jobs.length, 4);
   tab.run("hdQueueClearStuck('TEST-PC-01','TEST-MFP')");
   assert.deepEqual(tab.machine('TEST-PC-01').printQueues['TEST-MFP'].jobs.map((j) => j.id), [8, 9, 10]);
   tab.ps('Start-Service Spooler');
@@ -306,7 +313,7 @@ function testAddByIpAndProperties() {
   assert.match(tab.lastToast(), /already installed/);
   // Ports tab: the new Standard TCP/IP port is in use.
   let html = tab.screen('TEST-PC-01', 'printer-properties', { printer: 'TEST-LABEL', tab: 'ports' });
-  assert.match(html, /data-hd-port="IP_192.0.2.51"><td>✓ IP_192\.0\.2\.51<\/td><td>Standard TCP\/IP<\/td><td>192\.0\.2\.51/);
+  assert.match(html, /data-hd-port="IP_192.0.2.51"><td>✓ IP_192\.0\.2\.51<\/td><td>Standard TCP\/IP Port<\/td><td>192\.0\.2\.51/);
   // A port that doesn't work takes the printer offline; switching back restores it.
   tab.run("hdPrinterSet('TEST-PC-01','TEST-MFP','port','WSD-test')");
   assert.match(tab.ps('Get-Printer -Name TEST-MFP | Format-List PortName, PrinterStatus'), /PortName      : WSD-test\nPrinterStatus : Offline/);
@@ -342,6 +349,11 @@ function testDeviceManagerAndCamera() {
   assert.match(html, /data-hd-device-text>This device cannot start\. \(Code 10\)/);
   html = tab.screen('TEST-LT-03', 'device-manager', { device: 'audio', tab: 'driver' });
   assert.match(html, /disabled onclick="hdDeviceDriver\('TEST-LT-03','audio','rollback'\)"/, 'no previous driver: Roll Back is off');
+  // Update Driver is always on; with nothing newer it says so, as Windows does.
+  assert.match(html, / onclick="hdDeviceDriver\('TEST-LT-03','audio','update'\)"/);
+  tab.run("hdDeviceDriver('TEST-LT-03','audio','update')");
+  assert.match(tab.view('helpdesk/device-manager'), /data-hd-driver-best>The best drivers for your device are already installed/);
+  assert.equal(tab.machine('TEST-LT-03').devices.find((d) => d.id === 'audio').driver.version, '5.1');
   html = tab.screen('TEST-LT-03', 'device-manager', { device: 'bt', tab: 'driver' });
   assert.match(html, /data-hd-driver-date>yesterday/);
   tab.run("hdDeviceDriver('TEST-LT-03','bt','rollback')");
@@ -354,7 +366,7 @@ function testDeviceManagerAndCamera() {
   assert.match(tab.screen('TEST-LT-03', 'camera'), /data-hd-camera="none"/);
   tab.run("hdDeviceDriver('TEST-LT-03','cam','rollback')");
   assert.match(tab.screen('TEST-LT-03', 'camera'), /data-hd-camera="video"/);
-  assert.deepEqual(tab.actions('HD-9403'), ['driver-rollback', 'camera-checked', 'driver-rollback', 'camera-checked']);
+  assert.deepEqual(tab.actions('HD-9403'), ['driver-update-none', 'driver-rollback', 'camera-checked', 'driver-rollback', 'camera-checked']);
   const checks = tab.run("hdTicketById('HD-9403').consoleState.actions.filter((a) => a.id === 'camera-checked').map((a) => a.working)");
   assert.deepEqual([...checks], [false, true]);
 }
@@ -476,10 +488,41 @@ function testProveShiftMachine() {
   assert.ok(events.includes('action_taken:printer-offline-off'));
   assert.equal(prove.run('hdState.practiceLog'), undefined);
   assert.doesNotMatch(prove.run("hdState.tickets[0].troubleshootingHistory.map((h) => h.action).join(' ')"), /TEST-PROVE/);
+  // No hints in a Prove It: Get-Help lists no case commands, and no toast says what printed.
+  assert.doesNotMatch(prove.ps('Get-Help'), /Printing:|Network:/);
+  prove.run(`hdQueueTestPage(${JSON.stringify(name)},'TEST-PROVE')`);
+  assert.equal(prove.run(`hdState.machines[${JSON.stringify(name)}].printQueues['TEST-PROVE'].printed.length`), 1);
+  assert.ok(!prove.toasts.some((t) => /printed/.test(t)), prove.toasts.join(' | '));
+  // Without machineTools the tool grid shows only what the machine has; with
+  // it, every tool on every computer of the shift, each opening neutrally.
+  assert.doesNotMatch(prove.view('helpdesk/windows'), /data-hd-tools="camera"/);
+  const all = sim({ url: 'https://academy.test/sim/?prove=its-01&student=student-m04b#/helpdesk/tickets', before: `${shiftMachine} HD_PROVE_SHIFTS['its-01'].machineTools = true;` });
+  all.select(name);
+  const desktop = all.view('helpdesk/windows');
+  ['device-manager', 'camera', 'dock', 'settings-network'].forEach((tool) => assert.match(desktop, new RegExp(`data-hd-tools="${tool}"`)));
+  assert.match(all.screen(name, 'camera'), /Nothing to show on this computer/);
+  assert.doesNotMatch(all.screen(name, 'dock'), /Not available/);
+}
+
+// A ticket that joins a saved practice set gets its own machine state; a
+// computer another saved ticket seeded keeps the student's work.
+function testUpgradeSeedsANewTicket() {
+  const local = store();
+  const before = machines(local);
+  before.open('HD-9401');
+  before.run("hdQueueToggle('TEST-PC-01','TEST-MFP','offline')");
+  // The saved set as it was before HD-9403 joined: drop it and its computer.
+  before.run("hdState.tickets = hdState.tickets.filter((t) => t.id !== 'HD-9403'); delete hdState.machines['TEST-LT-03']; hdSave();");
+  const after = machines(local);
+  assert.ok(after.run("hdState.tickets.some((t) => t.id === 'HD-9403')"));
+  assert.equal(after.machine('TEST-LT-03').seededBy, 'HD-9403');
+  assert.equal(after.machine('TEST-PC-01').printQueues['TEST-MFP'].offline, false, 'earlier work kept');
+  after.select('TEST-LT-03');
+  assert.match(after.view('helpdesk/windows'), /data-hd-tools="device-manager"/);
 }
 
 const tests = [testOldTicketsTurnNothingOn, testCommands, testPrintQueueWindow, testRestartResendsDuplicates, testAddByIpAndProperties,
-  testDeviceManagerAndCamera, testDockAndDisplays, testVirtualDesktops, testMachineArrivals, testLeftoverStateIsIgnored, testProveShiftMachine];
+  testDeviceManagerAndCamera, testDockAndDisplays, testVirtualDesktops, testMachineArrivals, testLeftoverStateIsIgnored, testProveShiftMachine, testUpgradeSeedsANewTicket];
 let failed = 0;
 for (const test of tests) {
   try { test(); console.log(`ok - ${test.name}`); } catch (error) { failed += 1; console.error(`not ok - ${test.name}\n${error.stack}`); }
