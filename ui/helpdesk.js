@@ -4291,11 +4291,19 @@ function hdVmSend() {
   if (!hdVmSync.serverSeen) { hdVmAskServer(); return; }
   const sentAt = hdVmSync.unsynced;
   hdVmSync.sending = true;
-  hdVmAsk('mnt-vm-save', { state:hdVmSummary() }, 'mnt-vm-received', (reply, reason) => {
+  hdVmAsk('mnt-vm-save', { state:hdVmSummary(), base:hdVmSync.base || '' }, 'mnt-vm-received', (reply, reason) => {
     hdVmSync.sending = false;
+    const newer = reply && reply.reason === 'stale' ? hdVmClean(reply.state) : null;
     if (reply && reply.saved === true) {
+      hdVmSync.base = sentAt;
       if (hdVmSync.unsynced === sentAt) { hdVmSync.unsynced = ''; try { localStorage.removeItem(hdVmUnsyncedKey()); } catch (_) { /* storage blocked */ } }
       hdVmSync.status = 'saved';
+    } else if (newer && newer.lab === HD_VM.key) {
+      // Another tab saved first: show its copy rather than overwrite it.
+      hdVmAdopt(newer);
+      toast('Your VMs were changed in another tab. This tab now shows the latest saved copy.');
+      hdVmRefresh();
+      return;
     } else hdVmSync.status = (reply && reply.reason) || reason || 'unconfirmed';
     // A change made while this one was on its way goes next.
     if (hdVmSync.unsynced && hdVmSync.unsynced !== sentAt) hdVmQueueSend();
@@ -4315,22 +4323,26 @@ function hdVmAskServer() {
     const later = hdVmSync.asked > 1;
     hdVmSync.serverSeen = true;
     const server = hdVmClean(reply.state);
-    const local = hdVm;
     // A later answer (after a timeout) treats this tab's changes like an
     // unconfirmed save from an earlier visit only if the account has none.
     const localNewer = (Boolean(hdVmSync.loadedUnsynced) && (!server || !server.savedAt || hdVmSync.loadedUnsynced > server.savedAt))
       || (later && (!server || !server.vms.length));
     if (later && server && server.vms.length && !localNewer && hdVmSync.unsynced) toast('Your VMs saved to your course were loaded. Changes made in this tab before they loaded were replaced.');
-    if (server && server.lab === HD_VM.key && !localNewer) {
-      // The view the student is on (Task Manager tab) stays this tab's own.
-      hdVm = { ...server, taskTab:local.taskTab };
-      try { localStorage.setItem(hdVmKey(), JSON.stringify(hdVm)); localStorage.removeItem(hdVmUnsyncedKey()); } catch (_) { /* storage blocked */ }
-      hdVmSync.unsynced = '';
-      hdVmSync.status = 'saved';
-    } else if (hdVmSync.unsynced) hdVmQueueSend();
+    hdVmSync.base = server && server.savedAt ? server.savedAt : '';
+    if (server && server.lab === HD_VM.key && !localNewer) hdVmAdopt(server);
+    else if (hdVmSync.unsynced) hdVmQueueSend();
     else hdVmSync.status = 'saved';
     hdVmRefresh();
   });
+}
+// The account's saved copy replaces this tab's. The view the student is on
+// (the Task Manager tab) stays this tab's own.
+function hdVmAdopt(server) {
+  hdVm = { ...server, taskTab:hdVm ? hdVm.taskTab : 'processes' };
+  try { localStorage.setItem(hdVmKey(), JSON.stringify(hdVm)); localStorage.removeItem(hdVmUnsyncedKey()); } catch (_) { /* storage blocked */ }
+  hdVmSync.unsynced = '';
+  hdVmSync.base = server.savedAt || '';
+  hdVmSync.status = 'saved';
 }
 function hdVmRefresh() { if (typeof render === 'function') render(); }
 function hdVmSaveLine() {

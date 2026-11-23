@@ -748,6 +748,13 @@ async function itsVmReceiveMessage(event, { moduleKey, stateId }) {
   if (data.type === 'mnt-vm-state') { reply({ saved: true, state: itsVmSaved(user, moduleKey, stateId) }); return; }
   const vm = itsCleanVmState(data.state);
   if (!vm) { reply({ saved: false, reason: 'invalid' }); return; }
+  // A save names the saved copy it started from (base). Another tab saved
+  // since then: refuse, and hand back the newer copy instead of losing it.
+  const current = itsVmSaved(user, moduleKey, stateId);
+  if (typeof data.base === 'string' && current && current.savedAt && current.savedAt !== data.base) {
+    reply({ saved: false, reason: 'stale', state: current });
+    return;
+  }
   const state = { ...LabRuntime.load(stateId, user, { vm: null }), vm };
   const saved = await new Promise((resolve) => {
     LabRuntime.saveCaseState(stateId, moduleKey, user, state, { debounceMs: 1, onResult: (ok) => resolve(ok === true) });

@@ -294,7 +294,8 @@ function testSaveWaitsForTheFirstAnswerAndSendsTheSummaryOnly() {
   assert.equal(opener.sent.length, 2);
   const save = opener.sent[1].data;
   assert.equal(save.type, 'mnt-vm-save'); assert.equal(save.student, STUDENT);
-  assert.deepEqual(Object.keys(save).sort(), ['id', 'nonce', 'state', 'student', 'type']);
+  assert.deepEqual(Object.keys(save).sort(), ['base', 'id', 'nonce', 'state', 'student', 'type']);
+  assert.equal(save.base, server.savedAt, 'the save names the saved copy it started from');
   assert.deepEqual(Object.keys(save.state).sort(), ['cpuSeen', 'form', 'lab', 'modesViewed', 'savedAt', 'selected', 'version', 'viewMode', 'vms']);
   assert.ok(!JSON.stringify(save).includes('tickets'), 'no ticket data');
   assert.match(tab.view('helpdesk/vm-manager'), /data-hd-vm-save="saving"/);
@@ -307,6 +308,16 @@ function testSaveWaitsForTheFirstAnswerAndSendsTheSummaryOnly() {
   tab.deliver({ type: 'mnt-vm-received', id: 'test-vm', nonce: third.nonce, saved: false, reason: 'signed-out' });
   assert.match(tab.view('helpdesk/vm-manager'), /data-hd-vm-save="signed-out"/);
   assert.ok(tab.local.getItem(`defender-lab.helpdesk.vm.v1.test-vm.${STUDENT}.unsynced`));
+  // Another tab saved first: this tab's older copy is refused and replaced.
+  tab.run("hdVmSnapshot('TEST-CLI', 'Fourth')"); tab.flush(1000);
+  const fourth = opener.sent[3].data;
+  assert.equal(fourth.base, save.state.savedAt, 'based on the last confirmed save');
+  const other = { ...server, vms: [{ ...server.vms[0], name: 'TEST-OTHER' }], savedAt: '2026-08-19T11:00:00.000Z' };
+  tab.deliver({ type: 'mnt-vm-received', id: 'test-vm', nonce: fourth.nonce, saved: false, reason: 'stale', state: other });
+  assert.deepEqual(tab.state().vms.map((v) => v.name), ['TEST-OTHER']);
+  assert.match(tab.lastToast(), /changed in another tab/);
+  tab.run("hdVmSnapshot('TEST-OTHER', 'Fifth')"); tab.flush(1000);
+  assert.equal(opener.sent[4].data.base, other.savedAt);
 }
 
 function testANewerUnconfirmedSaveInThisBrowserBeatsTheServer() {
@@ -423,6 +434,15 @@ async function testPortalSavesAndHandsBack() {
   const back = replies.pop().data;
   assert.equal(back.type, 'mnt-vm-state-reply'); assert.equal(back.nonce, 'n2'); assert.equal(back.state.vms[0].name, 'TEST-CLI');
   assert.equal(USER.remoteCaseState['its-02']['its02-lab-state-v1'].consoleStarted, true, 'the page\'s own state is untouched');
+  // A save based on an older copy is refused, and the newer copy handed back.
+  await send({ type: 'mnt-vm-save', id: 'its-02', nonce: 'n2b', student, base: 'older', state: { ...state, savedAt: 'b' } });
+  const stale = replies.pop().data;
+  assert.deepEqual([stale.saved, stale.reason, stale.state.savedAt], [false, 'stale', 'a']);
+  assert.equal(writes.length, 1, 'nothing written');
+  await send({ type: 'mnt-vm-save', id: 'its-02', nonce: 'n2c', student, base: 'a', state: { ...state, savedAt: 'c' } });
+  assert.equal(replies.pop().data.saved, true, 'based on the current copy: saved');
+  assert.equal(writes.length, 2);
+  USER.remoteCaseState = { 'its-02': { 'its02-vm-state-v1': writes[1].state } };
   // Refused: malformed, oversized, another student, signed out, a failed write, the wrong origin or module.
   await send({ type: 'mnt-vm-save', id: 'its-02', nonce: 'n3', student, state: { version: 1, vms: 'x' } });
   assert.deepEqual([replies[replies.length - 1].data.saved, replies.pop().data.reason], [false, 'invalid']);
