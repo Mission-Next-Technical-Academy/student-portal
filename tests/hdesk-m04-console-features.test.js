@@ -76,8 +76,14 @@ const LAPTOP = base({ id: 'HD-9403', number: 'INC0019403', requester: 'Jordan Be
 const VDI = base({ id: 'HD-9404', number: 'INC0019404', requester: 'Amir Patel', createdAt: at(WED, '09:15'), description: 'TEST black desktop',
   console: { matrix: {}, vdi: { pools: [{ name: 'TEST-POOL', sessions: [{ id: 's1', user: 'amir.patel', state: 'Disconnected – hung', hours: 6 }, { id: 's2', user: 'maya.chen', state: 'Active', hours: 2 }] }] },
     machines: { 'NS-LT-0094': { computer: { ip: '192.0.2.94', health: 'Healthy' } } } } });
-const TICKETS = [PRINT, DUPES, LAPTOP, VDI];
-const SETS = { practice: { 'test-machines': { title: 'Test machines', tickets: TICKETS.map((t) => t.id), now: at(WED, '09:20') } } };
+// A second ticket naming TEST-PC-02 (only in the test-shared set).
+const SHARED = base({ id: 'HD-9405', number: 'INC0019405', requester: 'Maya Chen', createdAt: at(WED, '09:25'), description: 'TEST same computer',
+  console: { matrix: {}, machines: { 'TEST-PC-02': { spooler: 'Running', printQueues: { 'TEST-OTHER': { port: 'LPT1:', driver: 'Test Driver A', media: 'Letter', mediaSizes: ['Letter'], offline: true, paused: false, jobs: [] } } } } } });
+const TICKETS = [PRINT, DUPES, LAPTOP, VDI, SHARED];
+const SETS = { practice: {
+  'test-machines': { title: 'Test machines', tickets: [PRINT, DUPES, LAPTOP, VDI].map((t) => t.id), now: at(WED, '09:20') },
+  'test-shared': { title: 'Test shared computer', tickets: ['HD-9402', 'HD-9405'], now: at(WED, '09:30') },
+} };
 
 const store = (initial) => {
   const map = new Map(initial || []);
@@ -504,6 +510,20 @@ function testProveShiftMachine() {
   assert.doesNotMatch(all.screen(name, 'dock'), /Not available/);
 }
 
+// Two tickets naming one computer: the ticket whose state was seeded (the
+// later one in the shift) gets the actions and the history.
+function testSharedComputerOwner() {
+  const tab = sim({ url: 'https://academy.test/sim/?practice=test-shared&student=stu-1#/helpdesk/tickets' });
+  const owner = tab.machine('TEST-PC-02').seededBy;
+  const order = [...tab.run("hdState.tickets.map((t) => t.id)")];
+  assert.equal(owner, order[order.length - 1]);
+  const queue = owner === 'HD-9405' ? 'TEST-OTHER' : 'TEST-BADGE';
+  tab.run(`hdQueueToggle('TEST-PC-02','${queue}','offline')`);
+  assert.equal(tab.run(`hdMachineTicket('TEST-PC-02').id`), owner);
+  assert.deepEqual(tab.actions(owner).slice(-1), [tab.machine('TEST-PC-02').printQueues[queue].offline ? 'printer-offline-on' : 'printer-offline-off']);
+  assert.deepEqual(tab.actions(owner === 'HD-9405' ? 'HD-9402' : 'HD-9405'), []);
+}
+
 // A ticket that joins a saved practice set gets its own machine state; a
 // computer another saved ticket seeded keeps the student's work.
 function testUpgradeSeedsANewTicket() {
@@ -522,7 +542,7 @@ function testUpgradeSeedsANewTicket() {
 }
 
 const tests = [testOldTicketsTurnNothingOn, testCommands, testPrintQueueWindow, testRestartResendsDuplicates, testAddByIpAndProperties,
-  testDeviceManagerAndCamera, testDockAndDisplays, testVirtualDesktops, testMachineArrivals, testLeftoverStateIsIgnored, testProveShiftMachine, testUpgradeSeedsANewTicket];
+  testDeviceManagerAndCamera, testDockAndDisplays, testVirtualDesktops, testMachineArrivals, testLeftoverStateIsIgnored, testProveShiftMachine, testSharedComputerOwner, testUpgradeSeedsANewTicket];
 let failed = 0;
 for (const test of tests) {
   try { test(); console.log(`ok - ${test.name}`); } catch (error) { failed += 1; console.error(`not ok - ${test.name}\n${error.stack}`); }

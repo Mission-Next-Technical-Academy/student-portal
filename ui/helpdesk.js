@@ -3499,7 +3499,10 @@ function hdTicketMachineSpecs(ticket) {
 // The Practice ticket in this shift that names this computer, or null.
 function hdMachineTicket(name) {
   if (HD_PROVE || !hdState || !Array.isArray(hdState.tickets)) return null;
-  return hdState.tickets.find(ticket => hdOwn(hdTicketMachineSpecs(ticket), name)) || null;
+  const naming = hdState.tickets.filter(ticket => hdOwn(hdTicketMachineSpecs(ticket), name));
+  // Two tickets naming one computer: the one whose state was seeded owns it.
+  const seededBy = (hdMachine(name) || {}).seededBy;
+  return naming.find(ticket => ticket.id === seededBy) || naming[0] || null;
 }
 // The machine state the new features read, or null (features off).
 function hdFeatureMachine(name) {
