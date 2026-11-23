@@ -6,7 +6,8 @@
  *     with a diagram of the four moves and the plain-words table.
  *   - Lesson 3.2: Reading 2 (phone, chat and email etiquette, with a diagram)
  *     and Reading 3 (escalating well and keeping users informed, with the
- *     handoff note table, a diagram and the assignment groups table).
+ *     handoff note table, a diagram, the key finding and KB draft, the
+ *     ticket class table and the assignment groups table).
  *   - The knowledge check: four questions with a "why" line for a right
  *     answer and an "if wrong" line for each wrong one. A program check, not
  *     an A+ objective.
@@ -120,6 +121,20 @@ const ITS11_LESSONS = [
         ],
       } },
       { p: 'A warm handoff (a call or chat to the next team, plus the note) is used for urgent and security tickets. A plain reassignment is for routine ones.' },
+      { h5: 'The key finding and the KB draft' },
+      { p: 'A **key finding** is one or two sentences: what you found and why it matters for the next step. For example: “The shared printer’s queue is full of stuck jobs. Clearing it needs rights on the print server, so it goes to Server & Identity.”' },
+      { p: 'A **KB draft** records what you learned, so the next technician doesn’t start over. It has the five parts from Module 2:' },
+      { table: {
+        caption: 'The parts of a KB draft',
+        head: ['Part', 'It holds'],
+        rows: [
+          ['Symptom', 'What the user sees, with the exact error'],
+          ['Cause', 'What you found'],
+          ['Fix or workaround', 'What you did, or what works until it’s fixed'],
+          ['Result', 'Whether it worked. Escalated before it’s fixed? Say so'],
+          ['Owner', 'Who fixes it or keeps the article current'],
+        ],
+      } },
       { h5: 'Keep the user informed' },
       { p: 'Update the user when you escalate: who has it, what happens next, and when they’ll hear again. An honest “still working on it; next update by 3:00” builds more trust than silence.' },
       { p: 'Every customer comment does four things:' },
@@ -130,13 +145,23 @@ const ITS11_LESSONS = [
         'It says what happens next.',
       ] },
       { diagram: 'escalate' },
+      { h5: 'Ticket class' },
+      { table: {
+        caption: 'Ticket classes',
+        head: ['Class', 'When to use it'],
+        rows: [
+          ['Incident', 'Something that used to work and now doesn’t (Outlook won’t send)'],
+          ['Service request', 'A request for something new (a new monitor, access to a shared mailbox)'],
+          ['Security incident', 'A possible attack or compromise (phishing, malware, a suspicious sign-in). It goes to the SOC'],
+        ],
+      } },
       { h5: 'Who owns what: assignment groups' },
       { table: {
         caption: 'Assignment groups at Northstar',
         head: ['Group', 'Owns'],
         rows: [
           ['Service Desk (Tier 1)', 'Intake, triage, password/unlock, known fixes, user communication'],
-          ['Desktop Support (Tier 2)', 'Hands-on hardware, imaging, complex endpoint issues'],
+          ['Desktop Support (Tier 2)', 'Hands-on hardware, imaging, device-wide software installs, complex endpoint issues'],
           ['Network Operations', 'Switches, Wi-Fi infrastructure, firewalls, VPN concentrators, ISP circuits'],
           ['Server & Identity', 'Servers, AD design, Group Policy, DNS/DHCP servers'],
           ['Messaging & Collaboration', 'Exchange Online, Teams, SharePoint, M365 licensing policy'],

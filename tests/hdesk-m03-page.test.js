@@ -132,7 +132,8 @@ function testPageContent() {
   ['CALM: four moves when a caller is stressed', 'Three ways users reach you, one standard', 'Escalating well: decide, hand off, tell the user'].forEach((title) => {
     assert.equal((html.match(new RegExp(`role="img" aria-label="${title}"`, 'g')) || []).length, 2, `${title}: a wide and a narrow drawing`);
   });
-  assert.equal((html.match(/<table class="its10-table"/g) || []).length, 3, 'the three reference tables');
+  assert.equal((html.match(/<table class="its10-table"/g) || []).length, 5, 'the five reference tables');
+  ['The parts of a KB draft', 'Ticket classes'].forEach((caption) => assert.ok(html.includes(`<caption>${esc(caption)}</caption>`), `the ${caption} table`));
   ['You don’t need to know what DHCP or a spooler is yet.', 'Security Operations (SOC)', 'The exact ask: which team, what you need them to do, and by when.',
     'Need the priority matrix or the SLA table? They’re in Module 2, Lesson 2.2.', 'as you practiced in Lab 1.2 with the caller from the CFO’s office'].forEach((text) => assert.ok(html.includes(esc(text)), `the page shows: ${text}`));
   // No typed command is asked for anywhere in the module.

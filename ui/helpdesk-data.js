@@ -982,9 +982,9 @@ const HD_PROVE_SHIFTS = {
       // taught one). Each opens on its own and is recorded.
       evidence: [
         { id: 'northledger', title: 'NorthLedger on NS-LT-0190', lines: ['Required runtime NLRuntime 6 not found. Contact your administrator.'] },
-        { id: 'software-center', title: 'Software Center on NS-LT-0190', lines: ['NorthLedger 2026.2: Succeeded', 'NLRuntime 6: Failed', 'Device-wide install: Endpoint team'],
-          notes: ['A runtime is an add-on a program needs before it will start.', 'A device-wide install changes the laptop for every user; only Desktop Support can do one.'] },
-        { id: 'finance-laptops', title: 'Other Finance laptops', lines: ['Finance laptops set up before this month run NorthLedger normally. NS-LT-0190 has the new standard setup that Desktop Support puts on new laptops.'] },
+        { id: 'software-center', title: 'Software Center on NS-LT-0190', lines: ['NorthLedger 2026.2: Succeeded', 'NLRuntime 6: Failed', 'Install type: device-wide'],
+          notes: ['A runtime is an add-on a program needs before it will start.', 'A device-wide install changes the laptop for every user.'] },
+        { id: 'finance-laptops', title: 'Other Finance laptops', lines: ['Finance laptops set up before this month run NorthLedger normally. NS-LT-0190 has the new standard setup that new laptops get.'] },
         { id: 'loaners', title: 'Service Desk loaner pool', lines: ['2 laptops with the earlier setup are available today. NorthLedger runs on them.'] },
       ],
       diagnosisOptions: ['Account permissions', 'NorthLedger server down', 'Runtime missing on the new laptop setup', 'User needs training'],
@@ -994,15 +994,15 @@ const HD_PROVE_SHIFTS = {
         { id: 'q2', text: 'Reproduce the error on NS-LT-0190' },
         { id: 'q3', text: 'Check the Software Center install status' },
         { id: 'q4', text: 'Confirm that older Finance laptops run NorthLedger' },
-        { id: 'q5', text: 'Escalate with the evidence and Jordan\'s deadline' },
-        { id: 'q6', text: 'Offer Jordan a loaner laptop for tomorrow\'s close' },
+        { id: 'q5', text: 'Escalate the ticket' },
+        { id: 'q6', text: 'Offer a loaner laptop' },
         { id: 'q7', text: 'Reinstall NorthLedger from Software Center again' },
       ],
       // Module 3's writing boxes beside the work note and the reply.
       labels: { resolutionNote: 'Handoff note', resolutionHint: 'Reported / Tried / Result / Next action, for the team that takes it next', userReply: 'Customer update' },
       writing: {
-        keyFinding: { label: 'Key finding', hint: 'One or two sentences: what you found, and what it means for who can fix it.', rows: 3, max: 600 },
-        kbDraft: { label: 'KB draft: NorthLedger won\'t open on a new Finance laptop', hint: 'Symptom, cause, workaround and owner.', rows: 6, max: 4000 },
+        keyFinding: { label: 'Key finding', hint: 'One or two sentences: what you found and why it matters.', rows: 3, max: 600 },
+        kbDraft: { label: 'KB draft: NorthLedger won\'t open on a new Finance laptop', hint: 'Symptom, cause, fix or workaround, result and owner.', rows: 6, max: 4000 },
       },
       warmHandoff: true,
     }],

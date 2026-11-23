@@ -136,7 +136,7 @@ const ITS10_LESSONS = [
         head: ['Group', 'Owns'],
         rows: [
           ['Service Desk (Tier 1)', 'Intake, triage, password/unlock, known fixes, user communication'],
-          ['Desktop Support (Tier 2)', 'Hands-on hardware, imaging, complex endpoint issues'],
+          ['Desktop Support (Tier 2)', 'Hands-on hardware, imaging, device-wide software installs, complex endpoint issues'],
           ['Network Operations', 'Switches, Wi-Fi infrastructure, firewalls, VPN concentrators, ISP circuits'],
           ['Server & Identity', 'Servers, AD design, Group Policy, DNS/DHCP servers'],
           ['Messaging & Collaboration', 'Exchange Online, Teams, SharePoint, M365 licensing policy'],
@@ -150,7 +150,7 @@ const ITS10_LESSONS = [
       { ul: [
         'Search the KB before you solve, using symptom words and exact error codes.',
         'When an article helps, use Attach knowledge on the incident.',
-        'When you fix something new, submit a KB draft (symptom, cause, steps, verification, audience) for review.',
+        'When you fix something new, submit a KB draft for review. It has five parts: symptom (what the user sees, with the exact error), cause (what you found), fix or workaround (what you did, or what works until it’s fixed), result (whether it worked) and owner (who fixes it or keeps the article current).',
         'Link related tickets, so a pattern is visible to everyone.',
       ] },
       { diagram: 'audiences' },

@@ -4583,6 +4583,11 @@ function hdProveMark(input) {
   group.forEach(item => { const label = item.closest('label'); if (label) label.setAttribute('style', hdProveChoiceStyle(item.checked)); });
 }
 const HD_PROVE_SUBMIT_OFF = 'background:#d0d5dd;border-color:#d0d5dd;color:#475467;cursor:not-allowed';
+// Module 3: Class, Category, group and decision are shuffled per attempt
+// (seeded, so a reload keeps the order), so no right answer has a fixed
+// place. Saved work is restored by value, never by position. Module 1 keeps
+// its fixed order.
+function hdProveListOrder(options, salt) { return hdProveMatrix() ? hdSeededOrder(options.slice(), ((hdState && hdState.seed) || 1) ^ salt) : options; }
 function hdProveSelect(field, label, options, value, locked) {
   return `<label>${hdEsc(label)}<select class="select" ${locked ? 'disabled' : ''} onchange="hdProveSetField('${field}',this.value)"><option value="">Choose…</option>${options.map(option => `<option ${option === value ? 'selected' : ''}>${hdEsc(option)}</option>`).join('')}</select></label>`;
 }
@@ -4593,10 +4598,10 @@ function hdProveFieldsCard(ticket, prove, locked) {
     const levels = ['1', '2', '3'];
     const select = (field, label, options, names) => `<label>${hdEsc(label)}<select class="select" data-hd-field="${field}" ${locked ? 'disabled' : ''} onchange="hdProveSetField('${field}',this.value)"><option value="">Choose…</option>${options.map(option => `<option value="${hdEsc(option)}" ${option === prove.fields[field] ? 'selected' : ''}>${hdEsc(names ? names[option] : option)}</option>`).join('')}</select></label>`;
     return `<div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Ticket fields</strong></div><div class="card-body hd-control-stack">
-      ${select('ticketClass', 'Class', HD_PROVE_CLASSES)}${select('category', 'Category', ticket.categoryOptions || [])}
+      ${select('ticketClass', 'Class', hdProveListOrder(HD_PROVE_CLASSES, 0x27d4eb2f))}${select('category', 'Category', hdProveListOrder(ticket.categoryOptions || [], 0x165667b1))}
       ${select('impact', 'Impact', levels, HD_IMPACT_LABELS)}${select('urgency', 'Urgency', levels, HD_IMPACT_LABELS)}
       <div class="hd-priority-preset"><span>Priority</span> <span id="hd-prove-priority">${hdProvePriorityHtml(prove.fields.priority)}</span><p class="muted" style="margin:4px 0 0">Calculated from Impact × Urgency. You don't type it.</p></div>
-      ${select('group', 'Assignment group', HD_ASSIGNMENT_GROUPS)}
+      ${select('group', 'Assignment group', hdProveListOrder(HD_ASSIGNMENT_GROUPS, 0x1b873593))}
     </div></div>`;
   }
   const preset = hdProvePreset();
@@ -4629,7 +4634,7 @@ function hdProveTicketView(ticket) {
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your diagnosis</strong></div><div class="card-body"><select id="hd-prove-diagnosis" class="select" ${off} onchange="hdProveChoose('diagnosis',this.value)"><option value="">Choose what this ticket is…</option>${prove.order.diagnosis.map(value => `<option ${prove.diagnosis === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></div></div>
         ${hdProveWritingCard('keyFinding', prove, off)}
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Steps you took</strong><span class="muted">Select every step you actually took.</span></div><div class="card-body"><div class="hd-path">${steps.map(step => `<label style="${hdProveChoiceStyle(prove.steps.includes(step.id))}"><input type="checkbox" ${off} onchange="hdProveToggleStep('${step.id}',this.checked);hdProveMark(this)" ${prove.steps.includes(step.id) ? 'checked' : ''}>${hdEsc(step.text)}</label>`).join('')}</div></div></div>
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your decision</strong></div><div class="card-body"><div class="hd-path">${['Resolve','Escalate'].map(value => `<label style="${hdProveChoiceStyle(prove.decision === value)}"><input type="radio" name="hd-prove-decision" ${off} onchange="hdProveChoose('decision','${value}');hdProveMark(this)" ${prove.decision === value ? 'checked' : ''}>${value}</label>`).join('')}</div></div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your decision</strong></div><div class="card-body"><div class="hd-path">${hdProveListOrder(['Resolve','Escalate'], 0x85ebca6b).map(value => `<label style="${hdProveChoiceStyle(prove.decision === value)}"><input type="radio" name="hd-prove-decision" ${off} onchange="hdProveChoose('decision','${value}');hdProveMark(this)" ${prove.decision === value ? 'checked' : ''}>${value}</label>`).join('')}</div></div></div>
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>${hdEsc(labels.resolutionNote)}</strong><span class="muted">${hdEsc(labels.resolutionHint)}</span></div><div class="card-body"><textarea id="hd-prove-note" class="ipt hd-note-input" aria-label="${hdEsc(labels.resolutionNote === 'Work notes' ? 'Work note' : labels.resolutionNote)}" rows="7" maxlength="4000" ${off} oninput="hdProveText('resolutionNote',this.value)">${hdEsc(prove.resolutionNote)}</textarea>${ticket.notes.length ? `<p class="muted">Earlier notes:</p><div class="hd-note-list">${ticket.notes.map(note => `<div><strong>${hdEsc(note.author)} · ${hdEsc(note.time)}</strong><p>${hdEsc(note.text)}</p></div>`).join('')}</div>` : ''}</div></div>
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>${hdEsc(labels.userReply)}</strong><span class="muted">Written to ${hdEsc(ticket.requester)}, in your own words.</span></div><div class="card-body"><textarea id="hd-prove-reply" class="ipt hd-note-input" aria-label="${hdEsc(labels.userReply)}" rows="7" maxlength="4000" ${off} oninput="hdProveText('userReply',this.value)">${hdEsc(prove.userReply)}</textarea></div></div>
         ${hdProveWritingCard('kbDraft', prove, off)}

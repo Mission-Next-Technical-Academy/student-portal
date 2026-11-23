@@ -10,6 +10,8 @@
 //     are not kept.
 //   - Evidence cards and earlier calls open once each and are recorded once.
 //   - Warm handoff: only with a group, logged once per group.
+//   - Class, Category, group and decision are shuffled per attempt; a
+//     reload keeps the order and the choice. Module 1 keeps its order.
 //   - Submit waits for every part, whatever is chosen; a password is refused.
 //   - The course page accepts the package, works out Priority itself, refuses
 //     writing that doesn't fit and keeps Module 1's packages as they were.
@@ -580,8 +582,45 @@ async function testModuleThreePageSubmit() {
   same(stored, expected, 'the cleaned work');
 }
 
+// Class, Category, group and decision: the same options on every attempt,
+// in an order set by the attempt's seed, so no choice has a fixed place. A
+// reload keeps the order and the choice (kept by value). Module 1 keeps its
+// fixed decision order.
+function testListsAreShuffledPerAttempt() {
+  const lists = (html) => {
+    const field = (f) => [...((html.match(new RegExp(`data-hd-field="${f}"[^>]*>([\\s\\S]*?)</select>`)) || [, ''])[1].matchAll(/<option value="([^"]+)"/g))]
+      .map((m) => m[1].replace(/&amp;/g, '&'));
+    return { ticketClass: field('ticketClass'), category: field('category'), group: field('group'),
+      decision: [...html.matchAll(/hdProveChoose\('decision','(\w+)'\)/g)].map((m) => m[1]) };
+  };
+  const seen = new Set();
+  for (const seed of [11, 222, 3333, 44444, 555555, 6666666]) {
+    const tab = sim('its-11', `shuffle-${seed}`);
+    tab.run(`hdState.seed = ${seed}`);
+    const got = lists(ticketView(tab));
+    same([...got.ticketClass].sort(), [...CLASSES].sort(), 'every class, once');
+    same([...got.category].sort(), [...SPEC.categoryOptions].sort(), 'every category, once');
+    same([...got.group].sort(), [...GROUPS].sort(), 'every group, once');
+    same([...got.decision].sort(), ['Escalate', 'Resolve'], 'both decisions, once');
+    seen.add(JSON.stringify(got));
+  }
+  assert.ok(seen.size > 1, 'the order changes with the attempt');
+  const local = store();
+  const session = store();
+  const first = sim('its-11', 'shuffle-reload', local, session);
+  first.ctx.hdProveSetField('group', GROUPS[3]);
+  const before = lists(ticketView(first));
+  const second = sim('its-11', 'shuffle-reload', local, session);
+  same(lists(ticketView(second)), before, 'a reload keeps the order');
+  assert.equal(second.prove().fields.group, GROUPS[3], 'a reload keeps the choice');
+  for (const student of ['m1-a', 'm1-b', 'm1-c']) {
+    const m1 = sim('its-01', student);
+    same(lists(ticketView(m1)).decision, ['Resolve', 'Escalate'], 'Module 1: the fixed decision order');
+  }
+}
+
 const syncTests = [testFreshShiftShowsOneEmptyTicket, testPriorityFollowsTheMatrix, testOpeningCardsIsRecordedOnce, testWarmHandoff,
-  testMissingListsEveryEmptyPart, testPackageShape, testPasswordIsRefused];
+  testMissingListsEveryEmptyPart, testPackageShape, testPasswordIsRefused, testListsAreShuffledPerAttempt];
 (async () => {
   let failed = 0;
   let passed = 0;
