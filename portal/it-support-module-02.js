@@ -1086,7 +1086,7 @@ function its02Prove() {
   const returned = itsLabReturned(user, ITS02_PROVE_KEY);
   return `<section class="its01-section its01-lab-section" id="its02-prove-it" aria-labelledby="its02-prove-it-title">
     <div class="its01-section-heading"><span>5</span><div><p class="its01-kicker">Prove It · Assessment Lab · instructor reviewed</p><h2 id="its02-prove-it-title">${esc(itsLabTitle(ITS02_PROVE_KEY))}</h2></div></div>
-    <p class="its01-instruction">Work a new hardware ticket on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Set the ticket fields, check what you need on the user's computer, fix what you can, decide what happens next, and write a work note and a reply to the user. Plan on about 20 minutes. Your instructor reviews your work.</p>
+    <p class="its01-instruction">Work a new ticket on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Set the ticket fields, check what you need on the user's computer, fix what you can, decide what happens next, and write a work note and a reply to the user. Plan on about 20 minutes. Your instructor reviews your work.</p>
     ${itsLabRail(user, [ITS02_LAB23_KEY]).isComplete ? '' : '<p class="its01-instruction">Work Lab 4.3, the guided printer lab, first: it prepares you for this.</p>'}
     ${itsLabSubmitted(user, ITS02_PROVE_KEY) ? '' : `<a class="itsw-evidence-button" data-its02-prove-launch href="${esc(itsProveLaunchHref('its-02', user))}" target="_blank" rel="opener">
       <i class="${returned ? 'ri-restart-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${returned ? 'Reopen the Prove It' : 'Start the Prove It'}

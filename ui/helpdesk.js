@@ -1042,9 +1042,16 @@ function hdConsole(ticket) {
     const proveTicket = (HD_PROVE.shift.tickets || []).find(item => item.id === ticket.id);
     const config = proveTicket && proveTicket.console;
     if (!config) return {};
+    // when: { machine } or { all:[{ machine }, ...] }: machine values only.
+    const machineOnly = when => {
+      if (!when || typeof when !== 'object') return null;
+      if (when.machine) return { machine:when.machine };
+      const all = Array.isArray(when.all) ? when.all.filter(item => item && item.machine).map(item => ({ machine:item.machine })) : [];
+      return all.length && all.length === when.all.length ? { all } : null;
+    };
     const arrivals = (Array.isArray(config.arrivals) ? config.arrivals : [])
-      .filter(item => item && item.id && item.text && item.when && item.when.machine && !item.reopen && !item.resume && !item.approve && !item.at)
-      .map(item => ({ id:item.id, from:item.from, text:item.text, when:{ machine:item.when.machine } }));
+      .filter(item => item && item.id && item.text && machineOnly(item.when) && !item.reopen && !item.resume && !item.approve && !item.at)
+      .map(item => ({ id:item.id, from:item.from, text:item.text, when:machineOnly(item.when) }));
     return { ...(config.kb === true ? { kb:true } : {}), ...(arrivals.length ? { arrivals } : {}) };
   }
   const template = HD_TICKET_TEMPLATES.find(item => item.id === ticket.id);
@@ -5632,6 +5639,13 @@ function hdProvePrefillPrinters(summary, machine) {
     if (typeof was.port === 'string' && (hdMachinePort(machine, was.port) || was.port === queue.port)) queue.port = was.port;
     if (typeof was.driver === 'string' && (hdPrinterDrivers(machine, queue).includes(was.driver) || was.driver === hdOutsideDriver(queue))) queue.driver = was.driver;
     if (typeof was.media === 'string' && (queue.mediaSizes || []).includes(was.media)) queue.media = was.media;
+    // The jobs the student's attempt printed stay printed, so a resubmission
+    // never sends them again or shows them queued.
+    const printed = Number(was.printed) || 0;
+    if (was.queued === 0 && printed > 0 && Array.isArray(queue.jobs)) {
+      queue.printed = [...(Array.isArray(queue.printed) ? queue.printed : []), ...queue.jobs.map(job => ({ document:job.document, pages:job.pages || 1, owner:job.owner || '' }))];
+      queue.jobs = [];
+    }
   });
 }
 function hdProveExtraPackage(prove) {

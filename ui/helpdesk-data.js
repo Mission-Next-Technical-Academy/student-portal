@@ -1358,11 +1358,15 @@ const HD_PROVE_SHIFTS = {
       matrix: true,
       categoryOptions: ['Account / access', 'Docking station', 'Network', 'Printer', 'Software'],
       // The knowledge base search, and Theo's reply once a job prints from
-      // his queue (the only console features a Prove ticket can turn on).
+      // his queue while the paper is still the size the update set (the only
+      // console features a Prove ticket can turn on).
       console: {
         kb: true,
         arrivals: [{ id: 'theo-printed', from: 'Theo Grant', text: 'It printed! But the barcode is cut off at the bottom.',
-          when: { machine: { computer: 'NS-WH-PC07', path: ['printQueues', 'NS-WH-LABEL02', 'printed', '0', 'owner'], value: 'Theo Grant' } } }],
+          when: { all: [
+            { machine: { computer: 'NS-WH-PC07', path: ['printQueues', 'NS-WH-LABEL02', 'printed', '0', 'owner'], value: 'Theo Grant' } },
+            { machine: { computer: 'NS-WH-PC07', path: ['printQueues', 'NS-WH-LABEL02', 'media'], value: '4 × 3 in' } },
+          ] } }],
       },
       // Read-only evidence cards. Each opens on its own and is recorded.
       evidence: [
@@ -1374,18 +1378,21 @@ const HD_PROVE_SHIFTS = {
       diagnosisOptions: ['Driver update changed the printer port', 'Network outage on dock B', 'Print server spooler crash', 'Printer out of labels'],
       // Ids are this ticket's own, so no other Prove It's steps land on them.
       pathPool: [
-        { id: 'w1', text: 'Check the printer\'s status and ask Theo whether the other dock B station prints' },
+        // Action-level wording with no values, so the list never states the fix.
+        { id: 'w1', text: 'Check whether the other dock B station prints' },
         { id: 'w2', text: 'Ping the printer' },
-        { id: 'w3', text: 'Open the printer\'s properties and check its port' },
-        { id: 'w4', text: 'Open the Windows Update history' },
-        { id: 'w5', text: 'Set the port back to Standard TCP/IP 10.20.30.15' },
-        { id: 'w6', text: 'Roll back to the approved ZT 4.6 driver from the catalog' },
-        { id: 'w7', text: 'Set the paper size to 4 × 6 in and print a test label' },
-        { id: 'w8', text: 'Confirm with Theo that the 11:00 labels scan' },
+        { id: 'w3', text: 'Check the printer\'s port' },
+        { id: 'w4', text: 'Check what changed on the computer recently' },
+        { id: 'w5', text: 'Change the printer\'s port' },
+        { id: 'w6', text: 'Change the printer\'s driver' },
+        { id: 'w7', text: 'Change the paper size and print a test label' },
+        { id: 'w8', text: 'Confirm with Theo that the labels scan' },
         { id: 'w9', text: 'Restart the print server\'s spooler' },
         { id: 'w10', text: 'Replace the label roll' },
-        { id: 'w11', text: 'Delete the 14 queued shipping labels to clear the queue' },
+        { id: 'w11', text: 'Delete the queued shipping labels to clear the queue' },
         { id: 'w12', text: 'Install a driver downloaded from the manufacturer\'s website' },
+        { id: 'w13', text: 'Restart Theo\'s computer' },
+        { id: 'w14', text: 'Update the printer\'s driver to the newest version' },
       ],
     }],
     computers: [

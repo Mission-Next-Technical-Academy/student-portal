@@ -193,6 +193,12 @@ function testReplyArrivesAfterAPrint() {
   // A reload keeps it.
   const again = sim('its-02', 'stu-arrival', local, session);
   assert.ok(ticketView(again).includes(again.run('hdEsc')(arrival.text)), 'the reply survives a reload');
+  // Paper size changed before anything printed: the reply never claims a fault that is gone.
+  const first = sim('its-02', 'stu-arrival-media');
+  first.run(`hdPrinterSet(${JSON.stringify(MAIN)}, ${JSON.stringify(PRINTER)}, 'media', ${JSON.stringify(QUEUE.mediaSizes.find((s) => s !== QUEUE.media))})`);
+  first.run(`hdPrinterSet(${JSON.stringify(MAIN)}, ${JSON.stringify(PRINTER)}, 'port', ${JSON.stringify(OTHER_PORT)})`);
+  assert.ok(first.machine(MAIN).printQueues[PRINTER].printed.length > 0);
+  assert.doesNotMatch(ticketView(first), /data-hd-prove-replies/, 'no reply once the paper size changed');
   // Other Prove shifts have no arrivals.
   assert.equal(sim('its-01', 'stu-m1-arr').run('hdHasArrivals()'), false);
   assert.equal(sim('its-11', 'stu-m3-arr').run('hdHasArrivals()'), false);
@@ -258,6 +264,8 @@ function testPrefillPutsTheQueueBack(saved) {
   assert.equal(queue.port, saved.machine.printQueues[PRINTER].port);
   assert.equal(queue.driver, saved.machine.printQueues[PRINTER].driver);
   assert.equal(queue.media, saved.machine.printQueues[PRINTER].media);
+  assert.equal(queue.jobs.length, 0, 'what the attempt printed stays printed');
+  assert.equal(plain(tab.run('hdProvePackage()')).machine.printQueues[PRINTER].queued, 0, 'a resubmission shows nothing queued again');
   same(tab.prove().fields, saved.fields, 'every field');
   // Values the computer no longer offers are not taken.
   const stale = plain(lastWork);
