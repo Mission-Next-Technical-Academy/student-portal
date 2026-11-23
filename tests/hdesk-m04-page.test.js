@@ -106,7 +106,7 @@ function testCatalogue() {
     'Build Your Windows Client VM',
     'Snapshot, Recover & Connect Client to Server',
     'Lab 4.3 · Guided Lab: printers and peripherals',
-    'Lab 4.4 · Practice tickets',
+    'Lab 4.4 · Practice tickets (not graded)',
     'Prove It: Independent Ticket',
   ], 'the two VM labs keep their filed titles');
   // Until the Prove It part moves the gate, no Module 4 lab is Practice It.
@@ -340,6 +340,34 @@ function testAplusCheck() {
   assert.match(page().view(other, HD), /Retake: you need 5 of 7/);
 }
 
+// Same browser, no sign-out: a second student sees none of the first
+// student's card sort, Lesson 4.2 check or A+ check picks or completions.
+function testSecondStudentStartsFresh() {
+  const first = hdUser({}, 'm04first');
+  fresh(first);
+  page().view(first, HD);
+  const sort = copy(run('ITS02_CARD_SORT'));
+  const checks = copy(run('ITS02_CHECKS'));
+  const wrongBox = sort.buckets.find((b) => b !== sort.cards[0].answer);
+  run('its02Sort')(sort.cards[0].id, wrongBox);
+  sort.cards.forEach((c) => run('its02Sort')(c.id, c.answer));
+  checks.build.questions.forEach((q, i) => run('its02Answer')('build', i, q.answer));
+  checks.aplus.questions.forEach((q, i) => run('its02Answer')('aplus', i, q.answer));
+  assert.match(page().view(first, HD), /Cloud models card sort complete[\s\S]*Lesson 4\.2 check complete|Lesson 4\.2 check complete[\s\S]*Cloud models card sort complete/);
+
+  const second = hdUser({}, 'm04second');
+  signedIn = second;
+  const html = page().view(second, HD);
+  assert.doesNotMatch(html, /card sort complete|Lesson 4\.2 check complete|A\+ check complete/, 'no completion of the first student');
+  assert.doesNotMatch(html, /its02-sort-box is-(wrong|answer)|Right box:|Not this box\./, 'no card sort picks');
+  assert.doesNotMatch(html, /Not quite\.|Correct\./, 'no check answers');
+  const saved = LabRuntime.load(STATE_ID, second, {});
+  assert.notEqual(saved.cardSortCompleted, true);
+  assert.notEqual(saved.buildCheckCompleted, true);
+  assert.notEqual(saved.aplusCheckCompleted, true);
+  assert.equal(railRow(html, 'its02-checks').ticked, false);
+}
+
 async function testCheckSaveThatFails() {
   const user = { ...hdUser({}, 'm04save'), remoteCaseState: {} };
   fresh(user);
@@ -374,7 +402,7 @@ function testInstructorSheets() {
 /* -------------------------------------------------------------------- run */
 
 (async () => {
-  const tests = [testCatalogue, testPageContent, testDiagramsFit, testLabCardsAndRail, testCardSort, testChecksAreWellFormed, testChoicesAreShuffledPerStudent, testBuildCheck, testAplusCheck, testCheckSaveThatFails, testInstructorSheets];
+  const tests = [testCatalogue, testPageContent, testDiagramsFit, testLabCardsAndRail, testCardSort, testChecksAreWellFormed, testChoicesAreShuffledPerStudent, testBuildCheck, testAplusCheck, testSecondStudentStartsFresh, testCheckSaveThatFails, testInstructorSheets];
   for (const test of tests) await test();
   console.log(`hdesk-m04-page: ${tests.length} tests passed`);
 })().catch((error) => { console.error(error); process.exit(1); });

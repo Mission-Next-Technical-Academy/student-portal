@@ -2294,7 +2294,7 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.4', 25)], objective: 'Clear a stuck print queue and an offline printer in the right order, add a printer by its address, roll back a camera driver and set up two monitors on a dock.',
     description: 'A coach-guided printer and peripherals ticket in the IT Service Desk simulator, each step with a why and what success looks like. Feedback only, no score.',
     skills: ['Print Spooler', 'Driver Troubleshooting', 'Docks and Displays'], portalEntry: '#/program/it-support/module/4' }),
-  itsLab({ key: 'lab-its-02-print-spooler', module: 'its-02', title: 'Lab 4.4 · Practice tickets', difficulty: 'Foundational', minutes: 15,
+  itsLab({ key: 'lab-its-02-print-spooler', module: 'its-02', title: 'Lab 4.4 · Practice tickets (not graded)', difficulty: 'Foundational', minutes: 15,
     parentAllocations: [allocation('ITHD-101.4', 15)], objective: 'Work four tickets on your own: dead monitors on a dock, a battery that may be swelling, a badge printer with a guest waiting and a virtual desktop stuck on a black screen.',
     description: 'Four unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all four and a completion record is saved to your account.',
     skills: ['Peripheral Triage', 'Battery Safety', 'Print Queue Triage', 'Virtual Desktops'], portalEntry: '#/program/it-support/module/4' }),
