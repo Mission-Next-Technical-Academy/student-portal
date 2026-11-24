@@ -4410,6 +4410,12 @@ function hdWinRestart(computerName) {
       updates.lastInstalledDaysAgo = 0;
     }
     machine.uptimeDays = 0;
+    // Console B: every earlier boot, newest first, so Event ID 100 still
+    // shows the first (slow) boot after two or more restarts.
+    if (typeof machine.bootSeconds === 'number') {
+      const earlier = Array.isArray(machine.bootHistory) ? machine.bootHistory : [];
+      machine.bootHistory = [{ seconds:machine.bootSeconds, restart:Number(machine.restarts) > 0 }, ...earlier].slice(0, 10);
+    }
     if (typeof machine.bootSecondsAfterFix === 'number') {
       if (typeof machine.bootSeconds === 'number') machine.lastBootSeconds = machine.bootSeconds;
       // Console B: bootSecondsAfterFixNeeds: { freePercent } keeps the slow
@@ -4630,7 +4636,9 @@ function hdWinLogEvents(machine, log) {
   if (log !== 'diagnostics-performance' || typeof machine.bootSeconds !== 'number') return rows;
   const restarted = Number(machine.restarts) > 0;
   const boots = [hdWinBootEvent(machine.bootSeconds, restarted ? machine.restartTime || 'Today, after the restart' : machine.bootTime || 'Last start-up')];
-  if (restarted && typeof machine.lastBootSeconds === 'number') boots.push(hdWinBootEvent(machine.lastBootSeconds, machine.bootTime || 'Earlier start-up'));
+  const history = Array.isArray(machine.bootHistory) ? machine.bootHistory.filter(boot => boot && typeof boot.seconds === 'number') : null;
+  if (restarted && history && history.length) history.forEach(boot => boots.push(hdWinBootEvent(boot.seconds, boot.restart ? 'Today, after an earlier restart' : machine.bootTime || 'Earlier start-up')));
+  else if (restarted && typeof machine.lastBootSeconds === 'number') boots.push(hdWinBootEvent(machine.lastBootSeconds, machine.bootTime || 'Earlier start-up'));
   return [...boots, ...rows];
 }
 function hdWinLogOpened(name, machine, log) {
@@ -4872,10 +4880,12 @@ function hdAdReadKey(name, keyId) {
   const ticket = hdMachineTicket(name);
   const actions = ticket ? hdConsole(ticket).actions : null;
   const action = Array.isArray(actions) ? actions.find(item => item && item.bitlockerKey === keyId) : null;
+  // A ticket with key actions names every key it allows; any other key is wrong.
+  const keyed = Array.isArray(actions) && actions.some(item => item && item.bitlockerKey);
   if (action) {
     hdConsoleAction(ticket.id, action.id);
     if (!hdConsoleState(ticket).actions.some(entry => entry.id === action.id)) return;
-  } else if (ticket && hdConsole(ticket).verification && !hdConsoleState(ticket).verification.passed) {
+  } else if (ticket && (keyed || hdConsole(ticket).verification) && !hdConsoleState(ticket).verification.passed) {
     // A key with no action of its own, on a ticket that verifies its caller:
     // refused until verification passes, and recorded as a critical error.
     hdConsoleCritical(ticket, `early:bitlocker:${keyId}`, 'Read out a BitLocker recovery key before verifying the caller');
@@ -4883,6 +4893,7 @@ function hdAdReadKey(name, keyId) {
     toast('Verify the caller first (KB-0024).');
     hdRerender(); return;
   } else {
+    if (ticket && keyed) hdConsoleCritical(ticket, `bitlocker:${keyId}`, "Read out a BitLocker recovery key this ticket doesn't call for");
     hdMachineAction(name, 'bitlocker-key-read', `read out the BitLocker recovery key with Key ID ${keyId}`, { keyId });
   }
   hdState.adComputer = { ...hdAdComputerState(), name, tab:'bitlocker', reveal:keyId };

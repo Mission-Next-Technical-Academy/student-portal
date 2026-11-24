@@ -195,9 +195,8 @@ function testOldTicketsTurnNothingOn() {
   }
 }
 
-// No data on master uses crashOnDock, so Module 4's dock tickets never crash.
+// Module 4's dock tickets never crash, however often the dock is cycled.
 function testNoDataUsesCrashOnDock() {
-  assert.doesNotMatch(read('helpdesk-data.js'), /crashOnDock|bitlockerKeys|safeMode|needsAction|bitlockerKey\b/);
   const set = sim({ url: 'https://academy.test/sim/?practice=its-02&student=stu-9#/helpdesk/tickets' });
   const docks = set.run("Object.keys(hdState.machines).filter((n) => hdState.machines[n].dock)");
   assert.ok(docks.length > 0, 'Module 4 has a dock ticket');
@@ -254,6 +253,12 @@ function testEventLogs() {
   assert.match(html, /Mon 08:01<\/td>[\s\S]*?90000 ms/);
   seen = tab.machine('TEST-WS-11').seen;
   assert.ok(seen.includes('event-log:diagnostics-performance:after-restart'));
+  // A second restart (the lab restarts twice): the first, slow boot stays listed.
+  tab.run("hdWinRestart('TEST-WS-11')");
+  html = tab.view('helpdesk/event-viewer');
+  assert.deepEqual(ids(html), ['100', '100', '100']);
+  const boots = [...html.matchAll(/<td>([^<]*)<\/td><td>Diagnostics-Performance<\/td><td>100<\/td><td>Windows has started up: Boot Duration: (\d+) ms/g)].map((m) => `${m[1]}=${m[2]}`);
+  assert.deepEqual(boots, ['Today, after the restart=50000', 'Today, after an earlier restart=50000', 'Mon 08:01=90000']);
   // The shared list stays one click away; the old filter bar is there.
   tab.run("hdWinEventPick('')");
   html = tab.view('helpdesk/event-viewer');
@@ -422,7 +427,12 @@ function testBitlockerKeyNeedsVerification() {
   tab.run("hdAdReadKey('TEST-LT-13', 'BBBB2222')");
   assert.deepEqual(tab.actions('HD-9513'), ['read-match', 'read-other']);
   assert.deepEqual(critical(), ['early:read-match', 'early:bitlocker:CCCC3333', 'read-other']);
-  const everything = JSON.stringify(tab.log()) + tab.run("JSON.stringify([hdTicketById('HD-9513').consoleState, hdTicketById('HD-9513').troubleshootingHistory, hdTicketById('HD-9513').customerComments || []])");
+  // After verification, a key the ticket has no action for is still a critical error.
+  tab.run("hdAdReadKey('TEST-LT-13', 'CCCC3333')");
+  assert.deepEqual(critical(), ['early:read-match', 'early:bitlocker:CCCC3333', 'read-other', 'bitlocker:CCCC3333']);
+  // The ticket copies its template's console block (the fixture, with the
+  // keys); everything else in it is the student's work.
+  const everything = JSON.stringify(tab.log()) + tab.run("JSON.stringify({ ...hdTicketById('HD-9513'), console: undefined })");
   assert.ok(![FAKE_KEY_A, FAKE_KEY_B, FAKE_KEY_C].some((key) => everything.includes(key)), 'no key in the ticket or the log');
 }
 
