@@ -3274,7 +3274,7 @@ VIEWS['helpdesk/active-directory'] = () => {
 
 function hdSelectComputer(name, route) { hdState.selectedComputer=name; hdProveOpened(`computer:${name}`, `Endpoint · ${name}`); hdSave(); if(route) navigate(route); else render(); }
 function hdEndpointCards() { return hdComputers().map(base=>{const c=hdComputerByName(base.name);return `<button class="hd-device-card ${hdState.selectedComputer===c.name?'active':''}" onclick="hdSelectComputer('${c.name}')"><strong>${hdEsc(c.name)}</strong><span>${hdEsc(c.user)}</span><small>${hdEsc(c.health)} · ${hdEsc(c.lastSeen)}</small></button>`}).join(''); }
-VIEWS['helpdesk/windows'] = () => { const c=hdComputerByName(hdState.selectedComputer)||hdComputerByName('NS-LT-0042'); return `${hdPageHeader('Windows Desktop', 'Inspect a managed Windows 11 endpoint before choosing a repair.')}<div class="hd-endpoint-layout"><aside class="card"><div class="card-header"><strong>Endpoints</strong></div><div class="hd-device-list">${hdEndpointCards()}</div></aside><div class="hd-windows-screen"><div class="hd-window-bar"><span>${hdEsc(c.name)} · Remote session</span><span>— □ ×</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows 11 Enterprise</strong><span>${hdEsc(c.os)}</span></div><div class="hd-field-grid"><div><span>Signed-in user</span><strong>${hdEsc(c.user)}</strong></div><div><span>IPv4</span><strong>${hdEsc(c.ip)}</strong></div><div><span>Domain trust</span><strong>${hdEsc(c.trust)}</strong></div><div><span>BitLocker</span><strong>${hdEsc(c.bitlocker)}</strong></div><div><span>OU</span><strong>${hdEsc(c.ou)}</strong></div><div><span>Health</span><strong>${hdEsc(c.health)}</strong></div>${c.uptimeDays ? `<div><span>Uptime</span><strong>${hdEsc(c.uptimeDays)} days</strong></div>` : ''}</div><div class="hd-tool-grid"><button onclick="navigate('#/helpdesk/event-viewer')">📋 Event Viewer</button><button onclick="navigate('#/helpdesk/powershell')">&gt;_ PowerShell</button><button onclick="navigate('#/helpdesk/active-directory')">🗂 Directory</button><button onclick="navigate('#/helpdesk/remote-support')">🖥 Remote Support</button>${hdSettingsPrinterPaths(c.name).length || hdPrintQueues(hdFeatureMachine(c.name)) || (hdProveAllTools() && hdFeatureMachine(c.name)) ? `<button onclick="navigate('#/helpdesk/settings-printers')">⚙ Settings › Printers &amp; scanners</button>` : ''}${hdFeatureToolButtons(c.name)}</div></div></div></div>`; };
+VIEWS['helpdesk/windows'] = () => { const c=hdComputerByName(hdState.selectedComputer)||hdComputerByName('NS-LT-0042'); return `${hdPageHeader('Windows Desktop', 'Inspect a managed Windows 11 endpoint before choosing a repair.')}<div class="hd-endpoint-layout"><aside class="card"><div class="card-header"><strong>Endpoints</strong></div><div class="hd-device-list">${hdEndpointCards()}</div></aside><div class="hd-windows-screen"><div class="hd-window-bar"><span>${hdEsc(c.name)} · Remote session</span><span>— □ ×</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows 11 Enterprise</strong><span>${hdEsc(c.os)}</span></div><div class="hd-field-grid"><div><span>Signed-in user</span><strong>${hdEsc(c.user)}</strong></div><div><span>IPv4</span><strong>${hdEsc(c.ip)}</strong></div><div><span>Domain trust</span><strong>${hdEsc(c.trust)}</strong></div><div><span>BitLocker</span><strong>${hdEsc(c.bitlocker)}</strong></div><div><span>OU</span><strong>${hdEsc(c.ou)}</strong></div><div><span>Health</span><strong>${hdEsc(c.health)}</strong></div>${c.uptimeDays ? `<div><span>Uptime</span><strong>${hdEsc(c.uptimeDays)} days</strong></div>` : c.uptimeDays === 0 ? '<div><span>Uptime</span><strong>Less than a day</strong></div>' : ''}</div><div class="hd-tool-grid"><button onclick="navigate('#/helpdesk/event-viewer')">📋 Event Viewer</button><button onclick="navigate('#/helpdesk/powershell')">&gt;_ PowerShell</button><button onclick="navigate('#/helpdesk/active-directory')">🗂 Directory</button><button onclick="navigate('#/helpdesk/remote-support')">🖥 Remote Support</button>${hdSettingsPrinterPaths(c.name).length || hdPrintQueues(hdFeatureMachine(c.name)) || (hdProveAllTools() && hdFeatureMachine(c.name)) ? `<button onclick="navigate('#/helpdesk/settings-printers')">⚙ Settings › Printers &amp; scanners</button>` : ''}${hdFeatureToolButtons(c.name)}${hdWinToolButtons(c.name)}</div>${hdWinRestartBar(c.name)}</div></div></div>`; };
 
 /* ---------- Settings › Printers & scanners ----------
  * The approved way for a standard user to add a published printer: Add
@@ -3503,7 +3503,9 @@ function hdMachineCommand(command, normalized, computer) {
  * hours }] }], tier2Line? } turns on the Virtual Desktops screen.
  * Each change is an action_taken event (Practice log and Prove record) and,
  * in Practice, an entry in the ticket's consoleState.actions and history. */
-const HD_MACHINE_SCREENS = ['print-queue', 'printer-properties', 'device-manager', 'camera', 'dock', 'settings-network'];
+const HD_MACHINE_SCREENS = ['print-queue', 'printer-properties', 'device-manager', 'camera', 'dock', 'settings-network',
+  // Windows client screens (Module 5, key its-03; see "Windows client tools" below).
+  'pc-task-manager', 'settings-storage', 'settings-update', 'settings-apps', 'software-catalog'];
 function hdOwn(object, key) { return !!object && typeof object === 'object' && Object.prototype.hasOwnProperty.call(object, key); }
 function hdTicketMachineSpecs(ticket) {
   if (HD_PROVE || !ticket) return null;
@@ -3567,7 +3569,9 @@ function hdSeedTicketMachines(state) {
 // A ticket-shown address and health for this computer (machine.computer).
 function hdMachineComputerOverride(name) {
   const machine = hdFeatureMachine(name);
-  return machine && machine.computer && typeof machine.computer === 'object' ? machine.computer : {};
+  const shown = machine && machine.computer && typeof machine.computer === 'object' ? machine.computer : {};
+  // A machine's own uptime (a Restart sets it to 0) wins over the record's.
+  return machine && typeof machine.uptimeDays === 'number' ? { ...shown, uptimeDays:machine.uptimeDays } : shown;
 }
 function hdJsArg(value) { return hdEsc(String(value == null ? '' : value).replace(/\\/g, '\\\\').replace(/'/g, "\\'")); }
 
@@ -3661,6 +3665,8 @@ function hdFormatList(pairs) {
 // otherwise, so the older answers stay as they were.
 function hdFeatureCommand(command, normalized, computer) {
   const machine = hdFeatureMachine(computer.name); if (!machine) return null;
+  const windows = hdWinCommand(command, normalized, machine, computer.name);
+  if (windows !== null) return windows;
   const queues = hdPrintQueues(machine);
   const trimmed = command.trim();
   if (queues && /^get-service (-name )?["']?spooler["']?$/.test(normalized)) {
@@ -3728,6 +3734,7 @@ function hdFeatureHelp(computer) {
   const lines = [];
   if (hdPrintQueues(machine)) lines.push('Printing: Get-Service Spooler, Stop-Service Spooler, Start-Service Spooler, Get-PrintJob -PrinterName <name>, Get-Printer -Name <name> | Format-List Name, PortName, DriverName');
   if (machine.reachable) lines.push('Network: ping <address>, Test-NetConnection <address> -Port <port>');
+  if (hdWinHelp(machine)) lines.push(hdWinHelp(machine));
   return lines.length ? `\n${lines.join('\n')}` : '';
 }
 
@@ -3740,7 +3747,8 @@ function hdOpenMachineScreen(computerName, screen, extra) {
   hdState.selectedComputer = computerName;
   hdState.machineView = { computer:computerName, ...(extra || {}) };
   const item = extra && (extra.printer || extra.device) ? `:${extra.printer || extra.device}` : '';
-  hdProveOpened(`${screen}:${computerName}${item}`, `${({ 'print-queue':'Print queue', 'printer-properties':'Printer properties', 'device-manager':'Device Manager', camera:'Camera', dock:'Dock and displays', 'settings-network':'Settings › Network & internet' })[screen]} · ${computerName}${item ? ` · ${item.slice(1)}` : ''}`);
+  if (hdOwn(HD_WIN_SCREENS, screen)) hdWinOpened(computerName, screen, hdState.machineView.tab);
+  else hdProveOpened(`${screen}:${computerName}${item}`, `${({ 'print-queue':'Print queue', 'printer-properties':'Printer properties', 'device-manager':'Device Manager', camera:'Camera', dock:'Dock and displays', 'settings-network':'Settings › Network & internet' })[screen]} · ${computerName}${item ? ` · ${item.slice(1)}` : ''}`);
   if (screen === 'camera') {
     const machine = hdFeatureMachine(computerName);
     const camera = (machine.devices || []).find(device => device && device.camera);
@@ -4137,6 +4145,350 @@ function hdMachineValueIs(rule) {
   for (const key of rule.path) { if (!value || typeof value !== 'object' || !hdOwn(value, key)) return false; value = value[key]; }
   return Array.isArray(rule.values) ? rule.values.includes(value) : value === rule.value;
 }
+/* ---------- Windows client tools (added for Module 5, key its-03) ----------
+ * Off unless the computer's machine state (console.machines, or a Prove
+ * shift's machines) has the key a screen reads. A computer without them
+ * looks and answers as before. Machine-state fields for Windows client work:
+ *   processes: [{ name, cpu, memory, disk }]   Task Manager › Processes
+ *     (cpu %, memory MB, disk MB/s)
+ *   performance: { cpu, memory, disk, diskRecovered?:{ freePercent, disk } }
+ *     percentages; Disk shows diskRecovered.disk once C: is at least
+ *     freePercent free (freeing space ends a full-disk 100%)
+ *   startupApps: [{ name, publisher, verified, status:'Enabled' | 'Disabled',
+ *       impact:'High' | 'Medium' | 'Low' | 'None', command?, location? }]
+ *   storage: { drive, sizeGb, freeGb, categories:[{ name, gb }],
+ *       temporaryFiles:[{ id, name, gb, recycleBin? }], driveHealth?:
+ *       'Good' | { status, note } }
+ *   updates: { lastInstalledDaysAgo, restartRequired, pending?:{ kb, name,
+ *       downloaded }, history:[{ kb, name, date, status, description? }] }
+ *   uptimeDays, bootSeconds, bootSecondsAfterFix   a Restart sets uptime to
+ *     0 and, when bootSecondsAfterFix is given, the new boot time
+ *   installedApps: [{ name, publisher, version, installed?, sizeMb?,
+ *       startup? }]   Uninstall removes the app and its startup entry
+ *   catalog: [{ name, publisher, version?, note? }] | true   Software
+ *     Catalog; true uses the shift's catalog or HD_SOFTWARE_CATALOG
+ * Fields Event Viewer, Reliability Monitor, Safe Mode, the sign-in view,
+ * Active Directory and the repair commands read (console B):
+ *   events: { system:[], application:[], 'diagnostics-performance':[] }
+ *     ({ level, time, source, id, message })
+ *   reliability: [{ day, critical:[], warnings:[], installs:[] }]
+ *   profile: { temporary, restartClears }   files: { '<folder>':[names] }
+ *   repairs: { dism, sfc, chkdsk }   bitlockerKeys: [{ keyId, date, key }]
+ *   safeMode: bool
+ * Every screen records its Prove source once (task-manager:<computer>:<tab>,
+ * storage:, windows-update:, installed-apps:, software-catalog:) and adds
+ * the same key to machine.seen, which a coach reads in Practice. Every
+ * change is an hdMachineAction. */
+const HD_WIN_SCREENS = {
+  'pc-task-manager':{ source:'task-manager', label:'Task Manager', key:'processes' },
+  'settings-storage':{ source:'storage', label:'Settings › System › Storage', key:'storage' },
+  'settings-update':{ source:'windows-update', label:'Settings › Windows Update', key:'updates' },
+  'settings-apps':{ source:'installed-apps', label:'Settings › Apps › Installed apps', key:'installedApps' },
+  'software-catalog':{ source:'software-catalog', label:'Software Catalog', key:'catalog' },
+};
+const HD_WIN_TASK_TABS = [['processes', 'Processes'], ['performance', 'Performance'], ['startup', 'Startup apps']];
+function hdWinList(machine, key) { return machine && Array.isArray(machine[key]) ? machine[key].filter(item => item && typeof item === 'object') : []; }
+function hdWinStorage(machine) { return machine && machine.storage && typeof machine.storage === 'object' && Number(machine.storage.sizeGb) > 0 ? machine.storage : null; }
+function hdWinUpdates(machine) { return machine && machine.updates && typeof machine.updates === 'object' ? machine.updates : null; }
+function hdWinHasTaskManager(machine) { return !!machine && (hdWinList(machine, 'processes').length > 0 || !!(machine.performance && typeof machine.performance === 'object') || hdWinList(machine, 'startupApps').length > 0); }
+function hdWinHasRestart(machine) { return !!machine && (!!hdWinUpdates(machine) || typeof machine.uptimeDays === 'number' || typeof machine.bootSeconds === 'number'); }
+// Which Windows screens a machine has. In a Prove shift with machineTools,
+// every computer shows a screen when any of the shift's computers has it, so
+// the buttons never point at the case.
+function hdWinHas(machine, screen) {
+  const own = (m) => {
+    if (screen === 'pc-task-manager') return hdWinHasTaskManager(m);
+    if (screen === 'settings-storage') return !!hdWinStorage(m);
+    if (screen === 'settings-update') return !!hdWinUpdates(m);
+    if (screen === 'settings-apps') return Array.isArray(m && m.installedApps);
+    if (screen === 'software-catalog') return !!m && (Array.isArray(m.catalog) || m.catalog === true);
+    if (screen === 'restart') return hdWinHasRestart(m);
+    return false;
+  };
+  if (own(machine)) return true;
+  if (!machine || !hdProveAllTools()) return false;
+  const shift = HD_PROVE.shift.machines || {};
+  return Object.keys(shift).some(name => own(hdMachine(name)));
+}
+function hdWinSeen(machine, key) {
+  if (!machine) return;
+  if (!Array.isArray(machine.seen)) machine.seen = [];
+  if (!machine.seen.includes(key)) machine.seen.push(key);
+}
+function hdWinOpened(computerName, screen, tab) {
+  const meta = HD_WIN_SCREENS[screen]; const machine = hdFeatureMachine(computerName); if (!meta || !machine) return;
+  const part = screen === 'pc-task-manager' ? `:${HD_WIN_TASK_TABS.some(([id]) => id === tab) ? tab : 'processes'}` : '';
+  hdWinSeen(machine, `${meta.source}${part}`);
+  const tabLabel = part ? ` › ${HD_WIN_TASK_TABS.find(([id]) => id === part.slice(1))[1]}` : '';
+  hdProveOpened(`${meta.source}:${computerName}${part}`, `${meta.label}${tabLabel} · ${computerName}`);
+}
+function hdWinToolButtons(name) {
+  const machine = hdFeatureMachine(name); if (!machine) return '';
+  const open = (screen, label) => hdWinHas(machine, screen) ? `<button data-hd-tools="${screen}" onclick="hdOpenMachineScreen('${hdJsArg(name)}','${screen}')">${label}</button>` : '';
+  return [
+    open('pc-task-manager', '📊 Task Manager'),
+    open('settings-storage', '⚙ Settings › System › Storage'),
+    open('settings-update', '⚙ Settings › Windows Update'),
+    open('settings-apps', '⚙ Settings › Apps › Installed apps'),
+    open('software-catalog', '📚 Software Catalog'),
+  ].join('');
+}
+function hdWinRestartBar(name) {
+  const machine = hdFeatureMachine(name); if (!hdWinHas(machine, 'restart')) return '';
+  // No hint about a pending update here: the student finds it in Windows Update.
+  const note = Number(machine.restarts) > 0 ? '<span class="muted" data-hd-restarted>Restarted. Signed in again.</span>' : '';
+  return `<div class="hd-tool-grid" data-hd-restart-bar><button type="button" ${hdProveLocked() ? 'disabled' : ''} onclick="hdWinRestart('${hdJsArg(name)}')">⏻ Restart</button>${note}</div>`;
+}
+function hdWinScreen(screen) {
+  const found = hdViewMachine();
+  if (!found || !hdWinHas(found.machine, screen)) return null;
+  return found;
+}
+function hdWinTabs(tabs, current, onclick) {
+  return `<div style="display:flex;flex-wrap:wrap;gap:6px" role="tablist">${tabs.map(([id, label]) => `<button type="button" class="btn ${id === current ? 'btn-primary' : 'btn-secondary'} btn-sm" role="tab" aria-selected="${id === current}" data-hd-win-tab="${id}" onclick="${onclick(id)}">${label}</button>`).join('')}</div>`;
+}
+function hdWinRound(value) { return Math.round(Number(value || 0) * 10) / 10; }
+function hdWinFreePercent(storage) { return storage ? Math.round(Number(storage.freeGb || 0) / Number(storage.sizeGb) * 100) : 0; }
+function hdWinDiskPercent(machine) {
+  const perf = machine.performance && typeof machine.performance === 'object' ? machine.performance : {};
+  const recovered = perf.diskRecovered && typeof perf.diskRecovered === 'object' ? perf.diskRecovered : null;
+  const storage = hdWinStorage(machine);
+  if (recovered && storage && hdWinFreePercent(storage) >= Number(recovered.freePercent)) return Number(recovered.disk);
+  return Number(perf.disk || 0);
+}
+
+// Task Manager on a computer (the VM host's Task Manager is a separate screen).
+function hdWinTaskTab(computerName, tab) {
+  if (!HD_WIN_TASK_TABS.some(([id]) => id === tab)) return;
+  hdState.machineView = { ...hdMachineView(), computer:computerName, tab };
+  hdWinOpened(computerName, 'pc-task-manager', tab);
+  hdSave(); render();
+}
+function hdWinTaskSort(computerName, column) {
+  if (!['cpu', 'memory', 'disk'].includes(column)) return;
+  hdState.machineView = { ...hdMachineView(), computer:computerName, tab:'processes', sort:column };
+  hdWinSeen(hdFeatureMachine(computerName), `task-manager:sort:${column}`);
+  hdSave(); render();
+}
+function hdWinStartupSet(computerName, appName, status) {
+  if (!['Enabled', 'Disabled'].includes(status)) return;
+  hdMachineChange(computerName, machine => {
+    const app = hdWinList(machine, 'startupApps').find(item => item.name === appName);
+    if (!app || app.status === status) return false;
+    app.status = status;
+    hdMachineAction(computerName, status === 'Disabled' ? 'startup-disabled' : 'startup-enabled', `${status === 'Disabled' ? 'disabled' : 'enabled'} ${appName} at startup`, { app:appName });
+  });
+}
+VIEWS['helpdesk/pc-task-manager'] = () => {
+  const found = hdWinScreen('pc-task-manager'); if (!found || !hdWinHasTaskManager(found.machine)) return hdMachineMissing('Task Manager');
+  const { computer, machine } = found; const view = hdMachineView();
+  const tab = HD_WIN_TASK_TABS.some(([id]) => id === view.tab) ? view.tab : 'processes';
+  const name = `'${hdJsArg(computer.name)}'`;
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const perf = machine.performance && typeof machine.performance === 'object' ? machine.performance : {};
+  let body;
+  if (tab === 'processes') {
+    const sort = ['cpu', 'memory', 'disk'].includes(view.sort) ? view.sort : '';
+    const rows = hdWinList(machine, 'processes').slice();
+    if (sort) rows.sort((a, b) => Number(b[sort] || 0) - Number(a[sort] || 0));
+    const head = (column, label, total) => `<th><button type="button" class="btn btn-ghost btn-sm" data-hd-sort="${column}" aria-sort="${sort === column ? 'descending' : 'none'}" onclick="hdWinTaskSort(${name},'${column}')">${label}${total !== undefined ? ` ${hdEsc(total)}%` : ''}${sort === column ? ' ▼' : ''}</button></th>`;
+    body = `<div class="table-wrap"><table data-hd-processes><thead><tr><th>Name</th>${head('cpu', 'CPU', perf.cpu)}${head('memory', 'Memory', perf.memory)}${head('disk', 'Disk', machine.performance ? hdWinDiskPercent(machine) : undefined)}</tr></thead><tbody>${rows.map(p => `<tr data-hd-process="${hdEsc(p.name)}"><td>${hdEsc(p.name)}</td><td>${hdEsc(p.cpu || 0)}%</td><td>${hdEsc(p.memory || 0)} MB</td><td>${hdEsc(p.disk || 0)} MB/s</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No processes listed.</td></tr>'}</tbody></table></div>`;
+  } else if (tab === 'performance') {
+    const disk = hdWinDiskPercent(machine);
+    body = `<dl class="hd-dl" data-hd-performance><dt>CPU</dt><dd>${hdEsc(perf.cpu || 0)}%</dd><dt>Memory</dt><dd>${hdEsc(perf.memory || 0)}%</dd><dt>Disk 0 (C:)</dt><dd data-hd-disk="${disk}"><strong>${hdEsc(disk)}%</strong></dd>${typeof machine.uptimeDays === 'number' ? `<dt>Up time</dt><dd>${machine.uptimeDays === 0 ? 'Less than a day' : `${hdEsc(machine.uptimeDays)} day${machine.uptimeDays === 1 ? '' : 's'}`}</dd>` : ''}</dl>`;
+  } else {
+    const apps = hdWinList(machine, 'startupApps');
+    body = `<div class="table-wrap"><table data-hd-startup><thead><tr><th>Name</th><th>Publisher</th><th>Status</th><th>Startup impact</th><th></th></tr></thead><tbody>${apps.map(app => {
+      const enabled = app.status !== 'Disabled';
+      return `<tr data-hd-startup-app="${hdEsc(app.name)}" data-hd-startup-status="${enabled ? 'enabled' : 'disabled'}"><td>${hdEsc(app.name)}</td><td>${app.verified === false ? '' : hdEsc(app.publisher || '')}</td><td>${enabled ? 'Enabled' : 'Disabled'}</td><td>${hdEsc(enabled ? (app.impact || 'Not measured') : 'None')}</td><td><button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdWinStartupSet(${name},'${hdJsArg(app.name)}','${enabled ? 'Disabled' : 'Enabled'}')">${enabled ? 'Disable' : 'Enable'}</button></td></tr>`;
+    }).join('') || '<tr><td colspan="5" class="muted">No startup apps.</td></tr>'}</tbody></table></div>`;
+  }
+  return `${hdPageHeader('Task Manager', computer.name, hdMachineBack(computer))}<div class="card" data-hd-pc-task-manager="${tab}"><div class="card-header" ${HD_CONSOLE_HEADER}>${hdWinTabs(HD_WIN_TASK_TABS, tab, id => `hdWinTaskTab(${name},'${id}')`)}</div><div class="card-body">${body}</div></div>`;
+};
+
+// Settings › System › Storage, with Temporary files and the drive health line.
+function hdWinTempTick(computerName, id) {
+  const view = hdMachineView();
+  const ticked = Array.isArray(view.temp) ? view.temp.slice() : [];
+  const at = ticked.indexOf(id);
+  if (at >= 0) ticked.splice(at, 1); else ticked.push(id);
+  hdState.machineView = { ...view, computer:computerName, temp:ticked };
+  hdSave(); render();
+}
+function hdWinTempRemove(computerName) {
+  const ticked = Array.isArray(hdMachineView().temp) ? hdMachineView().temp : [];
+  hdMachineChange(computerName, machine => {
+    const storage = hdWinStorage(machine); if (!storage) return false;
+    const items = (Array.isArray(storage.temporaryFiles) ? storage.temporaryFiles : []).filter(item => item && ticked.includes(item.id) && Number(item.gb) > 0);
+    if (!items.length) { if (!HD_PROVE) toast('Tick the temporary files to remove first.'); return false; }
+    const gb = hdWinRound(items.reduce((sum, item) => sum + Number(item.gb), 0));
+    storage.freeGb = hdWinRound(Math.min(Number(storage.sizeGb), Number(storage.freeGb || 0) + gb));
+    items.forEach(item => { item.gb = 0; });
+    hdState.machineView = { ...hdMachineView(), temp:[] };
+    hdMachineAction(computerName, 'temp-files-removed', `removed ${items.map(item => item.name).join(', ')} (${gb} GB) in Storage › Temporary files`, { items:items.map(item => item.id), gb });
+    if (items.some(item => item.recycleBin)) hdMachineAction(computerName, 'recycle-bin-emptied', 'emptied the Recycle Bin');
+  });
+}
+VIEWS['helpdesk/settings-storage'] = () => {
+  const found = hdWinScreen('settings-storage'); if (!found) return hdMachineMissing('Storage');
+  const { computer, machine } = found; const storage = hdWinStorage(machine);
+  if (!storage) return hdMachineMissing('Storage');
+  const name = `'${hdJsArg(computer.name)}'`;
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const ticked = Array.isArray(hdMachineView().temp) ? hdMachineView().temp : [];
+  const temp = (Array.isArray(storage.temporaryFiles) ? storage.temporaryFiles : []).filter(item => item && item.id);
+  const tempGb = hdWinRound(temp.reduce((sum, item) => sum + Number(item.gb || 0), 0));
+  const used = hdWinRound(Number(storage.sizeGb) - Number(storage.freeGb || 0));
+  const categories = [...(Array.isArray(storage.categories) ? storage.categories : []).filter(item => item && item.name), ...(temp.length ? [{ name:'Temporary files', gb:tempGb }] : [])];
+  const health = storage.driveHealth && typeof storage.driveHealth === 'object' ? storage.driveHealth : storage.driveHealth ? { status:storage.driveHealth } : null;
+  const rows = temp.map(item => {
+    const on = ticked.includes(item.id);
+    return `<li data-hd-temp="${hdEsc(item.id)}"><button type="button" class="btn btn-ghost btn-sm" role="checkbox" aria-checked="${on}" ${locked || (Number(item.gb) > 0 ? '' : 'disabled')} onclick="hdWinTempTick(${name},'${hdJsArg(item.id)}')">${on ? '☑' : '☐'} ${hdEsc(item.name)}</button> <span class="muted">${hdEsc(hdWinRound(item.gb))} GB</span>${item.recycleBin ? ' <span class="muted">Files the user deleted. They can still be restored until it is emptied.</span>' : ''}</li>`;
+  }).join('');
+  return `${hdPageHeader('Storage', `Settings › System › Storage · ${computer.name}`, hdMachineBack(computer))}<div class="hd-settings-view" data-hd-storage>
+    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Local Disk (${hdEsc(storage.drive || 'C:')})</strong><span class="muted" data-hd-free="${hdEsc(storage.freeGb)}">${hdEsc(hdWinRound(storage.freeGb))} GB free of ${hdEsc(storage.sizeGb)} GB</span></div><div class="card-body"><div class="hd-progress"><i style="width:${Math.min(100, Math.max(0, Math.round(used / Number(storage.sizeGb) * 100)))}%"></i></div><p>${hdEsc(used)} GB used</p>${health ? `<p data-hd-drive-health>Drive health: <strong>${hdEsc(health.status || '')}</strong>${health.note ? ` <span class="muted">${hdEsc(health.note)}</span>` : ''}</p>` : ''}</div></div>
+    <div class="card"><div class="card-header"><strong>What is using space</strong></div><div class="card-body"><ul class="hd-list">${categories.map(item => `<li>${hdEsc(item.name)} <span class="muted">${hdEsc(hdWinRound(item.gb))} GB</span></li>`).join('')}</ul></div></div>
+    ${temp.length ? `<div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Temporary files</strong><span class="muted">${hdEsc(tempGb)} GB</span></div><div class="card-body"><ul class="hd-list">${rows}</ul><button type="button" class="btn btn-primary btn-sm" ${locked} data-hd-temp-remove onclick="hdWinTempRemove(${name})">Remove files</button></div></div>` : ''}
+    </div>`;
+};
+
+// Settings › Windows Update, and Restart (also on the Windows Desktop).
+function hdWinRestart(computerName) {
+  hdMachineChange(computerName, machine => {
+    // A machineTools Prove shift shows Restart on every computer; it works on each.
+    if (!hdWinHas(machine, 'restart')) return false;
+    const updates = hdWinUpdates(machine);
+    const finished = !!(updates && updates.restartRequired);
+    if (finished) {
+      updates.restartRequired = false;
+      if (updates.pending && typeof updates.pending === 'object') {
+        updates.history = [{ ...updates.pending, date:'Today', status:'Successfully installed' }, ...(Array.isArray(updates.history) ? updates.history : [])];
+        updates.pending = null;
+      }
+      updates.lastInstalledDaysAgo = 0;
+    }
+    machine.uptimeDays = 0;
+    if (typeof machine.bootSecondsAfterFix === 'number') {
+      if (typeof machine.bootSeconds === 'number') machine.lastBootSeconds = machine.bootSeconds;
+      machine.bootSeconds = machine.bootSecondsAfterFix;
+    }
+    machine.restarts = (Number(machine.restarts) || 0) + 1;
+    hdMachineAction(computerName, 'restart', finished ? 'restarted the computer to finish the update' : 'restarted the computer', { finishedUpdate:finished });
+    if (typeof toast === 'function' && !HD_PROVE) toast(`${computerName} restarted.`);
+  });
+}
+VIEWS['helpdesk/settings-update'] = () => {
+  const found = hdWinScreen('settings-update'); if (!found) return hdMachineMissing('Windows Update');
+  const { computer, machine } = found; const updates = hdWinUpdates(machine);
+  if (!updates) return hdMachineMissing('Windows Update');
+  const name = `'${hdJsArg(computer.name)}'`;
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const days = Number(updates.lastInstalledDaysAgo);
+  const last = Number.isFinite(days) ? (days === 0 ? 'Today' : `${days} day${days === 1 ? '' : 's'} ago`) : 'Unknown';
+  const pending = updates.pending && typeof updates.pending === 'object' ? updates.pending : null;
+  const status = updates.restartRequired
+    ? `<div class="callout warning" data-hd-update-status="restart"><strong>Restart required</strong>${pending ? `<p>${hdEsc(pending.name || '')}${pending.kb ? ` (${hdEsc(pending.kb)})` : ''}${pending.downloaded ? ` · downloaded ${hdEsc(pending.downloaded)}` : ''}</p>` : ''}<p>Your device will restart to finish installing.</p><button type="button" class="btn btn-primary btn-sm" ${locked} onclick="hdWinRestart(${name})">Restart now</button></div>`
+    : pending
+      ? `<div class="callout info" data-hd-update-status="pending"><strong>Updates available</strong><p>${hdEsc(pending.name || '')}${pending.kb ? ` (${hdEsc(pending.kb)})` : ''} · Pending install</p></div>`
+      : `<div class="callout info" data-hd-update-status="current"><strong>You're up to date</strong></div>`;
+  const history = (Array.isArray(updates.history) ? updates.history : []).filter(item => item && typeof item === 'object');
+  const uptime = typeof machine.uptimeDays === 'number' ? (machine.uptimeDays === 0 ? 'Less than a day' : `${machine.uptimeDays} day${machine.uptimeDays === 1 ? '' : 's'}`) : '';
+  return `${hdPageHeader('Windows Update', `Settings › Windows Update · ${computer.name}`, hdMachineBack(computer))}<div class="hd-settings-view" data-hd-windows-update>
+    <div class="card"><div class="card-body">${status}<dl class="hd-dl"><dt>Last update installed</dt><dd data-hd-last-installed>${hdEsc(last)}</dd>${uptime ? `<dt>Time since last restart</dt><dd data-hd-uptime>${hdEsc(uptime)}</dd>` : ''}</dl></div></div>
+    <div class="card"><div class="card-header"><strong>Update history</strong></div><div class="table-wrap"><table><thead><tr><th>Update</th><th>Date</th><th>Status</th></tr></thead><tbody>${history.map(item => `<tr><td>${hdEsc(item.name || '')}${item.kb ? ` (${hdEsc(item.kb)})` : ''}</td><td>${hdEsc(item.date || '')}</td><td>${hdEsc(item.status || '')}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">No updates listed.</td></tr>'}</tbody></table></div></div>
+    </div>`;
+};
+
+// Settings › Apps › Installed apps, with Uninstall.
+function hdWinUninstall(computerName, appName) {
+  if (hdProveLocked()) return;
+  if (typeof confirm === 'function' && !confirm(`Uninstall ${appName}? This app and its related info will be uninstalled.`)) return;
+  hdMachineChange(computerName, machine => {
+    const apps = hdWinList(machine, 'installedApps');
+    const app = apps.find(item => item.name === appName); if (!app) return false;
+    machine.installedApps = machine.installedApps.filter(item => item !== app);
+    const startup = typeof app.startup === 'string' && app.startup ? app.startup : app.name;
+    if (Array.isArray(machine.startupApps)) machine.startupApps = machine.startupApps.filter(item => !item || item.name !== startup);
+    hdMachineAction(computerName, 'app-uninstalled', `uninstalled ${appName}`, { app:appName });
+  });
+}
+VIEWS['helpdesk/settings-apps'] = () => {
+  const found = hdWinScreen('settings-apps'); if (!found || !Array.isArray(found.machine.installedApps)) return hdMachineMissing('Installed apps');
+  const { computer, machine } = found;
+  const name = `'${hdJsArg(computer.name)}'`;
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const apps = hdWinList(machine, 'installedApps').slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  return `${hdPageHeader('Installed apps', `Settings › Apps › Installed apps · ${computer.name}`, hdMachineBack(computer))}<div class="card" data-hd-installed-apps><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${apps.length} app${apps.length === 1 ? '' : 's'} found</strong></div><div class="table-wrap"><table><thead><tr><th>App</th><th>Publisher</th><th>Version</th><th>Installed</th><th></th></tr></thead><tbody>${apps.map(app => `<tr data-hd-app="${hdEsc(app.name)}"><td>${hdEsc(app.name)}${app.sizeMb ? ` <span class="muted">${hdEsc(app.sizeMb)} MB</span>` : ''}</td><td>${hdEsc(app.publisher || '')}</td><td>${hdEsc(app.version || '')}</td><td>${hdEsc(app.installed || '')}</td><td><button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdWinUninstall(${name},'${hdJsArg(app.name)}')">Uninstall</button></td></tr>`).join('') || '<tr><td colspan="5" class="muted">No apps listed.</td></tr>'}</tbody></table></div></div>`;
+};
+
+// The Software Catalog: the approved apps, read-only.
+function hdSoftwareCatalog(machine) {
+  if (machine && Array.isArray(machine.catalog)) return machine.catalog;
+  if (HD_PROVE && Array.isArray(HD_PROVE.shift.catalog)) return HD_PROVE.shift.catalog;
+  return typeof HD_SOFTWARE_CATALOG !== 'undefined' && Array.isArray(HD_SOFTWARE_CATALOG) ? HD_SOFTWARE_CATALOG : [];
+}
+function hdWinCatalogFilter(event, computerName) {
+  if (event && event.preventDefault) event.preventDefault();
+  const el = document.getElementById('hd-catalog-q');
+  hdState.machineView = { ...hdMachineView(), computer:computerName, q:String(el ? el.value : '').trim().slice(0, 60) };
+  hdSave(); render();
+}
+VIEWS['helpdesk/software-catalog'] = () => {
+  const found = hdWinScreen('software-catalog'); if (!found) return hdMachineMissing('Software Catalog');
+  const { computer, machine } = found;
+  const q = String(hdMachineView().q || '').toLowerCase();
+  const all = hdSoftwareCatalog(machine).filter(item => item && item.name).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const rows = all.filter(item => !q || `${item.name} ${item.publisher || ''}`.toLowerCase().includes(q));
+  return `${hdPageHeader('Software Catalog', 'Apps approved for Northstar computers. Read-only.', hdMachineBack(computer))}<form class="filterbar" onsubmit="hdWinCatalogFilter(event,'${hdJsArg(computer.name)}')"><label>Search <input id="hd-catalog-q" class="ipt" maxlength="60" value="${hdEsc(hdMachineView().q || '')}" placeholder="App or publisher"></label><button class="btn btn-primary btn-sm" type="submit">Search</button><span class="muted">${rows.length} of ${all.length} shown</span></form><div class="card" data-hd-catalog><div class="table-wrap"><table><thead><tr><th>App</th><th>Publisher</th><th>Approved version</th><th>Notes</th></tr></thead><tbody>${rows.map(item => `<tr data-hd-catalog-app="${hdEsc(item.name)}"><td>${hdEsc(item.name)}</td><td>${hdEsc(item.publisher || '')}</td><td>${hdEsc(item.version || 'Any supported')}</td><td>${hdEsc(item.note || '')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No approved app matches this search.</td></tr>'}</tbody></table></div></div>`;
+};
+
+// The optional PowerShell lines, from the machine state; null otherwise, so
+// today's answers stay as they were.
+function hdWinFirst(normalized, fallback) { const match = /select-object -first (\d+)/.exec(normalized); return match ? Math.max(1, Math.min(50, Number(match[1]))) : fallback; }
+function hdWinCommand(command, normalized, machine, computerName) {
+  const processes = hdWinList(machine, 'processes');
+  if (processes.length && /^get-process(\s*\||$)/.test(normalized)) {
+    const rows = processes.slice();
+    const sort = /sort-object (-property )?(cpu|ws|workingset|pm)\b/.exec(normalized);
+    if (sort) rows.sort((a, b) => sort[2] === 'cpu' ? Number(b.cpu || 0) - Number(a.cpu || 0) : Number(b.memory || 0) - Number(a.memory || 0));
+    if (sort && !/-descending/.test(normalized)) rows.reverse();
+    const shown = rows.slice(0, hdWinFirst(normalized, rows.length));
+    return ['Name                           CPU WorkingSet', '----                           --- ----------', ...shown.map(p => `${String(p.name).padEnd(30)} ${String(p.cpu || 0).padStart(3)} ${String(Math.round(Number(p.memory || 0) * 1048576)).padStart(10)}`)].join('\n');
+  }
+  const startup = hdWinList(machine, 'startupApps');
+  if (startup.length && /^get-ciminstance (-classname )?win32_startupcommand\b/.test(normalized)) {
+    return ['Name                                Command                                                   Location', '----                                -------                                                   --------',
+      ...startup.map(app => `${String(app.name).padEnd(35)} ${String(app.command || `"C:\\Program Files\\${app.name}\\${String(app.name).replace(/\s+/g, '')}.exe"`).padEnd(57)} ${app.location || 'HKU\\S-1-5-21\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run'}`)].join('\n');
+  }
+  const storage = hdWinStorage(machine);
+  if (storage && /^get-volume( -driveletter c:?)?(\s*\|.*)?$/.test(normalized)) {
+    const free = Number(storage.freeGb || 0); const size = Number(storage.sizeGb);
+    if (/select-object/.test(normalized)) {
+      return ['SizeRemaining         Size', '-------------         ----', `${String(Math.round(free * 1073741824)).padEnd(21)} ${Math.round(size * 1073741824)}`].join('\n');
+    }
+    const health = storage.driveHealth && typeof storage.driveHealth === 'object' ? storage.driveHealth.status : storage.driveHealth;
+    return ['DriveLetter FileSystemLabel HealthStatus SizeRemaining     Size', `C           Windows         ${String(health === 'Good' || !health ? 'Healthy' : 'Warning').padEnd(12)} ${`${hdWinRound(free)} GB`.padEnd(17)} ${size} GB`].join('\n');
+  }
+  const updates = hdWinUpdates(machine);
+  if (updates && /^get-hotfix(\s*\||$)/.test(normalized)) {
+    const installed = (Array.isArray(updates.history) ? updates.history : []).filter(item => item && item.kb && /install/i.test(String(item.status || '')));
+    const shown = installed.slice(0, hdWinFirst(normalized, installed.length));
+    return ['Source        Description      HotFixID      InstalledBy          InstalledOn', '------        -----------      --------      -----------          -----------',
+      ...shown.map(item => `${String(computerName || '').padEnd(13)} ${String(item.description || 'Update').padEnd(16)} ${String(item.kb).padEnd(13)} ${'NT AUTHORITY\\SYSTEM'.padEnd(20)} ${item.date || ''}`)].join('\n');
+  }
+  return null;
+}
+function hdWinHelp(machine) {
+  const lines = [];
+  if (hdWinList(machine, 'processes').length) lines.push('Get-Process | Sort-Object CPU -Descending | Select-Object -First 5 Name, CPU, WorkingSet');
+  if (hdWinList(machine, 'startupApps').length) lines.push('Get-CimInstance Win32_StartupCommand | Select-Object Name, Command, Location');
+  if (hdWinStorage(machine)) lines.push('Get-Volume -DriveLetter C | Select-Object SizeRemaining, Size');
+  if (hdWinUpdates(machine)) lines.push('Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 3');
+  return lines.length ? `Windows: ${lines.join(', ')}` : '';
+}
+window.hdWinTaskTab=hdWinTaskTab; window.hdWinTaskSort=hdWinTaskSort; window.hdWinStartupSet=hdWinStartupSet; window.hdWinTempTick=hdWinTempTick; window.hdWinTempRemove=hdWinTempRemove;
+window.hdWinRestart=hdWinRestart; window.hdWinUninstall=hdWinUninstall; window.hdWinCatalogFilter=hdWinCatalogFilter;
+
 window.hdOpenMachineScreen=hdOpenMachineScreen; window.hdQueueToggle=hdQueueToggle; window.hdQueueCancel=hdQueueCancel; window.hdQueueClearStuck=hdQueueClearStuck;
 window.hdQueueTestPage=hdQueueTestPage; window.hdPrinterSet=hdPrinterSet; window.hdPrinterTab=hdPrinterTab; window.hdSettingsAddByIp=hdSettingsAddByIp;
 window.hdDeviceOpen=hdDeviceOpen; window.hdDeviceDriver=hdDeviceDriver; window.hdDockDo=hdDockDo; window.hdVdiLogOff=hdVdiLogOff; window.hdVdiRestartPool=hdVdiRestartPool;
@@ -5052,7 +5404,7 @@ Events: Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4740}`}${hdFeatur
   if(featureOutput !== null) return featureOutput;
   const machineOutput = hdMachineCommand(command, normalized, computer);
   if(machineOutput !== null) return machineOutput;
-  if(normalized==='get-computerinfo') return `CsName: ${computer.name}\nWindowsProductName: Windows 11 Enterprise\nOsVersion: 10.0.26100\nCsDomain: ${HD_ORG.domain}${computer.uptimeDays ? `\nOsUptime: ${computer.uptimeDays} days` : ''}`;
+  if(normalized==='get-computerinfo') return `CsName: ${computer.name}\nWindowsProductName: Windows 11 Enterprise\nOsVersion: 10.0.26100\nCsDomain: ${HD_ORG.domain}${computer.uptimeDays || computer.uptimeDays === 0 ? `\nOsUptime: ${computer.uptimeDays} days` : ''}`;
   if(normalized==='get-netipconfiguration') return `InterfaceAlias: Wi-Fi\nIPv4Address: ${computer.ip}\nIPv4DefaultGateway: ${computer.ip.startsWith('169.254')?'(none)':'10.20.10.1'}\nDNSServer: ${computer.ip.startsWith('169.254')?'(none)':'10.20.0.10, 10.20.0.11'}`;
   if(normalized==='get-service') return `Status   Name          DisplayName\nRunning  EventLog      Windows Event Log\nRunning  WinDefend     Endpoint Protection\n${((hdMachine(computer.name) || {}).spooler || 'Stopped').padEnd(8)} Spooler       Print Spooler`;
   if(normalized==='get-process') return 'Handles  CPU(s)  Id    ProcessName\n412      8.4     1148  explorer\n690      11.1    2480  browser\n221      2.7     3312  vpnclient';
