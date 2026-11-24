@@ -775,9 +775,11 @@
         check: () => hd3Seen('task-manager:startup') || hd3TypedAny(/^get-ciminstance\s+(-classname\s+)?win32_startupcommand\b/i),
       },
       {
-        route: '#/helpdesk/software-catalog', target: '[data-hd-catalog]',
+        // Steps 3, 5 and 6 start on NS-WS-0277's desktop: its tool buttons are
+        // what record a screen as opened (hdOpenMachineScreen).
+        route: '#/helpdesk/windows', target: '[data-hd-tools="software-catalog"], [data-hd-catalog]',
         title: 'Check each app in the Software Catalog',
-        instruction: 'Open the <strong>Software Catalog</strong>. Look for each of the four startup apps by name.',
+        instruction: 'On NS-WS-0277’s desktop, open the <strong>Software Catalog</strong>. Look for each of the four startup apps by name.',
         body: 'Why: an app that is not in the catalog is not approved. Check before you decide what to do with an app. Success looks like: all four are listed, so all four are approved.',
         waitLabel: 'Next Step: Catalog checked',
         check: () => hd3Seen('software-catalog'),
@@ -791,17 +793,17 @@
         check: () => hd2Rule(HD3_ID, { chat: ['lumencam'] }) && hd2Did(HD3_ID, 'startup-disabled', (a) => a.app === 'LumenCam Companion'),
       },
       {
-        route: '#/helpdesk/settings-storage', target: '[data-hd-storage]',
+        route: '#/helpdesk/windows', target: '[data-hd-tools="settings-storage"], [data-hd-storage]',
         title: 'Work out the free space',
-        instruction: 'Open <strong>Settings › System › Storage</strong>. Work out what percentage of C: is free. The same check in PowerShell (optional): <code>Get-Volume -DriveLetter C | Select-Object SizeRemaining, Size</code>',
+        instruction: 'On NS-WS-0277’s desktop, open <strong>Settings › System › Storage</strong>. Work out what percentage of C: is free. The same check in PowerShell (optional): <code>Get-Volume -DriveLetter C | Select-Object SizeRemaining, Size</code>',
         body: 'Why: Windows slows down when less than about 10% of the drive is free. Success looks like: 16.6 GB free of 237 GB is 7%. That is a real cause.',
         waitLabel: 'Next Step: Free space worked out',
         check: () => hd3Seen('storage') || hd3TypedAny(/^get-volume\b/i),
       },
       {
-        route: '#/helpdesk/settings-update', target: '[data-hd-windows-update]',
+        route: '#/helpdesk/windows', target: '[data-hd-tools="settings-update"], [data-hd-windows-update]',
         title: 'Check the update state',
-        instruction: 'Open <strong>Settings › Windows Update</strong>. The same check in PowerShell (optional): <code>Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 3</code>',
+        instruction: 'On NS-WS-0277’s desktop, open <strong>Settings › Windows Update</strong>. The same check in PowerShell (optional): <code>Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 3</code>',
         body: 'Why: this shows whether an update is waiting. Success looks like: the page says “Restart required”, and the last restart was 23 days ago. That is a second cause.',
         waitLabel: 'Next Step: Update state read',
         check: () => hd3Seen('windows-update') || hd3TypedAny(/^get-hotfix\b/i),

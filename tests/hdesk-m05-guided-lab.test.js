@@ -415,6 +415,27 @@ function testShowMeTheCommand() {
   assert.match(steps[6].instruction, /Get-WinEvent -LogName System -MaxEvents 20/);
 }
 
+// Staging, 2026-11-24: a screen the coach's route draws directly is not
+// "opened" (only the desktop's tool buttons record it), so steps 3, 5 and 6
+// stalled. Those steps start on NS-WS-0277's desktop, whose buttons they point at.
+function testScreenStepsStartOnTheDesktop() {
+  const tab = startLab();
+  triage(tab);
+  const steps = tab.coach('hd-m03').steps;
+  const desktop = tab.desktop();
+  [[2, 'software-catalog'], [4, 'settings-storage'], [5, 'settings-update']].forEach(([i, screen]) => {
+    assert.equal(steps[i].route, '#/helpdesk/windows', `step ${i + 1} starts on the desktop`);
+    assert.match(steps[i].target, new RegExp(`\\[data-hd-tools="${screen}"\\]`), `step ${i + 1} points at its button`);
+    assert.match(desktop, new RegExp(`data-hd-tools="${screen}"`), `the desktop has the ${screen} button`);
+  });
+  // Why: drawing the screen by its address leaves the step waiting.
+  tab.run(`hdState.machineView = { computer:'${PC}' }`);
+  tab.view('helpdesk/software-catalog');
+  assert.equal(steps[2].check(), false, 'drawn by address: not opened');
+  tab.screen(PC, 'software-catalog');
+  assert.equal(steps[2].check(), true, 'opened from the desktop button');
+}
+
 // Every step route is allowed and has a view; every step says why and what
 // success looks like; no step names a ticket id, points or a key.
 function testEveryStepRouteAndText() {
@@ -514,7 +535,7 @@ const runTest = (name, fn) => {
 const work = runTest('testLab51', testLab51);
 if (work) runTest('testPortalKeepsTheWork', () => testPortalKeepsTheWork(work));
 else { failed += 1; console.error('FAIL testPortalKeepsTheWork (the lab walk failed)'); }
-const tests = [testOptionalLinesPassTheirSteps, testTypedStepsNeedTheRightCommandInOrder, testStep10NeverStrandsTheLab, testTriageFeedbackReadsCategoryAndCi, testReadingTheLabKeyIsFeedback, testShowMeTheCommand,
+const tests = [testOptionalLinesPassTheirSteps, testTypedStepsNeedTheRightCommandInOrder, testStep10NeverStrandsTheLab, testTriageFeedbackReadsCategoryAndCi, testReadingTheLabKeyIsFeedback, testShowMeTheCommand, testScreenStepsStartOnTheDesktop,
   testEveryStepRouteAndText, testOldHd2109RunIsForgotten, testHd2109LeavesTheQueue, testNothingFromTheGradedTicket, testCiRunsThisFile];
 tests.forEach((test) => runTest(test.name, test));
 if (failed) { console.error(`${failed} failed`); process.exit(1); }
