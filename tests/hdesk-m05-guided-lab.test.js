@@ -486,18 +486,65 @@ function testHd2109LeavesTheQueue() {
 
 /* ------------------------------------------------------------ the portal */
 
-function testPortalKeepsTheWork(work) {
+// The real finished work goes through today's Module 5 page (its walkthrough
+// lab saves one attempt) and onto the instructor sheet, where a perfect lab
+// shows no ✗ and the note, comment and console work are readable.
+async function testPortalKeepsTheWork(work) {
   const portal = loadPortal();
+  const prun = (code) => vm.runInContext(code, portal);
   portal.render = () => {};
-  const clean = plain(vm.runInContext('itsCleanCoachWork', portal)(work, 'hd-m03'));
-  assert.ok(clean, 'the lab work is kept');
-  assert.deepEqual(clean.tickets.map((t) => t.id), [NOAH]);
-  assert.equal(clean.tickets[0].status, 'Resolved');
-  assert.ok(clean.tickets[0].notes.some((n) => /Event ID 2013/.test(n.text)), 'the work note travels');
-  // The instructor sheet: HD-2180 now, HD-2109 for attempts saved before.
-  const sheet = fs.readFileSync(path.join(ROOT, 'portal', 'admin-sheets', 'hdesk.js'), 'utf8');
-  assert.match(sheet, /'lab-its-03-blank-desktop': \['HD-2180'\]/);
-  assert.match(sheet, /EARLIER_TICKETS_BY_LAB = \{[^}]*'lab-its-03-blank-desktop': \['HD-2109'\]/);
+  const user = { userId: 'user-hdesk-m05', email: 'hdesk-m05@test.invalid', trackCode: 'HDESK', enrollments: [{ programSlug: 'it-support', status: 'active', accessMode: 'full' }],
+    remoteModuleProgress: {}, remoteVerifiedModuleProgress: {}, remoteModuleDetail: {}, latestLabAttemptByKey: {}, openLabRedoFeedbackByLabKey: {}, openLabRedosByModuleKey: {} };
+  portal.currentUser = async () => user;
+  portal.supabaseCalls.length = 0;
+  portal.supabaseResponder = () => ({ data: null, error: null });
+  const HD = prun("PROGRAMS.find((p) => p.slug === 'it-support')");
+  const page = prun("MODULE_LABS['it-support/' + PROGRAMS.find((p) => p.slug === 'it-support').modules['its-03'].number]");
+  const student = prun('LabRuntime').anonymousStudentId(user);
+  const SIM = new URL(prun('SIM_ORIGIN')).origin;
+  const replies = [];
+  page.view(user, HD);
+  await page.onMessage({ data: { type: 'mnt-coach-complete', id: 'hd-m03', nonce: 'n-m05', student, work }, origin: SIM, source: { postMessage: (data) => replies.push(plain(data)) } });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const inserts = portal.supabaseCalls.filter((c) => c.table === 'lab_attempts' && c.op === 'insert');
+  assert.equal(inserts.length, 1, 'one attempt saved');
+  const attempt = plain(inserts[0].payload);
+  assert.equal(attempt.lab_key, 'lab-its-03-blank-desktop');
+  assert.ok(replies.some((r) => r.type === 'mnt-coach-received' && r.saved === true), 'the simulator hears it saved');
+  const saved = attempt.result.work.tickets;
+  assert.deepEqual(saved.map((t) => t.id), [NOAH]);
+  assert.equal(saved[0].status, 'Resolved');
+  assert.ok(saved[0].notes.some((n) => /Event ID 2013/.test(n.text)), 'the work note travels');
+  assert.ok(saved[0].customerComments.some((c) => /your PC should feel normal again/.test(c.text)), 'the comment travels');
+  assert.ok(saved[0].console.kbOpened.includes('KB-0084') && saved[0].console.chatAsked.includes('apps'), 'the console work travels');
+  assert.ok(!JSON.stringify(attempt).includes(LAB_KEY), 'no recovery key in the attempt');
+
+  // The instructor sheet, as tests/admin-submission-sheet.test.js loads it.
+  const sheetCtx = { console: { log() {}, info() {}, warn() {}, error: console.error } };
+  vm.createContext(sheetCtx);
+  sheetCtx.registerModuleLab = () => {};
+  for (const file of ['data.js', 'case-record.js', 'admin-submission-sheet.js', 'it-support-module-12.js', 'admin-sheets/hdesk.js']) {
+    vm.runInContext(fs.readFileSync(path.join(ROOT, 'portal', file), 'utf8'), sheetCtx, { filename: file });
+  }
+  const Sheet = vm.runInContext('AdminSubmissionSheet', sheetCtx);
+  const row = { id: 'hdesk-m05-real', lab_key: attempt.lab_key, track_code: 'HDESK', student_id: 'synthetic-hdesk', score: null, pass_threshold: 70, completed_at: '2026-11-24T10:00:00Z', result: attempt.result };
+  const options = { item: { lead: row, rows: [row], ids: [row.id] } };
+  const sheet = plain(Sheet.evaluate(row, options));
+  const flagged = sheet.sections.filter((s) => s.status === 'fail' || s.status === 'partial').map((s) => `${s.id}: ${s.status}`);
+  assert.deepEqual(flagged, [], 'a perfect lab shows no ✗ or ◐');
+  const ids = sheet.sections.map((s) => s.id);
+  ['scenario-hd-2180', 'lab-work-hd-2180', 'customer-comment-hd-2180', 'work-notes-hd-2180', 'resolution-hd-2180'].forEach((id) => assert.ok(ids.includes(id), id));
+  ['troubleshooting-hd-2180', 'diagnosis-hd-2180', 'scenario-hd-2109'].forEach((id) => assert.ok(!ids.includes(id), `no ${id}`));
+  const html = Sheet.render(row, options);
+  assert.match(html, /Event ID 2013/, 'the note is readable');
+  assert.match(html, /your PC should feel normal again/, 'the comment is readable');
+  assert.match(html, /disabled LumenCam Companion at startup/i, 'the actions are in the history');
+  assert.ok(!html.includes(LAB_KEY));
+  // A lab with no comment and a missing article is marked, as feedback.
+  const thin = plain(attempt.result);
+  thin.work.tickets[0].customerComments = []; thin.work.tickets[0].console.kbOpened = ['KB-0084'];
+  const thinSheet = plain(Sheet.evaluate({ ...row, id: 'hdesk-m05-thin', result: thin }, options));
+  ['lab-work-hd-2180', 'customer-comment-hd-2180'].forEach((id) => assert.equal(thinSheet.sections.find((s) => s.id === id).status, 'fail', id));
 }
 
 /* ------------------------------------------- nothing from the graded ticket */
@@ -533,10 +580,13 @@ const runTest = (name, fn) => {
   try { const value = fn(); console.log(`ok   ${name}`); return value; } catch (error) { failed += 1; console.error(`FAIL ${name}\n${error.stack}`); return null; }
 };
 const work = runTest('testLab51', testLab51);
-if (work) runTest('testPortalKeepsTheWork', () => testPortalKeepsTheWork(work));
-else { failed += 1; console.error('FAIL testPortalKeepsTheWork (the lab walk failed)'); }
+const portalDone = work
+  ? testPortalKeepsTheWork(work).then(() => console.log('ok   testPortalKeepsTheWork'), (error) => { failed += 1; console.error(`FAIL testPortalKeepsTheWork\n${error.stack}`); })
+  : Promise.resolve().then(() => { failed += 1; console.error('FAIL testPortalKeepsTheWork (the lab walk failed)'); });
 const tests = [testOptionalLinesPassTheirSteps, testTypedStepsNeedTheRightCommandInOrder, testStep10NeverStrandsTheLab, testTriageFeedbackReadsCategoryAndCi, testReadingTheLabKeyIsFeedback, testShowMeTheCommand, testScreenStepsStartOnTheDesktop,
   testEveryStepRouteAndText, testOldHd2109RunIsForgotten, testHd2109LeavesTheQueue, testNothingFromTheGradedTicket, testCiRunsThisFile];
-tests.forEach((test) => runTest(test.name, test));
-if (failed) { console.error(`${failed} failed`); process.exit(1); }
-console.log(`hdesk-m05-guided-lab: all ${tests.length + 2} passed`);
+portalDone.then(() => {
+  tests.forEach((test) => runTest(test.name, test));
+  if (failed) { console.error(`${failed} failed`); process.exit(1); }
+  console.log(`hdesk-m05-guided-lab: all ${tests.length + 2} passed`);
+});

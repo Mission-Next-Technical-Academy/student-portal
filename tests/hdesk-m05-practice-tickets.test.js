@@ -394,6 +394,24 @@ function testNoScoreInTheView() {
   });
 }
 
+// A question that waits for an action, asked too early, can be asked again
+// after it: no ticket strands on a confirmation.
+function testEarlyQuestionsCanBeAskedAgain() {
+  const tab = sim();
+  [['HD-2181', 'restarted', () => tab.run("hdWinRestart('NS-WS-0277')")],
+    ['HD-2182', 'confirm', () => tab.run("hdDeviceDriver('NS-LT-0150', 'usbnet', 'rollback')")],
+    ['HD-2183', 'loaded', () => { tab.run("hdVerify('HD-2183', 'callback')"); tab.ad('NS-LT-0099', 'bitlocker'); tab.run("hdAdReadKey('NS-LT-0099', '3A7F9C21')"); }],
+    ['HD-2186', 'quieter', () => { tab.act('HD-2186', 'cool'); tab.act('HD-2186', 'move'); tab.act('HD-2186', 'retry'); }],
+  ].forEach(([id, question, action]) => {
+    tab.open(id);
+    tab.ask(id, question);
+    assert.equal(tab.rule(id, { confirmed: question }), false, `${id}: too early`);
+    action();
+    tab.ask(id, question);
+    assert.equal(tab.rule(id, { confirmed: question }), true, `${id}: asked again after the action`);
+  });
+}
+
 // The new rule kinds are off for every older ticket: no older ticket uses them.
 function testOlderTicketsUseNoNewRule() {
   const tab = sim();
@@ -406,7 +424,7 @@ function testCiRunsThisFile() {
   assert.match(fs.readFileSync(path.join(ROOT, 'bin', 'ci-check.sh'), 'utf8'), /node tests\/hdesk-m05-practice-tickets\.test\.js/);
 }
 
-const tests = [testSetOpensOnItsOwnClocks, test5A, test5B, test5C, test5D, testCompletionAfterAllFour, testNoScoreInTheView, testOlderTicketsUseNoNewRule, testCiRunsThisFile];
+const tests = [testSetOpensOnItsOwnClocks, test5A, test5B, test5C, test5D, testCompletionAfterAllFour, testNoScoreInTheView, testEarlyQuestionsCanBeAskedAgain, testOlderTicketsUseNoNewRule, testCiRunsThisFile];
 let failed = 0;
 for (const test of tests) {
   try { test(); console.log(`ok   ${test.name}`); } catch (error) { failed += 1; console.error(`FAIL ${test.name}\n${error.stack}`); }

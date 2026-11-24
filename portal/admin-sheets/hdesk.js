@@ -407,6 +407,49 @@
     ];
   }
 
+  // HD-2180 (Module 5 Lab 5.1, from 2026-11-24) is worked on the computer's
+  // tool screens with the console: no step checklist and no diagnosis
+  // dropdown. The sheet reads its console work instead (articles opened, the
+  // questions put to Noah, the customer comment). The actions themselves are
+  // in the ticket history (Resolution and history). Practice It: a failing row
+  // never blocks the save or module progress.
+  const LAB_CONSOLE = {
+    'HD-2180': { articles: ['KB-0084', 'KB-0083'], questions: ['lumencam', 'recycle', 'restart', 'apps'],
+      prompt: 'Lab 5.1 runs on NS-WS-0277’s tool screens. Look in the ticket history for the order: measure (Task Manager, Storage, Windows Update, Event ID 100), then fix (startup app with Noah’s OK, temporary files with his OK for the Recycle Bin, DISM then sfc, chkdsk, restart), then verify (Event ID 100 again, Noah confirms).' },
+  };
+  function labConsoleSections(ticket, id) {
+    const spec = LAB_CONSOLE[id];
+    const work = ticket && ticket.console ? ticket.console : null;
+    const has = Boolean(work);
+    const comments = has && Array.isArray(ticket.customerComments) ? ticket.customerComments.filter((comment) => comment && comment.text) : [];
+    return [
+      {
+        id: `lab-work-${id.toLowerCase()}`, title: `Lab work · ${id}`, recordedSince: '2026-11-24',
+        instructorPrompt: spec.prompt,
+        answer: [
+          ['Articles opened', has ? (work.kbOpened.length ? work.kbOpened : 'None') : null],
+          ['Questions asked', has ? (work.chatAsked.length ? work.chatAsked : 'None') : null],
+          ['Resolution code', has ? text(work.resolutionCode) || 'None' : null],
+        ],
+        checks: [
+          { label: 'Opened the lab’s knowledge articles', expected: spec.articles.join(' and '), test: () => (has ? spec.articles.every((kb) => work.kbOpened.includes(kb)) : null), given: () => (has ? work.kbOpened.join(', ') || 'None' : null), fix: 'Open the article the step names from the ticket’s knowledge search, and follow it.' },
+          { label: 'Asked the user before each change', expected: 'Every question the lab asks', test: () => (has ? spec.questions.every((q) => work.chatAsked.includes(q)) : null), given: () => (has ? `${spec.questions.filter((q) => work.chatAsked.includes(q)).length} of ${spec.questions.length}` : null), fix: 'Ask before you change how a person’s PC starts, empty their Recycle Bin or restart it, and confirm the fix from their side.' },
+        ],
+      },
+      {
+        id: `customer-comment-${id.toLowerCase()}`, title: `Customer comment · ${id}`, recordedSince: '2026-11-24',
+        // A sign-off reads as a sentence with no end punctuation (see HD-2150).
+        mechanics: false,
+        instructorPrompt: 'The customer reads this comment. Look for plain words, what was done, and what keeps it from coming back.',
+        response: has ? (comments.length ? comments.map((comment) => ({ label: `Customer comment · ${comment.time || ''}`, text: comment.text })) : [{ label: 'Customer comment', text: 'No customer comment' }]) : [{ label: 'Customer comment', text: null }],
+        answer: [['Internal terms in the last comment', has ? (work.lastCommentJargon.length ? work.lastCommentJargon : 'None') : null]],
+        checks: [
+          { label: 'A plain-words comment', expected: 'A comment with no internal terms', test: () => (has ? comments.length > 0 && !work.lastCommentJargon.length : null), given: () => (has ? (comments.length ? (work.lastCommentJargon.length ? `Internal terms: ${work.lastCommentJargon.join(', ')}` : 'Yes') : 'No comment') : null), fix: 'Write the comment for the user: what was wrong, what you did, and what to do next, with no internal names or terms.' },
+        ],
+      },
+    ];
+  }
+
   function coachSections(result, ctx) {
     const key = ctx.row.lab_key;
     // Every saved ticket, from this attempt first, then from any other attempt
@@ -450,11 +493,17 @@
       const notes = saved ? (ticket.notes || []).filter((note) => note && note.text) : [];
       const history = saved ? (ticket.statusHistory || []).map((entry) => `${entry.time}: ${entry.action}`) : null;
       const worked = id === 'HD-2101' ? investigationSections(saved ? { ...ticket, investigation: result.work && result.work.investigation } : null)
-        : id === 'HD-2150' ? consoleSections(saved ? ticket : null) : null;
+        : id === 'HD-2150' ? consoleSections(saved ? ticket : null)
+          : LAB_CONSOLE[id] ? labConsoleSections(saved ? ticket : null, id) : null;
       // HD-2150's note has three parts (Reported / Tried / Result).
       const noteParts = id === 'HD-2150' ? [{
         label: 'Reported / Tried / Result note', expected: 'All three parts', test: () => (saved && ticket.console && ticket.console.outcomes ? ticket.console.outcomes.note === true : null),
         given: () => (saved && ticket.console ? (ticket.console.outcomes && ticket.console.outcomes.note ? 'All three parts' : `Missing: ${(ticket.console.noteMissing || []).join(', ') || 'a complete note'}`) : null),
+        fix: 'Write the note in three parts so the next technician can follow it: Reported, Tried, Result.',
+      }] : LAB_CONSOLE[id] ? [{
+        // HD-2180 has no outcomes list: its last note's missing parts say it.
+        label: 'Reported / Tried / Result note', expected: 'All three parts', test: () => (saved && ticket.console ? !(ticket.console.noteMissing || []).length : null),
+        given: () => (saved && ticket.console ? ((ticket.console.noteMissing || []).length ? `Missing: ${ticket.console.noteMissing.join(', ')}` : 'All three parts') : null),
         fix: 'Write the note in three parts so the next technician can follow it: Reported, Tried, Result.',
       }] : [];
       return [
