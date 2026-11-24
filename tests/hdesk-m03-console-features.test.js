@@ -158,8 +158,9 @@ function testOldTicketsTurnNothingOn() {
   assert.equal(tab.run('hdCommsTick()'), false);
   // Older modules' sets: every ticket as before, on the set's clock. Module 3's
   // own sets (its-11, its-11-guided) turn these features on by design.
-  // Module 4's sets (its-02 and its two coached sets) do the same.
-  const MODULE3_SETS = ['its-11', 'its-11-guided', 'its-02', 'its-02-guided', 'its-02-server'];
+  // Module 4's sets (its-02 and its two coached sets) do the same, and so do
+  // Module 5's (its-03, its-03-guided: tickets on their own clocks).
+  const MODULE3_SETS = ['its-11', 'its-11-guided', 'its-02', 'its-02-guided', 'its-02-server', 'its-03', 'its-03-guided'];
   const older = (k) => !k.startsWith('test-') && !MODULE3_SETS.includes(k);
   for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter(older)) {
     const set = practice(key);

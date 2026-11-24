@@ -427,19 +427,26 @@ function testNothingFromTheGradedQueue() {
   assert.equal(proveIds.length, 6, 'the queue Prove shift has six tickets');
   proveIds.forEach((id) => assert.ok(GRADED_NUMBERS.includes(id), 'each queue Prove ticket is a graded ticket'));
   assert.ok(!JSON.stringify(tab.run('JSON.stringify(HD_TICKET_TEMPLATES.map((t) => t.id))')).match(/-21(3[7-9]|4[0-2])\b/), 'no graded ticket is a Practice ticket');
+  // Module 5's ticket 5-D (HD-2186) keeps its approved text, "the payroll
+  // export" (Module 5 spec, decision 4). That one word is allowed on that one
+  // ticket; every other graded word stays refused there too.
+  const fiveD = tab.run("JSON.stringify(HD_TICKET_TEMPLATES.find((t) => t.id === 'HD-2186'))").toLowerCase();
+  fiveD.split(/[^a-z0-9-]+/).filter(Boolean).filter((word) => word !== 'payroll')
+    .forEach((word) => assert.ok(!GRADED_WORDS.has(hash(word)), 'no other graded story word in ticket 5-D'));
   const content = tab.run(`JSON.stringify({
-    tickets: HD_TICKET_TEMPLATES.filter((t) => t.ownSet),
+    tickets: HD_TICKET_TEMPLATES.filter((t) => t.ownSet && t.id !== 'HD-2186'),
     kb: HD_KB_ARTICLES.filter((a) => ['KB-0062', 'KB-0063'].includes(a.id)),
     coach: MODULE_COACHES.find((c) => c.id === 'hd-m10').steps.map((s) => [s.title, s.instruction, s.body]),
   })`).toLowerCase();
   const words = content.split(/[^a-z0-9-]+/).filter(Boolean);
   words.forEach((word) => assert.ok(!GRADED_WORDS.has(hash(word)), 'no graded story word in Module 2 content'));
   // Module 2's own tickets name no graded requester at all. A later module's
-  // own-set ticket may name one directory user the Module 4 spec chose as a
-  // requester (call 5, ticket 4-A); every other graded name stays refused.
+  // own-set ticket may name a directory user its spec chose as a requester:
+  // Module 4's call 5 (ticket 4-A), and Module 5's call 15 and decision 15
+  // (tickets 5-C and 5-D). Every other graded name stays refused.
   const module2 = new Set([...JSON.parse(tab.run("JSON.stringify(HD_COACHED_SETS['its-10-guided'].tickets)")), ...JSON.parse(tab.run("JSON.stringify(HD_PRACTICE_SETS['its-10'].tickets)"))]);
-  const REUSED_BY_LATER_MODULES = new Set([...GRADED_NAMES].filter((h) => h === hash('grace kim')));
-  assert.equal(REUSED_BY_LATER_MODULES.size, 1, 'the one reused name is a graded name');
+  const REUSED_BY_LATER_MODULES = new Set([...GRADED_NAMES].filter((h) => [hash('grace kim'), hash('dina foster'), hash('evan parker')].includes(h)));
+  assert.equal(REUSED_BY_LATER_MODULES.size, 3, 'each reused name is a graded name');
   const pairs = (text) => { const list = text.split(/[^a-z0-9-]+/).filter(Boolean); return list.slice(1).map((w, i) => hash(`${list[i]} ${w}`)); };
   const own = JSON.parse(tab.run('JSON.stringify(HD_TICKET_TEMPLATES.filter((t) => t.ownSet))'));
   own.forEach((ticket) => pairs(JSON.stringify(ticket).toLowerCase()).forEach((h) => {
