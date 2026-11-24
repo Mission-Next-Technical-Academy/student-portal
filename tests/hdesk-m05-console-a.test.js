@@ -147,13 +147,16 @@ function testOldTicketsTurnNothingOn() {
   // The VM host's Task Manager is a separate screen and is unchanged here
   // (tests/hdesk-m04-vm-screen.test.js runs it in the VM lab).
   assert.equal(tab.view('helpdesk/task-manager'), plain.view('helpdesk/task-manager'));
-  // Every practice and coached set (none uses these keys yet).
-  for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter((k) => !k.startsWith('test-'))) {
+  // Every older practice and coached set. Module 5's own sets (its-03,
+  // its-03-guided) turn these features on by design
+  // (tests/hdesk-m05-guided-lab.test.js, tests/hdesk-m05-practice-tickets.test.js).
+  const module5 = (k) => /^its-03(-|$)/.test(k);
+  for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter((k) => !k.startsWith('test-') && !module5(k))) {
     const set = sim({ url: `https://academy.test/sim/?practice=${key}&student=stu-1#/helpdesk/tickets` });
     for (const id of set.run('hdState.tickets.map((t) => t.id)')) assert.doesNotMatch(set.open(id), NEW_MARKERS, `${key} ${id}`);
     for (const name of set.run('Object.keys(hdState.machines)')) { set.select(name); assert.doesNotMatch(set.view('helpdesk/windows'), NEW_MARKERS, `${key} ${name}`); }
   }
-  for (const key of Object.keys(tab.run('HD_COACHED_SETS'))) {
+  for (const key of Object.keys(tab.run('HD_COACHED_SETS')).filter((k) => !module5(k))) {
     const set = sim(); assert.equal(set.run(`hdUseTicketSet(${JSON.stringify(key)})`), true);
     for (const name of set.run('Object.keys(hdState.machines || {})')) { set.select(name); assert.doesNotMatch(set.view('helpdesk/windows'), NEW_MARKERS, `${key} ${name}`); }
   }

@@ -169,14 +169,18 @@ function testOldTicketsTurnNothingOn() {
   for (const command of ['DISM /Online /Cleanup-Image /RestoreHealth', 'sfc /scannow', 'chkdsk C: /scan', 'dir C:\\Users', 'dsim']) assert.match(plain.out(command), /outside this training shell/, command);
   tab.select('NS-LT-0131');
   for (const route of ['reliability', 'settings-recovery']) assert.match(tab.view(`helpdesk/${route}`), /Not available on this computer/, route);
-  for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter((k) => !k.startsWith('test-'))) {
+  // Older sets only. Module 5's own sets (its-03, its-03-guided) turn these
+  // features on by design (tests/hdesk-m05-guided-lab.test.js,
+  // tests/hdesk-m05-practice-tickets.test.js).
+  const module5 = (k) => /^its-03(-|$)/.test(k);
+  for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter((k) => !k.startsWith('test-') && !module5(k))) {
     const set = sim({ url: `https://academy.test/sim/?practice=${key}&student=stu-1#/helpdesk/tickets` });
     assert.doesNotMatch(set.view('helpdesk/event-viewer'), NEW_MARKERS, `${key} event viewer`);
     assert.doesNotMatch(set.ad(), NEW_MARKERS, `${key} AD`);
     for (const id of set.run('hdState.tickets.map((t) => t.id)')) assert.doesNotMatch(set.open(id), NEW_MARKERS, `${key} ${id}`);
     for (const name of set.run('Object.keys(hdState.machines)')) { set.select(name); assert.doesNotMatch(set.view('helpdesk/windows'), NEW_MARKERS, `${key} ${name}`); }
   }
-  for (const key of Object.keys(tab.run('HD_COACHED_SETS'))) {
+  for (const key of Object.keys(tab.run('HD_COACHED_SETS')).filter((k) => !module5(k))) {
     const set = sim(); assert.equal(set.run(`hdUseTicketSet(${JSON.stringify(key)})`), true);
     assert.doesNotMatch(set.view('helpdesk/event-viewer'), NEW_MARKERS, `${key} event viewer`);
     for (const name of set.run('Object.keys(hdState.machines || {})')) { set.select(name); assert.doesNotMatch(set.view('helpdesk/windows'), NEW_MARKERS, `${key} ${name}`); }
