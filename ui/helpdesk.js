@@ -4472,7 +4472,11 @@ function hdWinRestart(computerName) {
       // Module 5 (Prove It): startupOff: [names] keeps the slow boot until each
       // named startup app is Disabled or gone (Uninstall removes its entry).
       const startupOff = !needs || !Array.isArray(needs.startupOff) || needs.startupOff.every(appName => !hdWinList(machine, 'startupApps').some(app => app.name === appName && app.status !== 'Disabled'));
+      // A startup app can be turned back on, so with startupOff the boot
+      // goes back to the first (slow) time when the condition stops holding.
+      if (needs && Array.isArray(needs.startupOff) && typeof machine.bootSecondsSlow !== 'number' && typeof machine.bootSeconds === 'number') machine.bootSecondsSlow = machine.bootSeconds;
       if (spaceFreed && startupOff) machine.bootSeconds = machine.bootSecondsAfterFix;
+      else if (typeof machine.bootSecondsSlow === 'number') machine.bootSeconds = machine.bootSecondsSlow;
     }
     machine.restarts = (Number(machine.restarts) || 0) + 1;
     // Console B: a restart leaves Safe Mode, and clears a temporary profile
@@ -6610,6 +6614,9 @@ function hdProveWindowsSummary(name) {
 // restarts, so Event ID 100 lists the first boot and the latest one. A boot
 // time is taken only if it is the computer's before or after-fix time.
 function hdProvePrefillWindows(summary, machine, fixture) {
+  // The general copy (hdProvePrefillActions) took any boot time; start from
+  // the computer's own and take the saved one only as checked below.
+  if (typeof fixture.bootSeconds === 'number') machine.bootSeconds = fixture.bootSeconds;
   if (!summary || typeof summary !== 'object' || Array.isArray(summary)) return;
   const startup = summary.startup && typeof summary.startup === 'object' && !Array.isArray(summary.startup) ? summary.startup : null;
   if (startup) hdWinList(machine, 'startupApps').forEach(app => { if (['Enabled', 'Disabled'].includes(startup[app.name])) app.status = startup[app.name]; });
@@ -6628,6 +6635,8 @@ function hdProvePrefillWindows(summary, machine, fixture) {
   machine.uptimeDays = 0;
   if (typeof first === 'number') {
     machine.lastBootSeconds = first;
+    // The slow time a later Restart goes back to (hdWinRestart, startupOff).
+    if (fixture.bootSecondsAfterFixNeeds && Array.isArray(fixture.bootSecondsAfterFixNeeds.startupOff)) machine.bootSecondsSlow = first;
     machine.bootHistory = [{ seconds:first, restart:false }];
     if ([first, fixture.bootSecondsAfterFix].includes(summary.bootSeconds)) machine.bootSeconds = summary.bootSeconds;
   }

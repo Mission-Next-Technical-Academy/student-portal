@@ -146,7 +146,9 @@ function testFreshShift() {
   ['Check my work', 'Your note needs', 'Hint', 'hd-coach', 'Show me the command'].forEach((text) => assert.ok(!html.includes(text), `no ${text}`));
   assert.equal(tab.coachPanel(), '', 'no coach panel');
   assert.equal(SPEC.diagnosisOptions.length, 4);
-  assert.equal(SPEC.pathPool.length, 10);
+  assert.equal(SPEC.pathPool.length, 13);
+  assert.equal(new Set(SPEC.pathPool.map((step) => step.id)).size, 13, 'step ids are unique');
+  assert.match(tab.run('hdProveLabels().resolutionHint'), /Next action$/, 'the note hint names all four parts');
   // Every card opens on its own and is recorded once.
   SPEC.evidence.forEach((card) => tab.ctx.hdProveOpenCard('card', card.id));
   tab.ctx.hdProveOpenCard('card', SPEC.evidence[0].id);
@@ -218,6 +220,11 @@ function testBootTimeWaitsForTheStartupApp() {
   const reenabled = sim('its-03', 'stu-boot-4');
   reenabled.run(`hdWinStartupSet(${j(MAIN)}, ${j(WAITS_FOR)}, 'Disabled'); hdWinStartupSet(${j(MAIN)}, ${j(WAITS_FOR)}, 'Enabled'); hdWinRestart(${j(MAIN)})`);
   assert.equal(bootSeconds(reenabled), FIXTURE.bootSeconds);
+  // Fixed, restarted, then turned back on and restarted again: slow again.
+  disabled.run(`hdWinStartupSet(${j(MAIN)}, ${j(WAITS_FOR)}, 'Enabled'); hdWinRestart(${j(MAIN)})`);
+  assert.equal(bootSeconds(disabled), FIXTURE.bootSeconds, 'the cause back on: the slow boot is back');
+  disabled.run(`hdWinStartupSet(${j(MAIN)}, ${j(WAITS_FOR)}, 'Disabled'); hdWinRestart(${j(MAIN)})`);
+  assert.equal(bootSeconds(disabled), FIXTURE.bootSecondsAfterFix, 'and off again: fast');
 }
 
 function testPackageCarriesASmallSummary() {
@@ -286,6 +293,22 @@ function testPrefillPutsTheLaptopBack(saved) {
   same(other.machine(MAIN).installedApps.map((app) => app.name), FIXTURE.installedApps.map((app) => app.name));
   same(other.machine(MAIN).startupApps.map((app) => app.status), FIXTURE.startupApps.map((app) => app.status));
   assert.equal(other.machine(MAIN).bootSeconds, FIXTURE.bootSeconds);
+  // A boot time the laptop never shows isn't taken, restarted or not.
+  [0, 2].forEach((restarts) => {
+    const forged = plain(lastWork);
+    forged.machine = { ...saved.machine, restarts, bootSeconds: 7 };
+    const tab3 = sim('its-03', `stu-prefill-forged-${restarts}`);
+    assert.equal(tab3.run('hdProvePrefill')(forged), true);
+    assert.equal(tab3.machine(MAIN).bootSeconds, FIXTURE.bootSeconds, `forged boot time ignored (${restarts} restarts)`);
+  });
+  // A restored fast boot still goes back to slow if the cause is turned back on.
+  const back = sim('its-03', 'stu-prefill-back');
+  const fixed = plain(lastWork);
+  fixed.machine = { ...saved.machine, startup: { ...saved.machine.startup, [WAITS_FOR]: 'Disabled' }, installed: FIXTURE.installedApps.map((app) => app.name), restarts: 1, bootSeconds: FIXTURE.bootSecondsAfterFix };
+  assert.equal(back.run('hdProvePrefill')(fixed), true);
+  assert.equal(back.machine(MAIN).bootSeconds, FIXTURE.bootSecondsAfterFix);
+  back.run(`hdWinStartupSet(${j(MAIN)}, ${j(WAITS_FOR)}, 'Enabled'); hdWinRestart(${j(MAIN)})`);
+  assert.equal(back.machine(MAIN).bootSeconds, FIXTURE.bootSeconds);
 }
 
 const LONG = {

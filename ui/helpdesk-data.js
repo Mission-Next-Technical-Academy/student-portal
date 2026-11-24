@@ -1851,6 +1851,8 @@ const HD_PROVE_SHIFTS = {
       conversation: [],
       matrix: true,
       categoryOptions: ['Account / access', 'Hardware', 'Network', 'Printer', 'Software'],
+      // The four note parts the Module 2 standard names, for every ticket.
+      labels: { resolutionHint: 'Reported / Tried / Result / Next action' },
       // The knowledge base search (the only console feature this ticket turns on).
       console: { kb: true },
       // Read-only evidence cards. Each opens on its own and is recorded.
@@ -1861,17 +1863,21 @@ const HD_PROVE_SHIFTS = {
       diagnosisOptions: ['Failing hard drive', 'Pending Windows Update', 'Unapproved startup application', 'Malware infection'],
       // Ids are this ticket's own, so no other Prove It's steps land on them.
       pathPool: [
-        // Action-level wording with no names, so the list never states the fix.
+        // Action-level wording with no names or values, and wrong-direction
+        // steps beside the checks, so the list isn't a plan of the fix.
         { id: 'p1', text: 'Ask Grace when it started and whether other laptops are affected' },
         { id: 'p2', text: 'Review the startup apps in Task Manager' },
-        { id: 'p3', text: 'Check Event Viewer for errors at start-up' },
+        { id: 'p3', text: 'Check Event Viewer for errors' },
         { id: 'p4', text: 'Compare the installed apps with the Software Catalog' },
-        { id: 'p5', text: 'Disable a startup app and uninstall its app from Installed apps' },
+        { id: 'p5', text: 'Remove an app from the laptop' },
         { id: 'p6', text: 'Restart and compare the boot time' },
         { id: 'p7', text: 'Run Disk Cleanup' },
         { id: 'p8', text: 'Check the Wi-Fi signal' },
         { id: 'p9', text: 'Delete unfamiliar files from C:\\Windows\\System32' },
         { id: 'p10', text: 'Reset or reinstall Windows' },
+        { id: 'p11', text: 'Run a full malware scan' },
+        { id: 'p12', text: 'Install the latest Windows updates' },
+        { id: 'p13', text: 'Update the laptop\'s drivers' },
       ],
     }],
     computers: [

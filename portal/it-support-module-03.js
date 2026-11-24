@@ -81,7 +81,9 @@ const ITS03_LESSONS = [
       ] },
       { p: 'One slow app points at that app; everything slow points at the system.' },
       { p: 'To measure a slow start, read Event ID 100 in Event Viewer’s Diagnostics-Performance log: it records how long the last boot took. KB-0084 has the full checklist, including what to do with a startup app that isn’t approved.' },
+      { p: 'When a program crashes, Windows logs an Application Error, Event ID 1000, in Event Viewer › Windows Logs › Application. The event names the program that failed and when.' },
       { p: 'Check every startup app against the Software Catalog, the list of apps the company has approved. An app that isn’t in the catalog isn’t approved: disable its startup entry, then remove it in Settings › Apps › Installed apps › Uninstall, never by deleting its files, and offer the user the approved app that does the same job.' },
+      { p: 'Check Settings › Apps › Installed apps against the catalog too: it lists every app with the date it was installed, so you can see what changed when the problem started. Uninstall asks you to confirm, then removes the app and its startup entry.' },
       { h5: 'The repair ladder, lightest first' },
       { ol: [
         'Restart.',
