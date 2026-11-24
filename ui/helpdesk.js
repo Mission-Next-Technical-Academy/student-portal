@@ -623,7 +623,10 @@ function hdServers() {
   return HD_SERVERS.map(server => ({ ...server, ...(overrides[server.name] || {}) }));
 }
 function hdEvents() {
-  const hidden = HD_PROVE ? HD_PROVE.shift.hideEventsFrom || [] : [];
+  // A Prove shift, a practice set or a coached set may hide the shared
+  // events of named computers (hideEventsFrom).
+  const set = HD_PROVE ? HD_PROVE.shift : (typeof hdActiveSet === 'function' ? hdActiveSet() : null);
+  const hidden = set && Array.isArray(set.hideEventsFrom) ? set.hideEventsFrom : [];
   const events = HD_EVENTS.filter(event => !hidden.includes(event.computer));
   // Practice with HD-2101: jbell's lockout events come from the scenario.
   const scenario = typeof hdM01 === 'function' ? hdM01() : null;
@@ -1015,9 +1018,16 @@ function hdM01InvestigationCard(scenario) {
  *   caller questions may set afterAction + replyBefore (a reply that waits
  *                                  for one of the ticket's actions)
  *   actions: [{ id, text, pass?, critical?, needsVerification?, earlyCritical?,
- *              earlyFeedback?, feedback, history? }]
+ *              earlyFeedback?, feedback, history?, needsAction?, beforeText?,
+ *              bitlockerKey? }]
  *                                  things the technician can do; a critical
- *                                  one is recorded as a critical error
+ *                                  one is recorded as a critical error;
+ *                                  needsAction (an action id or a list): not
+ *                                  done until those were taken, replying
+ *                                  beforeText; bitlockerKey (a Key ID): taken
+ *                                  from Read key on the computer's BitLocker
+ *                                  Recovery tab in Active Directory, never
+ *                                  shown on the actions card
  *   owner: { options:[{ id, text, status, group, code, right?, category?,
  *              subcategory?, caller?, feedback }] }
  *                                  who owns the ticket (resolve at Tier 1,
@@ -1448,6 +1458,17 @@ function hdConsoleAction(id, actionId) {
     toast(action.earlyFeedback || 'Verify the caller first (KB-0024).');
     hdRerender(); return;
   }
+  // An action whose result depends on an earlier one (needsAction: an action
+  // id, or a list): taken before it, the action isn't done and the reply is
+  // beforeText. Not a critical error, and it can be taken again later.
+  const needed = action.needsAction ? [].concat(action.needsAction).filter(Boolean) : [];
+  if (needed.length && !needed.every(need => state.actions.some(entry => entry.id === need))) {
+    state.lastAction = `before:${action.id}`;
+    hdHistory(ticket, `Action: ${action.text}. Result: ${action.beforeText || 'not yet'}`);
+    hdPracticeEvent('action_refused', { ticket:ticket.id, action:action.id, reason:'needs-action' });
+    toast(action.beforeText || 'Not yet.');
+    hdRerender(); return;
+  }
   if (!state.actions.some(entry => entry.id === action.id)) state.actions.push({ id:action.id, time:hdConsoleTime(ticket) });
   if (action.critical) hdConsoleCritical(ticket, action.id, action.text);
   state.lastAction = action.id;
@@ -1730,11 +1751,18 @@ function hdConsoleActionsCard(ticket) {
   const actions = hdConsole(ticket).actions; if (!Array.isArray(actions) || !actions.length) return '';
   const state = hdConsoleState(ticket);
   const taken = (id) => state.actions.some(entry => entry.id === id);
-  const last = state.lastAction.startsWith('early:') ? actions.find(item => `early:${item.id}` === state.lastAction) : actions.find(item => item.id === state.lastAction);
+  // A refusal is stored as early:<id> (verification or approval) or
+  // before:<id> (needsAction).
+  const before = state.lastAction.startsWith('before:');
+  const last = state.lastAction.startsWith('early:') ? actions.find(item => `early:${item.id}` === state.lastAction) : before ? actions.find(item => `before:${item.id}` === state.lastAction) : actions.find(item => item.id === state.lastAction);
   const early = state.lastAction.startsWith('early:');
   const earlyBad = early && last && last.earlyCritical !== false;
-  const feedback = last ? `<div class="callout ${earlyBad || (!early && last.critical) ? 'bad' : early ? 'warn' : 'success'}" role="${earlyBad || (!early && last.critical) ? 'alert' : 'status'}">${hdEsc(early ? last.earlyFeedback || (last.needsApproval ? 'Wait for the request to be approved first.' : 'Verify the caller first (KB-0024).') : last.feedback || '')}</div>` : '';
-  return `<div class="card hd-actions"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Take an action</strong><span class="muted">What do you do for the caller?</span></div><div class="card-body"><div style="display:grid;gap:8px">${actions.map(action => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} ${taken(action.id) ? 'disabled' : ''} onclick="hdConsoleAction('${ticket.id}','${hdEsc(action.id)}')">${taken(action.id) ? '✓ ' : ''}${hdEsc(action.text)}</button>`).join('')}</div>${feedback}</div></div>`;
+  const feedback = !last ? '' : before ? `<div class="callout warn" role="status">${hdEsc(last.beforeText || 'Not yet.')}</div>` : `<div class="callout ${earlyBad || (!early && last.critical) ? 'bad' : early ? 'warn' : 'success'}" role="${earlyBad || (!early && last.critical) ? 'alert' : 'status'}">${hdEsc(early ? last.earlyFeedback || (last.needsApproval ? 'Wait for the request to be approved first.' : 'Verify the caller first (KB-0024).') : last.feedback || '')}</div>`;
+  // A BitLocker key is read out from the computer's BitLocker Recovery tab in
+  // Active Directory (bitlockerKey), never from this card.
+  const shown = actions.filter(action => !(action && action.bitlockerKey));
+  if (!shown.length && !feedback) return '';
+  return `<div class="card hd-actions"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Take an action</strong><span class="muted">What do you do for the caller?</span></div><div class="card-body"><div style="display:grid;gap:8px">${shown.map(action => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} ${taken(action.id) ? 'disabled' : ''} onclick="hdConsoleAction('${ticket.id}','${hdEsc(action.id)}')">${taken(action.id) ? '✓ ' : ''}${hdEsc(action.text)}</button>`).join('')}</div>${feedback}</div></div>`;
 }
 // The user's laptop, for a ticket whose fix is done on it (settingsPrinters):
 // one button opens it on the Windows Desktop screen.
@@ -3269,12 +3297,13 @@ VIEWS['helpdesk/active-directory'] = () => {
   return `${hdPageHeader('Active Directory', `${HD_ORG.domain} · Users, groups, computers, and delegated help desk tasks`)}<div class="tabs"><button class="tab ${hdState.adTab==='users'?'active':''}" onclick="hdSetAdTab('users')">Users</button><button class="tab ${hdState.adTab==='groups'?'active':''}" onclick="hdSetAdTab('groups')">Groups</button><button class="tab ${hdState.adTab==='computers'?'active':''}" onclick="hdSetAdTab('computers')">Computers</button></div>
     ${hdState.adTab==='users'?`<div class="hd-admin-layout"><div class="card">${hdDirectoryTable(HD_USERS.map(user=>hdUserById(user.id)))}</div><aside class="card hd-object-pane"><div class="card-header"><strong>${hdEsc(selected.name)}</strong>${selected.locked?hdBadge('Locked','bad'):hdBadge(selected.enabled?'Enabled':'Disabled',selected.enabled?'ok':'bad')}</div><div class="card-body"><dl class="hd-dl"><dt>Username</dt><dd>${hdEsc(HD_ORG.netbios+'\\'+selected.username)}</dd><dt>OU</dt><dd>${hdEsc(selected.ou)}</dd><dt>Manager</dt><dd>${hdEsc(selected.manager)}</dd><dt>Password age</dt><dd>${selected.passwordAge} days</dd><dt>Groups</dt><dd>${selected.groups.map(group=>hdBadge(group)).join(' ')}</dd></dl>${hdLockoutDetailsHtml(selected)}<div class="hd-action-grid"><button class="btn btn-secondary" onclick="hdAdAction('unlock')">Unlock</button><button class="btn btn-secondary" onclick="hdAdAction('reset')">Reset password</button><button class="btn btn-secondary" onclick="hdAdAction('${selected.enabled?'disable':'enable'}')">${selected.enabled?'Disable':'Enable'}</button><button class="btn btn-secondary" onclick="hdAdAction('add-hr')">Add approved group</button></div><div class="callout info">Verify identity and approval before any account or access action. Never place passwords in ticket notes.</div></div></aside></div>`:''}
     ${hdState.adTab==='groups'?`<div class="card"><div class="table-wrap"><table><thead><tr><th>Group</th><th>Scope</th><th>Type</th><th>Members</th><th>Resource / purpose</th></tr></thead><tbody>${HD_GROUPS.map(g=>`<tr><td><strong>${hdEsc(g.name)}</strong></td><td>${hdEsc(g.scope)}</td><td>${hdEsc(g.type)}</td><td>${g.members}</td><td>${hdEsc(g.resource)}</td></tr>`).join('')}</tbody></table></div></div>`:''}
-    ${hdState.adTab==='computers'?`<div class="card"><div class="table-wrap"><table><thead><tr><th>Computer</th><th>User</th><th>OU</th><th>Trust</th><th>BitLocker</th><th>Health</th></tr></thead><tbody>${hdComputers().map(c=>{const x=hdComputerByName(c.name);return `<tr><td><strong>${hdEsc(x.name)}</strong><small>${hdEsc(x.ip)}</small></td><td>${hdEsc(x.user)}</td><td><code>${hdEsc(x.ou)}</code></td><td>${hdBadge(x.trust,x.trust==='Healthy'?'ok':'bad')}</td><td>${hdBadge(x.bitlocker,x.bitlocker==='Protected'?'ok':'warn')}</td><td>${hdEsc(x.health)}</td></tr>`}).join('')}</tbody></table></div></div>`:''}`;
+    ${hdState.adTab==='computers' && hdAdComputerLookup() ? hdAdComputersWithPane() : ''}
+    ${hdState.adTab==='computers' && !hdAdComputerLookup()?`<div class="card"><div class="table-wrap"><table><thead><tr><th>Computer</th><th>User</th><th>OU</th><th>Trust</th><th>BitLocker</th><th>Health</th></tr></thead><tbody>${hdComputers().map(c=>{const x=hdComputerByName(c.name);return `<tr><td><strong>${hdEsc(x.name)}</strong><small>${hdEsc(x.ip)}</small></td><td>${hdEsc(x.user)}</td><td><code>${hdEsc(x.ou)}</code></td><td>${hdBadge(x.trust,x.trust==='Healthy'?'ok':'bad')}</td><td>${hdBadge(x.bitlocker,x.bitlocker==='Protected'?'ok':'warn')}</td><td>${hdEsc(x.health)}</td></tr>`}).join('')}</tbody></table></div></div>`:''}`;
 };
 
 function hdSelectComputer(name, route) { hdState.selectedComputer=name; hdProveOpened(`computer:${name}`, `Endpoint · ${name}`); hdSave(); if(route) navigate(route); else render(); }
 function hdEndpointCards() { return hdComputers().map(base=>{const c=hdComputerByName(base.name);return `<button class="hd-device-card ${hdState.selectedComputer===c.name?'active':''}" onclick="hdSelectComputer('${c.name}')"><strong>${hdEsc(c.name)}</strong><span>${hdEsc(c.user)}</span><small>${hdEsc(c.health)} · ${hdEsc(c.lastSeen)}</small></button>`}).join(''); }
-VIEWS['helpdesk/windows'] = () => { const c=hdComputerByName(hdState.selectedComputer)||hdComputerByName('NS-LT-0042'); return `${hdPageHeader('Windows Desktop', 'Inspect a managed Windows 11 endpoint before choosing a repair.')}<div class="hd-endpoint-layout"><aside class="card"><div class="card-header"><strong>Endpoints</strong></div><div class="hd-device-list">${hdEndpointCards()}</div></aside><div class="hd-windows-screen"><div class="hd-window-bar"><span>${hdEsc(c.name)} · Remote session</span><span>— □ ×</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows 11 Enterprise</strong><span>${hdEsc(c.os)}</span></div><div class="hd-field-grid"><div><span>Signed-in user</span><strong>${hdEsc(c.user)}</strong></div><div><span>IPv4</span><strong>${hdEsc(c.ip)}</strong></div><div><span>Domain trust</span><strong>${hdEsc(c.trust)}</strong></div><div><span>BitLocker</span><strong>${hdEsc(c.bitlocker)}</strong></div><div><span>OU</span><strong>${hdEsc(c.ou)}</strong></div><div><span>Health</span><strong>${hdEsc(c.health)}</strong></div>${c.uptimeDays ? `<div><span>Uptime</span><strong>${hdEsc(c.uptimeDays)} days</strong></div>` : c.uptimeDays === 0 ? '<div><span>Uptime</span><strong>Less than a day</strong></div>' : ''}</div><div class="hd-tool-grid"><button onclick="navigate('#/helpdesk/event-viewer')">📋 Event Viewer</button><button onclick="navigate('#/helpdesk/powershell')">&gt;_ PowerShell</button><button onclick="navigate('#/helpdesk/active-directory')">🗂 Directory</button><button onclick="navigate('#/helpdesk/remote-support')">🖥 Remote Support</button>${hdSettingsPrinterPaths(c.name).length || hdPrintQueues(hdFeatureMachine(c.name)) || (hdProveAllTools() && hdFeatureMachine(c.name)) ? `<button onclick="navigate('#/helpdesk/settings-printers')">⚙ Settings › Printers &amp; scanners</button>` : ''}${hdFeatureToolButtons(c.name)}${hdWinToolButtons(c.name)}</div>${hdWinRestartBar(c.name)}</div></div></div>`; };
+VIEWS['helpdesk/windows'] = () => { const c=hdComputerByName(hdState.selectedComputer)||hdComputerByName('NS-LT-0042'); return `${hdPageHeader('Windows Desktop', 'Inspect a managed Windows 11 endpoint before choosing a repair.')}<div class="hd-endpoint-layout"><aside class="card"><div class="card-header"><strong>Endpoints</strong></div><div class="hd-device-list">${hdEndpointCards()}</div></aside><div class="hd-windows-screen"><div class="hd-window-bar"><span>${hdEsc(c.name)} · Remote session</span><span>— □ ×</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows 11 Enterprise</strong><span>${hdEsc(c.os)}</span></div>${hdWinDesktopNotices(c.name)}<div class="hd-field-grid"><div><span>Signed-in user</span><strong>${hdEsc(c.user)}</strong></div><div><span>IPv4</span><strong>${hdEsc(c.ip)}</strong></div><div><span>Domain trust</span><strong>${hdEsc(c.trust)}</strong></div><div><span>BitLocker</span><strong>${hdEsc(c.bitlocker)}</strong></div><div><span>OU</span><strong>${hdEsc(c.ou)}</strong></div><div><span>Health</span><strong>${hdEsc(c.health)}</strong></div>${c.uptimeDays ? `<div><span>Uptime</span><strong>${hdEsc(c.uptimeDays)} days</strong></div>` : c.uptimeDays === 0 ? '<div><span>Uptime</span><strong>Less than a day</strong></div>' : ''}</div><div class="hd-tool-grid"><button onclick="navigate('#/helpdesk/event-viewer')">📋 Event Viewer</button><button onclick="navigate('#/helpdesk/powershell')">&gt;_ PowerShell</button><button onclick="navigate('#/helpdesk/active-directory')">🗂 Directory</button><button onclick="navigate('#/helpdesk/remote-support')">🖥 Remote Support</button>${hdSettingsPrinterPaths(c.name).length || hdPrintQueues(hdFeatureMachine(c.name)) || (hdProveAllTools() && hdFeatureMachine(c.name)) ? `<button onclick="navigate('#/helpdesk/settings-printers')">⚙ Settings › Printers &amp; scanners</button>` : ''}${hdFeatureToolButtons(c.name)}${hdWinToolButtons(c.name)}</div>${hdWinRestartBar(c.name)}</div></div></div>`; };
 
 /* ---------- Settings › Printers & scanners ----------
  * The approved way for a standard user to add a published printer: Add
@@ -3389,7 +3418,7 @@ function hdEventFilterBar(count) {
   const filter = hdState.eventFilter || { id:'', text:'' };
   return `<form class="filterbar hd-event-filter" onsubmit="hdSetEventFilter(event)"><label>Event ID <input id="hd-ev-id" class="ipt" inputmode="numeric" maxlength="8" style="width:110px" value="${hdEsc(filter.id)}" placeholder="e.g. 4740"></label><label>Keyword <input id="hd-ev-text" class="ipt" maxlength="60" value="${hdEsc(filter.text)}" placeholder="account, computer or source"></label><button class="btn btn-primary btn-sm" type="submit">Filter</button><button class="btn btn-ghost btn-sm" type="button" onclick="hdClearEventFilter()">Clear</button><span class="muted">${count} shown</span></form>`;
 }
-VIEWS['helpdesk/event-viewer'] = () => { hdM01Tick(); const rows = hdFilteredEvents(); return `${hdPageHeader('Event Viewer', 'Filter event evidence by endpoint, server, severity, source, and event ID.')}<div class="callout info">An event ID is evidence, not automatically the root cause. Correlate time, scope, recent change, and system state.</div>${hdEventFilterBar(rows.length)}<div class="card"><div class="table-wrap"><table><thead><tr><th>Level</th><th>Time</th><th>Source</th><th>Event ID</th><th>Computer</th><th>Message</th></tr></thead><tbody>${rows.map(e=>`<tr><td>${hdBadge(e.level,e.level==='Error'?'bad':e.level==='Warning'?'warn':'ok')}</td><td>${e.time}</td><td>${hdEsc(e.source)}</td><td>${e.id}</td><td>${hdEsc(e.computer)}</td><td>${hdEsc(e.message)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No events match this filter.</td></tr>'}</tbody></table></div></div>`; };
+VIEWS['helpdesk/event-viewer'] = () => { hdM01Tick(); const logs = hdWinEventComputer(); if (logs) return hdWinEventView(logs); const rows = hdFilteredEvents(); return `${hdPageHeader('Event Viewer', 'Filter event evidence by endpoint, server, severity, source, and event ID.')}${hdWinEventPicker('')}<div class="callout info">An event ID is evidence, not automatically the root cause. Correlate time, scope, recent change, and system state.</div>${hdEventFilterBar(rows.length)}<div class="card"><div class="table-wrap"><table><thead><tr><th>Level</th><th>Time</th><th>Source</th><th>Event ID</th><th>Computer</th><th>Message</th></tr></thead><tbody>${rows.map(e=>`<tr><td>${hdBadge(e.level,e.level==='Error'?'bad':e.level==='Warning'?'warn':'ok')}</td><td>${e.time}</td><td>${hdEsc(e.source)}</td><td>${e.id}</td><td>${hdEsc(e.computer)}</td><td>${hdEsc(e.message)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No events match this filter.</td></tr>'}</tbody></table></div></div>`; };
 
 // Simulated machine state (a Prove shift's `machines`): printers, printers
 // a policy refresh will add, local administrators and the spooler. The
@@ -3505,7 +3534,7 @@ function hdMachineCommand(command, normalized, computer) {
  * in Practice, an entry in the ticket's consoleState.actions and history. */
 const HD_MACHINE_SCREENS = ['print-queue', 'printer-properties', 'device-manager', 'camera', 'dock', 'settings-network',
   // Windows client screens (Module 5, key its-03; see "Windows client tools" below).
-  'pc-task-manager', 'settings-storage', 'settings-update', 'settings-apps', 'software-catalog'];
+  'pc-task-manager', 'settings-storage', 'settings-update', 'settings-apps', 'software-catalog', 'reliability', 'settings-recovery'];
 function hdOwn(object, key) { return !!object && typeof object === 'object' && Object.prototype.hasOwnProperty.call(object, key); }
 function hdTicketMachineSpecs(ticket) {
   if (HD_PROVE || !ticket) return null;
@@ -3735,6 +3764,7 @@ function hdFeatureHelp(computer) {
   if (hdPrintQueues(machine)) lines.push('Printing: Get-Service Spooler, Stop-Service Spooler, Start-Service Spooler, Get-PrintJob -PrinterName <name>, Get-Printer -Name <name> | Format-List Name, PortName, DriverName');
   if (machine.reachable) lines.push('Network: ping <address>, Test-NetConnection <address> -Port <port>');
   if (hdWinHelp(machine)) lines.push(hdWinHelp(machine));
+  hdWinTypedHelp(machine).forEach(line => lines.push(line));
   return lines.length ? `\n${lines.join('\n')}` : '';
 }
 
@@ -3971,6 +4001,7 @@ function hdDeviceDriver(computerName, deviceId, which) {
     }
     if (!next || typeof next !== 'object') return false;
     device.updateChecked = false;
+    if (machine.lastBlueScreen) machine.lastBlueScreen = null; // console B: the crash line is for the old driver
     const { status, problem, ...driver } = next;
     if (which === 'rollback') { device.update = device.update || null; device.previous = null; } else { device.previous = device.driver; device.update = null; }
     device.driver = driver;
@@ -4027,6 +4058,7 @@ function hdDockDo(computerName, what, value, extra) {
       dock.power = true; hdMachineAction(computerName, 'dock-power', `connected the power to ${dock.name || 'the dock'}`);
     } else if (what === 'dock') {
       dock.docked = !dock.docked; hdMachineAction(computerName, dock.docked ? 'dock-connect' : 'dock-disconnect', `${dock.docked ? 'connected the laptop to' : 'disconnected the laptop from'} ${dock.name || 'the dock'}`);
+      hdWinDockCrash(computerName, machine);
     } else if (what === 'input') {
       const monitor = hdDockMonitors(machine).find(item => item.id === value); if (!monitor || !(monitor.inputs || []).includes(extra) || monitor.input === extra) return false;
       monitor.input = extra; hdMachineAction(computerName, 'monitor-input', `set ${monitor.name}'s input to ${extra}`, { monitor:monitor.id, input:extra });
@@ -4061,7 +4093,7 @@ VIEWS['helpdesk/dock'] = () => {
   const displays = [`<li>1 · Built-in display${machine.projection === 'Second screen only' && active.length ? ' (off)' : ''}</li>`, ...active.map((monitor, index) => `<li data-hd-display="${hdEsc(monitor.id)}">${index + 2} · ${hdEsc(monitor.name || monitor.id)}${index > 0 ? ` <button type="button" class="btn btn-ghost btn-sm" ${locked} onclick="hdDockDo(${name},'left','${hdJsArg(monitor.id)}')">Move left</button>` : ''}</li>`)].join('');
   const peripherals = (Array.isArray(dock.peripherals) ? dock.peripherals : []).map(item => `<li>${hdEsc(item)}: ${live ? 'working' : 'not responding'}</li>`).join('');
   return `${hdPageHeader('Dock and displays', `${computer.name} · ${dock.name || 'Dock'}`, hdMachineBack(computer))}
-    <div data-hd-dock="${live ? 'live' : 'dark'}" class="hd-settings-view">
+    <div data-hd-dock="${live ? 'live' : 'dark'}" class="hd-settings-view">${hdWinBlueScreenLine(machine)}
     <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(dock.name || 'Dock')}</strong><span class="muted">Dock light: ${dock.power ? 'on' : 'off'} · ${dock.docked ? 'laptop connected' : 'laptop not connected'}</span></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="btn btn-secondary btn-sm" ${locked || (dock.power ? 'disabled' : '')} onclick="hdDockDo(${name},'power')">${dock.power ? 'Dock power connected' : "Plug in the dock's power"}</button><button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdDockDo(${name},'dock')">${dock.docked ? 'Disconnect the laptop' : 'Connect the laptop to the dock'}</button></div>${peripherals ? `<ul class="hd-list">${peripherals}</ul>` : ''}</div></div>
     ${monitors}
     <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Win + P</strong><span class="muted">Project</span></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:6px" data-hd-projection="${hdEsc(machine.projection || '')}">${modes}</div></div></div>
@@ -4185,13 +4217,16 @@ const HD_WIN_SCREENS = {
   'settings-update':{ source:'windows-update', label:'Settings › Windows Update', key:'updates' },
   'settings-apps':{ source:'installed-apps', label:'Settings › Apps › Installed apps', key:'installedApps' },
   'software-catalog':{ source:'software-catalog', label:'Software Catalog', key:'catalog' },
+  // Console B.
+  reliability:{ source:'reliability', label:'Reliability Monitor', key:'reliability' },
+  'settings-recovery':{ source:'recovery', label:'Settings › System › Recovery', key:'safeMode' },
 };
 const HD_WIN_TASK_TABS = [['processes', 'Processes'], ['performance', 'Performance'], ['startup', 'Startup apps']];
 function hdWinList(machine, key) { return machine && Array.isArray(machine[key]) ? machine[key].filter(item => item && typeof item === 'object') : []; }
 function hdWinStorage(machine) { return machine && machine.storage && typeof machine.storage === 'object' && Number(machine.storage.sizeGb) > 0 ? machine.storage : null; }
 function hdWinUpdates(machine) { return machine && machine.updates && typeof machine.updates === 'object' ? machine.updates : null; }
 function hdWinHasTaskManager(machine) { return !!machine && (hdWinList(machine, 'processes').length > 0 || !!(machine.performance && typeof machine.performance === 'object') || hdWinList(machine, 'startupApps').length > 0); }
-function hdWinHasRestart(machine) { return !!machine && (!!hdWinUpdates(machine) || typeof machine.uptimeDays === 'number' || typeof machine.bootSeconds === 'number'); }
+function hdWinHasRestart(machine) { return !!machine && (!!hdWinUpdates(machine) || typeof machine.uptimeDays === 'number' || typeof machine.bootSeconds === 'number' || typeof machine.safeMode === 'boolean' || !!hdWinProfile(machine)); }
 // Which Windows screens a machine has. In a Prove shift with machineTools,
 // every computer shows a screen when any of the shift's computers has it, so
 // the buttons never point at the case.
@@ -4203,6 +4238,11 @@ function hdWinHas(machine, screen) {
     if (screen === 'settings-apps') return Array.isArray(m && m.installedApps);
     if (screen === 'software-catalog') return !!m && (Array.isArray(m.catalog) || m.catalog === true);
     if (screen === 'restart') return hdWinHasRestart(m);
+    // Console B.
+    if (screen === 'event-logs') return !!hdWinEvents(m);
+    if (screen === 'reliability') return !!m && Array.isArray(m.reliability);
+    if (screen === 'settings-recovery') return !!m && typeof m.safeMode === 'boolean';
+    if (screen === 'ad-computer') return !!m && Array.isArray(m.bitlockerKeys);
     return false;
   };
   if (own(machine)) return true;
@@ -4231,6 +4271,8 @@ function hdWinToolButtons(name) {
     open('settings-update', '⚙ Settings › Windows Update'),
     open('settings-apps', '⚙ Settings › Apps › Installed apps'),
     open('software-catalog', '📚 Software Catalog'),
+    open('reliability', '📈 Reliability Monitor'),
+    open('settings-recovery', '⚙ Settings › System › Recovery'),
   ].join('');
 }
 function hdWinRestartBar(name) {
@@ -4368,12 +4410,31 @@ function hdWinRestart(computerName) {
       updates.lastInstalledDaysAgo = 0;
     }
     machine.uptimeDays = 0;
+    // Console B: every earlier boot, newest first, so Event ID 100 still
+    // shows the first (slow) boot after two or more restarts.
+    if (typeof machine.bootSeconds === 'number') {
+      const earlier = Array.isArray(machine.bootHistory) ? machine.bootHistory : [];
+      machine.bootHistory = [{ seconds:machine.bootSeconds, restart:Number(machine.restarts) > 0 }, ...earlier].slice(0, 10);
+    }
     if (typeof machine.bootSecondsAfterFix === 'number') {
       if (typeof machine.bootSeconds === 'number') machine.lastBootSeconds = machine.bootSeconds;
-      machine.bootSeconds = machine.bootSecondsAfterFix;
+      // Console B: bootSecondsAfterFixNeeds: { freePercent } keeps the slow
+      // boot until C: has that much free, so a restart alone isn't the fix.
+      const needs = machine.bootSecondsAfterFixNeeds && typeof machine.bootSecondsAfterFixNeeds === 'object' ? machine.bootSecondsAfterFixNeeds : null;
+      const fixed = !needs || !(Number(needs.freePercent) > 0) || hdWinFreePercent(hdWinStorage(machine)) >= Number(needs.freePercent);
+      if (fixed) machine.bootSeconds = machine.bootSecondsAfterFix;
     }
     machine.restarts = (Number(machine.restarts) || 0) + 1;
-    hdMachineAction(computerName, 'restart', finished ? 'restarted the computer to finish the update' : 'restarted the computer', { finishedUpdate:finished });
+    // Console B: a restart leaves Safe Mode, and clears a temporary profile
+    // only when the machine says a restart fixes it (restartClears).
+    const fromSafeMode = machine.safeMode === true;
+    if (fromSafeMode) { machine.safeMode = false; machine.safeModeOption = ''; }
+    if (machine.recoveryStep) machine.recoveryStep = 'recovery';
+    // A restart adds a boot event, so an open event's row number moves.
+    if (hdState.eventLog && typeof hdState.eventLog === 'object') hdState.eventLog = { ...hdState.eventLog, open:null };
+    const profile = hdWinProfile(machine);
+    if (profile && profile.temporary && profile.restartClears === true) profile.temporary = false;
+    hdMachineAction(computerName, 'restart', finished ? 'restarted the computer to finish the update' : fromSafeMode ? 'restarted the computer out of Safe Mode' : 'restarted the computer', { finishedUpdate:finished, ...(fromSafeMode ? { fromSafeMode:true } : {}) });
     if (typeof toast === 'function' && !HD_PROVE) toast(`${computerName} restarted.`);
   });
 }
@@ -4446,6 +4507,8 @@ VIEWS['helpdesk/software-catalog'] = () => {
 // today's answers stay as they were.
 function hdWinFirst(normalized, fallback) { const match = /select-object -first (\d+)/.exec(normalized); return match ? Math.max(1, Math.min(50, Number(match[1]))) : fallback; }
 function hdWinCommand(command, normalized, machine, computerName) {
+  const typed = hdWinTypedCommand(command, normalized, machine);
+  if (typed !== null) return typed;
   const processes = hdWinList(machine, 'processes');
   if (processes.length && /^get-process(\s*\||$)/.test(normalized)) {
     const rows = processes.slice();
@@ -4488,6 +4551,472 @@ function hdWinHelp(machine) {
 }
 window.hdWinTaskTab=hdWinTaskTab; window.hdWinTaskSort=hdWinTaskSort; window.hdWinStartupSet=hdWinStartupSet; window.hdWinTempTick=hdWinTempTick; window.hdWinTempRemove=hdWinTempRemove;
 window.hdWinRestart=hdWinRestart; window.hdWinUninstall=hdWinUninstall; window.hdWinCatalogFilter=hdWinCatalogFilter;
+
+/* ---------- Windows client tools, console B (added for Module 5, key its-03) ----------
+ * Event Viewer's logs on a computer, Reliability Monitor, the Safe Mode
+ * route, the signed-in profile notice, the Active Directory computer pane
+ * with its BitLocker Recovery tab, and the typed repair and file commands.
+ * Each is off unless the computer's machine state has the key it reads:
+ *   events: { system:[], application:[], 'diagnostics-performance':[] }
+ *     ({ level:'Critical' | 'Error' | 'Warning' | 'Information', time,
+ *     source, id, message, details? }). Diagnostics-Performance also lists
+ *     Event ID 100 from bootSeconds (and lastBootSeconds after a Restart;
+ *     bootTime and restartTime label them), so the data leaves it out.
+ *     bootSecondsAfterFixNeeds: { freePercent } keeps the slow boot after a
+ *     Restart until C: has that much free
+ *   reliability: [{ day, today?, critical:[text], warnings:[text],
+ *     installs:[text] }]   Reliability Monitor, oldest day first
+ *   devices[].crashOnDock: { version, stopCode?, file? }   connecting the
+ *     dock while the device's driver is that version crashes the laptop
+ *     (a blue-screen action, and a critical event on today's reliability day)
+ *   safeMode: false   Settings › System › Recovery and the route to Safe Mode
+ *   profile: { temporary, restartClears, path? }   the signed-in profile line
+ *     on the Windows Desktop; Restart clears temporary only if restartClears
+ *   bitlockerKeys: [{ keyId, date, key }]   Active Directory › Computers ›
+ *     the computer › BitLocker Recovery. Read key takes the owning ticket's
+ *     action whose bitlockerKey is that Key ID (its verification and critical
+ *     rules apply); otherwise it is a machine action. Only the Key ID is ever
+ *     recorded, never the key
+ *   files: { 'C:\\Users\\name\\Desktop':[name | { name, length?, modified? }] }
+ *     dir and Get-ChildItem
+ *   repairs: { dism?, sfc?, chkdsk? }   the result line of DISM
+ *     /RestoreHealth, sfc /scannow and chkdsk C: /scan (defaults: no problems)
+ * Sources: event-log:<computer>:<log> (and
+ * event-log:<computer>:diagnostics-performance:after-restart once the
+ * computer has restarted), reliability:<computer>, recovery:<computer>,
+ * ad-computer:<computer>, ad-bitlocker:<computer>. The same keys, without the
+ * computer, go in machine.seen for a coach. */
+function hdWinEvents(machine) { return machine && machine.events && typeof machine.events === 'object' && !Array.isArray(machine.events) ? machine.events : null; }
+function hdWinProfile(machine) { return machine && machine.profile && typeof machine.profile === 'object' ? machine.profile : null; }
+function hdWinRepairs(machine) { return machine && machine.repairs && typeof machine.repairs === 'object' ? machine.repairs : null; }
+function hdWinFiles(machine) { return machine && machine.files && typeof machine.files === 'object' && !Array.isArray(machine.files) ? machine.files : null; }
+function hdWinSeenSave(machine, keys) {
+  if (!machine) return;
+  const before = Array.isArray(machine.seen) ? machine.seen.length : 0;
+  keys.forEach(key => hdWinSeen(machine, key));
+  if (machine.seen.length !== before) hdSave();
+}
+
+// Event Viewer › a computer's logs.
+const HD_WIN_LOGS = [
+  ['system', 'System', 'Windows Logs › System'],
+  ['application', 'Application', 'Windows Logs › Application'],
+  ['diagnostics-performance', 'Diagnostics-Performance', 'Applications and Services Logs › Microsoft › Windows › Diagnostics-Performance › Operational'],
+];
+const HD_WIN_LEVELS = ['Critical', 'Error', 'Warning', 'Information'];
+function hdWinEventState() { return hdState.eventLog && typeof hdState.eventLog === 'object' ? hdState.eventLog : {}; }
+function hdWinEventComputers() { return hdComputers().map(computer => computer.name).filter(name => hdWinHas(hdFeatureMachine(name), 'event-logs')); }
+// The selected computer, when it has logs and the shared list wasn't chosen for it.
+function hdWinEventComputer() {
+  const name = hdState.selectedComputer; const state = hdWinEventState();
+  if (!name || state.shared === name) return null;
+  const machine = hdFeatureMachine(name);
+  return machine && hdWinHas(machine, 'event-logs') ? { name, machine, computer:hdComputerByName(name) } : null;
+}
+function hdWinEventPicker(current) {
+  // A Prove It lists computers only when every computer shows its logs
+  // (machineTools); otherwise the list would name the case computer.
+  if (HD_PROVE && !hdProveAllTools()) return '';
+  const names = hdWinEventComputers(); if (!names.length) return '';
+  const button = (name, label) => `<button type="button" class="btn ${name === current ? 'btn-primary' : 'btn-secondary'} btn-sm" aria-pressed="${name === current}" onclick="hdWinEventPick('${hdJsArg(name)}')">${hdEsc(label)}</button>`;
+  return `<div class="filterbar" data-hd-event-picker><span class="muted">Computer logs:</span>${names.map(name => button(name, name)).join('')}${button('', 'All computers (shared list)')}</div>`;
+}
+function hdWinEventPick(name) {
+  if (name && hdWinHas(hdFeatureMachine(name), 'event-logs')) { hdState.selectedComputer = name; hdState.eventLog = { ...hdWinEventState(), shared:'', open:null }; }
+  else hdState.eventLog = { ...hdWinEventState(), shared:hdState.selectedComputer || '*', open:null };
+  hdSave(); render();
+}
+// Windows logs every Event ID 100 as a Warning.
+function hdWinBootEvent(seconds, time) {
+  return { level:'Warning', time, source:'Diagnostics-Performance', id:'100', message:`Windows has started up: Boot Duration: ${Math.round(Number(seconds) * 1000)} ms (${hdWinRound(seconds)} s)` };
+}
+function hdWinLogEvents(machine, log) {
+  const events = hdWinEvents(machine) || {};
+  const rows = (Array.isArray(events[log]) ? events[log] : []).filter(event => event && typeof event === 'object');
+  if (log !== 'diagnostics-performance' || typeof machine.bootSeconds !== 'number') return rows;
+  const restarted = Number(machine.restarts) > 0;
+  const boots = [hdWinBootEvent(machine.bootSeconds, restarted ? machine.restartTime || 'Today, after the restart' : machine.bootTime || 'Last start-up')];
+  const history = Array.isArray(machine.bootHistory) ? machine.bootHistory.filter(boot => boot && typeof boot.seconds === 'number') : null;
+  if (restarted && history && history.length) history.forEach(boot => boots.push(hdWinBootEvent(boot.seconds, boot.restart ? 'Today, after an earlier restart' : machine.bootTime || 'Earlier start-up')));
+  else if (restarted && typeof machine.lastBootSeconds === 'number') boots.push(hdWinBootEvent(machine.lastBootSeconds, machine.bootTime || 'Earlier start-up'));
+  return [...boots, ...rows];
+}
+function hdWinLogOpened(name, machine, log) {
+  const meta = HD_WIN_LOGS.find(([id]) => id === log); if (!meta) return;
+  const keys = [`event-log:${log}`];
+  hdProveOpened(`event-log:${name}:${log}`, `Event Viewer › ${meta[1]} · ${name}`);
+  // Read again after a restart: its own source (a Prove It reads it).
+  if (log === 'diagnostics-performance' && Number(machine.restarts) > 0) {
+    keys.push('event-log:diagnostics-performance:after-restart');
+    hdProveOpened(`event-log:${name}:diagnostics-performance:after-restart`, `Event Viewer › Diagnostics-Performance, after a restart · ${name}`);
+  }
+  hdWinSeenSave(machine, keys);
+}
+function hdWinEventSet(name, patch) {
+  const state = hdWinEventState(); const clean = {};
+  if (patch && HD_WIN_LOGS.some(([id]) => id === patch.log)) clean.log = patch.log;
+  if (patch && hdOwn(patch, 'level') && (patch.level === '' || HD_WIN_LEVELS.includes(patch.level))) clean.level = patch.level;
+  if (!Object.keys(clean).length) return;
+  hdState.eventLog = { ...state, ...clean, shared:'', open:null };
+  if (hdOwn(clean, 'level')) hdPracticeEvent('event_filter', { label:`${name} · ${clean.level || 'all levels'}`, computer:name });
+  hdSave(); render();
+}
+function hdWinEventOpen(name, index) {
+  const machine = hdFeatureMachine(name); if (!machine) return;
+  const state = hdWinEventState();
+  const log = HD_WIN_LOGS.some(([id]) => id === state.log) ? state.log : 'system';
+  const event = hdWinLogEvents(machine, log)[Number(index)]; if (!event) return;
+  hdState.eventLog = { ...state, open:Number(index), openLog:log };
+  hdWinSeenSave(machine, [`event-open:${log}:${event.id}`]);
+  hdSave(); render();
+}
+function hdWinLevelBadge(level) { return hdBadge(level || 'Information', ['Critical', 'Error'].includes(level) ? 'bad' : level === 'Warning' ? 'warn' : 'ok'); }
+function hdWinEventView(found) {
+  const { name, machine, computer } = found; const state = hdWinEventState();
+  const log = HD_WIN_LOGS.some(([id]) => id === state.log) ? state.log : 'system';
+  const level = HD_WIN_LEVELS.includes(state.level) ? state.level : '';
+  const meta = HD_WIN_LOGS.find(([id]) => id === log);
+  hdWinLogOpened(name, machine, log);
+  const all = hdWinLogEvents(machine, log);
+  const rows = all.map((event, index) => ({ event, index })).filter(({ event }) => !level || event.level === level);
+  const open = state.openLog === log && Number.isInteger(state.open) ? all[state.open] : null;
+  const n = `'${hdJsArg(name)}'`;
+  const logs = HD_WIN_LOGS.map(([id, , path]) => `<button type="button" class="btn ${id === log ? 'btn-primary' : 'btn-secondary'} btn-sm" role="tab" aria-selected="${id === log}" data-hd-event-log="${id}" onclick="hdWinEventSet(${n},{log:'${id}'})">${hdEsc(path)}</button>`).join('');
+  const levels = [['', 'All levels'], ...HD_WIN_LEVELS.map(item => [item, item])].map(([id, label]) => `<button type="button" class="btn ${id === level ? 'btn-primary' : 'btn-secondary'} btn-sm" aria-pressed="${id === level}" data-hd-event-level="${id || 'all'}" onclick="hdWinEventSet(${n},{level:'${id}'})">${label}</button>`).join('');
+  const table = rows.map(({ event, index }) => `<tr data-hd-event-row="${hdEsc(event.id)}"><td>${hdWinLevelBadge(event.level)}</td><td>${hdEsc(event.time || '')}</td><td>${hdEsc(event.source || '')}</td><td>${hdEsc(event.id || '')}</td><td>${hdEsc(event.message || '')}</td><td><button type="button" class="btn btn-ghost btn-sm" onclick="hdWinEventOpen(${n},${index})">Open</button></td></tr>`).join('') || '<tr><td colspan="6" class="muted">No events match this filter.</td></tr>';
+  const detail = open ? `<div class="card" data-hd-event-detail="${hdEsc(open.id)}"><div class="card-header"><strong>Event ${hdEsc(open.id)}, ${hdEsc(open.source || '')}</strong></div><div class="card-body"><p>${hdEsc(open.message || '')}</p>${open.details ? `<p>${hdEsc(open.details)}</p>` : ''}<dl class="hd-dl"><dt>Log Name</dt><dd>${hdEsc(meta[1])}</dd><dt>Source</dt><dd>${hdEsc(open.source || '')}</dd><dt>Event ID</dt><dd>${hdEsc(open.id)}</dd><dt>Level</dt><dd>${hdEsc(open.level || 'Information')}</dd><dt>Logged</dt><dd>${hdEsc(open.time || '')}</dd><dt>Computer</dt><dd>${hdEsc(name)}</dd></dl></div></div>` : '';
+  return `${hdPageHeader('Event Viewer', `${name} · ${meta[2]}`, hdMachineBack(computer))}${hdWinEventPicker(name)}<div class="card" data-hd-event-logs="${log}"><div class="card-header" ${HD_CONSOLE_HEADER}><div style="display:flex;flex-wrap:wrap;gap:6px" role="tablist">${logs}</div></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center"><span class="muted">Filter by level:</span>${levels}<span class="muted">${rows.length} of ${all.length} shown</span></div></div><div class="table-wrap"><table><thead><tr><th>Level</th><th>Date and time</th><th>Source</th><th>Event ID</th><th>Message</th><th></th></tr></thead><tbody>${table}</tbody></table></div></div>${detail}`;
+}
+
+// Reliability Monitor, and the dock-cycle crash.
+function hdWinReliabilityToday(machine) {
+  const days = machine.reliability;
+  let today = days.find(day => day && day.today);
+  if (!today) { today = { day:'Today', today:true, critical:[], warnings:[], installs:[] }; days.push(today); }
+  if (!Array.isArray(today.critical)) today.critical = [];
+  return today;
+}
+function hdWinDockCrash(computerName, machine) {
+  if (machine.lastBlueScreen) machine.lastBlueScreen = null;
+  if (!machine.dock || !hdDockLive(machine)) return;
+  const device = (Array.isArray(machine.devices) ? machine.devices : []).find(item => item && item.crashOnDock && typeof item.crashOnDock === 'object' && item.driver && item.driver.version === item.crashOnDock.version);
+  if (!device) return;
+  const crash = device.crashOnDock;
+  machine.lastBlueScreen = { stopCode:crash.stopCode || '', file:crash.file || '', device:device.id };
+  machine.blueScreens = (Number(machine.blueScreens) || 0) + 1;
+  if (typeof machine.uptimeDays === 'number') machine.uptimeDays = 0;
+  if (Array.isArray(machine.reliability)) hdWinReliabilityToday(machine).critical.push(`Windows stopped working: blue screen${crash.stopCode ? ` (${crash.stopCode})` : ''}`);
+  hdMachineAction(computerName, 'blue-screen', `the laptop crashed with a blue screen when connected to the dock${crash.stopCode ? ` (${crash.stopCode})` : ''}`, { device:device.id });
+}
+function hdWinBlueScreenLine(machine) {
+  const crash = machine && machine.lastBlueScreen; if (!crash || typeof crash !== 'object') return '';
+  return `<div class="callout bad" role="alert" data-hd-blue-screen><strong>Your device ran into a problem and needs to restart.</strong><p>${crash.stopCode ? `Stop code: ${hdEsc(crash.stopCode)}` : 'Stop error'}${crash.file ? ` · What failed: ${hdEsc(crash.file)}` : ''}</p><p class="muted">The laptop restarted.</p></div>`;
+}
+function hdWinReliabilityDay(computerName, day) {
+  const machine = hdFeatureMachine(computerName); if (!machine || !Array.isArray(machine.reliability)) return;
+  if (!machine.reliability.some(item => item && item.day === day)) return;
+  hdState.machineView = { ...hdMachineView(), computer:computerName, day };
+  hdWinSeenSave(machine, [`reliability:day:${day}`]);
+  hdSave(); render();
+}
+VIEWS['helpdesk/reliability'] = () => {
+  const found = hdWinScreen('reliability'); if (!found || !Array.isArray(found.machine.reliability)) return hdMachineMissing('Reliability Monitor');
+  const { computer, machine } = found; const n = `'${hdJsArg(computer.name)}'`;
+  const days = machine.reliability.filter(day => day && day.day);
+  const list = (day, key) => (Array.isArray(day[key]) ? day[key] : []).filter(Boolean);
+  const view = hdMachineView(); const pick = days.find(day => day.day === view.day);
+  const cell = (day, key, mark) => { const count = list(day, key).length; return `<td data-hd-rel-count="${key}">${count ? `${mark} ${count}` : ''}</td>`; };
+  const head = days.map(day => `<th><button type="button" class="btn ${pick === day ? 'btn-primary' : 'btn-ghost'} btn-sm" aria-pressed="${pick === day}" data-hd-rel-day="${hdEsc(day.day)}" onclick="hdWinReliabilityDay(${n},'${hdJsArg(day.day)}')">${hdEsc(day.day)}</button></th>`).join('');
+  const row = (label, key, mark) => `<tr data-hd-rel-row="${key}"><th scope="row">${label}</th>${days.map(day => cell(day, key, mark)).join('')}</tr>`;
+  const detail = pick ? `<div class="card" data-hd-rel-detail="${hdEsc(pick.day)}"><div class="card-header"><strong>Reliability details for ${hdEsc(pick.day)}</strong></div><div class="card-body">${[['critical', 'Critical events'], ['warnings', 'Warnings'], ['installs', 'Information (updates and installs)']].map(([key, label]) => list(pick, key).length ? `<p><strong>${label}</strong></p><ul class="hd-list">${list(pick, key).map(item => `<li>${hdEsc(item)}</li>`).join('')}</ul>` : '').join('') || '<p class="muted">Nothing was recorded on this day.</p>'}</div></div>` : '<p class="muted">Choose a day to see what happened.</p>';
+  return `${hdPageHeader('Reliability Monitor', computer.name, hdMachineBack(computer))}<div class="card" data-hd-reliability><div class="table-wrap"><table><thead><tr><th></th>${head}</tr></thead><tbody>${row('Critical events', 'critical', '✖')}${row('Warnings', 'warnings', '⚠')}${row('Information', 'installs', 'ℹ')}</tbody></table></div></div>${detail}`;
+};
+
+// Settings › System › Recovery: Advanced startup to Safe Mode.
+// step: the screen the computer is on; each move is a machine action.
+const HD_WIN_RECOVERY_FLOW = {
+  choose:{ from:'recovery', id:'recovery-advanced-startup', label:'chose Restart now under Advanced startup' },
+  troubleshoot:{ from:'choose', id:'recovery-troubleshoot', label:'chose Troubleshoot' },
+  advanced:{ from:'troubleshoot', id:'recovery-advanced-options', label:'chose Advanced options' },
+  'startup-settings':{ from:'advanced', id:'recovery-startup-settings', label:'chose Startup Settings' },
+  'startup-menu':{ from:'startup-settings', id:'recovery-startup-restart', label:'chose Restart in Startup Settings' },
+};
+const HD_WIN_STARTUP_OPTIONS = ['Enable debugging', 'Enable boot logging', 'Enable low-resolution video', 'Enable Safe Mode', 'Enable Safe Mode with Networking', 'Enable Safe Mode with Command Prompt', 'Disable driver signature enforcement', 'Disable early launch anti-malware protection', 'Disable automatic restart after failure'];
+function hdWinRecoveryStep(machine) { const step = machine && machine.recoveryStep; return step === 'recovery' || hdOwn(HD_WIN_RECOVERY_FLOW, step) ? step : 'recovery'; }
+function hdWinRecoveryGo(computerName, to) {
+  hdMachineChange(computerName, machine => {
+    if (typeof machine.safeMode !== 'boolean') return false;
+    const at = hdWinRecoveryStep(machine);
+    if (to === 'back') { machine.recoveryStep = hdOwn(HD_WIN_RECOVERY_FLOW, at) ? HD_WIN_RECOVERY_FLOW[at].from : 'recovery'; return false; }
+    if (to === 'continue') {
+      if (at === 'recovery') return false;
+      machine.recoveryStep = 'recovery';
+      hdMachineAction(computerName, 'recovery-continue', 'chose Continue and started Windows normally');
+      return;
+    }
+    const move = HD_WIN_RECOVERY_FLOW[to];
+    if (!move || move.from !== at) return false;
+    machine.recoveryStep = to;
+    hdMachineAction(computerName, move.id, `${move.label} (Settings › System › Recovery)`);
+  });
+}
+function hdWinStartupOption(computerName, number) {
+  const option = Math.round(Number(number));
+  if (option < 1 || option > HD_WIN_STARTUP_OPTIONS.length) return;
+  let started = false;
+  hdMachineChange(computerName, machine => {
+    if (typeof machine.safeMode !== 'boolean' || hdWinRecoveryStep(machine) !== 'startup-menu') return false;
+    machine.recoveryStep = 'recovery';
+    const safe = option >= 4 && option <= 6;
+    machine.safeMode = safe;
+    machine.safeModeOption = safe ? HD_WIN_STARTUP_OPTIONS[option - 1].replace(/^Enable /, '') : '';
+    hdMachineAction(computerName, safe ? 'safe-mode-started' : 'startup-option', `pressed ${option} in Startup Settings (${HD_WIN_STARTUP_OPTIONS[option - 1]})`, { option });
+    started = true;
+  });
+  if (started) navigate('#/helpdesk/windows');
+}
+VIEWS['helpdesk/settings-recovery'] = () => {
+  const found = hdWinScreen('settings-recovery'); if (!found || typeof found.machine.safeMode !== 'boolean') return hdMachineMissing('Recovery');
+  const { computer, machine } = found; const n = `'${hdJsArg(computer.name)}'`;
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const step = hdWinRecoveryStep(machine);
+  const go = (to, label, note) => `<li><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-recovery-go="${to}" onclick="hdWinRecoveryGo(${n},'${to}')">${label}</button>${note ? ` <span class="muted">${note}</span>` : ''}</li>`;
+  const off = (label, note) => `<li><button type="button" class="btn btn-secondary btn-sm" disabled>${label}</button> <span class="muted">${note ? `${note} · ` : ''}Not available in this training shell.</span></li>`;
+  const back = step === 'recovery' ? '' : `<button type="button" class="btn btn-ghost btn-sm" ${locked} onclick="hdWinRecoveryGo(${n},'back')">← Back</button>`;
+  let title; let body;
+  if (step === 'recovery') {
+    title = 'Recovery options';
+    body = `<ul class="hd-list">${off('Reset PC', 'Reset this PC: choose to keep or remove your personal files, then reinstall Windows')}${go('choose', 'Restart now', 'Advanced startup: restart from a device or disc, change Windows startup settings, or restore Windows from a system image')}</ul>${machine.safeMode && !HD_PROVE ? '<p class="muted">This computer is in Safe Mode. Restart it to start Windows normally.</p>' : ''}`;
+  } else if (step === 'choose') {
+    title = 'Choose an option';
+    body = `<ul class="hd-list">${go('continue', 'Continue', 'Exit and continue to Windows 11')}${go('troubleshoot', 'Troubleshoot', 'Reset your PC or see advanced options')}${off('Turn off your PC')}</ul>`;
+  } else if (step === 'troubleshoot') {
+    title = 'Troubleshoot';
+    body = `<ul class="hd-list">${off('Reset this PC', 'Lets you choose to keep or remove your personal files, and then reinstalls Windows')}${go('advanced', 'Advanced options')}</ul>`;
+  } else if (step === 'advanced') {
+    title = 'Advanced options';
+    body = `<ul class="hd-list">${off('Startup Repair')}${go('startup-settings', 'Startup Settings', 'Change Windows startup behavior')}${off('Command Prompt')}${off('Uninstall Updates')}${off('UEFI Firmware Settings')}${off('System Restore')}</ul>`;
+  } else if (step === 'startup-settings') {
+    title = 'Startup Settings';
+    body = `<p>Restart to change Windows options such as:</p><ul class="hd-list">${['Enable low-resolution video mode', 'Enable debugging mode', 'Enable boot logging', 'Enable Safe Mode', 'Disable driver signature enforcement', 'Disable early-launch anti-malware protection', 'Disable automatic restart on system failure'].map(item => `<li>${item}</li>`).join('')}</ul><ul class="hd-list">${go('startup-menu', 'Restart')}</ul>`;
+  } else {
+    title = 'Startup Settings';
+    body = `<p>Press a number to choose from the options below:</p><ol class="hd-list" data-hd-startup-menu>${HD_WIN_STARTUP_OPTIONS.map((label, index) => `<li><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-startup-option="${index + 1}" onclick="hdWinStartupOption(${n},${index + 1})">${index + 1}) ${label}</button></li>`).join('')}</ol>`;
+  }
+  return `${hdPageHeader('Recovery', `Settings › System › Recovery · ${computer.name}`, hdMachineBack(computer))}<div class="card" data-hd-recovery="${step}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${title}</strong>${back}</div><div class="card-body">${body}</div></div>`;
+};
+
+// The Windows Desktop: Safe Mode and the signed-in profile.
+function hdWinDesktopNotices(name) {
+  const machine = hdFeatureMachine(name); if (!machine) return '';
+  const out = [];
+  if (machine.safeMode === true) out.push(`<div class="callout warning" role="status" data-hd-safe-mode style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px"><strong>Safe Mode</strong><span>${hdEsc(machine.safeModeOption || 'Safe Mode')}: minimal drivers and startup apps</span><strong>Safe Mode</strong></div>`);
+  const profile = hdWinProfile(machine);
+  // Windows shows nothing for a normal profile, so neither does this.
+  if (profile && profile.temporary) {
+    out.push(`<div class="callout warning" role="status" data-hd-profile="temporary"><strong>Signed in with a temporary profile</strong><p>You've been signed in with a temporary profile. You can't access your files, and files created in this profile will be deleted when you sign out. To fix this, sign out and try signing in later. Please see the event log for details or contact your system administrator.</p></div>`);
+  }
+  return out.join('');
+}
+
+// Active Directory › Computers › a computer. The smallest look-up a later
+// module can reuse: a pane with a tab list (HD_AD_COMPUTER_TABS); a tab shows
+// when its show() says so. With no tab beyond General to show (no stored keys
+// on any listed computer), the Computers tab looks exactly as before.
+const HD_AD_COMPUTER_TABS = [
+  { id:'general', label:'General', show:() => true, body:(computer) => `<dl class="hd-dl" data-hd-ad-general><dt>Name</dt><dd>${hdEsc(computer.name)}</dd><dt>DNS name</dt><dd>${hdEsc(`${computer.name.toLowerCase()}.${HD_ORG.domain}`)}</dd><dt>Operating system</dt><dd>${hdEsc(computer.os || '')}</dd><dt>Primary user</dt><dd>${hdEsc(computer.user || '')}</dd><dt>OU</dt><dd><code>${hdEsc(computer.ou || '')}</code></dd><dt>BitLocker</dt><dd>${hdEsc(computer.bitlocker || '')}</dd></dl>` },
+  // Shown on every computer once any listed computer has stored keys, so the
+  // tab never points at one computer.
+  { id:'bitlocker', label:'BitLocker Recovery', source:'ad-bitlocker', show:() => hdAdKeysAnywhere(), body:(computer, machine) => hdAdBitlockerTab(computer, machine) },
+];
+function hdAdKeysAnywhere() { return hdComputers().some(computer => hdWinHas(hdFeatureMachine(computer.name), 'ad-computer')); }
+function hdAdComputerState() { return hdState.adComputer && typeof hdState.adComputer === 'object' ? hdState.adComputer : {}; }
+function hdAdComputerTabs(name) {
+  const computer = hdComputerByName(name); const machine = computer && hdFeatureMachine(name);
+  return computer ? HD_AD_COMPUTER_TABS.filter(tab => tab.id === 'general' || tab.show(computer, machine)) : [];
+}
+// A row opens when a tab beyond General shows for it (then every row does).
+function hdAdComputerOpens(name) { return hdAdComputerTabs(name).length > 1; }
+function hdAdComputerLookup() { return hdAdKeysAnywhere(); }
+function hdAdComputerFind(event) {
+  if (event && event.preventDefault) event.preventDefault();
+  const el = document.getElementById('hd-ad-computer-q');
+  hdState.adComputer = { ...hdAdComputerState(), q:String(el ? el.value : '').trim().slice(0, 40) };
+  hdSave(); render();
+}
+function hdAdOpenComputer(name) {
+  if (!hdAdComputerOpens(name)) return;
+  hdState.adTab = 'computers';
+  hdState.adComputer = { ...hdAdComputerState(), name, tab:'general', reveal:'' };
+  hdProveOpened(`ad-computer:${name}`, `Active Directory › Computers › ${name}`);
+  hdWinSeenSave(hdFeatureMachine(name), ['ad-computer']);
+  hdSave(); render();
+}
+function hdAdComputerTab(name, tabId) {
+  const tab = hdAdComputerTabs(name).find(item => item.id === tabId); if (!tab) return;
+  hdState.adComputer = { ...hdAdComputerState(), name, tab:tab.id };
+  if (tab.source) {
+    hdProveOpened(`${tab.source}:${name}`, `Active Directory › Computers › ${name} › ${tab.label}`);
+    hdWinSeenSave(hdFeatureMachine(name), [tab.source]);
+  }
+  hdSave(); render();
+}
+function hdAdBitlockerTab(computer, machine) {
+  const keys = (machine && Array.isArray(machine.bitlockerKeys) ? machine.bitlockerKeys : []).filter(key => key && key.keyId);
+  if (!keys.length) return '<p class="muted">No BitLocker recovery passwords are stored for this computer.</p>';
+  const state = hdAdComputerState(); const n = `'${hdJsArg(computer.name)}'`;
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const rows = keys.map(key => `<tr data-hd-bitlocker-key="${hdEsc(key.keyId)}"><td><code>${hdEsc(key.keyId)}</code></td><td>${hdEsc(key.date || '')}</td><td>${state.name === computer.name && state.reveal === key.keyId ? `<code data-hd-recovery-password>${hdEsc(key.key || '')}</code>` : `<button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdAdReadKey(${n},'${hdJsArg(key.keyId)}')">Read key</button>`}</td></tr>`).join('');
+  return `${HD_PROVE ? '' : '<p class="muted">The Key ID is the first 8 characters of the recovery key ID on the user\'s BitLocker recovery screen.</p>'}<div class="table-wrap"><table data-hd-bitlocker><thead><tr><th>Key ID</th><th>Date added</th><th>Recovery password</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+// Read key: the owning ticket's bitlockerKey action when it has one (its
+// verification and critical rules apply), otherwise a machine action. Only
+// the Key ID is recorded.
+function hdAdReadKey(name, keyId) {
+  if (hdProveLocked()) return;
+  const machine = hdFeatureMachine(name);
+  const key = machine && Array.isArray(machine.bitlockerKeys) && machine.bitlockerKeys.find(item => item && item.keyId === keyId);
+  if (!key) return;
+  const ticket = hdMachineTicket(name);
+  const actions = ticket ? hdConsole(ticket).actions : null;
+  const action = Array.isArray(actions) ? actions.find(item => item && item.bitlockerKey === keyId) : null;
+  // A ticket with key actions names every key it allows; any other key is wrong.
+  const keyed = Array.isArray(actions) && actions.some(item => item && item.bitlockerKey);
+  if (action) {
+    hdConsoleAction(ticket.id, action.id);
+    if (!hdConsoleState(ticket).actions.some(entry => entry.id === action.id)) return;
+  } else if (ticket && (keyed || hdConsole(ticket).verification) && !hdConsoleState(ticket).verification.passed) {
+    // A key with no action of its own, on a ticket that verifies its caller:
+    // refused until verification passes, and recorded as a critical error.
+    hdConsoleCritical(ticket, `early:bitlocker:${keyId}`, 'Read out a BitLocker recovery key before verifying the caller');
+    hdPracticeEvent('action_refused', { ticket:ticket.id, action:'bitlocker-key-read', computer:name, keyId });
+    toast('Verify the caller first (KB-0024).');
+    hdRerender(); return;
+  } else {
+    if (ticket && keyed) hdConsoleCritical(ticket, `bitlocker:${keyId}`, "Read out a BitLocker recovery key this ticket doesn't call for");
+    hdMachineAction(name, 'bitlocker-key-read', `read out the BitLocker recovery key with Key ID ${keyId}`, { keyId });
+  }
+  hdState.adComputer = { ...hdAdComputerState(), name, tab:'bitlocker', reveal:keyId };
+  hdProveEdited(); hdSave(); render();
+}
+function hdAdComputerPane(name) {
+  const computer = hdComputerByName(name); const machine = hdFeatureMachine(name);
+  const tabs = hdAdComputerTabs(name); const state = hdAdComputerState();
+  const tab = tabs.find(item => item.id === state.tab) || tabs[0];
+  const n = `'${hdJsArg(name)}'`;
+  const buttons = tabs.map(item => `<button type="button" class="btn ${item === tab ? 'btn-primary' : 'btn-secondary'} btn-sm" role="tab" aria-selected="${item === tab}" data-hd-ad-tab="${item.id}" onclick="hdAdComputerTab(${n},'${item.id}')">${hdEsc(item.label)}</button>`).join('');
+  return `<aside class="card hd-object-pane" data-hd-ad-computer-pane="${hdEsc(name)}"><div class="card-header"><strong>${hdEsc(name)}</strong>${hdBadge(computer.trust, computer.trust === 'Healthy' ? 'ok' : 'bad')}</div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:6px" role="tablist">${buttons}</div>${tab.body(computer, machine)}</div></aside>`;
+}
+function hdAdComputersWithPane() {
+  const state = hdAdComputerState(); const q = String(state.q || '').toLowerCase();
+  const rows = hdComputers().map(item => hdComputerByName(item.name)).filter(x => x && (!q || x.name.toLowerCase().includes(q)));
+  const table = rows.map(x => `<tr data-hd-ad-computer="${hdEsc(x.name)}"><td><strong>${hdEsc(x.name)}</strong><small>${hdEsc(x.ip)}</small></td><td>${hdEsc(x.user)}</td><td><code>${hdEsc(x.ou)}</code></td><td>${hdBadge(x.trust, x.trust === 'Healthy' ? 'ok' : 'bad')}</td><td>${hdBadge(x.bitlocker, x.bitlocker === 'Protected' ? 'ok' : 'warn')}</td><td>${hdEsc(x.health)}</td><td>${hdAdComputerOpens(x.name) ? `<button class="btn btn-sm btn-secondary" onclick="hdAdOpenComputer('${hdJsArg(x.name)}')">Open</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No computer matches this name.</td></tr>';
+  const pane = state.name && hdAdComputerOpens(state.name) ? hdAdComputerPane(state.name) : '<aside class="card hd-object-pane"><div class="card-body"><p class="muted">Open a computer to see its properties.</p></div></aside>';
+  return `<div class="hd-admin-layout"><div><form class="filterbar" onsubmit="hdAdComputerFind(event)"><label>Find a computer by name <input id="hd-ad-computer-q" class="ipt" maxlength="40" value="${hdEsc(state.q || '')}" placeholder="Computer name"></label><button class="btn btn-primary btn-sm" type="submit">Find</button><span class="muted">${rows.length} shown</span></form><div class="card"><div class="table-wrap"><table data-hd-ad-computers><thead><tr><th>Computer</th><th>User</th><th>OU</th><th>Trust</th><th>BitLocker</th><th>Health</th><th></th></tr></thead><tbody>${table}</tbody></table></div></div></div>${pane}</div>`;
+}
+
+// The typed commands: DISM, sfc, chkdsk, dir / Get-ChildItem, and
+// Get-WinEvent on a computer's logs. Any letter case; extra valid options
+// allowed. In Practice a wrong option or a misspelled command name gets a
+// one-line hint with the right command; a Prove It answers as Windows would.
+const HD_WIN_TYPED = { dism:'DISM /Online /Cleanup-Image /RestoreHealth', sfc:'sfc /scannow', chkdsk:'chkdsk C: /scan', dir:'dir <folder>', 'get-childitem':'Get-ChildItem <folder>' };
+function hdWinDistance(a, b) {
+  const d = Array.from({ length:a.length + 1 }, (_, i) => Array.from({ length:b.length + 1 }, (__, j) => (i === 0 ? j : j === 0 ? i : 0)));
+  for (let i = 1; i <= a.length; i += 1) for (let j = 1; j <= b.length; j += 1) {
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+  }
+  return d[a.length][b.length];
+}
+function hdWinWrongOptions(head) {
+  hdLastCommandResult = `${head}: wrong options`;
+  return HD_PROVE ? 'Error: 87\n\nThe parameter is incorrect.' : `${head} didn't run: an option is missing or misspelled. Did you mean: ${HD_WIN_TYPED[head]}`;
+}
+function hdWinPathKey(value) { return String(value || '').trim().replace(/^["']|["']$/g, '').replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase(); }
+function hdWinTypedCommand(command, normalized, machine) {
+  const repairs = hdWinRepairs(machine); const files = hdWinFiles(machine); const events = hdWinEvents(machine);
+  if (!repairs && !files && !events) return null;
+  const line = normalized.replace(/^(dism|sfc|chkdsk)(\.exe)?(?=\/)/, '$1 ');
+  const words = line.split(' '); const head = words[0].replace(/\.exe$/, ''); const args = words.slice(1);
+  if (repairs && head === 'dism') {
+    const known = args.every(arg => /^\/(online|cleanup-image|restorehealth|scanhealth|checkhealth|limitaccess|quiet|norestart|english|source:.+|logpath:.+|loglevel:\d)$/.test(arg));
+    const task = ['/restorehealth', '/scanhealth', '/checkhealth'].filter(arg => args.includes(arg));
+    if (!known || !args.includes('/online') || !args.includes('/cleanup-image') || task.length !== 1) return hdWinWrongOptions('dism');
+    const result = task[0] === '/restorehealth' ? String(repairs.dism || 'The restore operation completed successfully.') : 'No component store corruption detected.';
+    hdLastCommandResult = result;
+    return `Deployment Image Servicing and Management tool\nVersion: 10.0.26100.1\n\nImage Version: 10.0.26100.2314\n\n${task[0] === '/restorehealth' ? '[==========================100.0%==========================]\n' : ''}${result}\nThe operation completed successfully.`;
+  }
+  if (repairs && head === 'sfc') {
+    if (!args.includes('/scannow') || !args.every(arg => /^\/(scannow|offbootdir=.+|offwindir=.+|offlogfile=.+)$/.test(arg))) return hdWinWrongOptions('sfc');
+    const result = String(repairs.sfc || 'Windows Resource Protection did not find any integrity violations.');
+    hdLastCommandResult = result;
+    return `Beginning system scan. This process will take some time.\n\nBeginning verification phase of system scan.\nVerification 100% complete.\n\n${result}`;
+  }
+  if (repairs && head === 'chkdsk') {
+    if (args.includes('c:') && args.includes('/scan') && args.every(arg => /^(c:|\/scan|\/perf|\/forceofflinefix|\/i|\/c|\/v)$/.test(arg))) {
+      const result = String(repairs.chkdsk || 'Windows has scanned the file system and found no problems.');
+      hdLastCommandResult = result;
+      return `The type of the file system is NTFS.\nVolume label is Windows.\n\nStage 1: Examining basic file system structure ...\nStage 2: Examining file name linkage ...\nStage 3: Examining security descriptors ...\n\n${result}\nNo further action is required.`;
+    }
+    if (args.includes('c:') && (args.includes('/f') || args.includes('/r'))) {
+      hdLastCommandResult = 'chkdsk: volume in use';
+      return `Chkdsk cannot run because the volume is in use by another process. Chkdsk may run if this volume is dismounted first.${HD_PROVE ? '' : `\nFor a check while Windows runs, type: ${HD_WIN_TYPED.chkdsk}`}`;
+    }
+    return hdWinWrongOptions('chkdsk');
+  }
+  if (files && ['dir', 'get-childitem', 'gci'].includes(head)) {
+    const raw = command.trim().replace(/^\S+\s*/, '').replace(/^-(literal)?path\s+/i, '').trim().replace(/^["']|["']$/g, '');
+    if (!raw) { hdLastCommandResult = 'no folder'; return HD_PROVE ? '\n    Directory: C:\\Support\n' : 'Type the folder after the command, for example: dir C:\\Users\\<username>\\Desktop'; }
+    const folder = Object.keys(files).find(key => hdWinPathKey(key) === hdWinPathKey(raw));
+    // A folder the data doesn't list, inside a profile it does (C:\Users\name\...): empty.
+    const profileOf = (value) => hdWinPathKey(value).split('\\').slice(0, 3).join('\\');
+    const inProfile = /^c:\\users\\[^\\]+\\.+/.test(hdWinPathKey(raw)) && Object.keys(files).some(key => profileOf(key) === profileOf(raw));
+    if (!folder && inProfile) { hdLastCommandResult = `0 items in ${raw}`; return `\n    Directory: ${raw.replace(/\//g, '\\').replace(/\\+$/, '')}\n`; }
+    if (!folder) { hdLastCommandResult = 'path not found'; return `Get-ChildItem : Cannot find path '${raw}' because it does not exist.`; }
+    const items = (Array.isArray(files[folder]) ? files[folder] : []).map(item => (typeof item === 'string' ? { name:item } : item)).filter(item => item && item.name);
+    hdLastCommandResult = `${items.length} item${items.length === 1 ? '' : 's'} in ${folder}`;
+    return [`\n    Directory: ${folder}\n`, 'Mode                 LastWriteTime         Length Name', '----                 -------------         ------ ----',
+      ...items.map(item => `-a---        ${String(item.modified || '').padEnd(20)} ${String(item.length || '').padStart(10)} ${item.name}`)].join('\n');
+  }
+  if (events && head === 'get-winevent') {
+    // On a computer with logs, every Get-WinEvent reads them: -LogName (or a
+    // LogName= in -FilterHashtable, with an optional Id=) and -MaxEvents, in
+    // any order; a pipe after it is ignored.
+    const main = normalized.split('|')[0];
+    const named = /-logname\s+["']?([a-z0-9\-/]+)["']?/.exec(main) || /logname\s*=\s*["']([^"']+)["']/.exec(main) || /^get-winevent\s+["']?([a-z0-9][a-z0-9\-/]*)["']?(\s|$)/.exec(main);
+    const max = /-maxevents\s+(\d+)/.exec(main);
+    const idFilter = /\bid\s*=\s*(\d+)/.exec(main);
+    if (!named) { hdLastCommandResult = 'no log named'; return HD_PROVE ? 'Get-WinEvent : No events were found that match the specified selection criteria.' : 'Name the log, for example: Get-WinEvent -LogName System -MaxEvents 20'; }
+    const log = { system:'system', application:'application', 'microsoft-windows-diagnostics-performance/operational':'diagnostics-performance' }[named[1]];
+    if (!log && ['security', 'setup'].includes(named[1])) return 'Get-WinEvent : No events were found that match the specified selection criteria.';
+    if (!log) return `Get-WinEvent : There is not an event log on the localhost computer that matches "${named[1]}".`;
+    const rows = hdWinLogEvents(machine, log).filter(event => !idFilter || String(event.id) === idFilter[1]).slice(0, max ? Math.max(1, Number(max[1])) : undefined);
+    if (!rows.length) return 'Get-WinEvent : No events were found that match the specified selection criteria.';
+    return ['TimeCreated                     Id LevelDisplayName Message', '-----------                     -- ---------------- -------',
+      ...rows.map(event => `${String(event.time || '').padEnd(31)} ${String(event.id || '').padStart(4)} ${String(event.level || 'Information').padEnd(16)} ${event.message || ''}`)].join('\n');
+  }
+  return null;
+}
+// A misspelled command name, when nothing else answered it (Practice only).
+function hdWinNearMiss(command, computer) {
+  const machine = !HD_PROVE && computer && hdFeatureMachine(computer.name); if (!machine) return null;
+  const head = command.trim().toLowerCase().split(/\s+/)[0].replace(/\.exe$/, '').replace(/\/.*$/, '');
+  const words = [...(hdWinRepairs(machine) ? ['dism', 'sfc', 'chkdsk'] : []), ...(hdWinFiles(machine) ? ['dir', 'get-childitem'] : [])];
+  const near = words.find(word => head !== word && Math.abs(head.length - word.length) <= (word.length <= 3 ? 0 : 1) && hdWinDistance(head, word) <= (word.length <= 4 ? 1 : 2));
+  if (!near) return null;
+  hdLastCommandResult = `misspelled: ${near}`;
+  return `The term '${command.trim().split(/\s+/)[0]}' is not recognized. Did you mean: ${HD_WIN_TYPED[near]}`;
+}
+function hdWinTypedHelp(machine) {
+  const lines = [];
+  if (hdWinEvents(machine)) lines.push("Events: Get-WinEvent -LogName <System | Application | 'Microsoft-Windows-Diagnostics-Performance/Operational'> -MaxEvents <n>");
+  if (hdWinRepairs(machine)) lines.push(`Repair: ${HD_WIN_TYPED.dism}, ${HD_WIN_TYPED.sfc}, ${HD_WIN_TYPED.chkdsk}`);
+  if (hdWinFiles(machine)) lines.push('Files: dir <folder>, Get-ChildItem <folder>');
+  return lines;
+}
+window.hdWinEventPick=hdWinEventPick; window.hdWinEventSet=hdWinEventSet; window.hdWinEventOpen=hdWinEventOpen; window.hdWinReliabilityDay=hdWinReliabilityDay;
+window.hdWinRecoveryGo=hdWinRecoveryGo; window.hdWinStartupOption=hdWinStartupOption; window.hdAdComputerFind=hdAdComputerFind; window.hdAdOpenComputer=hdAdOpenComputer;
+window.hdAdComputerTab=hdAdComputerTab; window.hdAdReadKey=hdAdReadKey;
 
 window.hdOpenMachineScreen=hdOpenMachineScreen; window.hdQueueToggle=hdQueueToggle; window.hdQueueCancel=hdQueueCancel; window.hdQueueClearStuck=hdQueueClearStuck;
 window.hdQueueTestPage=hdQueueTestPage; window.hdPrinterSet=hdPrinterSet; window.hdPrinterTab=hdPrinterTab; window.hdSettingsAddByIp=hdSettingsAddByIp;
@@ -5419,6 +5948,8 @@ Events: Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4740}`}${hdFeatur
   if(normalized.startsWith('resolve-dnsname')) return 'Name                              Type TTL Section IPAddress\npurchasing.northstar.example      A    300 Answer  10.20.0.50';
   if(normalized.startsWith('test-netconnection')) return 'ComputerName: purchasing.northstar.example\nRemotePort: 443\nInterfaceAlias: Wi-Fi\nTcpTestSucceeded: True';
   if(normalized==='gpresult /r') return `COMPUTER SETTINGS\nCN=${computer.name},${computer.ou}\nApplied Group Policy Objects: Workstation Security Baseline\n${computer.ou==='CN=Computers'?'The following GPOs were not applied: Operations Drive Mapping (link out of scope)':'Operations Drive Mapping: Applied'}`;
+  const nearMiss = hdWinNearMiss(command, computer);
+  if(nearMiss !== null) return nearMiss;
   return `The term '${command}' is outside this training shell. Type Get-Help for supported commands.`;
 }
 function hdRunPowerShell(event) {
