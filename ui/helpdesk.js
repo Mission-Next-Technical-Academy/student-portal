@@ -4468,8 +4468,11 @@ function hdWinRestart(computerName) {
       // Console B: bootSecondsAfterFixNeeds: { freePercent } keeps the slow
       // boot until C: has that much free, so a restart alone isn't the fix.
       const needs = machine.bootSecondsAfterFixNeeds && typeof machine.bootSecondsAfterFixNeeds === 'object' ? machine.bootSecondsAfterFixNeeds : null;
-      const fixed = !needs || !(Number(needs.freePercent) > 0) || hdWinFreePercent(hdWinStorage(machine)) >= Number(needs.freePercent);
-      if (fixed) machine.bootSeconds = machine.bootSecondsAfterFix;
+      const spaceFreed = !needs || !(Number(needs.freePercent) > 0) || hdWinFreePercent(hdWinStorage(machine)) >= Number(needs.freePercent);
+      // Module 5 (Prove It): startupOff: [names] keeps the slow boot until each
+      // named startup app is Disabled or gone (Uninstall removes its entry).
+      const startupOff = !needs || !Array.isArray(needs.startupOff) || needs.startupOff.every(appName => !hdWinList(machine, 'startupApps').some(app => app.name === appName && app.status !== 'Disabled'));
+      if (spaceFreed && startupOff) machine.bootSeconds = machine.bootSecondsAfterFix;
     }
     machine.restarts = (Number(machine.restarts) || 0) + 1;
     // Console B: a restart leaves Safe Mode, and clears a temporary profile
@@ -4609,8 +4612,9 @@ window.hdWinRestart=hdWinRestart; window.hdWinUninstall=hdWinUninstall; window.h
  *     source, id, message, details? }). Diagnostics-Performance also lists
  *     Event ID 100 from bootSeconds (and lastBootSeconds after a Restart;
  *     bootTime and restartTime label them), so the data leaves it out.
- *     bootSecondsAfterFixNeeds: { freePercent } keeps the slow boot after a
- *     Restart until C: has that much free
+ *     bootSecondsAfterFixNeeds: { freePercent?, startupOff?:[names] } keeps
+ *     the slow boot after a Restart until C: has that much free and each
+ *     named startup app is Disabled or uninstalled
  *   reliability: [{ day, today?, critical:[text], warnings:[text],
  *     installs:[text] }]   Reliability Monitor, oldest day first
  *   devices[].crashOnDock: { version, stopCode?, file? }   connecting the
@@ -6534,7 +6538,9 @@ function hdProvePackage() {
     assignedTo:ticket.assignedTechnician, ticketState:ticket.status, resolutionCode:ticket.status === 'Resolved' ? ticket.closureCode || '' : '',
     commands:prove.events.filter(event => event.type === 'command_run').map(event => ({ command:hdRedactCommand(event.command || ''), computer:event.computer, at:event.at })),
     events:prove.events.map(event => (typeof event.command === 'string' ? { ...event, command:hdRedactCommand(event.command) } : event)),
-    machine:shift.printerSummary === true ? hdProvePrinterSummary(shift.selectedComputer) : hdClone(hdMachine(shift.selectedComputer) || {}),
+    machine:shift.printerSummary === true ? hdProvePrinterSummary(shift.selectedComputer)
+      : shift.windowsSummary === true ? hdProveWindowsSummary(shift.selectedComputer)
+        : hdClone(hdMachine(shift.selectedComputer) || {}),
     passwordTyped:prove.passwordTyped === true, passwordWritten:prove.passwordWritten === true,
     // Module 3: the extra writing and the time used (the efficiency band).
     ...hdProveExtraPackage(prove),
@@ -6583,6 +6589,48 @@ function hdProvePrefillPrinters(summary, machine) {
     const rest = queue.jobs.slice(labels);
     queue.jobs = rest.slice(0, Math.max(0, Math.min(rest.length, was.queued)));
   });
+}
+// Module 5 (shift windowsSummary): a small summary of the selected computer's
+// Windows state instead of the whole machine (the 4 KB machine limit): each
+// startup app's status, the installed apps' names, the restart count, the
+// boot time and the uptime. Nothing says which values are right.
+function hdProveWindowsSummary(name) {
+  const machine = hdMachine(name) || {};
+  const summary = {
+    startup:Object.fromEntries(hdWinList(machine, 'startupApps').slice(0, 20).map(app => [String(app.name).slice(0, 80), app.status === 'Disabled' ? 'Disabled' : 'Enabled'])),
+    installed:hdWinList(machine, 'installedApps').slice(0, 40).map(app => String(app.name).slice(0, 80)),
+    restarts:Number(machine.restarts) || 0,
+  };
+  if (typeof machine.bootSeconds === 'number') summary.bootSeconds = machine.bootSeconds;
+  if (typeof machine.uptimeDays === 'number') summary.uptimeDays = machine.uptimeDays;
+  return summary;
+}
+// A returned attempt's Windows summary back onto the selected computer:
+// startup statuses and removed apps only for apps this computer has, then the
+// restarts, so Event ID 100 lists the first boot and the latest one. A boot
+// time is taken only if it is the computer's before or after-fix time.
+function hdProvePrefillWindows(summary, machine, fixture) {
+  if (!summary || typeof summary !== 'object' || Array.isArray(summary)) return;
+  const startup = summary.startup && typeof summary.startup === 'object' && !Array.isArray(summary.startup) ? summary.startup : null;
+  if (startup) hdWinList(machine, 'startupApps').forEach(app => { if (['Enabled', 'Disabled'].includes(startup[app.name])) app.status = startup[app.name]; });
+  if (Array.isArray(summary.installed) && Array.isArray(machine.installedApps)) {
+    const kept = summary.installed.filter(item => typeof item === 'string');
+    machine.installedApps.filter(app => app && !kept.includes(app.name)).forEach(app => {
+      const entry = typeof app.startup === 'string' && app.startup ? app.startup : app.name;
+      if (Array.isArray(machine.startupApps)) machine.startupApps = machine.startupApps.filter(item => !item || item.name !== entry);
+    });
+    machine.installedApps = machine.installedApps.filter(app => app && kept.includes(app.name));
+  }
+  const restarts = Number.isInteger(summary.restarts) ? Math.max(0, Math.min(summary.restarts, 20)) : 0;
+  if (!restarts) return;
+  const first = fixture.bootSeconds;
+  machine.restarts = restarts;
+  machine.uptimeDays = 0;
+  if (typeof first === 'number') {
+    machine.lastBootSeconds = first;
+    machine.bootHistory = [{ seconds:first, restart:false }];
+    if ([first, fixture.bootSecondsAfterFix].includes(summary.bootSeconds)) machine.bootSeconds = summary.bootSeconds;
+  }
 }
 function hdProveExtraPackage(prove) {
   if (!hdProveMatrix()) return {};
@@ -6709,6 +6757,7 @@ function hdProvePrefillActions(work, prove, ticket) {
       else if (typeof fixture[key] === typeof value && typeof value !== 'object') machine[key] = value;
     });
     if (HD_PROVE.shift.printerSummary === true) hdProvePrefillPrinters(work.machine, machine);
+    if (HD_PROVE.shift.windowsSummary === true) hdProvePrefillWindows(work.machine, machine, fixture);
     hdState.machines = { ...(hdState.machines || {}), [name]:machine };
   }
   if (work.passwordTyped === true) prove.passwordTyped = true;

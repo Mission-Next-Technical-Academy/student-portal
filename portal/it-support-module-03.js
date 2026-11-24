@@ -472,8 +472,9 @@ const ITS03_SOURCES = [
 // started. Never answers or a score.
 const ITS03_STATE_ID = 'its03-page-v1';
 // Students see the guided lab as Lab 5.1; its key is older than that
-// numbering. Lab 5.1 is Module 5's gating lab (course_module_labs) until the
-// Prove It opens, so an instructor still reviews it.
+// numbering. Since 2026-11-24 Module 5's Prove It gates completion (the its03
+// Prove It migration) and Lab 5.1 is Practice It. It keeps its
+// course_module_labs row, so its walkthrough record still saves.
 const ITS03_LAB1_KEY = 'lab-its-03-blank-desktop';
 const ITS03_PRACTICE_KEY = 'lab-its-03-practice-tickets';
 const ITS03_PROVE_KEY = 'lab-its-03-prove-it';
@@ -630,7 +631,7 @@ function its03Lab1() {
   return `<section class="its01-section its01-lab-section" id="its03-lab-5-1" aria-labelledby="its03-lab-5-1-title">
     <div class="its01-section-heading"><span>1</span><div><p class="its01-kicker">Practice It · coached</p><h2 id="its03-lab-5-1-title">${esc(itsLabTitle(ITS03_LAB1_KEY))}</h2></div></div>
     <p class="its01-instruction">Noah Williams says his desk PC has been crawling since Monday. In the IT Service Desk simulator you set the ticket’s fields, then work Reading 2’s order on his PC: Task Manager, Startup apps and the Software Catalog, Storage, Windows Update, Event Viewer and Reliability Monitor. You free space the safe way, type the repair commands, restart to finish the update, walk the Safe Mode route, look up where the PC’s BitLocker recovery key is stored, then prove the fix and write the note. A coach guides each of the sixteen steps.</p>
-    <p class="its01-instruction">The coach names the goal of each typed step; open Show me the command if you need it. Feedback only, no score. Your instructor reviews your finished lab.</p>
+    <p class="its01-instruction">The coach names the goal of each typed step; open Show me the command if you need it. Practice: not graded. Feedback only, no score.</p>
     <a class="itsw-evidence-button" data-its03-console-launch href="${esc(itsCoachLaunchHref(ITS03_COACH_ID, its03User))}" target="_blank" rel="opener">
       <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: ITS03_LAB1_START }[button.mode]}
     </a>
@@ -661,13 +662,29 @@ function its03PracticeTickets() {
   </section>`;
 }
 
-// The Prove It opens nothing yet: its simulator shift isn't built.
+// Module 5's Prove It, on Module 4's pattern: a new ticket in the simulator
+// (?prove=its-03), reviewed by the instructor. Practice It is recommended
+// first, never required. A submitted attempt has nothing left to open. What
+// it shows comes from the server's attempt (itsLabStatus); the simulator
+// reports back by message (itsProveReceiveMessage).
 function its03Prove() {
+  const user = its03User;
+  const returned = itsLabReturned(user, ITS03_PROVE_KEY);
   return `<section class="its01-section its01-lab-section" id="its03-prove-it" aria-labelledby="its03-prove-it-title">
     <div class="its01-section-heading"><span>3</span><div><p class="its01-kicker">Prove It · Assessment Lab · instructor reviewed</p><h2 id="its03-prove-it-title">${esc(itsLabTitle(ITS03_PROVE_KEY))}</h2></div></div>
-    <p class="its01-instruction">Work a new ticket on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Your instructor reviews your work.</p>
-    <p class="its01-lab-status its01-status-pending" data-its03-prove-soon role="status"><i class="ri-time-line" aria-hidden="true"></i> Opens soon. Nothing to do here yet: work Labs 5.1 and 5.2 first.</p>
+    <p class="its01-instruction">Work a new ticket on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Set the ticket fields, check what you need on the user’s computer with the tool screens, fix what you can, decide what happens next, and write a work note and a reply to the user. Plan on about 20 minutes. Your instructor reviews your work.</p>
+    ${itsLabRail(user, [ITS03_LAB1_KEY]).isComplete ? '' : '<p class="its01-instruction">Work Lab 5.1, the guided lab, first: it prepares you for this.</p>'}
+    ${itsLabSubmitted(user, ITS03_PROVE_KEY) ? '' : `<a class="itsw-evidence-button" data-its03-prove-launch href="${esc(itsProveLaunchHref('its-03', user))}" target="_blank" rel="opener">
+      <i class="${returned ? 'ri-restart-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${returned ? 'Reopen the Prove It' : 'Start the Prove It'}
+    </a>`}
+    ${itsLabStatusHtml(user, ITS03_PROVE_KEY, { label: 'Prove It', prefix: 'its01', pendingText: 'Press Submit in the simulator when you finish the ticket.' })}
+    ${itsLabStatus(user, ITS03_PROVE_KEY) === 'passed' && typeof markedLabLinkHtml === 'function' ? `<p>${markedLabLinkHtml(ITS03_PROVE_KEY, 'See your score and feedback')}</p>` : ''}
+    ${itsRedoNoticeHtml(user, [{ key: ITS03_PROVE_KEY, action: 'Reopen the Prove It, make your changes, then press Resubmit in the simulator. You can resubmit once for each return.' }])}
   </section>`;
+}
+// A Prove It message changed the attempt: show it if this page is open.
+function its03ProveChanged() {
+  if (document.querySelector('.its03-shell')) render();
 }
 
 function its03Sources() {
@@ -983,6 +1000,7 @@ async function its03SavedPracticeAttempt(user) {
 }
 
 function its03OnMessage(event) {
+  itsProveReceiveMessage(event, { moduleKey: 'its-03', labKey: ITS03_PROVE_KEY, onChange: its03ProveChanged });
   return Promise.all([its03ReceivePracticeCompletion(event), its03ReceiveCoachCompletion(event)]);
 }
 

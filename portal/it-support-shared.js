@@ -1160,10 +1160,27 @@ function itsProvePrinterLines(work) {
   return Object.entries(queues).filter(([, queue]) => queue && typeof queue === 'object')
     .map(([name, queue]) => `${name}: port ${queue.port || '(none)'}, driver ${queue.driver || '(none)'}, paper ${queue.media || '(none)'}, ${Number(queue.queued) || 0} queued, ${Number(queue.printed) || 0} printed (${Number(queue.testPages) || 0} test pages)`);
 }
+// Module 5 (machine.startup, machine.installed): the laptop's Windows state
+// at submit: each startup app's status, the installed apps, the restarts and
+// the last boot time. None when the summary has none of these.
+function itsProveWindowsLines(work) {
+  const machine = work.machine && typeof work.machine === 'object' && !Array.isArray(work.machine) ? work.machine : {};
+  const startup = machine.startup && typeof machine.startup === 'object' && !Array.isArray(machine.startup) ? machine.startup : null;
+  const installed = Array.isArray(machine.installed) ? machine.installed.filter((name) => typeof name === 'string') : null;
+  if (!startup && !installed) return null;
+  const lines = [];
+  if (startup) lines.push(`Startup apps: ${Object.entries(startup).map(([name, status]) => `${name} (${status})`).join(', ') || '(none)'}`);
+  if (installed) lines.push(`Installed apps: ${installed.join(', ') || '(none)'}`);
+  const restarts = Number(machine.restarts) || 0;
+  lines.push(`Restarted: ${restarts ? `yes (${restarts} time${restarts === 1 ? '' : 's'})` : 'no'}`);
+  if (typeof machine.bootSeconds === 'number' && Number.isFinite(machine.bootSeconds)) lines.push(`Last boot time (Event ID 100): ${Number(machine.bootSeconds)} s`);
+  return lines;
+}
 function itsProveMatrixReviewPanel(row, work, { text, writing, fact, items, opened, notes, rubric, searches, actions, commands }) {
   const fields = work.fields || {};
   const headings = Array.isArray(rubric && rubric.panelWriting) ? rubric.panelWriting : ITS_PROVE_MATRIX_WRITING;
   const simulator = rubric && rubric.simulatorWork === true;
+  const windowsLines = simulator ? itsProveWindowsLines(work) : null;
   const levels = { 1: '1 – High', 2: '2 – Medium', 3: '3 – Low' };
   const events = (Array.isArray(work.events) ? work.events : []).filter((entry) => entry && typeof entry.type === 'string');
   const calls = events.filter((entry) => entry.type === 'warm_handoff').map((entry) => entry.label || `Called ${entry.value || 'a team'}`);
@@ -1186,8 +1203,9 @@ function itsProveMatrixReviewPanel(row, work, { text, writing, fact, items, open
     ${items(actions, 'None recorded.')}
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Commands run</h4>
     ${items(commands, 'None recorded.')}
-    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Print queues at submit</h4>
-    ${items(itsProvePrinterLines(work), 'Not recorded.')}
+    ${windowsLines ? `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">The laptop at submit</h4>
+    <div data-its-prove-windows>${items(windowsLines, 'Not recorded.')}</div>` : `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Print queues at submit</h4>
+    ${items(itsProvePrinterLines(work), 'Not recorded.')}`}
     ${work.passwordTyped === true ? '<p class="mt-1 text-sm font-semibold text-amber-900" data-its-prove-password>The student typed a password into the shell. The command was refused and the password was not saved.</p>' : ''}
     </div>` : `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Warm handoff</h4>
     ${calls.length ? `<p class="mt-1 text-sm text-gray-900" data-its-prove-warm>Exceeds: ${calls.map(text).join('; ')}. No score change.</p>` : '<p class="mt-1 text-sm text-gray-500" data-its-prove-warm>No warm handoff logged. No score change.</p>'}`}

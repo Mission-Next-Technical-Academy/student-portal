@@ -15,7 +15,7 @@
 //   - HD-2109 is off the shared shift; a saved run of the old hd-m03 starts
 //     fresh; the instructor sheet maps the lab to HD-2180.
 //   - Nothing from the graded Prove It ticket is in a committed ui/, portal/
-//     or tests/ file (kept here as short hashes only).
+//     or tests/ file outside its Prove shift (kept here as short hashes only).
 //
 // The simulator runs in a Node vm with a small fake DOM, with ui/coach.js
 // loaded, as tests/hdesk-m04-guided-labs.test.js does. Synthetic data only.
@@ -549,9 +549,11 @@ async function testPortalKeepsTheWork(work) {
 
 /* ------------------------------------------- nothing from the graded ticket */
 
-// The Prove It ticket for this module is built only in the prove part. Its
-// ticket id, laptop and product names are kept here only as short hashes, so
-// this file names none of them.
+// The Prove It ticket for this module lives only in its Prove shift
+// (HD_PROVE_SHIFTS['its-03'] in ui/helpdesk-data.js, between the BEGIN and END
+// Module 5 Prove It shift comments, which this scan skips). Its ticket id,
+// laptop and product names are kept here only as short hashes, so this file
+// names none of them, and no lab, practice ticket, reading, coach or test does.
 const hash = (value) => crypto.createHash('sha256').update(value).digest('hex').slice(0, 16);
 const GRADED = new Set(['afbe7cfa77a627d3', 'cfd801073ed9cee2', '98151577d82b0ca3', 'faf307c408a51434']);
 function testNothingFromTheGradedTicket() {
@@ -562,6 +564,13 @@ function testNothingFromTheGradedTicket() {
   for (const file of files) {
     let source;
     try { source = fs.readFileSync(path.join(ROOT, file), 'utf8'); } catch { continue; }
+    if (file === 'ui/helpdesk-data.js') {
+      const begin = source.indexOf('// BEGIN Module 5 Prove It shift');
+      const end = source.indexOf('// END Module 5 Prove It shift.');
+      assert.ok(begin > 0 && end > begin, 'the Prove shift block is marked');
+      assert.equal(source.indexOf('// BEGIN Module 5 Prove It shift', begin + 1), -1, 'one marked block');
+      source = source.slice(0, begin) + source.slice(end);
+    }
     const words = new Set(source.split(/[^A-Za-z0-9-]+/).filter(Boolean).map((w) => hash(w.toLowerCase())));
     GRADED.forEach((h) => { if (words.has(h)) hits.push(file); });
   }
