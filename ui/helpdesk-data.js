@@ -38,7 +38,7 @@ const HD_USERS = [
   { id:'u-1007', employeeId:'E-36213', phone:'ext. 4642', name:'Luis Ortega', username:'lortega', email:'luis.ortega@northstar.example', department:'Sales', title:'Sales Development Rep', ou:'OU=Sales,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:1, groups:['GG-Sales-Users','GG-CRM-Users'], manager:'Tara Singh', mfa:'Registered' },
   { id:'u-1008', employeeId:'E-37386', phone:'ext. 4750', name:'Sofia Martin', username:'smartin', email:'sofia.martin@northstar.example', department:'Operations', title:'Shift Supervisor', ou:'OU=Operations,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:12, groups:['GG-Operations-Users','GG-ERP-Operations'], manager:'Caleb Wright', mfa:'Registered' },
   { id:'u-1009', employeeId:'E-38024', phone:'ext. 4858', name:'Amir Patel', username:'apatel', email:'amir.patel@northstar.example', department:'Operations', title:'Inventory Planner', ou:'OU=Operations,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:29, groups:['GG-Operations-Users','GG-Operations-Drive'], manager:'Caleb Wright', mfa:'Registered' },
-  { id:'u-1010', employeeId:'E-39167', phone:'ext. 4966', name:'Dina Foster', username:'dfoster', email:'dina.foster@northstar.example', department:'Executive Office', title:'Executive Assistant', ou:'OU=Executive Office,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:9, groups:['GG-Executive-Users'], manager:'Evelyn Reed', mfa:'Registered' },
+  { id:'u-1010', employeeId:'E-39167', phone:'ext. 4966 · mobile 407-555-0187', name:'Dina Foster', username:'dfoster', email:'dina.foster@northstar.example', department:'Executive Office', title:'Executive Assistant', ou:'OU=Executive Office,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:9, groups:['GG-Executive-Users'], manager:'Evelyn Reed', mfa:'Registered' },
   { id:'u-1011', employeeId:'E-40519', phone:'ext. 4174', name:'Evan Parker', username:'eparker', email:'evan.parker@northstar.example', department:'Finance', title:'Payroll Specialist', ou:'OU=Finance,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:34, groups:['GG-Finance-Users','GG-Payroll-Print'], manager:'Ava Robinson', mfa:'Registered' },
   { id:'u-1012', employeeId:'E-41733', phone:'ext. 4282', name:'Riley Morgan', username:'rmorgan', email:'riley.morgan@northstar.example', department:'Information Technology', title:'Service Desk Technician', ou:'OU=IT,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:15, groups:['GG-IT-Users','GG-ServiceDesk-T1'], manager:'Morgan Lee', mfa:'Registered' },
   { id:'u-1013', employeeId:'E-42856', phone:'ext. 4391', name:'Sam Rivera', username:'srivera', email:'sam.rivera@northstar.example', department:'Customer Service', title:'Customer Service Representative', ou:'OU=Customer Service,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:21, groups:['GG-CustomerService-Users'], manager:'Nadia Flores', mfa:'Registered' },
@@ -59,6 +59,8 @@ const HD_USERS = [
   // Module 4 (key its-02): Ana Torres (ticket 4-D) and Theo Grant, a user only.
   { id:'u-1028', employeeId:'E-57612', phone:'ext. 4718 · works from home', name:'Ana Torres', username:'ana.torres', email:'ana.torres@northstar.example', department:'Claims', title:'Claims Processor', ou:'OU=Claims,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:17, groups:['GG-Claims-Users'], manager:'Caleb Wright', mfa:'Registered' },
   { id:'u-1029', employeeId:'E-58735', phone:'ext. 4233', name:'Theo Grant', username:'tgrant', email:'theo.grant@northstar.example', department:'Logistics', title:'Logistics Coordinator', ou:'OU=Logistics,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:5, groups:['GG-Logistics-Users'], manager:'Monica Hall', mfa:'Registered' },
+  // Module 5 (key its-03): Lisa Park (ticket 5-B), a user only.
+  { id:'u-1030', employeeId:'E-59846', phone:'ext. 4183', name:'Lisa Park', username:'lpark', email:'lisa.park@northstar.example', department:'Finance', title:'Financial Analyst', ou:'OU=Finance,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:11, groups:['GG-Finance-Users'], manager:'Ava Robinson', mfa:'Registered' },
 ];
 
 const HD_GROUPS = [
@@ -92,6 +94,11 @@ const HD_COMPUTERS = [
   { name:'NS-LT-0183', user:'Omar Haddad', os:'Windows 11 Enterprise 24H2', ip:'10.20.40.183', ou:'OU=Sales,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'6 minutes ago', health:'Healthy' },
   { name:'NS-WS-0101', user:'Ines Calder', os:'Windows 11 Enterprise 24H2', ip:'10.20.10.101', ou:'OU=Front Desk,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy' },
   { name:'NS-LT-0244', user:'Service Desk (test laptop)', os:'Windows 11 Enterprise 24H2', ip:'10.20.10.244', ou:'OU=IT,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'Now', health:'Driver warning' },
+  // Module 5 (key its-03) computers
+  { name:'NS-WS-0277', user:'Noah Williams', os:'Windows 11 Enterprise 24H2', ip:'10.20.40.77', ou:'OU=Sales,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'4 minutes ago', health:'Healthy' },
+  { name:'NS-LT-0099', user:'Dina Foster', os:'Windows 11 Enterprise 24H2', ip:'10.20.50.99', ou:'OU=Executive Office,OU=Workstations', trust:'Healthy', bitlocker:'Recovery', lastSeen:'9 minutes ago', health:'BitLocker recovery' },
+  { name:'NS-LT-0150', user:'Lisa Park', os:'Windows 11 Enterprise 24H2', ip:'10.20.20.150', ou:'OU=Finance,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'2 minutes ago', health:'Healthy' },
+  { name:'NS-LT-0118', user:'Evan Parker', os:'Windows 11 Enterprise 24H2', ip:'10.20.20.118', ou:'OU=Finance,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'3 minutes ago', health:'Healthy' },
 ];
 
 const HD_SERVERS = [
@@ -161,6 +168,9 @@ const HD_KB_ARTICLES = [
   { id:'KB-0064', title:'Outlook isn\'t sending: check Work Offline', category:'Messaging', updated:'2026-11-21', audience:'Service Desk', practiceOnly:true, keywords:'outlook not sending · outlook isn\'t sending · email not sending · emails stuck · Outbox · Working Offline · Work Offline · Send/Receive · Disconnected · new Outlook · proposal', summary:'1. Ask the user to look at the bottom of the Outlook window. If it says "Working Offline", Outlook has been switched to hold mail in the Outbox. 2. Classic Outlook: on the Send/Receive tab, the Work Offline button is highlighted. Have the user click it once to turn it off, then click Send/Receive All Folders. 3. New Outlook has no Work Offline button. If it shows "Disconnected", have the user sign out of Outlook and back in. If it still won\'t connect, escalate to Messaging & Collaboration. 4. Confirm: the Outbox empties, and a test email from the user reaches you. 5. Show the user where the button is, so they can fix it next time.' },
   { id:'KB-0066', title:'Replacement laptops: standard models, lead times and approval', category:'Hardware', updated:'2026-11-21', audience:'Service Desk', practiceOnly:true, keywords:'replacement laptop · laptop lead time · lead time · replacement · broken laptop · lost laptop · new laptop · executive laptop · standard model · non-standard model · 16-inch · approval · VIP · catalog item', summary:'1. A broken or lost laptop is an incident. The replacement is a request: open the catalog item for it from the incident and keep both records open. Set Requested for to the person who will use the device. 2. Standard models are kept in stock. Desktop Support sets one up in about 3 hours. Ask them before you tell the user a time: they set it. 3. A non-standard model needs the IT manager\'s approval on the request before it is ordered, and takes about 5 business days to arrive. Put that model on the request and set Approval to Requested. 4. Offer the standard model now and the non-standard one later if it is approved. 5. An executive\'s ticket gets the VIP flag and a faster response. The steps are the same: verify before any device handover (KB-0024), and approvals still apply.' },
   { id:'KB-0067', title:'Disk health warning on a laptop', category:'Hardware', updated:'2026-11-21', audience:'Service Desk', practiceOnly:true, keywords:'disk warning · disk health · Device health · health card · storage errors · slow laptop · laptop very slow · clicking noise · OneDrive backup · warm handoff', summary:'1. A disk health warning on a device\'s health card means the storage is reporting errors and may fail. Tier 1 doesn\'t repair it or run repair tools. 2. Check the card\'s OneDrive line: if the last backup isn\'t today, ask the user to stop saving new work to the laptop. 3. Escalate to Desktop Support (Tier 2) with the asset tag, when the slowness started and any deadline the user has. If the deadline is today, use a warm handoff. 4. Never promise a repair time: Desktop Support sets it.' },
+  { id:'KB-0083', title:'Releasing a BitLocker recovery key', category:'Windows', updated:'2026-11-24', audience:'Service Desk', practiceOnly:true, keywords:'bitlocker · recovery key · BitLocker recovery · recovery screen · Key ID · blue screen asking for a key · enter the recovery key · Active Directory · BitLocker Recovery tab', summary:'Tier 1 may release a recovery key only this way. 1. Verify the caller with KB-0024 first, every time: call back on the number in the directory and confirm the employee ID. A deadline or a senior title doesn\'t change this. 2. Ask the user to read the Key ID on the recovery screen (the first 8 characters). 3. Open Active Directory › Computers, find the computer by its name and open its BitLocker Recovery tab. Find the stored key with the same Key ID. A device can hold more than one key. A key whose ID doesn\'t match won\'t work and is never read out. (Module 7 covers the rest of Active Directory, and Module 8 covers Entra.) 4. Read the 48-digit key aloud in groups of six while the user types it. Never send it by email, chat or text. 5. Confirm Windows loads. 6. In the work note, record that the key was released and its Key ID, never the key itself, and ask Desktop Support to rotate it. If the caller can\'t be verified, or no stored key matches: release nothing and escalate to Desktop Support.' },
+  { id:'KB-0084', title:'Slow start-up: what to check and what Tier 1 may change', category:'Windows', updated:'2026-11-24', audience:'Service Desk', practiceOnly:true, keywords:'slow · startup · slow start · slow computer · slow pc · slow to start · slow to open · takes forever · freezing · Event ID 100 · boot time · Task Manager · startup apps · Software Catalog', summary:'1. Ask when it started and whether it is one device. 2. Measure it: Event Viewer › Applications and Services Logs › Microsoft › Windows › Diagnostics-Performance › Operational, Event ID 100, gives the last boot time. 3. Open Task Manager › Startup apps and read each app\'s publisher and startup impact. Tier 1 may disable a startup app the user doesn\'t need at sign-in; disabling doesn\'t uninstall it. 4. Check that each app is approved: the Software Catalog lists every approved app. An app that isn\'t in the catalog isn\'t approved. Disable its startup entry, uninstall it from Settings › Apps › Installed apps (never by deleting its files), and offer the user the approved alternative from the catalog. 5. Restart and read Event ID 100 again. 6. Resetting or reinstalling Windows is never a first step for a slow start. It is a Tier 2 decision after the lighter steps fail.' },
+  { id:'KB-0090', title:'"You\'ve been signed in with a temporary profile"', category:'Windows', updated:'2026-11-24', audience:'Service Desk', practiceOnly:true, keywords:'temporary profile · blank desktop · signed in with a temporary profile · desktop is empty · shortcuts missing · default background · Outlook asking to set up · User Profile Service · 1511 · 1515', summary:'1. Tell the user their files are very likely still there, and ask them not to save new files or set up Outlook: anything saved in a temporary profile is lost at sign-out. 2. Confirm it: the notification, and Event Viewer › Windows Logs › Application, User Profile Service Event ID 1511 (often with 1515). 3. Tier 1 step: sign out and restart once. Sometimes the profile loads normally. 4. Confirm the data is safe: the user\'s folder under C:\\Users still holds their Desktop and Documents. 5. Still on a temporary profile: escalate to Desktop Support with the event IDs and the fact that the files are present. Profile registry repairs are Tier 2. Never delete the profile folder, and never reset the password: this is a profile problem, not an account problem.' },
   { id:'KB-0072', title:'Virtual desktop stuck on a black screen or spinner', category:'Virtual desktops', updated:'2026-11-23', audience:'Service Desk', practiceOnly:true, keywords:'virtual desktop · VDI · black screen · spinner · spinning circle · stuck · frozen · hung session · Disconnected · Log off session · pool · work desktop', summary:'1. A virtual desktop runs on a server. Restarting the user\'s laptop, or closing and reopening the window, doesn\'t restart it. 2. Check the pool first. If other sessions in the same pool are Active, it isn\'t a pool outage. If several users in one pool are stuck, stop: set Impact 2, link the tickets and escalate to Server & Identity. 3. One user, with a session shown as Disconnected or hung: tell them that unsaved work in that session may be lost, and get their OK. 4. Click Log off session on that user\'s session only. Never restart the pool or the host: that is a Tier 2 action that drops everyone. 5. Ask the user to reconnect, and confirm the desktop loads. 6. Record the consent and its time in the work note.' },
 ];
 
@@ -226,6 +236,12 @@ const HD_PRACTICE_SETS = {
   // a complete work note; the other three when Resolved.
   'its-02': { title:'Module 4 practice tickets', tickets:['HD-2169', 'HD-2170', 'HD-2171', 'HD-2172'], complete:['HD-2169', 'HD-2170', 'HD-2171', 'HD-2172'], queue:true, queueList:'all',
     done:{ 'HD-2170':[{ group:'Desktop Support (Tier 2)' }, { note:true }] } },
+  // Module 5 Lab 5.2: each ticket runs on its own clock (console.now). 5-A
+  // (HD-2181) counts as done when it is with Desktop Support (Tier 2) and has a
+  // complete work note; the other three when Resolved. HD-2187 and HD-2188 are
+  // the related records 5-B links; they are not worked.
+  'its-03': { title:'Module 5 practice tickets', tickets:['HD-2181', 'HD-2182', 'HD-2187', 'HD-2188', 'HD-2183', 'HD-2186'], complete:['HD-2181', 'HD-2182', 'HD-2183', 'HD-2186'], queue:true, queueList:'all', hideEventsFrom:['NS-LT-0081'],
+    done:{ 'HD-2181':[{ group:'Desktop Support (Tier 2)' }, { note:true }] } },
 };
 
 // Coached ticket sets: Practice It content for a coach's guided lab, opened by
@@ -240,6 +256,8 @@ const HD_COACHED_SETS = {
   // desktop ticket that ends Lab 4.2 (coach hd-m02-server).
   'its-02-guided': { title:'Lab 4.3 · Guided Lab: printers and peripherals', tickets:['HD-2134'], now:'2026-08-19T09:15:00Z' },
   'its-02-server': { title:'Lab 4.2 · Guided Lab: snapshot, server and a virtual desktop', tickets:['HD-2173'], now:'2026-08-20T10:30:00Z' },
+  // Module 5: Lab 5.1 (coach hd-m03) on Wednesday 10:30.
+  'its-03-guided': { title:'Lab 5.1 · Guided Lab: the slow-computer sequence and system repair', tickets:['HD-2180'], now:'2026-08-19T10:30:00Z', hideEventsFrom:['NS-LT-0081'] },
 };
 
 // VM labs (ui/helpdesk.js "VM screen"): the simulated host, its install
@@ -304,6 +322,29 @@ const HD_ITS02_CATEGORIES = {
   Request:['Hardware', 'Software', 'Access'],
   Access:['Password reset', 'Account unlock'],
 };
+// Categories for the Module 5 (key its-03) tickets; each ticket adds its own CI list.
+const HD_ITS03_CATEGORIES = {
+  Software:['Windows performance', 'Windows profile', 'OS crash (BSOD)', 'Encryption (BitLocker)', 'Email (Outlook)', 'Browser'],
+  Hardware:['Laptop', 'Docking station', 'Monitor', 'Printer'],
+  Network:['Wi-Fi', 'Wired port'],
+  Request:['Hardware', 'Software', 'Access'],
+  Access:['Password reset', 'Account unlock'],
+};
+// The Software Catalog on a Module 5 computer: the apps the company approves.
+const HD_ITS03_CATALOG = [
+  { name:'Microsoft Teams', publisher:'Microsoft Corporation' },
+  { name:'Microsoft OneDrive', publisher:'Microsoft Corporation' },
+  { name:'LumenCam Companion', publisher:'Lumen Devices Ltd.' },
+  { name:'Windows Security', publisher:'Microsoft Corporation' },
+  { name:'Microsoft Edge', publisher:'Microsoft Corporation' },
+  { name:'Microsoft Outlook', publisher:'Microsoft Corporation' },
+  { name:'Microsoft Word', publisher:'Microsoft Corporation' },
+  { name:'Microsoft Excel', publisher:'Microsoft Corporation' },
+  { name:'Google Chrome', publisher:'Google LLC' },
+  { name:'7-Zip', publisher:'7-Zip project' },
+  { name:'Northstar VPN Client', publisher:'Northstar IT' },
+  { name:'Northstar CRM', publisher:'Northstar IT' },
+];
 // Module 3: a customer comment must name a time (a clock time or am/pm), and a
 // fix time Tier 1 does not control ("fixed by 3") is flagged. Regex sources.
 // A time the user will hear back: a clock time ("11:30", "3 p.m.") or a
@@ -531,7 +572,7 @@ const HD_TICKET_TEMPLATES = [
   hdTicket({ id:'HD-2106', requester:'Elena Ruiz', department:'Logistics', category:'Incident', subcategory:'Printer', priority:'P3', businessImpact:'One warehouse label station delayed', sla:'2 business days', createdMinutesAgo:142, description:'Labels are stuck in the queue and the printer says Ready.', symptoms:['17 jobs remain in Printing','Ping to printer succeeds'], logs:['PrintService 372: driver LabelPro 3.8 terminated unexpectedly'], systemState:['NS-WH-LABEL01 queue Error','NS-PRINT01 spooler degraded'], plausibleCauses:['Out of labels','Network port','Driver crash'], correctPath:['Confirm scope','Preserve jobs','Inspect queue and print-service log','Isolate faulty driver','Apply approved rollback','Test one label'], hiddenRootCause:'LabelPro 3.8 driver crashes the server-side spooler.', expectedResolution:'Roll back to approved driver, restart spooler under change procedure, and verify queued work.', escalationCriteria:['Print-server-wide impact','Driver package unavailable or vendor defect'] }),
   hdTicket({ id:'SR-2107', requester:'Grace Kim', department:'Human Resources', category:'Service Request', subcategory:'Group membership', priority:'P3', businessImpact:'Recruiter cannot upload forms', sla:'2 business days', createdMinutesAgo:188, description:'Approved request: restore contributor access to the HR onboarding folder.', symptoms:['Read access works','Manager approval attached'], logs:['AD group history: removed from GG-HR-Contributors during transfer'], systemState:['Member of GG-HR-Readers','Not member of GG-HR-Contributors'], plausibleCauses:['NTFS ACL issue','Missing group membership'], correctPath:['Validate approval','Add authorized group','Refresh user token','Verify effective access','Document change'], hiddenRootCause:'User was removed from the contributor group during a role transfer.', expectedResolution:'Add GG-HR-Contributors, refresh sign-in token, verify upload, document approval.', escalationCriteria:['No data-owner approval','Requested permission exceeds role'] }),
   hdTicket({ id:'HD-2108', requester:'Amir Patel', department:'Operations', category:'Incident', subcategory:'Group Policy', priority:'P3', businessImpact:'One user lacks mapped drive', sla:'2 business days', createdMinutesAgo:201, description:'My Operations drive disappeared after my laptop was replaced.', symptoms:['Group membership correct','UNC path works manually'], logs:['gpresult: Operations Drive Mapping absent','Computer DN: CN=NS-LT-0145,CN=Computers'], systemState:['User in GG-Operations-Drive','Computer in default Computers container'], plausibleCauses:['Disconnected drive','GPO scope','File server outage'], correctPath:['Verify authorization','Run gpresult','Check computer OU','Move computer through approved admin task','Refresh policy and verify'], hiddenRootCause:'Replacement computer object was never moved into the Operations workstation OU.', expectedResolution:'Move the computer to the correct OU, run policy refresh, verify O: mapping.', escalationCriteria:['GPO link or security filtering change required','Replication/SYSVOL issue'] }),
-  hdTicket({ id:'HD-2109', requester:'Noah Williams', department:'Sales', category:'Incident', subcategory:'Windows profile', priority:'P3', businessImpact:'Sales user cannot access normal desktop', sla:'2 business days', createdMinutesAgo:167, description:'Windows signed me into a blank desktop and my shortcuts are missing.', symptoms:['Temporary profile notification','Another user signs in normally'], logs:['User Profile Service 1511: logged on with temporary profile'], systemState:['C:\\Users\\nwilliams exists','Profile registry entry ends in .bak'], plausibleCauses:['Cloud sync issue','Corrupt profile mapping','Malware'], correctPath:['Protect user data','Confirm temporary-profile evidence','Repair or rebuild per runbook','Restore data','Verify sign-in'], hiddenRootCause:'Corrupt ProfileList registry mapping after interrupted update.', expectedResolution:'Repair/rebuild the profile using the approved runbook and verify data and application access.', escalationCriteria:['Encrypted data inaccessible','Repeated corruption or compromise indicators'] }),
+  hdTicket({ id:'HD-2109', ownSet:true, requester:'Noah Williams', department:'Sales', category:'Incident', subcategory:'Windows profile', priority:'P3', businessImpact:'Sales user cannot access normal desktop', sla:'2 business days', createdMinutesAgo:167, description:'Windows signed me into a blank desktop and my shortcuts are missing.', symptoms:['Temporary profile notification','Another user signs in normally'], logs:['User Profile Service 1511: logged on with temporary profile'], systemState:['C:\\Users\\nwilliams exists','Profile registry entry ends in .bak'], plausibleCauses:['Cloud sync issue','Corrupt profile mapping','Malware'], correctPath:['Protect user data','Confirm temporary-profile evidence','Repair or rebuild per runbook','Restore data','Verify sign-in'], hiddenRootCause:'Corrupt ProfileList registry mapping after interrupted update.', expectedResolution:'Repair/rebuild the profile using the approved runbook and verify data and application access.', escalationCriteria:['Encrypted data inaccessible','Repeated corruption or compromise indicators'] }),
   hdTicket({ id:'HD-2110', requester:'Sofia Martin', department:'Operations', category:'Incident', subcategory:'Domain trust', priority:'P2', businessImpact:'Shift supervisor cannot domain sign in', sla:'8 hours', createdMinutesAgo:74, description:'Windows says the trust relationship between this workstation and the domain failed.', symptoms:['Local support account works','Domain sign-in fails'], logs:['Test-ComputerSecureChannel: False','NETLOGON 3210 secure session failed'], systemState:['Computer object enabled','Restored VM snapshot recorded yesterday'], plausibleCauses:['Bad user password','DNS','Machine-account mismatch'], correctPath:['Confirm recovery access','Validate DNS/time/object state','Test secure channel','Repair through approved Tier 2 procedure','Verify sign-in and policy'], hiddenRootCause:'A restored snapshot rolled back the machine-account password.', expectedResolution:'Repair the secure channel, restart if approved, verify domain authentication and gpresult.', escalationCriteria:['Computer object missing or duplicate','Multiple machines lose trust'] }),
   hdTicket({ id:'HD-2111', requester:'Dina Foster', department:'Executive Office', category:'Incident', subcategory:'BitLocker', priority:'P2', businessImpact:'Executive assistant cannot start laptop', sla:'8 hours', createdMinutesAgo:37, description:'The laptop is asking for a BitLocker recovery key after a firmware update.', symptoms:['Recovery screen shows key ID','Device asset tag verified'], logs:['Firmware change CHG-4471 completed overnight'], systemState:['Recovery key escrowed','User identity not yet verified'], plausibleCauses:['Unauthorized tamper','Expected firmware measurement change'], correctPath:['Verify user and device','Match recovery key ID','Provide key through approved secure channel','Boot and validate protection','Document disclosure'], hiddenRootCause:'Approved firmware update changed TPM measurements.', expectedResolution:'Use escrowed recovery key after identity verification, confirm BitLocker returns to Protected.', escalationCriteria:['Key unavailable or mismatch','Unapproved firmware change or tamper concern'] }),
   hdTicket({ id:'HD-2112', requester:'IT Monitoring', department:'Information Technology', category:'Incident', subcategory:'Windows service', priority:'P2', businessImpact:'Department print service degraded', sla:'8 hours', createdMinutesAgo:48, description:'Print Spooler stops immediately after it starts on NS-PRINT01.', symptoms:['Service exit code 1067','Issue began after driver package'], logs:['System 7031: Print Spooler terminated unexpectedly','PrintService 808: LabelPro provider fault'], systemState:['Server reachable','Other services healthy'], plausibleCauses:['Service account','Dependency','Faulty driver'], correctPath:['Preserve logs','Check dependency and recent change','Quarantine faulty driver','Use approved rollback','Restart and validate queues'], hiddenRootCause:'Third-party label driver crashes the spooler.', expectedResolution:'Rollback the driver under change control and verify all queues.', escalationCriteria:['Production reboot required','Vendor package or server-wide outage'] }),
@@ -1137,6 +1178,356 @@ const HD_TICKET_TEMPLATES = [
         { area:'Diagnosis', checks:[{ action:'vdi-logoff', missing:'Ana\'s session shows "Disconnected – hung, 14 h". Restarting her laptop can\'t reach it: the desktop runs on a server.' }], good:'The desktop runs on a server, so restarting her laptop couldn\'t fix the hung session.', fix:'Her session is "Disconnected – hung, 14 h" on the server. Restarting her laptop reconnects her to the same frozen desktop.' },
         { area:'Action', checks:[{ chat:['consent'], missing:'Before you log the session off, warn Ana that unsaved work in it may be lost, and get her OK. Logging off without that warning is a critical error in a real shift.' }, { action:'vdi-logoff', missing:'Click Log off session on Ana\'s session only. Restarting the pool or the host is a Tier 2 action that drops everyone.' }, { confirmed:'reconnect', missing:'After the log-off, ask Ana to reconnect and confirm her desktop loads.' }], good:'You warned Ana, got her OK, logged off only her session and confirmed her desktop loads.', fix:'Warn Ana about unsaved work and get her OK, click Log off session on her session only (KB-0072), then ask her to reconnect. Never restart the pool or the host.' },
         { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result work note, with Ana\'s consent and its time.' }, { comment:true, missing:'Write a comment for Ana in plain words, with no internal terms.' }, { status:'Resolved', missing:'Resolve the ticket once Ana confirms her desktop loads.' }], good:'A complete note with her consent and its time, a plain-words comment, and the ticket resolved.', fix:'Write a Reported / Tried / Result note that records Ana\'s consent and its time, and a plain-words comment, for example: "Hi Ana, your work desktop was stuck in an old session on our server, so restarting your laptop couldn\'t reach it. We cleared that session and you\'re back in with a fresh one. Files you had already saved are safe; only unsaved changes in the stuck session may be lost. If the black screen comes back, message us and we can clear it in a minute. – Riley"' },
+      ],
+    } }),
+  // Module 5 (key its-03) Practice It. Lab 5.1 (coach hd-m03, HD_COACHED_SETS
+  // 'its-03-guided') is HD-2180; Lab 5.2 (HD_PRACTICE_SETS 'its-03') is tickets
+  // 5-A to 5-D (HD-2181, HD-2182, HD-2183, HD-2186), with HD-2187 and HD-2188 as
+  // the related records 5-B links. Each ticket's computer is in
+  // console.machines (ui/helpdesk.js "Windows client tools").
+  // expectedResolution holds the model work note. Practice feedback only,
+  // never points: critical errors are feedback here, never a score. The
+  // 48-digit keys are invented values and never go in a note or a comment.
+  // Lab 5.1: a slow desk PC (a full drive and a pending restart).
+  hdTicket({ id:'HD-2180', ownSet:true, number:'INC0010480', requester:'Noah Williams', department:'Sales', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T10:22:00Z', shortDescription:'PC very slow since Monday',
+    description:'My desk PC has been crawling since Monday. Apps take forever to open and it froze twice today. Nothing\'s due today, it\'s just painful.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: desk PC slow since Monday; apps slow to open; froze twice today. Tried: Task Manager showed Disk at 100% with CPU at 36% (top process Microsoft Teams, 14%). C: was 7% free (16.6 of 237 GB). An update had waited 23 days for a restart. System log Event ID 2013 (disk near capacity); boot took 94 s (Event ID 100). All four startup apps are in the Software Catalog; disabled LumenCam Companion at startup with Noah\'s OK. Removed 21.4 GB of temporary files, with his OK for the Recycle Bin; his Desktop files were all still listed afterwards. DISM and SFC found nothing to repair; chkdsk found no problems. Restarted to finish the update. Result: C: 16% free; no restart pending; boot 52 s; Noah confirms apps open normally.',
+    console: {
+      matrix:{}, classify:{ categories:HD_ITS03_CATEGORIES, cis:['NS-WS-0277', 'NS-LT-0081', 'NS-LT-0291'], preset:{ contactType:'Phone' } },
+      priorityCoach:{ impact:'3', urgency:'2', line:'One person is affected (Impact 3). The PC is slow, but nothing is due today (Urgency 2): P4.' },
+      kb:true,
+      caller:{ name:'Noah Williams', style:'phone', questions:[
+        { id:'lumencam', text:'Do you need LumenCam Companion to start every time you sign in?', reply:'No, I only use the webcam for calls.' },
+        { id:'recycle', text:'Your Recycle Bin holds about 3.3 GB. May I empty it?', reply:'Go ahead, nothing I need.' },
+        { id:'restart', text:'Your PC is waiting to restart to finish an update. If I restart it now, is your work saved?', reply:'Yes, everything\'s saved. Go ahead.' },
+        { id:'apps', text:'Please sign in and open your usual apps. Do they open normally now?', afterAction:'restart', replyBefore:'Still slow.', reply:'Yes! Everything opens straight away now.' },
+      ] },
+      machines:{
+        'NS-WS-0277':{
+          computer:{ ip:'10.20.40.77', health:'Healthy' },
+          processes:[
+            { name:'Microsoft Teams', cpu:14, memory:612, disk:1.2 },
+            { name:'Microsoft Edge', cpu:11, memory:884, disk:0.8 },
+            { name:'Antimalware Service Executable', cpu:6, memory:210, disk:34 },
+            { name:'Windows Explorer', cpu:3, memory:160, disk:0.4 },
+            { name:'Microsoft Outlook', cpu:2, memory:340, disk:1.1 },
+            { name:'System', cpu:1, memory:20, disk:46 },
+          ],
+          performance:{ cpu:36, memory:71, disk:100, diskRecovered:{ freePercent:16, disk:12 } },
+          startupApps:[
+            { name:'Microsoft Teams', publisher:'Microsoft Corporation', verified:true, status:'Enabled', impact:'High' },
+            { name:'Microsoft OneDrive', publisher:'Microsoft Corporation', verified:true, status:'Enabled', impact:'Medium' },
+            { name:'LumenCam Companion', publisher:'Lumen Devices Ltd.', verified:true, status:'Enabled', impact:'Medium' },
+            { name:'Windows Security notification icon', publisher:'Microsoft Corporation', verified:true, status:'Enabled', impact:'Low' },
+          ],
+          storage:{ drive:'C:', sizeGb:237, freeGb:16.6,
+            categories:[{ name:'Apps & features', gb:88 }, { name:'Documents', gb:41 }, { name:'System & reserved', gb:52 }, { name:'Other', gb:18 }],
+            temporaryFiles:[{ id:'wu-cleanup', name:'Windows Update Cleanup', gb:9.8 }, { id:'temp', name:'Temporary files', gb:8.3 }, { id:'recycle', name:'Recycle Bin', gb:3.3, recycleBin:true }],
+            driveHealth:'Good' },
+          updates:{ lastInstalledDaysAgo:23, restartRequired:true,
+            pending:{ kb:'KB5099101', name:'2026-08 Cumulative Update for Windows 11', downloaded:'Monday' },
+            history:[{ kb:'KB5098807', name:'2026-07 Cumulative Update for Windows 11', date:'7/27/2026', status:'Successfully installed', description:'Security Update' }, { kb:'KB5097512', name:'2026-06 Cumulative Update for Windows 11', date:'6/22/2026', status:'Successfully installed', description:'Security Update' }] },
+          uptimeDays:23, bootSeconds:94, bootSecondsAfterFix:52, bootSecondsAfterFixNeeds:{ freePercent:16 },
+          installedApps:[
+            { name:'Microsoft Teams', publisher:'Microsoft Corporation', version:'24295.605', installed:'3/4/2025', startup:'Microsoft Teams' },
+            { name:'Microsoft OneDrive', publisher:'Microsoft Corporation', version:'25.150.0', installed:'3/4/2025', startup:'Microsoft OneDrive' },
+            { name:'LumenCam Companion', publisher:'Lumen Devices Ltd.', version:'2.4.1', installed:'3/4/2025', startup:'LumenCam Companion' },
+            { name:'Windows Security', publisher:'Microsoft Corporation', version:'1.0', installed:'3/4/2025', startup:'Windows Security notification icon' },
+            { name:'Microsoft Edge', publisher:'Microsoft Corporation', version:'139.0.3405.86', installed:'3/4/2025' },
+            { name:'Microsoft Outlook', publisher:'Microsoft Corporation', version:'16.0.18025', installed:'3/4/2025' },
+            { name:'Microsoft Word', publisher:'Microsoft Corporation', version:'16.0.18025', installed:'3/4/2025' },
+            { name:'Microsoft Excel', publisher:'Microsoft Corporation', version:'16.0.18025', installed:'3/4/2025' },
+            { name:'Northstar CRM', publisher:'Northstar IT', version:'8.2.0', installed:'3/4/2025' },
+          ],
+          catalog:HD_ITS03_CATALOG,
+          events:{
+            system:[
+              { level:'Error', time:'Today 08:12', source:'srv', id:'2013', message:'The C: disk is at or near capacity. You may need to delete some files.' },
+              { level:'Information', time:'Mon 14:02', source:'Microsoft-Windows-WindowsUpdateClient', id:'44', message:'Windows Update started downloading an update.' },
+            ],
+            application:[{ level:'Information', time:'Tue 07:58', source:'Software Protection Platform Service', id:'16384', message:'Successfully scheduled Software Protection service for re-start.' }],
+            'diagnostics-performance':[],
+          },
+          reliability:[
+            { day:'Saturday', critical:[], warnings:[], installs:[] },
+            { day:'Sunday', critical:[], warnings:[], installs:[] },
+            { day:'Monday', critical:['Windows stopped responding', 'Windows stopped responding'], warnings:[], installs:['Windows Update: cumulative update downloaded, restart pending'] },
+            { day:'Tuesday', critical:[], warnings:[], installs:[] },
+            { day:'Today', today:true, critical:['Microsoft Outlook stopped responding', 'Microsoft Teams stopped responding'], warnings:[], installs:[] },
+          ],
+          files:{
+            'C:\\Users\\nwilliams\\Desktop':['Harbor Foods account plan.docx', 'Q3 pipeline.xlsx', 'Renewal quotes (draft).xlsx', 'Meeting notes.txt'],
+            'C:\\Users\\nwilliams\\Documents':['Customer visits', 'Sales playbook.docx', 'Territory map.xlsx'],
+          },
+          repairs:{ dism:'The restore operation completed successfully.', sfc:'Windows Resource Protection did not find any integrity violations.', chkdsk:'Windows has scanned the file system and found no problems.' },
+          bitlockerKeys:[{ keyId:'8D41B6E0', date:'3/4/2025', key:'402118-339207-551430-187726-604391-275548-119806-482233' }],
+          safeMode:false,
+          profile:{ temporary:false, restartClears:false, path:'C:\\Users\\nwilliams' },
+        },
+      },
+      actions:[
+        { id:'lab-key-read', text:'Read out the recovery key stored for NS-WS-0277', bitlockerKey:'8D41B6E0', critical:true, feedback:'Critical error. Step 15 is a look-up only: read the Key ID and the date, then stop. Nothing is read out, and this ticket does not call for a recovery key.', history:'Read out a BitLocker recovery key this ticket did not call for.' },
+      ],
+      comments:true, resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Event ID', 'Event Viewer', 'Diagnostics-Performance', 'Reliability Monitor', 'Task Manager', 'DISM', 'SFC', 'chkdsk', 'CPU', 'Key ID', 'NS-WS-0277', 'Tier 1', 'Tier 2', 'P4', 'SLA'],
+        needs:[{ label:'Free-space percentage', pattern:'\\b\\d{1,2}(\\.\\d)?\\s?%' }, { label:'Top process', pattern:'teams|edge|antimalware|explorer|outlook' }, { label:'An Event ID', pattern:'\\b(2013|100)\\b' }] },
+      feedback:[
+        { area:'Triage', checks:[{ priority:'P4', missing:'Set Impact 3 (one person) and Urgency 2 (nothing is due today). That makes the ticket P4.' }], good:'The priority is P4: one person, and nothing is due today.', fix:'Set Impact 3 (one person) and Urgency 2 (nothing is due today). The ticket is P4.' },
+        { area:'Investigation', checks:[
+          { seen:'task-manager:processes', computer:'NS-WS-0277', missing:'Open Task Manager › Processes on NS-WS-0277 and sort by CPU, then by Disk.' },
+          { seen:'storage', computer:'NS-WS-0277', missing:'Open Settings › System › Storage on NS-WS-0277 and work out the percentage free.' },
+          { seen:'windows-update', computer:'NS-WS-0277', missing:'Open Settings › Windows Update on NS-WS-0277.' },
+          { seen:'event-log:diagnostics-performance', computer:'NS-WS-0277', missing:'In Event Viewer, open Diagnostics-Performance › Operational and read Event ID 100.' },
+        ], good:'You checked what was busy, the free space, the update state and the boot time before you changed anything.', fix:'Check Task Manager, Settings › System › Storage and Settings › Windows Update, then read Event ID 100 in the Diagnostics-Performance log. Measure first, then fix.' },
+        { area:'Diagnosis', checks:[{ seen:'reliability', computer:'NS-WS-0277', missing:'Open Reliability Monitor and find the day the problems started.' }, { kb:'KB-0084', missing:'Search the KB for "slow" and open KB-0084.' }], good:'Monday is the day it changed: an update waited for a restart, and the drive was almost full. KB-0084 gave you the checklist.', fix:'Open Reliability Monitor and find Monday, then search the KB for "slow" and open KB-0084.' },
+        { area:'Action', checks:[
+          { action:'startup-disabled', missing:'In Task Manager › Startup apps, set LumenCam Companion to Disabled. Disabling does not uninstall it.' },
+          { chat:['lumencam'], missing:'Ask Noah whether he needs LumenCam Companion at sign-in before you change how his PC starts.' },
+          { action:'temp-files-removed', missing:'In Settings › System › Storage › Temporary files, remove Windows Update Cleanup and Temporary files.' },
+          { chat:['recycle'], missing:'Ask Noah before you empty the Recycle Bin. It holds files he deleted.' },
+          { typed:'^(dir|get-childitem|gci)\\b.*c:\\\\users\\\\nwilliams\\\\desktop', computer:'NS-WS-0277', missing:'Type dir C:\\Users\\nwilliams\\Desktop in PowerShell to check that his files are all still there.' },
+          { typed:'^dism(\\.exe)?\\b.*\\/restorehealth', computer:'NS-WS-0277', missing:'Type DISM /Online /Cleanup-Image /RestoreHealth.' },
+          { typed:'^sfc(\\.exe)?\\s*\\/scannow', computer:'NS-WS-0277', missing:'Type sfc /scannow after DISM finishes.' },
+          { typed:'^chkdsk(\\.exe)?\\s+c:\\s*\\/scan', computer:'NS-WS-0277', missing:'Type chkdsk C: /scan.' },
+          { action:'restart', missing:'Tell Noah, then use Restart so the update can finish.' },
+          { action:'safe-mode-started', missing:'Walk through the Safe Mode route in Settings › System › Recovery, then restart normally.' },
+          { seen:'ad-bitlocker', computer:'NS-WS-0277', missing:'Open Active Directory › Computers › NS-WS-0277 › BitLocker Recovery and read the Key ID. Release nothing.' },
+          { confirmed:'apps', missing:'After the restart, ask Noah whether his apps open normally.' },
+        ], good:'You freed space the safe way with Noah\'s OK, ran the repair commands in order, restarted to finish the update and checked with Noah.', fix:'Disable the startup app he does not need, free space (ask before the Recycle Bin), run DISM, then sfc, then chkdsk, restart to finish the update, and ask Noah whether his apps open normally.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note. Include the free-space percentage, the top process and an Event ID.' }, { comment:true, missing:'Write a comment for Noah in plain words, with no internal terms.' }, { code:'Solution provided', missing:'Choose the resolution code Solution provided.' }], good:'A complete note with evidence, a plain-words comment and the right resolution code.', fix:'Write a Reported / Tried / Result note with the free-space percentage, the top process and an Event ID, and a plain-words comment, for example: "Hi Noah, your PC should feel normal again. Its drive was almost full and it had been waiting more than three weeks to restart for an update. We cleared out temporary files, finished the update and checked Windows for damage: all clean. Your files are all where you left them. A restart once a week will keep it quick. – Riley, Northstar Service Desk"' },
+      ],
+    } }),
+  // Ticket 5-A: a temporary profile that a restart does not clear.
+  hdTicket({ id:'HD-2181', ownSet:true, number:'INC0010481', requester:'Noah Williams', department:'Sales', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T09:58:00Z', shortDescription:'Blank desktop after signing in',
+    description:'Phone call: "Everything\'s gone! My desktop is blank, my background is the default one, Outlook wants me to set it up again. Did I get hacked?? I signed in fine." Desk PC NS-WS-0277.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: blank desktop, default background, Outlook asking to be set up; sign-in worked. Tried: saw "You\'ve been signed in with a temporary profile"; Application log shows User Profile Service 1511 and 1515; signed out and restarted once per KB-0090, still temporary; C:\\Users\\nwilliams\\Desktop and Documents still hold his files; asked Noah not to save files or set up Outlook on this profile. Result: escalated to Desktop Support per KB-0090 with the event IDs; files confirmed intact. Next action: Desktop Support repairs the profile; Service Desk updates Noah by 11:30.',
+    console: {
+      now:'2026-08-20T10:05:00Z', matrix:{}, classify:{ categories:HD_ITS03_CATEGORIES, cis:['NS-WS-0277', 'NS-LT-0081', 'NS-FILE01'], preset:{ contactType:'Phone' } },
+      priorityCoach:{ impact:'3', urgency:'2', line:'One person is affected (Impact 3). His sign-in works and the ticket gives no deadline (Urgency 2): P4.' },
+      kb:true,
+      caller:{ name:'Noah Williams', style:'phone', questions:[
+        { id:'hacked', text:'First, this does not sound like a hack. Your files are very likely still on the PC. Did you see any message when you signed in?', reply:'Yes, something about a "temporary profile". I closed it. Please tell me my files are not gone!' },
+        { id:'signin', text:'Did you sign in as usual, with your own user name and password?', reply:'Yes, the same as always. It let me in, but the desktop is blank.' },
+        { id:'restarted', text:'Please sign out, restart the PC and sign in again. What do you see?', afterAction:'restart', replyBefore:'Not yet.', reply:'I signed back in. Same blank desktop.' },
+      ] },
+      machines:{
+        'NS-WS-0277':{
+          computer:{ ip:'10.20.40.77', health:'Profile warning' },
+          uptimeDays:1,
+          profile:{ temporary:true, restartClears:false, path:'C:\\Users\\TEMP' },
+          events:{
+            system:[],
+            application:[
+              { level:'Warning', time:'Today 09:46', source:'Microsoft-Windows-User Profile Service', id:'1511', message:'Windows cannot find the local profile and is logging you on with a temporary profile. Changes you make to this profile will be lost when you log off.' },
+              { level:'Error', time:'Today 09:46', source:'Microsoft-Windows-User Profile Service', id:'1515', message:'Windows has backed up this user profile. Windows will automatically try to use the backup profile the next time this user logs on.' },
+            ],
+            'diagnostics-performance':[],
+          },
+          files:{
+            'C:\\Users\\nwilliams\\Desktop':['Harbor Foods account plan.docx', 'Q3 pipeline.xlsx', 'Renewal quotes (draft).xlsx', 'Meeting notes.txt'],
+            'C:\\Users\\nwilliams\\Documents':['Customer visits', 'Sales playbook.docx', 'Territory map.xlsx'],
+          },
+          repairs:{},
+        },
+      },
+      actions:[
+        { id:'no-save', text:'Tell Noah: "Please do not save new files or set up Outlook on this desktop. Anything saved in a temporary profile is lost when you sign out."', feedback:'Noah: "Okay, I will leave everything alone until you call me back."', history:'Told the user not to save files or set up Outlook on the temporary profile.' },
+        { id:'delete-profile', text:'Delete the profile folder C:\\Users\\nwilliams so Windows builds a new one', critical:true, feedback:'Critical error. Deleting the profile folder deletes his files. Profile repairs are Tier 2: confirm his files are present, then escalate (KB-0090).', history:'Deleted the profile folder of a user whose files were still in it.' },
+        { id:'outlook-setup', text:'Tell Noah to set up Outlook and save his work in this profile for now', critical:true, feedback:'Critical error. Anything saved in a temporary profile is lost at sign-out. Ask him not to save files or set up Outlook (KB-0090).', history:'Told the user to set up Outlook and save files in a temporary profile.' },
+        { id:'reset-password', text:'Reset Noah\'s password', critical:true, feedback:'Critical error. Sign-in worked, so his password is fine. This is a profile problem, not an account problem (KB-0090).', history:'Reset the password of a user whose sign-in worked.' },
+      ],
+      comments:{ timeCheck:{ time:HD_M03_TIME, promise:HD_M03_PROMISE, promiseLine:'A repair time is not yours to promise: Desktop Support sets it. Say when Noah will hear from you.', noTimeLine:'Tell Noah when you will update him, for example "by 11:30".' } },
+      resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['User Profile Service', 'Event ID', '1511', '1515', 'Event Viewer', 'registry', 'ProfileList', 'KB-0090', 'NS-WS-0277', 'Tier 1', 'Tier 2', 'P4', 'SLA', 'escalate', 'escalated', 'escalating'] },
+      feedback:[
+        { area:'Triage', checks:[{ priority:'P4', missing:'Set Impact 3 (one person) and Urgency 2 (no deadline in the ticket). That makes the ticket P4.' }], good:'The priority is P4: one person, and no deadline in the ticket.', fix:'Set Impact 3 (one person) and Urgency 2. The ticket is P4.' },
+        { area:'Investigation', checks:[{ seen:'event-log:application', computer:'NS-WS-0277', missing:'In Event Viewer, open Windows Logs › Application on NS-WS-0277 and look for User Profile Service events.' }, { kb:'KB-0090', missing:'Search the KB for "temporary profile" and open KB-0090.' }], good:'You found User Profile Service events 1511 and 1515 and used KB-0090.', fix:'Open the Application log on NS-WS-0277, look for User Profile Service 1511 and 1515, and open KB-0090.' },
+        { area:'Diagnosis', checks:[{ action:'restart', missing:'Sign out and restart once, as KB-0090 says. Sometimes the profile loads normally.' }, { confirmed:'restarted', missing:'Ask Noah what he sees after the restart.' }], good:'One restart did not clear it, so this is a profile fault for Tier 2.', fix:'Restart once (KB-0090), then ask Noah what he sees. If the desktop is still blank, the profile needs Tier 2.' },
+        { area:'Action', checks:[{ action:'no-save', missing:'Tell Noah not to save files or set up Outlook on this profile.' }, { typed:'^(dir|get-childitem|gci)\\b.*c:\\\\users\\\\nwilliams\\\\desktop', computer:'NS-WS-0277', missing:'Type dir C:\\Users\\nwilliams\\Desktop to confirm his files are still on the PC.' }, { group:'Desktop Support (Tier 2)', missing:'Assign the ticket to Desktop Support (Tier 2). Profile repairs are Tier 2.' }], good:'You protected his files, confirmed they are there and handed the profile repair to Tier 2.', fix:'Tell Noah not to save files, list his Desktop to confirm the files are there, then assign the ticket to Desktop Support (Tier 2) with the event IDs. Never delete the profile folder or reset the password.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note with a Next action: Desktop Support repairs the profile, and you update Noah at a set time.' }, { comment:true, missing:'Write a comment for Noah in plain words, with no internal terms.' }, { commentTime:true, missing:'Tell Noah when he will hear from you, for example "by 11:30".' }], good:'A complete note with the next action, and a plain-words comment with a time for the next update.', fix:'Write a Reported / Tried / Result note with a Next action, and a plain-words comment that says when Noah will hear from you, for example: "Hi Noah, you weren\'t hacked, and your files are safe. We can see them on your computer. Windows signed you into a temporary profile because it couldn\'t load your normal one. Our desktop team will repair it, usually within a couple of hours, and everything will come back as it was. Until then, please avoid saving new files on this computer; OneDrive and Outlook on the web work fine. I\'ll update you by 11:30. – Riley"' },
+      ],
+    } }),
+  // Ticket 5-B: a dock driver that blue-screens the laptop. Two related
+  // records (HD-2187, HD-2188) name the same dock model.
+  hdTicket({ id:'HD-2182', ownSet:true, number:'INC0010482', requester:'Lisa Park', department:'Finance', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T14:58:00Z', shortDescription:'Laptop blue screens when I dock it',
+    description:'From: Lisa Park lpark@northstar.example · Subject: blue screen of death!!\nMy laptop keeps crashing with a blue screen. 3 times today, always when I plug into the dock. I took a photo: it says DRIVER_IRQL_NOT_LESS_OR_EQUAL and something like "dockusbnet.sys"',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: 3 blue screens today, each when docking; stop code DRIVER_IRQL_NOT_LESS_OR_EQUAL naming dockusbnet.sys (photo from the user). Tried: Reliability Monitor shows the dock\'s USB Ethernet driver updated yesterday and 3 critical events since; stable undocked; two more tickets name the same dock model (INC0010411, INC0010415), so linked them and raised Impact to 2 (P3); rolled back the Dock USB Ethernet driver in Device Manager; docked and undocked 3 times. Result: no crash in 3 dock cycles; Device Manager shows the earlier driver version; Reliability Monitor shows no new critical event; Lisa confirmed. Next action: Desktop Support blocks this driver update for the dock model; the two linked tickets need the same rollback.',
+    console: {
+      now:'2026-08-19T15:10:00Z', matrix:{}, classify:{ categories:HD_ITS03_CATEGORIES, cis:['NS-LT-0150', 'DOCK-3F-08', 'NS-LT-0117'], preset:{ contactType:'Email' } },
+      priorityCoach:{ impact:'3', urgency:'2', line:'At first one person is affected (Impact 3), and she has no deadline in the ticket (Urgency 2): P4. Once other dock users report the same crash, raise Impact to 2 (P3).' },
+      kb:true, link:true,
+      caller:{ name:'Lisa Park', style:'chat', questions:[
+        { id:'undocked', text:'Does the laptop crash when it is not on the dock?', reply:'No, it\'s fine undocked.' },
+        { id:'photo', text:'Can you read me the stop code and the file name on the blue screen?', reply:'It says DRIVER_IRQL_NOT_LESS_OR_EQUAL, and under it dockusbnet.sys.' },
+        { id:'confirm', text:'Please dock and undock the laptop a few times. Does it stay up?', afterAction:'driver-rollback', replyBefore:'I haven\'t tried yet. Is it safe to dock?', reply:'It stayed up every time. Thank you!' },
+      ] },
+      machines:{
+        'NS-LT-0150':{
+          computer:{ ip:'10.20.20.150', health:'Healthy' },
+          uptimeDays:0,
+          dock:{ name:'Dock model ND-200 (desk 3F-08)', power:true, docked:false, ethernet:'Dock USB Ethernet', peripherals:['Keyboard', 'Mouse'], monitors:[] },
+          devices:[
+            { id:'usbnet', category:'Network adapters', name:'Dock USB Ethernet', status:'OK', driver:{ provider:'Northstar Docking', date:'yesterday', version:'5.2.18.0' }, previous:{ provider:'Northstar Docking', date:'4 months ago', version:'5.1.9.0' }, crashOnDock:{ version:'5.2.18.0', stopCode:'DRIVER_IRQL_NOT_LESS_OR_EQUAL', file:'dockusbnet.sys' } },
+            { id:'wifi', category:'Network adapters', name:'Wireless Network Adapter AX211', status:'OK', driver:{ provider:'Northstar Networks', date:'4 months ago', version:'23.60.0.10' } },
+            { id:'audio', category:'Sound, video and game controllers', name:'Realtime High Definition Audio', status:'OK', driver:{ provider:'Realtime Audio', date:'2 months ago', version:'6.0.9601.1' } },
+          ],
+          reliability:[
+            { day:'Sunday', critical:[], warnings:[], installs:[] },
+            { day:'Monday', critical:[], warnings:[], installs:[] },
+            { day:'Yesterday', critical:[], warnings:[], installs:['Dock USB Ethernet driver updated to 5.2.18.0'] },
+            { day:'Today', today:true, critical:['Windows stopped working: blue screen (DRIVER_IRQL_NOT_LESS_OR_EQUAL)', 'Windows stopped working: blue screen (DRIVER_IRQL_NOT_LESS_OR_EQUAL)', 'Windows stopped working: blue screen (DRIVER_IRQL_NOT_LESS_OR_EQUAL)'], warnings:[], installs:[] },
+          ],
+        },
+      },
+      actions:[
+        { id:'tell-desktop', text:'Tell Desktop Support about the pattern: three tickets name the same dock model and driver update', feedback:'Desktop Support has the pattern and can block this driver update for the dock model.', history:'Told Desktop Support (Tier 2) that three tickets name the same dock model and driver update.' },
+        { id:'reset-pc', text:'Reset or reinstall Windows on Lisa\'s laptop', critical:true, feedback:'Critical error. Windows is fine: the crash happens only with one dock driver. Roll the driver back. Never reset a PC for a driver fault.', history:'Reset or reinstalled Windows for a driver fault.' },
+      ],
+      comments:true, resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['stop code', 'DRIVER_IRQL_NOT_LESS_OR_EQUAL','dockusbnet.sys', 'Device Manager', 'Reliability Monitor', 'Roll Back Driver', 'NS-LT-0150', 'INC0010411', 'INC0010415', 'Tier 1', 'Tier 2', 'P3', 'P4', 'SLA'] },
+      feedback:[
+        { area:'Triage', checks:[{ priority:'P3', missing:'Link the two related tickets, then raise Impact to 2 (several dock users). That makes the ticket P3.' }], good:'The priority is P3: several people with the same dock model are affected.', fix:'Start at Impact 3 and Urgency 2 (P4). Once other dock users report the same crash, raise Impact to 2. The ticket is P3.' },
+        { area:'Investigation', checks:[{ chat:['undocked'], missing:'Ask Lisa whether the laptop crashes when it is not on the dock.' }, { seen:'reliability', computer:'NS-LT-0150', missing:'Open Reliability Monitor on NS-LT-0150 and find what changed yesterday.' }], good:'It is stable undocked, and Reliability Monitor shows the dock driver updated yesterday.', fix:'Ask whether it crashes undocked, then open Reliability Monitor on NS-LT-0150 and look at yesterday and today.' },
+        { area:'Diagnosis', checks:[{ child:'HD-2187', missing:'Link INC0010411 to this ticket as related. It names the same dock model.' }, { child:'HD-2188', missing:'Link INC0010415 to this ticket as related. It names the same dock model.' }], good:'You linked both related tickets: one dock driver update is the cause.', fix:'Link INC0010411 and INC0010415 to this ticket as related. All three name the same dock model and a blue screen.' },
+        { area:'Action', checks:[
+          { action:'driver-rollback', missing:'In Device Manager › Network adapters › Dock USB Ethernet › Driver, click Roll Back Driver.' },
+          { actionsAfter:{ after:'driver-rollback', action:'dock-connect', min:3, without:'blue-screen' }, missing:'After the rollback, dock the laptop three times with no blue screen.' },
+          { seen:'reliability', computer:'NS-LT-0150', after:'driver-rollback', missing:'After the rollback, open Reliability Monitor again and check there is no new critical event.' },
+          { action:'tell-desktop', missing:'Tell Desktop Support about the pattern, so they can block the driver update.' },
+          { confirmed:'confirm', missing:'Ask Lisa to dock and undock, and confirm it stays up.' },
+        ], good:'You rolled the driver back, docked three times with no crash, checked Reliability Monitor and told Desktop Support.', fix:'Roll back the Dock USB Ethernet driver, dock and undock three times, check Device Manager and Reliability Monitor, tell Desktop Support about the pattern and ask Lisa to confirm.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note with a Next action: Desktop Support blocks the driver update, and the linked tickets need the same rollback.' }, { comment:true, missing:'Write a comment for Lisa in plain words, with no internal terms.' }, { status:'Resolved', missing:'Resolve the ticket once Lisa confirms.' }], good:'A complete note, a plain-words comment and the ticket resolved.', fix:'Write a Reported / Tried / Result note with a Next action, and a plain-words comment for Lisa, for example: "Hi Lisa, thanks for the photo of the error. It told us exactly where to look. A dock driver that installed yesterday was crashing your laptop. We\'ve put the previous, stable version back and tested docking several times with no crashes. We\'re also stopping that update for everyone else. – Riley"' },
+      ],
+    } }),
+  // Related records for 5-B: the same dock model, no feedback of their own.
+  hdTicket({ id:'HD-2187', ownSet:true, number:'INC0010411', requester:'Ravi Shah', department:'Sales', category:'Incident', subcategory:'General', ci:'NS-LT-0215', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T11:40:00Z', shortDescription:'Blue screen when I dock my laptop',
+    description:'My laptop shows a blue screen when I connect it to the Dock model ND-200 at my desk.\nIt started today. It is fine when it is not docked.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      matrix:{ impact:'3', urgency:'2' }, link:true, comments:true,
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['stop code', 'Device Manager', 'Tier 1', 'Tier 2', 'P3', 'P4', 'SLA', 'parent ticket'] },
+    } }),
+  hdTicket({ id:'HD-2188', ownSet:true, number:'INC0010415', requester:'Maya Chen', department:'Operations', category:'Incident', subcategory:'General', ci:'NS-LT-0042', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T13:05:00Z', shortDescription:'Blue screen when I dock my laptop',
+    description:'My laptop gets a blue screen as soon as I plug it into the Dock model ND-200.\nIt did not do this last week.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      matrix:{ impact:'3', urgency:'2' }, link:true, comments:true,
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['stop code', 'Device Manager', 'Tier 1', 'Tier 2', 'P3', 'P4', 'SLA', 'parent ticket'] },
+    } }),
+  // Ticket 5-C: a BitLocker recovery screen. The caller is verified before any
+  // key is read out; the key whose ID does not match is never read out.
+  hdTicket({ id:'HD-2183', ownSet:true, number:'INC0010483', requester:'Dina Foster', department:'Executive Office', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-21T07:01:00Z', shortDescription:'Laptop asks for a recovery key',
+    description:'Phone call: "My laptop got a firmware update last night and now there\'s a blue screen asking for a BitLocker recovery key with a bunch of numbers. I don\'t have any key! I\'m at the airport and my flight boards in 40 minutes." Laptop NS-LT-0099.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: BitLocker recovery screen after last night\'s firmware update; user travelling, boarding in 40 minutes. Tried: verified per KB-0024 at 07:12 (called back on her directory mobile; employee ID confirmed); Key ID 3A7F9C21 on her screen matched a stored key for NS-LT-0099; read the recovery key aloud in groups per KB-0083. Result: Windows loaded at 07:16; Dina confirmed. Next action: Desktop Support rotates the recovery key, released today (Key ID 3A7F9C21).',
+    console: {
+      now:'2026-08-21T07:05:00Z', matrix:{}, classify:{ categories:HD_ITS03_CATEGORIES, cis:['NS-LT-0099', 'NS-WS-0204', 'NS-LT-0215'], preset:{ contactType:'Phone' } },
+      priorityCoach:{ impact:'3', urgency:'1', line:'One person is affected (Impact 3), and she boards in 40 minutes (Urgency 1): P3. She is in the Executive Office; the process is the same for everyone.' },
+      kb:true,
+      caller:{ name:'Dina Foster', style:'phone', questions:[
+        { id:'keyid', text:'Please read me the Key ID on your recovery screen.', reply:'It says Key ID 3A7F9C21, and then a long line of letters and numbers.' },
+        { id:'loaded', text:'Please type the key while I read it. Does Windows load?', afterAction:'read-match', replyBefore:'Still the blue screen.', reply:'It\'s loading! I\'m in. Thank you!' },
+      ] },
+      verification:{ prompt:'Dina Foster is on the phone from the airport. She asks for her BitLocker recovery key and says she boards in 40 minutes. How do you verify it is really Dina? (KB-0024)', options:[
+        { id:'name', text:'Accept it: Dina gives her name and says she is an executive assistant in a hurry', feedback:'Not verification. A deadline or a senior title does not change the check (KB-0083). Call Dina back on her directory number and confirm her employee ID.' },
+        { id:'callback', text:'Call Dina back on her mobile number in the User Directory and confirm her employee ID', pass:true, feedback:'Verified. You called Dina back on 407-555-0187 from the User Directory, and she confirmed employee ID E-39167.', history:'Identity verified per KB-0024 at 07:12: called Dina back on her directory mobile (407-555-0187); employee ID E-39167 confirmed.' },
+        { id:'number-given', text:'Call Dina back on the number she gives you', feedback:'Not verification. A number the caller gives you proves nothing. KB-0024: call back on the number in the User Directory.' },
+      ] },
+      machines:{
+        'NS-LT-0099':{
+          computer:{ ip:'10.20.50.99', health:'BitLocker recovery' },
+          bitlockerKeys:[
+            { keyId:'3A7F9C21', date:'Today', key:'118206-447031-905526-263874-710349-582167-336092-871455' },
+            { keyId:'B52E07D4', date:'2/11/2025', key:'654209-018337-472861-309514-826790-153408-947622-260183' },
+          ],
+        },
+      },
+      actions:[
+        { id:'read-match', text:'Read the stored key with Key ID 3A7F9C21 aloud to Dina, in groups of six', bitlockerKey:'3A7F9C21', needsVerification:true, earlyCritical:'Read out the recovery key before verifying the caller', earlyFeedback:'Critical error. Verify Dina before you read out any key (KB-0024, KB-0083): call her back on her directory number and confirm her employee ID.', feedback:'You read the key aloud in groups of six while Dina typed it.', history:'Read the recovery key with Key ID 3A7F9C21 aloud in groups of six after verifying the caller. The key is not recorded.' },
+        { id:'read-other', text:'Read the stored key with Key ID B52E07D4 aloud to Dina', bitlockerKey:'B52E07D4', critical:true, needsVerification:true, feedback:'Critical error. That key\'s ID does not match the one on her screen, so it will not work. A key that does not match is never read out (KB-0083).', history:'Read out a recovery key whose Key ID did not match the one on the user\'s screen.' },
+        { id:'email-key', text:'Email the recovery key to Dina', critical:true, feedback:'Critical error. Never send a recovery key by email, chat or text. Read it aloud while the user types it (KB-0083).', history:'Sent a recovery key by email.' },
+        { id:'text-key', text:'Text the recovery key to Dina\'s phone', critical:true, feedback:'Critical error. Never send a recovery key by email, chat or text. Read it aloud while the user types it (KB-0083).', history:'Sent a recovery key by text message.' },
+      ],
+      comments:true, resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Active Directory', 'AD', 'KB-0083', 'KB-0024', 'NS-LT-0099', 'Tier 1', 'Tier 2', 'P3', 'SLA', 'rotate', 'rotated', 'escalate', 'escalated'] },
+      feedback:[
+        { area:'Triage', checks:[{ priority:'P3', missing:'Set Impact 3 (one person) and Urgency 1 (she boards in 40 minutes). That makes the ticket P3. The process is the same for everyone in the company.' }], good:'The priority is P3: one person, and she boards in 40 minutes.', fix:'Set Impact 3 (one person) and Urgency 1 (a flight in 40 minutes). The ticket is P3.' },
+        { area:'Investigation', checks:[{ kb:'KB-0083', missing:'Search the KB for "recovery key" and open KB-0083.' }, { chat:['keyid'], missing:'Ask Dina to read you the Key ID on her recovery screen.' }, { seen:'ad-bitlocker', computer:'NS-LT-0099', missing:'Open Active Directory › Computers › NS-LT-0099 and look at its BitLocker Recovery tab. It lists two keys.' }], good:'You used KB-0083, got the Key ID from Dina and found both stored keys.', fix:'Open KB-0083, ask Dina for the Key ID, then open NS-LT-0099 in Active Directory › Computers and look at its BitLocker Recovery tab.' },
+        { area:'Action', checks:[{ verified:true, missing:'Verify Dina first (KB-0024): call her back on the number in the User Directory and confirm her employee ID.' }, { action:'read-match', missing:'Read the key whose Key ID matches the one on her screen (3A7F9C21), aloud, in groups of six.' }, { confirmed:'loaded', missing:'Ask Dina to confirm Windows loads.' }], good:'You verified her first, read only the matching key aloud and confirmed Windows loaded.', fix:'Verify Dina first, read aloud only the key with the same Key ID as her screen, in groups of six, and confirm Windows loads. Never send a key by email or text, and never read out a key whose ID does not match.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note with a Next action: Desktop Support rotates the key. Never write the key itself.' }, { comment:true, missing:'Write a comment for Dina in plain words, with no internal terms.' }, { notePattern:'3A7F9C21', missing:'Write the Key ID (3A7F9C21) in your note, never the key itself.' }, { status:'Resolved', missing:'Resolve the ticket once Dina confirms Windows loaded.' }], good:'A complete note with the Key ID and no key, a plain-words comment, and the ticket resolved.', fix:'Write a Reported / Tried / Result note that records the time you verified her and the Key ID, never the key, with a Next action for Desktop Support to rotate it. Write a plain-words comment for Dina, for example: "Hi Dina, glad you\'re back in before your flight! The firmware update made your laptop ask for its security recovery key, which is normal after that kind of update. We confirmed it was you and gave you the key over the phone. We\'ll refresh the key on our side so it stays secure. Have a good trip. – Riley"' },
+      ],
+    } }),
+  // Ticket 5-D: a laptop that shuts off under load because it is hot.
+  hdTicket({ id:'HD-2186', ownSet:true, number:'INC0010484', requester:'Evan Parker', department:'Finance', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T11:14:00Z', shortDescription:'My laptop keeps shutting off',
+    description:'My laptop just turned itself off. Twice today, both times in the middle of the payroll export. No warning, the screen just goes black. The export has to be in by 2:00.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: laptop shut off twice today during the payroll export; no blue screen, the screen goes black; export due at 2:00. Tried: System log shows Kernel-Power Event ID 41 twice today; Reliability Monitor shows two "not properly shut down" events and no installs this week; no stop code. Evan says the case is very hot, the fan has been loud all week, and the laptop has sat on a stack of folders since Monday. Had him shut down, let it cool, move it to the bare desk and clear the vents. Result: export ran to the end; no new Event ID 41; fan quieter; Evan confirmed. Told him to call back if it shuts off again on a hard surface, so Desktop Support can check the fan.',
+    console: {
+      now:'2026-08-19T11:20:00Z', matrix:{}, classify:{ categories:HD_ITS03_CATEGORIES, cis:['NS-LT-0118', 'NS-LT-0117', 'NS-PAY-SECURE'], preset:{ contactType:'Phone' } },
+      priorityCoach:{ impact:'3', urgency:'1', line:'One person is affected (Impact 3), and his work is blocked and due today (Urgency 1): P3.' },
+      kb:true,
+      caller:{ name:'Evan Parker', style:'phone', questions:[
+        { id:'screen', text:'Do you see a blue screen or an error first?', reply:'No. It just goes black.' },
+        { id:'hot', text:'Is the laptop hot, or is the fan loud?', reply:'It\'s burning hot underneath and the fan has been roaring all week.' },
+        { id:'where', text:'Where does the laptop sit while you work?', reply:'On a stack of folders on my desk. I rearranged my desk on Monday.' },
+        { id:'changed', text:'Did anything else change, like new software?', reply:'Nothing.' },
+        { id:'quieter', text:'Please run the payroll export again. Does it finish, and is the fan quieter?', afterAction:'retry', replyBefore:'It shut off again.', reply:'It finished, and the fan is much quieter.' },
+      ] },
+      machines:{
+        'NS-LT-0118':{
+          computer:{ ip:'10.20.20.118', health:'Healthy' },
+          uptimeDays:0,
+          processes:[
+            { name:'Payroll Export', cpu:81, memory:1840, disk:6 },
+            { name:'Microsoft Excel', cpu:9, memory:760, disk:1.5 },
+            { name:'Microsoft Edge', cpu:4, memory:640, disk:0.3 },
+            { name:'Windows Explorer', cpu:1, memory:150, disk:0.2 },
+          ],
+          performance:{ cpu:96, memory:58, disk:9 },
+          storage:{ drive:'C:', sizeGb:476, freeGb:276,
+            categories:[{ name:'Apps & features', gb:90 }, { name:'Documents', gb:55 }, { name:'System & reserved', gb:40 }, { name:'Other', gb:15 }],
+            driveHealth:'Good' },
+          events:{
+            system:[
+              { level:'Critical', time:'Today 10:52', source:'Kernel-Power', id:'41', message:'The system has rebooted without cleanly shutting down first. This error could be caused if the system stopped responding, crashed, or lost power unexpectedly.', details:'BugcheckCode: 0 (no stop code was recorded)' },
+              { level:'Critical', time:'Today 09:48', source:'Kernel-Power', id:'41', message:'The system has rebooted without cleanly shutting down first. This error could be caused if the system stopped responding, crashed, or lost power unexpectedly.', details:'BugcheckCode: 0 (no stop code was recorded)' },
+            ],
+            application:[],
+            'diagnostics-performance':[],
+          },
+          reliability:[
+            { day:'Monday', critical:[], warnings:[], installs:[] },
+            { day:'Tuesday', critical:[], warnings:[], installs:[] },
+            { day:'Today', today:true, critical:['Windows was not properly shut down', 'Windows was not properly shut down'], warnings:[], installs:[] },
+          ],
+        },
+      },
+      actions:[
+        { id:'cool', text:'Ask Evan to save his work, shut down and let the laptop cool for a few minutes', feedback:'Evan: "Okay, saving the export settings and shutting it down."', history:'Asked the user to save, shut down and let the laptop cool.' },
+        { id:'move', text:'Ask Evan to put the laptop on the bare, hard desk and check that nothing covers the vents', feedback:'Evan: "It\'s on the bare desk now, and I moved the folders away from the vents."', history:'Asked the user to move the laptop to a hard, flat surface and clear the vents.' },
+        { id:'retry', text:'Ask Evan to run the payroll export again', needsAction:['cool', 'move'], beforeText:'Evan: "It shut off again in the middle of the export."', feedback:'Evan starts the payroll export again.', history:'Asked the user to run the payroll export again.' },
+        { id:'dism-sfc', text:'Run DISM and SFC on Evan\'s laptop', feedback:'System-file repair doesn\'t fix heat. The evidence pointed at the laptop\'s cooling.', history:'Ran system-file repair for a laptop that shuts off from heat.' },
+        { id:'escalate-fan', text:'Escalate to Desktop Support to check the fan', needsAction:['move', 'retry'], beforeText:'Moving it to a hard surface and clearing the vents is a Tier 1 step. Try it and test before you hand off.', feedback:'Desktop Support will check the fan if the shut-offs come back on a hard surface.', history:'Escalated to Desktop Support to check the fan.' },
+        { id:'open-case', text:'Tell Evan to open the laptop\'s case and clean the fan', critical:true, feedback:'Critical error. Tier 1 never asks a user to open a laptop\'s case (KB-0071). Move it to a hard surface and test again.', history:'Told the user to open the laptop\'s case.' },
+        { id:'reset-pc', text:'Reset or reinstall Windows on Evan\'s laptop', critical:true, feedback:'Critical error. Windows is not the cause. The evidence pointed at heat. Never reset a PC for a cooling problem.', history:'Reset or reinstalled Windows for a heat problem.' },
+      ],
+      comments:true, resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Event ID', 'Kernel-Power', 'Event Viewer', 'Reliability Monitor', 'stop code', 'CPU', 'NS-LT-0118', 'Tier 1', 'Tier 2', 'P3', 'SLA'] },
+      feedback:[
+        { area:'Triage', checks:[{ priority:'P3', missing:'Set Impact 3 (one person) and Urgency 1 (his work is blocked and due today). That makes the ticket P3.' }], good:'The priority is P3: one person, and the export is due today.', fix:'Set Impact 3 (one person) and Urgency 1 (blocked, due today). The ticket is P3.' },
+        { area:'Investigation', checks:[{ seen:'event-log:system', computer:'NS-LT-0118', missing:'In Event Viewer, open Windows Logs › System on NS-LT-0118 and look for Event ID 41.' }, { chat:['screen', 'hot', 'where'], missing:'Ask Evan what he sees first, whether the laptop is hot or loud, and where it sits.' }], good:'You found Event ID 41 with no stop code, and asked what he sees, how hot it is and where it sits.', fix:'Open the System log on NS-LT-0118 for Event ID 41, then ask Evan what he sees, whether it is hot or loud, and where it sits.' },
+        { area:'Diagnosis', checks:[{ chat:['changed'], missing:'Ask Evan whether anything else changed, such as new software, before you decide it is heat.' }], good:'Event ID 41 with no stop code, under load, a hot case on a soft surface: heat, not Windows.', fix:'Event ID 41 has no stop code, it happens only under load, the case is hot and the laptop sits on soft folders. That is heat, not a driver crash or a Windows fault.' },
+        { area:'Action', checks:[
+          { action:'cool', missing:'Ask Evan to save his work, shut down and let the laptop cool.' },
+          { action:'move', missing:'Ask Evan to move the laptop to a hard, flat surface and check the vents.' },
+          { action:'retry', missing:'Ask Evan to run the export again, so you test under the same load.' },
+          { confirmed:'quieter', missing:'Ask Evan whether the export finished and the fan is quieter.' },
+          { seen:'event-log:system', computer:'NS-LT-0118', after:'retry', missing:'After the second export, open the System log again and check there is no new Event ID 41.' },
+        ], good:'You cooled it, moved it to a hard surface, tested under the same load and checked there was no new Event ID 41.', fix:'Have Evan shut down and cool the laptop, move it to a hard surface and clear the vents, then run the export again. Confirm with him, and check the System log for a new Event ID 41. Never ask him to open the case.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note with a Next action.' }, { comment:true, missing:'Write a comment for Evan in plain words, with no internal terms.' }, { commentPattern:'call|again|happens', missing:'Tell Evan what to do if it shuts off again on a hard surface.' }, { status:'Resolved', missing:'Resolve the ticket once Evan confirms the export finished.' }], good:'A complete note, a plain-words comment that says what to do if it returns, and the ticket resolved.', fix:'Write a Reported / Tried / Result note and a plain-words comment, for example: "Hi Evan, your laptop was shutting itself off to protect itself from heat. Sitting on the folders blocked the air vents underneath. On the bare desk it stayed cool and your export finished. Keep it on a hard, flat surface, and if it ever shuts off like that again, call us and our desktop team will check the fan. – Riley"' },
       ],
     } }),
 ];

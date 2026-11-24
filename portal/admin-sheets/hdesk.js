@@ -19,7 +19,8 @@
     'lab-its-02-device-manager': ['HD-2134'],
     'lab-its-02-print-spooler': ['HD-2112'],
     'lab-its-02-vm-snapshot-server': ['HD-2173'],
-    'lab-its-03-blank-desktop': ['HD-2109'],
+    // Module 5 (key its-03), from 2026-11-24: Lab 5.1 is HD-2180.
+    'lab-its-03-blank-desktop': ['HD-2180'],
     'lab-its-04-connectivity': ['HD-2104', 'HD-2105'],
     'lab-its-05-server-ad': ['HD-2108', 'HD-2117'],
     'lab-its-06-identity-access': ['SR-2107', 'HD-2118'],
@@ -30,8 +31,9 @@
   };
   // Lab 1.2 used HD-2101 until 2026-11-09: an attempt saved before then holds
   // HD-2101 and no HD-2150, and keeps the sheet it was worked against.
-  // Lab 4.3 walked HD-2106 until 2026-11-23, the same way.
-  const EARLIER_TICKETS_BY_LAB = { 'lab-its-01-ticket-triage': ['HD-2101'], 'lab-its-02-device-manager': ['HD-2106'] };
+  // Lab 4.3 walked HD-2106 until 2026-11-23, and Module 5's lab walked HD-2109
+  // until 2026-11-24, the same way.
+  const EARLIER_TICKETS_BY_LAB = { 'lab-its-01-ticket-triage': ['HD-2101'], 'lab-its-02-device-manager': ['HD-2106'], 'lab-its-03-blank-desktop': ['HD-2109'] };
   const TITLES = {
     // Retired 2026-11-10; kept so its past attempts still open.
     'lab-its-01-lms-validation': 'Module 01 · LMS & Environment Validation',

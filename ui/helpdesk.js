@@ -1575,6 +1575,29 @@ function hdConsoleRule(ticket, rule) {
   if (rule.attempts) return hdContactAttempts(ticket).length >= rule.attempts;
   if (rule.code) return (state.resolutionCode || ticket.closureCode) === rule.code;
   if (rule.rewrite) return !!(state.rewrite && !state.rewrite.missing.length);
+  // Module 5 work on a computer's tool screens (each off unless a ticket uses it):
+  //   seen: '<machine.seen key>', computer, after?: '<action id>'   the screen
+  //     was opened on that computer (after that action, when given)
+  //   typed: '<regex source>', computer   a command typed on that computer
+  //   actionsAfter: { after, action, min, without? }   at least min of action
+  //     after the last after, and no without after it (three clean dock cycles)
+  if (rule.seen) {
+    const machine = hdMachine(rule.computer);
+    if (!machine || !Array.isArray(machine.seen) || !machine.seen.includes(rule.seen)) return false;
+    if (!rule.after) return true;
+    const at = state.actions.map(entry => entry.id).lastIndexOf(rule.after);
+    const seenAt = machine.seenAt && typeof machine.seenAt === 'object' ? Number(machine.seenAt[rule.seen]) : NaN;
+    return at >= 0 && seenAt > at;
+  }
+  if (rule.typed) {
+    return (Array.isArray(hdState.practiceLog) ? hdState.practiceLog : []).some(entry => entry && entry.type === 'command_run' && entry.computer === rule.computer && test(rule.typed, String(entry.command || '').trim()));
+  }
+  if (rule.actionsAfter) {
+    const spec = rule.actionsAfter; const ids = state.actions.map(entry => entry.id);
+    const at = ids.lastIndexOf(spec.after); if (at < 0) return false;
+    const later = ids.slice(at + 1);
+    return later.filter(id => id === spec.action).length >= Number(spec.min || 1) && !(spec.without && later.includes(spec.without));
+  }
   // Module 3 work: the call, hold, handoff, follow-up and team messages.
   const comms = hdCommsRule(ticket, rule);
   if (comms !== undefined) return comms;
@@ -4251,9 +4274,20 @@ function hdWinHas(machine, screen) {
   return Object.keys(shift).some(name => own(hdMachine(name)));
 }
 function hdWinSeen(machine, key) {
-  if (!machine) return;
+  if (!machine) return false;
   if (!Array.isArray(machine.seen)) machine.seen = [];
-  if (!machine.seen.includes(key)) machine.seen.push(key);
+  let changed = false;
+  if (!machine.seen.includes(key)) { machine.seen.push(key); changed = true; }
+  // Module 5 (sim): when the key was last seen, as the owning ticket's action
+  // count then, so "Check my work" can ask for a screen read again after a
+  // fix (rule seen with after; hdConsoleRule).
+  const ticket = machine.seededBy && !HD_PROVE ? hdTicketById(machine.seededBy) : null;
+  if (ticket) {
+    const count = hdConsoleState(ticket).actions.length;
+    if (!machine.seenAt || typeof machine.seenAt !== 'object') machine.seenAt = {};
+    if (machine.seenAt[key] !== count) { machine.seenAt[key] = count; changed = true; }
+  }
+  return changed;
 }
 function hdWinOpened(computerName, screen, tab) {
   const meta = HD_WIN_SCREENS[screen]; const machine = hdFeatureMachine(computerName); if (!meta || !machine) return;
@@ -4592,9 +4626,9 @@ function hdWinRepairs(machine) { return machine && machine.repairs && typeof mac
 function hdWinFiles(machine) { return machine && machine.files && typeof machine.files === 'object' && !Array.isArray(machine.files) ? machine.files : null; }
 function hdWinSeenSave(machine, keys) {
   if (!machine) return;
-  const before = Array.isArray(machine.seen) ? machine.seen.length : 0;
-  keys.forEach(key => hdWinSeen(machine, key));
-  if (machine.seen.length !== before) hdSave();
+  let changed = false;
+  keys.forEach(key => { if (hdWinSeen(machine, key)) changed = true; });
+  if (changed) hdSave();
 }
 
 // Event Viewer › a computer's logs.

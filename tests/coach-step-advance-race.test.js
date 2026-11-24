@@ -6,8 +6,9 @@
 // redraw never skips the next step.
 //
 // Loads the simulator scripts in ui/index.html's order into a Node vm with
-// timers the test fires by hand. Uses the hd-m03 coach (first step: open
-// HD-2109; second step: read the evidence, a step with no check).
+// timers the test fires by hand. Uses the hd-m08 coach (first step: open
+// HD-2110; second step: read the evidence, a step with no check). It used
+// hd-m03 on HD-2109 until Module 5's lab replaced that coach (2026-11-24).
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -16,7 +17,7 @@ const vm = require('node:vm');
 const UI = path.join(__dirname, '..', 'ui');
 const SCRIPTS = ['coach-data.js', 'helpdesk-data.js', 'helpdesk.js', 'coach.js', 'helpdesk-coaches.js'];
 const SOURCES = SCRIPTS.map((name) => [name, fs.readFileSync(path.join(UI, name), 'utf8')]);
-const SIM_URL = 'https://academy.test/sim/?coach=hd-m03&restart=1&student=student-race0001#/helpdesk/tickets';
+const SIM_URL = 'https://academy.test/sim/?coach=hd-m08&restart=1&student=student-race0001#/helpdesk/tickets';
 
 const store = () => {
   const map = new Map();
@@ -92,7 +93,7 @@ function testRedrawDuringTheWaitDoesNotSkipAStep() {
   tab.clearPending();
   assert.equal(tab.step(), 0);
   // The student opens the ticket: step 1's check now passes.
-  tab.run("hdState.selectedTicketId = 'HD-2109'");
+  tab.run("hdState.selectedTicketId = 'HD-2110'");
   tab.pollOnce();                 // watcher A sees it and schedules the advance
   tab.run('render()');            // a redraw during the 650 ms starts watcher B
   tab.pollOnce();                 // watcher B sees the same step complete
@@ -103,7 +104,7 @@ function testRedrawDuringTheWaitDoesNotSkipAStep() {
 function testOneWatcherStillAdvances() {
   const tab = sim();
   tab.clearPending();
-  tab.run("hdState.selectedTicketId = 'HD-2109'");
+  tab.run("hdState.selectedTicketId = 'HD-2110'");
   tab.pollOnce();
   tab.flushTimeouts();
   assert.equal(tab.step(), 1, 'the normal path advances as before');
@@ -114,9 +115,9 @@ function testOneWatcherStillAdvances() {
 function testRestartDuringTheWaitDoesNotAdvanceTheNewSession() {
   const tab = sim();
   tab.clearPending();
-  tab.run("hdState.selectedTicketId = 'HD-2109'");
+  tab.run("hdState.selectedTicketId = 'HD-2110'");
   tab.pollOnce();                 // the old session schedules its advance
-  tab.run("hdState.selectedTicketId = null; startModuleCoach('hd-m03', 'student-race0001')");
+  tab.run("hdState.selectedTicketId = null; startModuleCoach('hd-m08', 'student-race0001')");
   assert.equal(tab.step(), 0, 'the restarted coach is on step 1');
   tab.flushTimeouts();
   assert.equal(tab.step(), 0, 'the old session\'s advance does not move the new one');
