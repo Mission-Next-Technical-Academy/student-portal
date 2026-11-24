@@ -333,6 +333,11 @@ function testTypedStepsNeedTheRightCommandInOrder() {
   assert.match(tab.ps('sfc /scanow'), /Did you mean: sfc \/scannow/);
   assert.match(tab.ps('dsim /online /cleanup-image /restorehealth'), /Did you mean: DISM/, 'a misspelled name gets the one-line hint');
   assert.equal(step.check(), false);
+  // "Check my work" doesn't count a refused command either.
+  const dismRule = { typed: '^dism(\\.exe)?\\b.*\\/restorehealth', computer: PC };
+  assert.equal(tab.run(`hdConsoleRule(hdTicketById('${NOAH}'), ${JSON.stringify(dismRule)})`), false, 'refused DISM is not done');
+  tab.ps('chkdsk C: /f');
+  assert.equal(tab.run(`hdConsoleRule(hdTicketById('${NOAH}'), ${JSON.stringify({ typed: '^chkdsk(\\.exe)?\\s+c:', computer: PC })})`), false, 'chkdsk /f in use is not done');
   tab.ps('sfc /scannow');
   tab.ps('DISM /Online /Cleanup-Image /RestoreHealth');
   assert.equal(step.check(), false, 'sfc first, then DISM: not in order');

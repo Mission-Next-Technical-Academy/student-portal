@@ -1596,7 +1596,11 @@ function hdConsoleRule(ticket, rule) {
     return ['category', 'subcategory', 'ci'].every(key => !rule.triage[key] || chosen[key] === rule.triage[key]);
   }
   if (rule.typed) {
-    return (Array.isArray(hdState.practiceLog) ? hdState.practiceLog : []).some(entry => entry && entry.type === 'command_run' && entry.computer === rule.computer && test(rule.typed, String(entry.command || '').trim()));
+    // Only a command the console ran: a refused one (wrong options, a path
+    // not found, a misspelling) records that as its result (hdWinTypedCommand).
+    const refused = /^(dism|sfc|chkdsk): (wrong options|volume in use)$|^path not found$|^no folder$|^no log named$|^misspelled/i;
+    return (Array.isArray(hdState.practiceLog) ? hdState.practiceLog : []).some(entry => entry && entry.type === 'command_run' && entry.computer === rule.computer
+      && test(rule.typed, String(entry.command || '').trim()) && !refused.test(String(entry.result || '')));
   }
   if (rule.actionsAfter) {
     const spec = rule.actionsAfter; const ids = state.actions.map(entry => entry.id);
