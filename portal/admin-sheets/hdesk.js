@@ -43,7 +43,9 @@
     'lab-its-02-vm-snapshot-server': 'Module 04 · Lab 4.2 · Guided Lab: snapshot, server and a virtual desktop (checked, not graded)',
     'lab-its-02-device-manager': 'Module 04 · Lab 4.3 · Guided Lab: printers and peripherals',
     'lab-its-02-print-spooler': 'Module 04 · Lab 4.4 · Practice tickets (not graded)',
-    'lab-its-03-blank-desktop': 'Module 05 · The Blank Desktop',
+    'lab-its-03-blank-desktop': 'Module 05 · Lab 5.1 · Guided Lab: the slow-computer sequence and system repair',
+    'lab-its-03-practice-tickets': 'Module 05 · Lab 5.2 · Practice tickets (not graded)',
+    'lab-its-03-prove-it': 'Module 05 · Prove It: Independent Ticket',
     'lab-its-04-connectivity': 'Module 09 · Connected But Nothing Works',
     'lab-its-05-server-ad': 'Module 07 · Server and Active Directory',
     'lab-its-06-identity-access': 'Module 08 · Restoring Access the Right Way',
@@ -676,8 +678,8 @@
     });
   });
 
-  // Modules 1 to 3's practice tickets: a completion record only.
-  ['lab-its-01-practice-tickets', 'lab-its-10-practice-tickets', 'lab-its-11-practice-tickets'].forEach((key) => {
+  // Modules 1, 2, 3 and 5's practice tickets: a completion record only.
+  ['lab-its-01-practice-tickets', 'lab-its-10-practice-tickets', 'lab-its-11-practice-tickets', 'lab-its-03-practice-tickets'].forEach((key) => {
     AdminSubmissionSheet.register(key, {
       title: TITLES[key],
       caseId: (result) => (Array.isArray(result.tickets) ? result.tickets.filter((id) => typeof id === 'string').join(', ') : '') || null,

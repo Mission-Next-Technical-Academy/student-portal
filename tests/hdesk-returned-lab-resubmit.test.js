@@ -193,22 +193,23 @@ async function testWalkthroughResubmitsOnlyReturnedLab() {
 
 /* ------------------------------------------ Modules 3-11 (shared walkthrough) */
 
+// Module 10 (key its-08) is the example of the shared walkthrough page.
 async function testSharedWalkthroughModule() {
-  const LAB = 'lab-its-03-blank-desktop';
-  const user = hdUser({ attempts: { [LAB]: returned() }, feedback: { [LAB]: note('Check Event Viewer before rebuilding the profile.') } });
+  const LAB = 'lab-its-08-unfamiliar-problems';
+  const user = hdUser({ attempts: { [LAB]: returned() }, feedback: { [LAB]: note('Check the trust relationship before rejoining the domain.') } });
   fresh(user);
-  seed('its-coach-its-03-v1', user, { consoleStarted: true, consoleCompleted: true });
-  let html = moduleLab(3).view(user, HD);
-  assert.match(html, /Check Event Viewer before rebuilding the profile\./, 'Module 3 shows the return note');
+  seed('its-coach-its-08-v1', user, { consoleStarted: true, consoleCompleted: true });
+  let html = moduleLab(8).view(user, HD);
+  assert.match(html, /Check the trust relationship before rejoining the domain\./, 'Module 10 shows the return note');
   assert.match(html, /Redo the walkthrough/);
 
-  await moduleLab(3).onMessage(coachDone('hd-m03'));
+  await moduleLab(8).onMessage(coachDone('hd-m08'));
   assert.equal(inserts(LAB).length, 1, 'finishing again resubmits once');
-  await moduleLab(3).onMessage(coachDone('hd-m03'));
+  await moduleLab(8).onMessage(coachDone('hd-m08'));
   assert.equal(inserts(LAB).length, 1, 'finishing while waiting on faculty sends nothing');
 
-  html = moduleLab(3).view(user, HD);
-  assert.doesNotMatch(html, /Check Event Viewer before rebuilding the profile\./, 'note clears after resubmitting');
+  html = moduleLab(8).view(user, HD);
+  assert.doesNotMatch(html, /Check the trust relationship before rejoining the domain\./, 'note clears after resubmitting');
   assert.doesNotMatch(html, /Redo the walkthrough/);
 
   // Every Modules 3-11 page gets the same handling from the shared factory.
