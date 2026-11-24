@@ -131,10 +131,12 @@
   // The IT Help Desk course explicitly teaches named Windows administration
   // tools and commands. Preserve that required technical vocabulary inside its
   // own workload while keeping the SOC simulator's neutral presentation layer.
+  // The coach panel (ui/coach.js) sits outside #content, so it is listed too;
+  // without it, a coach step says "Endpoint OS" while the screen says "Windows".
   function isHelpDeskTechnicalContent(node) {
     const element = node instanceof Element ? node : node?.parentElement;
     return document.body.classList.contains('wl-helpdesk') &&
-      !!element?.closest('#content, #sidenav');
+      !!element?.closest('#content, #sidenav, #coach-panel');
   }
 
   function neutralizeTerminology(value) {
