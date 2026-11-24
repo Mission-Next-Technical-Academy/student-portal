@@ -59,7 +59,7 @@ insert into k values ($key${
       { "id": "list-read", "points": 15,
         "check": { "type": "any", "checks": [
           { "type": "path_contains", "path": ["events"], "value": { "type": "evidence_opened", "source": "screen-one:XW-01:tab" } },
-          { "type": "command_matches", "pattern": "^get-gadgets\\b", "computer": "XW-01" } ] },
+          { "type": "command_matches", "pattern": "^get-gadgets\\y", "computer": "XW-01" } ] },
         "feedback": "Read the list before you change anything." },
       { "id": "two-screens", "points": 15,
         "check": { "type": "path_contains", "path": ["events"], "values": [
