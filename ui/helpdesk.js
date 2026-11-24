@@ -3665,7 +3665,7 @@ function hdFormatList(pairs) {
 // otherwise, so the older answers stay as they were.
 function hdFeatureCommand(command, normalized, computer) {
   const machine = hdFeatureMachine(computer.name); if (!machine) return null;
-  const windows = hdWinCommand(command, normalized, machine);
+  const windows = hdWinCommand(command, normalized, machine, computer.name);
   if (windows !== null) return windows;
   const queues = hdPrintQueues(machine);
   const trimmed = command.trim();
@@ -4235,8 +4235,8 @@ function hdWinToolButtons(name) {
 }
 function hdWinRestartBar(name) {
   const machine = hdFeatureMachine(name); if (!hdWinHas(machine, 'restart')) return '';
-  const updates = hdWinUpdates(machine);
-  const note = updates && updates.restartRequired ? '<span class="muted">An update is waiting for a restart.</span>' : '';
+  // No hint about a pending update here: the student finds it in Windows Update.
+  const note = Number(machine.restarts) > 0 ? '<span class="muted" data-hd-restarted>Restarted. Signed in again.</span>' : '';
   return `<div class="hd-tool-grid" data-hd-restart-bar><button type="button" ${hdProveLocked() ? 'disabled' : ''} onclick="hdWinRestart('${hdJsArg(name)}')">⏻ Restart</button>${note}</div>`;
 }
 function hdWinScreen(screen) {
@@ -4280,7 +4280,7 @@ function hdWinStartupSet(computerName, appName, status) {
   });
 }
 VIEWS['helpdesk/pc-task-manager'] = () => {
-  const found = hdWinScreen('pc-task-manager'); if (!found) return hdMachineMissing('Task Manager');
+  const found = hdWinScreen('pc-task-manager'); if (!found || !hdWinHasTaskManager(found.machine)) return hdMachineMissing('Task Manager');
   const { computer, machine } = found; const view = hdMachineView();
   const tab = HD_WIN_TASK_TABS.some(([id]) => id === view.tab) ? view.tab : 'processes';
   const name = `'${hdJsArg(computer.name)}'`;
@@ -4295,12 +4295,12 @@ VIEWS['helpdesk/pc-task-manager'] = () => {
     body = `<div class="table-wrap"><table data-hd-processes><thead><tr><th>Name</th>${head('cpu', 'CPU', perf.cpu)}${head('memory', 'Memory', perf.memory)}${head('disk', 'Disk', machine.performance ? hdWinDiskPercent(machine) : undefined)}</tr></thead><tbody>${rows.map(p => `<tr data-hd-process="${hdEsc(p.name)}"><td>${hdEsc(p.name)}</td><td>${hdEsc(p.cpu || 0)}%</td><td>${hdEsc(p.memory || 0)} MB</td><td>${hdEsc(p.disk || 0)} MB/s</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No processes listed.</td></tr>'}</tbody></table></div>`;
   } else if (tab === 'performance') {
     const disk = hdWinDiskPercent(machine);
-    body = `<dl class="hd-dl" data-hd-performance><dt>CPU</dt><dd>${hdEsc(perf.cpu || 0)}%</dd><dt>Memory</dt><dd>${hdEsc(perf.memory || 0)}%</dd><dt>Disk 0 (C:)</dt><dd data-hd-disk="${disk}"><strong>${hdEsc(disk)}%</strong></dd></dl>`;
+    body = `<dl class="hd-dl" data-hd-performance><dt>CPU</dt><dd>${hdEsc(perf.cpu || 0)}%</dd><dt>Memory</dt><dd>${hdEsc(perf.memory || 0)}%</dd><dt>Disk 0 (C:)</dt><dd data-hd-disk="${disk}"><strong>${hdEsc(disk)}%</strong></dd>${typeof machine.uptimeDays === 'number' ? `<dt>Up time</dt><dd>${machine.uptimeDays === 0 ? 'Less than a day' : `${hdEsc(machine.uptimeDays)} day${machine.uptimeDays === 1 ? '' : 's'}`}</dd>` : ''}</dl>`;
   } else {
     const apps = hdWinList(machine, 'startupApps');
     body = `<div class="table-wrap"><table data-hd-startup><thead><tr><th>Name</th><th>Publisher</th><th>Status</th><th>Startup impact</th><th></th></tr></thead><tbody>${apps.map(app => {
       const enabled = app.status !== 'Disabled';
-      return `<tr data-hd-startup-app="${hdEsc(app.name)}" data-hd-startup-status="${enabled ? 'enabled' : 'disabled'}"><td>${hdEsc(app.name)}</td><td>${hdEsc(app.publisher || '')}${app.verified === false ? ' <span class="muted">(not verified)</span>' : app.verified ? ' <span class="muted">(verified)</span>' : ''}</td><td>${enabled ? 'Enabled' : 'Disabled'}</td><td>${hdEsc(enabled ? (app.impact || 'Not measured') : 'None')}</td><td><button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdWinStartupSet(${name},'${hdJsArg(app.name)}','${enabled ? 'Disabled' : 'Enabled'}')">${enabled ? 'Disable' : 'Enable'}</button></td></tr>`;
+      return `<tr data-hd-startup-app="${hdEsc(app.name)}" data-hd-startup-status="${enabled ? 'enabled' : 'disabled'}"><td>${hdEsc(app.name)}</td><td>${app.verified === false ? '' : hdEsc(app.publisher || '')}</td><td>${enabled ? 'Enabled' : 'Disabled'}</td><td>${hdEsc(enabled ? (app.impact || 'Not measured') : 'None')}</td><td><button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdWinStartupSet(${name},'${hdJsArg(app.name)}','${enabled ? 'Disabled' : 'Enabled'}')">${enabled ? 'Disable' : 'Enable'}</button></td></tr>`;
     }).join('') || '<tr><td colspan="5" class="muted">No startup apps.</td></tr>'}</tbody></table></div>`;
   }
   return `${hdPageHeader('Task Manager', computer.name, hdMachineBack(computer))}<div class="card" data-hd-pc-task-manager="${tab}"><div class="card-header" ${HD_CONSOLE_HEADER}>${hdWinTabs(HD_WIN_TASK_TABS, tab, id => `hdWinTaskTab(${name},'${id}')`)}</div><div class="card-body">${body}</div></div>`;
@@ -4320,7 +4320,7 @@ function hdWinTempRemove(computerName) {
   hdMachineChange(computerName, machine => {
     const storage = hdWinStorage(machine); if (!storage) return false;
     const items = (Array.isArray(storage.temporaryFiles) ? storage.temporaryFiles : []).filter(item => item && ticked.includes(item.id) && Number(item.gb) > 0);
-    if (!items.length) { toast('Tick the temporary files to remove first.'); return false; }
+    if (!items.length) { if (!HD_PROVE) toast('Tick the temporary files to remove first.'); return false; }
     const gb = hdWinRound(items.reduce((sum, item) => sum + Number(item.gb), 0));
     storage.freeGb = hdWinRound(Math.min(Number(storage.sizeGb), Number(storage.freeGb || 0) + gb));
     items.forEach(item => { item.gb = 0; });
@@ -4355,7 +4355,8 @@ VIEWS['helpdesk/settings-storage'] = () => {
 // Settings › Windows Update, and Restart (also on the Windows Desktop).
 function hdWinRestart(computerName) {
   hdMachineChange(computerName, machine => {
-    if (!hdWinHasRestart(machine)) return false;
+    // A machineTools Prove shift shows Restart on every computer; it works on each.
+    if (!hdWinHas(machine, 'restart')) return false;
     const updates = hdWinUpdates(machine);
     const finished = !!(updates && updates.restartRequired);
     if (finished) {
@@ -4387,7 +4388,9 @@ VIEWS['helpdesk/settings-update'] = () => {
   const pending = updates.pending && typeof updates.pending === 'object' ? updates.pending : null;
   const status = updates.restartRequired
     ? `<div class="callout warning" data-hd-update-status="restart"><strong>Restart required</strong>${pending ? `<p>${hdEsc(pending.name || '')}${pending.kb ? ` (${hdEsc(pending.kb)})` : ''}${pending.downloaded ? ` · downloaded ${hdEsc(pending.downloaded)}` : ''}</p>` : ''}<p>Your device will restart to finish installing.</p><button type="button" class="btn btn-primary btn-sm" ${locked} onclick="hdWinRestart(${name})">Restart now</button></div>`
-    : `<div class="callout info" data-hd-update-status="current"><strong>You're up to date</strong></div>`;
+    : pending
+      ? `<div class="callout info" data-hd-update-status="pending"><strong>Updates available</strong><p>${hdEsc(pending.name || '')}${pending.kb ? ` (${hdEsc(pending.kb)})` : ''} · Pending install</p></div>`
+      : `<div class="callout info" data-hd-update-status="current"><strong>You're up to date</strong></div>`;
   const history = (Array.isArray(updates.history) ? updates.history : []).filter(item => item && typeof item === 'object');
   const uptime = typeof machine.uptimeDays === 'number' ? (machine.uptimeDays === 0 ? 'Less than a day' : `${machine.uptimeDays} day${machine.uptimeDays === 1 ? '' : 's'}`) : '';
   return `${hdPageHeader('Windows Update', `Settings › Windows Update · ${computer.name}`, hdMachineBack(computer))}<div class="hd-settings-view" data-hd-windows-update>
@@ -4410,7 +4413,7 @@ function hdWinUninstall(computerName, appName) {
   });
 }
 VIEWS['helpdesk/settings-apps'] = () => {
-  const found = hdWinScreen('settings-apps'); if (!found) return hdMachineMissing('Installed apps');
+  const found = hdWinScreen('settings-apps'); if (!found || !Array.isArray(found.machine.installedApps)) return hdMachineMissing('Installed apps');
   const { computer, machine } = found;
   const name = `'${hdJsArg(computer.name)}'`;
   const locked = hdProveLocked() ? 'disabled' : '';
@@ -4442,7 +4445,7 @@ VIEWS['helpdesk/software-catalog'] = () => {
 // The optional PowerShell lines, from the machine state; null otherwise, so
 // today's answers stay as they were.
 function hdWinFirst(normalized, fallback) { const match = /select-object -first (\d+)/.exec(normalized); return match ? Math.max(1, Math.min(50, Number(match[1]))) : fallback; }
-function hdWinCommand(command, normalized, machine) {
+function hdWinCommand(command, normalized, machine, computerName) {
   const processes = hdWinList(machine, 'processes');
   if (processes.length && /^get-process(\s*\||$)/.test(normalized)) {
     const rows = processes.slice();
@@ -4471,7 +4474,7 @@ function hdWinCommand(command, normalized, machine) {
     const installed = (Array.isArray(updates.history) ? updates.history : []).filter(item => item && item.kb && /install/i.test(String(item.status || '')));
     const shown = installed.slice(0, hdWinFirst(normalized, installed.length));
     return ['Source        Description      HotFixID      InstalledBy          InstalledOn', '------        -----------      --------      -----------          -----------',
-      ...shown.map(item => `${String(hdState.selectedComputer || '').padEnd(13)} ${String(item.description || 'Update').padEnd(16)} ${String(item.kb).padEnd(13)} ${'NT AUTHORITY\\SYSTEM'.padEnd(20)} ${item.date || ''}`)].join('\n');
+      ...shown.map(item => `${String(computerName || '').padEnd(13)} ${String(item.description || 'Update').padEnd(16)} ${String(item.kb).padEnd(13)} ${'NT AUTHORITY\\SYSTEM'.padEnd(20)} ${item.date || ''}`)].join('\n');
   }
   return null;
 }
@@ -5401,7 +5404,7 @@ Events: Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4740}`}${hdFeatur
   if(featureOutput !== null) return featureOutput;
   const machineOutput = hdMachineCommand(command, normalized, computer);
   if(machineOutput !== null) return machineOutput;
-  if(normalized==='get-computerinfo') return `CsName: ${computer.name}\nWindowsProductName: Windows 11 Enterprise\nOsVersion: 10.0.26100\nCsDomain: ${HD_ORG.domain}${computer.uptimeDays ? `\nOsUptime: ${computer.uptimeDays} days` : ''}`;
+  if(normalized==='get-computerinfo') return `CsName: ${computer.name}\nWindowsProductName: Windows 11 Enterprise\nOsVersion: 10.0.26100\nCsDomain: ${HD_ORG.domain}${computer.uptimeDays || computer.uptimeDays === 0 ? `\nOsUptime: ${computer.uptimeDays} days` : ''}`;
   if(normalized==='get-netipconfiguration') return `InterfaceAlias: Wi-Fi\nIPv4Address: ${computer.ip}\nIPv4DefaultGateway: ${computer.ip.startsWith('169.254')?'(none)':'10.20.10.1'}\nDNSServer: ${computer.ip.startsWith('169.254')?'(none)':'10.20.0.10, 10.20.0.11'}`;
   if(normalized==='get-service') return `Status   Name          DisplayName\nRunning  EventLog      Windows Event Log\nRunning  WinDefend     Endpoint Protection\n${((hdMachine(computer.name) || {}).spooler || 'Stopped').padEnd(8)} Spooler       Print Spooler`;
   if(normalized==='get-process') return 'Handles  CPU(s)  Id    ProcessName\n412      8.4     1148  explorer\n690      11.1    2480  browser\n221      2.7     3312  vpnclient';

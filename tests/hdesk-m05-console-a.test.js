@@ -202,7 +202,8 @@ function testTaskManager() {
   assert.match(tab.view('helpdesk/pc-task-manager'), /<dt>CPU<\/dt><dd>30%<\/dd><dt>Memory<\/dt><dd>65%<\/dd><dt>Disk 0 \(C:\)<\/dt><dd data-hd-disk="100">/);
   tab.run("hdWinTaskTab('TEST-WS-01','startup')");
   html = tab.view('helpdesk/pc-task-manager');
-  assert.match(html, /data-hd-startup-app="Test Camera Helper" data-hd-startup-status="enabled"><td>Test Camera Helper<\/td><td>Test Devices Ltd\. <span class="muted">\(verified\)<\/span><\/td><td>Enabled<\/td><td>Medium<\/td>/);
+  assert.match(html, /data-hd-startup-app="Test Camera Helper" data-hd-startup-status="enabled"><td>Test Camera Helper<\/td><td>Test Devices Ltd\.<\/td><td>Enabled<\/td><td>Medium<\/td>/);
+  assert.doesNotMatch(html, /verified/i, 'no verified label: Windows leaves an unsigned publisher blank');
   // Seen keys for a coach: each tab and each sort.
   assert.deepEqual(tab.machine('TEST-WS-01').seen, ['task-manager:processes', 'task-manager:sort:cpu', 'task-manager:sort:disk', 'task-manager:performance', 'task-manager:startup']);
   // Disable: status changes, the app stays installed, an action with the computer.
@@ -271,7 +272,9 @@ function testWindowsUpdateAndRestart() {
   tab.open('HD-9501'); tab.select('TEST-WS-01');
   let desktop = tab.desktop();
   assert.match(desktop, /<span>Uptime<\/span><strong>40 days<\/strong>/);
-  assert.match(desktop, /data-hd-restart-bar>[\s\S]*An update is waiting for a restart/);
+  assert.match(desktop, /data-hd-restart-bar>/);
+  // No hint about the pending update on the desktop; Windows Update shows it.
+  assert.doesNotMatch(desktop.split('data-hd-restart-bar')[1], /update|waiting|data-hd-restarted/i);
   let html = tab.screen('TEST-WS-01', 'settings-update');
   assert.match(html, /data-hd-update-status="restart"><strong>Restart required<\/strong><p>TEST cumulative update \(KB0009501\) · downloaded Monday/);
   assert.match(html, /data-hd-last-installed>40 days ago</);
@@ -290,8 +293,9 @@ function testWindowsUpdateAndRestart() {
   assert.match(html, /data-hd-last-installed>Today</);
   desktop = tab.desktop();
   assert.match(desktop, /<span>Uptime<\/span><strong>Less than a day<\/strong>/);
-  assert.doesNotMatch(desktop, /waiting for a restart/);
-  assert.doesNotMatch(tab.out('Get-ComputerInfo'), /OsUptime/);
+  assert.match(desktop, /data-hd-restarted>Restarted\. Signed in again\./);
+  assert.match(tab.out('Get-ComputerInfo'), /OsUptime: 0 days/);
+  assert.match(tab.screen('TEST-WS-01', 'pc-task-manager', { tab: 'performance' }), /<dt>Up time<\/dt><dd>Less than a day<\/dd>/);
   assert.deepEqual(tab.actions('HD-9501'), ['restart']);
   assert.equal(tab.log().filter((e) => e.action === 'restart').pop().finishedUpdate, true);
   // A second restart: a plain restart, the boot time stays the after-fix one.
@@ -383,18 +387,34 @@ function testProveShift() {
   assert.doesNotMatch(prove.ps('Get-Help'), /Windows: /);
   assert.ok(!prove.toasts.some((t) => /restarted/.test(t)), 'no toast in a Prove It');
   // machineTools: every computer of the shift shows the Windows tools, each opening neutrally.
-  // Module 4's shift has two computers and machineTools: give one the keys.
+  // Module 4's shift has two computers and machineTools: give the first the
+  // keys. Its names are read from the data (Module 4's guard test keeps them
+  // out of every other file).
   const all = sim({ url: 'https://academy.test/sim/?prove=its-02&student=student-m05b#/helpdesk/tickets',
-    before: `Object.assign(HD_PROVE_SHIFTS['its-02'].machines['NS-WH-PC07'], ${JSON.stringify(WINDOWS)});` });
+    before: `{ const m = HD_PROVE_SHIFTS['its-02'].machines; Object.assign(m[Object.keys(m)[0]], ${JSON.stringify(WINDOWS)}); }` });
   assert.equal(all.run('HD_PROVE.shift.machineTools'), true);
-  all.select('NS-WH-PC08');
+  const [first, second] = [...all.run('Object.keys(HD_PROVE.shift.machines)')];
+  const j = JSON.stringify;
+  all.select(second);
   const desktop = all.view('helpdesk/windows');
   SCREENS.forEach((screen) => assert.match(desktop, new RegExp(`data-hd-tools="${screen}"`), screen));
   assert.match(desktop, /data-hd-restart-bar/);
-  assert.match(all.screen('NS-WH-PC08', 'settings-storage'), /Nothing to show on this computer/);
-  // Task Manager opens empty there: neutral, like the other screens.
-  assert.match(all.screen('NS-WH-PC08', 'pc-task-manager'), /No processes listed\./);
-  assert.ok(all.run('hdState.prove.opened').includes('storage:NS-WH-PC08'));
+  for (const screen of ['settings-storage', 'pc-task-manager', 'settings-apps']) assert.match(all.screen(second, screen), /Nothing to show on this computer/, screen);
+  assert.ok(all.run('hdState.prove.opened').includes(`storage:${second}`));
+  // Restart works on every computer it shows on, and is recorded.
+  all.run(`hdWinRestart(${j(second)})`);
+  assert.ok(all.run(`hdState.prove.events.some((e) => e.type === 'action_taken' && e.value === 'restart' && e.computer === ${j(second)})`));
+  // An empty Remove files click shows no toast in a Prove It.
+  all.run(`hdWinTempRemove(${j(first)})`);
+  assert.deepEqual([...all.toasts], []);
+}
+
+// A pending update that needs no restart yet shows as Pending install.
+function testPendingWithoutRestart() {
+  const tab = sim({ url: 'https://academy.test/sim/?practice=test-windows&student=stu-3#/helpdesk/tickets',
+    before: "HD_TICKET_TEMPLATES.find((t) => t.id === 'HD-9501').console.machines['TEST-WS-01'].updates.restartRequired = false;" });
+  tab.open('HD-9501');
+  assert.match(tab.screen('TEST-WS-01', 'settings-update'), /data-hd-update-status="pending"><strong>Updates available<\/strong><p>TEST cumulative update \(KB0009501\) · Pending install/);
 }
 
 // The machine state survives a reload with the student's changes.
@@ -411,7 +431,7 @@ function testReloadKeepsState() {
 }
 
 const tests = [testOldTicketsTurnNothingOn, testOtherFeatureMachineShowsNoWindowsTools, testTaskManager, testStorage, testStorageThreshold,
-  testWindowsUpdateAndRestart, testInstalledAppsAndCatalog, testOptionalCommands, testProveShift, testReloadKeepsState];
+  testWindowsUpdateAndRestart, testPendingWithoutRestart, testInstalledAppsAndCatalog, testOptionalCommands, testProveShift, testReloadKeepsState];
 let failed = 0;
 for (const test of tests) {
   try { test(); console.log(`ok - ${test.name}`); } catch (error) { failed += 1; console.error(`not ok - ${test.name}\n${error.stack}`); }
