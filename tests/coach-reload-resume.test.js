@@ -145,10 +145,12 @@ function fakeOpener() {
   return { sent, closed: false, focus() {}, postMessage: (data, origin) => sent.push({ data: JSON.parse(JSON.stringify(data)), origin }) };
 }
 
-// hd-m03 (one ticket, HD-2109): open the ticket and read the evidence — the
-// student is then on step 3, working the troubleshooting path.
-function workHdM03ToPath(tab) {
-  tab.run(`hdState.selectedTicketId = 'HD-2109'`);
+// hd-m08 (Module 10's generic coach, two tickets: HD-2110 then HD-2111, last
+// step 11): open HD-2110 and read the evidence — the student is then on step
+// 3, working the troubleshooting path. Until 2026-11-24 these tests used
+// hd-m03 on HD-2109; Module 5's lab replaced that coach.
+function workHdM08ToPath(tab) {
+  tab.run(`hdState.selectedTicketId = 'HD-2110'`);
   tab.next();                                   // opened the ticket
   tab.next();                                   // read the evidence
   return tab;
@@ -164,39 +166,39 @@ function testFirstLaunchStartsFreshAndCleansAddress() {
   assert.deepEqual(sim(launchUrl('hd-m02'), { local: store() }).screenTickets().sort(), ['HD-2134'], 'Module 4 Lab 4.3 shows its one ticket');
   before.run(`hdState.tickets[0].notes.push({ author: 'x', time: 't', text: 'old note' }); hdSave();`);
 
-  const tab = sim(launchUrl('hd-m03'), { local });
-  assert.deepEqual(ticketIds(tab), ['HD-2109'], 'reset to this coach\'s tickets');
-  assert.deepEqual(tab.screenTickets(), ['HD-2109'], 'the page is redrawn after the reset, not left showing the old queue');
+  const tab = sim(launchUrl('hd-m08'), { local });
+  assert.deepEqual(ticketIds(tab).sort(), ['HD-2110', 'HD-2111'], 'reset to this coach\'s tickets');
+  assert.deepEqual(tab.screenTickets().sort(), ['HD-2110', 'HD-2111'], 'the page is redrawn after the reset, not left showing the old queue');
   assert.equal(tab.coachState().step, 0);
-  assert.equal(tab.location.search, '?coach=hd-m03', 'restart and student leave the address bar');
+  assert.equal(tab.location.search, '?coach=hd-m08', 'restart and student leave the address bar');
   assert.equal(tab.location.hash, '#/helpdesk/tickets');
-  assert.deepEqual(tab.resume(), { id: 'hd-m03', step: 0, student: STUDENT_A });
+  assert.deepEqual(tab.resume(), { id: 'hd-m08', step: 0, student: STUDENT_A });
 }
 
 function testReloadKeepsWork() {
   const local = store();
-  const tab = workHdM03ToPath(sim(launchUrl('hd-m03'), { local }));
-  tab.run(`hdState.tickets[0].notes.push({ author: 'me', time: 'now', text: 'Temp profile loaded' }); hdSave();`);
+  const tab = workHdM08ToPath(sim(launchUrl('hd-m08'), { local }));
+  tab.run(`hdTicketById('HD-2110').notes.push({ author: 'me', time: 'now', text: 'Temp profile loaded' }); hdSave();`);
   assert.equal(tab.coachState().step, 2);
 
   const reloaded = tab.reload();
   assert.equal(reloaded.coachState().step, 2, 'same step after reload');
-  assert.equal(ticket(reloaded, 'HD-2109').notes.at(-1).text, 'Temp profile loaded', 'work note kept');
-  assert.equal(reloaded.hd().selectedTicketId, 'HD-2109');
+  assert.equal(ticket(reloaded, 'HD-2110').notes.at(-1).text, 'Temp profile loaded', 'work note kept');
+  assert.equal(reloaded.hd().selectedTicketId, 'HD-2110');
 }
 
 function testRelaunchSameStudentResumes() {
   const local = store();
-  const tab = workHdM03ToPath(sim(launchUrl('hd-m03'), { local }));
-  tab.run(`hdState.tickets[0].notes.push({ author: 'me', time: 'now', text: 'kept across launches' }); hdSave();`);
+  const tab = workHdM08ToPath(sim(launchUrl('hd-m08'), { local }));
+  tab.run(`hdTicketById('HD-2110').notes.push({ author: 'me', time: 'now', text: 'kept across launches' }); hdSave();`);
   tab.location.hash = '#/helpdesk/ticket';
 
   // The portal opens a new tab: empty sessionStorage, the launch link again.
-  const relaunched = sim(launchUrl('hd-m03'), { local });
+  const relaunched = sim(launchUrl('hd-m08'), { local });
   assert.equal(relaunched.coachState().step, 2, 'resumes at the saved step');
   assert.equal(relaunched.location.hash, '#/helpdesk/ticket', 'on the page that step lives on');
-  assert.equal(ticket(relaunched, 'HD-2109').notes.at(-1).text, 'kept across launches');
-  assert.equal(relaunched.location.search, '?coach=hd-m03');
+  assert.equal(ticket(relaunched, 'HD-2110').notes.at(-1).text, 'kept across launches');
+  assert.equal(relaunched.location.search, '?coach=hd-m08');
 }
 
 // hd-m01's steps were reordered on 2026-11-15 (Verify caller moved from step
@@ -232,46 +234,46 @@ function testHdM01OldStepOrderResumesOnAValidStep() {
 
 function testRelaunchDifferentStudentStartsFresh() {
   const local = store();
-  const tab = workHdM03ToPath(sim(launchUrl('hd-m03'), { local }));
-  tab.run(`hdState.tickets[0].notes.push({ author: 'A', time: 'now', text: 'student A note' }); hdSave();`);
+  const tab = workHdM08ToPath(sim(launchUrl('hd-m08'), { local }));
+  tab.run(`hdTicketById('HD-2110').notes.push({ author: 'A', time: 'now', text: 'student A note' }); hdSave();`);
 
-  const other = sim(launchUrl('hd-m03', STUDENT_B), { local });
+  const other = sim(launchUrl('hd-m08', STUDENT_B), { local });
   assert.equal(other.coachState().step, 0, 'another student starts at step 1');
-  assert.equal(ticket(other, 'HD-2109').notes.length, 0, 'student A\'s note is gone');
+  assert.equal(ticket(other, 'HD-2110').notes.length, 0, 'student A\'s note is gone');
   assert.equal(other.resume().student, STUDENT_B);
 
-  const noStudent = sim(`${SIM_URL}?coach=hd-m03&restart=1#/helpdesk/tickets`, { local });
+  const noStudent = sim(`${SIM_URL}?coach=hd-m08&restart=1#/helpdesk/tickets`, { local });
   assert.equal(noStudent.coachState().step, 0, 'a launch without a student never resumes');
 }
 
 function testOtherCoachInBetweenStartsFresh() {
   const local = store();
-  workHdM03ToPath(sim(launchUrl('hd-m03'), { local }));
+  workHdM08ToPath(sim(launchUrl('hd-m08'), { local }));
   sim(launchUrl('hd-m04'), { local });
-  const back = sim(launchUrl('hd-m03'), { local });
+  const back = sim(launchUrl('hd-m08'), { local });
   assert.equal(back.coachState().step, 0);
-  assert.deepEqual(ticketIds(back), ['HD-2109']);
+  assert.deepEqual(ticketIds(back).sort(), ['HD-2110', 'HD-2111']);
 }
 
 function testResetShiftForgetsProgress() {
   const local = store();
-  const tab = workHdM03ToPath(sim(launchUrl('hd-m03'), { local }));
+  const tab = workHdM08ToPath(sim(launchUrl('hd-m08'), { local }));
   tab.run('hdResetShift()');
   assert.equal(tab.resume(), null, 'in-progress record cleared');
   assert.equal(tab.coachState(), null, 'running coach stopped');
 
-  const relaunched = sim(launchUrl('hd-m03'), { local });
+  const relaunched = sim(launchUrl('hd-m08'), { local });
   assert.equal(relaunched.coachState().step, 0, 'relaunch starts fresh');
-  assert.deepEqual(ticketIds(relaunched), ['HD-2109']);
+  assert.deepEqual(ticketIds(relaunched).sort(), ['HD-2110', 'HD-2111']);
 }
 
-// Gets hd-m03 to its last step by restoring that step from the record.
+// Gets hd-m08 to its last step by restoring that step from the record.
 function hdM03AtFinish(local, opener) {
-  sim(launchUrl('hd-m03'), { local });
-  local.setItem('mnt.coach.resume', JSON.stringify({ id: 'hd-m03', step: 5, student: STUDENT_A }));
-  const tab = sim(launchUrl('hd-m03'), { local, opener });
-  tab.run(`hdState.tickets[0].notes.push({ author: 'me', time: 'now', text: 'final note' }); hdSave();`);
-  assert.equal(tab.coachState().step, 5);
+  sim(launchUrl('hd-m08'), { local });
+  local.setItem('mnt.coach.resume', JSON.stringify({ id: 'hd-m08', step: 11, student: STUDENT_A }));
+  const tab = sim(launchUrl('hd-m08'), { local, opener });
+  tab.run(`hdTicketById('HD-2110').notes.push({ author: 'me', time: 'now', text: 'final note' }); hdSave();`);
+  assert.equal(tab.coachState().step, 11);
   return tab;
 }
 
@@ -284,25 +286,25 @@ function testFinishConfirmedEndsLab() {
   const { data, origin } = opener.sent[0];
   assert.equal(origin, PORTAL);
   assert.equal(data.type, 'mnt-coach-complete');
-  assert.equal(data.id, 'hd-m03');
-  assert.equal(data.work.tickets[0].notes.at(-1).text, 'final note', 'the work travels with Finish');
+  assert.equal(data.id, 'hd-m08');
+  assert.equal(data.work.tickets.find((t) => t.id === 'HD-2110').notes.at(-1).text, 'final note', 'the work travels with Finish');
   assert.equal(data.student, STUDENT_A, 'Finish names the launching student (the hash, not an email)');
   assert.match(tab.panelHtml(), /Saving…/);
   assert.ok(tab.resume(), 'kept while waiting for the portal');
 
-  tab.reply({ type: 'mnt-coach-received', id: 'hd-m03', nonce: 'wrong', saved: true });
+  tab.reply({ type: 'mnt-coach-received', id: 'hd-m08', nonce: 'wrong', saved: true });
   assert.ok(tab.resume(), 'a reply for another Finish is ignored');
-  tab.reply({ type: 'mnt-coach-received', id: 'hd-m03', nonce: data.nonce, saved: true }, 'https://evil.test');
+  tab.reply({ type: 'mnt-coach-received', id: 'hd-m08', nonce: data.nonce, saved: true }, 'https://evil.test');
   assert.ok(tab.resume(), 'a reply from another origin is ignored');
 
-  tab.reply({ type: 'mnt-coach-received', id: 'hd-m03', nonce: data.nonce, saved: true });
+  tab.reply({ type: 'mnt-coach-received', id: 'hd-m08', nonce: data.nonce, saved: true });
   assert.equal(tab.resume(), null, 'confirmed: record cleared');
   assert.equal(tab.coachState(), null, 'coach ended');
   assert.equal(tab.ctx.closed, true, 'tab closes back to the portal');
 
-  const relaunched = sim(launchUrl('hd-m03'), { local });
+  const relaunched = sim(launchUrl('hd-m08'), { local });
   assert.equal(relaunched.coachState().step, 0, 'a finished lab starts fresh');
-  assert.equal(ticket(relaunched, 'HD-2109').notes.length, 0);
+  assert.equal(ticket(relaunched, 'HD-2110').notes.length, 0);
 }
 
 const NOT_CONFIRMED = 'Your course page didn’t confirm it saved this lab. Your work is still here. Make sure you’re signed in on your course page, then press Finish again.';
@@ -312,15 +314,15 @@ function testFinishNotSavedKeepsWork() {
   const opener = fakeOpener();
   const tab = hdM03AtFinish(local, opener);
   tab.finish();
-  tab.reply({ type: 'mnt-coach-received', id: 'hd-m03', nonce: opener.sent[0].data.nonce, saved: false });
+  tab.reply({ type: 'mnt-coach-received', id: 'hd-m08', nonce: opener.sent[0].data.nonce, saved: false });
   assert.ok(tab.panelHtml().includes(NOT_CONFIRMED));
-  assert.equal(tab.coachState().step, 5, 'still on the last step');
+  assert.equal(tab.coachState().step, 11, 'still on the last step');
   assert.ok(tab.resume(), 'record kept');
   assert.equal(tab.ctx.closed, false, 'tab stays open');
 
   // Pressing Finish again after signing in works.
   tab.finish();
-  tab.reply({ type: 'mnt-coach-received', id: 'hd-m03', nonce: opener.sent[1].data.nonce, saved: true });
+  tab.reply({ type: 'mnt-coach-received', id: 'hd-m08', nonce: opener.sent[1].data.nonce, saved: true });
   assert.equal(tab.resume(), null);
   assert.equal(opener.sent.length, 2, 'one message per Finish press');
 }
@@ -335,7 +337,7 @@ function testFinishTimeoutKeepsWork() {
   tab.runTimers();
   assert.ok(tab.panelHtml().includes(NOT_CONFIRMED));
   assert.ok(tab.resume());
-  assert.equal(ticket(tab, 'HD-2109').notes.at(-1).text, 'final note');
+  assert.equal(ticket(tab, 'HD-2110').notes.at(-1).text, 'final note');
 }
 
 const PORTAL_CLOSED = 'Your course page is closed, so this lab couldn’t be saved. Your work is still here. Open your course page and click the walkthrough button for this lab to continue, then press Finish.';
@@ -345,12 +347,12 @@ function testFinishWithPortalClosedResumesInNewTab() {
   const tab = hdM03AtFinish(local, null);
   tab.finish();
   assert.ok(tab.panelHtml().includes(PORTAL_CLOSED));
-  assert.equal(tab.coachState().step, 5);
+  assert.equal(tab.coachState().step, 11);
   assert.equal(tab.ctx.closed, false);
 
-  const relaunched = sim(launchUrl('hd-m03'), { local, opener: fakeOpener() });
-  assert.equal(relaunched.coachState().step, 5, 'new tab resumes at Finish');
-  assert.equal(ticket(relaunched, 'HD-2109').notes.at(-1).text, 'final note', 'work kept');
+  const relaunched = sim(launchUrl('hd-m08'), { local, opener: fakeOpener() });
+  assert.equal(relaunched.coachState().step, 11, 'new tab resumes at Finish');
+  assert.equal(ticket(relaunched, 'HD-2110').notes.at(-1).text, 'final note', 'work kept');
 
   const closedOpener = { ...fakeOpener(), closed: true };
   const closedTab = hdM03AtFinish(store(), closedOpener);
@@ -368,16 +370,16 @@ function testFinishOtherStudentKeepsWork() {
   const opener = fakeOpener();
   const tab = hdM03AtFinish(local, opener);
   tab.finish();
-  tab.reply({ type: 'mnt-coach-received', id: 'hd-m03', nonce: opener.sent[0].data.nonce, saved: false, reason: 'other-student' });
+  tab.reply({ type: 'mnt-coach-received', id: 'hd-m08', nonce: opener.sent[0].data.nonce, saved: false, reason: 'other-student' });
   assert.ok(tab.panelHtml().includes(OTHER_STUDENT));
-  assert.equal(tab.coachState().step, 5);
+  assert.equal(tab.coachState().step, 11);
   assert.ok(tab.resume());
   assert.equal(tab.ctx.closed, false);
 
   // A signs back in and presses Finish again.
   tab.finish();
   assert.equal(opener.sent[1].data.student, STUDENT_A);
-  tab.reply({ type: 'mnt-coach-received', id: 'hd-m03', nonce: opener.sent[1].data.nonce, saved: true });
+  tab.reply({ type: 'mnt-coach-received', id: 'hd-m08', nonce: opener.sent[1].data.nonce, saved: true });
   assert.equal(tab.resume(), null);
   assert.equal(tab.ctx.closed, true);
 }
@@ -387,20 +389,20 @@ function testFinishOtherStudentKeepsWork() {
 function testOlderCoursePageResumesAfterReload() {
   const local = store();
   const opener = fakeOpener();
-  const old = sim(`${SIM_URL}?coach=hd-m03&restart=1#/helpdesk/tickets`, { local, opener });
-  workHdM03ToPath(old);
-  old.run(`hdState.tickets[0].notes.push({ author: 'me', time: 'now', text: 'from the old page' }); hdSave();`);
+  const old = sim(`${SIM_URL}?coach=hd-m08&restart=1#/helpdesk/tickets`, { local, opener });
+  workHdM08ToPath(old);
+  old.run(`hdTicketById('HD-2110').notes.push({ author: 'me', time: 'now', text: 'from the old page' }); hdSave();`);
   assert.equal(old.resume().student, '');
-  old.ctx.sessionStorage.setItem('mnt.coach.state', JSON.stringify({ id: 'hd-m03', step: 5 }));
-  local.setItem('mnt.coach.resume', JSON.stringify({ id: 'hd-m03', step: 5, student: '' }));
+  old.ctx.sessionStorage.setItem('mnt.coach.state', JSON.stringify({ id: 'hd-m08', step: 11 }));
+  local.setItem('mnt.coach.resume', JSON.stringify({ id: 'hd-m08', step: 11, student: '' }));
   const atFinish = old.reload();
   atFinish.finish();
   assert.ok(atFinish.panelHtml().includes(OLDER_PAGE));
   assert.equal(opener.sent.length, 0, 'nothing sent without a student id');
 
-  const relaunched = sim(launchUrl('hd-m03'), { local, opener: fakeOpener() });
-  assert.equal(relaunched.coachState().step, 5, 'resumes at Finish, not step 1');
-  assert.equal(ticket(relaunched, 'HD-2109').notes.at(-1).text, 'from the old page', 'work kept');
+  const relaunched = sim(launchUrl('hd-m08'), { local, opener: fakeOpener() });
+  assert.equal(relaunched.coachState().step, 11, 'resumes at Finish, not step 1');
+  assert.equal(ticket(relaunched, 'HD-2110').notes.at(-1).text, 'from the old page', 'work kept');
   assert.equal(relaunched.resume().student, STUDENT_A, 'the record now names the student');
 }
 

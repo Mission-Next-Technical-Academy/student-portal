@@ -39,7 +39,9 @@
     // on their sheet (portal/admin-sheets/hdesk.js).
     'hd-m02': ['HD-2134'],
     'hd-m02-server': ['HD-2173'],
-    'hd-m03': ['HD-2109'],
+    // Module 5 (key its-03) Lab 5.1. Older attempts keep HD-2109 on their
+    // sheet (portal/admin-sheets/hdesk.js).
+    'hd-m03': ['HD-2180'],
     'hd-m04': ['HD-2104', 'HD-2105', 'HD-2113'],
     'hd-m05': ['HD-2108', 'HD-2117'],
     'hd-m06': ['SR-2107', 'HD-2118'],
@@ -702,7 +704,233 @@
     ],
   });
 
-  /* ------------------------------------------------------ hd-m03..hd-m11 -
+  /* ---------------------------------------------------------- hd-m03 ---- */
+  /* Module 5 (key its-03) Lab 5.1, the slow-computer sequence and system
+   * repair on HD-2180 (coached set its-03-guided). Feedback only, no points.
+   * Every check reads saved state (the ticket, the computer, the command log),
+   * never a tick box, so a step done early passes when it comes up. The coach
+   * names the goal and keeps a typed command behind Show me the command
+   * (decision 18). The optional PowerShell lines under steps 1, 2, 5, 6 and 7
+   * also pass their step when typed. The old HD-2109 coach is gone; a saved
+   * run of it starts fresh. */
+  const HD3_ID = 'HD-2180';
+  const HD3_PC = 'NS-WS-0277';
+  const hd3Seen = (key) => { const m = hd2Machine(HD3_PC); return Boolean(m && Array.isArray(m.seen) && m.seen.includes(key)); };
+  const hd3Log = () => (typeof hdState !== 'undefined' && hdState && Array.isArray(hdState.practiceLog) ? hdState.practiceLog : []);
+  const hd3Cmds = () => hd3Log().filter((e) => e && e.type === 'command_run' && e.computer === HD3_PC);
+  const hd3TypedAny = (pattern) => hd3Cmds().some((e) => pattern.test(String(e.command || '').trim()));
+  // The console accepted the command: it ran, it was not a wrong option or a bad path.
+  const HD3_REFUSED = ['dism: wrong options', 'sfc: wrong options', 'chkdsk: wrong options', 'chkdsk: volume in use', 'path not found', 'no folder'];
+  const hd3Accepted = (e) => { const r = String(e.result || '').toLowerCase(); return !HD3_REFUSED.includes(r) && !r.startsWith('misspelled'); };
+  const hd3Dism = (e) => hd3Accepted(e) && /^dism(\.exe)?\s/i.test(String(e.command || '').trim()) && /\/restorehealth\b/i.test(String(e.command || ''));
+  const hd3Sfc = (e) => hd3Accepted(e) && /^sfc(\.exe)?\s/i.test(String(e.command || '').trim()) && /\/scannow\b/i.test(String(e.command || ''));
+  const hd3Chkdsk = (e) => hd3Accepted(e) && /^chkdsk(\.exe)?\s/i.test(String(e.command || '').trim()) && /\bc:/i.test(String(e.command || '')) && /\/scan\b/i.test(String(e.command || ''));
+  const hd3Dir = (e) => {
+    if (!hd3Accepted(e)) return false;
+    const m = String(e.command || '').trim().match(/^(?:dir|get-childitem|gci)\s+(?:-path\s+)?(.+)$/i);
+    if (!m) return false;
+    const folder = m[1].trim().replace(/^["']|["']$/g, '').replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+    return folder === 'c:\\users\\nwilliams\\desktop';
+  };
+  // Step 16: one complete note also holds the three items its "Your note
+  // needs" list asks for (the ticket's notes.needs).
+  const hd3NoteHasEvidence = () => {
+    const t = hd2Ticket(HD3_ID);
+    const needs = t && typeof hdConsole === 'function' && hdConsole(t).notes && Array.isArray(hdConsole(t).notes.needs) ? hdConsole(t).notes.needs : [];
+    const note = t && typeof hdConsoleCompleteNote === 'function' ? hdConsoleCompleteNote(t) : null;
+    return Boolean(note) && needs.every((item) => { try { return new RegExp(item.pattern, 'i').test(note.text); } catch { return false; } });
+  };
+  hd2ForgetStale('hd-m03', 'its-03-guided');
+
+  MODULE_COACHES.push({
+    id: 'hd-m03', module: 5, name: 'Guided Lab: the slow-computer sequence and system repair', role: 'Tier 1 Help Desk Technician',
+    summary: 'Noah Williams in Sales says his desk PC has crawled since Monday. Read the evidence in the right order, free space the safe way, repair and check Windows, finish the update and prove the fix. Feedback only, no score.',
+    completionToken: 'hd-m03', home: '#/helpdesk/tickets',
+    resetState: () => {
+      if (typeof hdUseTicketSet === 'function') hdUseTicketSet('its-03-guided');
+      if (typeof hdState !== 'undefined' && hdState) hdState.selectedTicketId = null;
+    },
+    allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket', '#/helpdesk/windows', '#/helpdesk/powershell', '#/helpdesk/pc-task-manager', '#/helpdesk/settings-storage',
+      '#/helpdesk/settings-update', '#/helpdesk/settings-apps', '#/helpdesk/software-catalog', '#/helpdesk/reliability', '#/helpdesk/settings-recovery', '#/helpdesk/event-viewer',
+      '#/helpdesk/active-directory', '#/helpdesk/knowledge-base'],
+    steps: [
+      {
+        route: '#/helpdesk/ticket', target: 'select[data-hd-field="category"], [data-hd-machines]',
+        title: 'Triage the ticket and see what is busy',
+        instruction: 'Open Noah’s ticket. Set <strong>Category</strong> Software › Windows performance, <strong>Configuration item</strong> NS-WS-0277, <strong>Impact</strong> 3 and <strong>Urgency</strong> 2. Assign it to yourself. Then open <strong>NS-WS-0277</strong> from the ticket, open <strong>Task Manager › Processes</strong> and sort by <strong>CPU</strong>, then by <strong>Disk</strong>. The same check in PowerShell (optional): <code>Get-Process | Sort-Object CPU -Descending | Select-Object -First 5 Name, CPU, WorkingSet</code>',
+        body: 'Why: this shows what is busy now. Reading 2’s order starts here. Success looks like: the priority is P4, the ticket is yours, and you can name the top process and say that Disk, not CPU, is at 100%.',
+        waitLabel: 'Next Step: Triaged, and Task Manager read',
+        check: () => {
+          const t = hd2Ticket(HD3_ID);
+          return hd2Triaged(HD3_ID, 'Software', 'Windows performance', HD3_PC, 'P4') && Boolean(t) && t.assignedTechnician === 'Riley Morgan'
+            && ((hd3Seen('task-manager:sort:cpu') && hd3Seen('task-manager:sort:disk')) || hd3TypedAny(/^get-process\b.*sort-object\s+(-property\s+)?cpu/i));
+        },
+      },
+      {
+        route: '#/helpdesk/pc-task-manager', target: '[data-hd-startup], [data-hd-pc-task-manager]',
+        title: 'Read the startup apps',
+        instruction: 'In Task Manager open <strong>Startup apps</strong>. Read each app’s publisher, status and startup impact. The same check in PowerShell (optional): <code>Get-CimInstance Win32_StartupCommand | Select-Object Name, Command, Location</code>',
+        body: 'Why: this shows what starts when someone signs in. Success looks like: you see four apps, and each has a verified publisher.',
+        waitLabel: 'Next Step: Startup apps read',
+        check: () => hd3Seen('task-manager:startup') || hd3TypedAny(/^get-ciminstance\s+(-classname\s+)?win32_startupcommand\b/i),
+      },
+      {
+        // Steps 3, 5 and 6 start on NS-WS-0277's desktop: its tool buttons are
+        // what record a screen as opened (hdOpenMachineScreen).
+        route: '#/helpdesk/windows', target: '[data-hd-tools="software-catalog"], [data-hd-catalog]',
+        title: 'Check each app in the Software Catalog',
+        instruction: 'On NS-WS-0277’s desktop, open the <strong>Software Catalog</strong>. Look for each of the four startup apps by name.',
+        body: 'Why: an app that is not in the catalog is not approved. Check before you decide what to do with an app. Success looks like: all four are listed, so all four are approved.',
+        waitLabel: 'Next Step: Catalog checked',
+        check: () => hd3Seen('software-catalog'),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '.hd-chat, .hd-caller, [data-hd-startup]',
+        title: 'Ask, then disable one startup app',
+        instruction: 'Ask Noah whether he needs <strong>LumenCam Companion</strong> when he signs in. Then, in Task Manager › Startup apps, set LumenCam Companion to <strong>Disabled</strong>.',
+        body: 'Why: Disabled stops an app from starting with Windows. It does not uninstall the app. Ask before you change how a person’s PC starts. Success looks like: the status is Disabled, and the app is still in Installed apps.',
+        waitLabel: 'Next Step: Asked, and LumenCam disabled',
+        check: () => hd2Rule(HD3_ID, { chat: ['lumencam'] }) && hd2Did(HD3_ID, 'startup-disabled', (a) => a.app === 'LumenCam Companion'),
+      },
+      {
+        route: '#/helpdesk/windows', target: '[data-hd-tools="settings-storage"], [data-hd-storage]',
+        title: 'Work out the free space',
+        instruction: 'On NS-WS-0277’s desktop, open <strong>Settings › System › Storage</strong>. Work out what percentage of C: is free. The same check in PowerShell (optional): <code>Get-Volume -DriveLetter C | Select-Object SizeRemaining, Size</code>',
+        body: 'Why: Windows slows down when less than about 10% of the drive is free. Success looks like: 16.6 GB free of 237 GB is 7%. That is a real cause.',
+        waitLabel: 'Next Step: Free space worked out',
+        check: () => hd3Seen('storage') || hd3TypedAny(/^get-volume\b/i),
+      },
+      {
+        route: '#/helpdesk/windows', target: '[data-hd-tools="settings-update"], [data-hd-windows-update]',
+        title: 'Check the update state',
+        instruction: 'On NS-WS-0277’s desktop, open <strong>Settings › Windows Update</strong>. The same check in PowerShell (optional): <code>Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 3</code>',
+        body: 'Why: this shows whether an update is waiting. Success looks like: the page says “Restart required”, and the last restart was 23 days ago. That is a second cause.',
+        waitLabel: 'Next Step: Update state read',
+        check: () => hd3Seen('windows-update') || hd3TypedAny(/^get-hotfix\b/i),
+      },
+      {
+        route: '#/helpdesk/event-viewer', target: '[data-hd-event-logs]',
+        title: 'Find an error in the System log',
+        instruction: 'Open <strong>Event Viewer › Windows Logs › System</strong>. Filter for <strong>Error</strong> and open one event. The same check in PowerShell (optional): <code>Get-WinEvent -LogName System -MaxEvents 20</code>',
+        body: 'Why: you want evidence that agrees with what you found. Success looks like: Event ID 2013, source srv, says the disk is at or near capacity.',
+        waitLabel: 'Next Step: System error event opened',
+        check: () => hd3Seen('event-open:system:2013') || hd3TypedAny(/^get-winevent\b.*\bsystem\b/i),
+      },
+      {
+        route: '#/helpdesk/event-viewer', target: '[data-hd-event-logs]',
+        title: 'Measure the slow start',
+        instruction: 'In Event Viewer open <strong>Applications and Services Logs › Microsoft › Windows › Diagnostics-Performance › Operational</strong>. Read <strong>Event ID 100</strong>. Then, in the knowledge search on Noah’s ticket, search <strong>slow</strong> and open <strong>KB-0084</strong>.',
+        body: 'Why: Event ID 100 measures “slow to start” in seconds. Later you can use it to prove the fix worked. Success looks like: the boot took 94 seconds, and KB-0084 is open.',
+        waitLabel: 'Next Step: Boot time read and KB-0084 opened',
+        check: () => hd3Seen('event-log:diagnostics-performance') && hd2Rule(HD3_ID, { kb: 'KB-0084' }),
+      },
+      {
+        route: '#/helpdesk/reliability', target: '[data-hd-reliability]',
+        title: 'Find the day it started',
+        instruction: 'Open <strong>Reliability Monitor</strong>. Find the day the problems started and open that day.',
+        body: 'Why: the question is “what changed?” Success looks like: Monday shows an update waiting for a restart and two critical events on the same day.',
+        waitLabel: 'Next Step: Monday opened',
+        check: () => hd3Seen('reliability:day:Monday'),
+      },
+      {
+        route: '#/helpdesk/settings-storage', target: '[data-hd-temp-remove], [data-hd-storage], #hd-ps-input, .hd-chat',
+        title: 'Free space the safe way',
+        instruction: 'In <strong>Storage › Temporary files</strong>, remove Windows Update Cleanup and Temporary files. Ask Noah before you empty the Recycle Bin, then empty it. Last, after the cleanup, in the elevated PowerShell window, list his Desktop to show that his files are untouched. <details><summary>Show me the command</summary><code>dir C:\\Users\\nwilliams\\Desktop</code></details>',
+        body: 'Why: never delete a person’s files without their consent. The Recycle Bin holds files he deleted. Listing his Desktop proves the cleanup touched none of his files. Success looks like: 38.0 GB free (16%), Disk in Task Manager below 100%, and all his Desktop files listed.',
+        waitLabel: 'Next Step: Space freed, Desktop files listed',
+        check: () => {
+          const m = hd2Machine(HD3_PC);
+          if (!m || !m.storage || !m.storage.sizeGb) return false;
+          if (Math.round((m.storage.freeGb / m.storage.sizeGb) * 100) < 16) return false;
+          // Asked and emptied, in any order: the Recycle Bin can be emptied only
+          // once and the question asked only once, so an order gate here would
+          // strand the lab. The step text teaches the order.
+          if (!hd2Rule(HD3_ID, { chat: ['recycle'] }) || !hd2Did(HD3_ID, 'recycle-bin-emptied')) return false;
+          // dir after the last removal (a removal trimmed off the 150-entry log
+          // counts as earlier than every entry still in it).
+          const log = hd3Log();
+          let removedAt = -1;
+          log.forEach((e, i) => { if (e && e.type === 'action_taken' && e.action === 'temp-files-removed') removedAt = i; });
+          return log.some((e, i) => i > removedAt && e && e.type === 'command_run' && e.computer === HD3_PC && hd3Dir(e));
+        },
+      },
+      {
+        route: '#/helpdesk/powershell', target: '#hd-ps-input',
+        title: 'Repair the component store, then the system files',
+        instruction: 'In the elevated PowerShell window, repair Windows’ component store first. Then repair its system files. Do them in that order. <details><summary>Show me the command</summary><code>DISM /Online /Cleanup-Image /RestoreHealth</code> then <code>sfc /scannow</code></details>',
+        body: 'Why: this is the system-file repair pair, in order. They are not the cause today. Practise them here, so the first time is not on a broken PC. Success looks like: DISM completes, and SFC finds no integrity violations.',
+        waitLabel: 'Next Step: DISM, then SFC, complete',
+        check: () => {
+          const list = hd3Cmds();
+          const first = list.findIndex(hd3Dism);
+          return first >= 0 && list.some((e, i) => i > first && hd3Sfc(e));
+        },
+      },
+      {
+        route: '#/helpdesk/powershell', target: '#hd-ps-input',
+        title: 'Check the file system',
+        instruction: 'In the same window, run the online check of the C: file system. <details><summary>Show me the command</summary><code>chkdsk C: /scan</code></details>',
+        body: 'Why: this checks the file system while Windows stays running. Success looks like: “Windows has scanned the file system and found no problems.”',
+        waitLabel: 'Next Step: File system checked',
+        check: () => hd3Cmds().some(hd3Chkdsk),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '[data-hd-restart-bar], .hd-chat, .hd-caller',
+        title: 'Tell Noah, then finish the update',
+        instruction: 'Tell Noah you are restarting his PC to finish the update. Then use <strong>Restart</strong>.',
+        body: 'Why: an update is not finished, and the PC is not fully protected, until it restarts. Tell the user first, so no work is lost. Success looks like: Settings › Windows Update no longer shows “Restart required”, and Noah signs in to his normal desktop.',
+        waitLabel: 'Next Step: Noah told, and the PC restarted',
+        check: () => {
+          const m = hd2Machine(HD3_PC);
+          return hd2Rule(HD3_ID, { chat: ['restart'] }) && hd2Did(HD3_ID, 'restart', (a) => a.finishedUpdate === true)
+            && Boolean(m && m.updates) && m.updates.restartRequired === false;
+        },
+      },
+      {
+        route: '#/helpdesk/settings-recovery', target: '[data-hd-recovery]',
+        title: 'Walk through the Safe Mode route',
+        instruction: 'Open <strong>Settings › System › Recovery</strong>. Choose <strong>Advanced startup</strong>, then <strong>Troubleshoot › Advanced options › Startup Settings</strong>, then press <strong>4</strong> for Safe Mode. When the desktop shows Safe Mode, restart normally.',
+        body: 'Why: know the route before a user’s PC will not start. Success looks like: the simulated desktop shows “Safe Mode”, then a normal desktop.',
+        waitLabel: 'Next Step: Safe Mode, then a normal restart',
+        check: () => {
+          const m = hd2Machine(HD3_PC);
+          const acts = hd2Actions(HD3_ID);
+          const safeAt = acts.findIndex((a) => a.id === 'safe-mode-started');
+          return safeAt >= 0 && acts.some((a, i) => i > safeAt && a.id === 'restart' && a.fromSafeMode === true) && Boolean(m) && m.safeMode === false;
+        },
+      },
+      {
+        route: '#/helpdesk/active-directory', target: '[data-hd-ad-computers], [data-hd-bitlocker]',
+        title: 'Look up where the recovery key is stored',
+        instruction: 'In the knowledge search on Noah’s ticket, search <strong>recovery key</strong> and open <strong>KB-0083</strong>. Then open <strong>Active Directory › Computers</strong>, find <strong>NS-WS-0277</strong> by its name and open its <strong>BitLocker Recovery</strong> tab. Read the Key ID and the date. This is a look-up only. Don’t click <strong>Read key</strong>, and put nothing about the key in the ticket.',
+        body: 'Why: this is where a recovery key lives. Find it now, calmly, so you are not finding it for the first time with a locked-out user on the phone. Success looks like: you can say the Key ID (8D41B6E0) and its date. Nothing is read out.',
+        waitLabel: 'Next Step: KB-0083 and the BitLocker tab opened',
+        check: () => hd3Seen('ad-bitlocker') && hd2Rule(HD3_ID, { kb: 'KB-0083' }),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '#hd-note-input, .hd-comments, #hd-resolution-code, .hd-chat',
+        title: 'Prove the fix and resolve it',
+        instruction: 'Read <strong>Event ID 100</strong> again in Diagnostics-Performance. Confirm with Noah that his apps open normally. Write a <strong>work note</strong> with the lines Reported:, Tried: and Result:. In it, include the free-space percentage, the top process and an Event ID. Post a <strong>comment</strong> to Noah in plain words. Set the resolution code to <strong>Solution provided</strong> and resolve the ticket.',
+        body: 'Why: verify from the user’s side, then write an evidence-based note. Success looks like: the boot took 52 seconds, Noah confirms his apps open, the checker finds the three parts in your note, the comment has no flagged terms, and the ticket is Resolved.',
+        waitLabel: 'Next Step: Verified and resolved with a note and comment',
+        check: () => {
+          const m = hd2Machine(HD3_PC);
+          return hd3Seen('event-log:diagnostics-performance:after-restart') && Boolean(m) && m.bootSeconds === 52
+            && hd2Rule(HD3_ID, { confirmed: 'apps' }) && hd2Rule(HD3_ID, { note: true }) && hd3NoteHasEvidence() && hd2Rule(HD3_ID, { comment: true })
+            && hd2Rule(HD3_ID, { code: 'Solution provided' }) && hd2Rule(HD3_ID, { status: 'Resolved' });
+        },
+      },
+      {
+        title: 'Finish the lab',
+        instruction: 'Ticket worked. Press <strong>Finish</strong> to send your work to your course page.',
+        body: 'Your triage, screens, commands, notes and comment count once your course page confirms it saved them. There is no score.',
+        finish: { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/5', 'hd-m03') },
+      },
+    ],
+  });
+
+  /* ------------------------------------------------------ hd-m04..hd-m11 -
+   * (hd-m03 has its own steps above since 2026-11-24.)
    * Modules 3-9 each work one or two real tickets through the same generic
    * evidence/path/diagnose/note/resolve flow hd-m01/hd-m02 already proved
    * out — reused here via hdTicketFlowSteps() instead of hand-duplicating
@@ -818,18 +1046,6 @@
     });
     return MODULE_COACHES[MODULE_COACHES.length - 1];
   }
-
-  /* hd-m03 — Module 5 (key its-03): Windows Operating System Support. One ticket. */
-  hdRegisterSimpleCoach('hd-m03', 5, 'The Blank Desktop', 'Diagnose a corrupted Windows profile end to end: read the evidence, work the troubleshooting path, diagnose against the log, document it, and resolve it.', ['HD-2109']).steps =
-    hdTicketFlowSteps('HD-2109', {
-      opening: true, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/5', 'hd-m03'),
-      openBody: 'Noah signed in to a completely empty desktop with his shortcuts missing — but he can still sign in fine. That combination is the clue.',
-      evidenceBody: 'The User Profile Service log line about a temporary profile is the tell — Windows quietly loaded a fallback profile because it couldn’t load the real one.',
-      pathBody: 'Protecting the user’s data comes first, before any repair — a profile fix should never risk losing what’s already there.',
-      diagnosisBody: 'A blank desktop with a working sign-in points at the profile itself, not the account, not malware.',
-      noteBody: '“Fixed it” is not a note. Name the temporary-profile evidence, what you did, and that data was verified afterward.',
-      resolveBody: 'Resolving is gated on your diagnosis actually being correct — the same discipline as every ticket in this program.',
-    });
 
   /* hd-m04 — Module 9 (key its-04): Networking Fundamentals. Three tickets scoped;
    * guides HD-2104 (DHCP/APIPA) then HD-2105 (DNS), leaves HD-2113 (VPN

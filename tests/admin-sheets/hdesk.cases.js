@@ -280,6 +280,13 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
     row: coachRow('hdesk-m04-lab43', lab23, [savedTicket('HD-2134', { worked: true })]),
     expect: { html: ['data-sheet-section="scenario-hd-2134"'], notHtml: ['data-sheet-section="scenario-hd-2106"'] },
   },
+  // Module 5 from 2026-11-24: Lab 5.1 grades HD-2180; older attempts keep
+  // HD-2109 ('Help Desk guided lab renders saved ticket work', above).
+  {
+    name: 'Lab 5.1 new attempt grades HD-2180',
+    row: coachRow('hdesk-m05-lab51', 'lab-its-03-blank-desktop', [savedTicket('HD-2180', { worked: true, priority: 'P4' })]),
+    expect: { html: ['data-sheet-section="scenario-hd-2180"'], notHtml: ['data-sheet-section="scenario-hd-2109"'] },
+  },
   {
     name: 'Lab 4.4 practice completion shows the four tickets, no walkthrough sections',
     row: { id: 'hdesk-m04-lab44', lab_key: lab24, track_code: 'HDESK', student_id: 'synthetic-hdesk', completed_at: '2026-11-23T10:00:00Z', result: { source: 'mnt-practice-complete', practiceSet: 'its-02', tickets: ['HD-2169', 'HD-2170', 'HD-2171', 'HD-2172'] } },
