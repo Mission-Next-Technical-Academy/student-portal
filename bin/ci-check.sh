@@ -35,6 +35,9 @@ echo '== Coach labs survive reload and relaunch (Help Desk + SOC Module 1) =='
 node tests/coach-reload-resume.test.js
 node tests/coach-step-advance-race.test.js
 
+echo '== Help Desk coach panel keeps Windows wording; SOC stays neutral =='
+node tests/neutral-terminology-coach-panel.test.js
+
 echo '== Help Desk HD-2101 scenario (regression test; kept for Module 8) =='
 node tests/hdesk-m01-practice.test.js
 
