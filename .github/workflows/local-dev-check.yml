@@ -9,9 +9,18 @@ on:
 permissions:
   contents: read
 
+# A new push to a PR cancels that PR's older run, so superseded runs don't
+# hold the few macOS runners.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   launcher:
     name: Launcher (${{ matrix.os }})
+    # The macOS job normally takes about 4 minutes; 10 leaves room for a slow
+    # runner without letting a stuck job hold one for hours.
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
