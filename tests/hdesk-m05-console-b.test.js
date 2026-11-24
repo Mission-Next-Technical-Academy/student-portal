@@ -22,6 +22,7 @@ const WED = '2026-08-19';
 const at = (day, time) => `${day}T${time}:00Z`;
 const FAKE_KEY_A = '111111-222222-333333-444444-555555-666666-777777-888888';
 const FAKE_KEY_B = '999999-888888-777777-666666-555555-444444-333333-222222';
+const FAKE_KEY_C = '123123-123123-123123-123123-123123-123123-123123-123123';
 
 const base = (spec) => ({
   department: 'Operations', category: 'Incident', subcategory: 'General', priority: 'P4', businessImpact: '', sla: '',
@@ -79,7 +80,7 @@ const KEY_TICKET = base({ id: 'HD-9513', number: 'INC0019513', requester: 'Dina 
       { id: 'cool', text: 'TEST move it to a hard surface', feedback: 'TEST moved.' },
       { id: 'retry', text: 'TEST run the export again', needsAction: 'cool', beforeText: 'TEST it shut off again.', feedback: 'TEST it finished.' },
     ],
-    machines: { 'TEST-LT-13': { bitlockerKeys: [{ keyId: 'AAAA1111', date: 'Today', key: FAKE_KEY_A }, { keyId: 'BBBB2222', date: '1/1/2025', key: FAKE_KEY_B }] } },
+    machines: { 'TEST-LT-13': { bitlockerKeys: [{ keyId: 'AAAA1111', date: 'Today', key: FAKE_KEY_A }, { keyId: 'BBBB2222', date: '1/1/2025', key: FAKE_KEY_B }, { keyId: 'CCCC3333', date: '1/1/2024', key: FAKE_KEY_C }] } },
   } });
 
 const PROFILE_TICKET = base({ id: 'HD-9514', number: 'INC0019514', requester: 'Noah Williams', createdAt: at(WED, '09:15'), description: 'TEST temporary profile',
@@ -274,7 +275,7 @@ function testGetWinEventReadsTheLog() {
   assert.doesNotMatch(app, /NETLOGON/);
   assert.equal(tab.ps('get-winevent -logname system -maxevents 1').split('\n').length, 3);
   assert.match(tab.ps("Get-WinEvent -LogName 'Microsoft-Windows-Diagnostics-Performance/Operational'"), /Boot Duration: 90000 ms/);
-  assert.match(tab.ps('Get-WinEvent -LogName Security'), /There is not an event log/);
+  assert.match(tab.ps('Get-WinEvent -LogName Hardware'), /There is not an event log on the localhost computer that matches "hardware"/);
   assert.match(tab.ps('Get-Help'), /Events: Get-WinEvent -LogName/);
 }
 
@@ -347,8 +348,8 @@ function testSafeModeRoute() {
 function testProfileNotice() {
   const tab = practice();
   tab.open('HD-9511'); tab.select('TEST-WS-11');
-  assert.match(tab.desktop(), /data-hd-profile="normal">Signed in with the user's own profile \(C:\\Users\\apatel\)/);
-  assert.doesNotMatch(tab.desktop(), /temporary profile/);
+  // A normal profile shows nothing, as in Windows.
+  assert.doesNotMatch(tab.desktop(), /data-hd-profile|temporary profile/);
   tab.open('HD-9514'); tab.select('TEST-WS-14');
   assert.match(tab.desktop(), /data-hd-profile="temporary"[\s\S]*You've been signed in with a temporary profile/);
   assert.match(tab.desktop(), /data-hd-restart-bar/);
@@ -357,7 +358,7 @@ function testProfileNotice() {
   const clears = practice('test-win-b', undefined, "HD_TICKET_TEMPLATES.find((t) => t.id === 'HD-9514').console.machines['TEST-WS-14'].profile.restartClears = true;");
   clears.open('HD-9514'); clears.select('TEST-WS-14');
   clears.run("hdWinRestart('TEST-WS-14')");
-  assert.match(clears.desktop(), /data-hd-profile="normal"/);
+  assert.doesNotMatch(clears.desktop(), /data-hd-profile/);
 }
 
 function testActiveDirectoryComputer() {
@@ -366,13 +367,15 @@ function testActiveDirectoryComputer() {
   let html = tab.ad();
   assert.match(html, /Find a computer by name/);
   assert.match(html, /data-hd-ad-computer="TEST-WS-11">[\s\S]*?hdAdOpenComputer\('TEST-WS-11'\)/);
-  assert.doesNotMatch(html.split('data-hd-ad-computer="NS-LT-0131"')[1].split('</tr>')[0], /Open/, 'a computer without keys does not open');
+  // Every row opens, so the Open button never points at one computer.
+  assert.match(html.split('data-hd-ad-computer="NS-LT-0131"')[1].split('</tr>')[0], /hdAdOpenComputer\('NS-LT-0131'\)/);
   tab.input('hd-ad-computer-q', 'test-ws-11');
   tab.run('hdAdComputerFind({ preventDefault() {} })');
   html = tab.ad();
   assert.deepEqual([...html.matchAll(/data-hd-ad-computer="([^"]+)"/g)].map((m) => m[1]), ['TEST-WS-11']);
-  tab.run("hdAdOpenComputer('NS-LT-0131')");
-  assert.doesNotMatch(tab.ad(), /data-hd-ad-computer-pane/);
+  tab.run("hdAdOpenComputer('NS-LT-0131'); hdAdComputerTab('NS-LT-0131', 'bitlocker')");
+  assert.match(tab.ad(), /data-hd-ad-computer-pane="NS-LT-0131"[\s\S]*No BitLocker recovery passwords are stored/);
+  assert.ok(!tab.machine('TEST-WS-11').seen || !tab.machine('TEST-WS-11').seen.includes('ad-bitlocker'), 'another computer\'s tab is not this one\'s');
   tab.run("hdAdOpenComputer('TEST-WS-11')");
   html = tab.ad();
   assert.match(html, /data-hd-ad-computer-pane="TEST-WS-11"[\s\S]*data-hd-ad-tab="bitlocker"/);
@@ -405,6 +408,11 @@ function testBitlockerKeyNeedsVerification() {
   assert.deepEqual(tab.actions('HD-9513'), []);
   const critical = () => [...tab.run("hdTicketById('HD-9513').consoleState.critical.map((c) => c.id)")];
   assert.deepEqual(critical(), ['early:read-match']);
+  // A key with no action of its own is refused too, and is a critical error.
+  tab.run("hdAdReadKey('TEST-LT-13', 'CCCC3333')");
+  assert.ok(!tab.ad().includes(FAKE_KEY_C));
+  assert.deepEqual(critical(), ['early:read-match', 'early:bitlocker:CCCC3333']);
+  assert.deepEqual(tab.actions('HD-9513'), []);
   // Verified: the matching key reads out and is its ticket action.
   tab.run("hdVerify('HD-9513', 'callback')");
   tab.run("hdAdReadKey('TEST-LT-13', 'AAAA1111')");
@@ -413,9 +421,9 @@ function testBitlockerKeyNeedsVerification() {
   // The other key is a critical error.
   tab.run("hdAdReadKey('TEST-LT-13', 'BBBB2222')");
   assert.deepEqual(tab.actions('HD-9513'), ['read-match', 'read-other']);
-  assert.deepEqual(critical(), ['early:read-match', 'read-other']);
+  assert.deepEqual(critical(), ['early:read-match', 'early:bitlocker:CCCC3333', 'read-other']);
   const everything = JSON.stringify(tab.log()) + tab.run("JSON.stringify([hdTicketById('HD-9513').consoleState, hdTicketById('HD-9513').troubleshootingHistory, hdTicketById('HD-9513').customerComments || []])");
-  assert.ok(!everything.includes(FAKE_KEY_A) && !everything.includes(FAKE_KEY_B), 'no key in the ticket or the log');
+  assert.ok(![FAKE_KEY_A, FAKE_KEY_B, FAKE_KEY_C].some((key) => everything.includes(key)), 'no key in the ticket or the log');
 }
 
 function testNeedsAction() {
@@ -517,6 +525,49 @@ function testProveShift() {
   assert.match(all.ad(), /No BitLocker recovery passwords are stored/);
 }
 
+// Review fixes: each rule that keeps a screen honest.
+function testReviewFixes() {
+  // A restart alone isn't the fix when the boot time waits for free space.
+  const needs = "{ const m = HD_TICKET_TEMPLATES.find((t) => t.id === 'HD-9511').console.machines['TEST-WS-11']; m.bootSecondsAfterFixNeeds = { freePercent: 16 }; m.storage = { drive: 'C:', sizeGb: 100, freeGb: 7, temporaryFiles: [{ id: 'tmp', name: 'Temporary files', gb: 10 }] }; }";
+  const slow = practice('test-win-b', undefined, needs);
+  slow.open('HD-9511'); slow.select('TEST-WS-11');
+  slow.run("hdWinRestart('TEST-WS-11')");
+  assert.equal(slow.machine('TEST-WS-11').bootSeconds, 90, 'still slow: C: is 7% free');
+  slow.run("hdWinTempTick('TEST-WS-11','tmp'); hdWinTempRemove('TEST-WS-11'); hdWinRestart('TEST-WS-11')");
+  assert.equal(slow.machine('TEST-WS-11').bootSeconds, 50, '17% free: the faster boot');
+  // An open event is closed by a restart (its row number moves).
+  slow.run("hdWinEventSet('TEST-WS-11', { log: 'diagnostics-performance' }); hdWinEventOpen('TEST-WS-11', 0); hdWinRestart('TEST-WS-11')");
+  assert.doesNotMatch(slow.view('helpdesk/event-viewer'), /data-hd-event-detail/);
+  // Get-WinEvent reads this computer's log in any order; never the shared list.
+  assert.match(slow.ps('Get-WinEvent -MaxEvents 5 -LogName System'), /9001 Error/);
+  assert.match(slow.ps("Get-WinEvent -FilterHashtable @{LogName='System'; Id=9002}"), /9002 Warning\s+TEST clock drift/);
+  assert.doesNotMatch(slow.ps("Get-WinEvent -FilterHashtable @{LogName='System'; Id=9002}"), /9001/);
+  assert.match(slow.ps('Get-WinEvent -LogName Application | Format-List'), /9100/);
+  assert.equal(slow.ps('Get-WinEvent -LogName Security'), 'Get-WinEvent : No events were found that match the specified selection criteria.');
+  assert.doesNotMatch(slow.ps('Get-WinEvent'), /NETLOGON/);
+  // A folder the data doesn't list, inside a listed profile: empty, not missing.
+  assert.equal(slow.ps('dir C:\\Users\\apatel\\Documents'), '\n    Directory: C:\\Users\\apatel\\Documents\n');
+  // The dock crashes only with power; the crash line goes with the rollback.
+  const dock = practice('test-win-b', undefined, "HD_TICKET_TEMPLATES.find((t) => t.id === 'HD-9512').console.machines['TEST-LT-12'].dock.power = false;");
+  dock.open('HD-9512');
+  dock.run("hdDockDo('TEST-LT-12', 'dock')");
+  assert.equal(dock.machine('TEST-LT-12').blueScreens, undefined, 'no power: no crash');
+  dock.run("hdDockDo('TEST-LT-12', 'dock'); hdDockDo('TEST-LT-12', 'power'); hdDockDo('TEST-LT-12', 'dock')");
+  assert.equal(dock.machine('TEST-LT-12').blueScreens, 1);
+  dock.run("hdDeviceDriver('TEST-LT-12', 'usbnet', 'rollback')");
+  assert.doesNotMatch(dock.screen('TEST-LT-12', 'dock'), /data-hd-blue-screen/);
+  // Prove It: no Key ID hint, no Safe Mode hint, no computer list in Event Viewer.
+  const inject = `{ const shift = HD_PROVE_SHIFTS['its-01']; const name = shift.selectedComputer; Object.assign(shift.machines[name], ${JSON.stringify(DESK)}, { safeMode: true }); }`;
+  const prove = sim({ url: 'https://academy.test/sim/?prove=its-01&student=student-m05e#/helpdesk/tickets', before: inject });
+  const name = prove.run('HD_PROVE.shift.selectedComputer'); const j = JSON.stringify;
+  prove.select(name);
+  assert.doesNotMatch(prove.view('helpdesk/event-viewer'), /data-hd-event-picker/);
+  assert.match(prove.view('helpdesk/event-viewer'), /data-hd-event-logs="system"/);
+  prove.ad(); prove.run(`hdAdOpenComputer(${j(name)}); hdAdComputerTab(${j(name)}, 'bitlocker')`);
+  assert.doesNotMatch(prove.ad(), /first 8 characters/);
+  assert.doesNotMatch(prove.screen(name, 'settings-recovery'), /Restart it to start Windows normally/);
+}
+
 // The machine state survives a reload with the student's changes.
 function testReloadKeepsState() {
   const local = store();
@@ -531,7 +582,7 @@ function testReloadKeepsState() {
 }
 
 const tests = [testOldTicketsTurnNothingOn, testNoDataUsesCrashOnDock, testHideEventsFromOnASet, testEventLogs, testGetWinEventReadsTheLog, testReliabilityAndDockCrash,
-  testSafeModeRoute, testProfileNotice, testActiveDirectoryComputer, testBitlockerKeyNeedsVerification, testNeedsAction, testTypedCommands, testProveShift, testReloadKeepsState];
+  testSafeModeRoute, testProfileNotice, testActiveDirectoryComputer, testBitlockerKeyNeedsVerification, testNeedsAction, testTypedCommands, testProveShift, testReviewFixes, testReloadKeepsState];
 let failed = 0;
 for (const test of tests) {
   try { test(); console.log(`ok - ${test.name}`); } catch (error) { failed += 1; console.error(`not ok - ${test.name}\n${error.stack}`); }
