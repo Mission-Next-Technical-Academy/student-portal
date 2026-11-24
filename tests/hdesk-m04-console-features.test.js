@@ -177,8 +177,9 @@ function testOldTicketsTurnNothingOn() {
     const set = sim(); assert.equal(set.run(`hdUseTicketSet(${JSON.stringify(key)})`), true);
     for (const id of set.run('hdState.tickets.map((t) => t.id)')) assert.doesNotMatch(set.open(id), NEW_MARKERS, `${key} ${id}`);
   }
-  // Each Prove shift: the same answers and screens as with no test data.
-  for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS'))) {
+  // Each older Prove shift: the same answers and screens as with no test data.
+  // Module 4's own Prove shift turns the features on (tests/hdesk-m04-prove.test.js).
+  for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS')).filter((k) => !module4(k))) {
     const url = `https://academy.test/sim/?prove=${key}&student=student-m04#/helpdesk/tickets`;
     const prove = sim({ url }); const before = sim({ url, withTest: false });
     for (const command of OLD_COMMANDS) assert.equal(prove.out(command), before.out(command), `prove ${key}: ${command}`);

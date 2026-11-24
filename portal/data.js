@@ -2279,27 +2279,26 @@ const LABS = [
     skills: ['Ticket Triage', 'Policy Judgment', 'Documentation'], portalEntry: '#/program/it-support/module/1' }),
   // Module 4's labs. Students see them as Labs 4.1 to 4.4 and the Prove It
   // (it-support-module-02.js). The keys and the two VM labs' filed titles are
-  // older than that numbering. Until Module 4's Prove It migration moves the
-  // gate, all four older keys keep their course_module_labs rows, so none has
-  // `phase: 'practice'`.
-  itsLab({ key: 'lab-its-02-vm-build', module: 'its-02', title: 'Build Your Windows Client VM', difficulty: 'Foundational', minutes: 90,
+  // older than that numbering. Since 2026-11-23 Module 4's Prove It gates
+  // completion (the its02 Prove It migration) and these four are Practice It.
+  itsLab({ key: 'lab-its-02-vm-build', module: 'its-02', title: 'Build Your Windows Client VM', difficulty: 'Foundational', minutes: 90, phase: 'practice',
     parentAllocations: [allocation('ITHD-101.3', 90)], objective: 'Build a Windows 11 client VM in the simulator with 4 GB of memory, 2 CPU cores, a 64 GB dynamically allocated disk and NAT, and start it.',
     description: 'A coach-guided build on the simulator’s VM screen. The VM is simulated: nothing is installed on your computer. Checked, not graded: a completion record is saved when the build is right.',
     skills: ['Virtualization', 'VM Resource Allocation', 'VM Networking'], portalEntry: '#/program/it-support/module/4' }),
-  itsLab({ key: 'lab-its-02-vm-snapshot-server', module: 'its-02', title: 'Snapshot, Recover & Connect Client to Server', difficulty: 'Foundational', minutes: 90,
+  itsLab({ key: 'lab-its-02-vm-snapshot-server', module: 'its-02', title: 'Snapshot, Recover & Connect Client to Server', difficulty: 'Foundational', minutes: 90, phase: 'practice',
     parentAllocations: [allocation('ITHD-101.3', 90)], objective: 'Snapshot and restore the client VM, build a server VM, ping both ways on an Internal network, and log off a user’s hung virtual desktop session with consent.',
     description: 'A coach-guided lab on the simulator’s VM screen, then one virtual desktop ticket. Checked, not graded: a completion record is saved when every step is done.',
     skills: ['VM Snapshots', 'Windows Server', 'VM Networking', 'Virtual Desktops'], portalEntry: '#/program/it-support/module/4' }),
-  itsLab({ key: 'lab-its-02-device-manager', module: 'its-02', title: 'Lab 4.3 · Guided Lab: printers and peripherals', difficulty: 'Foundational', minutes: 25,
+  itsLab({ key: 'lab-its-02-device-manager', module: 'its-02', title: 'Lab 4.3 · Guided Lab: printers and peripherals', difficulty: 'Foundational', minutes: 25, phase: 'practice',
     parentAllocations: [allocation('ITHD-101.4', 25)], objective: 'Clear a stuck print queue and an offline printer in the right order, add a printer by its address, roll back a camera driver and set up two monitors on a dock.',
     description: 'A coach-guided printer and peripherals ticket in the IT Service Desk simulator, each step with a why and what success looks like. Feedback only, no score.',
     skills: ['Print Spooler', 'Driver Troubleshooting', 'Docks and Displays'], portalEntry: '#/program/it-support/module/4' }),
-  itsLab({ key: 'lab-its-02-print-spooler', module: 'its-02', title: 'Lab 4.4 · Practice tickets (not graded)', difficulty: 'Foundational', minutes: 15,
+  itsLab({ key: 'lab-its-02-print-spooler', module: 'its-02', title: 'Lab 4.4 · Practice tickets (not graded)', difficulty: 'Foundational', minutes: 15, phase: 'practice',
     parentAllocations: [allocation('ITHD-101.4', 15)], objective: 'Work four tickets on your own: dead monitors on a dock, a battery that may be swelling, a badge printer with a guest waiting and a virtual desktop stuck on a black screen.',
     description: 'Four unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all four and a completion record is saved to your account.',
     skills: ['Peripheral Triage', 'Battery Safety', 'Print Queue Triage', 'Virtual Desktops'], portalEntry: '#/program/it-support/module/4' }),
-  // Module 4's Prove It. The page shows "Opens soon" and launches nothing
-  // until its simulator shift, scoring and gating row are built.
+  // Module 4's Prove It: one ticket (?prove=its-02), scored on the server and
+  // graded by the instructor. It gates Module 4's completion.
   itsLab({ key: 'lab-its-02-prove-it', module: 'its-02', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 20,
     parentAllocations: [allocation('ITHD-101.4', 20)], objective: 'Independently work a new hardware ticket: find what is wrong, fix it in the right order, verify it with the user, and write for both the next technician and the user.',
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',

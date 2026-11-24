@@ -87,8 +87,8 @@ $$;
 grant execute on all functions in schema pg_temp to authenticated;
 
 -- ------------------------------------------------------------ scope
-select pg_temp.check((select array_agg(lab_key order by lab_key) from public.course_module_labs where requires_official_score) = array['lab-its-01-prove-it', 'lab-its-10-prove-it'],
-  'only the Help Desk Prove Its (Module 1, and Module 2 since 20261120213000) require an official score');
+select pg_temp.check((select array_agg(lab_key order by lab_key) from public.course_module_labs where requires_official_score) = array['lab-its-01-prove-it', 'lab-its-02-prove-it', 'lab-its-10-prove-it', 'lab-its-11-prove-it'],
+  'only the Help Desk Prove Its (Module 1, Module 2 since 20261120213000, Module 3 since 20261123022947, Module 4 since 20261123190000) require an official score');
 select pg_temp.check(public.lab_pass_mark() = 70, 'the pass mark is 70');
 
 -- ------------------------------------------------------------ a waiting attempt
@@ -242,10 +242,13 @@ alter table public.module_progress disable trigger module_progress_guard_complet
 insert into public.lab_attempts (user_id, track_code, lab_key, state, score, result, started_at, completed_at, reviewed_at, reviewed_by)
   select 'f0000000-0000-0000-0000-000000000003', r.track_code, r.lab_key, 'complete', 85, '{}'::jsonb, now(), now(), now(), 'f0000000-0000-0000-0000-000000000004'
   from public.course_module_labs r where r.track_code = 'HDESK' and r.gates_completion and r.module_key <> 'its-01';
--- Module 2 gates on an official-grade Prove It since 20261120213000, so an
--- approved attempt alone no longer completes it: set it up directly too.
+-- Modules 2, 3 and 4 gate on an official-grade Prove It (since 20261120213000,
+-- 20261123022947 and 20261123190000), so an approved attempt alone no longer
+-- completes them: set them up directly too.
 insert into public.module_progress (user_id, track_code, module_key, state, percent, started_at, completed_at)
-  values ('f0000000-0000-0000-0000-000000000003', 'HDESK', 'its-10', 'complete', 100, now(), now())
+  values ('f0000000-0000-0000-0000-000000000003', 'HDESK', 'its-10', 'complete', 100, now(), now()),
+         ('f0000000-0000-0000-0000-000000000003', 'HDESK', 'its-11', 'complete', 100, now(), now()),
+         ('f0000000-0000-0000-0000-000000000003', 'HDESK', 'its-02', 'complete', 100, now(), now())
   on conflict (user_id, module_key) do update set state = 'complete', percent = 100, completed_at = now();
 alter table public.module_progress enable trigger module_progress_guard_completion;
 select pg_temp.check((select count(*) = 11 from public.module_progress where user_id = 'f0000000-0000-0000-0000-000000000003' and state = 'complete'), 'eleven modules complete for the records check');
@@ -279,13 +282,15 @@ select pg_temp.check((select m->>'state' = 'complete' and m->>'completed_at' is 
     from public.completion_reporting_snapshots s, jsonb_array_elements(s.module_progress_snapshot) m
     where s.user_id = 'f0000000-0000-0000-0000-000000000003' and m->>'module_key' = 'its-01'),
   'and its module entry');
+-- The sample unflagged lab is one that still gates completion: Module 4's
+-- lab-its-02-vm-build is Practice It since 20261123190000.
 select pg_temp.check((select not (lab ? 'status')
     from public.completion_reporting_snapshots s, jsonb_array_elements(s.lab_attempts_snapshot) lab
-    where s.user_id = 'f0000000-0000-0000-0000-000000000003' and lab->>'lab_key' = 'lab-its-02-vm-build'),
+    where s.user_id = 'f0000000-0000-0000-0000-000000000003' and lab->>'lab_key' = 'lab-its-03-blank-desktop'),
   'an unflagged lab has no new field');
 select pg_temp.check((select lab->>'last_completed_at' is not null
     from public.completion_reporting_snapshots s, jsonb_array_elements(s.lab_attempts_snapshot) lab
-    where s.user_id = 'f0000000-0000-0000-0000-000000000003' and lab->>'lab_key' = 'lab-its-02-vm-build'),
+    where s.user_id = 'f0000000-0000-0000-0000-000000000003' and lab->>'lab_key' = 'lab-its-03-blank-desktop'),
   'and keeps its date');
 select pg_temp.check((select passed and official_score = 82 and decided_at is not null from public.lab_standing_decision('f0000000-0000-0000-0000-000000000003', 'HDESK', 'lab-its-01-prove-it')),
   'an approval at or above the pass mark stands');
@@ -299,7 +304,7 @@ select pg_temp.expect_error($$select * from public.lab_standing_decision('f00000
 reset role;
 select pg_temp.check((select (lab->>'best_score')::numeric = 85 and (lab->>'ever_passed')::boolean
     from public.completion_reporting_snapshots s, jsonb_array_elements(s.lab_attempts_snapshot) lab
-    where s.user_id = 'f0000000-0000-0000-0000-000000000003' and lab->>'lab_key' = 'lab-its-02-vm-build'),
+    where s.user_id = 'f0000000-0000-0000-0000-000000000003' and lab->>'lab_key' = 'lab-its-03-blank-desktop'),
   'an unflagged lab reports its score as before');
 
 -- ------------------------------------------------------------ every unflagged lab, every track

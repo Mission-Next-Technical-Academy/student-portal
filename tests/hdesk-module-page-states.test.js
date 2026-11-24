@@ -103,15 +103,18 @@ const LAB24 = 'lab-its-02-print-spooler';
 
 async function testModuleTwoClearedStorageShowsDatabaseStatus() {
   // ISSUE-028's staging account: 2.1, 2.3 and 2.4 waiting, 2.2 approved.
+  // Since Module 4's Prove It moved the gate (2026-11-23), all four are
+  // Practice It: waiting or approved, each reads "Complete", as Module 1's do.
   const user = hdUser({ [LAB21]: waiting(), [LAB22]: approved(), [LAB23]: waiting(), [LAB24]: waiting() });
   fresh(user);
   const html = moduleLab(2).view(user, HD);
 
-  assert.equal(statusLine(html, LAB21), `Lab 4.1 submitted ${DAY}, waiting for instructor review`);
-  assert.equal(statusLine(html, LAB22), 'Lab 4.2 passed');
-  assert.equal(statusLine(html, LAB23), `Lab 4.3 submitted ${DAY}, waiting for instructor review`);
-  assert.equal(statusLine(html, LAB24), `Lab 4.4 submitted ${DAY}, waiting for instructor review`);
-  assert.equal(counter(html, 'its02-status'), '5 labs · 3 waiting for review · 1 passed');
+  assert.equal(statusLine(html, LAB21), `Lab 4.1: Complete · ${DAY}`);
+  assert.equal(statusLine(html, LAB22), `Lab 4.2: Complete · ${DAY}`);
+  assert.equal(statusLine(html, LAB23), `Lab 4.3: Complete · ${DAY}`);
+  assert.equal(statusLine(html, LAB24), `Lab 4.4: Complete · ${DAY}`);
+  assert.equal(counter(html, 'its02-status'), '5 labs · 4 practice complete · 0 passed');
+  assert.doesNotMatch(html, /waiting for instructor review/);
   assert.doesNotMatch(html, /Labs complete/, 'the counter never says complete');
 
   // A submitted evidence lab shows no empty upload boxes.
@@ -120,10 +123,10 @@ async function testModuleTwoClearedStorageShowsDatabaseStatus() {
   }
   assert.match(section(html, 'its02-lab-2-3'), /Review the walkthrough/);
 
-  assert.deepEqual(railRow(html, 'its02-lab-2-1'), { ticked: false, text: 'Guided Lab In review' });
+  assert.deepEqual(railRow(html, 'its02-lab-2-1'), { ticked: true, text: 'Guided Lab Complete' });
   assert.equal(railRow(html, 'its02-lab-2-2').ticked, true, 'the approved lab is ticked');
-  assert.equal(railRow(html, 'its02-lab-2-3').ticked, false);
-  assert.match(railRow(html, 'its02-lab-2-3').text, /In review/);
+  assert.equal(railRow(html, 'its02-lab-2-3').ticked, true);
+  assert.match(railRow(html, 'its02-lab-2-3').text, /Complete/);
 }
 
 async function testModuleTwoLocalFlagsAloneAreNotSubmitted() {
@@ -142,7 +145,7 @@ async function testModuleTwoLocalFlagsAloneAreNotSubmitted() {
   assert.equal(statusLine(html, LAB21), 'Finish Lab 4.1 in the simulator to complete this lab.');
   assert.equal(submitButton(html, LAB21), null, 'no Submit button until the files are chosen again');
   assert.match(section(html, 'its02-lab-2-1'), /Choose this file again — “d\.png”/);
-  assert.equal(counter(html, 'its02-status'), '5 labs · 0 passed');
+  assert.equal(counter(html, 'its02-status'), '5 labs · 0 practice complete · 0 passed');
   assert.match(section(html, 'its02-lab-2-3'), /Start Lab 4\.3 walkthrough/);
   for (const id of ['its02-lab-2-1', 'its02-lab-2-2', 'its02-lab-2-3']) assert.equal(railRow(html, id).ticked, false, `${id} not ticked`);
 }
@@ -154,7 +157,7 @@ async function testModuleTwoReturnedLab() {
   assert.equal(statusLine(html, LAB21), 'Lab 4.1 returned for revision — see your instructor’s notes below.');
   assert.match(section(html, 'its02-lab-2-1'), /data-itsw-evidence-input/, 'a returned lab shows its upload boxes again');
   assert.match(section(html, 'its02-lab-2-1'), /data-its-resubmit/, 'PR #61 Resubmit button stays');
-  assert.equal(counter(html, 'its02-status'), '5 labs · 1 passed · 1 returned');
+  assert.equal(counter(html, 'its02-status'), '5 labs · 1 practice complete · 0 passed · 1 returned');
   assert.match(railRow(html, 'its02-lab-2-1').text, /Returned/);
 }
 
@@ -189,10 +192,10 @@ async function testEvidenceUploadNeverCompletes() {
   assert.equal(inserts().length, 1, 'no other lab is submitted');
 
   html = moduleLab(2).view(user, HD);
-  assert.match(statusLine(html, LAB21), /^Lab 4\.1 submitted .+, waiting for instructor review$/);
-  assert.equal(counter(html, 'its02-status'), '5 labs · 1 waiting for review · 0 passed');
+  assert.match(statusLine(html, LAB21), /^Lab 4\.1: Complete · .+$/);
+  assert.equal(counter(html, 'its02-status'), '5 labs · 1 practice complete · 0 passed');
   assert.equal(submitButton(html, LAB21), null, 'no Submit button once submitted');
-  assert.match(railRow(html, 'its02-lab-2-1').text, /In review/);
+  assert.match(railRow(html, 'its02-lab-2-1').text, /Complete/);
 }
 
 async function testEvidenceSubmitFailure() {
@@ -207,7 +210,7 @@ async function testEvidenceSubmitFailure() {
   const html = moduleLab(2).view(user, HD);
   assert.equal(statusLine(html, LAB21), 'Lab 4.1 wasn’t submitted. Check your connection, then press Submit Lab 4.1.');
   assert.ok(submitButton(html, LAB21), 'the Submit button stays so the student can retry');
-  assert.equal(counter(html, 'its02-status'), '5 labs · 0 passed');
+  assert.equal(counter(html, 'its02-status'), '5 labs · 0 practice complete · 0 passed');
 }
 
 /* ------------------------------------------------------------------ Module 1 */

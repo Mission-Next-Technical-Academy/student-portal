@@ -314,8 +314,7 @@ const ITS02_COACH_INCOMPLETE = 'Your lab wasn’t saved: it isn’t finished yet
 const ITS02_VM_STATE_ID = 'its02-vm-state-v1';
 const ITS02_PRACTICE_TICKETS = ['HD-2169', 'HD-2170', 'HD-2171', 'HD-2172'];
 const ITS02_WALKTHROUGH_LAB_KEYS = [ITS02_LAB23_KEY];
-// Module 4's Prove It. Its card opens nothing yet: the simulator shift,
-// scoring and gating row come with the Prove It part.
+// Module 4's Prove It (?prove=its-02). It gates Module 4's completion.
 const ITS02_PROVE_KEY = 'lab-its-02-prove-it';
 const ITS02_ALL_LAB_KEYS = [ITS02_LAB21_KEY, ITS02_LAB22_KEY, ITS02_LAB23_KEY, ITS02_LAB24_KEY, ITS02_PROVE_KEY];
 const ITS02_WALKTHROUGH_START = ITS02_COACH_LABS['hd-m02'].start;
@@ -1077,15 +1076,29 @@ function its02Lab34() {
   </section>`;
 }
 
-// Module 4's Prove It, on Module 3's pattern before its Prove It shipped:
-// the card shows "Opens soon" and launches nothing. The simulator shift, the
-// scoring and the gating row come with the Prove It part.
+// Module 4's Prove It, on Module 3's pattern: a new ticket in the simulator
+// (?prove=its-02), reviewed by the instructor. Practice It is recommended
+// first, never required. A submitted attempt has nothing left to open. What
+// it shows comes from the server's attempt (itsLabStatus); the simulator
+// reports back by message (itsProveReceiveMessage).
 function its02Prove() {
+  const user = its02User;
+  const returned = itsLabReturned(user, ITS02_PROVE_KEY);
   return `<section class="its01-section its01-lab-section" id="its02-prove-it" aria-labelledby="its02-prove-it-title">
     <div class="its01-section-heading"><span>5</span><div><p class="its01-kicker">Prove It · Assessment Lab · instructor reviewed</p><h2 id="its02-prove-it-title">${esc(itsLabTitle(ITS02_PROVE_KEY))}</h2></div></div>
-    <p class="its01-instruction">Work a new hardware ticket on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Your instructor reviews your work.</p>
-    <p class="its01-lab-status its01-status-pending" data-its02-prove-soon role="status"><i class="ri-time-line" aria-hidden="true"></i> Opens soon. Nothing to do here yet: work Labs 4.3 and 4.4 first.</p>
+    <p class="its01-instruction">Work a new ticket on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Set the ticket fields, check what you need on the user's computer, fix what you can, decide what happens next, and write a work note and a reply to the user. Plan on about 20 minutes. Your instructor reviews your work.</p>
+    ${itsLabRail(user, [ITS02_LAB23_KEY]).isComplete ? '' : '<p class="its01-instruction">Work Lab 4.3, the guided printer lab, first: it prepares you for this.</p>'}
+    ${itsLabSubmitted(user, ITS02_PROVE_KEY) ? '' : `<a class="itsw-evidence-button" data-its02-prove-launch href="${esc(itsProveLaunchHref('its-02', user))}" target="_blank" rel="opener">
+      <i class="${returned ? 'ri-restart-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${returned ? 'Reopen the Prove It' : 'Start the Prove It'}
+    </a>`}
+    ${itsLabStatusHtml(user, ITS02_PROVE_KEY, { label: 'Prove It', prefix: 'its01', pendingText: 'Press Submit in the simulator when you finish the ticket.' })}
+    ${itsLabStatus(user, ITS02_PROVE_KEY) === 'passed' && typeof markedLabLinkHtml === 'function' ? `<p>${markedLabLinkHtml(ITS02_PROVE_KEY, 'See your score and feedback')}</p>` : ''}
+    ${itsRedoNoticeHtml(user, [{ key: ITS02_PROVE_KEY, action: 'Reopen the Prove It, make your changes, then press Resubmit in the simulator. You can resubmit once for each return.' }])}
   </section>`;
+}
+// A Prove It message changed the attempt: show it if this page is open.
+function its02ProveChanged() {
+  if (document.querySelector('.its02-shell')) render();
 }
 // The practice set opens in its own saved shift (?practice=its-02), named by
 // the anonymous student id, never the email.
@@ -1428,9 +1441,9 @@ async function its02ReceivePracticeCompletion(event) {
   if (tickets.length !== ITS02_PRACTICE_TICKETS.length || !ITS02_PRACTICE_TICKETS.every((id) => tickets.includes(id))) { reply(false, 'incomplete'); return; }
   if (itsLabSubmitted(user, ITS02_LAB24_KEY)) { reply(true); return; }
   if (itsLabSubmitting(user, ITS02_LAB24_KEY)) { reply(false, 'busy'); return; }
-  // Lab 4.4 still gates completion until the Prove It part moves the gate,
-  // so the database allows one waiting attempt; another tab in this browser
-  // may be saving right now (the lock).
+  // The database allows one waiting attempt on Lab 4.4's key (it keeps its
+  // course_module_labs row after the its02 Prove It migration moved the
+  // gate); another tab in this browser may be saving right now (the lock).
   const lock = `mnt.practice-save.${user.userId}.${ITS02_LAB24_KEY}`;
   const held = Number(its02StorageGet(lock)) || 0;
   if (Date.now() - held < ITS02_PRACTICE_LOCK_MS) { reply(false, 'busy'); return; }
@@ -1450,6 +1463,7 @@ async function its02ReceivePracticeCompletion(event) {
 }
 
 function its02OnMessage(event) {
+  itsProveReceiveMessage(event, { moduleKey: 'its-02', labKey: ITS02_PROVE_KEY, onChange: its02ProveChanged });
   return Promise.all([
     itsVmReceiveMessage(event, { moduleKey: 'its-02', stateId: ITS02_VM_STATE_ID }),
     its02ReceiveCoachCompletion(event),

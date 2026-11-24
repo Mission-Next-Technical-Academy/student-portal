@@ -109,8 +109,9 @@ function testCatalogue() {
     'Lab 4.4 · Practice tickets (not graded)',
     'Prove It: Independent Ticket',
   ], 'the two VM labs keep their filed titles');
-  // Until the Prove It part moves the gate, no Module 4 lab is Practice It.
-  assert.deepEqual(labs.map((l) => l.phase || null), [null, null, null, null, null]);
+  // The Prove It gates completion (the its02 Prove It migration); the four
+  // older labs are Practice It.
+  assert.deepEqual(labs.map((l) => l.phase || null), ['practice', 'practice', 'practice', 'practice', null]);
   const byParent = {};
   m.curriculumItems.concat(labs).forEach((item) => item.parentAllocations.forEach((a) => { byParent[a.code] = (byParent[a.code] || 0) + a.minutes; }));
   assert.deepEqual(byParent, { 'ITHD-101.3': 480, 'ITHD-101.4': 180 }, 'filed minutes per parent course unchanged');
@@ -206,8 +207,8 @@ function testLabCardsAndRail() {
   assert.match(practice, /Practice: not graded/);
   const prove = section(html, 'its02-prove-it');
   assert.match(prove, /Prove It: Independent Ticket/);
-  assert.match(prove, /Opens soon/);
-  assert.doesNotMatch(prove, /\?prove=|<a /, 'the Prove It card opens nothing yet');
+  assert.doesNotMatch(prove, /Opens soon/);
+  assert.match(prove, /data-its02-prove-launch href="[^"]*\?prove=its-02&amp;student=/, 'the Prove It card opens the simulator shift');
   ['its02-prove-it', 'its02-checks'].forEach((id) => assert.equal(railRow(html, id).locked, false, `${id} is not locked`));
   assert.equal(railRow(html, 'its02-prove-it').text, 'Assessment Lab');
   assert.doesNotMatch(html, /its-02-assessment-module/, 'no generic Assessment Lab box');
