@@ -269,9 +269,10 @@ async function testModuleOneHasNoEvidenceLab() {
 async function testSharedWalkthroughModules() {
   for (let n = 3; n <= 11; n += 1) {
     const key = `its-${String(n).padStart(2, '0')}`;
-    // Modules 2 (its-10) and 3 (its-11) have their own pages now:
-    // tests/hdesk-m02-page.test.js and tests/hdesk-m03-page.test.js.
-    if (key === 'its-10' || key === 'its-11') continue;
+    // Modules 2 (its-10), 3 (its-11) and 5 (its-03) have their own pages now:
+    // tests/hdesk-m02-page.test.js, tests/hdesk-m03-page.test.js and
+    // tests/hdesk-m05-page.test.js.
+    if (key === 'its-10' || key === 'its-11' || key === 'its-03') continue;
     // The page anchor follows the module's display number, not its key.
     const rail = `itss-lab-${String(HD.modules[key].number).padStart(2, '0')}`;
     const [lab] = run('LABS').filter((l) => l.module === key).map((l) => l.key);
@@ -303,27 +304,27 @@ async function testSharedWalkthroughModules() {
 async function testWalkthroughCompletionShowsWaiting() {
   const user = hdUser();
   fresh(user);
-  moduleLab(3).view(user, HD);
-  const work = { version: 1, tickets: [{ id: 'HD-2109', diagnosis: 'Temporary profile', checkedSteps: ['Check event logs'] }] };
-  await moduleLab(3).onMessage({ data: { type: 'mnt-coach-complete', id: 'hd-m03', student: studentOf(user), work }, origin: SIM });
+  moduleLab(8).view(user, HD);
+  const work = { version: 1, tickets: [{ id: 'HD-2110', diagnosis: 'Broken domain trust', checkedSteps: ['Check event logs'] }] };
+  await moduleLab(8).onMessage({ data: { type: 'mnt-coach-complete', id: 'hd-m08', student: studentOf(user), work }, origin: SIM });
   await settle();
-  const html = moduleLab(3).view(user, HD);
-  assert.match(statusLine(html, 'lab-its-03-blank-desktop'), /^Lab submitted .+, waiting for instructor review$/);
+  const html = moduleLab(8).view(user, HD);
+  assert.match(statusLine(html, 'lab-its-08-unfamiliar-problems'), /^Lab submitted .+, waiting for instructor review$/);
   assert.doesNotMatch(html, /Lab complete/);
-  const attempt = inserts('lab-its-03-blank-desktop')[0].payload;
+  const attempt = inserts('lab-its-08-unfamiliar-problems')[0].payload;
   assert.equal(attempt.rubric_version, 'it-support-practice-v1');
   assert.equal(attempt.scoring_engine_version, 'it-support-practice-capture-v1');
-  assert.equal(attempt.result.work.tickets[0].diagnosis, 'Temporary profile');
+  assert.equal(attempt.result.work.tickets[0].diagnosis, 'Broken domain trust');
 }
 
 async function testDuplicateCoachCompletionMessageCreatesOneAttempt() {
   const user = hdUser();
   fresh(user);
-  moduleLab(3).view(user, HD);
-  const message = { data: { type: 'mnt-coach-complete', id: 'hd-m03', student: studentOf(user), work: { version: 1, tickets: [{ id: 'HD-2109' }] } }, origin: SIM };
-  await Promise.all([moduleLab(3).onMessage(message), moduleLab(3).onMessage(message)]);
+  moduleLab(8).view(user, HD);
+  const message = { data: { type: 'mnt-coach-complete', id: 'hd-m08', student: studentOf(user), work: { version: 1, tickets: [{ id: 'HD-2110' }] } }, origin: SIM };
+  await Promise.all([moduleLab(8).onMessage(message), moduleLab(8).onMessage(message)]);
   await settle();
-  assert.equal(inserts('lab-its-03-blank-desktop').length, 1, 'rapid duplicate completion messages are guarded');
+  assert.equal(inserts('lab-its-08-unfamiliar-problems').length, 1, 'rapid duplicate completion messages are guarded');
 }
 
 /* ------------------------------------------- walkthrough receipt replies */
@@ -341,7 +342,7 @@ const M01_FINISHED_WORK = { version: 1, tickets: [{ id: 'HD-2150', status: 'Reso
   outcomes: { verified: true, unlocked: true, confirmed: true, comment: true, note: true, code: true } } }] };
 // Module 4's Lab 4.3 counts only finished work: HD-2134 resolved.
 const M02_FINISHED_WORK = { version: 1, tickets: [{ id: 'HD-2134', status: 'Resolved' }] };
-const finishMessage = (id, source, student = signedIn ? studentOf(signedIn) : '') => ({ data: { type: 'mnt-coach-complete', id, nonce: 'n-1', student, work: id === 'hd-m01' ? M01_FINISHED_WORK : id === 'hd-m02' ? M02_FINISHED_WORK : { version: 1, tickets: [{ id: 'HD-2109' }] } }, origin: SIM, source });
+const finishMessage = (id, source, student = signedIn ? studentOf(signedIn) : '') => ({ data: { type: 'mnt-coach-complete', id, nonce: 'n-1', student, work: id === 'hd-m01' ? M01_FINISHED_WORK : id === 'hd-m02' ? M02_FINISHED_WORK : { version: 1, tickets: [{ id: 'HD-2110' }] } }, origin: SIM, source });
 
 // Module 4 (key its-02): each lab saves its own record, only for finished work.
 async function testModuleFourLabRecords() {
@@ -386,22 +387,22 @@ async function testModuleFourLabRecords() {
 async function testReceiptSavedAfterSubmit() {
   const user = hdUser();
   fresh(user);
-  moduleLab(3).view(user, HD);
+  moduleLab(8).view(user, HD);
   const { replies, source } = replyCatcher();
-  await moduleLab(3).onMessage(finishMessage('hd-m03', source));
+  await moduleLab(8).onMessage(finishMessage('hd-m08', source));
   await settle();
-  assert.equal(inserts('lab-its-03-blank-desktop').length, 1);
-  assert.deepEqual(JSON.parse(JSON.stringify(replies)), [{ data: { type: 'mnt-coach-received', id: 'hd-m03', nonce: 'n-1', saved: true }, origin: SIM }]);
+  assert.equal(inserts('lab-its-08-unfamiliar-problems').length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(replies)), [{ data: { type: 'mnt-coach-received', id: 'hd-m08', nonce: 'n-1', saved: true }, origin: SIM }]);
 }
 
 async function testReceiptNotSavedWhenSignedOut() {
   fresh(null);
   const { replies, source } = replyCatcher();
-  await moduleLab(3).onMessage(finishMessage('hd-m03', source));
+  await moduleLab(8).onMessage(finishMessage('hd-m08', source));
   await moduleLab(1).onMessage(finishMessage('hd-m01', source));
   await settle();
   assert.equal(inserts().length, 0);
-  assert.deepEqual(replies.map((r) => [r.data.id, r.data.saved]), [['hd-m03', false], ['hd-m01', false]]);
+  assert.deepEqual(replies.map((r) => [r.data.id, r.data.saved]), [['hd-m08', false], ['hd-m01', false]]);
 }
 
 async function testReceiptNotSavedWhenSaveFails() {
@@ -416,11 +417,11 @@ async function testReceiptNotSavedWhenSaveFails() {
 }
 
 async function testReceiptSavedWhenLabAlreadyWaiting() {
-  const user = hdUser({ 'lab-its-03-blank-desktop': waiting() });
+  const user = hdUser({ 'lab-its-08-unfamiliar-problems': waiting() });
   fresh(user);
-  moduleLab(3).view(user, HD);
+  moduleLab(8).view(user, HD);
   const { replies, source } = replyCatcher();
-  await moduleLab(3).onMessage(finishMessage('hd-m03', source));
+  await moduleLab(8).onMessage(finishMessage('hd-m08', source));
   await settle();
   assert.equal(inserts().length, 0, 'a waiting lab takes no new attempt');
   assert.deepEqual(replies.map((r) => r.data.saved), [true], 'nothing left to save counts as received');
@@ -429,7 +430,8 @@ async function testReceiptSavedWhenLabAlreadyWaiting() {
 // A walkthrough lab counts as complete (local engagement, the module's
 // consoleCompleted flag, and the verified-progress refresh that
 // markModuleLabComplete can trigger) only once the portal has its attempt.
-const LAB03 = 'lab-its-03-blank-desktop';
+// Module 10 (key its-08) is the example of the shared walkthrough page.
+const LAB08 = 'lab-its-08-unfamiliar-problems';
 function completion(user, moduleKey, labKey, stateId) {
   const completedLabs = run('loadModuleEngagement')(user).completedLabs;
   return {
@@ -442,7 +444,7 @@ const failInserts = (call) => (call.table === 'lab_attempts' && call.op === 'ins
 
 async function testFailedSaveMarksNothingComplete() {
   for (const [n, coach, moduleKey, labKey, stateId] of [
-    [3, 'hd-m03', 'its-03', LAB03, 'its-coach-its-03-v1'],
+    [8, 'hd-m08', 'its-08', LAB08, 'its-coach-its-08-v1'],
     [1, 'hd-m01', 'its-01', LAB12, 'its01-lms-validation-v1'],
     [2, 'hd-m02', 'its-02', LAB23, 'its02-lab-state-v1'],
   ]) {
@@ -459,22 +461,22 @@ async function testFailedSaveMarksNothingComplete() {
 async function testSuccessfulSaveMarksLabComplete() {
   const user = hdUser();
   fresh(user);
-  moduleLab(3).view(user, HD);
-  await moduleLab(3).onMessage(finishMessage('hd-m03', replyCatcher().source));
+  moduleLab(8).view(user, HD);
+  await moduleLab(8).onMessage(finishMessage('hd-m08', replyCatcher().source));
   await settle();
-  const state = completion(user, 'its-03', LAB03, 'its-coach-its-03-v1');
+  const state = completion(user, 'its-08', LAB08, 'its-coach-its-08-v1');
   assert.equal(state.labMarked, true);
   assert.equal(state.consoleCompleted, true);
 }
 
 async function testAlreadyWaitingLabStillCountsComplete() {
-  const user = hdUser({ [LAB03]: waiting() });
+  const user = hdUser({ [LAB08]: waiting() });
   fresh(user);
-  moduleLab(3).view(user, HD);
-  await moduleLab(3).onMessage(finishMessage('hd-m03', replyCatcher().source));
+  moduleLab(8).view(user, HD);
+  await moduleLab(8).onMessage(finishMessage('hd-m08', replyCatcher().source));
   await settle();
   assert.equal(inserts().length, 0);
-  const state = completion(user, 'its-03', LAB03, 'its-coach-its-03-v1');
+  const state = completion(user, 'its-08', LAB08, 'its-coach-its-08-v1');
   assert.equal(state.labMarked, true);
   assert.equal(state.consoleCompleted, true);
 }
@@ -485,7 +487,7 @@ async function testAlreadyWaitingLabStillCountsComplete() {
 async function testMismatchedStudentSavesNothing() {
   const studentA = hdUser();
   const studentB = { ...hdUser(), userId: 'user-hdesk-b', email: 'hdesk-b@test.invalid' };
-  for (const [n, coach] of [[3, 'hd-m03'], [1, 'hd-m01'], [2, 'hd-m02']]) {
+  for (const [n, coach] of [[8, 'hd-m08'], [1, 'hd-m01'], [2, 'hd-m02']]) {
     fresh(studentB);
     moduleLab(n).view(studentB, HD);
     const { replies, source } = replyCatcher();
@@ -501,11 +503,11 @@ async function testMissingStudentSavesNothing() {
   const user = hdUser();
   for (const student of ['', undefined]) {
     fresh(user);
-    moduleLab(3).view(user, HD);
+    moduleLab(8).view(user, HD);
     const { replies, source } = replyCatcher();
-    const message = finishMessage('hd-m03', source);
+    const message = finishMessage('hd-m08', source);
     if (student === undefined) delete message.data.student; else message.data.student = student;
-    await moduleLab(3).onMessage(message);
+    await moduleLab(8).onMessage(message);
     await settle();
     assert.equal(inserts().length, 0);
     assert.deepEqual(replies.map((r) => [r.data.saved, r.data.reason]), [[false, 'no-student']]);
@@ -515,11 +517,11 @@ async function testMissingStudentSavesNothing() {
 async function testMatchingStudentSaves() {
   const user = hdUser();
   fresh(user);
-  moduleLab(3).view(user, HD);
+  moduleLab(8).view(user, HD);
   const { replies, source } = replyCatcher();
-  await moduleLab(3).onMessage(finishMessage('hd-m03', source, studentOf(user)));
+  await moduleLab(8).onMessage(finishMessage('hd-m08', source, studentOf(user)));
   await settle();
-  assert.equal(inserts('lab-its-03-blank-desktop').length, 1);
+  assert.equal(inserts('lab-its-08-unfamiliar-problems').length, 1);
   assert.deepEqual(replies.map((r) => [r.data.saved, r.data.reason]), [[true, undefined]]);
 }
 
@@ -539,7 +541,7 @@ function testLaunchLinksNameTheStudent() {
   fresh(user);
   const student = run('LabRuntime').anonymousStudentId(user);
   assert.match(student, /^student-/);
-  for (const [n, coach] of [[1, 'hd-m01'], [2, 'hd-m02'], [3, 'hd-m03'], [11, 'hd-m11']]) {
+  for (const [n, coach] of [[1, 'hd-m01'], [2, 'hd-m02'], [3, 'hd-m03'], [8, 'hd-m08'], [11, 'hd-m11']]) {
     const html = moduleLab(n).view(user, HD);
     // coach=hd-m02& exactly: Module 4 also links hd-m02-vm and hd-m02-server.
     const href = (new RegExp(`href="([^"]*coach=${coach}&[^"]*)"`).exec(html) || [])[1];
@@ -567,7 +569,7 @@ async function testReturnLinkRecordsNothing() {
   const cases = [
     [1, 'hd-m01', 'its01-lab-1-2', 'lab-its-01-ticket-triage', 'its01-lab-1-2', 'Start Lab 1.1 walkthrough'],
     [2, 'hd-m02', 'its02-lab-2-3', LAB23, 'its02-lab-2-3', 'Start Lab 4.3 walkthrough'],
-    [3, 'hd-m03', null, 'lab-its-03-blank-desktop', 'itss-lab-05', 'Start guided walkthrough'],
+    [8, 'hd-m08', null, 'lab-its-08-unfamiliar-problems', 'itss-lab-10', 'Start guided walkthrough'],
     [7, 'hd-m07', null, run('LABS').find((l) => l.module === 'its-07').key, 'itss-lab-06', 'Start guided walkthrough'],
   ];
   for (const [n, coachId, sectionId, lab, railId, start] of cases) {
@@ -591,13 +593,13 @@ async function testReturnLinkRecordsNothing() {
   }
 
   // With the attempt already saved (the popup message got through), no message.
-  const user = hdUser({ 'lab-its-03-blank-desktop': waiting() });
+  const user = hdUser({ 'lab-its-08-unfamiliar-problems': waiting() });
   fresh(user);
-  returnLink('hd-m03');
+  returnLink('hd-m08');
   try {
-    const html = moduleLab(3).view(user, HD);
-    assert.equal(notice(html, 'hd-m03'), '');
-    assert.match(statusLine(html, 'lab-its-03-blank-desktop'), /waiting for instructor review/);
+    const html = moduleLab(8).view(user, HD);
+    assert.equal(notice(html, 'hd-m08'), '');
+    assert.match(statusLine(html, 'lab-its-08-unfamiliar-problems'), /waiting for instructor review/);
   } finally {
     returnLink(null);
   }
@@ -606,27 +608,27 @@ async function testReturnLinkRecordsNothing() {
 async function testBlockedPopupShowsMessage() {
   const user = hdUser();
   fresh(user);
-  let html = moduleLab(3).view(user, HD);
-  assert.equal(notice(html, 'hd-m03'), '', 'no message before Start is pressed');
+  let html = moduleLab(8).view(user, HD);
+  assert.equal(notice(html, 'hd-m08'), '', 'no message before Start is pressed');
 
   let prevented = false;
   run('window.open = () => null');
-  const opened = run('itsLaunchWalkthrough')({ preventDefault() { prevented = true; } }, { href: 'http://127.0.0.1:8767/?coach=hd-m03' }, user, 'hd-m03');
+  const opened = run('itsLaunchWalkthrough')({ preventDefault() { prevented = true; } }, { href: 'http://127.0.0.1:8767/?coach=hd-m03' }, user, 'hd-m08');
   assert.equal(opened, false);
   assert.equal(prevented, true, 'the link does not also navigate this tab');
-  html = moduleLab(3).view(user, HD);
-  assert.equal(notice(html, 'hd-m03'), BLOCKED);
+  html = moduleLab(8).view(user, HD);
+  assert.equal(notice(html, 'hd-m08'), BLOCKED);
   assert.equal(inserts().length, 0);
 
   // Allowed on the next try: the message goes away.
   const opens = [];
   ctx.__opens = opens;
   run('window.open = (...args) => { __opens.push(args); return {}; }');
-  assert.equal(run('itsLaunchWalkthrough')({ preventDefault() {} }, { href: 'http://127.0.0.1:8767/?coach=hd-m03' }, user, 'hd-m03'), true);
+  assert.equal(run('itsLaunchWalkthrough')({ preventDefault() {} }, { href: 'http://127.0.0.1:8767/?coach=hd-m03' }, user, 'hd-m08'), true);
   assert.equal(opens.length, 1);
   assert.equal(opens[0][0], 'http://127.0.0.1:8767/?coach=hd-m03');
-  html = moduleLab(3).view(user, HD);
-  assert.equal(notice(html, 'hd-m03'), '');
+  html = moduleLab(8).view(user, HD);
+  assert.equal(notice(html, 'hd-m08'), '');
 }
 
 (async () => {

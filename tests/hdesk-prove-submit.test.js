@@ -785,8 +785,9 @@ async function testModuleOnePage() {
   assert.doesNotMatch(moduleOneHtml(user), /100%/);
 
   // Another Help Desk module keeps its generic box until its own Prove It.
-  const three = moduleLab(3).view(hdUser(), HD);
-  assert.match(three, /standard-its-03-assessment-module/);
+  // Module 10 (key its-08) still uses the shared walkthrough page.
+  const ten = moduleLab(8).view(hdUser(), HD);
+  assert.match(ten, /standard-its-08-assessment-module/);
 
   // Waiting: nothing to open, and the status is the server's.
   user = resetWorld(hdUser({ latestLabAttemptByKey: { [LAB]: WAITING } }));

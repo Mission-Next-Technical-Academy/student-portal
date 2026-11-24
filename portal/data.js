@@ -315,16 +315,18 @@ const PROGRAMS = [
             prove: 'Work the module’s practice tickets with feedback, then the Prove It ticket, reviewed by your instructor.' }),
         ],
         skills: ['Virtualization', 'Cloud Models', 'VM Snapshots', 'Device Manager', 'Driver Troubleshooting', 'Print Spooler'] },
-      'its-03': { number: 5, week: 3, title: 'Windows Operating System Support', hours: '3 Hours', durationMinutes: 180, creditMinutes: 180, lessons: 2, labs: 1,
+      // Lesson 5.2 holds Readings 2 and 3 on the page; both share this lesson's
+      // filed minutes (it-support-module-03.js).
+      'its-03': { number: 5, week: 3, title: 'Windows Operating System Support', hours: '3 Hours', durationMinutes: 180, creditMinutes: 180, lessons: 2, labs: 3,
         status: 'authored',
-        summary: 'Go deeper into Windows itself — efficient navigation, account and profile management, and diagnosing problems with the operating system\'s own built-in tools.',
+        summary: 'Work a slow computer in the right order with Windows’ own tools, repair system files, and handle a temporary profile, a driver blue screen, a BitLocker recovery screen and an overheating laptop safely.',
         curriculumItems: [
           itsItem({ key: 'its-03-lesson-01', title: 'Navigation, User Profiles, Local Accounts & Support Utilities', durationMinutes: 60, parentAllocations: [allocation('ITHD-101.4', 60)],
-            objective: 'Distinguish a user account from a user profile and use Task Manager and Event Viewer to investigate a reported problem.' }),
+            objective: 'Open the Windows support tools a ticket needs and tell an account problem from a profile problem.' }),
           itsItem({ key: 'its-03-lesson-02', title: 'Boot & Performance Troubleshooting, Command-Line Tools & Cross-Platform Awareness', durationMinutes: 60, parentAllocations: [allocation('ITHD-101.4', 60)],
-            objective: 'Use core command-line tools and the right boot-troubleshooting order to isolate an application-specific problem from a system-wide one.' }),
+            objective: 'Check a slow computer in the right order, choose the lightest repair that fits the evidence, and release a BitLocker recovery key only after verifying the caller and matching the Key ID.' }),
         ],
-        skills: ['Windows Support', 'Task Manager', 'Event Viewer', 'Command-Line Tools'] },
+        skills: ['Windows Support', 'Task Manager', 'Event Viewer', 'System Repair', 'BitLocker Recovery'] },
       'its-04': { number: 9, week: 5, title: 'Networking Fundamentals for Support', hours: '8 Hours', durationMinutes: 480, creditMinutes: 480, lessons: 4, labs: 1,
         status: 'authored',
         summary: 'Figure out why something won\'t connect, and explain it in plain language.',
@@ -2303,10 +2305,28 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.4', 20)], objective: 'Independently work a new hardware ticket: find what is wrong, fix it in the right order, verify it with the user, and write for both the next technician and the user.',
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
     skills: ['Hardware Triage', 'Evidence-Based Diagnosis', 'Documentation'], portalEntry: '#/program/it-support/module/4' }),
-  itsLab({ key: 'lab-its-03-blank-desktop', module: 'its-03', title: 'The Blank Desktop', difficulty: 'Foundational', minutes: 60,
-    parentAllocations: [allocation('ITHD-101.4', 60)], objective: 'Diagnose a corrupted Windows profile against the evidence and resolve it using the approved runbook.',
-    description: 'A coach-guided walkthrough of ticket HD-2109 (a blank desktop after sign-in) in the IT Service Desk simulator.',
-    skills: ['Windows Profiles', 'Evidence-Based Diagnosis'], portalEntry: '#/program/it-support/module/5' }),
+  // Module 5's guided lab. Students see it as Lab 5.1; the key is older than
+  // that numbering. Until Module 5's Prove It gates completion it stays the
+  // gating lab (course_module_labs), so it has no `phase: 'practice'`: an
+  // instructor still reviews and approves it.
+  itsLab({ key: 'lab-its-03-blank-desktop', module: 'its-03', title: 'Lab 5.1 · Guided Lab: the slow-computer sequence and system repair', difficulty: 'Foundational', minutes: 25,
+    parentAllocations: [allocation('ITHD-101.4', 25)], objective: 'Work a slow desk PC in the right order with Windows’ tool screens, free space safely, run the system-file repairs, restart to finish an update, and prove the fix with the boot time.',
+    description: 'A coach-guided ticket in the IT Service Desk simulator, each step with a why and what success looks like. Feedback only, no score.',
+    skills: ['Windows Performance', 'System Repair', 'Evidence-Based Diagnosis'], portalEntry: '#/program/it-support/module/5' }),
+  // Module 5's four unguided practice tickets: not graded, no score. The
+  // simulator reports when all four are done and the course page saves a
+  // completion record (it-support-module-03.js). No course_module_labs row:
+  // it never gates completion.
+  itsLab({ key: 'lab-its-03-practice-tickets', module: 'its-03', title: 'Lab 5.2 · Practice tickets (not graded)', difficulty: 'Foundational', minutes: 15, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.4', 15)], objective: 'Work four tickets on your own: a temporary profile, a driver blue screen on a dock, a BitLocker recovery screen and a laptop that shuts off from heat.',
+    description: 'Four unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all four and a completion record is saved to your account.',
+    skills: ['Windows Profiles', 'Driver Troubleshooting', 'BitLocker Recovery', 'Hardware Triage'], portalEntry: '#/program/it-support/module/5' }),
+  // Module 5's Prove It. The page shows "Opens soon" and launches nothing
+  // until its simulator shift, scoring and gating row are built.
+  itsLab({ key: 'lab-its-03-prove-it', module: 'its-03', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 20,
+    parentAllocations: [allocation('ITHD-101.4', 20)], objective: 'Independently work a new Windows ticket: find what is wrong from the tool screens, fix it, verify it, and write for both the next technician and the user.',
+    description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
+    skills: ['Windows Support', 'Evidence-Based Diagnosis', 'Documentation'], portalEntry: '#/program/it-support/module/5' }),
   itsLab({ key: 'lab-its-04-connectivity', module: 'its-04', title: 'Connected But Nothing Works', difficulty: 'Foundational', minutes: 180,
     parentAllocations: [allocation('ITHD-101.7', 180)], objective: 'Diagnose and resolve two real connectivity tickets using ipconfig/ping/nslookup-style evidence.',
     description: 'A coach-guided walkthrough of tickets HD-2104 (APIPA/DHCP) and HD-2105 (DNS) in the IT Service Desk simulator; HD-2113 (VPN gateway certificate) remains reachable for free practice.',
