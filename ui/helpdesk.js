@@ -1581,13 +1581,19 @@ function hdConsoleRule(ticket, rule) {
   //   typed: '<regex source>', computer   a command typed on that computer
   //   actionsAfter: { after, action, min, without? }   at least min of action
   //     after the last after, and no without after it (three clean dock cycles)
+  //   triage: { category, subcategory, ci }   the student's classification
   if (rule.seen) {
     const machine = hdMachine(rule.computer);
     if (!machine || !Array.isArray(machine.seen) || !machine.seen.includes(rule.seen)) return false;
     if (!rule.after) return true;
-    const at = state.actions.map(entry => entry.id).lastIndexOf(rule.after);
+    const index = state.actions.map(entry => entry.id).lastIndexOf(rule.after);
+    const at = index < 0 ? -1 : (Number(state.actionsDropped) || 0) + index;
     const seenAt = machine.seenAt && typeof machine.seenAt === 'object' ? Number(machine.seenAt[rule.seen]) : NaN;
     return at >= 0 && seenAt > at;
+  }
+  if (rule.triage) {
+    const chosen = hdClassification(ticket);
+    return ['category', 'subcategory', 'ci'].every(key => !rule.triage[key] || chosen[key] === rule.triage[key]);
   }
   if (rule.typed) {
     return (Array.isArray(hdState.practiceLog) ? hdState.practiceLog : []).some(entry => entry && entry.type === 'command_run' && entry.computer === rule.computer && test(rule.typed, String(entry.command || '').trim()));
@@ -3634,7 +3640,9 @@ function hdMachineAction(computerName, id, label, extra) {
   if (ticket) {
     const state = hdConsoleState(ticket);
     state.actions.push({ id, time:hdConsoleTime(ticket), computer:computerName, ...(extra || {}) });
-    if (state.actions.length > 200) state.actions.splice(0, state.actions.length - 200);
+    // actionsDropped: how many old actions the cap removed, so a screen's
+    // seenAt stamp (hdWinSeen) still compares with the right action.
+    if (state.actions.length > 200) state.actionsDropped = (Number(state.actionsDropped) || 0) + state.actions.splice(0, state.actions.length - 200).length;
     hdHistory(ticket, `On ${computerName}: ${label}.`);
   }
   hdPracticeEvent('action_taken', { ticket:ticket ? ticket.id : '', action:id, computer:computerName, label, ...(extra || {}) });
@@ -4283,7 +4291,8 @@ function hdWinSeen(machine, key) {
   // fix (rule seen with after; hdConsoleRule).
   const ticket = machine.seededBy && !HD_PROVE ? hdTicketById(machine.seededBy) : null;
   if (ticket) {
-    const count = hdConsoleState(ticket).actions.length;
+    const state = hdConsoleState(ticket);
+    const count = (Number(state.actionsDropped) || 0) + state.actions.length;
     if (!machine.seenAt || typeof machine.seenAt !== 'object') machine.seenAt = {};
     if (machine.seenAt[key] !== count) { machine.seenAt[key] = count; changed = true; }
   }

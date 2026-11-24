@@ -817,7 +817,7 @@
       {
         route: '#/helpdesk/event-viewer', target: '[data-hd-event-logs]',
         title: 'Measure the slow start',
-        instruction: 'In Event Viewer open <strong>Applications and Services Logs › Microsoft › Windows › Diagnostics-Performance › Operational</strong>. Read <strong>Event ID 100</strong>. Then search the knowledge base for <strong>slow</strong> and open <strong>KB-0084</strong>.',
+        instruction: 'In Event Viewer open <strong>Applications and Services Logs › Microsoft › Windows › Diagnostics-Performance › Operational</strong>. Read <strong>Event ID 100</strong>. Then, in the knowledge search on Noah’s ticket, search <strong>slow</strong> and open <strong>KB-0084</strong>.',
         body: 'Why: Event ID 100 measures “slow to start” in seconds. Later you can use it to prove the fix worked. Success looks like: the boot took 94 seconds, and KB-0084 is open.',
         waitLabel: 'Next Step: Boot time read and KB-0084 opened',
         check: () => hd3Seen('event-log:diagnostics-performance') && hd2Rule(HD3_ID, { kb: 'KB-0084' }),
@@ -833,21 +833,23 @@
       {
         route: '#/helpdesk/settings-storage', target: '[data-hd-temp-remove], [data-hd-storage], #hd-ps-input, .hd-chat',
         title: 'Free space the safe way',
-        instruction: 'In <strong>Storage › Temporary files</strong>, remove Windows Update Cleanup and Temporary files. Ask Noah before you empty the Recycle Bin, then empty it. Last, in the elevated PowerShell window, list his Desktop to show that his files are untouched. <details><summary>Show me the command</summary><code>dir C:\\Users\\nwilliams\\Desktop</code></details>',
+        instruction: 'In <strong>Storage › Temporary files</strong>, remove Windows Update Cleanup and Temporary files. Ask Noah before you empty the Recycle Bin, then empty it. Last, after the cleanup, in the elevated PowerShell window, list his Desktop to show that his files are untouched. <details><summary>Show me the command</summary><code>dir C:\\Users\\nwilliams\\Desktop</code></details>',
         body: 'Why: never delete a person’s files without their consent. The Recycle Bin holds files he deleted. Listing his Desktop proves the cleanup touched none of his files. Success looks like: 38.0 GB free (16%), Disk in Task Manager below 100%, and all his Desktop files listed.',
         waitLabel: 'Next Step: Space freed, Desktop files listed',
         check: () => {
           const m = hd2Machine(HD3_PC);
           if (!m || !m.storage || !m.storage.sizeGb) return false;
           if (Math.round((m.storage.freeGb / m.storage.sizeGb) * 100) < 16) return false;
+          // Asked and emptied, in any order: the Recycle Bin can be emptied only
+          // once and the question asked only once, so an order gate here would
+          // strand the lab. The step text teaches the order.
           if (!hd2Rule(HD3_ID, { chat: ['recycle'] }) || !hd2Did(HD3_ID, 'recycle-bin-emptied')) return false;
+          // dir after the last removal (a removal trimmed off the 150-entry log
+          // counts as earlier than every entry still in it).
           const log = hd3Log();
-          const askedAt = log.findIndex((e) => e && e.type === 'caller_question' && e.question === 'recycle');
-          const emptiedAt = log.findIndex((e) => e && e.type === 'action_taken' && e.action === 'recycle-bin-emptied');
-          if (askedAt < 0 || emptiedAt < 0 || askedAt > emptiedAt) return false;
           let removedAt = -1;
           log.forEach((e, i) => { if (e && e.type === 'action_taken' && e.action === 'temp-files-removed') removedAt = i; });
-          return removedAt >= 0 && log.some((e, i) => i > removedAt && e && e.type === 'command_run' && e.computer === HD3_PC && hd3Dir(e));
+          return log.some((e, i) => i > removedAt && e && e.type === 'command_run' && e.computer === HD3_PC && hd3Dir(e));
         },
       },
       {
@@ -898,7 +900,7 @@
       {
         route: '#/helpdesk/active-directory', target: '[data-hd-ad-computers], [data-hd-bitlocker]',
         title: 'Look up where the recovery key is stored',
-        instruction: 'Search the knowledge base for <strong>recovery key</strong> and open <strong>KB-0083</strong>. Then open <strong>Active Directory › Computers</strong>, find <strong>NS-WS-0277</strong> by its name and open its <strong>BitLocker Recovery</strong> tab. Read the Key ID and the date. This is a look-up only. Don’t click <strong>Read key</strong>, and put nothing about the key in the ticket.',
+        instruction: 'In the knowledge search on Noah’s ticket, search <strong>recovery key</strong> and open <strong>KB-0083</strong>. Then open <strong>Active Directory › Computers</strong>, find <strong>NS-WS-0277</strong> by its name and open its <strong>BitLocker Recovery</strong> tab. Read the Key ID and the date. This is a look-up only. Don’t click <strong>Read key</strong>, and put nothing about the key in the ticket.',
         body: 'Why: this is where a recovery key lives. Find it now, calmly, so you are not finding it for the first time with a locked-out user on the phone. Success looks like: you can say the Key ID (8D41B6E0) and its date. Nothing is read out.',
         waitLabel: 'Next Step: KB-0083 and the BitLocker tab opened',
         check: () => hd3Seen('ad-bitlocker') && hd2Rule(HD3_ID, { kb: 'KB-0083' }),
@@ -925,7 +927,8 @@
     ],
   });
 
-  /* ------------------------------------------------------ hd-m03..hd-m11 -
+  /* ------------------------------------------------------ hd-m04..hd-m11 -
+   * (hd-m03 has its own steps above since 2026-11-24.)
    * Modules 3-9 each work one or two real tickets through the same generic
    * evidence/path/diagnose/note/resolve flow hd-m01/hd-m02 already proved
    * out — reused here via hdTicketFlowSteps() instead of hand-duplicating

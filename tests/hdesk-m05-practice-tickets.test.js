@@ -230,6 +230,16 @@ function test5B() {
   assert.equal(early.rule('HD-2182', { seen: 'reliability', computer: lt, after: 'driver-rollback' }), false, 'read before the rollback');
   early.screen(lt, 'reliability');
   assert.equal(early.rule('HD-2182', { seen: 'reliability', computer: lt, after: 'driver-rollback' }), true, 'read again after it');
+  // Past the 200-action cap the comparison still holds: read before the
+  // rollback, then 220 more actions, is still "before".
+  const long = sim();
+  long.open('HD-2182');
+  long.run(`for (let i = 0; i < 40; i += 1) hdDockDo('${lt}', 'dock')`);
+  long.screen(lt, 'reliability');
+  long.run(`hdDeviceDriver('${lt}', 'usbnet', 'rollback')`);
+  long.run(`for (let i = 0; i < 220; i += 1) hdDockDo('${lt}', 'dock')`);
+  assert.ok(long.run("hdConsoleState(hdTicketById('HD-2182')).actionsDropped") > 0, 'the cap dropped old actions');
+  assert.equal(long.rule('HD-2182', { seen: 'reliability', computer: lt, after: 'driver-rollback' }), false, 'still read before the rollback');
   // The critical move, as feedback.
   const bad = sim();
   bad.act('HD-2182', 'reset-pc');
@@ -388,7 +398,7 @@ function testNoScoreInTheView() {
 function testOlderTicketsUseNoNewRule() {
   const tab = sim();
   const kinds = plain(tab.run(`HD_TICKET_TEMPLATES.filter((t) => !['HD-2180', ...${JSON.stringify(IDS)}].includes(t.id))
-    .flatMap((t) => ((t.console || {}).feedback || []).flatMap((a) => a.checks || [])).filter((r) => r.seen || r.typed || r.actionsAfter)`));
+    .flatMap((t) => ((t.console || {}).feedback || []).flatMap((a) => a.checks || [])).filter((r) => r.seen || r.typed || r.actionsAfter || r.triage)`));
   assert.deepEqual(kinds, []);
 }
 

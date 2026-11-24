@@ -345,15 +345,37 @@ function testTypedStepsNeedTheRightCommandInOrder() {
   assert.equal(tab.coach('hd-m03').steps[11].check(), true, 'extra valid options allowed');
 }
 
-// Step 10: the Recycle Bin is emptied only after Noah is asked.
-function testRecycleBinNeedsNoahFirst() {
+// Step 10 never strands the lab: the Recycle Bin can be emptied only once and
+// Noah asked only once, so emptying it before asking still lets the step pass
+// once he is asked (the step text teaches the order). dir counts only after
+// the cleanup.
+function testStep10NeverStrandsTheLab() {
   const tab = startLab();
   triage(tab);
+  const step = tab.coach('hd-m03').steps[9];
+  tab.ps('dir C:\\Users\\nwilliams\\Desktop');
   tab.screen(PC, 'settings-storage');
   tab.run(`['wu-cleanup', 'temp', 'recycle'].forEach((id) => hdWinTempTick('${PC}', id)); hdWinTempRemove('${PC}')`);
+  assert.equal(step.check(), false, 'not asked yet');
   tab.ask(NOAH, 'recycle');
+  assert.equal(step.check(), false, 'dir before the cleanup does not count');
   tab.ps('dir C:\\Users\\nwilliams\\Desktop');
-  assert.equal(tab.coach('hd-m03').steps[9].check(), false, 'emptied before asking');
+  assert.equal(step.check(), true, 'asked, emptied, and dir after the cleanup');
+}
+
+// Triage feedback reads Category and CI too, not only the priority.
+function testTriageFeedbackReadsCategoryAndCi() {
+  const tab = startLab();
+  tab.open(NOAH);
+  tab.triage(NOAH, 'Software', 'Windows performance', 'NS-LT-0291', '3', '2');
+  const area = tab.feedback(NOAH).areas.find((a) => a.area === 'Triage');
+  assert.equal(area.ok, false, 'the wrong CI is named');
+  assert.match(area.text, /CI NS-WS-0277/);
+  // The note needs an Event ID: "Disk at 100%" alone is not one.
+  const needs = tab.run(`hdConsole(hdTicketById('${NOAH}')).notes.needs.find((n) => n.label === 'An Event ID').pattern`);
+  assert.equal(new RegExp(needs, 'i').test('Disk at 100% and 7% free.'), false);
+  assert.equal(new RegExp(needs, 'i').test('Boot took 94 s (Event ID 100).'), true);
+  assert.equal(new RegExp(needs, 'i').test('System log 2013.'), true);
 }
 
 // Step 15 is a look-up only: Read key is critical-error feedback, and the
@@ -487,7 +509,7 @@ const runTest = (name, fn) => {
 const work = runTest('testLab51', testLab51);
 if (work) runTest('testPortalKeepsTheWork', () => testPortalKeepsTheWork(work));
 else { failed += 1; console.error('FAIL testPortalKeepsTheWork (the lab walk failed)'); }
-const tests = [testOptionalLinesPassTheirSteps, testTypedStepsNeedTheRightCommandInOrder, testRecycleBinNeedsNoahFirst, testReadingTheLabKeyIsFeedback, testShowMeTheCommand,
+const tests = [testOptionalLinesPassTheirSteps, testTypedStepsNeedTheRightCommandInOrder, testStep10NeverStrandsTheLab, testTriageFeedbackReadsCategoryAndCi, testReadingTheLabKeyIsFeedback, testShowMeTheCommand,
   testEveryStepRouteAndText, testOldHd2109RunIsForgotten, testHd2109LeavesTheQueue, testNothingFromTheGradedTicket, testCiRunsThisFile];
 tests.forEach((test) => runTest(test.name, test));
 if (failed) { console.error(`${failed} failed`); process.exit(1); }
