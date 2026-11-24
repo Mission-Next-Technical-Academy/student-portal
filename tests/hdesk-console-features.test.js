@@ -107,7 +107,13 @@ function testExistingTicketsTurnNothingOn() {
   // never on the shared shift (tests/hdesk-m02-guided-lab.test.js and
   // tests/hdesk-m02-practice-tickets.test.js).
   const MODULE_2 = ['HD-2158', 'HD-2159', 'HD-2160', 'SR-2161', 'HD-2162', 'SEC-2163', 'HD-2155', 'HD-2156', 'HD-2184', 'HD-2185', 'HD-2157'];
-  for (const id of ids.filter((item) => !MODULE_1.includes(item) && !MODULE_2.includes(item))) {
+  // Module 3's (key its-11) tickets, the same way (tests/hdesk-m03-guided-lab.test.js
+  // and tests/hdesk-m03-practice-tickets.test.js).
+  const MODULE_3 = ['HD-2164', 'HD-2165', 'HD-2166', 'HD-2167'];
+  // Module 4's (key its-02) tickets, the same way (tests/hdesk-m04-guided-labs.test.js
+  // and tests/hdesk-m04-practice-tickets.test.js).
+  const MODULE_4 = ['HD-2134', 'HD-2173', 'HD-2169', 'HD-2170', 'HD-2171', 'HD-2172'];
+  for (const id of ids.filter((item) => !MODULE_1.includes(item) && !MODULE_2.includes(item) && !MODULE_3.includes(item) && !MODULE_4.includes(item))) {
     assert.equal(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === ${JSON.stringify(id)}).console`), undefined, `${id} has no console settings`);
     const html = tab.open(id);
     assert.doesNotMatch(html, NEW_MARKERS, `${id} shows no new feature`);

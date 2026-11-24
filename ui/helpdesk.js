@@ -161,8 +161,12 @@ function hdPracticeClosed() {
   // complete: the tickets the set needs closed (Module 2 keeps 2-B's related
   // tickets in the set without requiring them); otherwise every ticket.
   const needed = Array.isArray(HD_PRACTICE_SET.set.complete) ? HD_PRACTICE_SET.set.complete : HD_PRACTICE_SET.set.tickets;
+  // done: { id:[rule] } (Module 3 on): a ticket that never closes counts as
+  // done when every rule holds (hdConsoleRule), in place of the state test.
+  const done = HD_PRACTICE_SET.set.done && typeof HD_PRACTICE_SET.set.done === 'object' ? HD_PRACTICE_SET.set.done : {};
   return needed.every(id => {
     const ticket = hdState.tickets.find(item => item.id === id);
+    if (ticket && Array.isArray(done[id]) && done[id].length) return done[id].every(rule => hdConsoleRule(ticket, rule));
     // A converted incident (Canceled – Converted) is closed too.
     return Boolean(ticket && (['Resolved', 'Escalated'].includes(ticket.status) || (ticket.status === 'Canceled' && ticket.cancelReason === 'Converted')));
   });
@@ -323,8 +327,9 @@ function hdFreshState(templates = hdSharedTemplates(), practice = templates.ever
       if (account && account.locked) state.userOverrides[account.userId] = { ...(state.userOverrides[account.userId] || {}), locked:true };
     });
   }
-  // Only a Practice shift gets the Practice scenarios.
-  return practice ? hdEnsurePractice(state) : state;
+  // Only a Practice shift gets the Practice scenarios (and the tickets'
+  // own machine state, console.machines).
+  return practice ? hdSeedTicketMachines(hdEnsurePractice(state)) : state;
 }
 // A shift with only a set's tickets, built from every Practice template so
 // a set's own (ownSet) tickets are there. A set with `now` runs on its own
@@ -332,6 +337,9 @@ function hdFreshState(templates = hdSharedTemplates(), practice = templates.ever
 function hdFreshSetState(set) {
   const state = hdFreshState(HD_TICKET_TEMPLATES, true);
   state.tickets = state.tickets.filter(ticket => set.tickets.includes(ticket.id));
+  // Machine state from this set's tickets only (console.machines).
+  state.machines = hdClone(HD_PRACTICE_MACHINES); delete state.vdi;
+  hdSeedTicketMachines(state);
   state.selectedTicketId = state.tickets[0] ? state.tickets[0].id : null;
   if (set.now) state.clockNow = new Date(set.now).toISOString();
   return state;
@@ -364,6 +372,25 @@ function hdProvePreset() {
   const ticket = HD_PROVE && (HD_PROVE.shift.tickets || [])[0];
   return ticket && ticket.preset ? { category:'', type:'', priority:'', ...ticket.preset } : null;
 }
+// The one-ticket Prove shift's ticket as the shift data gives it, or null.
+function hdProveSpec() { return HD_PROVE && !hdProveQueue() ? (HD_PROVE.shift.tickets || [])[0] || null : null; }
+// Module 3's ticket fields: the student sets Class, Category, Impact, Urgency
+// (Priority calculates) and the assignment group. Module 1 keeps Category,
+// Type and Priority.
+function hdProveMatrix() { const spec = hdProveSpec(); return !!(spec && spec.matrix === true); }
+const HD_PROVE_MATRIX_FIELDS = ['ticketClass', 'category', 'impact', 'urgency', 'group'];
+// The writing boxes a Prove ticket may add, beyond the work note and reply.
+const HD_PROVE_EXTRA_TEXT = ['keyFinding', 'kbDraft'];
+function hdProveEmptyFields() {
+  return hdProveMatrix() ? { ticketClass:'', category:'', impact:'', urgency:'', priority:'', group:'' } : { category:'', type:'', priority:'' };
+}
+// Module 3's extra writing boxes (writing: { keyFinding, kbDraft }), each
+// with its label, hint, rows and limit. Module 1 has none.
+function hdProveWriting() { const spec = hdProveSpec(); return spec && spec.writing && typeof spec.writing === 'object' ? spec.writing : {}; }
+function hdProveLabels() {
+  const spec = hdProveSpec();
+  return { resolutionNote:'Work notes', resolutionHint:'Reported / Tried / Result (+ Next action if it stays open or goes to another team)', userReply:'Reply to the user', ...((spec && spec.labels) || {}) };
+}
 // A fresh Prove shift: the Practice shift builder with the module's own
 // tickets, fixtures and machine state. Ticket fields start empty (the student
 // sets them) unless the ticket pre-sets them, and the option lists are
@@ -376,6 +403,11 @@ function hdFreshProveState() {
   const requester = HD_USERS.find(user => user.name === shift.tickets[0].requester);
   state.tickets.forEach(ticket => { ticket.priority = ''; ticket.category = ''; ticket.subcategory = ''; ticket.notes = []; });
   const ticket = state.tickets[0];
+  // Module 3: the ticket's own clock times, and no SLA text or business impact
+  // that could show before the student sets the fields.
+  if (ticket.matrix === true) { ticket.sla = ''; ticket.businessImpact = ''; }
+  // Module 3's extra writing boxes start empty.
+  const writing = Object.fromEntries(Object.keys(ticket.writing || {}).filter(field => HD_PROVE_EXTRA_TEXT.includes(field)).map(field => [field, '']));
   return {
     ...state, mode:'prove', moduleKey:HD_PROVE.moduleKey, student:HD_PROVE.student,
     selectedComputer:shift.selectedComputer, selectedUserId:requester ? requester.id : state.selectedUserId,
@@ -386,8 +418,8 @@ function hdFreshProveState() {
         diagnosis:hdSeededOrder(ticket.diagnosisOptions, state.seed),
         path:hdSeededOrder(ticket.pathPool.map(step => step.id), state.seed ^ 0x5bd1e995),
       },
-      fields:hdProvePreset() || { category:'', type:'', priority:'' },
-      diagnosis:'', steps:[], decision:'', resolutionNote:'', userReply:'',
+      fields:hdProvePreset() || hdProveEmptyFields(),
+      diagnosis:'', steps:[], decision:'', resolutionNote:'', userReply:'', ...writing,
       events:[], opened:[], passwordTyped:false,
     },
   };
@@ -490,7 +522,7 @@ function hdScrubSavedCommands(state) {
     (Array.isArray(ticket.notes) ? ticket.notes : []).forEach(note => scrubText(note, 'text', owner));
     (Array.isArray(ticket.customerComments) ? ticket.customerComments : []).forEach(comment => scrubText(comment, 'text', owner));
   });
-  if (state.prove) ['resolutionNote', 'userReply'].forEach(field => scrubText(state.prove, field, state.prove));
+  if (state.prove) ['resolutionNote', 'userReply', ...HD_PROVE_EXTRA_TEXT].forEach(field => scrubText(state.prove, field, state.prove));
   // A queue shift's writing: each ticket's reason and the rewrite.
   if (state.prove && state.prove.shape === 'queue') {
     (Array.isArray(state.tickets) ? state.tickets : []).forEach(ticket => scrubText(ticket, 'reason', state.prove));
@@ -540,6 +572,14 @@ function hdPracticeSetUpgrade(saved) {
     const account = hdConsole(ticket).account;
     if (account && account.locked) saved.userOverrides = { ...(saved.userOverrides || {}), [account.userId]:{ ...((saved.userOverrides || {})[account.userId] || {}), locked:true } };
   });
+  // The new tickets' own machine state (console.machines, console.vdi). A
+  // computer another saved ticket already seeded keeps the student's work.
+  const added = hdSeedTicketMachines({ tickets:saved.tickets.filter(ticket => missing.includes(ticket.id)), machines:{} });
+  saved.machines = saved.machines || {};
+  Object.keys(added.machines).forEach(name => {
+    if (!saved.machines[name] || !saved.machines[name].seededBy) saved.machines[name] = { ...(saved.machines[name] || {}), ...added.machines[name] };
+  });
+  if (added.vdi) saved.vdi = { ...added.vdi, ...(saved.vdi || {}) };
   if (!saved.selectedTicketId) saved.selectedTicketId = saved.tickets[0].id;
   return saved;
 }
@@ -628,12 +668,12 @@ function hdUserById(id) {
 }
 function hdComputerByName(name) {
   const base = hdComputers().find(computer => computer.name === name);
-  return base ? { ...base, ...(hdState.computerOverrides[name] || {}) } : null;
+  return base ? { ...base, ...(hdState.computerOverrides[name] || {}), ...hdMachineComputerOverride(name) } : null;
 }
 function hdOpenTickets() { return hdState.tickets.filter(t => !['Resolved','Closed','Canceled'].includes(t.status)); }
 // Older tickets' SLA clock, unchanged: a matrix ticket uses hdMatrixSla.
 function hdSlaMinutes(ticket) { return { P1:15, P2:120, P3:480, P4:1440 }[ticket.priority] || 480; }
-function hdAgeMinutes(ticket) { return Math.max(0, Math.round((hdShiftNow() - new Date(ticket.createdTimestamp)) / 60000)); }
+function hdAgeMinutes(ticket) { return Math.max(0, Math.round((hdShiftNow(ticket) -new Date(ticket.createdTimestamp)) / 60000)); }
 function hdSlaState(ticket) {
   if (hdIsMatrix(ticket)) return hdMatrixSla(ticket);
   if (['Resolved','Closed'].includes(ticket.status)) return { label:'Met / stopped', cls:'ok' };
@@ -654,7 +694,7 @@ function hdMetric(label, value, detail, tone) {
   return `<div class="card hd-metric ${tone || ''}"><div class="card-body"><span class="muted">${hdEsc(label)}</span><strong>${hdEsc(value)}</strong><small>${hdEsc(detail)}</small></div></div>`;
 }
 function hdHistory(ticket, action) {
-  ticket.troubleshootingHistory.push({ time:hdConsoleTime(), action });
+  ticket.troubleshootingHistory.push({ time:hdConsoleTime(ticket), action });
 }
 
 function hdSelectTicket(id) {
@@ -707,7 +747,7 @@ function hdAddNote(id) {
   const text = input && input.value.trim(); if (!ticket || !text) { toast('Enter a useful troubleshooting note first.'); return false; }
   // A password is never saved in a note, on any ticket.
   if (hdPasswordInText(text)) { toast(hdRefusePasswordText(ticket, 'work note')); return false; }
-  ticket.notes.push({ time:hdConsoleTime(), author:'Riley Morgan', text });
+  ticket.notes.push({ time:hdConsoleTime(ticket), author:'Riley Morgan', text });
   hdClearDraft(ticket, 'note');
   hdProveEdited();
   hdHistory(ticket, 'Technician work note added.');
@@ -722,7 +762,7 @@ function hdAddNote(id) {
 function hdContactRequester(id) {
   const ticket = hdTicketById(id); if (!ticket) return;
   const message = `Contacted ${ticket.requester}: acknowledged the ticket, confirmed impact, and set the next update expectation.`;
-  ticket.notes.push({ time:hdConsoleTime(), author:'Customer update', text:message });
+  ticket.notes.push({ time:hdConsoleTime(ticket), author:'Customer update', text:message });
   hdHistory(ticket, 'Requester contacted; impact and next-update time confirmed.');
   toast('Simulated requester contact recorded.'); hdRerender();
 }
@@ -809,7 +849,7 @@ function hdQueueRows(tickets) {
     const fields = HD_PROVE && hdState.prove ? hdState.prove.fields : null;
     const priority = fields ? fields.priority : ticket.priority;
     return `<tr class="hd-ticket-row" tabindex="0" onclick="hdSelectTicket('${ticket.id}')" onkeydown="if(event.key==='Enter')hdSelectTicket('${ticket.id}')">
-      <td><strong>${hdEsc(hdTicketLabel(ticket))}</strong>${ticket.linkedProblem ? `<small>${hdEsc(ticket.linkedProblem)}</small>` : ''}</td>
+      <td><strong>${hdEsc(hdTicketLabel(ticket))}</strong>${hdVipBadge(ticket)}${ticket.linkedProblem ?`<small>${hdEsc(ticket.linkedProblem)}</small>` : ''}</td>
       <td>${priority ? hdBadge(priority, priority.toLowerCase()) : '<span class="muted">Not set</span>'}</td>
       <td><strong>${hdEsc(ticket.requester)}</strong><small>${hdEsc(ticket.department)}</small></td>
       <td><strong>${hdEsc(fields ? ticket.title : hdConsole(ticket).classify ? hdTicketCategoryText(ticket) : ticket.subcategory)}</strong><small>${hdEsc(ticket.description)}</small></td>
@@ -835,6 +875,7 @@ VIEWS['helpdesk/dashboard'] = () => {
     <div class="two-col hd-dashboard-grid">
       <div class="card"><div class="card-header"><strong>Priority work</strong><button class="btn btn-ghost btn-sm" onclick="navigate('#/helpdesk/tickets')">View all</button></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Priority</th><th>Requester</th><th>Issue</th><th>Status</th><th>SLA</th><th>Owner</th></tr></thead><tbody>${hdQueueRows(urgent)}</tbody></table></div></div>
       <div class="hd-side-stack">
+        ${hdVmDashboardCard()}
         ${HD_PROVE || !correlated ? '' : `<div class="card hd-correlation"><div class="card-header"><strong>Correlation opportunity</strong>${hdBadge(`${cluster.length} reports`,'warn')}</div><div class="card-body"><h3>Purchasing sign-in failures</h3><p>Users in five departments report the same secure-connection error. Treat the shared timing and evidence as a possible broader incident.</p><button class="btn btn-primary btn-sm" onclick="hdSelectTicket('${cluster[0] ? cluster[0].id : ''}')">Investigate cluster</button></div></div>`}
         <div class="card"><div class="card-header"><strong>Shift discipline</strong></div><div class="card-body">${hdList(['Prioritize business impact and urgency','Own every handoff until accepted','Preserve security evidence','Verify fixes from the user perspective','Close with complete resolution notes'])}</div></div>
       </div>
@@ -888,7 +929,7 @@ VIEWS['helpdesk/ticket'] = () => {
   const pathAndDiagnosis = scenario ? hdM01IdentityCard(scenario) + hdM01InvestigationCard(scenario) : byOutcomes ? hdConsoleOutcomesCard(ticket) : matrix ? '' : `<div class="card"><div class="card-header"><strong>Troubleshooting path</strong><span class="muted">Record what you actually checked.</span></div><div class="card-body"><div class="hd-path">${ticket.correctPath.map((step,index) => `<label><input type="checkbox" onchange="hdTogglePathStep('${ticket.id}',${index},this.checked)" ${(ticket.checkedSteps || []).includes(step)?'checked':''}> <span>${index+1}</span>${hdEsc(step)}</label>`).join('')}</div></div></div>
         <div class="card"><div class="card-header"><strong>Diagnosis checkpoint</strong></div><div class="card-body"><div class="hd-diagnosis-row"><select id="hd-diagnosis" class="select"><option value="">Choose the most likely cause…</option>${diagnosisOptions.map(value => `<option ${ticket.diagnosis===value?'selected':''}>${hdEsc(value)}</option>`).join('')}</select><button class="btn btn-primary" onclick="hdSubmitDiagnosis('${ticket.id}')">Check diagnosis</button></div>${ticket.diagnosis ? `<div class="callout ${ticket.diagnosisCorrect?'success':'warning'}">${ticket.diagnosisCorrect ? `<strong>Supported by the evidence.</strong> ${hdEsc(ticket.hiddenRootCause)}` : '<strong>Not sufficiently supported.</strong> Recheck the evidence and test a different hypothesis.'}</div>` : ''}${ticket.diagnosisCorrect ? `<div class="hd-resolution"><strong>Expected resolution</strong><p>${hdEsc(ticket.expectedResolution)}</p></div>` : ''}</div></div>`;
   const fieldGrid = matrix
-    ? `<div><span>Caller</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Short description</span><strong>${hdEsc(hdShortDescription(ticket) || '—')}</strong></div><div><span>SLA target</span><strong>${hdEsc(hdMatrixTargetText(ticket))}</strong></div><div><span>Created</span><strong>${hdEsc(hdShiftTimeText(ticket.createdTimestamp))}</strong></div><div><span>Assignment group</span><strong>${hdEsc(ticket.assignmentGroup || HD_SERVICE_DESK)}</strong></div><div><span>Assigned to</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${hdConsole(ticket).classify ? '' : `${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}`}`
+    ? `<div><span>Caller</span><strong>${hdEsc(hdCallerText(ticket))}</strong></div>${hdCallbackField(ticket)}<div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Short description</span><strong>${hdEsc(hdShortDescription(ticket) || '—')}</strong></div><div><span>SLA target</span><strong>${hdEsc(hdMatrixTargetText(ticket))}</strong></div><div><span>Created</span><strong>${hdEsc(hdShiftTimeText(ticket.createdTimestamp))}</strong></div><div><span>Assignment group</span><strong>${hdEsc(ticket.assignmentGroup || HD_SERVICE_DESK)}</strong></div><div><span>Assigned to</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${hdConsole(ticket).classify ? '' : `${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}`}`
     : '';
   const factCards = matrix && !(ticket.symptoms || []).length && !(ticket.systemState || []).length ? '' : `<div class="two-col"><div class="card"><div class="card-header"><strong>Observable symptoms</strong></div><div class="card-body">${hdList(ticket.symptoms)}</div></div><div class="card"><div class="card-header"><strong>Relevant system state</strong></div><div class="card-body">${hdList(ticket.systemState)}</div></div></div>`;
   const controls = matrix
@@ -898,7 +939,7 @@ VIEWS['helpdesk/ticket'] = () => {
     ${related.length > 1 ? `<div class="callout warning hd-related"><strong>${related.length} related reports detected.</strong> Same application, symptom, and time window. ${ticket.linkedProblem ? `Linked to ${hdEsc(ticket.linkedProblem)}.` : `<button class="btn btn-sm btn-secondary" onclick="hdLinkProblem('${ticket.id}')">Link to problem record</button>`}</div>` : ''}
     <div class="hd-ticket-layout">
       <div class="hd-ticket-main">
-        <div class="card"><div class="card-header"><strong>Requester statement</strong>${matrix ? `${ticket.priority ? hdBadge(ticket.priority, ticket.priority.toLowerCase()) : '<span class="muted">Priority not set</span>'}${hdStatusBadge(ticket)}${hdSlaBadge(ticket)}` : `${hdBadge(ticket.priority,ticket.priority.toLowerCase())}${hdBadge(ticket.status)}${hdBadge(sla.label,sla.cls)}`}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid">${matrix ? fieldGrid : `<div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Business impact</span><strong>${hdEsc(ticket.businessImpact)}</strong></div><div><span>SLA target</span><strong>${hdEsc(ticket.sla)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}${ticket.callerStatus ? `<div><span>Caller</span><strong>${hdEsc(ticket.callerStatus)}</strong></div>` : ''}`}</div></div></div>${hdConsoleVerifyCard(ticket)}${hdConsoleChatCard(ticket)}${hdConsoleKbCard(ticket)}${hdConsoleAccountCard(ticket)}${hdConsoleActionsCard(ticket)}${hdConsoleComputerCard(ticket)}${hdConsoleOwnerCard(ticket)}${hdMatrixCards(ticket)}
+        <div class="card"><div class="card-header"><strong>Requester statement</strong>${hdVipBadge(ticket)}${matrix ? `${ticket.priority ? hdBadge(ticket.priority, ticket.priority.toLowerCase()) : '<span class="muted">Priority not set</span>'}${hdStatusBadge(ticket)}${hdSlaBadge(ticket)}` : `${hdBadge(ticket.priority,ticket.priority.toLowerCase())}${hdBadge(ticket.status)}${hdBadge(sla.label,sla.cls)}`}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid">${matrix ? fieldGrid : `<div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Business impact</span><strong>${hdEsc(ticket.businessImpact)}</strong></div><div><span>SLA target</span><strong>${hdEsc(ticket.sla)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}${ticket.callerStatus ? `<div><span>Caller</span><strong>${hdEsc(ticket.callerStatus)}</strong></div>` : ''}`}</div></div></div>${hdConsoleVerifyCard(ticket)}${hdConsoleChatCard(ticket)}${hdConsoleKbCard(ticket)}${hdConsoleAccountCard(ticket)}${hdConsoleActionsCard(ticket)}${hdConsoleComputerCard(ticket)}${hdConsoleMachinesCard(ticket)}${hdConsoleOwnerCard(ticket)}${hdMatrixCards(ticket)}${hdCommsCards(ticket)}
         ${factCards}
         ${evidenceCard}
         ${pathAndDiagnosis}
@@ -993,11 +1034,25 @@ function hdM01InvestigationCard(scenario) {
  * ticket.customerComments, created only for a ticket that has the feature. */
 function hdConsole(ticket) {
   if (!ticket) return {};
-  // A Prove ticket can turn on the knowledge base search and nothing else:
-  // no caller chat, verification, actions, owner, comments or feedback.
+  // A Prove ticket can turn on the knowledge base search and (Module 4) a
+  // user's plain late reply that waits for a machine value, and nothing else:
+  // no caller chat, verification, actions, owner, comments, feedback, or an
+  // arrival that reopens, resumes or approves anything.
   if (HD_PROVE) {
     const proveTicket = (HD_PROVE.shift.tickets || []).find(item => item.id === ticket.id);
-    return proveTicket && proveTicket.console && proveTicket.console.kb === true ? { kb:true } : {};
+    const config = proveTicket && proveTicket.console;
+    if (!config) return {};
+    // when: { machine } or { all:[{ machine }, ...] }: machine values only.
+    const machineOnly = when => {
+      if (!when || typeof when !== 'object') return null;
+      if (when.machine) return { machine:when.machine };
+      const all = Array.isArray(when.all) ? when.all.filter(item => item && item.machine).map(item => ({ machine:item.machine })) : [];
+      return all.length && all.length === when.all.length ? { all } : null;
+    };
+    const arrivals = (Array.isArray(config.arrivals) ? config.arrivals : [])
+      .filter(item => item && item.id && item.text && machineOnly(item.when) && !item.reopen && !item.resume && !item.approve && !item.at)
+      .map(item => ({ id:item.id, from:item.from, text:item.text, when:machineOnly(item.when) }));
+    return { ...(config.kb === true ? { kb:true } : {}), ...(arrivals.length ? { arrivals } : {}) };
   }
   const template = HD_TICKET_TEMPLATES.find(item => item.id === ticket.id);
   return (template && template.console) || {};
@@ -1034,7 +1089,10 @@ function hdComments(ticket) {
 // On a set's own clock (set.now), history, work notes, customer updates and
 // comments show shift time (day and time, UTC); every other shift, Prove It
 // included, keeps the computer's time, as before.
-function hdConsoleTime() {
+// A ticket with its own clock (console.now, Module 3 on) shows its own shift
+// time.
+function hdConsoleTime(ticket) {
+  if (hdTicketClock(ticket)) return hdShiftTimeText(hdShiftNow(ticket));
   const set = hdActiveSet();
   return set && set.now ? hdShiftTimeText(hdShiftNow()) : new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
 }
@@ -1102,7 +1160,7 @@ function hdDraft(ticket, kind) {
   return drafts && typeof drafts[kind] === 'string' ? drafts[kind] : '';
 }
 function hdKeepDraft(id, kind, value) {
-  const ticket = hdTicketById(id); if (!ticket || !['note', 'comment', 'resolution', 'rewriteShort', 'rewriteDesc', 'kbTitle', 'kbText'].includes(kind)) return;
+  const ticket = hdTicketById(id); if (!ticket || !['note', 'comment', 'resolution', 'rewriteShort', 'rewriteDesc', 'kbTitle', 'kbText', 'caller', 'callback', 'explain', 'followUp'].includes(kind)) return;
   const text = String(value || '').slice(0, HD_DRAFT_MAX);
   ticket.drafts = { ...(ticket.drafts || {}) };
   if (!text || hdPasswordInText(text)) delete ticket.drafts[kind]; else ticket.drafts[kind] = text;
@@ -1255,14 +1313,14 @@ function hdChatAsk(id, questionId) {
   const state = hdConsoleState(ticket);
   if (question.asksPassword) {
     ticket.passwordAsked = true;
-    state.chat.push({ id:question.id, question:question.text, refused:true, time:hdConsoleTime() });
+    state.chat.push({ id:question.id, question:question.text, refused:true, time:hdConsoleTime(ticket) });
     hdPracticeEvent('password_refused', { ticket:ticket.id, field:'chat' });
     toast(`${HD_PASSWORD_STOP} The help desk never asks for a password, for any reason (KB-0024).`);
     hdRerender(); return;
   }
   const whileLocked = hdChatPending(ticket, question);
   const reply = whileLocked ? (question.replyLocked && hdConsoleAccountLocked(ticket) ? question.replyLocked : question.replyBefore || question.replyLocked) : question.reply;
-  state.chat.push({ id:question.id, question:question.text, reply, whileLocked, time:hdConsoleTime() });
+  state.chat.push({ id:question.id, question:question.text, reply, whileLocked, time:hdConsoleTime(ticket) });
   hdPracticeEvent('caller_question', { ticket:ticket.id, question:question.id });
   hdRerender();
 }
@@ -1308,7 +1366,7 @@ function hdConsoleUnlock(id, via = 'Account card') {
   if (blocked) { hdPracticeEvent('unlock_blocked', { ticket:ticket.id, via }); toast(blocked); hdRerender(); return; }
   if (!user.locked) { toast(`${user.username} is not locked out.`); return; }
   hdState.userOverrides[user.id] = { ...(hdState.userOverrides[user.id] || {}), locked:false };
-  hdConsoleState(ticket).unlocks.push({ via, time:hdConsoleTime() });
+  hdConsoleState(ticket).unlocks.push({ via, time:hdConsoleTime(ticket) });
   hdHistory(ticket, `Account ${user.username} unlocked (${via}).`);
   hdPracticeEvent('account_unlocked', { ticket:ticket.id, via });
   toast(`Account ${user.username} unlocked.`);
@@ -1322,7 +1380,9 @@ function hdAddComment(id) {
   const text = input && input.value.trim();
   if (!text) { toast('Write the comment the customer will read first.'); return false; }
   if (hdPasswordInText(text)) { toast(hdRefusePasswordText(ticket, 'customer comment')); return false; }
-  hdComments(ticket).push({ time:hdConsoleTime(), author:'Riley Morgan', text:text.slice(0, 2000) });
+  // A follow-up ticket (Module 3 on) also keeps each comment's shift time, so
+  // an update can be checked against the follow-up time.
+  hdComments(ticket).push({ time:hdConsoleTime(ticket), author:'Riley Morgan', text:text.slice(0, 2000), ...(hdConsole(ticket).followUp ? { at:hdShiftIso(ticket) } : {}) });
   hdClearDraft(ticket, 'comment');
   hdHistory(ticket, 'Additional comment (customer-visible) added.');
   const jargon = hdJargonFound(text, (hdConsole(ticket).notes || {}).jargon);
@@ -1334,7 +1394,9 @@ function hdAddComment(id) {
   const repeat = config && typeof config === 'object' ? config.repeatLine : null;
   const repeatTip = repeat && !hdCommentHasRepeatLine(ticket, text) ? ` It doesn't say ${repeat.label} yet.` : '';
   const internalTip = internal.length ? ` Internal names stay in the work notes: ${internal.join(', ')}.` : '';
-  toast(jargon.length ? `Comment added. The customer won't know these words: ${jargon.join(', ')}. Say it in plain words.${internalTip}${repeatTip}` : internalTip ? `Comment added.${internalTip}${repeatTip}` : repeatTip ? `Customer comment added.${repeatTip}` : 'Customer comment added.');
+  const timeTip = hdCommentTimeTip(ticket, text);
+  const extraTip = `${repeatTip}${timeTip}`;
+  toast(jargon.length ? `Comment added. The customer won't know these words: ${jargon.join(', ')}. Say it in plain words.${internalTip}${extraTip}` : internalTip ? `Comment added.${internalTip}${extraTip}` : extraTip ? `Customer comment added.${extraTip}` : 'Customer comment added.');
   hdRerender();
   return true;
 }
@@ -1361,7 +1423,7 @@ function hdSetResolutionCode(id, value) {
 // taken too early, is not done and is recorded as its earlyCritical.
 function hdConsoleCritical(ticket, id, text) {
   const state = hdConsoleState(ticket);
-  if (!state.critical.some(entry => entry.id === id)) state.critical.push({ id, text, time:hdConsoleTime() });
+  if (!state.critical.some(entry => entry.id === id)) state.critical.push({ id, text, time:hdConsoleTime(ticket) });
 }
 function hdConsoleAction(id, actionId) {
   const ticket = hdTicketById(id); const actions = ticket && hdConsole(ticket).actions;
@@ -1386,7 +1448,7 @@ function hdConsoleAction(id, actionId) {
     toast(action.earlyFeedback || 'Verify the caller first (KB-0024).');
     hdRerender(); return;
   }
-  if (!state.actions.some(entry => entry.id === action.id)) state.actions.push({ id:action.id, time:hdConsoleTime() });
+  if (!state.actions.some(entry => entry.id === action.id)) state.actions.push({ id:action.id, time:hdConsoleTime(ticket) });
   if (action.critical) hdConsoleCritical(ticket, action.id, action.text);
   state.lastAction = action.id;
   hdHistory(ticket, action.history || `Action: ${action.text}.`);
@@ -1487,9 +1549,14 @@ function hdConsoleRule(ticket, rule) {
   if (rule.child) { const child = hdTicketById(rule.child); return !!(child && child.parentId === ticket.id); }
   if (rule.status) return [].concat(rule.status).some(value => value === ticket.status || value === hdStatusText(ticket));
   if (rule.group) return ticket.assignmentGroup === rule.group;
+  // Module 3: the ticket's calculated priority (3-A stays P3 however angry).
+  if (rule.priority) return ticket.priority === rule.priority;
   if (rule.attempts) return hdContactAttempts(ticket).length >= rule.attempts;
   if (rule.code) return (state.resolutionCode || ticket.closureCode) === rule.code;
   if (rule.rewrite) return !!(state.rewrite && !state.rewrite.missing.length);
+  // Module 3 work: the call, hold, handoff, follow-up and team messages.
+  const comms = hdCommsRule(ticket, rule);
+  if (comms !== undefined) return comms;
   return false;
 }
 function hdConsoleFeedback(ticket) {
@@ -1500,6 +1567,9 @@ function hdConsoleFeedback(ticket) {
   const critical = [
     ...state.verification.criticalErrors.map(id => { const option = verify.find(item => item.id === id); return option ? `Chose: ${option.text}` : id; }),
     ...state.critical.map(entry => entry.text),
+    // promiseCritical (3-B): the latest comment promises a time it must not. A
+    // corrected comment clears it: a text pattern is too weak to be permanent.
+    ...(hdCommentPromiseCritical(ticket) ? [hdCommentPromiseCritical(ticket)] : []),
   ];
   const flags = [
     ...(ticket.passwordAsked ? ['Asked for a password in the chat (refused, never sent).'] : []),
@@ -1606,6 +1676,7 @@ function hdConsoleProgress(id) {
     unverified:state.verification.unverified, actions:state.actions.map(entry => entry.id),
     critical:state.critical.map(entry => entry.id), owner:state.owner.choice, ownerTries:state.owner.tries.slice(),
     ...hdMatrixProgress(ticket),
+    ...hdCommsProgress(ticket),
   };
 }
 
@@ -1620,7 +1691,7 @@ function hdConsoleChatCard(ticket) {
     : `<div><strong>You · ${hdEsc(entry.time)}</strong><p>${hdEsc(entry.question)}</p><strong>${hdEsc(caller.name)}</strong><p>${hdEsc(entry.reply)}</p></div>`).join('') : '<p class="muted">No questions asked yet.</p>';
   const open = (caller.questions || []).filter(question => hdChatQuestionOpen(ticket, question));
   const buttons = open.length ? `<div class="hd-chat-questions" style="display:grid;gap:8px">${open.map(question => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} onclick="hdChatAsk('${ticket.id}','${hdEsc(question.id)}')">${hdEsc(question.text)}</button>`).join('')}</div>` : '';
-  return `<div class="card hd-chat"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Caller chat</strong><span class="muted">${hdEsc(caller.name)} · on the line</span></div><div class="card-body"><div class="hd-note-list">${log}</div>${buttons}</div></div>`;
+  return `<div class="card hd-chat"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${caller.style === 'phone' ? 'Phone call' : caller.style === 'chat' ? 'Chat' : 'Caller chat'}</strong><span class="muted">${hdEsc(caller.name)} · ${caller.style === 'chat' ? 'in the chat' : 'on the line'}</span></div><div class="card-body"><div class="hd-note-list">${log}</div>${buttons}</div></div>`;
 }
 // An article's text: its numbered steps ("1. … 2. …", in order from 1) as a
 // list, any words before step 1 as a paragraph; otherwise one paragraph.
@@ -1801,9 +1872,21 @@ function hdActiveSet() {
 }
 // The shift clock: a set's own fixed time (moved only by "Next day"), or
 // HD_SHIFT_NOW for every other shift, exactly as before.
-function hdShiftNow() {
-  // A queue Prove shift (Module 2) runs on its own fixed clock, never moved.
-  if (HD_PROVE && HD_PROVE.shift.queue === true && HD_PROVE.shift.now) return new Date(HD_PROVE.shift.now);
+// A Practice ticket may run on its own fixed clock (console.now, Module 3 on),
+// moved only by its "Go to follow-up time". Only a caller that passes the
+// ticket gets it: a set-wide caller ("Next day") keeps the set's clock.
+function hdTicketClock(ticket) {
+  if (HD_PROVE || !ticket) return null;
+  const now = hdConsole(ticket).now;
+  if (!now || Number.isNaN(Date.parse(now))) return null;
+  const moved = ticket.consoleState && ticket.consoleState.clockNow;
+  return new Date(moved && !Number.isNaN(Date.parse(moved)) ? moved : now);
+}
+function hdShiftNow(ticket) {
+  // A Prove shift with its own clock (Module 2's queue, Module 3's ticket)
+  // runs on it, never moved. Module 1's Prove shift has none.
+  if (HD_PROVE && HD_PROVE.shift.now) return new Date(HD_PROVE.shift.now);
+  const own = hdTicketClock(ticket); if (own) return own;
   const set = hdActiveSet();
   return set && set.now ? new Date(hdState.clockNow || set.now) : HD_SHIFT_NOW;
 }
@@ -1898,7 +1981,7 @@ function hdMatrixSla(ticket) {
   const phase = responded ? 'Resolve' : 'Respond';
   const target = responded ? targets.resolve : targets.respond;
   if (!target) return { label:'By agreement', cls:'ok', phase };
-  const now = hdShiftNow().getTime();
+  const now = hdShiftNow(ticket).getTime();
   const used = hdSlaUsed(ticket, Date.parse(ticket.createdTimestamp), now, targets.business);
   const left = target - used;
   const base = { phase, used, target, left, business:targets.business, dueMs:hdAddSlaUnits(now, Math.max(0, left), targets.business) };
@@ -1925,18 +2008,18 @@ function hdStatusText(ticket) {
   return ticket.status;
 }
 function hdStatusBadge(ticket) { return hdBadge(hdStatusText(ticket), String(ticket.status).toLowerCase().replace(/[^a-z0-9]+/g, '-')); }
-function hdShiftIso() { return hdShiftNow().toISOString(); }
+function hdShiftIso(ticket) { return hdShiftNow(ticket).toISOString(); }
 // The respond target is met once, when the desk first takes the next move.
 function hdMatrixRespond(ticket) {
   const clock = hdSlaClock(ticket);
-  if (!clock.respondedAt) clock.respondedAt = hdShiftIso();
+  if (!clock.respondedAt) clock.respondedAt = hdShiftIso(ticket);
 }
 // Every state change on a matrix ticket goes through here, on the shift
 // clock: it closes an open stop and opens one for Resolved or for On Hold –
 // Awaiting Caller.
 function hdMatrixSetStatus(ticket, status, reason, at) {
   delete hdPendingState[ticket.id];
-  const clock = hdSlaClock(ticket); const now = at || hdShiftIso();
+  const clock = hdSlaClock(ticket); const now = at || hdShiftIso(ticket);
   clock.stops.forEach(stop => { if (!stop.to) stop.to = now; });
   ticket.status = status;
   ticket.holdReason = status === 'On Hold' ? reason || '' : '';
@@ -1970,6 +2053,12 @@ function hdMatrixAssignGroup(id, group) {
   hdMatrixSetStatus(ticket, 'Escalated');
   hdHistory(ticket, `Assigned to ${group}; state Escalated.`);
   hdPracticeEvent('assignment_group', { ticket:ticket.id, group });
+  // handoff (Module 3 on): the reassignment names what the handoff note
+  // still needs. Feedback only: the note may come after the assignment.
+  if (hdConsole(ticket).handoff) {
+    const missing = hdHandoffMissing(ticket) || [];
+    toast(missing.length ? `Assigned to ${group}. Your handoff work note needs: ${hdJoinWords(missing)}.` : `Assigned to ${group}. Your handoff work note has every part.`);
+  }
   hdRerender();
 }
 // A state from the State list. On Hold needs a reason; Resolved needs a
@@ -2097,9 +2186,16 @@ function hdConvertToRequest(id) {
   ticket.request = {
     number:config.number || 'RITM', item:item.name, requestedFor:draft.requestedFor,
     fields:(item.fields || []).map(field => ({ id:field.id, label:field.label, value:draft.fields[field.id] })),
-    approval:approved ? 'Approved' : 'Requested', approver:item.approver || '', approvedAt:approved ? hdShiftIso() : '', state:'Open',
+    approval:approved ? 'Approved' : 'Requested', approver:item.approver || '', approvedAt:approved ? hdShiftIso(ticket) : '', state:'Open',
   };
   hdMatrixRespond(ticket);
+  // keepIncident (Module 3 on): the request is opened from the incident, and
+  // the incident stays open beside it (something broken and something new).
+  if (config.keepIncident) {
+    hdHistory(ticket, `Request ${ticket.request.number} (${item.name}) opened from this incident; the incident stays open.`);
+    hdPracticeEvent('request_opened', { ticket:ticket.id, item:item.name });
+    hdRerender(); return;
+  }
   ticket.cancelReason = 'Converted';
   ticket.closureCode = 'Canceled – Converted';
   hdMatrixSetStatus(ticket, 'Canceled');
@@ -2109,7 +2205,7 @@ function hdConvertToRequest(id) {
 }
 function hdRequestApprove(ticket) {
   if (!ticket.request || ticket.request.approval === 'Approved') return;
-  ticket.request.approval = 'Approved'; ticket.request.approvedAt = hdShiftIso();
+  ticket.request.approval = 'Approved'; ticket.request.approvedAt = hdShiftIso(ticket);
   hdHistory(ticket, `${ticket.request.number} approved${ticket.request.approver ? ` by ${ticket.request.approver}` : ''}.`);
 }
 function hdRequestClose(id) {
@@ -2147,7 +2243,8 @@ function hdChildTickets(ticket) { return hdState.tickets.filter(item => item.par
 // after every change. `when` reads this ticket or another (ticket: id):
 // status (state names, "On Hold – Awaiting Caller" form allowed), opened,
 // comments / notes (at least that many by the technician), converted,
-// linked, resolved; all: [...] needs each one. No `when`: at once.
+// linked, resolved, machine (a machine value, hdMachineValueIs); all: [...]
+// needs each one. No `when`: at once.
 function hdArrivalMet(ticket, when) {
   if (!when) return true;
   if (Array.isArray(when.all)) return when.all.every(item => hdArrivalMet(ticket, item));
@@ -2160,6 +2257,8 @@ function hdArrivalMet(ticket, when) {
   if (when.converted && !target.request) return false;
   if (when.linked && !target.parentId) return false;
   if (when.resolved && !['Resolved', 'Closed'].includes(target.status)) return false;
+  // machine: { computer, path:[keys], value | values } (a fix on a computer).
+  if (when.machine && !hdMachineValueIs(when.machine)) return false;
   return true;
 }
 function hdCheckArrivals(quiet) {
@@ -2174,7 +2273,7 @@ function hdCheckArrivals(quiet) {
       // at: the message's own shift time (a reply that came in before the
       // shift opened); otherwise now on the shift clock.
       const at = arrival.at && !Number.isNaN(Date.parse(arrival.at)) ? new Date(arrival.at).toISOString() : '';
-      state.arrived.push({ id:arrival.id, from:arrival.from || ticket.requester, text:arrival.text, time:at ? hdShiftTimeText(at) : hdConsoleTime() });
+      state.arrived.push({ id:arrival.id, from:arrival.from || ticket.requester, text:arrival.text, time:at ? hdShiftTimeText(at) : hdConsoleTime(ticket) });
       hdHistory(ticket, `Reply from ${arrival.from || ticket.requester} (customer-visible).`);
       if (arrival.reopen && ticket.status === 'Resolved') {
         hdMatrixSetStatus(ticket, 'In Progress', '', at); ticket.closureCode = ''; ticket.resolution = '';
@@ -2212,10 +2311,10 @@ function hdKbCreateDraft(id) {
   if (!['Resolved', 'Closed'].includes(ticket.status)) { toast('Resolve the ticket first: a knowledge draft records a fix that worked.'); return; }
   const title = String((document.getElementById('hd-kb-draft-title') || {}).value || '').trim().slice(0, 160);
   const text = String((document.getElementById('hd-kb-draft-text') || {}).value || '').trim().slice(0, 4000);
-  if (title.length < 5) { toast('Give the knowledge draft a title that names the symptom and the fix.'); return; }
-  if (text.length < 10) { toast('Write the steps that fixed it in the knowledge draft.'); return; }
+  if (title.length < 5) { toast('Give the knowledge draft a title that names the symptom and the fix or workaround.'); return; }
+  if (text.length < 10) { toast('Write the knowledge draft: symptom, cause, fix or workaround, result and owner.'); return; }
   if (hdPasswordInText(title) || hdPasswordInText(text)) { toast(hdRefusePasswordText(ticket, 'knowledge draft')); return; }
-  state.kbDraft = { title, text, state:'Review', at:hdActiveSet() && hdActiveSet().now ? hdShiftIso() : new Date().toISOString() };
+  state.kbDraft = { title, text, state:'Review', at:(hdActiveSet() && hdActiveSet().now) || hdTicketClock(ticket) ? hdShiftIso(ticket) : new Date().toISOString() };
   hdClearDraft(ticket, 'kbTitle'); hdClearDraft(ticket, 'kbText');
   hdHistory(ticket, `Knowledge draft created: "${title}" (state Review).`);
   hdPracticeEvent('kb_draft', { ticket:ticket.id });
@@ -2236,7 +2335,7 @@ function hdLogContactAttempt(id) {
   const method = input ? input.value : '';
   if (!HD_CONTACT_METHODS.includes(method)) { toast('Choose how you tried to reach the caller.'); return; }
   hdContactAttempts(ticket);
-  hdConsoleState(ticket).contactAttempts.push({ at:hdShiftIso(), method });
+  hdConsoleState(ticket).contactAttempts.push({ at:hdShiftIso(ticket), method });
   const count = hdContactAttempts(ticket).length;
   hdHistory(ticket, `Contact attempt ${count}: ${method}.`);
   hdPracticeEvent('contact_attempt', { ticket:ticket.id, method, count });
@@ -2434,7 +2533,7 @@ function hdSetQueueHtml(set) {
   const sortSelect = level => `<select class="select" aria-label="${level ? 'Then sort by' : 'Sort by'}" onchange="hdQueueSort(${level},this.value)">${level ? `<option value="" ${!view.sort[1] ? 'selected' : ''}>None</option>` : ''}${Object.keys(HD_QUEUE_SORTS).map(key => `<option value="${key}" ${view.sort[level] === key ? 'selected' : ''}>${HD_QUEUE_SORTS[key]}</option>`).join('')}</select>`;
   const columns = `<fieldset style="border:0;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:10px;align-items:center"><legend class="muted" style="float:left;margin-right:6px">Columns</legend>${Object.keys(HD_QUEUE_COLUMNS).map(key => `<label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-hd-column="${key}" ${view.columns.includes(key) ? 'checked' : ''} onchange="hdQueueColumn('${key}',this.checked)"> ${HD_QUEUE_COLUMNS[key]}</label>`).join('')}</fieldset>`;
   const head = `<th>Number</th><th>Short description</th>${view.columns.map(key => `<th>${HD_QUEUE_COLUMNS[key]}</th>`).join('')}<th>State</th><th>Assigned to</th>`;
-  const rows = tickets.map(ticket => `<tr class="hd-ticket-row" data-hd-row="${hdEsc(ticket.id)}" tabindex="0" onclick="hdSelectTicket('${ticket.id}')" onkeydown="if(event.key==='Enter')hdSelectTicket('${ticket.id}')"><td><strong>${hdEsc(hdTicketLabel(ticket))}</strong>${ticket.parentId && hdTicketById(ticket.parentId) ? `<small>Child of ${hdEsc(hdTicketLabel(hdTicketById(ticket.parentId)))}</small>` : ''}</td><td>${hdEsc(hdShortDescription(ticket) || ticket.description)}</td>${view.columns.map(key => `<td data-hd-cell="${key}">${hdQueueCell(ticket, key)}</td>`).join('')}<td>${hdStatusBadge(ticket)}</td><td>${hdEsc(ticket.assignedTechnician)}</td></tr>`).join('')
+  const rows = tickets.map(ticket => `<tr class="hd-ticket-row" data-hd-row="${hdEsc(ticket.id)}" tabindex="0" onclick="hdSelectTicket('${ticket.id}')" onkeydown="if(event.key==='Enter')hdSelectTicket('${ticket.id}')"><td><strong>${hdEsc(hdTicketLabel(ticket))}</strong>${hdVipBadge(ticket)}${ticket.parentId &&hdTicketById(ticket.parentId) ? `<small>Child of ${hdEsc(hdTicketLabel(hdTicketById(ticket.parentId)))}</small>` : ''}</td><td>${hdEsc(hdShortDescription(ticket) || ticket.description)}</td>${view.columns.map(key => `<td data-hd-cell="${key}">${hdQueueCell(ticket, key)}</td>`).join('')}<td>${hdStatusBadge(ticket)}</td><td>${hdEsc(ticket.assignedTechnician)}</td></tr>`).join('')
     || `<tr><td colspan="${4 + view.columns.length}" class="muted">No tickets in this list.</td></tr>`;
   return `<div class="filterbar" style="flex-wrap:wrap;gap:10px"><label>Incidents › <select class="select" aria-label="List" onchange="hdQueueSetList(this.value)">${Object.keys(HD_QUEUE_LISTS).map(key => `<option value="${key}" ${view.list === key ? 'selected' : ''}>${HD_QUEUE_LISTS[key]}</option>`).join('')}</select></label><label>Sort by ${sortSelect(0)}</label><label>then by ${sortSelect(1)}</label><span class="muted">${tickets.length} shown</span></div>
     <div class="filterbar">${columns}</div>
@@ -2466,7 +2565,7 @@ function hdMatrixControls(ticket) {
   const state = next.length ? `<label>State<select id="hd-next-state" class="select" onchange="hdKeepPendingState('${ticket.id}','state',this.value)" data-hd-field="state"><option value="">${hdEsc(hdStatusText(ticket))}</option>${next.map(value => `<option${pending.state === value ? ' selected' : ''}>${value}</option>`).join('')}</select></label>${next.includes('On Hold') ? `<label>On Hold reason (only for On Hold)<select id="hd-hold-reason" class="select" onchange="hdKeepPendingState('${ticket.id}','hold',this.value)"><option value="">Choose…</option>${HD_HOLD_REASONS.map(reason => `<option ${(pending.hold || ticket.holdReason) === reason ? 'selected' : ''}>${reason}</option>`).join('')}</select></label>` : ''}<button type="button" class="btn btn-secondary" onclick="hdApplyState('${ticket.id}')">Apply state</button>` : `<div><span class="muted">State</span> ${hdStatusBadge(ticket)}</div>`;
   const group = closed ? `<div><span class="muted">Assignment group</span> <strong>${hdEsc(ticket.assignmentGroup || HD_SERVICE_DESK)}</strong></div>` : `<label>Assignment group<select id="hd-assignment-group" class="select" data-hd-field="group">${HD_ASSIGNMENT_GROUPS.map(value => `<option ${(ticket.assignmentGroup || HD_SERVICE_DESK) === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label><button type="button" class="btn btn-secondary" onclick="hdApplyGroup('${ticket.id}')">Assign to group</button>`;
   const resolving = !closed ? `<label>Resolution notes (required to resolve)<textarea id="hd-resolution-notes" class="ipt" rows="4" maxlength="4000" oninput="hdKeepDraft('${ticket.id}','resolution',this.value)" placeholder="Why and how it was closed">${hdEsc(hdDraft(ticket, 'resolution'))}</textarea></label>` : '';
-  return `${select('impact', 'Impact')}${select('urgency', 'Urgency')}${priority}${hdClassifyControls(ticket)}${group}${state}${hdConsoleResolutionControl(ticket)}${resolving}`;
+  return `${select('impact', 'Impact')}${select('urgency', 'Urgency')}${priority}${hdClassifyControls(ticket)}${group}${hdWarmHandoffControl(ticket)}${state}${hdConsoleResolutionControl(ticket)}${resolving}${hdFollowUpControl(ticket)}${hdDuplicateControl(ticket)}`;
 }
 function hdClassifyControls(ticket) {
   if (!hdConsole(ticket).classify) return '';
@@ -2489,7 +2588,8 @@ function hdConvertCard(ticket) {
   const draft = hdConvertDraft(ticket);
   const item = (config.items || []).find(entry => entry.name === draft.item);
   const fields = item ? (item.fields || []).map(field => `<label>${hdEsc(field.label)}<select class="select" data-hd-convert="${hdEsc(field.id)}" onchange="hdConvertSet('${ticket.id}','${hdEsc(field.id)}',this.value)"><option value="">Choose…</option>${(field.options || []).map(value => `<option ${draft.fields[field.id] === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></label>`).join('') : '';
-  return `<div class="card hd-convert"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Convert to Request</strong><span class="muted">For something new, not something broken.</span></div><div class="card-body" style="display:grid;gap:8px"><label>Catalog item<select class="select" data-hd-convert="item" onchange="hdConvertSet('${ticket.id}','item',this.value)"><option value="">Choose…</option>${(config.items || []).map(entry => `<option ${draft.item === entry.name ? 'selected' : ''}>${hdEsc(entry.name)}</option>`).join('')}</select></label><label>Requested for<select class="select" data-hd-convert="requestedFor" onchange="hdConvertSet('${ticket.id}','requestedFor',this.value)"><option value="">Choose…</option>${HD_USERS.map(user => `<option ${draft.requestedFor === user.name ? 'selected' : ''}>${hdEsc(user.name)}</option>`).join('')}</select></label>${fields}<div><button type="button" class="btn btn-primary" onclick="hdConvertToRequest('${ticket.id}')">Convert to Request</button></div></div></div>`;
+  const keep = config.keepIncident === true;
+  return `<div class="card hd-convert"${keep ? ' data-hd-keep-incident' : ''}><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${keep ? 'Open a request from this incident' : 'Convert to Request'}</strong><span class="muted">${keep ? 'The incident stays open for what is broken; the request is for what is new.' : 'For something new, not something broken.'}</span></div><div class="card-body" style="display:grid;gap:8px"><label>Catalog item<select class="select" data-hd-convert="item" onchange="hdConvertSet('${ticket.id}','item',this.value)"><option value="">Choose…</option>${(config.items || []).map(entry => `<option ${draft.item === entry.name ? 'selected' : ''}>${hdEsc(entry.name)}</option>`).join('')}</select></label><label>Requested for<select class="select" data-hd-convert="requestedFor" onchange="hdConvertSet('${ticket.id}','requestedFor',this.value)"><option value="">Choose…</option>${HD_USERS.map(user => `<option ${draft.requestedFor === user.name ? 'selected' : ''}>${hdEsc(user.name)}</option>`).join('')}</select></label>${fields}<div><button type="button" class="btn btn-primary" onclick="hdConvertToRequest('${ticket.id}')">${keep ? 'Open request' : 'Convert to Request'}</button></div></div></div>`;
 }
 function hdLinkCard(ticket) {
   if (!hdConsole(ticket).link) return '';
@@ -2534,7 +2634,7 @@ function hdKnowledgeCard(ticket) {
     draft = state.kbDraft
       ? `<div data-hd-kb-draft="review"><strong>Knowledge draft</strong> ${hdBadge(`State: ${state.kbDraft.state}`, 'in-progress')}<p><strong>${hdEsc(state.kbDraft.title)}</strong></p><p>${hdEsc(state.kbDraft.text)}</p></div>`
       : ['Resolved', 'Closed'].includes(ticket.status)
-        ? `<div style="display:grid;gap:8px"><label>Knowledge draft title<input id="hd-kb-draft-title" class="ipt" maxlength="160" value="${hdEsc(hdDraft(ticket, 'kbTitle'))}" oninput="hdKeepDraft('${ticket.id}','kbTitle',this.value)" placeholder="Symptom: the fix"></label><label>Steps that fixed it<textarea id="hd-kb-draft-text" class="ipt" rows="4" maxlength="4000" oninput="hdKeepDraft('${ticket.id}','kbText',this.value)">${hdEsc(hdDraft(ticket, 'kbText') || ticket.resolution || '')}</textarea></label><div><button type="button" class="btn btn-secondary" onclick="hdKbCreateDraft('${ticket.id}')">Create knowledge draft</button></div></div>`
+        ? `<div style="display:grid;gap:8px"><label>Knowledge draft title<input id="hd-kb-draft-title" class="ipt" maxlength="160" value="${hdEsc(hdDraft(ticket, 'kbTitle'))}" oninput="hdKeepDraft('${ticket.id}','kbTitle',this.value)" placeholder="Symptom: the fix or workaround"></label><label>Symptom, cause, fix or workaround, result and owner<textarea id="hd-kb-draft-text" class="ipt" rows="4" maxlength="4000" oninput="hdKeepDraft('${ticket.id}','kbText',this.value)">${hdEsc(hdDraft(ticket, 'kbText') || ticket.resolution || '')}</textarea></label><div><button type="button" class="btn btn-secondary" onclick="hdKbCreateDraft('${ticket.id}')">Create knowledge draft</button></div></div>`
         : '<p class="muted">Create knowledge draft: available once the ticket is resolved.</p>';
   }
   return `<div class="card hd-related-knowledge"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Related › Knowledge</strong></div><div class="card-body">${list}${draft}</div></div>`;
@@ -2575,6 +2675,554 @@ function hdMatrixProgress(ticket) {
     out.lastCommentInternal = last ? hdJargonFound(last.text, config.comments.internalNames) : [];
   }
   return out;
+}
+
+/* ---------- Communication features (Module 3 on), switched on per ticket ----------
+ * More `console` keys, each off unless a ticket's template sets it. Older
+ * tickets look and behave as before, and a Prove shift never gets them
+ * (hdConsole). Keys:
+ *   now: ISO                       the ticket's own fixed clock (hdTicketClock),
+ *                                  moved only by its "Go to follow-up time"
+ *   vip: true                      a VIP badge on the ticket and its queue row
+ *   conversation: { name, style?:'phone'|'chat', mood?:'Calm'|'Tense'|'Frustrated'|'Angry',
+ *                   stages:[{ id, prompt?, messages?:[text], gapSeconds?, interruptLine?,
+ *                             choices:[{ id, text, pass?, mood?:-1|0|1, line?, reply? }] }] }
+ *                                  a live call or chat: a stage's messages
+ *                                  arrive one at a time (real time, from the
+ *                                  stage's start, so a reload keeps them);
+ *                                  choices show from the first message;
+ *                                  answering before the last one is an
+ *                                  interruption; a wrong choice shows its
+ *                                  line and the student chooses again. With
+ *                                  mood, a mood meter (HD_MOODS) moves one
+ *                                  step per scripted move, with its line.
+ *                                  The meter is feedback only: it is never in
+ *                                  hdConsoleProgress, so never in saved work.
+ *   intake: { caller?:true, callback?:true }
+ *                                  Caller (from the directory) and a typed
+ *                                  callback number the student sets
+ *   hold: { seconds?, ask, askReply?, back, unaskedLine, overLine }
+ *                                  ask to hold, a hold timer in real time
+ *                                  (start time saved), a return line; holding
+ *                                  without asking or past the time moves the
+ *                                  mood meter
+ *   explain: { prompt?, words:[...], line, goodLine? }
+ *                                  a typed plain-words explanation checked
+ *                                  against the ticket's own word list (line:
+ *                                  '{term}' is replaced by the first found)
+ *   evidence: [{ id, title, rows:[{ label, value }] }]
+ *                                  read-only cards; each open is recorded
+ *   handoff: { parts? }            once assigned to another group, the latest
+ *                                  work note is checked for its labels
+ *                                  (default Reported, Tried, Result, Next action)
+ *   warmHandoff: true              "Warm handoff" logs "Called <group> at <time>"
+ *   followUp: { jump? }            a Follow-up date and time; jump adds "Go to
+ *                                  follow-up time", which moves the ticket's
+ *                                  own clock (console.now) or else the set's
+ *   comments: { timeCheck:{ time, promise?, promiseLine, noTimeLine, moodDown?, goodLine? } }
+ *                                  a customer comment must name a time (time:
+ *                                  regex source); a fix-time promise (promise)
+ *                                  gets promiseLine
+ *   convert: { keepIncident:true } a request opened from the incident; the
+ *                                  incident stays open
+ *   teamMessages: [{ id, to, text, from, reply, assign? }]
+ *                                  internal messages to another team, each
+ *                                  with a scripted reply (assign: the person
+ *                                  the reply assigns the ticket to)
+ *   duplicateMove: { text, feedback, critical? }
+ *                                  a "Create new incident" move on a ticket
+ *                                  that already exists: recorded as a
+ *                                  critical error, shown as feedback
+ * A followUp ticket needs a clock (console.now or its set's now): on the
+ * fixed default clock an update can never reach the follow-up time.
+ * A practice set may set done:{ id:[rule] }: that ticket counts as done for
+ * the set's completion when every rule holds (hdPracticeClosed), in place of
+ * the state test, so each list should include a state rule (status or
+ * requestOpen). Rules for
+ * this work (hdCommsRule): call, intakeCaller, callback, held, explained,
+ * evidence, handoffNote, warmHandoff, followUp, followUpUpdated,
+ * commentTime, teamMessage, requestOpen. */
+const HD_MOODS = ['Calm', 'Tense', 'Frustrated', 'Angry'];
+const HD_CALL_GAP_SECONDS = 4;
+const HD_HOLD_SECONDS = 120;
+const HD_CALLBACK_MAX = 40;
+const HD_HANDOFF_PARTS = ['reported', 'tried', 'result', 'next'];
+function hdCommsOpen(ticket) { return !['Resolved', 'Closed', 'Canceled'].includes(ticket.status); }
+function hdVipBadge(ticket) { return hdConsole(ticket).vip ? `<span data-hd-vip>${hdBadge('VIP', 'vip')}</span>` : ''; }
+
+// The mood meter (conversation.mood): a level on HD_MOODS and every move.
+function hdMood(ticket) {
+  const start = (hdConsole(ticket).conversation || {}).mood;
+  if (!HD_MOODS.includes(start)) return null;
+  const state = hdConsoleState(ticket);
+  if (!state.mood || typeof state.mood.level !== 'number') state.mood = { level:HD_MOODS.indexOf(start), moves:[] };
+  if (!Array.isArray(state.mood.moves)) state.mood.moves = [];
+  return state.mood;
+}
+function hdMoodMove(ticket, delta, line) {
+  const mood = hdMood(ticket); if (!mood || !delta) return;
+  mood.level = Math.max(0, Math.min(HD_MOODS.length - 1, mood.level + (delta > 0 ? 1 : -1)));
+  // Every move shows a reason: the ticket's line, else a plain default.
+  const reason = String(line || '').trim() || (delta > 0 ? 'That didn\'t help the caller.' : 'That helped the caller.');
+  mood.moves.push({ delta:delta > 0 ? 1 : -1, line:reason.slice(0, 300) });
+  if (mood.moves.length > 60) mood.moves.splice(0, mood.moves.length - 60);
+}
+// For a coach's hint: the meter's level name, or '' (never saved). Hints
+// only: a coach step must never need a mood level to complete.
+function hdCallMood(id) { const ticket = hdTicketById(id); const mood = ticket && hdMood(ticket); return mood ? HD_MOODS[mood.level] : ''; }
+
+// The live conversation.
+// The call starts (its first stage's clock) when the student first sees it or
+// answers: start false only reads it, so the tick, a coach's check and the
+// work snapshot never start a call the student hasn't opened.
+function hdCall(ticket, now = hdNowMs(), start = true) {
+  const config = hdConsole(ticket).conversation; if (!config || !Array.isArray(config.stages)) return null;
+  const state = hdConsoleState(ticket);
+  const call = state.call = state.call || {};
+  call.stage = Number.isInteger(call.stage) ? call.stage : 0;
+  call.log = Array.isArray(call.log) ? call.log : [];
+  call.tries = Array.isArray(call.tries) ? call.tries : [];
+  call.interruptions = call.interruptions || 0;
+  if (typeof call.startedAt !== 'number' && start) call.startedAt = now;
+  call.done = call.stage >= config.stages.length;
+  return call;
+}
+function hdCallStage(ticket) { const call = hdCall(ticket, hdNowMs(), false); return call && !call.done ? hdConsole(ticket).conversation.stages[call.stage] : null; }
+// How many of the stage's messages have arrived, from its start time.
+function hdCallArrived(ticket, now = hdNowMs()) {
+  const call = hdCall(ticket, now, false); const stage = hdCallStage(ticket);
+  const messages = stage && Array.isArray(stage.messages) ? stage.messages : [];
+  if (!messages.length || typeof call.startedAt !== 'number') return 0;
+  const gap = (Number(stage.gapSeconds) > 0 ? Number(stage.gapSeconds) : HD_CALL_GAP_SECONDS) * 1000;
+  return Math.min(messages.length, Math.floor(Math.max(0, now - call.startedAt) / gap) + 1);
+}
+// The choices' order: shuffled per shift and stage, the same on every redraw.
+function hdCallSeed(ticket, stage) {
+  let n = (hdState && hdState.seed) || 1;
+  for (const ch of `${ticket.id}:${stage.id}`) n = (n * 31 + ch.charCodeAt(0)) >>> 0;
+  return n || 1;
+}
+function hdCallChoose(id, choiceId, now = hdNowMs()) {
+  const ticket = hdTicketById(id); const call = ticket && hdCall(ticket, now); const stage = call && hdCallStage(ticket);
+  const choice = stage && (stage.choices || []).find(item => item.id === choiceId); if (!choice) return;
+  const config = hdConsole(ticket).conversation;
+  const total = Array.isArray(stage.messages) ? stage.messages.length : 0;
+  if (total && hdCallArrived(ticket, now) < total) {
+    call.interruptions += 1;
+    call.lastLine = stage.interruptLine || `${config.name || 'The caller'} hadn't finished.`; call.lastTone = 'warn';
+    hdMoodMove(ticket, 1, call.lastLine);
+    hdPracticeEvent('call_interrupted', { ticket:ticket.id, stage:stage.id });
+    hdRerender(); return;
+  }
+  call.tries.push({ stage:stage.id, choice:choice.id, pass:choice.pass === true });
+  if (call.tries.length > 80) call.tries.splice(0, call.tries.length - 80);
+  hdMoodMove(ticket, typeof choice.mood === 'number' ? choice.mood : (choice.pass ? 0 : 1), choice.line);
+  call.lastLine = choice.line || ''; call.lastTone = choice.pass ? 'success' : 'warn';
+  hdPracticeEvent('call_reply', { ticket:ticket.id, stage:stage.id, choice:choice.id, pass:choice.pass === true });
+  if (!choice.pass) { hdRerender(); return; }
+  const time = hdConsoleTime(ticket);
+  (stage.messages || []).forEach(text => call.log.push({ who:'caller', text, time }));
+  call.log.push({ who:'you', text:choice.text, time });
+  if (choice.reply) call.log.push({ who:'caller', text:choice.reply, time });
+  call.stage += 1; call.startedAt = now;
+  call.done = call.stage >= config.stages.length;
+  hdRerender();
+}
+function hdCallListen(id, now = hdNowMs()) {
+  const ticket = hdTicketById(id); const stage = ticket && hdCallStage(ticket); if (!stage) return;
+  const total = Array.isArray(stage.messages) ? stage.messages.length : 0;
+  const name = hdConsole(ticket).conversation.name || 'The caller';
+  toast(total && hdCallArrived(ticket, now) < total ? `${name} is still talking. Keep listening.` : `${name} has finished. Choose your reply.`);
+  hdRerender();
+}
+
+// The hold: asked, running (start time) and every hold taken.
+function hdHold(ticket) {
+  if (!hdConsole(ticket).hold) return null;
+  const state = hdConsoleState(ticket);
+  const hold = state.hold = state.hold || {};
+  hold.asked = hold.asked === true;
+  hold.startedAt = typeof hold.startedAt === 'number' ? hold.startedAt : 0;
+  hold.holds = Array.isArray(hold.holds) ? hold.holds : [];
+  return hold;
+}
+function hdHoldLimit(ticket) { const seconds = Number(hdConsole(ticket).hold.seconds); return (seconds > 0 ? seconds : HD_HOLD_SECONDS) * 1000; }
+// A hold past its time moves the meter once, whether the student is on the
+// page (the tick) or comes back to it later (the return).
+function hdHoldCheckOver(ticket, now = hdNowMs()) {
+  const hold = hdHold(ticket); if (!hold || !hold.startedAt || hold.over) return false;
+  if (now - hold.startedAt <= hdHoldLimit(ticket)) return false;
+  hold.over = true;
+  hdMoodMove(ticket, 1, hdConsole(ticket).hold.overLine);
+  hdPracticeEvent('hold_over', { ticket:ticket.id });
+  return true;
+}
+function hdHoldAsk(id) {
+  const ticket = hdTicketById(id); const hold = ticket && hdHold(ticket); if (!hold || hold.startedAt || hold.asked) return;
+  hold.asked = true;
+  hdHistory(ticket, 'Asked the caller before placing them on hold.');
+  hdRerender();
+}
+function hdHoldStart(id, now = hdNowMs()) {
+  const ticket = hdTicketById(id); const hold = ticket && hdHold(ticket); if (!hold || hold.startedAt) return;
+  if (!hold.asked) { hold.unasked = true; hdMoodMove(ticket, 1, hdConsole(ticket).hold.unaskedLine); }
+  hold.startedAt = now; hold.over = false;
+  hdHistory(ticket, 'Caller placed on hold.');
+  hdPracticeEvent('hold_started', { ticket:ticket.id, asked:hold.asked });
+  hdRerender();
+}
+function hdHoldReturn(id, now = hdNowMs()) {
+  const ticket = hdTicketById(id); const hold = ticket && hdHold(ticket); if (!hold || !hold.startedAt) return;
+  hdHoldCheckOver(ticket, now);
+  const seconds = Math.round((now - hold.startedAt) / 1000);
+  hold.holds.push({ seconds, asked:hold.asked, over:hold.over === true });
+  if (hold.holds.length > 20) hold.holds.splice(0, hold.holds.length - 20);
+  hold.startedAt = 0; hold.asked = false; hold.over = false;
+  hdHistory(ticket, `Back from hold after ${seconds} seconds${hold.holds[hold.holds.length - 1].over ? ' (too long)' : ''}.`);
+  hdPracticeEvent('hold_returned', { ticket:ticket.id, seconds });
+  hdRerender();
+}
+function hdHoldTimerText(ticket, now = hdNowMs()) {
+  const hold = hdHold(ticket); if (!hold || !hold.startedAt) return '';
+  const used = Math.max(0, Math.floor((now - hold.startedAt) / 1000)); const limit = Math.round(hdHoldLimit(ticket) / 1000);
+  const text = seconds => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  return `On hold ${text(used)} of ${text(limit)}`;
+}
+
+// Caller and callback number (intake).
+function hdIntake(ticket) {
+  if (!hdConsole(ticket).intake) return null;
+  const state = hdConsoleState(ticket);
+  state.intake = state.intake || { caller:'', callback:'' };
+  return state.intake;
+}
+function hdCallerText(ticket) {
+  const config = hdConsole(ticket).intake;
+  return config && config.caller ? (hdIntake(ticket).caller || 'Not set') : ticket.requester;
+}
+function hdCallbackField(ticket) {
+  const config = hdConsole(ticket).intake;
+  return config && config.callback ? `<div><span>Callback number</span><strong>${hdEsc(hdIntake(ticket).callback || 'Not set')}</strong></div>` : '';
+}
+function hdIntakeSave(id) {
+  const ticket = hdTicketById(id); const intake = ticket && hdIntake(ticket); if (!intake) return;
+  const config = hdConsole(ticket).intake;
+  const caller = String((document.getElementById('hd-intake-caller') || {}).value || '');
+  const callback = String((document.getElementById('hd-intake-callback') || {}).value || '').trim().slice(0, HD_CALLBACK_MAX);
+  if (config.caller && !HD_USERS.some(user => user.name === caller)) { toast('Choose the caller from the directory.'); return; }
+  if (config.callback && !/\d/.test(callback)) { toast('Type the number to call back on, for example an extension.'); return; }
+  if (hdPasswordInText(callback)) { toast(hdRefusePasswordText(ticket, 'callback number')); return; }
+  if (config.caller) intake.caller = caller;
+  if (config.callback) intake.callback = callback;
+  hdClearDraft(ticket, 'callback'); hdClearDraft(ticket, 'caller');
+  hdHistory(ticket, [config.caller ? `Caller set to ${caller}` : '', config.callback ? `callback number ${callback}` : ''].filter(Boolean).join('; ') + '.');
+  hdPracticeEvent('intake_saved', { ticket:ticket.id });
+  hdRerender();
+}
+
+// The plain-words explanation (explain).
+function hdExplainCheck(id) {
+  const ticket = hdTicketById(id); const config = ticket && hdConsole(ticket).explain; if (!config) return;
+  const text = String((document.getElementById('hd-explain-input') || {}).value || '').trim().slice(0, 2000);
+  if (text.length < 10) { toast('Type what you would say to the caller first.'); return; }
+  if (hdPasswordInText(text)) { toast(hdRefusePasswordText(ticket, 'explanation')); return; }
+  const state = hdConsoleState(ticket);
+  const explain = state.explain = state.explain || { tries:[], passed:false, text:'' };
+  const flagged = hdJargonFound(text, config.words);
+  explain.tries.push({ flagged });
+  if (explain.tries.length > 40) explain.tries.splice(0, explain.tries.length - 40);
+  explain.text = text; explain.flagged = flagged;
+  if (!flagged.length) { explain.passed = true; hdClearDraft(ticket, 'explain'); hdHistory(ticket, 'Explained the next step to the caller in plain words.'); }
+  hdPracticeEvent('explained', { ticket:ticket.id, flagged:flagged.join(', ') });
+  hdRerender();
+}
+
+// Read-only evidence cards: each open is recorded.
+function hdEvidenceOpen(id, cardId) {
+  const ticket = hdTicketById(id); const cards = ticket && hdConsole(ticket).evidence;
+  const card = Array.isArray(cards) && cards.find(item => item.id === cardId); if (!card) return;
+  const state = hdConsoleState(ticket);
+  state.evidenceOpened = Array.isArray(state.evidenceOpened) ? state.evidenceOpened : [];
+  if (state.evidenceShown === cardId) { state.evidenceShown = ''; hdRerender(); return; }
+  state.evidenceShown = cardId;
+  state.evidenceOpened.push({ id:cardId, time:hdConsoleTime(ticket) });
+  if (state.evidenceOpened.length > 60) state.evidenceOpened.splice(0, state.evidenceOpened.length - 60);
+  hdPracticeEvent('evidence_opened', { ticket:ticket.id, id:cardId });
+  hdRerender();
+}
+
+// The handoff note: the labels the latest note still needs once the ticket
+// is with another group, or null while it is with the Service Desk.
+function hdHandoffMissing(ticket) {
+  const config = hdConsole(ticket).handoff; if (!config) return null;
+  if ((ticket.assignmentGroup || HD_SERVICE_DESK) === HD_SERVICE_DESK) return null;
+  const parts = Array.isArray(config.parts) && config.parts.length ? config.parts.filter(key => HD_NOTE_PARTS[key]) : HD_HANDOFF_PARTS;
+  const note = (ticket.notes || []).filter(item => item.author === 'Riley Morgan').pop();
+  return note ? hdNoteMissingParts(note.text, parts) : parts.map(key => HD_NOTE_PARTS[key]);
+}
+function hdWarmHandoff(id) {
+  const ticket = hdTicketById(id); if (!ticket || !hdConsole(ticket).warmHandoff || !hdCommsOpen(ticket)) return;
+  const group = ticket.assignmentGroup || HD_SERVICE_DESK;
+  if (group === HD_SERVICE_DESK) { toast('Assign the ticket to the other team first, then call them.'); return; }
+  const state = hdConsoleState(ticket);
+  state.warmHandoffs = Array.isArray(state.warmHandoffs) ? state.warmHandoffs : [];
+  const at = hdShiftIso(ticket);
+  state.warmHandoffs.push({ group, at });
+  hdHistory(ticket, `Called ${group} at ${hdShiftTimeText(at).split(' ')[1]} (warm handoff).`);
+  hdPracticeEvent('warm_handoff', { ticket:ticket.id, group });
+  hdRerender();
+}
+
+// Follow-up date and time, in shift time (UTC); "Go to follow-up time".
+// The input is read as shift time, never the browser's zone: the shift
+// clock the student reads is UTC in every browser (hdShiftTimeText).
+function hdFollowUpValue(iso) { return iso ? new Date(iso).toISOString().slice(0, 16) : ''; }
+function hdFollowUpSet(id) {
+  const ticket = hdTicketById(id); if (!ticket || !hdConsole(ticket).followUp || !hdCommsOpen(ticket)) return;
+  const value = String((document.getElementById('hd-follow-up-input') || {}).value || '').trim();
+  const ms = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value) ? Date.parse(`${value}:00Z`) : NaN;
+  if (Number.isNaN(ms)) { toast('Choose the follow-up date and time.'); return; }
+  if (ms <= hdShiftNow(ticket).getTime()) { toast('Choose a follow-up time later than now.'); return; }
+  const state = hdConsoleState(ticket);
+  state.followUp = new Date(ms).toISOString();
+  hdClearDraft(ticket, 'followUp');
+  hdHistory(ticket, `Follow-up set for ${hdShiftTimeText(state.followUp)}.`);
+  hdPracticeEvent('follow_up_set', { ticket:ticket.id, at:state.followUp });
+  hdRerender();
+}
+function hdFollowUpCanJump(ticket) {
+  const config = hdConsole(ticket).followUp; const state = hdConsoleState(ticket);
+  if (!config || !config.jump || !state.followUp) return false;
+  if (!hdTicketClock(ticket) && !(hdActiveSet() && hdActiveSet().now)) return false;
+  return Date.parse(state.followUp) > hdShiftNow(ticket).getTime();
+}
+function hdFollowUpGo(id) {
+  const ticket = hdTicketById(id); if (!ticket || !hdFollowUpCanJump(ticket)) return;
+  const state = hdConsoleState(ticket);
+  // Only the clock the ticket runs on moves: its own, or else its set's.
+  if (hdTicketClock(ticket)) state.clockNow = state.followUp; else hdState.clockNow = state.followUp;
+  state.followUpVisited = true;
+  hdHistory(ticket, 'Follow-up time reached.');
+  hdPracticeEvent('follow_up_time', { ticket:ticket.id, now:state.followUp });
+  toast(`It's ${hdShiftTimeText(hdShiftNow(ticket))}, the follow-up time.`);
+  hdRerender();
+}
+// A comment posted within 10 minutes of the follow-up time, on the shift clock.
+function hdFollowUpUpdated(ticket) {
+  const at = Date.parse(hdConsoleState(ticket).followUp || ''); if (Number.isNaN(at)) return false;
+  return hdComments(ticket).some(comment => { const ms = Date.parse(comment.at || ''); return ms >= at && ms <= at + 10 * 60000; });
+}
+
+// The customer comment's time check (comments.timeCheck): a time, and no
+// fix-time promise. Patterns are the ticket's own data.
+function hdCommentTimeResult(ticket, text) {
+  const config = hdConsole(ticket).comments;
+  const check = config && typeof config === 'object' ? config.timeCheck : null; if (!check) return null;
+  const test = pattern => { if (!pattern) return false; try { return new RegExp(pattern, 'i').test(String(text || '')); } catch (_) { return false; } };
+  return { hasTime:test(check.time), promise:test(check.promise) };
+}
+function hdCommentPromiseCritical(ticket) {
+  const check = (hdConsole(ticket).comments || {}).timeCheck; if (!check || !check.promiseCritical) return '';
+  const last = (hdConsoleState(ticket).commentChecks || []).slice(-1)[0];
+  return last && last.promise ? check.promiseCritical : '';
+}
+function hdCommentTimeTip(ticket, text) {
+  const result = hdCommentTimeResult(ticket, text); if (!result) return '';
+  const check = hdConsole(ticket).comments.timeCheck;
+  const state = hdConsoleState(ticket);
+  state.commentChecks = Array.isArray(state.commentChecks) ? state.commentChecks : [];
+  state.commentChecks.push(result);
+  if (state.commentChecks.length > 40) state.commentChecks.splice(0, state.commentChecks.length - 40);
+  if (result.promise) return ` ${check.promiseLine || ''}`.trimEnd();
+  if (!result.hasTime) return ` ${check.noTimeLine || ''}`.trimEnd();
+  if (check.moodDown) hdMoodMove(ticket, -1, check.goodLine);
+  return '';
+}
+
+// Internal messages to another team, each with its scripted reply.
+function hdTeamMessage(id, messageId) {
+  const ticket = hdTicketById(id); const list = ticket && hdConsole(ticket).teamMessages;
+  const message = Array.isArray(list) && list.find(item => item.id === messageId); if (!message) return;
+  const state = hdConsoleState(ticket);
+  state.teamMessages = Array.isArray(state.teamMessages) ? state.teamMessages : [];
+  if (state.teamMessages.some(entry => entry.id === message.id)) return;
+  state.teamMessages.push({ id:message.id, time:hdConsoleTime(ticket) });
+  hdHistory(ticket, `Internal message to ${message.to} (not customer-visible).`);
+  if (message.assign) { ticket.assignedTechnician = message.assign; hdHistory(ticket, `Assigned to ${message.assign} by ${message.from || message.to}.`); }
+  hdPracticeEvent('team_message', { ticket:ticket.id, message:message.id });
+  hdRerender();
+}
+function hdDuplicateMove(id) {
+  const ticket = hdTicketById(id); const config = ticket && hdConsole(ticket).duplicateMove; if (!config) return;
+  const state = hdConsoleState(ticket);
+  state.duplicateTried = true;
+  hdConsoleCritical(ticket, 'duplicate-ticket', config.critical || `Chose: ${config.text || 'Create new incident'}`);
+  hdPracticeEvent('duplicate_tried', { ticket:ticket.id });
+  hdRerender();
+}
+
+// Rules for this work ("Check my work" and a set's done rules). undefined
+// for a rule that isn't one of these.
+function hdCommsRule(ticket, rule) {
+  const state = hdConsoleState(ticket);
+  if (rule.call) { const call = hdCall(ticket, hdNowMs(), false); return !!(call && call.done); }
+  if (rule.intakeCaller) { const intake = hdIntake(ticket); return !!(intake && intake.caller === rule.intakeCaller); }
+  if (rule.callback) { const intake = hdIntake(ticket); return !!(intake && intake.callback); }
+  if (rule.held) { const hold = hdHold(ticket); return !!(hold && hold.holds.some(entry => entry.asked && !entry.over)); }
+  if (rule.explained) return !!(state.explain && state.explain.passed);
+  if (rule.evidence) return (state.evidenceOpened || []).some(entry => entry.id === rule.evidence);
+  if (rule.handoffNote) { const missing = hdHandoffMissing(ticket); return !!missing && !missing.length; }
+  if (rule.warmHandoff) return (state.warmHandoffs || []).length > 0;
+  if (rule.followUp) return !!state.followUp;
+  if (rule.followUpUpdated) return hdFollowUpUpdated(ticket);
+  if (rule.commentTime) return (state.commentChecks || []).some(entry => entry.hasTime && !entry.promise);
+  if (rule.teamMessage) return (state.teamMessages || []).some(entry => entry.id === rule.teamMessage);
+  if (rule.requestOpen) return !!(ticket.request && ticket.request.state === 'Open' && hdCommsOpen(ticket));
+  return undefined;
+}
+// What a coach reads about this work (in hdConsoleProgress, only for a
+// ticket that turns a feature on). Never the mood meter.
+function hdCommsProgress(ticket) {
+  const config = hdConsole(ticket); const state = hdConsoleState(ticket); const out = {};
+  if (config.conversation) { const call = hdCall(ticket, hdNowMs(), false); if (call) out.call = { stage:call.stage, done:call.done, interruptions:call.interruptions, wrong:call.tries.filter(entry => !entry.pass).map(entry => entry.choice) }; }
+  if (config.intake) out.intake = { ...hdIntake(ticket) };
+  if (config.hold) { const hold = hdHold(ticket); out.hold = { asked:hold.asked, onHold:!!hold.startedAt, unasked:hold.unasked === true, holds:hold.holds.map(entry => ({ ...entry })) }; }
+  if (config.explain) out.explain = state.explain ? { passed:state.explain.passed, tries:state.explain.tries.length, flagged:(state.explain.flagged || []).slice(), text:state.explain.text } : { passed:false, tries:0, flagged:[], text:'' };
+  if (Array.isArray(config.evidence)) out.evidenceOpened = [...new Set((state.evidenceOpened || []).map(entry => entry.id))];
+  if (config.handoff) out.handoffMissing = hdHandoffMissing(ticket);
+  if (config.warmHandoff) out.warmHandoffs = (state.warmHandoffs || []).map(entry => ({ ...entry }));
+  if (config.followUp) out.followUp = { at:state.followUp || '', visited:state.followUpVisited === true, updated:hdFollowUpUpdated(ticket) };
+  if (hdCommentTimeResult(ticket, '')) out.commentChecks = (state.commentChecks || []).map(entry => ({ ...entry }));
+  if (Array.isArray(config.teamMessages)) out.teamMessages = (state.teamMessages || []).map(entry => entry.id);
+  if (config.duplicateMove) out.duplicateTried = state.duplicateTried === true;
+  return out;
+}
+
+// The cards and controls. Each is '' for a ticket without its feature.
+function hdMoodHtml(ticket) {
+  const mood = hdMood(ticket); if (!mood) return '';
+  const last = mood.moves[mood.moves.length - 1];
+  return `<div class="hd-mood" data-hd-mood="${hdEsc(HD_MOODS[mood.level])}" role="status" style="display:grid;gap:4px;margin:0 0 10px"><div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center"><span class="muted">Mood</span>${HD_MOODS.map((name, index) => `<span style="padding:2px 8px;border-radius:999px;border:1px solid #d0d5dd;${index === mood.level ? 'background:#1d2939;color:#fff;font-weight:600' : ''}"${index === mood.level ? ' aria-current="true"' : ''}>${hdEsc(name)}</span>`).join('')}</div>${last && last.line ? `<small>${last.delta > 0 ? '▲' : '▼'} ${hdEsc(last.line)}</small>` : ''}<small class="muted">Feedback only: the meter is never scored.</small></div>`;
+}
+function hdCallCard(ticket, now = hdNowMs()) {
+  const config = hdConsole(ticket).conversation; const call = config && hdCall(ticket, now); if (!call) return '';
+  const name = config.name || ticket.requester;
+  const stage = hdCallStage(ticket);
+  const arrived = stage ? hdCallArrived(ticket, now) : 0;
+  const total = stage && Array.isArray(stage.messages) ? stage.messages.length : 0;
+  const line = entry => `<div><strong>${entry.who === 'you' ? 'You' : hdEsc(name)}${entry.time ? ` · ${hdEsc(entry.time)}` : ''}</strong><p>${hdEsc(entry.text)}</p></div>`;
+  const live = stage && total ? stage.messages.slice(0, arrived).map(text => line({ who:'caller', text })).join('') : '';
+  const log = call.log.map(line).join('') + live;
+  const talking = total && arrived < total ? `<p class="muted" data-hd-call-talking>${hdEsc(name)} is still talking…</p>` : '';
+  const feedback = call.lastLine ? `<div class="callout ${call.lastTone === 'success' ? 'success' : 'warn'}" role="status">${hdEsc(call.lastLine)}</div>` : '';
+  const choices = stage && (!total || arrived > 0) ? `${stage.prompt ? `<p><strong>${hdEsc(stage.prompt)}</strong></p>` : ''}<div style="display:grid;gap:8px">${hdSeededOrder((stage.choices || []).slice(), hdCallSeed(ticket, stage)).map(choice => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} onclick="hdCallChoose('${ticket.id}','${hdEsc(choice.id)}')">${hdEsc(choice.text)}</button>`).join('')}${total ? `<button type="button" class="btn btn-ghost" onclick="hdCallListen('${ticket.id}')">Keep listening</button>` : ''}</div>` : '';
+  const ended = call.done ? '<p class="muted">The scripted part of the conversation is done. Carry on with the ticket.</p>' : '';
+  const kind = config.style === 'chat' ? 'Chat' : 'Phone call';
+  return `<div class="card hd-call" data-hd-call="${hdEsc(stage ? stage.id : 'done')}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${kind}</strong><span class="muted">${hdEsc(name)} · ${config.style === 'chat' ? 'in the chat' : 'on the line'}</span></div><div class="card-body">${hdMoodHtml(ticket)}<div class="hd-note-list">${log || '<p class="muted">The conversation hasn\'t started yet.</p>'}</div>${talking}${feedback}${choices}${ended}</div></div>`;
+}
+function hdIntakeCard(ticket) {
+  const config = hdConsole(ticket).intake; if (!config) return '';
+  const intake = hdIntake(ticket);
+  const callback = hdDraft(ticket, 'callback') || intake.callback;
+  const chosen = hdDraft(ticket, 'caller') || intake.caller;
+  const caller = config.caller ? `<label>Caller<select id="hd-intake-caller" class="select" data-hd-field="caller" onchange="hdKeepDraft('${ticket.id}','caller',this.value)"><option value="">Choose…</option>${HD_USERS.map(user => `<option ${chosen === user.name ? 'selected' : ''}>${hdEsc(user.name)}</option>`).join('')}</select></label>` : '';
+  const number = config.callback ? `<label>Callback number<input id="hd-intake-callback" class="ipt" maxlength="${HD_CALLBACK_MAX}" value="${hdEsc(callback)}" oninput="hdKeepDraft('${ticket.id}','callback',this.value)" placeholder="e.g. ext. 1234"></label>` : '';
+  return `<div class="card hd-intake" data-hd-intake><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Caller details</strong><span class="muted">Get these first, in case the call drops.</span></div><div class="card-body" style="display:grid;gap:8px">${caller}${number}<div><button type="button" class="btn btn-secondary" onclick="hdIntakeSave('${ticket.id}')">Save caller details</button></div></div></div>`;
+}
+function hdHoldCard(ticket, now = hdNowMs()) {
+  const config = hdConsole(ticket).hold; if (!config) return '';
+  const hold = hdHold(ticket);
+  const last = hold.holds[hold.holds.length - 1];
+  const status = hold.startedAt
+    ? `<p id="hd-hold-timer" data-hd-hold="on" role="timer" aria-live="off"><strong>${hdEsc(hdHoldTimerText(ticket, now))}</strong></p>`
+    : `<p class="muted" data-hd-hold="off">${last ? `Last hold: ${hdEsc(String(last.seconds))} ${last.seconds === 1 ? 'second' : 'seconds'}${last.over ? ', too long. Ask again, start a new hold and come back sooner' : last.asked ? '' : ', started without asking. Ask, then start a new hold'}.` : 'Not on hold.'}</p>`;
+  const asked = hold.asked ? `<div><strong>You</strong><p>${hdEsc(config.ask)}</p>${config.askReply ? `<strong>${hdEsc((hdConsole(ticket).conversation || {}).name || ticket.requester)}</strong><p>${hdEsc(config.askReply)}</p>` : ''}</div>` : '';
+  const controls = hold.startedAt
+    ? `<button type="button" class="btn btn-primary" onclick="hdHoldReturn('${ticket.id}')">${hdEsc(config.back || 'Thanks for holding.')}</button>`
+    : `<div style="display:grid;gap:8px">${hold.asked ? '' : `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} onclick="hdHoldAsk('${ticket.id}')">${hdEsc(config.ask || 'May I put you on a short hold?')}</button>`}<button type="button" class="btn btn-secondary" onclick="hdHoldStart('${ticket.id}')">Start hold</button></div>`;
+  return `<div class="card hd-hold"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Hold</strong><span class="muted">Ask first, and come back within ${Math.round(hdHoldLimit(ticket) / 60000)} minutes.</span></div><div class="card-body"><div class="hd-note-list">${asked}</div>${status}${controls}</div></div>`;
+}
+function hdExplainCard(ticket) {
+  const config = hdConsole(ticket).explain; if (!config) return '';
+  const explain = hdConsoleState(ticket).explain;
+  const flagged = explain && explain.flagged && explain.flagged.length ? explain.flagged : [];
+  const feedback = !explain ? '' : flagged.length
+    ? `<div class="callout warn" role="status" data-hd-explain="flagged">${hdEsc(String(config.line || 'Say it in plain words: {term}').replace('{term}', flagged[0]))}</div>`
+    : `<div class="callout success" role="status" data-hd-explain="ok">${hdEsc(config.goodLine || 'Plain words: no flagged terms.')}</div>`;
+  const value = hdDraft(ticket, 'explain') || (explain && !explain.passed ? explain.text : '');
+  return `<div class="card hd-explain"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Explain it in plain words</strong><span class="muted">What you say to the caller</span></div><div class="card-body" style="display:grid;gap:8px">${config.prompt ? `<p>${hdEsc(config.prompt)}</p>` : ''}${explain && explain.passed ? `<p><strong>You said:</strong> ${hdEsc(explain.text)}</p>` : `<textarea id="hd-explain-input" class="ipt" rows="4" maxlength="2000" oninput="hdKeepDraft('${ticket.id}','explain',this.value)">${hdEsc(value)}</textarea><div><button type="button" class="btn btn-secondary" onclick="hdExplainCheck('${ticket.id}')">Say it</button></div>`}${feedback}</div></div>`;
+}
+function hdEvidenceCards(ticket) {
+  const cards = hdConsole(ticket).evidence; if (!Array.isArray(cards) || !cards.length) return '';
+  const state = hdConsoleState(ticket);
+  return cards.map(card => {
+    const open = state.evidenceShown === card.id;
+    const rows = open ? `<dl class="hd-dl">${(card.rows || []).map(row => `<dt>${hdEsc(row.label)}</dt><dd>${hdEsc(row.value)}</dd>`).join('')}</dl>` : '';
+    return `<div class="card hd-evidence-card" data-hd-evidence="${hdEsc(card.id)}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(card.title)}</strong><span class="muted">Read-only</span><button type="button" class="btn btn-ghost btn-sm" aria-expanded="${open}" onclick="hdEvidenceOpen('${ticket.id}','${hdEsc(card.id)}')">${open ? 'Close' : 'Open'}</button></div>${open ? `<div class="card-body">${rows}</div>` : ''}</div>`;
+  }).join('');
+}
+function hdHandoffCard(ticket) {
+  const missing = hdHandoffMissing(ticket); if (!missing) return '';
+  const config = hdConsole(ticket).handoff;
+  const parts = Array.isArray(config.parts) && config.parts.length ? config.parts.filter(key => HD_NOTE_PARTS[key]) : HD_HANDOFF_PARTS;
+  return `<div class="card hd-handoff" data-hd-handoff="${missing.length ? 'missing' : 'ok'}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Handoff note</strong><span class="muted">${hdEsc(ticket.assignmentGroup)} reads your latest work note.</span></div><div class="card-body"><ul class="hd-list">${parts.map(key => `<li>${missing.includes(HD_NOTE_PARTS[key]) ? '○' : '✓'} ${hdEsc(HD_NOTE_PARTS[key])}</li>`).join('')}</ul></div></div>`;
+}
+function hdTeamMessagesCard(ticket) {
+  const list = hdConsole(ticket).teamMessages; if (!Array.isArray(list) || !list.length) return '';
+  const sent = hdConsoleState(ticket).teamMessages || [];
+  const log = sent.map(entry => { const message = list.find(item => item.id === entry.id); return message ? `<div data-hd-team="${hdEsc(message.id)}"><strong>You to ${hdEsc(message.to)} · ${hdEsc(entry.time)}</strong><p>${hdEsc(message.text)}</p><strong>${hdEsc(message.from || message.to)}</strong><p>${hdEsc(message.reply)}</p></div>` : ''; }).join('');
+  const open = list.filter(message => !sent.some(entry => entry.id === message.id));
+  return `<div class="card hd-team-messages"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Message another team</strong><span class="muted">Internal: the caller doesn't see this.</span></div><div class="card-body"><div class="hd-note-list">${log || '<p class="muted">No internal messages yet.</p>'}</div>${open.length ? `<div style="display:grid;gap:8px">${open.map(message => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} onclick="hdTeamMessage('${ticket.id}','${hdEsc(message.id)}')">To ${hdEsc(message.to)}: ${hdEsc(message.text)}</button>`).join('')}</div>` : ''}</div></div>`;
+}
+function hdWarmHandoffControl(ticket) {
+  if (!hdConsole(ticket).warmHandoff || !hdCommsOpen(ticket)) return '';
+  const calls = hdConsoleState(ticket).warmHandoffs || [];
+  const away = (ticket.assignmentGroup || HD_SERVICE_DESK) !== HD_SERVICE_DESK;
+  return `<div data-hd-warm="${calls.length}"><button type="button" class="btn btn-secondary" ${away ? '' : 'disabled aria-describedby="hd-warm-why" style="opacity:.55;cursor:not-allowed"'} onclick="hdWarmHandoff('${ticket.id}')">Warm handoff: call ${hdEsc(away ? ticket.assignmentGroup : 'the team')}</button>${away ? '' : '<small id="hd-warm-why" class="muted"> Assign it to the other team first.</small>'}${calls.length ? `<small class="muted"> Called ${hdEsc(hdShiftTimeText(calls[calls.length - 1].at))}</small>` : ''}</div>`;
+}
+function hdFollowUpControl(ticket) {
+  const config = hdConsole(ticket).followUp; if (!config) return '';
+  const state = hdConsoleState(ticket);
+  const open = hdCommsOpen(ticket);
+  // With nothing set, the picker opens on the ticket's shift time (never the
+  // computer's date), so only the time needs changing.
+  const value = hdDraft(ticket, 'followUp') || hdFollowUpValue(state.followUp || hdShiftIso(ticket));
+  const set = open ? `<label>Follow-up (date and time on the shift clock)<input id="hd-follow-up-input" class="ipt" type="datetime-local" value="${hdEsc(value)}" oninput="hdKeepDraft('${ticket.id}','followUp',this.value)"></label><button type="button" class="btn btn-secondary" onclick="hdFollowUpSet('${ticket.id}')">Set follow-up</button>` : '';
+  const shown = state.followUp ? `<p class="muted" style="margin:0">Follow-up: ${hdEsc(hdShiftTimeText(state.followUp))} · now ${hdEsc(hdShiftTimeText(hdShiftNow(ticket)))}</p>` : '';
+  const jump = hdFollowUpCanJump(ticket) ? `<button type="button" class="btn btn-secondary" onclick="hdFollowUpGo('${ticket.id}')">Go to follow-up time</button>` : '';
+  return `<div data-hd-follow-up="${state.followUp ? 'set' : 'none'}" style="display:grid;gap:6px">${set}${shown}${jump}</div>`;
+}
+function hdDuplicateControl(ticket) {
+  const config = hdConsole(ticket).duplicateMove; if (!config) return '';
+  const tried = hdConsoleState(ticket).duplicateTried === true;
+  return `<div data-hd-duplicate="${tried ? 'tried' : 'no'}"><button type="button" class="btn btn-secondary" onclick="hdDuplicateMove('${ticket.id}')">${hdEsc(config.text || 'Create new incident')}</button>${tried && config.feedback ? `<div class="callout bad" role="alert" style="margin-top:6px">${hdEsc(config.feedback)}</div>` : ''}</div>`;
+}
+function hdCommsCards(ticket) {
+  return `${hdCallCard(ticket)}${hdIntakeCard(ticket)}${hdHoldCard(ticket)}${hdEvidenceCards(ticket)}${hdExplainCard(ticket)}${hdHandoffCard(ticket)}${hdTeamMessagesCard(ticket)}`;
+}
+// The tick (every second): a caller message that arrived, or a hold that ran
+// past its time, asks for a redraw. The first look only notes what is shown.
+const hdCommsSeen = {};
+function hdCommsTick(now = hdNowMs()) {
+  if (HD_PROVE || !hdState || !Array.isArray(hdState.tickets)) return false;
+  let changed = false;
+  hdState.tickets.forEach(ticket => {
+    const config = hdConsole(ticket);
+    if (config.hold && hdHoldCheckOver(ticket, now)) changed = true;
+    // Only the open ticket's call, once it has started, asks for a redraw.
+    if (!config.conversation || ticket.id !== hdState.selectedTicketId) return;
+    const call = hdCall(ticket, now, false);
+    if (!call || typeof call.startedAt !== 'number') return;
+    const key = `${call.stage}:${hdCallArrived(ticket, now)}`;
+    if (hdCommsSeen[ticket.id] !== undefined && hdCommsSeen[ticket.id] !== key) changed = true;
+    hdCommsSeen[ticket.id] = key;
+  });
+  return changed;
+}
+function hdHoldTimerRefresh(now = hdNowMs()) {
+  const element = typeof document !== 'undefined' && document.getElementById ? document.getElementById('hd-hold-timer') : null;
+  const ticket = element && hdState ? hdCurrentTicket() : null;
+  if (element && ticket && hdHold(ticket)) element.textContent = hdHoldTimerText(ticket, now);
 }
 
 function hdDirectoryTable(users) {
@@ -2626,7 +3274,7 @@ VIEWS['helpdesk/active-directory'] = () => {
 
 function hdSelectComputer(name, route) { hdState.selectedComputer=name; hdProveOpened(`computer:${name}`, `Endpoint · ${name}`); hdSave(); if(route) navigate(route); else render(); }
 function hdEndpointCards() { return hdComputers().map(base=>{const c=hdComputerByName(base.name);return `<button class="hd-device-card ${hdState.selectedComputer===c.name?'active':''}" onclick="hdSelectComputer('${c.name}')"><strong>${hdEsc(c.name)}</strong><span>${hdEsc(c.user)}</span><small>${hdEsc(c.health)} · ${hdEsc(c.lastSeen)}</small></button>`}).join(''); }
-VIEWS['helpdesk/windows'] = () => { const c=hdComputerByName(hdState.selectedComputer)||hdComputerByName('NS-LT-0042'); return `${hdPageHeader('Windows Desktop', 'Inspect a managed Windows 11 endpoint before choosing a repair.')}<div class="hd-endpoint-layout"><aside class="card"><div class="card-header"><strong>Endpoints</strong></div><div class="hd-device-list">${hdEndpointCards()}</div></aside><div class="hd-windows-screen"><div class="hd-window-bar"><span>${hdEsc(c.name)} · Remote session</span><span>— □ ×</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows 11 Enterprise</strong><span>${hdEsc(c.os)}</span></div><div class="hd-field-grid"><div><span>Signed-in user</span><strong>${hdEsc(c.user)}</strong></div><div><span>IPv4</span><strong>${hdEsc(c.ip)}</strong></div><div><span>Domain trust</span><strong>${hdEsc(c.trust)}</strong></div><div><span>BitLocker</span><strong>${hdEsc(c.bitlocker)}</strong></div><div><span>OU</span><strong>${hdEsc(c.ou)}</strong></div><div><span>Health</span><strong>${hdEsc(c.health)}</strong></div>${c.uptimeDays ? `<div><span>Uptime</span><strong>${hdEsc(c.uptimeDays)} days</strong></div>` : ''}</div><div class="hd-tool-grid"><button onclick="navigate('#/helpdesk/event-viewer')">📋 Event Viewer</button><button onclick="navigate('#/helpdesk/powershell')">&gt;_ PowerShell</button><button onclick="navigate('#/helpdesk/active-directory')">🗂 Directory</button><button onclick="navigate('#/helpdesk/remote-support')">🖥 Remote Support</button>${hdSettingsPrinterPaths(c.name).length ? `<button onclick="navigate('#/helpdesk/settings-printers')">⚙ Settings › Printers &amp; scanners</button>` : ''}</div></div></div></div>`; };
+VIEWS['helpdesk/windows'] = () => { const c=hdComputerByName(hdState.selectedComputer)||hdComputerByName('NS-LT-0042'); return `${hdPageHeader('Windows Desktop', 'Inspect a managed Windows 11 endpoint before choosing a repair.')}<div class="hd-endpoint-layout"><aside class="card"><div class="card-header"><strong>Endpoints</strong></div><div class="hd-device-list">${hdEndpointCards()}</div></aside><div class="hd-windows-screen"><div class="hd-window-bar"><span>${hdEsc(c.name)} · Remote session</span><span>— □ ×</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows 11 Enterprise</strong><span>${hdEsc(c.os)}</span></div><div class="hd-field-grid"><div><span>Signed-in user</span><strong>${hdEsc(c.user)}</strong></div><div><span>IPv4</span><strong>${hdEsc(c.ip)}</strong></div><div><span>Domain trust</span><strong>${hdEsc(c.trust)}</strong></div><div><span>BitLocker</span><strong>${hdEsc(c.bitlocker)}</strong></div><div><span>OU</span><strong>${hdEsc(c.ou)}</strong></div><div><span>Health</span><strong>${hdEsc(c.health)}</strong></div>${c.uptimeDays ? `<div><span>Uptime</span><strong>${hdEsc(c.uptimeDays)} days</strong></div>` : ''}</div><div class="hd-tool-grid"><button onclick="navigate('#/helpdesk/event-viewer')">📋 Event Viewer</button><button onclick="navigate('#/helpdesk/powershell')">&gt;_ PowerShell</button><button onclick="navigate('#/helpdesk/active-directory')">🗂 Directory</button><button onclick="navigate('#/helpdesk/remote-support')">🖥 Remote Support</button>${hdSettingsPrinterPaths(c.name).length || hdPrintQueues(hdFeatureMachine(c.name)) || (hdProveAllTools() && hdFeatureMachine(c.name)) ? `<button onclick="navigate('#/helpdesk/settings-printers')">⚙ Settings › Printers &amp; scanners</button>` : ''}${hdFeatureToolButtons(c.name)}</div></div></div></div>`; };
 
 /* ---------- Settings › Printers & scanners ----------
  * The approved way for a standard user to add a published printer: Add
@@ -2657,7 +3305,7 @@ function hdSettingsPracticeAction(computerName, printer) {
   const ticket = hdSettingsPracticeTicket(computerName); if (!ticket) return;
   const config = hdConsole(ticket).settingsPrinters;
   const state = hdConsoleState(ticket);
-  if (config.action && !state.actions.some(entry => entry.id === config.action)) state.actions.push({ id:config.action, time:hdConsoleTime() });
+  if (config.action && !state.actions.some(entry => entry.id === config.action)) state.actions.push({ id:config.action, time:hdConsoleTime(ticket) });
   hdHistory(ticket, `On ${computerName}: added ${printer.name} from Settings › Printers & scanners › Add device.`);
   hdPracticeEvent('action_taken', { ticket:ticket.id, action:config.action || 'settings-add-printer', computer:computerName, printer:printer.name });
 }
@@ -2699,7 +3347,7 @@ VIEWS['helpdesk/settings-printers'] = () => {
     <div class="hd-settings-view">
     <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Add a printer or scanner</strong><button type="button" class="btn btn-primary btn-sm" ${locked ? 'disabled' : ''} onclick="hdSettingsScan()">Add device</button></div><div class="card-body">${scan || '<p class="muted">Press Add device to look for printers you can add.</p>'}</div></div>
     <div class="card"><div class="card-header"><strong>Printers &amp; scanners on ${hdEsc(c.name)}</strong></div><div class="card-body"><ul class="hd-list" data-hd-settings-installed>${installed.map(name => `<li>${hdEsc(name)}</li>`).join('')}</ul></div></div>
-    </div>`;
+    ${hdSettingsQueueCards(c)}</div>`;
 };
 window.hdSettingsScan=hdSettingsScan; window.hdSettingsAddPrinter=hdSettingsAddPrinter;
 
@@ -2774,6 +3422,9 @@ function hdParam(command, name) {
 function hdPrinterTable(machine) {
   const rows = (machine ? machine.printers : ['Microsoft Print to PDF']).map(name => {
     const shared = hdPublishedPrinter(name);
+    // A printer with machine state (printQueues) shows its own driver.
+    const local = hdPrintQueues(machine) && hdPrintQueues(machine)[name];
+    if (local) return `${name.padEnd(30)} ${''.padEnd(12)} Local      ${local.driver || ''}`;
     return shared ? `${shared.path.padEnd(30)} ${shared.server.padEnd(12)} Connection ${shared.driver}` : `${name.padEnd(30)} ${''.padEnd(12)} Local      Microsoft Print To PDF`;
   });
   return ['Name                           ComputerName Type       DriverName', ...rows].join('\n');
@@ -2826,6 +3477,1205 @@ function hdMachineCommand(command, normalized, computer) {
   }
   return null;
 }
+
+/* ---------- Machine-state console features (added for Module 4, key its-02) ----------
+ * Off unless a computer's machine state has these keys. In Practice a ticket
+ * gives them with console.machines: { '<computer>': {...} } (seeded when the
+ * shift or set is built, hdSeedTicketMachines); a Prove shift gives them in
+ * its own `machines`. A machine no ticket in this shift names keeps today's
+ * behavior, even if its keys were left over from another set.
+ *   computer: { ip, health }          shown for this computer in this shift
+ *   spooler: 'Running' | 'Stopped'    Get-Service / Stop-Service / Start-Service Spooler
+ *   printQueues: { '<printer>': { port, driver, drivers:[], outsideDriver?,
+ *       media, mediaSizes:[], offline, paused,
+ *       jobs:[{ id, document, pages, owner, status, stuck? }], printed:[] } }
+ *     status 'Error' blocks the jobs behind it; a stuck job stays 'Deleting'
+ *     when cancelled and is cleared only while the spooler is stopped;
+ *     Start-Service re-sends every job still queued.
+ *   ports: [{ name, type:'Standard TCP/IP' | 'WSD', address?, works? }]
+ *   driverCatalog: [driver names]     Add a printer by IP, Printer properties
+ *   reachable: { '<address>': [open TCP ports] }   ping, Test-NetConnection
+ *   devices: [{ id, category, name, status:'OK' | <code>, problem?,
+ *       driver:{ provider, date, version }, previous?, update?, camera? }]
+ *   dock: { name, power, docked, ethernet?, peripherals:[], monitors:[{ id,
+ *       name, cable, input, inputs:[], needsDetect? }] }, projection, detected
+ * A ticket's console.vdi: { pools:[{ name, sessions:[{ id, user, state,
+ * hours }] }], tier2Line? } turns on the Virtual Desktops screen.
+ * Each change is an action_taken event (Practice log and Prove record) and,
+ * in Practice, an entry in the ticket's consoleState.actions and history. */
+const HD_MACHINE_SCREENS = ['print-queue', 'printer-properties', 'device-manager', 'camera', 'dock', 'settings-network'];
+function hdOwn(object, key) { return !!object && typeof object === 'object' && Object.prototype.hasOwnProperty.call(object, key); }
+function hdTicketMachineSpecs(ticket) {
+  if (HD_PROVE || !ticket) return null;
+  const template = HD_TICKET_TEMPLATES.find(item => item.id === ticket.id);
+  const machines = template && template.console && template.console.machines;
+  return machines && typeof machines === 'object' && !Array.isArray(machines) ? machines : null;
+}
+// The Practice ticket in this shift that names this computer, or null.
+function hdMachineTicket(name) {
+  if (HD_PROVE || !hdState || !Array.isArray(hdState.tickets)) return null;
+  const naming = hdState.tickets.filter(ticket => hdOwn(hdTicketMachineSpecs(ticket), name));
+  // Two tickets naming one computer: the one whose state was seeded owns it.
+  const seededBy = (hdMachine(name) || {}).seededBy;
+  return naming.find(ticket => ticket.id === seededBy) || naming[0] || null;
+}
+// The machine state the new features read, or null (features off).
+function hdFeatureMachine(name) {
+  const machine = hdMachine(name);
+  if (!machine || typeof machine !== 'object') return null;
+  if (HD_PROVE) return hdOwn(HD_PROVE.shift.machines, name) ? machine : null;
+  return hdMachineTicket(name) ? machine : null;
+}
+function hdPrintQueues(machine) { return machine && machine.printQueues && typeof machine.printQueues === 'object' ? machine.printQueues : null; }
+function hdQueueName(machine, typed) {
+  const queues = hdPrintQueues(machine); if (!queues) return '';
+  const wanted = String(typed || '').replace(/^["']|["']$/g, '').toLowerCase();
+  return Object.keys(queues).find(name => name.toLowerCase() === wanted) || '';
+}
+// Seeds each ticket's console.machines (and console.vdi) into a Practice
+// shift, merged over the Practice fixture of the same name. Only the tickets
+// in state.tickets count; a later ticket naming the same computer wins.
+function hdSeedTicketMachines(state) {
+  if (HD_PROVE || !state || !Array.isArray(state.tickets)) return state;
+  state.machines = state.machines || {};
+  state.tickets.forEach(ticket => {
+    const specs = hdTicketMachineSpecs(ticket);
+    if (specs) Object.keys(specs).forEach(name => {
+      const spec = hdClone(specs[name]) || {};
+      const base = state.machines[name] || {};
+      const queues = spec.printQueues && typeof spec.printQueues === 'object' ? spec.printQueues : null;
+      if (queues) Object.values(queues).forEach(queue => {
+        queue.jobs = Array.isArray(queue.jobs) ? queue.jobs : [];
+        queue.printed = Array.isArray(queue.printed) ? queue.printed : [];
+      });
+      const printers = [...(Array.isArray(base.printers) ? base.printers : []), ...(Array.isArray(spec.printers) ? spec.printers : [])];
+      Object.keys(queues || {}).forEach(printer => printers.push(printer));
+      state.machines[name] = {
+        localAdministrators:[], pendingPolicyPrinters:[], ...base, ...spec,
+        printers:[...new Set(printers)], seededBy:ticket.id,
+      };
+    });
+    const template = HD_TICKET_TEMPLATES.find(item => item.id === ticket.id);
+    const vdi = template && template.console && template.console.vdi;
+    if (vdi && Array.isArray(vdi.pools)) {
+      state.vdi = state.vdi || {};
+      vdi.pools.forEach(pool => { if (pool && pool.name) state.vdi[pool.name] = { ticketId:ticket.id, sessions:hdClone(pool.sessions || []) }; });
+    }
+  });
+  return state;
+}
+// A ticket-shown address and health for this computer (machine.computer).
+function hdMachineComputerOverride(name) {
+  const machine = hdFeatureMachine(name);
+  return machine && machine.computer && typeof machine.computer === 'object' ? machine.computer : {};
+}
+function hdJsArg(value) { return hdEsc(String(value == null ? '' : value).replace(/\\/g, '\\\\').replace(/'/g, "\\'")); }
+
+// Records one change on a computer: Practice log, Prove record and, in
+// Practice, the ticket's actions (coach checks and feedback read them).
+function hdMachineAction(computerName, id, label, extra) {
+  const ticket = hdMachineTicket(computerName);
+  if (ticket) {
+    const state = hdConsoleState(ticket);
+    state.actions.push({ id, time:hdConsoleTime(ticket), computer:computerName, ...(extra || {}) });
+    if (state.actions.length > 200) state.actions.splice(0, state.actions.length - 200);
+    hdHistory(ticket, `On ${computerName}: ${label}.`);
+  }
+  hdPracticeEvent('action_taken', { ticket:ticket ? ticket.id : '', action:id, computer:computerName, label, ...(extra || {}) });
+  hdProveEvent('action_taken', { label, computer:computerName, value:id });
+}
+function hdMachinePort(machine, name) { return (Array.isArray(machine.ports) ? machine.ports : []).find(port => port && port.name === name) || null; }
+function hdOpenPorts(machine, address) {
+  const reachable = machine && machine.reachable && typeof machine.reachable === 'object' ? machine.reachable : {};
+  const key = Object.keys(reachable).find(item => item.toLowerCase() === String(address || '').toLowerCase());
+  return key ? (Array.isArray(reachable[key]) ? reachable[key] : []) : null;
+}
+function hdPortWorks(machine, portName) {
+  const port = hdMachinePort(machine, portName);
+  if (!port) return true;
+  if (typeof port.works === 'boolean') return port.works;
+  if (port.type === 'Standard TCP/IP' && port.address && machine.reachable) { const open = hdOpenPorts(machine, port.address); return !!(open && open.includes(9100)); }
+  return true;
+}
+function hdQueueStatus(machine, name) {
+  const queue = hdPrintQueues(machine)[name];
+  if (machine.spooler === 'Stopped') return 'Spooler stopped';
+  if (queue.offline || !hdPortWorks(machine, queue.port)) return 'Offline';
+  if (queue.paused) return 'Paused';
+  if (queue.jobs[0] && ['Error', 'Deleting'].includes(queue.jobs[0].status)) return 'Error';
+  return queue.jobs.length ? 'Printing' : 'Ready';
+}
+// Prints what can print: in order, until a job in Error or Deleting.
+function hdQueueFlow(machine, name) {
+  const queue = hdPrintQueues(machine)[name];
+  if (machine.spooler === 'Stopped' || queue.offline || queue.paused || !hdPortWorks(machine, queue.port)) return 0;
+  let printed = 0;
+  while (queue.jobs.length) {
+    const job = queue.jobs[0];
+    if (['Error', 'Deleting'].includes(job.status)) break;
+    if (job.stuck) { job.status = 'Error'; break; }
+    queue.jobs.shift();
+    queue.printed.push({ document:job.document, pages:job.pages || 1, owner:job.owner || '' });
+    printed += 1;
+  }
+  if (queue.printed.length > 60) queue.printed.splice(0, queue.printed.length - 60);
+  return printed;
+}
+function hdMachineSettle(machine) {
+  const queues = hdPrintQueues(machine); if (!queues) return 0;
+  return Object.keys(queues).reduce((sum, name) => sum + hdQueueFlow(machine, name), 0);
+}
+function hdQueuedJobs(machine) { const queues = hdPrintQueues(machine) || {}; return Object.values(queues).reduce((sum, queue) => sum + queue.jobs.length, 0); }
+
+// ping and Test-NetConnection answer from machine.reachable.
+function hdPingText(target, open) {
+  if (open === null && !/^\d{1,3}(\.\d{1,3}){3}$/.test(target)) return `Ping request could not find host ${target}. Please check the name and try again.`;
+  const ok = open !== null;
+  const lines = [`Pinging ${target} with 32 bytes of data:`];
+  for (let i = 0; i < 4; i += 1) lines.push(ok ? `Reply from ${target}: bytes=32 time<1ms TTL=128` : 'Request timed out.');
+  lines.push('', `Ping statistics for ${target}:`, `    Packets: Sent = 4, Received = ${ok ? 4 : 0}, Lost = ${ok ? 0 : 4} (${ok ? 0 : 100}% loss),`);
+  if (ok) lines.push('Approximate round trip times in milli-seconds:', '    Minimum = 0ms, Maximum = 1ms, Average = 0ms');
+  return lines.join('\n');
+}
+// interfaceAlias: the machine's own (default Ethernet; a laptop off its dock
+// is on Wi-Fi).
+function hdTestNetText(target, port, open, source, alias) {
+  const rows = [['ComputerName', target], ['RemoteAddress', target]];
+  if (port) rows.push(['RemotePort', port]);
+  rows.push(['InterfaceAlias', alias || 'Ethernet'], ['SourceAddress', source || '']);
+  const tcp = !!(open !== null && open.includes(Number(port)));
+  if (port) rows.push(['TcpTestSucceeded', tcp ? 'True' : 'False']);
+  else rows.push(['PingSucceeded', open !== null ? 'True' : 'False'], ['PingReplyDetails (RTT)', open !== null ? '0 ms' : '0 ms']);
+  const width = Math.max(...rows.map(([key]) => key.length), 16);
+  const text = rows.map(([key, value]) => `${key.padEnd(width)} : ${value}`).join('\n');
+  const warnings = [];
+  if (port && !tcp) warnings.push(`WARNING: TCP connect to (${target} : ${port}) failed`);
+  if (open === null) warnings.push(`WARNING: Ping to ${target} failed with status: TimedOut`);
+  return [...warnings, text].join('\n');
+}
+function hdFormatList(pairs) {
+  const width = Math.max(...pairs.map(([key]) => key.length));
+  return pairs.map(([key, value]) => `${key.padEnd(width)} : ${value}`).join('\n');
+}
+// The six Module 4 commands, on a machine that has the features; null
+// otherwise, so the older answers stay as they were.
+function hdFeatureCommand(command, normalized, computer) {
+  const machine = hdFeatureMachine(computer.name); if (!machine) return null;
+  const queues = hdPrintQueues(machine);
+  const trimmed = command.trim();
+  if (queues && /^get-service (-name )?["']?spooler["']?$/.test(normalized)) {
+    return `Status   Name               DisplayName\n------   ----               -----------\n${(machine.spooler || 'Running').padEnd(8)} Spooler            Print Spooler`;
+  }
+  const service = /^(stop|start)-service (-name )?["']?spooler["']?( -force)?$/.exec(normalized);
+  if (queues && service) {
+    if (service[1] === 'stop') {
+      if (machine.spooler !== 'Stopped') { machine.spooler = 'Stopped'; hdMachineAction(computer.name, 'spooler-stop', 'stopped the Print Spooler'); }
+      return '';
+    }
+    if (machine.spooler === 'Stopped') {
+      machine.spooler = 'Running';
+      // Every job still queued is sent again; a stuck job is stuck again.
+      Object.values(queues).forEach(queue => queue.jobs.forEach(job => { if (job.stuck) job.status = 'Error'; else if (['Error', 'Deleting'].includes(job.status)) job.status = 'Spooling'; }));
+      const queued = hdQueuedJobs(machine);
+      const printed = hdMachineSettle(machine);
+      hdMachineAction(computer.name, 'spooler-start', `started the Print Spooler with ${queued} job${queued === 1 ? '' : 's'} queued`, { queued, printed });
+    }
+    return '';
+  }
+  if (queues && /^get-printjob\b/.test(normalized)) {
+    const typed = hdParam(command, 'printername') || (/^get-printjob\s+("[^"]*"|'[^']*'|[^\s-]\S*)/i.exec(trimmed) || [])[1] || '';
+    if (machine.spooler === 'Stopped') return 'Get-PrintJob : The spooler service is not reachable. Ensure the spooler service is running.';
+    const name = hdQueueName(machine, typed);
+    if (!name) return `Get-PrintJob : The specified printer was not found.${typed ? '' : ' Add -PrinterName <name>.'}`;
+    const jobs = queues[name].jobs;
+    if (!jobs.length) return '';
+    return ['Id    ComputerName   PrinterName      DocumentName                 TotalPages JobStatus', '--    ------------   -----------      ------------                 ---------- ---------',
+      ...jobs.map(job => `${String(job.id).padEnd(5)} ${computer.name.padEnd(14)} ${name.padEnd(16)} ${String(job.document).padEnd(28)} ${String(job.pages || 1).padEnd(10)} ${job.status}`)].join('\n');
+  }
+  const printer = /^get-printer\s+(?:-name\s+)?("[^"]*"|'[^']*'|[^\s|]+)\s*(?:\|\s*(\S+)\s*(.*))?$/i.exec(trimmed);
+  if (queues && printer) {
+    if (machine.spooler === 'Stopped') return 'Get-Printer : The spooler service is not reachable. Ensure the spooler service is running.';
+    const name = hdQueueName(machine, printer[1]);
+    if (!name) return `Get-Printer : No printer found with name '${printer[1].replace(/^["']|["']$/g, '')}'.`;
+    const queue = queues[name];
+    const all = [['Name', name], ['ComputerName', computer.name], ['Type', 'Local'], ['DriverName', queue.driver || ''], ['PortName', queue.port || ''], ['PrinterStatus', ({ Ready:'Normal' })[hdQueueStatus(machine, name)] || hdQueueStatus(machine, name)]];
+    if (printer[2] && /^(format-list|fl)$/i.test(printer[2])) {
+      const wanted = printer[3].split(/[\s,]+/).filter(Boolean).map(item => item.toLowerCase());
+      const shown = wanted.length && !wanted.includes('*') ? wanted.map(item => all.find(([key]) => key.toLowerCase() === item)).filter(Boolean) : all;
+      return hdFormatList(shown.length ? shown : all);
+    }
+    return `Name                           ComputerName Type       DriverName\n${name.padEnd(30)} ${computer.name.padEnd(12)} Local      ${queue.driver || ''}`;
+  }
+  if (machine.reachable) {
+    const ping = /^ping(?:\s+-[nt](?:\s+\d+)?)?\s+([^\s-]\S*)$/i.exec(trimmed);
+    if (ping) return hdPingText(ping[1], hdOpenPorts(machine, ping[1]));
+    if (/^test-netconnection\b/.test(normalized)) {
+      const target = hdParam(command, 'computername') || (/^test-netconnection\s+("[^"]*"|'[^']*'|[^\s-]\S*)/i.exec(trimmed) || [])[1] || '';
+      if (!target) return 'Test-NetConnection : Add the address to test, for example Test-NetConnection <address> -Port <port>.';
+      const port = hdParam(command, 'port');
+      if (port && !/^\d{1,5}$/.test(port)) return `Test-NetConnection : Cannot validate argument on parameter 'Port'.`;
+      return hdTestNetText(target.replace(/^["']|["']$/g, ''), port, hdOpenPorts(machine, target.replace(/^["']|["']$/g, '')), hdComputerByName(computer.name).ip,
+        machine.interfaceAlias || (machine.dock && !hdDockLive(machine) ? 'Wi-Fi' : 'Ethernet'));
+    }
+  }
+  return null;
+}
+// Get-Help's extra lines on a machine with the features.
+// Never in a Prove It: on only the computers a case is about, the list would
+// point at the case. The commands still run there.
+function hdFeatureHelp(computer) {
+  const machine = !HD_PROVE && computer && hdFeatureMachine(computer.name); if (!machine) return '';
+  const lines = [];
+  if (hdPrintQueues(machine)) lines.push('Printing: Get-Service Spooler, Stop-Service Spooler, Start-Service Spooler, Get-PrintJob -PrinterName <name>, Get-Printer -Name <name> | Format-List Name, PortName, DriverName');
+  if (machine.reachable) lines.push('Network: ping <address>, Test-NetConnection <address> -Port <port>');
+  return lines.length ? `\n${lines.join('\n')}` : '';
+}
+
+/* The screens. Each opens from the Windows Desktop tool grid (or the
+ * ticket's computer card) on the selected computer; opened directly on a
+ * computer without the feature, it says so. */
+function hdMachineView() { return hdState.machineView && typeof hdState.machineView === 'object' ? hdState.machineView : {}; }
+function hdOpenMachineScreen(computerName, screen, extra) {
+  if (!HD_MACHINE_SCREENS.includes(screen) || !hdFeatureMachine(computerName)) return;
+  hdState.selectedComputer = computerName;
+  hdState.machineView = { computer:computerName, ...(extra || {}) };
+  const item = extra && (extra.printer || extra.device) ? `:${extra.printer || extra.device}` : '';
+  hdProveOpened(`${screen}:${computerName}${item}`, `${({ 'print-queue':'Print queue', 'printer-properties':'Printer properties', 'device-manager':'Device Manager', camera:'Camera', dock:'Dock and displays', 'settings-network':'Settings › Network & internet' })[screen]} · ${computerName}${item ? ` · ${item.slice(1)}` : ''}`);
+  if (screen === 'camera') {
+    const machine = hdFeatureMachine(computerName);
+    const camera = (machine.devices || []).find(device => device && device.camera);
+    if (camera && !hdProveLocked()) hdMachineAction(computerName, 'camera-checked', `opened the Camera app (${camera.status === 'OK' ? 'video shown' : 'no video'})`, { working:camera.status === 'OK' });
+  }
+  hdSave();
+  navigate(`#/helpdesk/${screen}`);
+}
+function hdMachineBack(computer) {
+  const ticket = hdMachineTicket(computer.name);
+  return `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/windows')">← ${hdEsc(computer.name)}</button>${ticket ? `<button class="btn btn-secondary" onclick="hdSelectTicket('${hdJsArg(ticket.id)}')">← ${hdEsc(hdTicketLabel(ticket))}</button>` : ''}`;
+}
+// A Prove shift with machineTools: true shows every tool on every one of
+// its computers, so which buttons appear never points at the case.
+function hdProveAllTools() { return !!(HD_PROVE && HD_PROVE.shift.machineTools === true); }
+function hdMachineMissing(title) {
+  if (hdProveAllTools()) return `${hdPageHeader(title, 'Nothing to show on this computer.', `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/windows')">← Windows Desktop</button>`)}`;
+  return `${hdPageHeader(title, 'Not available on this computer in this shift.', `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/windows')">← Windows Desktop</button>`)}<div class="card"><div class="card-body"><p class="muted">Open a computer from a ticket to use this screen.</p></div></div>`;
+}
+// The view's computer and its machine, or null.
+function hdViewMachine() {
+  const computer = hdComputerByName(hdMachineView().computer || hdState.selectedComputer);
+  const machine = computer && hdFeatureMachine(computer.name);
+  return machine ? { computer, machine } : null;
+}
+// The tool grid's extra buttons for a computer with the features.
+function hdFeatureToolButtons(name) {
+  const machine = hdFeatureMachine(name); if (!machine) return '';
+  const open = (screen, label) => `<button data-hd-tools="${screen}" onclick="hdOpenMachineScreen('${hdJsArg(name)}','${screen}')">${label}</button>`;
+  const all = hdProveAllTools();
+  const devices = all || (Array.isArray(machine.devices) && machine.devices.length);
+  return [
+    devices ? open('device-manager', '🧩 Device Manager') : '',
+    all || (devices && machine.devices.some(device => device && device.camera)) ? open('camera', '📷 Camera') : '',
+    all || machine.dock ? open('dock', '🖥 Dock &amp; displays') : '',
+    all || machine.dock ? open('settings-network', '⚙ Settings › Network &amp; internet') : '',
+  ].join('');
+}
+// A shared printer's machine action: guard, change, settle, record, redraw.
+function hdMachineChange(computerName, change) {
+  if (hdProveLocked()) return;
+  const machine = hdFeatureMachine(computerName); if (!machine) return;
+  const result = change(machine);
+  if (result === false) { hdSave(); render(); return; }
+  const printed = hdMachineSettle(machine);
+  // Practice only: a Prove It shows the result on the screen, never in a toast.
+  if (printed && !HD_PROVE && typeof toast === 'function') toast(`${printed} job${printed === 1 ? '' : 's'} printed.`);
+  hdProveEdited();
+  hdRerender();
+}
+
+// Print queue window.
+function hdQueueToggle(computerName, printer, flag) {
+  hdMachineChange(computerName, machine => {
+    const queue = hdPrintQueues(machine)[printer]; if (!queue || !['offline', 'paused'].includes(flag)) return false;
+    queue[flag] = !queue[flag];
+    const label = flag === 'offline' ? `${queue.offline ? 'ticked' : 'unticked'} Use Printer Offline on ${printer}` : `${queue.paused ? 'ticked' : 'unticked'} Pause Printing on ${printer}`;
+    hdMachineAction(computerName, flag === 'offline' ? (queue.offline ? 'printer-offline-on' : 'printer-offline-off') : (queue.paused ? 'printer-pause' : 'printer-resume'), label, { printer });
+  });
+}
+function hdQueueCancel(computerName, printer, jobId) {
+  hdMachineChange(computerName, machine => {
+    const queue = hdPrintQueues(machine)[printer]; if (!queue || machine.spooler === 'Stopped') return false;
+    const index = queue.jobs.findIndex(job => String(job.id) === String(jobId)); if (index < 0) return false;
+    const job = queue.jobs[index];
+    if (job.stuck) {
+      job.status = 'Deleting';
+      hdMachineAction(computerName, 'job-cancel', `cancelled ${job.document} on ${printer}; it stays Deleting`, { printer, document:job.document, stuck:true });
+    } else {
+      queue.jobs.splice(index, 1);
+      hdMachineAction(computerName, 'job-cancel', `cancelled ${job.document} on ${printer}`, { printer, document:job.document });
+    }
+  });
+}
+function hdQueueClearStuck(computerName, printer) {
+  hdMachineChange(computerName, machine => {
+    const queue = hdPrintQueues(machine)[printer]; if (!queue) return false;
+    if (machine.spooler !== 'Stopped') { toast('Clear stuck job works only while the Print Spooler is stopped.'); return false; }
+    const before = queue.jobs.length;
+    queue.jobs = queue.jobs.filter(job => job.status !== 'Deleting');
+    if (queue.jobs.length === before) return false;
+    hdMachineAction(computerName, 'job-clear-stuck', `cleared the stuck job from ${printer}`, { printer });
+  });
+}
+function hdQueueTestPage(computerName, printer) {
+  hdMachineChange(computerName, machine => {
+    const queue = hdPrintQueues(machine)[printer]; if (!queue) return false;
+    const next = 1 + queue.jobs.concat(queue.printed).reduce((max, job) => Math.max(max, Number(job.id) || 0), 0);
+    if (machine.spooler === 'Stopped') return false;
+    const computer = hdComputerByName(computerName);
+    queue.jobs.push({ id:next, document:'Test Page', pages:1, owner:computer ? computer.user : '', status:'Spooling' });
+    hdMachineAction(computerName, 'test-page', `printed a test page to ${printer}`, { printer });
+  });
+}
+VIEWS['helpdesk/print-queue'] = () => {
+  const found = hdViewMachine(); const name = found && hdPrintQueues(found.machine) ? hdQueueName(found.machine, hdMachineView().printer) : '';
+  if (!name) return hdMachineMissing('Print queue');
+  const { computer, machine } = found; const queue = machine.printQueues[name];
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const status = hdQueueStatus(machine, name);
+  const args = `'${hdJsArg(computer.name)}','${hdJsArg(name)}'`;
+  const check = (on, text, flag) => `<button type="button" class="btn btn-secondary btn-sm" role="menuitemcheckbox" aria-checked="${on}" ${locked} onclick="hdQueueToggle(${args},'${flag}')">${on ? '☑' : '☐'} ${text}</button>`;
+  const stuck = queue.jobs.some(job => job.status === 'Deleting');
+  // With the spooler stopped the queue can't be changed, as in Windows.
+  const stopped = machine.spooler === 'Stopped' ? 'disabled' : '';
+  const rows = queue.jobs.map(job => `<tr data-hd-job="${hdEsc(job.id)}"><td>${hdEsc(job.document)}</td><td>${hdBadge(job.status, job.status === 'Error' || job.status === 'Deleting' ? 'bad' : 'warn')}</td><td>${hdEsc(job.owner || '')}</td><td>${hdEsc(job.pages || 1)}</td><td><button type="button" class="btn btn-ghost btn-sm" ${locked || stopped || (job.status === 'Deleting' ? 'disabled' : '')} onclick="hdQueueCancel(${args},'${hdJsArg(job.id)}')">Cancel</button></td></tr>`).join('');
+  const printed = queue.printed.length ? `<ul class="hd-list">${queue.printed.slice(-8).map(job => `<li>${hdEsc(job.document)}</li>`).join('')}</ul>` : '<p class="muted">Nothing printed yet.</p>';
+  return `${hdPageHeader(`${name} · Print queue`, `${computer.name} · ${status}`, hdMachineBack(computer))}
+    <div data-hd-queue="${hdEsc(name)}" class="hd-settings-view">
+    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Printer</strong><span class="muted">Status: ${hdEsc(status)}</span></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:8px" role="menu" aria-label="Printer menu">${check(queue.offline === true, 'Use Printer Offline', 'offline')}${check(queue.paused === true, 'Pause Printing', 'paused')}<button type="button" class="btn btn-secondary btn-sm" ${locked || stopped} onclick="hdQueueTestPage(${args})">Print test page</button><button type="button" class="btn btn-secondary btn-sm" onclick="hdOpenMachineScreen('${hdJsArg(computer.name)}','printer-properties',{printer:'${hdJsArg(name)}',tab:'ports'})">Printer properties</button></div></div></div>
+    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Documents</strong><span class="muted">${queue.jobs.length} in the queue · Print Spooler ${hdEsc(machine.spooler || 'Running')}</span></div><div class="table-wrap"><table><thead><tr><th>Document</th><th>Status</th><th>Owner</th><th>Pages</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="muted">No documents waiting.</td></tr>'}</tbody></table></div><div class="card-body"><button type="button" class="btn btn-secondary btn-sm" ${locked || (stuck ? '' : 'disabled')} data-hd-clear-stuck="${stuck ? 'on' : 'off'}" onclick="hdQueueClearStuck(${args})">Clear stuck job</button> <span class="muted">Works only while the Print Spooler is stopped.</span></div></div>
+    <div class="card"><div class="card-header"><strong>Printed from ${hdEsc(computer.name)}</strong></div><div class="card-body">${printed}</div></div>
+    </div>`;
+};
+
+// Printer properties: Ports, Advanced (driver) and Printing preferences.
+function hdPrinterSet(computerName, printer, field, value) {
+  hdMachineChange(computerName, machine => {
+    const queue = hdPrintQueues(machine)[printer]; if (!queue) return false;
+    if (field === 'port') {
+      if (!hdMachinePort(machine, value) && value !== queue.port) return false;
+      if (queue.port === value) return false;
+      queue.port = value;
+      hdMachineAction(computerName, 'printer-port', `set ${printer} to port ${value}`, { printer, port:value });
+    } else if (field === 'driver') {
+      if (!hdPrinterDrivers(machine, queue).includes(value) || queue.driver === value) return false;
+      queue.driver = value;
+      hdMachineAction(computerName, 'printer-driver', `set ${printer} to driver ${value}`, { printer, driver:value });
+    } else if (field === 'outside') {
+      const outside = hdOutsideDriver(queue); if (!outside) return false;
+      queue.driver = outside;
+      hdMachineAction(computerName, 'printer-driver-outside', `installed ${outside} from the manufacturer's website on ${printer}`, { printer, driver:outside });
+    } else if (field === 'media') {
+      if (!(queue.mediaSizes || []).includes(value) || queue.media === value) return false;
+      queue.media = value;
+      hdMachineAction(computerName, 'printer-media', `set ${printer}'s paper size to ${value}`, { printer, media:value });
+    } else return false;
+  });
+}
+function hdPrinterDrivers(machine, queue) {
+  return [...new Set([queue.driver, ...(Array.isArray(queue.drivers) ? queue.drivers : []), ...(Array.isArray(machine.driverCatalog) ? machine.driverCatalog : [])].filter(item => typeof item === 'string' && item))];
+}
+// The "driver from the manufacturer's website" choice shows only where the
+// data offers it; a Prove shift gives every printer one (with machineTools),
+// so the choice never points at the case.
+function hdOutsideDriver(queue) { return typeof queue.outsideDriver === 'string' && queue.outsideDriver ? queue.outsideDriver : ''; }
+function hdPrinterTab(tab) { hdState.machineView = { ...hdMachineView(), tab }; hdSave(); render(); }
+VIEWS['helpdesk/printer-properties'] = () => {
+  const found = hdViewMachine(); const name = found && hdPrintQueues(found.machine) ? hdQueueName(found.machine, hdMachineView().printer) : '';
+  if (!name) return hdMachineMissing('Printer properties');
+  const { computer, machine } = found; const queue = machine.printQueues[name];
+  const tab = ['ports', 'advanced', 'preferences'].includes(hdMachineView().tab) ? hdMachineView().tab : 'ports';
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const args = `'${hdJsArg(computer.name)}','${hdJsArg(name)}'`;
+  const tabs = [['ports', 'Ports'], ['advanced', 'Advanced'], ['preferences', 'Printing preferences']].map(([id, label]) => `<button type="button" class="btn ${id === tab ? 'btn-primary' : 'btn-secondary'} btn-sm" role="tab" aria-selected="${id === tab}" onclick="hdPrinterTab('${id}')">${label}</button>`).join('');
+  const choose = (field, value, current, text) => `<tr><td>${value === current ? '✓ ' : ''}${hdEsc(text || value)}</td><td>${value === current ? '<span class="muted">In use</span>' : `<button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdPrinterSet(${args},'${field}','${hdJsArg(value)}')">Use this</button>`}</td></tr>`;
+  let body = '';
+  if (tab === 'ports') {
+    const ports = Array.isArray(machine.ports) ? machine.ports.slice() : [];
+    if (queue.port && !ports.some(port => port.name === queue.port)) ports.unshift({ name:queue.port, type:'' });
+    body = `<div class="table-wrap"><table><thead><tr><th>Port</th><th>Description</th><th>Address</th><th></th></tr></thead><tbody>${ports.map(port => `<tr data-hd-port="${hdEsc(port.name)}"><td>${port.name === queue.port ? '✓ ' : ''}${hdEsc(port.name)}</td><td>${hdEsc(port.type ? `${port.type} Port` : '')}</td><td>${hdEsc(port.address || '')}</td><td>${port.name === queue.port ? '<span class="muted">In use</span>' : `<button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdPrinterSet(${args},'port','${hdJsArg(port.name)}')">Use this port</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+  } else if (tab === 'advanced') {
+    const outside = hdOutsideDriver(queue);
+    body = `<p>Driver in use: <strong data-hd-driver>${hdEsc(queue.driver || '')}</strong></p><div class="table-wrap"><table><thead><tr><th>Driver</th><th></th></tr></thead><tbody>${hdPrinterDrivers(machine, queue).map(driver => choose('driver', driver, queue.driver)).join('')}</tbody></table></div>${outside && outside !== queue.driver ? `<div style="margin-top:8px"><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-outside-driver onclick="hdPrinterSet(${args},'outside','')">Install a driver from the manufacturer's website</button></div>` : ''}`;
+  } else {
+    body = `<p>Paper size: <strong data-hd-media>${hdEsc(queue.media || '')}</strong></p><div class="table-wrap"><table><thead><tr><th>Paper size</th><th></th></tr></thead><tbody>${(queue.mediaSizes || []).map(size => choose('media', size, queue.media)).join('')}</tbody></table></div>`;
+  }
+  return `${hdPageHeader(`${name} · Printer properties`, computer.name, `${hdMachineBack(computer)}<button class="btn btn-secondary" onclick="hdOpenMachineScreen('${hdJsArg(computer.name)}','print-queue',{printer:'${hdJsArg(name)}'})">Print queue</button>`)}
+    <div class="card" data-hd-props="${tab}"><div class="card-header" ${HD_CONSOLE_HEADER}><div style="display:flex;flex-wrap:wrap;gap:6px" role="tablist">${tabs}</div></div><div class="card-body">${body}</div></div>`;
+};
+
+// Settings › Printers & scanners: add a printer by its address.
+function hdSettingsAddByIp(event, computerName) {
+  if (event && event.preventDefault) event.preventDefault();
+  const value = id => { const el = document.getElementById(id); return String(el ? el.value : '').trim(); };
+  const address = value('hd-add-ip'); const name = value('hd-add-name'); const driver = value('hd-add-driver');
+  if (!/^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/.test(address)) { toast('Type the printer\'s IPv4 address, for example 10.0.0.25.'); return; }
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(name)) { toast('Type a printer name: letters, numbers, dots, dashes or underscores.'); return; }
+  hdMachineChange(computerName, machine => {
+    const queues = hdPrintQueues(machine); if (!queues) return false;
+    if (hdQueueName(machine, name)) { toast(`${name} is already installed.`); return false; }
+    const catalog = Array.isArray(machine.driverCatalog) && machine.driverCatalog.length ? machine.driverCatalog : ['Generic / Text Only'];
+    const chosen = catalog.includes(driver) ? driver : catalog[0];
+    const portName = `IP_${address}`;
+    machine.ports = Array.isArray(machine.ports) ? machine.ports : [];
+    if (!hdMachinePort(machine, portName)) machine.ports.push({ name:portName, type:'Standard TCP/IP', address });
+    queues[name] = { port:portName, driver:chosen, drivers:[chosen], media:'Letter', mediaSizes:['Letter', 'A4'], offline:false, paused:false, jobs:[], printed:[] };
+    if (!machine.printers.includes(name)) machine.printers.push(name);
+    hdMachineAction(computerName, 'printer-added-ip', `added ${name} by address ${address} (Standard TCP/IP)`, { printer:name, address });
+    toast(`${name} added on port ${portName}.`);
+  });
+}
+function hdSettingsQueueCards(computer) {
+  const machine = hdFeatureMachine(computer.name); const queues = hdPrintQueues(machine); if (!queues) return '';
+  const catalog = Array.isArray(machine.driverCatalog) && machine.driverCatalog.length ? machine.driverCatalog : ['Generic / Text Only'];
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const name = `'${hdJsArg(computer.name)}'`;
+  const rows = Object.keys(queues).map(printer => `<li data-hd-settings-queue="${hdEsc(printer)}"><strong>${hdEsc(printer)}</strong> <span class="muted">${hdEsc(hdQueueStatus(machine, printer))}</span> <button type="button" class="btn btn-secondary btn-sm" onclick="hdOpenMachineScreen(${name},'print-queue',{printer:'${hdJsArg(printer)}'})">Open print queue</button> <button type="button" class="btn btn-secondary btn-sm" onclick="hdOpenMachineScreen(${name},'printer-properties',{printer:'${hdJsArg(printer)}',tab:'ports'})">Printer properties</button></li>`).join('');
+  return `<div class="card" data-hd-addip><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Add a printer using an IP address</strong><span class="muted">Device type: TCP/IP Device (Standard TCP/IP port)</span></div><div class="card-body"><form onsubmit="hdSettingsAddByIp(event,${name})" style="display:grid;gap:8px;max-width:420px"><label>Hostname or IP address<input id="hd-add-ip" class="ipt" autocomplete="off" maxlength="15"></label><label>Printer name<input id="hd-add-name" class="ipt" autocomplete="off" maxlength="40"></label><label>Driver<select id="hd-add-driver" class="select">${catalog.map(driver => `<option>${hdEsc(driver)}</option>`).join('')}</select></label><button type="submit" class="btn btn-primary btn-sm" ${locked}>Add printer</button></form></div></div>
+    <div class="card"><div class="card-header"><strong>Manage printers</strong></div><div class="card-body"><ul class="hd-list">${rows}</ul></div></div>`;
+}
+
+// Device Manager and the Camera app, built from machine.devices.
+const HD_DEVICE_CODES = {
+  10:'This device cannot start. (Code 10)', 22:'This device is disabled. (Code 22)', 28:'The drivers for this device are not installed. (Code 28)',
+  43:'Windows has stopped this device because it has reported problems. (Code 43)',
+};
+function hdDeviceStatusText(device) { return device.status === 'OK' ? 'This device is working properly.' : (device.problem || HD_DEVICE_CODES[device.status] || `Windows reported a problem with this device. (Code ${device.status})`); }
+function hdDeviceMark(device) { return device.status === 'OK' ? '' : String(device.status) === '22' ? '↓ ' : '⚠ '; }
+function hdDeviceOpen(computerName, deviceId, tab) { hdOpenMachineScreen(computerName, 'device-manager', { device:deviceId, tab:tab || 'general' }); }
+function hdDeviceDriver(computerName, deviceId, which) {
+  hdMachineChange(computerName, machine => {
+    const device = (machine.devices || []).find(item => item && item.id === deviceId); if (!device) return false;
+    const next = which === 'rollback' ? device.previous : which === 'update' ? device.update : null;
+    // Update Driver with nothing newer: Windows' own answer, shown on the tab.
+    if (which === 'update' && (!next || typeof next !== 'object')) {
+      device.updateChecked = true;
+      hdMachineAction(computerName, 'driver-update-none', `searched for an updated driver for ${device.name}; the best driver is already installed`, { device:deviceId });
+      return;
+    }
+    if (!next || typeof next !== 'object') return false;
+    device.updateChecked = false;
+    const { status, problem, ...driver } = next;
+    if (which === 'rollback') { device.update = device.update || null; device.previous = null; } else { device.previous = device.driver; device.update = null; }
+    device.driver = driver;
+    device.status = status || 'OK';
+    device.problem = problem || '';
+    hdMachineAction(computerName, which === 'rollback' ? 'driver-rollback' : 'driver-update', `${which === 'rollback' ? 'rolled back' : 'updated'} the driver for ${device.name} to ${driver.version || driver.date || ''}`.trim(), { device:deviceId });
+  });
+}
+VIEWS['helpdesk/device-manager'] = () => {
+  const found = hdViewMachine(); const devices = found && Array.isArray(found.machine.devices) ? found.machine.devices.filter(item => item && item.id) : [];
+  if (!devices.length) return hdMachineMissing('Device Manager');
+  const { computer } = found; const view = hdMachineView();
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const name = `'${hdJsArg(computer.name)}'`;
+  const categories = [...new Set(devices.map(device => device.category || 'Other devices'))].sort();
+  const tree = categories.map(category => `<li><strong>${hdEsc(category)}</strong><ul class="hd-list">${devices.filter(device => (device.category || 'Other devices') === category).map(device => `<li data-hd-device="${hdEsc(device.id)}" data-hd-device-status="${device.status === 'OK' ? 'ok' : 'problem'}"><button type="button" class="btn btn-ghost btn-sm" onclick="hdDeviceOpen(${name},'${hdJsArg(device.id)}')">${hdDeviceMark(device)}${hdEsc(device.name)}</button></li>`).join('')}</ul></li>`).join('');
+  const device = devices.find(item => item.id === view.device);
+  let props = '<p class="muted">Choose a device to see its properties.</p>';
+  if (device) {
+    const tab = view.tab === 'driver' ? 'driver' : 'general';
+    const tabs = [['general', 'General'], ['driver', 'Driver']].map(([id, label]) => `<button type="button" class="btn ${id === tab ? 'btn-primary' : 'btn-secondary'} btn-sm" role="tab" aria-selected="${id === tab}" onclick="hdDeviceOpen(${name},'${hdJsArg(device.id)}','${id}')">${label}</button>`).join('');
+    const driver = device.driver || {};
+    props = `<div style="display:flex;gap:6px" role="tablist">${tabs}</div>${tab === 'general'
+      ? `<dl class="hd-dl"><dt>Device</dt><dd>${hdEsc(device.name)}</dd><dt>Device type</dt><dd>${hdEsc(device.category || 'Other devices')}</dd><dt>Device status</dt><dd data-hd-device-text>${hdEsc(hdDeviceStatusText(device))}</dd></dl>`
+      : `<dl class="hd-dl"><dt>Driver Provider</dt><dd>${hdEsc(driver.provider || '')}</dd><dt>Driver Date</dt><dd data-hd-driver-date>${hdEsc(driver.date || '')}</dd><dt>Driver Version</dt><dd>${hdEsc(driver.version || '')}</dd></dl><div style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="btn btn-secondary btn-sm" ${locked || (device.previous ? '' : 'disabled')} onclick="hdDeviceDriver(${name},'${hdJsArg(device.id)}','rollback')">Roll Back Driver</button><button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdDeviceDriver(${name},'${hdJsArg(device.id)}','update')">Update Driver</button></div>${device.updateChecked ? '<p class="muted" data-hd-driver-best>The best drivers for your device are already installed.</p>' : ''}`}`;
+  }
+  return `${hdPageHeader('Device Manager', computer.name, hdMachineBack(computer))}<div class="two-col" data-hd-devmgr><div class="card"><div class="card-header"><strong>${hdEsc(computer.name)}</strong></div><div class="card-body"><ul class="hd-list">${tree}</ul></div></div><div class="card"><div class="card-header"><strong>${device ? `${hdEsc(device.name)} Properties` : 'Properties'}</strong></div><div class="card-body">${props}</div></div></div>`;
+};
+VIEWS['helpdesk/camera'] = () => {
+  const found = hdViewMachine(); const camera = found && (found.machine.devices || []).find(device => device && device.camera);
+  if (!camera) return hdMachineMissing('Camera');
+  const working = camera.status === 'OK';
+  return `${hdPageHeader('Camera', found.computer.name, hdMachineBack(found.computer))}<div class="card" data-hd-camera="${working ? 'video' : 'none'}"><div class="card-body">${working
+    ? `<div role="img" aria-label="Camera preview showing video" style="min-height:160px;display:grid;place-items:center;border-radius:8px;border:1px solid currentColor"><strong>● Live video</strong></div>`
+    : `<div class="callout bad" role="status">We can't find your camera. Check to be sure it's connected and installed properly, that it isn't being blocked by antivirus software, and that your camera drivers are up to date. Error code 0xA00F4244.</div>`}</div></div>`;
+};
+
+// Dock and displays.
+function hdDockLive(machine) { return !!(machine.dock && machine.dock.docked && machine.dock.power); }
+function hdMonitorShows(machine, monitor) {
+  return hdDockLive(machine) && monitor.input === monitor.cable && machine.projection !== 'PC screen only' && (!monitor.needsDetect || machine.detected === true);
+}
+function hdDockMonitors(machine) { return machine.dock && Array.isArray(machine.dock.monitors) ? machine.dock.monitors : []; }
+function hdActiveMonitors(machine) {
+  const shown = hdDockMonitors(machine).filter(monitor => hdMonitorShows(machine, monitor));
+  const order = Array.isArray(machine.arrangement) ? machine.arrangement : [];
+  return shown.sort((a, b) => (order.indexOf(a.id) + 1 || 99) - (order.indexOf(b.id) + 1 || 99));
+}
+function hdDockDo(computerName, what, value, extra) {
+  hdMachineChange(computerName, machine => {
+    const dock = machine.dock; if (!dock) return false;
+    if (what === 'power') {
+      if (dock.power) return false;
+      dock.power = true; hdMachineAction(computerName, 'dock-power', `connected the power to ${dock.name || 'the dock'}`);
+    } else if (what === 'dock') {
+      dock.docked = !dock.docked; hdMachineAction(computerName, dock.docked ? 'dock-connect' : 'dock-disconnect', `${dock.docked ? 'connected the laptop to' : 'disconnected the laptop from'} ${dock.name || 'the dock'}`);
+    } else if (what === 'input') {
+      const monitor = hdDockMonitors(machine).find(item => item.id === value); if (!monitor || !(monitor.inputs || []).includes(extra) || monitor.input === extra) return false;
+      monitor.input = extra; hdMachineAction(computerName, 'monitor-input', `set ${monitor.name}'s input to ${extra}`, { monitor:monitor.id, input:extra });
+    } else if (what === 'project') {
+      if (!['PC screen only', 'Duplicate', 'Extend', 'Second screen only'].includes(value) || machine.projection === value) return false;
+      machine.projection = value; hdMachineAction(computerName, 'projection', `pressed Win + P and chose ${value}`, { mode:value });
+    } else if (what === 'detect') {
+      const waiting = hdDockLive(machine) && hdDockMonitors(machine).some(monitor => monitor.needsDetect && monitor.input === monitor.cable);
+      if (waiting) machine.detected = true;
+      hdMachineAction(computerName, 'display-detect', `pressed Detect in Settings › Display (${waiting ? 'display found' : 'no new display'})`, { found:waiting });
+      if (!waiting) toast("We didn't detect another display.");
+    } else if (what === 'left') {
+      const order = hdActiveMonitors(machine).map(monitor => monitor.id); const at = order.indexOf(value);
+      if (at <= 0) return false;
+      [order[at - 1], order[at]] = [order[at], order[at - 1]];
+      machine.arrangement = order; hdMachineAction(computerName, 'display-arrange', `arranged the displays: ${order.join(', ')}`, { order:order.join(',') });
+    } else return false;
+  });
+}
+VIEWS['helpdesk/dock'] = () => {
+  const found = hdViewMachine(); if (!found || !found.machine.dock) return hdMachineMissing('Dock and displays');
+  const { computer, machine } = found; const dock = machine.dock;
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const name = `'${hdJsArg(computer.name)}'`;
+  const live = hdDockLive(machine);
+  const monitors = hdDockMonitors(machine).map(monitor => {
+    const shows = hdMonitorShows(machine, monitor);
+    return `<div class="card" data-hd-monitor="${hdEsc(monitor.id)}" data-hd-monitor-state="${shows ? 'picture' : 'no-signal'}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(monitor.name || monitor.id)}</strong><span class="muted">${shows ? 'Showing the desktop' : live ? 'No signal' : 'Dark'}</span></div><div class="card-body"><p class="muted" style="margin-top:0">Input/Source: ${hdEsc(monitor.input || '')}</p><div style="display:flex;flex-wrap:wrap;gap:6px">${(monitor.inputs || []).map(input => `<button type="button" class="btn ${input === monitor.input ? 'btn-primary' : 'btn-secondary'} btn-sm" aria-pressed="${input === monitor.input}" ${locked} onclick="hdDockDo(${name},'input','${hdJsArg(monitor.id)}','${hdJsArg(input)}')">${hdEsc(input)}</button>`).join('')}</div></div></div>`;
+  }).join('');
+  const modes = ['PC screen only', 'Duplicate', 'Extend', 'Second screen only'].map(mode => `<button type="button" class="btn ${machine.projection === mode ? 'btn-primary' : 'btn-secondary'} btn-sm" aria-pressed="${machine.projection === mode}" ${locked} onclick="hdDockDo(${name},'project','${mode}')">${mode}</button>`).join('');
+  const active = hdActiveMonitors(machine);
+  const displays = [`<li>1 · Built-in display${machine.projection === 'Second screen only' && active.length ? ' (off)' : ''}</li>`, ...active.map((monitor, index) => `<li data-hd-display="${hdEsc(monitor.id)}">${index + 2} · ${hdEsc(monitor.name || monitor.id)}${index > 0 ? ` <button type="button" class="btn btn-ghost btn-sm" ${locked} onclick="hdDockDo(${name},'left','${hdJsArg(monitor.id)}')">Move left</button>` : ''}</li>`)].join('');
+  const peripherals = (Array.isArray(dock.peripherals) ? dock.peripherals : []).map(item => `<li>${hdEsc(item)}: ${live ? 'working' : 'not responding'}</li>`).join('');
+  return `${hdPageHeader('Dock and displays', `${computer.name} · ${dock.name || 'Dock'}`, hdMachineBack(computer))}
+    <div data-hd-dock="${live ? 'live' : 'dark'}" class="hd-settings-view">
+    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(dock.name || 'Dock')}</strong><span class="muted">Dock light: ${dock.power ? 'on' : 'off'} · ${dock.docked ? 'laptop connected' : 'laptop not connected'}</span></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="btn btn-secondary btn-sm" ${locked || (dock.power ? 'disabled' : '')} onclick="hdDockDo(${name},'power')">${dock.power ? 'Dock power connected' : "Plug in the dock's power"}</button><button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdDockDo(${name},'dock')">${dock.docked ? 'Disconnect the laptop' : 'Connect the laptop to the dock'}</button></div>${peripherals ? `<ul class="hd-list">${peripherals}</ul>` : ''}</div></div>
+    ${monitors}
+    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Win + P</strong><span class="muted">Project</span></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:6px" data-hd-projection="${hdEsc(machine.projection || '')}">${modes}</div></div></div>
+    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Settings › System › Display</strong><span class="muted">Multiple displays · Detect other display</span><button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdDockDo(${name},'detect')">Detect</button></div><div class="card-body"><ul class="hd-list" data-hd-displays>${displays}</ul></div></div>
+    </div>`;
+};
+VIEWS['helpdesk/settings-network'] = () => {
+  const found = hdViewMachine(); if (!found || !found.machine.dock) return hdMachineMissing('Settings › Network & internet');
+  const { computer, machine } = found; const live = hdDockLive(machine);
+  const ethernet = machine.dock.ethernet ? `<li data-hd-ethernet="${live ? 'connected' : 'unplugged'}">Ethernet (${hdEsc(machine.dock.ethernet)}): ${live ? 'Connected' : 'Network cable unplugged'}</li>` : '';
+  return `${hdPageHeader('Settings', `${computer.name} · Network & internet`, hdMachineBack(computer))}<div class="card" data-hd-netset><div class="card-body"><ul class="hd-list">${ethernet}<li>Wi-Fi: Connected</li></ul></div></div>`;
+};
+
+// Virtual Desktops: pools and sessions from a ticket's console.vdi.
+function hdVdiPools() {
+  if (HD_PROVE || !hdState.vdi) return [];
+  return Object.keys(hdState.vdi).filter(name => { const pool = hdState.vdi[name]; return pool && hdTicketById(pool.ticketId) && hdConsole(hdTicketById(pool.ticketId)).vdi; }).map(name => ({ name, ...hdState.vdi[name] }));
+}
+function hdVdiLogOff(poolName, sessionId) {
+  if (hdProveLocked()) return;
+  const pool = hdVdiPools().find(item => item.name === poolName); if (!pool) return;
+  const session = hdState.vdi[poolName].sessions.find(item => String(item.id) === String(sessionId)); if (!session) return;
+  const ticket = hdTicketById(pool.ticketId);
+  const was = session.state;
+  session.state = 'Active'; session.hours = 0; session.renewed = true;
+  const state = hdConsoleState(ticket);
+  state.actions.push({ id:'vdi-logoff', time:hdConsoleTime(ticket), pool:poolName, user:session.user, was });
+  hdHistory(ticket, `Virtual Desktops: logged off ${session.user}'s session in ${poolName}; the user reconnected to a new session.`);
+  hdPracticeEvent('action_taken', { ticket:ticket.id, action:'vdi-logoff', pool:poolName, user:session.user });
+  hdRerender();
+}
+function hdVdiRestartPool(poolName) {
+  const pool = hdVdiPools().find(item => item.name === poolName); if (!pool) return;
+  const ticket = hdTicketById(pool.ticketId);
+  const state = hdConsoleState(ticket);
+  state.actions.push({ id:'vdi-restart-refused', time:hdConsoleTime(ticket), pool:poolName });
+  hdHistory(ticket, `Virtual Desktops: Restart pool on ${poolName} refused (Tier 2 action).`);
+  hdPracticeEvent('action_taken', { ticket:ticket.id, action:'vdi-restart-refused', pool:poolName });
+  hdState.vdiNotice = poolName;
+  hdRerender();
+}
+VIEWS['helpdesk/virtual-desktops'] = () => {
+  const pools = hdVdiPools();
+  if (!pools.length) return `${hdPageHeader('Virtual Desktops', 'No virtual desktop pools in this shift.')}<div class="card"><div class="card-body"><p class="muted">Open a ticket about a virtual desktop to use this screen.</p></div></div>`;
+  const ticket = hdTicketById(pools[0].ticketId);
+  return `${hdPageHeader('Virtual Desktops', 'Pools and user sessions', ticket ? `<button class="btn btn-secondary" onclick="hdSelectTicket('${hdJsArg(ticket.id)}')">← ${hdEsc(hdTicketLabel(ticket))}</button>` : '')}${pools.map(pool => {
+    const config = hdConsole(hdTicketById(pool.ticketId)).vdi;
+    const active = pool.sessions.filter(session => session.state === 'Active').length;
+    const notice = hdState.vdiNotice === pool.name ? `<div class="callout bad" role="alert">${hdEsc(config.tier2Line || 'Restart pool is a Tier 2 action: it disconnects every user in the pool. Tier 1 can\'t run it.')}</div>` : '';
+    const rows = pool.sessions.map(session => `<tr data-hd-session="${hdEsc(session.id)}" data-hd-session-state="${session.state === 'Active' ? 'active' : 'hung'}"><td>${hdEsc(session.user)}</td><td>${hdBadge(session.state === 'Active' && session.renewed ? 'Active · new session' : session.state, session.state === 'Active' ? 'ok' : 'bad')}</td><td>${session.state === 'Active' ? (session.renewed ? 'just now' : `${hdEsc(session.hours || 0)} h`) : `${hdEsc(session.hours || 0)} h`}</td><td><button type="button" class="btn btn-secondary btn-sm" onclick="hdVdiLogOff('${hdJsArg(pool.name)}','${hdJsArg(session.id)}')">Log off session</button></td></tr>`).join('');
+    return `<div class="card" data-hd-vdi="${hdEsc(pool.name)}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(pool.name)}</strong><span class="muted">${active} of ${pool.sessions.length} sessions Active</span><button type="button" class="btn btn-ghost btn-sm" onclick="hdVdiRestartPool('${hdJsArg(pool.name)}')">Restart pool (Tier 2)</button></div>${notice}<div class="table-wrap"><table><thead><tr><th>User</th><th>State</th><th>Time</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  }).join('')}`;
+};
+// The ticket's computers (console.machines) and virtual desktops (console.vdi).
+function hdConsoleMachinesCard(ticket) {
+  const specs = hdTicketMachineSpecs(ticket);
+  const names = specs ? Object.keys(specs).filter(name => hdComputerByName(name)) : [];
+  const vdi = hdConsole(ticket).vdi && hdVdiPools().length;
+  if (!names.length && !vdi) return '';
+  const buttons = names.map(name => `<button type="button" class="btn btn-secondary" onclick="hdSelectComputer('${hdJsArg(name)}','#/helpdesk/windows')">Open ${hdEsc(name)}</button>`).join('');
+  return `<div class="card hd-computer" data-hd-machines><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Computers and desktops</strong><span class="muted">Tools open on the computer you choose</span></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:8px">${buttons}${vdi ? `<button type="button" class="btn btn-secondary" data-hd-vdi-open onclick="hdVdiOpen()">Virtual Desktops</button>` : ''}</div></div></div>`;
+}
+// Opening the pools from a ticket is the scope check: recorded once per
+// ticket (action vdi-viewed), so feedback and a coach can read it.
+function hdVdiOpen() {
+  hdVdiPools().forEach(pool => {
+    const ticket = hdTicketById(pool.ticketId); if (!ticket) return;
+    const state = hdConsoleState(ticket);
+    if (state.actions.some(action => action.id === 'vdi-viewed' && action.pool === pool.name)) return;
+    state.actions.push({ id:'vdi-viewed', time:hdConsoleTime(ticket), pool:pool.name });
+    hdPracticeEvent('action_taken', { ticket:ticket.id, action:'vdi-viewed', pool:pool.name });
+  });
+  hdSave();
+  navigate('#/helpdesk/virtual-desktops');
+}
+window.hdVdiOpen = hdVdiOpen;
+// A late message can wait for a machine value (arrival when.machine).
+function hdMachineValueIs(rule) {
+  if (!rule || typeof rule !== 'object' || !Array.isArray(rule.path)) return false;
+  let value = (hdState.machines || {})[rule.computer];
+  for (const key of rule.path) { if (!value || typeof value !== 'object' || !hdOwn(value, key)) return false; value = value[key]; }
+  return Array.isArray(rule.values) ? rule.values.includes(value) : value === rule.value;
+}
+window.hdOpenMachineScreen=hdOpenMachineScreen; window.hdQueueToggle=hdQueueToggle; window.hdQueueCancel=hdQueueCancel; window.hdQueueClearStuck=hdQueueClearStuck;
+window.hdQueueTestPage=hdQueueTestPage; window.hdPrinterSet=hdPrinterSet; window.hdPrinterTab=hdPrinterTab; window.hdSettingsAddByIp=hdSettingsAddByIp;
+window.hdDeviceOpen=hdDeviceOpen; window.hdDeviceDriver=hdDeviceDriver; window.hdDockDo=hdDockDo; window.hdVdiLogOff=hdVdiLogOff; window.hdVdiRestartPool=hdVdiRestartPool;
+
+/* ---------- VM screen (added for Module 4, key its-02) ----------
+ * A VirtualBox-style VM Manager on a simulated host, plus Task Manager ›
+ * Performance › CPU on that host. Off unless a lab in HD_VM_LABS
+ * (ui/helpdesk-data.js) lists the coach this tab runs (?coach=, or the coach
+ * a reload resumes). Nothing is installed and it isn't real Windows: the
+ * student's settings are data, and the coach's checks read them.
+ *   HD_VM_LABS['<key>'] = { coaches:[ids], host:{ name, ramGb, cores, cpu,
+ *     virtualization }, images:[{ id, label, kind:'client'|'server', minRamGb,
+ *     os }], addresses:{ internal:{ '<vm name>':'<ip>' }, nat, hostOnly,
+ *     bridged }, modes:{ '<mode>':'<what it means>' }, shortcut, finishCards:
+ *     [{ title, text }] }
+ * The VMs are the student's own, never seeded. They are saved in this
+ * browser per student (defender-lab.helpdesk.vm.v1.<student>), and to the
+ * student's account through the course page that opened this tab: each
+ * change sends mnt-vm-save (answered by mnt-vm-received), and at launch the
+ * tab asks with mnt-vm-state (answered by mnt-vm-state-reply). The server
+ * copy wins, unless this browser holds a newer save the server never
+ * confirmed. Nothing is sent before that first answer (or its timeout), so
+ * an empty screen after a new sign-in can't overwrite the saved VMs. */
+const HD_VM_MODES = ['NAT', 'Bridged', 'Internal', 'Host-only'];
+const HD_VM_INSTALL_MS = 4000;
+const HD_VM_REPLY_MS = 8000;
+const HD_VM_SAVE_DELAY_MS = 600;
+const HD_VM_MAX = 4;
+function hdVmLabs() { return typeof HD_VM_LABS === 'undefined' || !HD_VM_LABS ? {} : HD_VM_LABS; }
+// The lab this tab runs: the one whose coaches include the launching coach.
+const HD_VM = (() => {
+  if (HD_PROVE || HD_PRACTICE_SET) return null;
+  const labs = hdVmLabs();
+  let coach = '';
+  try { coach = new URLSearchParams(location.search).get('coach') || ''; } catch (_) { coach = ''; }
+  if (!coach) { try { const saved = JSON.parse(sessionStorage.getItem('mnt.coach.state') || 'null'); coach = saved && typeof saved.id === 'string' ? saved.id : ''; } catch (_) { coach = ''; } }
+  const key = Object.keys(labs).find(name => Array.isArray(labs[name].coaches) && labs[name].coaches.includes(coach));
+  if (!key) return null;
+  // ui/coach.js removes student= once the page loads; a reload finds it here.
+  const remembered = 'defender-lab.helpdesk.vm.student';
+  let student = '';
+  try { student = new URLSearchParams(location.search).get('student') || ''; } catch (_) { student = ''; }
+  student = student.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+  try {
+    if (student) sessionStorage.setItem(remembered, student);
+    else student = (sessionStorage.getItem(remembered) || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+  } catch (_) { /* storage blocked: this load only */ }
+  return { key, lab:labs[key], student };
+})();
+function hdVmKey() { return `defender-lab.helpdesk.vm.v1.${HD_VM.key}.${HD_VM.student || 'anonymous'}`; }
+function hdVmFresh() { return { version:1, lab:HD_VM ? HD_VM.key : '', vms:[], form:null, selected:'', modesViewed:[], cpuSeen:false, taskTab:'processes', savedAt:'' }; }
+// The sync status: phase 'asking' until the course page answers (or not);
+// unsynced: the savedAt the server hasn't confirmed; status for the line.
+let hdVmSync = { phase:'asking', status:'', unsynced:'', loadedUnsynced:'', sending:false, timer:0, serverSeen:false, asked:0 };
+let hdVm = null;
+let hdVmConsoleLines = {};
+function hdVmUnsyncedKey() { return `${hdVmKey()}.unsynced`; }
+
+// The same rules the course page applies (portal/it-support-shared.js
+// itsCleanVmState): known fields only, bounded. Anything else is dropped.
+function hdVmCleanVm(vm) {
+  if (!vm || typeof vm !== 'object' || typeof vm.name !== 'string' || !/^[A-Za-z0-9-]{1,15}$/.test(vm.name)) return null;
+  const int = (value, min, max, fallback) => Number.isInteger(value) && value >= min && value <= max ? value : fallback;
+  const snapshots = Array.isArray(vm.snapshots) ? vm.snapshots.slice(0, 5).filter(item => item && typeof item.name === 'string' && item.name.trim()).map(item => ({ name:item.name.slice(0, 40), shortcut:item.shortcut !== false, at:typeof item.at === 'string' ? item.at.slice(0, 40) : '' })) : [];
+  const pings = Array.isArray(vm.pings) ? vm.pings.slice(-20).filter(item => item && typeof item.to === 'string').map(item => ({ to:item.to.slice(0, 40), ok:item.ok === true, mode:HD_VM_MODES.includes(item.mode) ? item.mode : '' })) : [];
+  return {
+    name:vm.name, image:typeof vm.image === 'string' && /^[a-z0-9-]{1,20}$/.test(vm.image) ? vm.image : '',
+    memoryGb:int(vm.memoryGb, 1, 64, 1), cores:int(vm.cores, 1, 16, 1), diskGb:int(vm.diskGb, 1, 2048, 64),
+    diskType:vm.diskType === 'fixed' ? 'fixed' : 'dynamic', network:HD_VM_MODES.includes(vm.network) ? vm.network : 'NAT',
+    state:['Off', 'Installing', 'Running'].includes(vm.state) ? vm.state : 'Off', installed:vm.installed === true,
+    installStartedAt:Number.isFinite(vm.installStartedAt) ? vm.installStartedAt : 0, shortcut:vm.shortcut !== false,
+    snapshots, pings, restored:int(vm.restored, 0, 99, 0), shortcutDeleted:vm.shortcutDeleted === true,
+  };
+}
+function hdVmCleanForm(form) {
+  if (!form || typeof form !== 'object') return null;
+  const int = (value, min, max, fallback) => Number.isInteger(value) && value >= min && value <= max ? value : fallback;
+  return {
+    name:typeof form.name === 'string' ? form.name.replace(/[^A-Za-z0-9-]/g, '').slice(0, 15) : '',
+    image:typeof form.image === 'string' && /^[a-z0-9-]{0,20}$/.test(form.image) ? form.image : '',
+    memoryGb:int(form.memoryGb, 1, 64, 2), cores:int(form.cores, 1, 16, 1), diskGb:int(form.diskGb, 1, 2048, 32),
+    diskType:form.diskType === 'fixed' ? 'fixed' : (form.diskType === 'dynamic' ? 'dynamic' : ''),
+    network:HD_VM_MODES.includes(form.network) ? form.network : '', lowRamSeen:form.lowRamSeen === true,
+  };
+}
+function hdVmClean(state) {
+  if (!state || typeof state !== 'object' || state.version !== 1) return null;
+  const vms = Array.isArray(state.vms) ? state.vms.slice(0, HD_VM_MAX).map(hdVmCleanVm).filter(Boolean) : [];
+  const names = new Set();
+  return {
+    version:1, lab:typeof state.lab === 'string' ? state.lab.slice(0, 20) : '',
+    vms:vms.filter(vm => (names.has(vm.name.toLowerCase()) ? false : names.add(vm.name.toLowerCase()))),
+    form:hdVmCleanForm(state.form), selected:typeof state.selected === 'string' ? state.selected.slice(0, 15) : '',
+    modesViewed:Array.isArray(state.modesViewed) ? HD_VM_MODES.filter(mode => state.modesViewed.includes(mode)) : [],
+    viewMode:HD_VM_MODES.includes(state.viewMode) ? state.viewMode : '',
+    cpuSeen:state.cpuSeen === true, taskTab:['processes', 'performance'].includes(state.taskTab) ? state.taskTab : 'processes',
+    savedAt:typeof state.savedAt === 'string' ? state.savedAt.slice(0, 40) : '',
+  };
+}
+// What leaves the tab: the VM summary only (no ticket data, no console text).
+function hdVmSummary() {
+  if (!HD_VM) return null;
+  const state = hdVmState();
+  const { taskTab, ...summary } = hdClone(state);
+  return summary;
+}
+function hdVmState() {
+  if (!HD_VM) return null;
+  if (!hdVm) {
+    let saved = null;
+    try { saved = hdVmClean(JSON.parse(localStorage.getItem(hdVmKey()) || 'null')); } catch (_) { saved = null; }
+    hdVm = saved && saved.lab === HD_VM.key ? saved : hdVmFresh();
+    try { hdVmSync.unsynced = localStorage.getItem(hdVmUnsyncedKey()) || ''; } catch (_) { hdVmSync.unsynced = ''; }
+    // Only a save from an earlier visit that the server never confirmed can
+    // beat the server copy; a change made while the first answer is on its
+    // way can't.
+    hdVmSync.loadedUnsynced = saved && hdVmSync.unsynced && saved.savedAt === hdVmSync.unsynced ? hdVmSync.unsynced : '';
+  }
+  // An install that ran its time while the tab was away finishes now.
+  hdVm.vms.forEach(vm => { if (vm.state === 'Installing' && hdNowMs() - vm.installStartedAt >= HD_VM_INSTALL_MS) hdVmFinishInstall(vm.name, true); });
+  return hdVm;
+}
+function hdVmImage(id) { return (HD_VM && Array.isArray(HD_VM.lab.images) ? HD_VM.lab.images : []).find(image => image.id === id) || null; }
+function hdVmByName(name) { const state = hdVmState(); return state ? state.vms.find(vm => vm.name.toLowerCase() === String(name || '').toLowerCase()) || null : null; }
+function hdVmHost() { const host = HD_VM && HD_VM.lab.host || {}; return { name:host.name || 'Host PC', ramGb:host.ramGb || 16, cores:host.cores || 8, cpu:host.cpu || 'Simulated CPU', virtualization:host.virtualization || 'Enabled' }; }
+// Every guest's share comes out of the host, including the one being made.
+function hdVmRamUsed() { const state = hdVmState(); return state.vms.reduce((sum, vm) => sum + vm.memoryGb, 0) + (state.form ? state.form.memoryGb : 0); }
+function hdVmRamLeft() { return hdVmHost().ramGb - hdVmRamUsed(); }
+
+// Saved here at once; to the server after a short pause, once the first
+// answer is in.
+function hdVmSave() {
+  if (!HD_VM || !hdVm) return;
+  hdVm.savedAt = new Date().toISOString();
+  try { localStorage.setItem(hdVmKey(), JSON.stringify(hdVm)); localStorage.setItem(hdVmUnsyncedKey(), hdVm.savedAt); } catch (_) { /* storage blocked */ }
+  hdVmSync.unsynced = hdVm.savedAt;
+  hdVmQueueSend();
+}
+function hdVmOpener() { return window.opener && !window.opener.closed ? window.opener : null; }
+function hdVmNonce() { return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`; }
+function hdVmQueueSend() {
+  if (hdVmSync.phase !== 'ready' || !hdVmSync.unsynced) return;
+  clearTimeout(hdVmSync.timer);
+  hdVmSync.timer = setTimeout(hdVmSend, HD_VM_SAVE_DELAY_MS);
+}
+function hdVmAsk(type, extra, replyType, done) {
+  const opener = hdVmOpener();
+  if (!opener) { done(null, 'closed'); return; }
+  const origin = hdPortalOrigin();
+  const nonce = hdVmNonce();
+  let timer = 0;
+  function onReply(event) {
+    const data = event.data;
+    if (event.source !== opener || event.origin !== origin) return;
+    if (!data || data.type !== replyType || data.id !== HD_VM.key || data.nonce !== nonce) return;
+    clearTimeout(timer); window.removeEventListener('message', onReply); done(data, '');
+  }
+  window.addEventListener('message', onReply);
+  timer = setTimeout(() => { window.removeEventListener('message', onReply); done(null, 'unconfirmed'); }, HD_VM_REPLY_MS);
+  opener.postMessage({ type, id:HD_VM.key, nonce, student:HD_VM.student, ...extra }, origin);
+}
+function hdVmSend() {
+  if (!HD_VM || hdVmSync.phase !== 'ready' || !hdVmSync.unsynced || hdVmSync.sending) return;
+  // Never answered with the saved VMs (a timeout, or signed out then): ask
+  // again first, so this tab's copy can't replace VMs saved elsewhere.
+  if (!hdVmSync.serverSeen) { hdVmAskServer(); return; }
+  const sentAt = hdVmSync.unsynced;
+  hdVmSync.sending = true;
+  hdVmAsk('mnt-vm-save', { state:hdVmSummary(), base:hdVmSync.base || '' }, 'mnt-vm-received', (reply, reason) => {
+    hdVmSync.sending = false;
+    const newer = reply && reply.reason === 'stale' ? hdVmClean(reply.state) : null;
+    if (reply && reply.saved === true) {
+      hdVmSync.base = sentAt;
+      if (hdVmSync.unsynced === sentAt) { hdVmSync.unsynced = ''; try { localStorage.removeItem(hdVmUnsyncedKey()); } catch (_) { /* storage blocked */ } }
+      hdVmSync.status = 'saved';
+    } else if (newer && newer.lab === HD_VM.key) {
+      // Another tab saved first: show its copy rather than overwrite it.
+      hdVmAdopt(newer);
+      toast('Your VMs were changed in another tab. This tab now shows the latest saved copy.');
+      hdVmRefresh();
+      return;
+    } else hdVmSync.status = (reply && reply.reason) || reason || 'unconfirmed';
+    // A change made while this one was on its way goes next.
+    if (hdVmSync.unsynced && hdVmSync.unsynced !== sentAt) hdVmQueueSend();
+    hdVmRefresh();
+  });
+}
+// At launch: the server copy, unless this browser's newer save never landed.
+function hdVmAskServer() {
+  if (!HD_VM) return;
+  hdVmState();
+  hdVmSync.phase = 'asking';
+  hdVmSync.asked = (hdVmSync.asked || 0) + 1;
+  hdVmAsk('mnt-vm-state', {}, 'mnt-vm-state-reply', (reply, reason) => {
+    hdVmSync.phase = 'ready';
+    if (!reply) { hdVmSync.status = reason === 'closed' ? 'closed' : 'unconfirmed'; hdVmRefresh(); return; }
+    if (reply.saved === false && reply.reason) { hdVmSync.status = reply.reason; hdVmRefresh(); return; }
+    const later = hdVmSync.asked > 1;
+    hdVmSync.serverSeen = true;
+    const server = hdVmClean(reply.state);
+    // A later answer (after a timeout) treats this tab's changes like an
+    // unconfirmed save from an earlier visit only if the account has none.
+    const localNewer = (Boolean(hdVmSync.loadedUnsynced) && (!server || !server.savedAt || hdVmSync.loadedUnsynced > server.savedAt))
+      || (later && (!server || !server.vms.length));
+    if (later && server && server.vms.length && !localNewer && hdVmSync.unsynced) toast('Your VMs saved to your course were loaded. Changes made in this tab before they loaded were replaced.');
+    hdVmSync.base = server && server.savedAt ? server.savedAt : '';
+    if (server && server.lab === HD_VM.key && !localNewer) hdVmAdopt(server);
+    else if (hdVmSync.unsynced) hdVmQueueSend();
+    else hdVmSync.status = 'saved';
+    hdVmRefresh();
+  });
+}
+// The account's saved copy replaces this tab's. The view the student is on
+// (the Task Manager tab) stays this tab's own.
+function hdVmAdopt(server) {
+  hdVm = { ...server, taskTab:hdVm ? hdVm.taskTab : 'processes' };
+  try { localStorage.setItem(hdVmKey(), JSON.stringify(hdVm)); localStorage.removeItem(hdVmUnsyncedKey()); } catch (_) { /* storage blocked */ }
+  hdVmSync.unsynced = '';
+  hdVmSync.base = server.savedAt || '';
+  hdVmSync.status = 'saved';
+}
+function hdVmRefresh() { if (typeof render === 'function') render(); }
+function hdVmSaveLine() {
+  const line = {
+    closed:'Open this lab from the course page to save your VMs. Until then they are kept in this browser only.',
+    'signed-out':'You’re signed out on your course page, so your VMs are kept in this browser only. Sign in there to save them.',
+    'other-student':'Your course page is signed in as a different student, so your VMs are kept in this browser only.',
+    'no-student':'This lab wasn’t opened from your course page, so your VMs are kept in this browser only.',
+    invalid:'Your course page couldn’t read your VMs, so they are kept in this browser only.',
+    unconfirmed:'Your course page didn’t confirm the save yet. Your VMs are kept in this browser, and the next change tries again.',
+  };
+  if (hdVmSync.phase === 'asking') return '<p class="muted" data-hd-vm-save="asking">Loading your saved VMs…</p>';
+  if (hdVmSync.status === 'saved' && !hdVmSync.unsynced) return '<p class="muted" data-hd-vm-save="saved">Your VMs are saved to your course.</p>';
+  if (line[hdVmSync.status]) return `<p class="muted" data-hd-vm-save="${hdEsc(hdVmSync.status)}">${hdEsc(line[hdVmSync.status])}</p>`;
+  return hdVmSync.unsynced ? '<p class="muted" data-hd-vm-save="saving">Saving your VMs to your course…</p>' : '';
+}
+
+// Each change: saved, then drawn again.
+function hdVmChanged() { hdVmSave(); hdVmRefresh(); }
+function hdVmNew() {
+  const state = hdVmState(); if (!state) return;
+  if (state.vms.length >= HD_VM_MAX) { toast(`This host holds ${HD_VM_MAX} practice VMs. Delete one first.`); return; }
+  state.form = hdVmCleanForm({ name:'', image:'', memoryGb:2, cores:1, diskGb:32, diskType:'', network:'' });
+  hdVmChanged();
+}
+function hdVmCancelNew() { const state = hdVmState(); if (!state) return; state.form = null; hdVmChanged(); }
+// One form field. Memory below the image's minimum shows the warning, and
+// the form remembers it was seen.
+function hdVmFormSet(field, value) {
+  const state = hdVmState(); if (!state || !state.form) return;
+  const form = state.form;
+  if (field === 'name') form.name = String(value || '').replace(/[^A-Za-z0-9-]/g, '').slice(0, 15);
+  else if (field === 'image') form.image = hdVmImage(value) ? value : '';
+  else if (['memoryGb', 'cores', 'diskGb'].includes(field)) {
+    const max = { memoryGb:hdVmHost().ramGb, cores:hdVmHost().cores, diskGb:2048 }[field];
+    const number = Math.round(Number(value));
+    if (!Number.isInteger(number) || number < 1 || number > max) return;
+    form[field] = number;
+  } else if (field === 'diskType') form.diskType = value === 'fixed' ? 'fixed' : 'dynamic';
+  else if (field === 'network') { if (!HD_VM_MODES.includes(value)) return; form.network = value; hdVmModeViewed(value); }
+  else return;
+  const image = hdVmImage(form.image);
+  if (image && form.memoryGb < (image.minRamGb || 0)) form.lowRamSeen = true;
+  hdVmChanged();
+}
+function hdVmModeViewed(mode) { const state = hdVmState(); if (HD_VM_MODES.includes(mode) && !state.modesViewed.includes(mode)) state.modesViewed = HD_VM_MODES.filter(item => item === mode || state.modesViewed.includes(item)); }
+// Just looking at a mode's diagram (the student hasn't chosen it).
+function hdVmViewMode(mode) { const state = hdVmState(); if (!state || !HD_VM_MODES.includes(mode)) return; hdVmModeViewed(mode); state.viewMode = mode; hdVmChanged(); }
+// The lab's target settings for a VM of this name (HD_VM_LABS targets): one
+// line per setting that is off, naming it. Practice feedback only.
+function hdVmTargetHints(settings) {
+  const targets = HD_VM && HD_VM.lab.targets && typeof HD_VM.lab.targets === 'object' ? HD_VM.lab.targets : {};
+  const key = Object.keys(targets).find(name => name.toLowerCase() === String(settings && settings.name || '').toLowerCase());
+  if (!key) return [];
+  const want = targets[key];
+  const hints = [];
+  if (want.image && settings.image !== want.image) hints.push(`Install image: this lab uses ${(hdVmImage(want.image) || {}).label || want.image}.`);
+  if (want.memoryGb && settings.memoryGb !== want.memoryGb) hints.push(`Memory is ${settings.memoryGb} GB: this lab asks for ${want.memoryGb} GB.`);
+  if (want.cores && settings.cores !== want.cores) hints.push(`CPU cores: ${settings.cores}; this lab asks for ${want.cores}.`);
+  if (want.diskGb && settings.diskGb !== want.diskGb) hints.push(`Disk size is ${settings.diskGb} GB: this lab asks for ${want.diskGb} GB.`);
+  if (want.diskType && settings.diskType && settings.diskType !== want.diskType) hints.push(`Disk file: this lab asks for ${want.diskType === 'dynamic' ? 'Dynamically allocated' : 'Fixed size'}.`);
+  if (want.network && settings.network && settings.network !== want.network) hints.push(`Network mode is ${settings.network}: this lab asks for ${want.network}.`);
+  return hints;
+}
+function hdVmHintsHtml(settings, created) {
+  const hints = hdVmTargetHints(settings);
+  if (!hints.length) return '';
+  const fix = created ? 'Power the VM off to change memory or cores. A wrong image or disk means Delete VM and build it again.' : 'Fix it here before you click Create.';
+  return `<div class="callout warning" data-hd-vm-hints="${hints.length}"><strong>Check your settings.</strong><ul class="hd-list">${hints.map(item => `<li>${hdEsc(item)}</li>`).join('')}</ul><p class="muted">${hdEsc(fix)}</p></div>`;
+}
+function hdVmFormProblems(form) {
+  const state = hdVmState();
+  const problems = [];
+  if (!form.name) problems.push('Type a name for the VM.');
+  else if (state.vms.some(vm => vm.name.toLowerCase() === form.name.toLowerCase())) problems.push(`A VM named ${form.name} already exists.`);
+  if (!hdVmImage(form.image)) problems.push('Pick an install image.');
+  if (!form.diskType) problems.push('Choose Dynamically allocated or Fixed size for the disk.');
+  if (!form.network) problems.push('Choose a network mode.');
+  if (hdVmRamLeft() < 0) problems.push('The host doesn’t have that much memory left.');
+  return problems;
+}
+function hdVmCreate() {
+  const state = hdVmState(); if (!state || !state.form) return;
+  const problems = hdVmFormProblems(state.form);
+  if (problems.length) { toast(problems[0]); return; }
+  const { lowRamSeen, ...form } = state.form;
+  state.vms.push(hdVmCleanVm({ ...form, state:'Off', installed:false, shortcut:true, snapshots:[], pings:[] }));
+  state.selected = form.name;
+  state.form = null;
+  hdVmChanged();
+}
+function hdVmSelect(name) { const state = hdVmState(); if (!state || !hdVmByName(name)) return; state.selected = hdVmByName(name).name; hdVmChanged(); }
+// Settings on a VM that exists: network mode any time; memory and cores
+// while it is off.
+function hdVmSet(name, field, value) {
+  const vm = hdVmByName(name); if (!vm) return;
+  if (field === 'network') { if (!HD_VM_MODES.includes(value)) return; vm.network = value; hdVmModeViewed(value); }
+  else if (field === 'memoryGb' || field === 'cores') {
+    if (vm.state !== 'Off') { toast('Power off the VM to change its memory or CPU cores.'); return; }
+    const number = Math.round(Number(value));
+    const max = field === 'memoryGb' ? hdVmHost().ramGb : hdVmHost().cores;
+    if (!Number.isInteger(number) || number < 1 || number > max) return;
+    const before = vm[field];
+    vm[field] = number;
+    if (field === 'memoryGb' && hdVmRamLeft() < 0) { vm[field] = before; toast('The host doesn’t have that much memory left.'); return; }
+  } else return;
+  hdVmChanged();
+}
+function hdVmStart(name) {
+  const vm = hdVmByName(name); if (!vm || vm.state !== 'Off') return;
+  if (!vm.installed) {
+    vm.state = 'Installing'; vm.installStartedAt = hdNowMs();
+    setTimeout(() => { hdVmFinishInstall(vm.name); }, HD_VM_INSTALL_MS);
+  } else vm.state = 'Running';
+  hdVmChanged();
+}
+// The simulated install, fast-forwarded to a desktop.
+function hdVmFinishInstall(name, quiet) {
+  const vm = (hdVm ? hdVm.vms : []).find(item => item.name === name);
+  if (!vm || vm.state !== 'Installing') return;
+  vm.state = 'Running'; vm.installed = true;
+  if (quiet) { hdVmSave(); return; }
+  hdVmChanged();
+}
+function hdVmPowerOff(name) { const vm = hdVmByName(name); if (!vm || vm.state !== 'Running') return; vm.state = 'Off'; hdVmChanged(); }
+function hdVmDelete(name) {
+  const state = hdVmState(); const vm = hdVmByName(name); if (!vm) return;
+  if (typeof confirm === 'function' && !confirm(`Delete ${vm.name}? Its disk and snapshots go with it.`)) return;
+  state.vms = state.vms.filter(item => item !== vm);
+  if (state.selected === vm.name) state.selected = '';
+  delete hdVmConsoleLines[vm.name];
+  hdVmChanged();
+}
+function hdVmSnapshot(name, snapshotName) {
+  const vm = hdVmByName(name); if (!vm) return;
+  const label = String(snapshotName || '').trim().slice(0, 40);
+  if (!label) { toast('Type a name for the snapshot.'); return; }
+  if (vm.snapshots.length >= 5) { toast('This VM already has five snapshots. Real snapshots fill the host’s disk too.'); return; }
+  vm.snapshots.push({ name:label, shortcut:vm.shortcut, at:new Date(hdNowMs()).toISOString() });
+  hdVmChanged();
+}
+function hdVmRestore(name, index) {
+  const vm = hdVmByName(name); if (!vm) return;
+  const snapshot = vm.snapshots[Number(index)]; if (!snapshot) return;
+  vm.shortcut = snapshot.shortcut;
+  vm.restored = Math.min((vm.restored || 0) + 1, 99);
+  hdVmChanged();
+}
+function hdVmDeleteShortcut(name) { const vm = hdVmByName(name); if (!vm || vm.state !== 'Running' || !vm.shortcut) return; vm.shortcut = false; vm.shortcutDeleted = true; hdVmChanged(); }
+
+// A VM's address on its network mode right now.
+function hdVmAddress(vm) {
+  const addresses = (HD_VM && HD_VM.lab.addresses) || {};
+  const state = hdVmState();
+  const index = Math.max(0, state.vms.indexOf(vm));
+  if (vm.network === 'NAT') return addresses.nat || '10.0.2.15';
+  if (vm.network === 'Internal') {
+    // Names match without case, the way hdVmByName does.
+    const internal = addresses.internal || {};
+    const key = Object.keys(internal).find(name => name.toLowerCase() === String(vm.name || '').toLowerCase());
+    return (key && internal[key]) || `10.0.5.${100 + index}`;
+  }
+  if (vm.network === 'Host-only') return `${addresses.hostOnly || '192.168.56.'}${101 + index}`;
+  return `${addresses.bridged || '10.20.99.'}${150 + index}`;
+}
+// Who a guest can reach: another running guest on the same mode, except NAT
+// (each NAT guest sits behind its own router, so guests never meet there).
+function hdVmReaches(from, address) {
+  if (!from || from.state !== 'Running') return false;
+  if (address === hdVmAddress(from)) return true;
+  if (from.network === 'NAT') return false;
+  return hdVmState().vms.some(vm => vm !== from && vm.state === 'Running' && vm.network === from.network && hdVmAddress(vm) === address);
+}
+function hdVmCommand(name, command) {
+  const vm = hdVmByName(name); if (!vm) return '';
+  const text = String(command || '').trim().slice(0, 200);
+  if (!text) return '';
+  const lines = hdVmConsoleLines[vm.name] = hdVmConsoleLines[vm.name] || [];
+  let output;
+  const ping = /^ping(?:\s+-[nt](?:\s+\d+)?)?\s+([^\s-]\S*)$/i.exec(text);
+  if (vm.state !== 'Running') output = `${vm.name} isn’t running. Start it first.`;
+  else if (ping) {
+    const target = ping[1];
+    const ok = hdVmReaches(vm, target);
+    output = hdPingText(target, ok ? [] : null);
+    vm.pings.push({ to:target.slice(0, 40), ok, mode:vm.network });
+    if (vm.pings.length > 20) vm.pings.splice(0, vm.pings.length - 20);
+    hdVmSave();
+  } else if (/^ipconfig$/i.test(text)) output = `Ethernet adapter Ethernet:\n\n   IPv4 Address. . . . . . . . . . . : ${hdVmAddress(vm)}\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0`;
+  else if (/^hostname$/i.test(text)) output = vm.name;
+  else if (/^(get-help|help)$/i.test(text)) output = 'Supported in this training console: ping <address>, ipconfig, hostname';
+  else output = `'${text.split(/\s+/)[0]}' isn’t supported in this training console. Supported: ping <address>, ipconfig, hostname`;
+  lines.push({ type:'command', text:`C:\\> ${text}` }, { type:'output', text:output });
+  if (lines.length > 24) lines.splice(0, lines.length - 24);
+  return output;
+}
+function hdVmRunConsole(event, name) {
+  if (event && event.preventDefault) event.preventDefault();
+  const input = document.getElementById('hd-vm-console-input');
+  const command = input ? input.value : '';
+  hdVmCommand(name, command);
+  if (input) input.value = '';
+  hdVmRefresh();
+}
+function hdVmTaskTab(tab) {
+  const state = hdVmState(); if (!state) return;
+  if (tab === 'cpu') { state.taskTab = 'performance'; state.cpuSeen = true; }
+  else if (['processes', 'performance'].includes(tab)) state.taskTab = tab;
+  else return;
+  hdVmChanged();
+}
+
+function hdVmMissing(title) {
+  return `${hdPageHeader(title, 'Not available in this shift.', `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/dashboard')">← Dashboard</button>`)}<div class="card"><div class="card-body"><p class="muted">Open the virtualization lab from your course page to use this screen.</p></div></div>`;
+}
+function hdVmRamBar() {
+  const host = hdVmHost(); const used = Math.min(hdVmRamUsed(), host.ramGb); const left = hdVmRamLeft();
+  const pct = Math.round((used / host.ramGb) * 100);
+  return `<div data-hd-vm-ram="${left}"><div class="hd-progress" role="img" aria-label="Host memory: ${used} of ${host.ramGb} GB given to VMs"><i style="width:${pct}%"></i></div><p class="muted">${used} GB given to VMs · <strong>${Math.max(left, 0)} GB left</strong> for the host of ${host.ramGb} GB${left < 0 ? ' · over the host’s memory' : left < 2 ? ' · the host will starve' : ''}</p></div>`;
+}
+function hdVmModeDiagram(mode) {
+  const modes = (HD_VM && HD_VM.lab.modes) || {};
+  const reach = { NAT:['VM', '→ host', '→ internet'], Bridged:['VM', '= another PC', 'on the network'], Internal:['VM', '⇄ VM', '(nothing else)'], 'Host-only':['VM', '⇄ host', '⇄ VM'] }[mode] || [];
+  return `<div data-hd-vm-diagram="${hdEsc(mode)}" class="callout info"><strong>${hdEsc(mode)}</strong> <span style="font-family:monospace">${reach.map(hdEsc).join(' ')}</span>${modes[mode] ? `<p>${hdEsc(modes[mode])}</p>` : ''}</div>`;
+}
+function hdVmForm(form) {
+  const images = (HD_VM.lab.images || []).map(image => `<option value="${hdEsc(image.id)}" ${form.image === image.id ? 'selected' : ''}>${hdEsc(image.label)}</option>`).join('');
+  const image = hdVmImage(form.image);
+  const low = image && form.memoryGb < (image.minRamGb || 0) ? `<div class="callout warning" role="alert" data-hd-vm-warning="memory">${hdEsc(image.os || image.label)} needs at least ${hdEsc(image.minRamGb)} GB of memory. With ${form.memoryGb} GB it will crawl or fail to install.</div>` : '';
+  const host = hdVmHost();
+  const state = hdVmState();
+  const viewed = state.viewMode && HD_VM_MODES.includes(state.viewMode) ? state.viewMode : form.network;
+  const modeButtons = HD_VM_MODES.map(mode => `<button type="button" class="btn btn-secondary btn-sm" data-hd-vm-mode="${hdEsc(mode)}" aria-pressed="${viewed === mode}" onclick="hdVmViewMode('${mode}')">${hdEsc(mode)}</button>`).join('');
+  const problems = hdVmFormProblems(form);
+  return `<div class="card" data-hd-vm-form><div class="card-header" ${HD_CONSOLE_HEADER}><strong>New virtual machine</strong><span class="muted">${hdEsc(host.name)}</span></div><div class="card-body">
+    <div class="hd-field-grid">
+      <label>Name <input class="input" id="hd-vm-name" value="${hdEsc(form.name)}" maxlength="15" autocomplete="off" onchange="hdVmFormSet('name',this.value)"></label>
+      <label>Install image (ISO) <select class="select" id="hd-vm-image" onchange="hdVmFormSet('image',this.value)"><option value="">Choose an image…</option>${images}</select></label>
+      <label>Memory: <strong>${form.memoryGb} GB</strong> <input type="range" id="hd-vm-memory" min="1" max="${host.ramGb}" step="1" value="${form.memoryGb}" aria-label="Memory in GB" onchange="hdVmFormSet('memoryGb',this.value)"></label>
+      <label>CPU cores: <strong>${form.cores}</strong> <input type="range" id="hd-vm-cores" min="1" max="${host.cores}" step="1" value="${form.cores}" aria-label="CPU cores" onchange="hdVmFormSet('cores',this.value)"></label>
+      <label>Disk size (GB) <input class="input" type="number" id="hd-vm-disk" min="1" max="2048" value="${form.diskGb}" onchange="hdVmFormSet('diskGb',this.value)"></label>
+      <fieldset><legend>Disk file</legend><label><input type="radio" name="hd-vm-disk-type" ${form.diskType === 'dynamic' ? 'checked' : ''} onchange="hdVmFormSet('diskType','dynamic')"> Dynamically allocated (grows as it fills)</label> <label><input type="radio" name="hd-vm-disk-type" ${form.diskType === 'fixed' ? 'checked' : ''} onchange="hdVmFormSet('diskType','fixed')"> Fixed size (takes all ${form.diskGb} GB now)</label></fieldset>
+    </div>
+    ${low}
+    ${form.name && form.image ? hdVmHintsHtml(form, false) : ''}
+    ${hdVmRamBar()}
+    <div><strong>Network mode</strong> <span class="muted">Click each mode to see who the VM can talk to.</span><div style="display:flex;flex-wrap:wrap;gap:6px">${modeButtons}</div>${viewed ? hdVmModeDiagram(viewed) : ''}${viewed ? `<button type="button" class="btn btn-secondary btn-sm" data-hd-vm-choose="${hdEsc(viewed)}" ${form.network === viewed ? 'disabled' : ''} onclick="hdVmFormSet('network','${viewed}')">${form.network === viewed ? `${hdEsc(viewed)} chosen` : `Use ${hdEsc(viewed)}`}</button>` : ''}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"><button type="button" class="btn btn-primary" data-hd-vm-create ${problems.length ? 'aria-disabled="true"' : ''} onclick="hdVmCreate()">Create</button><button type="button" class="btn btn-ghost" onclick="hdVmCancelNew()">Cancel</button></div>
+    ${problems.length ? `<ul class="hd-list muted">${problems.map(item => `<li>${hdEsc(item)}</li>`).join('')}</ul>` : ''}
+  </div></div>`;
+}
+function hdVmScreen(vm) {
+  const image = hdVmImage(vm.image) || {};
+  const name = hdJsArg(vm.name);
+  if (vm.state === 'Off') return `<div class="hd-windows-screen" data-hd-vm-screen="off"><div class="hd-window-body"><p class="muted">${hdEsc(vm.name)} is powered off.</p></div></div>`;
+  if (vm.state === 'Installing') {
+    const pct = Math.min(99, Math.round(((hdNowMs() - vm.installStartedAt) / HD_VM_INSTALL_MS) * 100));
+    return `<div class="hd-windows-screen" data-hd-vm-screen="installing"><div class="hd-window-body"><strong>Installing ${hdEsc(image.os || image.label || 'the guest OS')}…</strong><div class="hd-progress"><i style="width:${Math.max(pct, 5)}%"></i></div><p class="muted">Fast-forwarded: a real install takes 20 to 40 minutes.</p></div></div>`;
+  }
+  const lines = (hdVmConsoleLines[vm.name] || []).map(row => `<pre class="${row.type}">${hdEsc(row.text)}</pre>`).join('');
+  const shortcut = vm.shortcut ? `<div data-hd-vm-shortcut="present">📄 ${hdEsc((HD_VM.lab.shortcut) || 'Shortcut')} <button type="button" class="btn btn-ghost btn-sm" onclick="hdVmDeleteShortcut('${name}')">Delete</button></div>` : '<div data-hd-vm-shortcut="gone" class="muted">The desktop shortcut is gone.</div>';
+  const server = image.kind === 'server' ? `<div class="card" data-hd-vm-server-manager><div class="card-header"><strong>Server Manager</strong><span class="muted">${hdEsc(vm.name)} · Local Server</span></div><div class="card-body"><p class="muted">Roles and features: none yet. You’ll work in Server Manager in a later module.</p></div></div>` : '';
+  return `<div class="hd-windows-screen" data-hd-vm-screen="running"><div class="hd-window-bar"><span>${hdEsc(vm.name)} · ${hdEsc(image.os || image.label || '')} · ${hdEsc(vm.network)} · ${hdEsc(hdVmAddress(vm))}</span><span>Running</span></div><div class="hd-window-body">${shortcut}${server}
+    <div class="hd-terminal"><div class="hd-terminal-title">Command Prompt · ${hdEsc(vm.name)}</div><div class="hd-terminal-output" data-hd-vm-console="${hdEsc(vm.name)}">${lines}</div><form onsubmit="hdVmRunConsole(event,'${name}')" class="hd-terminal-input"><span>C:\\&gt;</span><input id="hd-vm-console-input" autocomplete="off" spellcheck="false" placeholder="ping 10.0.5.10" aria-label="Command for ${hdEsc(vm.name)}"><button>Run</button></form></div>
+  </div></div>`;
+}
+function hdVmDetail(vm) {
+  const image = hdVmImage(vm.image) || {};
+  const name = hdJsArg(vm.name);
+  const off = vm.state === 'Off';
+  const snapshots = vm.snapshots.map((snapshot, index) => `<li data-hd-vm-snapshot="${hdEsc(snapshot.name)}">📸 ${hdEsc(snapshot.name)} <button type="button" class="btn btn-secondary btn-sm" onclick="hdVmRestore('${name}',${index})">Restore</button></li>`).join('');
+  const network = HD_VM_MODES.map(mode => `<option ${vm.network === mode ? 'selected' : ''}>${hdEsc(mode)}</option>`).join('');
+  return `<div class="card" data-hd-vm-detail="${hdEsc(vm.name)}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(vm.name)}</strong>${hdBadge(vm.state === 'Running' ? 'Running' : vm.state === 'Installing' ? 'Installing' : 'Powered off', vm.state === 'Running' ? 'ok' : 'warn')}
+    <span style="display:flex;gap:6px;flex-wrap:wrap">${off ? `<button type="button" class="btn btn-primary btn-sm" data-hd-vm-start onclick="hdVmStart('${name}')">Start</button>` : ''}${vm.state === 'Running' ? `<button type="button" class="btn btn-secondary btn-sm" onclick="hdVmPowerOff('${name}')">Power off</button>` : ''}<button type="button" class="btn btn-ghost btn-sm" onclick="hdVmDelete('${name}')">Delete VM</button></span></div><div class="card-body">
+    <dl class="hd-dl"><dt>Install image</dt><dd>${hdEsc(image.label || '—')}</dd><dt>Memory</dt><dd>${off ? `<input class="input" type="number" min="1" max="${hdVmHost().ramGb}" value="${vm.memoryGb}" aria-label="Memory in GB" onchange="hdVmSet('${name}','memoryGb',this.value)"> GB` : `${vm.memoryGb} GB`}</dd><dt>CPU cores</dt><dd>${off ? `<input class="input" type="number" min="1" max="${hdVmHost().cores}" value="${vm.cores}" aria-label="CPU cores" onchange="hdVmSet('${name}','cores',this.value)">` : vm.cores}</dd><dt>Disk</dt><dd>${vm.diskGb} GB, ${vm.diskType === 'fixed' ? 'fixed size' : 'dynamically allocated'}</dd><dt>Network</dt><dd><select class="select" aria-label="Network mode for ${hdEsc(vm.name)}" onchange="hdVmSet('${name}','network',this.value)">${network}</select></dd></dl>
+    ${hdVmHintsHtml(vm, true)}
+    ${hdVmModeDiagram(vm.network)}
+    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Snapshots</strong><span class="muted">A checkpoint on the same disk, not a backup</span></div><div class="card-body"><form onsubmit="event.preventDefault();hdVmSnapshot('${name}',(document.getElementById('hd-vm-snapshot-name')||{}).value)" style="display:flex;gap:6px;flex-wrap:wrap"><input class="input" id="hd-vm-snapshot-name" maxlength="40" placeholder="Snapshot name" aria-label="Snapshot name"><button class="btn btn-secondary btn-sm">Take snapshot</button></form>${snapshots ? `<ul class="hd-list">${snapshots}</ul>` : '<p class="muted">No snapshots yet.</p>'}</div></div>
+    ${hdVmScreen(vm)}
+  </div></div>`;
+}
+function hdVmFinishCards() {
+  const cards = Array.isArray(HD_VM.lab.finishCards) ? HD_VM.lab.finishCards : [];
+  if (!cards.length || !hdVmState().vms.some(vm => vm.installed)) return '';
+  return `<div class="card" data-hd-vm-finish><div class="card-header"><strong>Where Tier 1 meets VMs at work</strong></div><div class="card-body"><div class="hd-tool-grid">${cards.map(card => `<div class="card"><div class="card-body"><strong>${hdEsc(card.title)}</strong><p class="muted">${hdEsc(card.text)}</p></div></div>`).join('')}</div></div></div>`;
+}
+VIEWS['helpdesk/vm-manager'] = () => {
+  if (!HD_VM) return hdVmMissing('VM Manager');
+  const state = hdVmState(); const host = hdVmHost();
+  const list = state.vms.map(vm => `<button type="button" class="hd-device-card${state.selected === vm.name ? ' active' : ''}" data-hd-vm="${hdEsc(vm.name)}" onclick="hdVmSelect('${hdJsArg(vm.name)}')"><strong>${hdEsc(vm.name)}</strong><small>${hdEsc(vm.state === 'Off' ? 'Powered off' : vm.state)} · ${vm.memoryGb} GB · ${vm.cores} core${vm.cores === 1 ? '' : 's'} · ${hdEsc(vm.network)}</small></button>`).join('');
+  const selected = hdVmByName(state.selected);
+  return `${hdPageHeader('VM Manager', `${host.name} · a Type 2 hypervisor app on the host`, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/task-manager')">Task Manager</button><button class="btn btn-primary" data-hd-vm-new onclick="hdVmNew()" ${state.form ? 'disabled' : ''}>New</button>`)}
+    <div class="callout info">Simulated: nothing is installed on your computer, and the guests aren’t real Windows. The lab checks the settings you choose.</div>
+    ${hdVmSaveLine()}
+    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Host: ${hdEsc(host.name)}</strong><span class="muted">${host.ramGb} GB memory · ${host.cores} cores</span></div><div class="card-body">${hdVmRamBar()}</div></div>
+    ${state.form ? hdVmForm(state.form) : ''}
+    <div class="hd-endpoint-layout"><aside class="card"><div class="card-header"><strong>Virtual machines</strong></div><div class="hd-device-list">${list || '<p class="muted" style="padding:12px">No VMs yet. Click New to make one.</p>'}</div></aside><div>${selected ? hdVmDetail(selected) : ''}</div></div>
+    ${hdVmFinishCards()}`;
+};
+VIEWS['helpdesk/task-manager'] = () => {
+  if (!HD_VM) return hdVmMissing('Task Manager');
+  const state = hdVmState(); const host = hdVmHost();
+  const tab = (id, label, on) => `<button type="button" class="btn ${on ? 'btn-primary' : 'btn-secondary'} btn-sm" data-hd-task-tab="${id}" aria-pressed="${on}" onclick="hdVmTaskTab('${id}')">${label}</button>`;
+  const performance = state.taskTab === 'performance';
+  const body = performance
+    ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${tab('cpu', 'CPU', state.cpuSeen)}</div>${state.cpuSeen ? `<dl class="hd-dl" data-hd-task-cpu><dt>Processor</dt><dd>${hdEsc(host.cpu)}</dd><dt>Cores</dt><dd>${host.cores}</dd><dt>Virtualization</dt><dd><strong>${hdEsc(host.virtualization)}</strong></dd><dt>Memory</dt><dd>${host.ramGb} GB installed</dd></dl>` : '<p class="muted">Choose CPU to see the processor.</p>'}`
+    : `<div class="table-wrap"><table><thead><tr><th>Name</th><th>CPU</th><th>Memory</th></tr></thead><tbody><tr><td>VM Manager</td><td>1%</td><td>180 MB</td></tr><tr><td>Desktop Window Manager</td><td>1%</td><td>90 MB</td></tr><tr><td>Microsoft Edge</td><td>0%</td><td>420 MB</td></tr></tbody></table></div>`;
+  return `${hdPageHeader('Task Manager', host.name, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/vm-manager')">VM Manager</button>`)}<div class="card" data-hd-task-manager><div class="card-header" ${HD_CONSOLE_HEADER}>${tab('processes', 'Processes', !performance)}${tab('performance', 'Performance', performance)}</div><div class="card-body">${body}</div></div>`;
+};
+// The dashboard's way in, only in the virtualization lab.
+function hdVmDashboardCard() {
+  if (!HD_VM) return '';
+  return `<div class="card" data-hd-vm-card><div class="card-header"><strong>Virtualization lab</strong></div><div class="card-body"><p>Build and test practice VMs on ${hdEsc(hdVmHost().name)}.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="navigate('#/helpdesk/vm-manager')">VM Manager</button><button class="btn btn-secondary btn-sm" onclick="navigate('#/helpdesk/task-manager')">Task Manager</button></div></div></div>`;
+}
+window.hdVmNew=hdVmNew; window.hdVmCancelNew=hdVmCancelNew; window.hdVmFormSet=hdVmFormSet; window.hdVmViewMode=hdVmViewMode; window.hdVmCreate=hdVmCreate;
+window.hdVmSelect=hdVmSelect; window.hdVmSet=hdVmSet; window.hdVmStart=hdVmStart; window.hdVmPowerOff=hdVmPowerOff; window.hdVmDelete=hdVmDelete;
+window.hdVmSnapshot=hdVmSnapshot; window.hdVmRestore=hdVmRestore; window.hdVmDeleteShortcut=hdVmDeleteShortcut; window.hdVmRunConsole=hdVmRunConsole; window.hdVmTaskTab=hdVmTaskTab;
+window.hdVmState=hdVmState; window.hdVmByName=hdVmByName; window.hdVmSummary=hdVmSummary; window.hdVmAddress=hdVmAddress;
+if (HD_VM) hdVmAskServer();
 
 /* ---------- HD-2101 Practice scenario: runtime ---------- */
 // The scenario, while this Practice shift has the HD-2101 ticket.
@@ -3195,9 +5045,11 @@ function hdPowerShellOutput(command) {
 Sessions: Enter-PSSession -ComputerName <name>, Exit-PSSession
 Scheduled tasks: Get-ScheduledTask [-TaskName <name>], Get-ScheduledTaskInfo -TaskName <name>, Start-ScheduledTask -TaskName <name>, Set-ScheduledTask -TaskName <name> -User <DOMAIN\\user>, schtasks /Query [/TN <name> /V /FO LIST], schtasks /Change /TN <name> /RU <DOMAIN\\user>, schtasks /Run /TN <name>
 Accounts: Get-ADUser <user> -Properties *, Search-ADAccount -LockedOut, Unlock-ADAccount -Identity <user>
-Events: Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4740}`}`;
+Events: Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4740}`}${hdFeatureHelp(computer)}`;
   const practiceOutput = hdPracticeCommand(command, normalized, computer);
   if(practiceOutput !== null) return practiceOutput;
+  const featureOutput = hdFeatureCommand(command, normalized, computer);
+  if(featureOutput !== null) return featureOutput;
   const machineOutput = hdMachineCommand(command, normalized, computer);
   if(machineOutput !== null) return machineOutput;
   if(normalized==='get-computerinfo') return `CsName: ${computer.name}\nWindowsProductName: Windows 11 Enterprise\nOsVersion: 10.0.26100\nCsDomain: ${HD_ORG.domain}${computer.uptimeDays ? `\nOsUptime: ${computer.uptimeDays} days` : ''}`;
@@ -3233,6 +5085,8 @@ function hdRunPowerShell(event) {
     hdState.powershell.push({type:'command',text:`PS C:\\Support> ${shown}`},{type:'output',text:output});
     hdPracticeEvent('command_run', { command:shown.slice(0, 200), computer, result:(hdLastCommandResult || hdFirstLine(output)).slice(0, 200) });
   }
+  // A command can change a machine a late message waits for (when.machine).
+  if (hdHasArrivals()) hdCheckArrivals();
   hdSave(); render();
 }
 VIEWS['helpdesk/powershell'] = () => `${hdPageHeader('PowerShell', `Connected to ${hdEsc(hdState.selectedComputer)} · training commands`)}<div class="hd-terminal"><div class="hd-terminal-title">Northstar Enterprise Support Shell</div><div class="hd-terminal-output">${hdState.powershell.map(row=>`<pre class="${row.type}">${hdEsc(row.text)}</pre>`).join('')}</div><form onsubmit="hdRunPowerShell(event)" class="hd-terminal-input"><span>PS C:\\Support&gt;</span><input id="hd-ps-input" autocomplete="off" spellcheck="false" placeholder="Get-Help" autofocus><button>Run</button></form></div><div class="callout info">Command-line output is simulated and limited to the course fixtures. Use it to collect repeatable evidence for ticket notes.</div>`;
@@ -3563,12 +5417,66 @@ window.hdProveQueueSet=hdProveQueueSet; window.hdProveQueueText=hdProveQueueText
  * which choice is right; scoring is not in the simulator. */
 function hdProveSetField(field, value) {
   // Pre-set fields (Module 1) can't be changed.
-  if (hdProveLocked() || hdProvePreset() || !['category','type','priority'].includes(field)) return;
+  if (hdProveLocked() || hdProvePreset()) return;
+  if (hdProveMatrix()) { hdProveSetMatrixField(field, value); return; }
+  if (!['category','type','priority'].includes(field)) return;
   hdState.prove.fields[field] = String(value || '');
   hdProveEdited();
   hdSave();
   hdProveSyncSubmit();
 }
+// Module 3: only values the ticket offers. Priority is Impact x Urgency, as in
+// Lab 2.1, and redraws in place; nothing says whether a choice is right.
+function hdProveMatrixValue(field, value) {
+  const spec = hdProveSpec();
+  const text = String(value || '');
+  const offered = {
+    ticketClass:HD_PROVE_CLASSES, category:(spec && spec.categoryOptions) || [], impact:['1', '2', '3'], urgency:['1', '2', '3'], group:HD_ASSIGNMENT_GROUPS,
+  }[field] || [];
+  return offered.includes(text) ? text : '';
+}
+function hdProveSetMatrixField(field, value) {
+  if (!HD_PROVE_MATRIX_FIELDS.includes(field)) return;
+  const fields = hdState.prove.fields;
+  fields[field] = hdProveMatrixValue(field, value);
+  fields.priority = hdMatrixPriority(fields.impact, fields.urgency) || '';
+  hdProveEdited();
+  hdSave();
+  const shown = typeof document !== 'undefined' && document.getElementById ? document.getElementById('hd-prove-priority') : null;
+  if (shown) shown.innerHTML = hdProvePriorityHtml(fields.priority);
+  const warm = typeof document !== 'undefined' && document.getElementById ? document.getElementById('hd-prove-warm') : null;
+  if (warm) warm.disabled = !fields.group;
+  hdProveSyncSubmit();
+}
+function hdProvePriorityHtml(priority) {
+  return priority ? `${hdBadge(priority, priority.toLowerCase())} ${hdEsc(HD_PRIORITY_NAMES[priority] || '')}` : '<span class="muted">Not set</span>';
+}
+// Module 3: an evidence card or an earlier call, opened on its own and
+// recorded once (evidence_opened, source card:<id> or history:<id>).
+function hdProveOpenCard(kind, id) {
+  const spec = hdProveSpec();
+  const list = spec && (kind === 'history' ? spec.history : kind === 'card' ? spec.evidence : null);
+  const item = Array.isArray(list) ? list.find(entry => entry.id === id) : null;
+  if (hdProveLocked() || !item) return;
+  hdProveOpened(`${kind}:${id}`, item.title);
+  render();
+}
+// Module 3: a warm handoff, a call to the chosen assignment group, logged in
+// the ticket history on the shift clock. Once per group. Never scored; the
+// instructor sees it.
+function hdProveWarmHandoff() {
+  const spec = hdProveSpec();
+  const ticket = hdState.tickets[0];
+  const group = hdState.prove && hdState.prove.fields.group;
+  if (hdProveLocked() || !spec || spec.warmHandoff !== true || !ticket || !group) return;
+  if (hdState.prove.events.some(event => event.type === 'warm_handoff' && event.value === group)) return;
+  const label = `Called ${group} at ${hdShiftTimeText(hdShiftNow())}`;
+  hdProveEvent('warm_handoff', { value:group, label });
+  hdHistory(ticket, `${label}.`);
+  hdSave();
+  render();
+}
+window.hdProveOpenCard=hdProveOpenCard; window.hdProveWarmHandoff=hdProveWarmHandoff;
 function hdProveChoose(field, value) {
   if (hdProveLocked() || !['diagnosis','decision'].includes(field)) return;
   hdState.prove[field] = String(value || '');
@@ -3660,10 +5568,12 @@ window.hdProveAssign=hdProveAssign; window.hdProveSetCode=hdProveSetCode; window
 const HD_PROVE_TEXT_LABELS = { resolutionNote:'work note', userReply:'reply to the user' };
 const hdProveRefused = {};
 function hdProveText(field, value) {
-  if (hdProveLocked() || !['resolutionNote','userReply'].includes(field)) return;
-  const text = String(value || '').slice(0, 4000);
+  const extra = hdProveWriting()[field];
+  if (hdProveLocked() || !(['resolutionNote','userReply'].includes(field) || (HD_PROVE_EXTRA_TEXT.includes(field) && extra))) return;
+  const text = String(value || '').slice(0, extra ? extra.max || 4000 : 4000);
   if (hdPasswordInText(text)) {
-    if (!hdProveRefused[field]) hdProveRefused[field] = `${hdRefusePasswordText(null, HD_PROVE_TEXT_LABELS[field])} Remove it to submit.`;
+    const name = extra ? String(extra.label || field).toLowerCase() : HD_PROVE_TEXT_LABELS[field];
+    if (!hdProveRefused[field]) hdProveRefused[field] = `${hdRefusePasswordText(null, name)} Remove it to submit.`;
     hdProveSyncSubmit();
     return;
   }
@@ -3694,9 +5604,60 @@ function hdProvePackage() {
     assignedTo:ticket.assignedTechnician, ticketState:ticket.status, resolutionCode:ticket.status === 'Resolved' ? ticket.closureCode || '' : '',
     commands:prove.events.filter(event => event.type === 'command_run').map(event => ({ command:hdRedactCommand(event.command || ''), computer:event.computer, at:event.at })),
     events:prove.events.map(event => (typeof event.command === 'string' ? { ...event, command:hdRedactCommand(event.command) } : event)),
-    machine:hdClone(hdMachine(shift.selectedComputer) || {}),
+    machine:shift.printerSummary === true ? hdProvePrinterSummary(shift.selectedComputer) : hdClone(hdMachine(shift.selectedComputer) || {}),
     passwordTyped:prove.passwordTyped === true, passwordWritten:prove.passwordWritten === true,
+    // Module 3: the extra writing and the time used (the efficiency band).
+    ...hdProveExtraPackage(prove),
   };
+}
+// Module 4 (shift printerSummary): a small summary of the selected computer's
+// print queues instead of the whole machine, so the package stays inside the
+// course page's 4 KB machine limit. Per queue: port, driver, paper size and
+// the job counts. Nothing says which values are right.
+function hdProvePrinterSummary(name) {
+  const machine = hdMachine(name) || {};
+  const queues = hdPrintQueues(machine) || {};
+  return { printQueues:Object.fromEntries(Object.keys(queues).slice(0, 8).map(printer => {
+    const queue = queues[printer];
+    const printed = Array.isArray(queue.printed) ? queue.printed : [];
+    return [printer, {
+      port:String(queue.port || ''), driver:String(queue.driver || ''), media:String(queue.media || ''),
+      queued:Array.isArray(queue.jobs) ? queue.jobs.length : 0, printed:printed.length,
+      testPages:printed.filter(job => job && job.document === 'Test Page').length,
+    }];
+  })) };
+}
+// A returned attempt's printer summary back onto the selected computer: each
+// queue's port, driver and paper size, only where this computer offers them.
+function hdProvePrefillPrinters(summary, machine) {
+  const queues = hdPrintQueues(machine);
+  const saved = summary && summary.printQueues && typeof summary.printQueues === 'object' ? summary.printQueues : null;
+  if (!queues || !saved) return;
+  Object.keys(queues).forEach(printer => {
+    const queue = queues[printer]; const was = saved[printer];
+    if (!was || typeof was !== 'object') return;
+    if (typeof was.port === 'string' && (hdMachinePort(machine, was.port) || was.port === queue.port)) queue.port = was.port;
+    if (typeof was.driver === 'string' && (hdPrinterDrivers(machine, queue).includes(was.driver) || was.driver === hdOutsideDriver(queue))) queue.driver = was.driver;
+    if (typeof was.media === 'string' && (queue.mediaSizes || []).includes(was.media)) queue.media = was.media;
+    // The saved counts back, no more: jobs print in order, so the first ones
+    // the attempt printed are printed again here, its test pages are added,
+    // and only as many jobs as it left queued stay queued (the rest were
+    // cancelled). A resubmission never sends them twice or invents a print.
+    if (!Number.isInteger(was.printed) || !Number.isInteger(was.queued) || !Array.isArray(queue.jobs)) return;
+    const before = Array.isArray(queue.printed) ? queue.printed : [];
+    const tests = Math.max(0, Number.isInteger(was.testPages) ? was.testPages : 0);
+    const labels = Math.max(0, Math.min(queue.jobs.length, was.printed - tests - before.length));
+    const owner = (hdComputerByName(HD_PROVE.shift.selectedComputer) || {}).user || '';
+    queue.printed = [...before, ...queue.jobs.slice(0, labels).map(job => ({ document:job.document, pages:job.pages || 1, owner:job.owner || '' })),
+      ...Array.from({ length:Math.min(tests, 60) }, () => ({ document:'Test Page', pages:1, owner }))];
+    const rest = queue.jobs.slice(labels);
+    queue.jobs = rest.slice(0, Math.max(0, Math.min(rest.length, was.queued)));
+  });
+}
+function hdProveExtraPackage(prove) {
+  if (!hdProveMatrix()) return {};
+  const writing = Object.fromEntries(Object.keys(hdProveWriting()).filter(field => HD_PROVE_EXTRA_TEXT.includes(field)).map(field => [field, String(prove[field] || '')]));
+  return { ...writing, elapsedSeconds:Math.max(0, Math.round((Date.now() - (Date.parse(prove.startedAt) || Date.now())) / 1000)) };
 }
 
 // Which required parts are still empty. Completeness only: nothing here looks
@@ -3705,6 +5666,19 @@ function hdProveMissing() {
   if (hdProveQueue()) return hdProveQueueMissing();
   const prove = hdState.prove;
   const ticket = hdState.tickets[0];
+  if (hdProveMatrix()) {
+    const labels = hdProveLabels();
+    const writing = hdProveWriting();
+    return [
+      ['Assign to me', hdProveAssigned(ticket) ? 'yes' : ''],
+      ['class', prove.fields.ticketClass], ['category', prove.fields.category], ['impact', prove.fields.impact], ['urgency', prove.fields.urgency],
+      ['assignment group', prove.fields.group], ['diagnosis', prove.diagnosis], ['decision', prove.decision],
+      ...Object.keys(writing).filter(field => HD_PROVE_EXTRA_TEXT.includes(field) && field !== 'kbDraft').map(field => [String(writing[field].label || field).toLowerCase(), prove[field]]),
+      [labels.resolutionNote.toLowerCase(), prove.resolutionNote], [labels.userReply.toLowerCase(), prove.userReply],
+      ...(writing.kbDraft ? [['KB draft', prove.kbDraft]] : []),
+      ['close the ticket', hdProveClosed(ticket) ? 'yes' : ''],
+    ].filter(([, value]) => !String(value || '').trim()).map(([name]) => name);
+  }
   return [
     ['Assign to me', hdProveAssigned(ticket) ? 'yes' : ''],
     ['category', prove.fields.category], ['type', prove.fields.type], ['priority', prove.fields.priority],
@@ -3763,7 +5737,13 @@ function hdProvePrefill(work) {
   const fields = work.fields || {};
   const offered = (value, options) => (options.includes(value) ? value : '');
   const steps = Array.isArray(work.steps) ? work.steps : [];
-  prove.fields = hdProvePreset() || {
+  if (hdProveMatrix()) {
+    prove.fields = Object.fromEntries(HD_PROVE_MATRIX_FIELDS.map(field => [field, hdProveMatrixValue(field, fields[field])]));
+    prove.fields.priority = hdMatrixPriority(prove.fields.impact, prove.fields.urgency) || '';
+    Object.keys(hdProveWriting()).filter(field => HD_PROVE_EXTRA_TEXT.includes(field)).forEach(field => {
+      prove[field] = hdMaskPasswordText(String(work[field] || '').slice(0, hdProveWriting()[field].max || 4000));
+    });
+  } else prove.fields = hdProvePreset() || {
     category:offered(fields.category, ticket.categoryOptions), type:offered(fields.type, ticket.typeOptions),
     priority:offered(fields.priority, ['P1','P2','P3','P4']),
   };
@@ -3798,10 +5778,15 @@ function hdProvePrefillActions(work, prove, ticket) {
       if (Array.isArray(fixture[key]) && Array.isArray(value)) machine[key] = value.filter(item => typeof item === 'string');
       else if (typeof fixture[key] === typeof value && typeof value !== 'object') machine[key] = value;
     });
+    if (HD_PROVE.shift.printerSummary === true) hdProvePrefillPrinters(work.machine, machine);
     hdState.machines = { ...(hdState.machines || {}), [name]:machine };
   }
   if (work.passwordTyped === true) prove.passwordTyped = true;
   if (work.passwordWritten === true) prove.passwordWritten = true;
+  // Module 3: a warm handoff from the earlier attempt stays in the history.
+  prove.events.filter(event => event.type === 'warm_handoff' && event.label).forEach(event => {
+    if (!ticket.troubleshootingHistory.some(entry => entry.action === `${event.label}.`)) ticket.troubleshootingHistory.push({ time:'Earlier attempt', action:`${event.label}.` });
+  });
   if (work.assignedTo === 'Riley Morgan') {
     ticket.assignedTechnician = 'Riley Morgan';
     ticket.closureCode = HD_PROVE_RESOLUTION_CODES.includes(work.resolutionCode) ? work.resolutionCode : '';
@@ -3879,12 +5864,27 @@ function hdProveMark(input) {
   group.forEach(item => { const label = item.closest('label'); if (label) label.setAttribute('style', hdProveChoiceStyle(item.checked)); });
 }
 const HD_PROVE_SUBMIT_OFF = 'background:#d0d5dd;border-color:#d0d5dd;color:#475467;cursor:not-allowed';
+// Module 3: Class, Category, group and decision are shuffled per attempt
+// (seeded, so a reload keeps the order), so no right answer has a fixed
+// place. Saved work is restored by value, never by position. Module 1 keeps
+// its fixed order.
+function hdProveListOrder(options, salt) { return hdProveMatrix() ? hdSeededOrder(options.slice(), ((hdState && hdState.seed) || 1) ^ salt) : options; }
 function hdProveSelect(field, label, options, value, locked) {
   return `<label>${hdEsc(label)}<select class="select" ${locked ? 'disabled' : ''} onchange="hdProveSetField('${field}',this.value)"><option value="">Choose…</option>${options.map(option => `<option ${option === value ? 'selected' : ''}>${hdEsc(option)}</option>`).join('')}</select></label>`;
 }
 // Ticket fields: the student's to set, or (Module 1) set for them and shown
 // read-only, with no control to change them.
 function hdProveFieldsCard(ticket, prove, locked) {
+  if (hdProveMatrix()) {
+    const levels = ['1', '2', '3'];
+    const select = (field, label, options, names) => `<label>${hdEsc(label)}<select class="select" data-hd-field="${field}" ${locked ? 'disabled' : ''} onchange="hdProveSetField('${field}',this.value)"><option value="">Choose…</option>${options.map(option => `<option value="${hdEsc(option)}" ${option === prove.fields[field] ? 'selected' : ''}>${hdEsc(names ? names[option] : option)}</option>`).join('')}</select></label>`;
+    return `<div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Ticket fields</strong></div><div class="card-body hd-control-stack">
+      ${select('ticketClass', 'Class', hdProveListOrder(HD_PROVE_CLASSES, 0x27d4eb2f))}${select('category', 'Category', hdProveListOrder(ticket.categoryOptions || [], 0x165667b1))}
+      ${select('impact', 'Impact', levels, HD_IMPACT_LABELS)}${select('urgency', 'Urgency', levels, HD_IMPACT_LABELS)}
+      <div class="hd-priority-preset"><span>Priority</span> <span id="hd-prove-priority">${hdProvePriorityHtml(prove.fields.priority)}</span><p class="muted" style="margin:4px 0 0">Calculated from Impact × Urgency. You don't type it.</p></div>
+      ${select('group', 'Assignment group', hdProveListOrder(HD_ASSIGNMENT_GROUPS, 0x1b873593))}
+    </div></div>`;
+  }
   const preset = hdProvePreset();
   const body = preset
     ? `<div class="hd-field-grid" data-hd-prove-preset>${[['Category', preset.category], ['Type', preset.type], ['Priority', preset.priority]].map(([label, value]) => `<div><span>${label}</span><strong>${hdEsc(value)}</strong></div>`).join('')}</div><p class="muted">Set for you in Module 1.</p>`
@@ -3900,25 +5900,70 @@ function hdProveTicketView(ticket) {
   Object.keys(hdProveRefused).forEach(field => { delete hdProveRefused[field]; });
   const off = locked ? 'disabled' : '';
   const steps = prove.order.path.map(id => ticket.pathPool.find(step => step.id === id)).filter(Boolean);
-  return `${hdPageHeader(ticket.id, ticket.title, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/tickets')">← Queue</button>${locked || hdProveAssigned(ticket) ? '' : `<button id="hd-prove-assign" class="btn btn-primary" onclick="hdProveAssign('${ticket.id}')">Assign to me</button>`}`)}
+  const labels = hdProveLabels();
+  const clock = !!HD_PROVE.shift.now;
+  const created = clock ? hdShiftTimeText(ticket.createdTimestamp) : new Date(ticket.createdTimestamp).toLocaleString();
+  return `${hdPageHeader(hdTicketLabel(ticket), ticket.title, `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/tickets')">← Queue</button>${locked || hdProveAssigned(ticket) ? '' : `<button id="hd-prove-assign" class="btn btn-primary" onclick="hdProveAssign('${ticket.id}')">Assign to me</button>`}`)}
     <div class="callout info"><strong>Prove It.</strong> Work this ticket on your own: there is no coach and no feedback before you submit. Your instructor reviews your work.</div>
     <div class="hd-ticket-layout">
       <div class="hd-ticket-main">
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Requester statement</strong>${hdBadge(ticket.status)}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid"><div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Title</span><strong>${hdEsc(ticket.requesterTitle)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Device</span><strong>${hdEsc(ticket.device)}</strong></div><div><span>CC</span><strong>${hdEsc(ticket.cc)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div></div></div></div>
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Ticket replies</strong></div><div class="card-body hd-note-list">${ticket.conversation.map(reply => `<div><strong>${hdEsc(reply.from)} · ${hdEsc(reply.role)}</strong><p>${hdEsc(reply.text)}</p></div>`).join('')}</div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Requester statement</strong>${hdBadge(ticket.status)}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid"><div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Title</span><strong>${hdEsc(ticket.requesterTitle)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Device</span><strong>${hdEsc(ticket.device)}</strong></div>${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.cc || !ticket.contactType ? `<div><span>CC</span><strong>${hdEsc(ticket.cc)}</strong></div>` : ''}<div><span>Created</span><strong>${hdEsc(created)}</strong></div>${clock ? `<div><span>Now</span><strong>${hdEsc(hdShiftTimeText(hdShiftNow()))}</strong></div>` : ''}<div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div></div></div></div>
+        ${hdProveRepliesCard(ticket)}
+        ${hdProveOpenList('history', 'Earlier calls on this ticket', 'Open an entry to read it.', ticket.history, locked)}
+        ${hdProveOpenList('card', 'Evidence', 'Open a card to see it.', ticket.evidence, locked)}
         ${hdConsoleKbCard(ticket)}
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your diagnosis</strong></div><div class="card-body"><select id="hd-prove-diagnosis" class="select" ${off} onchange="hdProveChoose('diagnosis',this.value)"><option value="">Choose what this ticket is…</option>${prove.order.diagnosis.map(value => `<option ${prove.diagnosis === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></div></div>
+        ${hdProveWritingCard('keyFinding', prove, off)}
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Steps you took</strong><span class="muted">Select every step you actually took.</span></div><div class="card-body"><div class="hd-path">${steps.map(step => `<label style="${hdProveChoiceStyle(prove.steps.includes(step.id))}"><input type="checkbox" ${off} onchange="hdProveToggleStep('${step.id}',this.checked);hdProveMark(this)" ${prove.steps.includes(step.id) ? 'checked' : ''}>${hdEsc(step.text)}</label>`).join('')}</div></div></div>
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your decision</strong></div><div class="card-body"><div class="hd-path">${['Resolve','Escalate'].map(value => `<label style="${hdProveChoiceStyle(prove.decision === value)}"><input type="radio" name="hd-prove-decision" ${off} onchange="hdProveChoose('decision','${value}');hdProveMark(this)" ${prove.decision === value ? 'checked' : ''}>${value}</label>`).join('')}</div></div></div>
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Work notes</strong><span class="muted">Reported / Tried / Result (+ Next action if it stays open or goes to another team)</span></div><div class="card-body"><textarea id="hd-prove-note" class="ipt hd-note-input" aria-label="Work note" rows="7" maxlength="4000" ${off} oninput="hdProveText('resolutionNote',this.value)">${hdEsc(prove.resolutionNote)}</textarea>${ticket.notes.length ? `<p class="muted">Earlier notes:</p><div class="hd-note-list">${ticket.notes.map(note => `<div><strong>${hdEsc(note.author)} · ${hdEsc(note.time)}</strong><p>${hdEsc(note.text)}</p></div>`).join('')}</div>` : ''}</div></div>
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Reply to the user</strong><span class="muted">Written to ${hdEsc(ticket.requester)}, in your own words.</span></div><div class="card-body"><textarea id="hd-prove-reply" class="ipt hd-note-input" aria-label="Reply to the user" rows="7" maxlength="4000" ${off} oninput="hdProveText('userReply',this.value)">${hdEsc(prove.userReply)}</textarea></div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your decision</strong></div><div class="card-body"><div class="hd-path">${hdProveListOrder(['Resolve','Escalate'], 0x85ebca6b).map(value => `<label style="${hdProveChoiceStyle(prove.decision === value)}"><input type="radio" name="hd-prove-decision" ${off} onchange="hdProveChoose('decision','${value}');hdProveMark(this)" ${prove.decision === value ? 'checked' : ''}>${value}</label>`).join('')}</div></div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>${hdEsc(labels.resolutionNote)}</strong><span class="muted">${hdEsc(labels.resolutionHint)}</span></div><div class="card-body"><textarea id="hd-prove-note" class="ipt hd-note-input" aria-label="${hdEsc(labels.resolutionNote === 'Work notes' ? 'Work note' : labels.resolutionNote)}" rows="7" maxlength="4000" ${off} oninput="hdProveText('resolutionNote',this.value)">${hdEsc(prove.resolutionNote)}</textarea>${ticket.notes.length ? `<p class="muted">Earlier notes:</p><div class="hd-note-list">${ticket.notes.map(note => `<div><strong>${hdEsc(note.author)} · ${hdEsc(note.time)}</strong><p>${hdEsc(note.text)}</p></div>`).join('')}</div>` : ''}</div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>${hdEsc(labels.userReply)}</strong><span class="muted">Written to ${hdEsc(ticket.requester)}, in your own words.</span></div><div class="card-body"><textarea id="hd-prove-reply" class="ipt hd-note-input" aria-label="${hdEsc(labels.userReply)}" rows="7" maxlength="4000" ${off} oninput="hdProveText('userReply',this.value)">${hdEsc(prove.userReply)}</textarea></div></div>
+        ${hdProveWritingCard('kbDraft', prove, off)}
       </div>
       <aside class="hd-ticket-side">
         ${hdProveFieldsCard(ticket, prove, locked)}
+        ${hdProveWarmCard(ticket, prove, locked)}
         ${hdProveCloseCard(ticket, locked)}
-        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Submit</strong></div><div class="card-body hd-control-stack">${hdProveSubmitCard()}</div></div>
+        <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Submit</strong></div><div class="card-body hd-control-stack">${HD_PROVE.shift.timeBoxMinutes ? `<p id="hd-prove-time" class="muted" role="status">${hdEsc(hdProveTimeText())}</p>` : ''}${hdProveSubmitCard()}</div></div>
       </aside>
     </div>`;
+}
+// The ticket's replies: the ones it opens with, then (Module 4) a user's late
+// reply once it has arrived (console.arrivals). Nothing when there are none.
+function hdProveRepliesCard(ticket) {
+  const arrived = ticket.consoleState && Array.isArray(ticket.consoleState.arrived) ? ticket.consoleState.arrived : [];
+  const replies = [...ticket.conversation, ...arrived.map(entry => ({ from:entry.from, role:`${ticket.requesterTitle} · ${entry.time}`, text:entry.text }))];
+  if (!replies.length) return '';
+  return `<div class="card" data-hd-prove-replies><div class="card-header" ${HD_PROVE_HEADER}><strong>Ticket replies</strong></div><div class="card-body hd-note-list">${replies.map(reply => `<div><strong>${hdEsc(reply.from)} · ${hdEsc(reply.role)}</strong><p>${hdEsc(reply.text)}</p></div>`).join('')}</div></div>`;
+}
+// Module 3: the earlier calls and the evidence cards. Each shows its title
+// and an Open button; its text shows once opened (recorded once). Nothing
+// says which entries matter. Shows nothing on a ticket with none (Module 1).
+function hdProveOpenList(kind, title, hint, items, locked) {
+  if (!Array.isArray(items) || !items.length) return '';
+  const opened = hdState.prove.opened;
+  const body = items.map(item => {
+    const source = `${kind}:${item.id}`;
+    const open = opened.includes(source);
+    const text = kind === 'history'
+      ? `<p>${hdEsc(item.text)}</p>`
+      : `${(item.lines || []).map(line => `<p><strong>${hdEsc(line)}</strong></p>`).join('')}${(item.notes || []).map(line => `<p class="muted">${hdEsc(line)}</p>`).join('')}`;
+    return `<div data-hd-prove-open="${hdEsc(source)}"><strong>${hdEsc(item.title)}</strong>${kind === 'history' && item.author ? ` <small class="muted">${hdEsc(item.author)}</small>` : ''}${open ? text : locked ? '<p class="muted">Not opened.</p>' : `<p><button type="button" class="btn btn-secondary btn-sm" onclick="hdProveOpenCard('${kind}','${hdEsc(item.id)}')">Open</button></p>`}</div>`;
+  }).join('');
+  return `<div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>${hdEsc(title)}</strong><span class="muted">${hdEsc(hint)}</span></div><div class="card-body hd-note-list">${body}</div></div>`;
+}
+// Module 3's extra writing boxes (hdProveWriting). Nothing for Module 1.
+function hdProveWritingCard(field, prove, off) {
+  const box = hdProveWriting()[field];
+  if (!box || !HD_PROVE_EXTRA_TEXT.includes(field)) return '';
+  return `<div class="card" data-hd-prove-writing="${field}"><div class="card-header" ${HD_PROVE_HEADER}><strong>${hdEsc(box.label)}</strong><span class="muted">${hdEsc(box.hint || '')}</span></div><div class="card-body"><textarea id="hd-prove-${field}" class="ipt hd-note-input" aria-label="${hdEsc(box.label)}" rows="${Number(box.rows) || 5}" maxlength="${Number(box.max) || 4000}" ${off} oninput="hdProveText('${field}',this.value)">${hdEsc(prove[field] || '')}</textarea></div></div>`;
+}
+// Module 3: Warm handoff calls the chosen assignment group and logs it.
+function hdProveWarmCard(ticket, prove, locked) {
+  const spec = hdProveSpec();
+  if (!spec || spec.warmHandoff !== true) return '';
+  const calls = prove.events.filter(event => event.type === 'warm_handoff' && event.label).map(event => `<p>${hdEsc(event.label)}</p>`).join('');
+  return `<div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Warm handoff</strong></div><div class="card-body hd-control-stack"><p class="muted">Calls the assignment group you chose and logs the call on the ticket.</p>${locked ? '' : `<button id="hd-prove-warm" type="button" class="btn btn-secondary" ${prove.fields.group ? '' : 'disabled'} onclick="hdProveWarmHandoff()">Call the assignment group</button>`}${calls || '<p class="muted">No calls logged.</p>'}</div></div>`;
 }
 window.hdProveSetField=hdProveSetField; window.hdProveChoose=hdProveChoose; window.hdProveToggleStep=hdProveToggleStep;
 window.hdProveText=hdProveText; window.hdProvePackage=hdProvePackage; window.hdProveMark=hdProveMark; window.hdProveSubmit=hdProveSubmit;
@@ -3955,6 +6000,18 @@ if (HD_PROVE) {
       }, 15000);
     }
   }
+  // A one-ticket shift with its own clock (Module 3): the dashboard is the
+  // queue (its metrics would count an SLA the ticket doesn't show), and the
+  // time-used line updates every 15 seconds without a redraw.
+  if (!hdProveQueue() && HD_PROVE.shift.now && !HD_PROVE.blocked) {
+    VIEWS['helpdesk/dashboard'] = () => VIEWS['helpdesk/tickets']();
+    if (HD_PROVE.shift.timeBoxMinutes && typeof setInterval === 'function') {
+      setInterval(() => {
+        const time = typeof document !== 'undefined' && document.getElementById ? document.getElementById('hd-prove-time') : null;
+        if (time) time.textContent = hdProveTimeText();
+      }, 15000);
+    }
+  }
 }
 
 window.hdSelectTicket=hdSelectTicket; window.hdSetQueueFilter=hdSetQueueFilter; window.hdSetPriorityFilter=hdSetPriorityFilter;
@@ -3987,3 +6044,24 @@ if (!HD_PROVE && typeof setInterval === 'function') {
     if (content) content.scrollTop = top;
   }, 5000);
 }
+// Module 3 on: a caller's messages arrive and a hold timer counts in real
+// time. The timer text changes in place; a redraw comes only when a message
+// arrives or a hold runs over, and waits while the student is typing.
+// A redraw that waited is owed: the first tick with no focused field does it.
+let hdCommsRedrawOwed = false;
+function hdCommsTimerTick() {
+  hdHoldTimerRefresh();
+  if (hdCommsTick()) { hdSave(); hdCommsRedrawOwed = true; }
+  if (!hdCommsRedrawOwed) return false;
+  // Any focused field waits, empty or not (a date and time picker reads
+  // empty until both parts are set).
+  const active = typeof document !== 'undefined' ? document.activeElement : null;
+  if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName || '')) return false;
+  hdCommsRedrawOwed = false;
+  const content = typeof document !== 'undefined' && document.getElementById ? document.getElementById('content') : null;
+  const top = content ? content.scrollTop : 0;
+  render();
+  if (content) content.scrollTop = top;
+  return true;
+}
+if (!HD_PROVE && typeof setInterval === 'function') setInterval(hdCommsTimerTick, 1000);

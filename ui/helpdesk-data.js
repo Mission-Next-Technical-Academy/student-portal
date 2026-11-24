@@ -8,7 +8,7 @@ const HD_ORG = {
   domain: 'northstar.example',
   netbios: 'NORTHSTAR',
   timezone: 'Eastern Time',
-  departments: ['Human Resources', 'Finance', 'Operations', 'Information Technology', 'Cybersecurity', 'Executive Office', 'Logistics', 'Sales', 'Customer Service', 'Marketing', 'Front Desk'],
+  departments: ['Human Resources', 'Finance', 'Operations', 'Information Technology', 'Cybersecurity', 'Executive Office', 'Logistics', 'Sales', 'Customer Service', 'Marketing', 'Front Desk', 'Claims'],
   supportTiers: [
     { tier:'Tier 1', owner:'Service Desk', scope:'Intake, identity verification, standard requests, endpoint and connectivity triage' },
     { tier:'Tier 2', owner:'Enterprise Support', scope:'Windows, Active Directory, Group Policy, servers, VPN, file and print services' },
@@ -51,6 +51,14 @@ const HD_USERS = [
   { id:'u-1020', employeeId:'E-49748', phone:'ext. 4472', name:'Marcus Lee', username:'mlee', email:'marcus.lee@northstar.example', department:'Marketing', title:'Marketing Specialist', ou:'OU=Marketing,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:57, groups:['GG-Marketing-Users'], manager:'Owen Price', mfa:'Registered' },
   { id:'u-1021', employeeId:'E-50862', phone:'ext. 4105', name:'Ines Calder', username:'icalder', email:'ines.calder@northstar.example', department:'Front Desk', title:'Receptionist', ou:'OU=Front Desk,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:19, groups:['GG-FrontDesk-Users'], manager:'Caleb Wright', mfa:'Registered' },
   { id:'u-1022', employeeId:'E-51274', phone:'ext. 4229', name:'Monica Hall', username:'mhall', email:'monica.hall@northstar.example', department:'Logistics', title:'Logistics Manager', ou:'OU=Logistics,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:27, groups:['GG-Logistics-Users','GG-Warehouse-Print'], manager:'Caleb Wright', mfa:'Registered' },
+  { id:'u-1023', employeeId:'E-52146', phone:'ext. 4577', name:'Wes Turner', username:'wturner', email:'wes.turner@northstar.example', department:'Marketing', title:'Marketing Specialist', ou:'OU=Marketing,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:31, groups:['GG-Marketing-Users'], manager:'Owen Price', mfa:'Registered' },
+  { id:'u-1024', employeeId:'E-53259', phone:'ext. 4339', name:'Priya Nair', username:'pnair', email:'priya.nair@northstar.example', department:'Sales', title:'Account Executive', ou:'OU=Sales,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:14, groups:['GG-Sales-Users','GG-CRM-Users'], manager:'Tara Singh', mfa:'Registered' },
+  { id:'u-1025', employeeId:'E-54371', phone:'ext. 4502', name:'Karen Holt', username:'kholt', email:'karen.holt@northstar.example', department:'Executive Office', title:'Executive Assistant to the CFO', ou:'OU=Executive Office,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:22, groups:['GG-Executive-Users'], manager:'Martin Alvarez', mfa:'Registered' },
+  { id:'u-1026', employeeId:'E-55484', phone:'ext. 4620', name:'Teresa Vance', username:'tvance', email:'teresa.vance@northstar.example', department:'Information Technology', title:'Messaging & Collaboration Lead', ou:'OU=IT,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:38, groups:['GG-IT-Users'], manager:'Morgan Lee', mfa:'Registered' },
+  { id:'u-1027', employeeId:'E-56597', phone:'ext. 4631', name:'Jamie Ortiz', username:'jortiz', email:'jamie.ortiz@northstar.example', department:'Information Technology', title:'Collaboration Engineer', ou:'OU=IT,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:45, groups:['GG-IT-Users'], manager:'Teresa Vance', mfa:'Registered' },
+  // Module 4 (key its-02): Ana Torres (ticket 4-D) and Theo Grant, a user only.
+  { id:'u-1028', employeeId:'E-57612', phone:'ext. 4718 · works from home', name:'Ana Torres', username:'ana.torres', email:'ana.torres@northstar.example', department:'Claims', title:'Claims Processor', ou:'OU=Claims,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:17, groups:['GG-Claims-Users'], manager:'Caleb Wright', mfa:'Registered' },
+  { id:'u-1029', employeeId:'E-58735', phone:'ext. 4233', name:'Theo Grant', username:'tgrant', email:'theo.grant@northstar.example', department:'Logistics', title:'Logistics Coordinator', ou:'OU=Logistics,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:5, groups:['GG-Logistics-Users'], manager:'Monica Hall', mfa:'Registered' },
 ];
 
 const HD_GROUPS = [
@@ -76,6 +84,14 @@ const HD_COMPUTERS = [
   { name:'NS-LT-0215', user:'Ravi Shah', os:'Windows 11 Enterprise 24H2', ip:'10.20.40.215', ou:'OU=Sales,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'12 minutes ago', health:'Healthy' },
   { name:'NS-LT-0188', user:'Hana Okafor', os:'Windows 11 Enterprise 24H2', ip:'10.20.60.188', ou:'OU=Customer Service,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'3 minutes ago', health:'Healthy' },
   { name:'NS-LT-0154', user:'Luis Ortega', os:'Windows 11 Enterprise 24H2', ip:'10.20.40.154', ou:'OU=Sales,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'5 minutes ago', health:'Healthy' },
+  { name:'NS-LT-0236', user:'Wes Turner', os:'Windows 11 Enterprise 24H2', ip:'10.20.70.236', ou:'OU=Marketing,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'7 minutes ago', health:'Disk warning' },
+  { name:'NS-LT-0291', user:'Priya Nair', os:'Windows 11 Enterprise 24H2', ip:'10.20.40.191', ou:'OU=Sales,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'2 minutes ago', health:'Healthy' },
+  // Module 4 (key its-02) practice computers. NS-LT-0244 is a Service Desk
+  // test laptop with no user, for Lab 4.3's peripheral steps.
+  { name:'NS-LT-0205', user:'Grace Kim', os:'Windows 11 Enterprise 24H2', ip:'10.20.70.105', ou:'OU=Human Resources,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'3 minutes ago', health:'Healthy' },
+  { name:'NS-LT-0183', user:'Omar Haddad', os:'Windows 11 Enterprise 24H2', ip:'10.20.40.183', ou:'OU=Sales,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'6 minutes ago', health:'Healthy' },
+  { name:'NS-WS-0101', user:'Ines Calder', os:'Windows 11 Enterprise 24H2', ip:'10.20.10.101', ou:'OU=Front Desk,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy' },
+  { name:'NS-LT-0244', user:'Service Desk (test laptop)', os:'Windows 11 Enterprise 24H2', ip:'10.20.10.244', ou:'OU=IT,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'Now', health:'Driver warning' },
 ];
 
 const HD_SERVERS = [
@@ -110,6 +126,11 @@ const HD_PRINTERS = [
   { name:'NS-WH-LABEL01', server:'NS-PRINT01', location:'Warehouse dock A', driver:'LabelPro 3.8', queue:17, status:'Error', group:'GG-Warehouse-Print' },
   { name:'NS-HR-MFP01', server:'NS-PRINT01', location:'HR · 2nd floor', driver:'Universal PCL 6 v4.2', queue:1, status:'Ready', group:'GG-HR-Users' },
   { name:'NS-CS-PRN02', server:'NS-PRINT01', location:'Customer Service · 1st floor', driver:'Universal PCL 6 v4.2', queue:0, status:'Ready', group:'GG-CustomerService-Users' },
+  // Module 4 (key its-02): direct-IP printers with no print server. Each PC
+  // adds them by address (Standard TCP/IP); the addresses are in each
+  // ticket's machine state (console.machines).
+  { name:'NS-HR-LABEL01', server:'None (direct IP)', location:'HR · 2nd floor', driver:'Generic Label Printer', queue:0, status:'Ready', group:'GG-HR-Users' },
+  { name:'RECEPTION-BADGE', server:'None (direct IP)', location:'Front Desk · lobby', driver:'Generic Label Printer', queue:0, status:'Ready', group:'GG-FrontDesk-Users' },
 ];
 
 const HD_GPOS = [
@@ -137,6 +158,10 @@ const HD_KB_ARTICLES = [
   { id:'KB-0059', title:'Add a department printer to a user\'s laptop', category:'Hardware', updated:'2026-11-15', audience:'Service Desk', practiceOnly:true, keywords:'add printer · printer missing · printer not in list · team printer · department printer · add device · Settings › Printers & scanners · NS-CS-PRN02', summary:'Department printers are added on the user\'s laptop from Settings. No admin rights are needed. 1. Ask which printer the user needs and what they see when they try to print. 2. On the user\'s laptop, open Settings › Printers & scanners and select Add device. 3. Choose the printer by its name. The Customer Service printer is NS-CS-PRN02. 4. Ask the user to print a test page and confirm it printed. 5. If the printer isn\'t in the list, stop there and escalate to Desktop Support (Tier 2) with the laptop\'s asset tag and the printer\'s name. Never ask for the user\'s password or sign in as the user.' },
   { id:'KB-0062', title:'Calendar delegate access', category:'Messaging', updated:'2026-11-19', audience:'Service Desk', practiceOnly:true, keywords:'calendar delegate access · delegate · assistant · calendar · book meetings · see calendar · meeting invitations · Editor (delegate) · mailbox owner approval', summary:'Tier 1 may grant delegate access once the mailbox owner approves the request. 1. Confirm the person never had access. That makes it a request, not a fault. 2. Convert it to the catalog item "Calendar delegate access" with Requested for, Mailbox and Permission. 3. Wait for the mailbox owner\'s approval on the request. An approval made in the portal while signed in needs no callback. A request by phone, chat or email is verified with KB-0024 first. 4. Grant the permission asked for and no more. Editor (delegate) lets the delegate see the calendar and book meetings. 5. Ask the owner whether the delegate should also receive meeting invitations. 6. Tell both people it can take up to an hour to appear, then confirm with the delegate.' },
   { id:'KB-0063', title:'Several people in one area lose Wi-Fi', category:'Networking', updated:'2026-11-19', audience:'Service Desk', practiceOnly:true, keywords:'wifi · Wi-Fi · wifi no internet · no internet · wireless · several people · whole floor · whole area · same area · network cable · Wi-Fi down', summary:'1. Ask whether other people in the same area have the same problem, and whether desks on a network cable still work. 2. One person only: have them turn Wi-Fi off and on and restart the laptop. If it still fails, escalate to Desktop Support with the laptop\'s asset tag. 3. Several people in one area: the cause is the network, not the laptops. Link the tickets to one parent and escalate the parent to Network Operations with the area, the start time and the business impact. 4. Never restart network equipment yourself.' },
+  { id:'KB-0064', title:'Outlook isn\'t sending: check Work Offline', category:'Messaging', updated:'2026-11-21', audience:'Service Desk', practiceOnly:true, keywords:'outlook not sending · outlook isn\'t sending · email not sending · emails stuck · Outbox · Working Offline · Work Offline · Send/Receive · Disconnected · new Outlook · proposal', summary:'1. Ask the user to look at the bottom of the Outlook window. If it says "Working Offline", Outlook has been switched to hold mail in the Outbox. 2. Classic Outlook: on the Send/Receive tab, the Work Offline button is highlighted. Have the user click it once to turn it off, then click Send/Receive All Folders. 3. New Outlook has no Work Offline button. If it shows "Disconnected", have the user sign out of Outlook and back in. If it still won\'t connect, escalate to Messaging & Collaboration. 4. Confirm: the Outbox empties, and a test email from the user reaches you. 5. Show the user where the button is, so they can fix it next time.' },
+  { id:'KB-0066', title:'Replacement laptops: standard models, lead times and approval', category:'Hardware', updated:'2026-11-21', audience:'Service Desk', practiceOnly:true, keywords:'replacement laptop · laptop lead time · lead time · replacement · broken laptop · lost laptop · new laptop · executive laptop · standard model · non-standard model · 16-inch · approval · VIP · catalog item', summary:'1. A broken or lost laptop is an incident. The replacement is a request: open the catalog item for it from the incident and keep both records open. Set Requested for to the person who will use the device. 2. Standard models are kept in stock. Desktop Support sets one up in about 3 hours. Ask them before you tell the user a time: they set it. 3. A non-standard model needs the IT manager\'s approval on the request before it is ordered, and takes about 5 business days to arrive. Put that model on the request and set Approval to Requested. 4. Offer the standard model now and the non-standard one later if it is approved. 5. An executive\'s ticket gets the VIP flag and a faster response. The steps are the same: verify before any device handover (KB-0024), and approvals still apply.' },
+  { id:'KB-0067', title:'Disk health warning on a laptop', category:'Hardware', updated:'2026-11-21', audience:'Service Desk', practiceOnly:true, keywords:'disk warning · disk health · Device health · health card · storage errors · slow laptop · laptop very slow · clicking noise · OneDrive backup · warm handoff', summary:'1. A disk health warning on a device\'s health card means the storage is reporting errors and may fail. Tier 1 doesn\'t repair it or run repair tools. 2. Check the card\'s OneDrive line: if the last backup isn\'t today, ask the user to stop saving new work to the laptop. 3. Escalate to Desktop Support (Tier 2) with the asset tag, when the slowness started and any deadline the user has. If the deadline is today, use a warm handoff. 4. Never promise a repair time: Desktop Support sets it.' },
+  { id:'KB-0072', title:'Virtual desktop stuck on a black screen or spinner', category:'Virtual desktops', updated:'2026-11-23', audience:'Service Desk', practiceOnly:true, keywords:'virtual desktop · VDI · black screen · spinner · spinning circle · stuck · frozen · hung session · Disconnected · Log off session · pool · work desktop', summary:'1. A virtual desktop runs on a server. Restarting the user\'s laptop, or closing and reopening the window, doesn\'t restart it. 2. Check the pool first. If other sessions in the same pool are Active, it isn\'t a pool outage. If several users in one pool are stuck, stop: set Impact 2, link the tickets and escalate to Server & Identity. 3. One user, with a session shown as Disconnected or hung: tell them that unsaved work in that session may be lost, and get their OK. 4. Click Log off session on that user\'s session only. Never restart the pool or the host: that is a Tier 2 action that drops everyone. 5. Ask the user to reconnect, and confirm the desktop loads. 6. Record the consent and its time in the work note.' },
 ];
 
 /* Practice scenario for HD-2101 (Module 1 Practice It). The evidence lives on
@@ -190,6 +215,17 @@ const HD_PRACTICE_SETS = {
   // Module 2 Lab 2.2: Wednesday 13:00 on a fixed clock that "Next day" moves.
   'its-10': { title:'Module 2 practice tickets', tickets:['HD-2155', 'HD-2156', 'HD-2184', 'HD-2185', 'HD-2157'], complete:['HD-2155', 'HD-2156', 'HD-2157'], now:'2026-08-19T13:00:00Z', queue:true, queueList:'mine',
     nextDay:{ unlock:[{ ticket:'HD-2155', done:['converted', 'resolved', 'escalated'] }, { ticket:'HD-2156', done:['resolved', 'escalated'] }, { ticket:'HD-2157', attempts:2 }] } },
+  // Module 3 Lab 3.2: each ticket runs on its own clock (console.now), so the
+  // set has none. HD-2165 counts as done when it is Resolved; the other two
+  // count as done by their rules (handed on, with the follow-up set).
+  'its-11': { title:'Module 3 practice tickets', tickets:['HD-2165', 'HD-2166', 'HD-2167'], complete:['HD-2165', 'HD-2166', 'HD-2167'], queue:true, queueList:'all',
+    done:{ 'HD-2166':[{ group:'Desktop Support (Tier 2)' }, { requestOpen:true }, { handoffNote:true }, { commentTime:true }, { followUp:true }],
+      'HD-2167':[{ status:'Escalated' }, { teamMessage:'lead' }, { commentTime:true }, { followUp:true }] } },
+  // Module 4 Lab 4.4: each ticket runs on its own clock (console.now). 4-B
+  // (HD-2170) counts as done when it is with Desktop Support (Tier 2) and has
+  // a complete work note; the other three when Resolved.
+  'its-02': { title:'Module 4 practice tickets', tickets:['HD-2169', 'HD-2170', 'HD-2171', 'HD-2172'], complete:['HD-2169', 'HD-2170', 'HD-2171', 'HD-2172'], queue:true, queueList:'all',
+    done:{ 'HD-2170':[{ group:'Desktop Support (Tier 2)' }, { note:true }] } },
 };
 
 // Coached ticket sets: Practice It content for a coach's guided lab, opened by
@@ -198,6 +234,47 @@ const HD_PRACTICE_SETS = {
 const HD_COACHED_SETS = {
   'its-10-guided': { title:'Lab 2.1 · Guided Lab: queue shift', tickets:['HD-2158', 'HD-2159', 'HD-2160', 'SEC-2163', 'HD-2162', 'SR-2161'], now:'2026-08-18T08:35:00Z', queue:true,
     workOrder:{ tickets:['HD-2158', 'HD-2159', 'HD-2160', 'SEC-2163', 'HD-2162', 'SR-2161'], groups:[['HD-2158'], ['HD-2159', 'HD-2160', 'SEC-2163'], ['HD-2162'], ['SR-2161']] } },
+  // Module 3 Lab 3.1: one live call on a fixed clock (Wednesday 10:10).
+  'its-11-guided': { title:'Lab 3.1 · Guided Lab: a frustrated caller', tickets:['HD-2164'], now:'2026-08-19T10:10:00Z' },
+  // Module 4: Lab 4.3 (coach hd-m02) on Wednesday 09:15, and the virtual
+  // desktop ticket that ends Lab 4.2 (coach hd-m02-server).
+  'its-02-guided': { title:'Lab 4.3 · Guided Lab: printers and peripherals', tickets:['HD-2134'], now:'2026-08-19T09:15:00Z' },
+  'its-02-server': { title:'Lab 4.2 · Guided Lab: snapshot, server and a virtual desktop', tickets:['HD-2173'], now:'2026-08-20T10:30:00Z' },
+};
+
+// VM labs (ui/helpdesk.js "VM screen"): the simulated host, its install
+// images and the coaches that turn the VM Manager on. The VMs themselves are
+// the student's own, never listed here.
+// targets: the settings each lab asks for, so the screen can name a setting
+// that is off (practice feedback, not a score).
+const HD_VM_LABS = {
+  // Module 4 (key its-02) Labs 4.1 and 4.2.
+  'its-02': {
+    coaches:['hd-m02-vm', 'hd-m02-server'],
+    host:{ name:'NS-SD-TRAIN01', ramGb:16, cores:8, cpu:'8-core training processor', virtualization:'Enabled' },
+    images:[
+      { id:'win11', label:'Windows 11 Enterprise (ISO)', kind:'client', minRamGb:4, os:'Windows 11' },
+      { id:'winsrv', label:'Windows Server (ISO)', kind:'server', minRamGb:2, os:'Windows Server' },
+    ],
+    addresses:{ internal:{ 'NS-TEST-SRV':'10.0.5.10', 'NS-TEST-W11':'10.0.5.20' }, nat:'10.0.2.15', hostOnly:'192.168.56.', bridged:'10.20.99.' },
+    modes:{
+      NAT:'NAT: the VM reaches the internet through the host.',
+      Bridged:'Bridged: it looks like another PC on the network.',
+      Internal:'Internal: VMs talk only to each other.',
+      'Host-only':'Host-only: VMs and the host only.',
+    },
+    targets:{
+      'NS-TEST-W11':{ image:'win11', memoryGb:4, cores:2, diskGb:64, diskType:'dynamic' },
+      'NS-TEST-SRV':{ image:'winsrv', memoryGb:4, cores:2, diskGb:64 },
+    },
+    shortcut:'Install notes',
+    finishCards:[
+      { title:'Sandbox a suspicious attachment', text:'Open it in a throwaway VM, never on a work PC. Then report it.' },
+      { title:'Test an update', text:'Try a patch on a test VM, with a snapshot first, before it reaches users.' },
+      { title:'A VDI desktop', text:'A user’s whole Windows desktop runs as a VM on a server (ticket 4-D).' },
+      { title:'A cloud VM in Azure', text:'IaaS: the company rents the server and still manages its Windows.' },
+    ],
+  },
 };
 
 // Categories for the Module 2 queue tickets; each ticket adds its own CI list.
@@ -210,6 +287,35 @@ const HD_M02_CATEGORIES = {
   Access:['Password reset', 'Account unlock'],
   Printing:['Printer queue', 'Badge printer'],
 };
+
+// Categories for the Module 3 tickets; each ticket adds its own CI list.
+const HD_M03_CATEGORIES = {
+  Hardware:['Laptop', 'Laptop – damage', 'Monitor'],
+  Software:['Email (Outlook)', 'Browser', 'Phone app'],
+  Request:['Hardware', 'Software', 'Access'],
+  Messaging:['Shared calendar', 'Email'],
+  Access:['Password reset', 'Account unlock'],
+};
+// Categories for the Module 4 (key its-02) tickets; each ticket adds its own CI list.
+const HD_ITS02_CATEGORIES = {
+  Hardware:['Printer', 'Docking station', 'Battery', 'Laptop', 'Monitor', 'Webcam'],
+  Software:['Virtual desktop (VDI)', 'Email (Outlook)', 'Browser'],
+  Network:['Wi-Fi', 'Wired port'],
+  Request:['Hardware', 'Software', 'Access'],
+  Access:['Password reset', 'Account unlock'],
+};
+// Module 3: a customer comment must name a time (a clock time or am/pm), and a
+// fix time Tier 1 does not control ("fixed by 3") is flagged. Regex sources.
+// A time the user will hear back: a clock time ("11:30", "3 p.m.") or a
+// short interval ("in 30 minutes", "within an hour").
+const HD_M03_TIME = '\\b\\d{1,2}:\\d{2}\\b|\\b\\d{1,2}\\s*(a\\.?m\\b\\.?|p\\.?m\\b\\.?)|\\b(in|within)\\s+(an?|\\d{1,3})\\s*(minutes?|mins?|hours?)\\b';
+const HD_M03_PROMISE = '\\b(fixed|working|ready|repaired|done)\\s+by\\s+\\d';
+// 3-B only: a time promised for the 16-inch model, inside one clause. The
+// standard model's 8:00 is Desktop Support's own time, so a plain "ready by
+// 8:00" is not a promise here. It would rather miss a promise than flag an
+// honest sentence ("I can't promise the 16-inch by 8:00").
+const HD_M03_GAP_16 = '(?:(?!standard|approv|stock|\\bnot\\b|n[\'’]t\\b|cannot|unable|unavailable|request|update|call you|\\bbut\\b|\\bso\\b|\\band\\b|,)[^.;!?\\n])*';
+const HD_M03_PROMISE_16 = `(?:^|[.;!?,\\n])${HD_M03_GAP_16}16[- ]?inch${HD_M03_GAP_16}\\b(by|before|for|at)\\s+(\\d|tomorrow|tonight)`;
 
 const HD_TICKET_TEMPLATES = [
   hdTicket({ id:'HD-2101', requester:'Jordan Bell', department:'Finance', category:'Incident', subcategory:'Account lockout', priority:'P2', businessImpact:'Payroll analyst blocked', sla:'8 hours', createdMinutesAgo:86, description:'My account unlocks, then locks again a few minutes later.', symptoms:['Lockout repeats after successful sign-in','Other Finance users unaffected'], logs:[], systemState:['Account enabled','Password changed 3 days ago','Service desk unlocked the account at 08:09; it locked again at 08:11'], plausibleCauses:['User typing old password','Mobile mail cache','Scheduled task credential'], correctPath:['Verify identity','Trace caller computer','Inspect stored credentials','Correct approved task credential','Unlock once and monitor'], hiddenRootCause:'Scheduled task FinanceReportSync stores the previous password.', expectedResolution:'Update the task through the approved service credential workflow, unlock the account, and verify no new 4740 event.', escalationCriteria:['Unknown lockout source across multiple devices','Signs of credential compromise'] }),
@@ -639,6 +745,400 @@ const HD_TICKET_TEMPLATES = [
         { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note that lists all three attempts.' }, { commentPattern:'reopen|reply', missing:'Tell Marcus in a comment how to reopen the ticket by replying.' }], good:'A complete note, and a comment that tells Marcus how to reopen the ticket.', fix:'Write a Reported / Tried / Result note with all three attempts. Tell Marcus in a comment how to reopen the ticket by replying.' },
       ],
     } }),
+  // Module 3 Practice It. Lab 3.1 (coach, HD_COACHED_SETS 'its-11-guided') is
+  // one live call; Lab 3.2 (HD_PRACTICE_SETS 'its-11') is three tickets, each
+  // on its own clock (console.now). Worked with the communication features in
+  // ui/helpdesk.js. No typed commands. Practice feedback only, never points.
+  hdTicket({ id:'HD-2164', ownSet:true, number:'INC0010440', requester:'Wes Turner', department:'Marketing', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T10:10:00Z', shortDescription:'Laptop very slow',
+    description:'Laptop very slow. The caller is on the line.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      matrix:{}, classify:{ categories:HD_M03_CATEGORIES, cis:['NS-LT-0236', 'NS-LT-0291', 'NS-LT-0215', 'Marketing shared drive'] },
+      priorityCoach:{ impact:'3', urgency:'1', line:'Wes is angry, and that isn\'t what makes this urgent. The 3:00 deadline is. One person (Impact 3) whose work has stopped with a deadline today (Urgency 1): P3.' },
+      kb:true,
+      conversation:{ name:'Wes Turner', style:'phone', mood:'Frustrated', stages:[
+        { id:'greet', prompt:'Answer the call.', choices:[
+          { id:'greeting', text:'Northstar Service Desk, this is Riley. May I have your name and a number to reach you if we get cut off?', pass:true, mood:0, reply:'Wes Turner, Marketing. Extension 4577.', line:'A professional start: he knows who he reached.' },
+          { id:'it', text:'IT.', line:'He doesn\'t know who he reached or whether you\'re the right person.' },
+          { id:'ticket', text:'Service Desk. What\'s your ticket number?', line:'He doesn\'t have a ticket yet. Start with who he is and how to reach him.' },
+        ] },
+        { id:'rant', prompt:'Let him finish, then acknowledge.', messages:[
+          'Finally. My laptop has been crawling since Monday. Every file takes minutes to open.',
+          'I restarted it twice myself and it\'s no better. I\'ve lost two days on this.',
+          'I\'ve got trade-show brochure files due at the print vendor by 3:00 today and I can\'t even open them. I need this fixed now.',
+        ], gapSeconds:4, interruptLine:'He hadn\'t finished. Let him get it all out first.', choices:[
+          { id:'empathy', text:'Wes, two days of this with a 3:00 deadline is a lot. I\'m sorry it\'s dragged on. Let\'s get it moving.', pass:true, mood:-1, line:'He hears that you understand the impact, and that something will happen next.' },
+          { id:'calm-down', text:'Sir, I need you to calm down so I can help you.', line:'"Calm down" tells him his reaction is the problem. Name the impact instead.' },
+          { id:'defensive', text:'Nobody reported this to us until today.', line:'True or not, it\'s blame. He needs to hear what happens next.' },
+          { id:'jargon', text:'It\'s probably disk I/O or a bad update. I\'ll check the SMART data.', line:'He hears words he doesn\'t know and still no acknowledgement.' },
+        ] },
+      ] },
+      caller:{ name:'Wes Turner', style:'phone', questions:[
+        { id:'when', text:'When did it start?', reply:'Monday morning. It was fine on Friday.' },
+        { id:'changed', text:'Did anything change, like new software or a new device?', reply:'Nothing. I haven\'t installed anything. It does make a clicking noise sometimes.' },
+        { id:'impact', text:'How is it affecting your work?', reply:'Everything takes minutes. The brochure files are due at the print vendor at 3:00 today and I can\'t work on them.' },
+      ] },
+      intake:{ caller:true, callback:true },
+      hold:{ seconds:120, ask:'May I put you on a short hold while I check your laptop\'s health record?', askReply:'Fine. Be quick.', back:'Thanks for holding, Wes.', unaskedLine:'You put him on hold without asking. Ask first, then hold.', overLine:'Two minutes of silence feels much longer to the person waiting.' },
+      evidence:[{ id:'device-health', title:'Device health · NS-LT-0236', rows:[
+        { label:'Disk health', value:'Warning. This laptop’s storage is reporting errors and may fail.' },
+        { label:'OneDrive', value:'Last backed up today 09:40' },
+      ] }],
+      explain:{ prompt:'Tell Wes the next step in plain words.', words:['SMART', 'S.M.A.R.T.', 'I/O', 'sector', 'SSD', 'HDD', 'reimage', 'image', 'Tier 2', 'escalate', 'escalating', 'P3', 'SLA', 'KB'], line:'He won\'t know \'{term}\'. Say what it means for him.', goodLine:'Plain words: he knows what is wrong and what happens next.' },
+      handoff:{}, warmHandoff:true, followUp:{ jump:true },
+      comments:{ timeCheck:{ time:HD_M03_TIME, promise:HD_M03_PROMISE, promiseLine:'That\'s a fix time, and Desktop Support controls it. Commit to when you\'ll update him.', noTimeLine:'Tell him when he\'ll hear from you next.', moodDown:true, goodLine:'He knows who has it and when he will hear from you.' } },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['SMART', 'I/O', 'SSD', 'HDD', 'reimage', 'Tier 2', 'P3', 'SLA', 'KB-0067', 'escalate', 'escalating', 'escalated'] },
+    } }),
+  hdTicket({ id:'HD-2165', ownSet:true, number:'INC0010447', requester:'Priya Nair', department:'Sales', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T13:02:00Z', shortDescription:'NOTHING WORKS!!!!',
+    description:'My email isn\'t sending, nothing is going out and I have a proposal due to a client by 2pm. I don\'t have time for this. Why does IT keep breaking my computer??',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      now:'2026-08-20T13:12:00Z', matrix:{}, classify:{ categories:HD_M03_CATEGORIES, cis:['NS-LT-0291', 'Outlook', 'NS-LT-0215'], preset:{ contactType:'Email' } },
+      priorityCoach:{ impact:'3', urgency:'1', line:'However angry the email is, it stays a P3. One person is affected (Impact 3), and the client deadline this afternoon makes it urgent (Urgency 1).' },
+      kb:true,
+      caller:{ name:'Priya Nair', style:'phone', questions:[
+        { id:'outbox', text:'Is anything sitting in your Outbox?', reply:'Yes, four emails, including the proposal.' },
+        { id:'status', text:'What does the bottom of the Outlook window say?', reply:'Working Offline.' },
+        { id:'receive', text:'Can you receive email?', reply:'Nothing new since this morning.' },
+      ] },
+      actions:[
+        { id:'acknowledge', text:'Say: "Priya, I can hear this is really frustrating with a 2 o\'clock deadline. Let\'s get your email moving right now."', feedback:'Priya: "Okay. Thank you. What do you need me to do?" She heard that you understand the deadline, with no blame.', history:'Acknowledged the 14:00 deadline on the call (CALM).' },
+        { id:'work-offline', text:'Ask Priya to click Send/Receive › Work Offline, then Send/Receive All Folders', feedback:'Priya: “They\'re going! The Outbox is empty.”', history:'Asked Priya to turn off Work Offline, then Send/Receive All Folders, per KB-0064.' },
+        { id:'test-email', text:'Please send me a test email', feedback:'Sent. A test email from Priya shows on the ticket.', history:'Priya sent a test email, and it arrived.' },
+        { id:'blame', text:'Tell Priya the problem is something she clicked', critical:true, feedback:'Critical error. Never tell a caller the problem is their fault. Priya has a real deadline. Acknowledge it, then check Outlook with her.' },
+      ],
+      comments:true, resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['P1', 'P2', 'P3', 'SLA', 'Tier 1', 'Tier 2', 'CI', 'KB-0064'] },
+      feedback:[
+        { area:'Triage', checks:[{ priority:'P3', missing:'Set Impact 3 (one person) and Urgency 1 (a client deadline this afternoon). That makes the ticket P3.' }], good:'The priority is P3, and it stays P3 however angry the email is.', fix:'Set Impact 3 (one person) and Urgency 1 (a client deadline this afternoon). The ticket is P3. Anger does not raise it to P1.' },
+        { area:'Investigation', checks:[{ kb:'KB-0064', missing:'Search the KB for "outlook not sending" and open KB-0064.' }, { chat:['outbox', 'status'], missing:'Ask Priya what is in her Outbox and what the bottom of the Outlook window says.' }], good:'You used KB-0064 and asked about the Outbox and the Outlook status bar.', fix:'Search the KB for "outlook not sending", open KB-0064, and ask Priya about her Outbox and the bottom of the Outlook window.' },
+        { area:'Diagnosis', checks:[{ chat:['status'], missing:'Ask Priya what the bottom of the Outlook window says. "Working Offline" is the cause.' }], good:'The status bar said "Working Offline". That is why the mail was held in the Outbox.', fix:'Ask Priya what the bottom of the Outlook window says. "Working Offline" holds mail in the Outbox.' },
+        { area:'Action', checks:[{ action:'work-offline', missing:'Ask Priya to turn off Work Offline, then Send/Receive All Folders (KB-0064).' }, { action:'test-email', missing:'Ask Priya for a test email to confirm it is fixed.' }, { status:'Resolved', missing:'Resolve the ticket once the test email arrives and Priya confirms.' }], good:'You fixed it with KB-0064, confirmed it with a test email, and resolved the ticket.', fix:'Follow KB-0064: turn off Work Offline, run Send/Receive All Folders, confirm with a test email, then resolve the ticket.' },
+        { area:'Documentation', checks:[{ action:'acknowledge', missing:'On the call, acknowledge her deadline first (CALM), with no blame for "Why does IT keep breaking my computer??".' }, { note:true, missing:'Write a Reported / Tried / Result note with a Next action.' }, { comment:true, missing:'Write a comment for Priya in plain words, with no internal terms.' }], good:'You used CALM on the call, wrote a complete work note and a plain-words comment for Priya.', fix:'Write a Reported / Tried / Result note. In your comment, say what was wrong, show where the button is and say sorry for the stress, with no blame.' },
+      ],
+    } }),
+  hdTicket({ id:'HD-2166', ownSet:true, number:'INC0010455', requester:'Karen Holt', department:'Executive Office', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T10:50:00Z', shortDescription:'NEW LAPTOP FOR MR. ALVAREZ – TOMORROW',
+    description:'Mr. Alvarez (CFO) dropped his laptop this morning. He needs a brand-new one set up with everything by 8am tomorrow, and he\'d like the new 16-inch model, not the standard one. Please confirm.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      now:'2026-08-20T11:05:00Z', vip:true, matrix:{}, classify:{ categories:HD_M03_CATEGORIES, cis:['Executive laptop (Martin Alvarez)', 'NS-LT-0215', 'NS-WS-0204'], preset:{ contactType:'Email' } },
+      priorityCoach:{ impact:'2', urgency:'2', line:'An executive\'s laptop affects the people who depend on his work, so Impact is 2. He has a desktop PC in his office he can use today, so Urgency is 2. The VIP flag gets him a faster response, not a higher priority than the facts give.' },
+      kb:true,
+      verification:{ prompt:'Karen Holt emailed to ask for a replacement laptop for the CFO. How do you verify it\'s really Karen before a device is handed over? (KB-0024)', options:[
+        { id:'name', text:'Accept it: the email is from Karen\'s address and names the CFO', critical:true, feedback:'Critical error. An email address and a name are not verification. KB-0024: call Karen back on the number in the User Directory and confirm her employee ID.' },
+        { id:'callback', text:'Call Karen back on the number in the User Directory and confirm her employee ID', pass:true, feedback:'Verified. You called Karen back on ext. 4502 from the User Directory, and Karen confirmed employee ID E-54371.', history:'Identity verified per KB-0024: called Karen back on the User Directory number (ext. 4502); employee ID E-54371 confirmed.' },
+      ] },
+      caller:{ name:'Karen Holt', style:'phone', questions:[
+        { id:'on', text:'Does the laptop still turn on?', reply:'It turns on, but the screen stays black.' },
+        { id:'glass', text:'Is any glass loose?', reply:'No.' },
+        { id:'files', text:'Are his files saved somewhere other than the laptop?', reply:'Everything\'s in OneDrive.' },
+        { id:'desktop', text:'Can Mr. Alvarez work on another computer today?', reply:'Yes, he has a desktop PC in his office he can use today.' },
+      ] },
+      evidence:[{ id:'stock', title:'Hardware stock', rows:[
+        { label:'Standard executive laptop', value:'3 in stock' },
+        { label:'16-inch model', value:'Not stocked' },
+      ] }],
+      convert:{ keepIncident:true, number:'RITM0010101', items:[
+        { name:'Executive laptop replacement', approver:'IT manager', fields:[
+          { id:'model', label:'Model', options:['Standard executive laptop', '16-inch model'] },
+          { id:'approval', label:'Approval', options:['Requested', 'Not needed'] },
+        ] },
+      ] },
+      teamMessages:[{ id:'desk', to:'Desktop Support (Tier 2)', from:'Desktop Support', text:'Can you set up a standard executive laptop for 8:00 tomorrow?', reply:'Yes. It\'ll be ready by 7:30.' }],
+      actions:[
+        { id:'order-16', text:'Order the 16-inch model now', critical:true, feedback:'Critical error. A non-standard model needs the IT manager\'s approval on the request before it is ordered (KB-0066).' },
+      ],
+      handoff:{}, followUp:{},
+      comments:{ timeCheck:{ time:HD_M03_TIME, promise:HD_M03_PROMISE_16, promiseCritical:'Promised Karen a time for the 16-inch model', promiseLine:'Critical error in a real shift: the 16-inch model isn\'t in stock and needs approval, so never promise a time for it.', noTimeLine:'Tell Karen when she will hear from you next.' } },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['RITM', 'Tier 2', 'SLA', 'P3', 'KB-0024', 'KB-0066', 'catalog item'] },
+      feedback:[
+        { area:'Triage', checks:[{ converted:true, missing:'Open the request "Executive laptop replacement" from the incident.' }, { requestOpen:true, missing:'Keep both records open: the incident for the broken laptop and the request for the new one.' }, { requestFor:'Martin Alvarez', missing:'Set Requested for to Martin Alvarez: the laptop is for him, not for Karen.' }, { priority:'P3', missing:'Set Impact 2 and Urgency 2 from the facts: P3. The VIP flag speeds the response; it does not raise the priority.' }], good:'Two records, both open: the incident for the broken laptop and the request for the new one.', fix:'A broken laptop is an incident. The replacement is a request. Open the request from the incident and keep both records open (KB-0066).' },
+        { area:'Investigation', checks:[{ verified:true, missing:'Verify Karen first: call her back on her directory number and confirm her employee ID (KB-0024).' }, { evidence:'stock', missing:'Open the Hardware stock card to see what is in stock.' }, { kb:'KB-0066', missing:'Search the KB for "replacement laptop" and open KB-0066.' }], good:'You verified Karen before any handover, checked the stock and used KB-0066.', fix:'Verify Karen first (KB-0024), open the Hardware stock card, and search the KB for "replacement laptop" (KB-0066).' },
+        { area:'Diagnosis', checks:[{ chat:['on', 'glass', 'files'], missing:'Ask Karen whether it still turns on, whether any glass is loose, and whether his files are saved in OneDrive (KB-0071).' }], good:'You asked the damaged laptop questions: it turns on, no loose glass, and his files are in OneDrive.', fix:'Ask Karen whether the laptop still turns on, whether any glass is loose, and whether his files are saved somewhere other than the laptop (KB-0071).' },
+        { area:'Action', checks:[{ requestField:{ id:'model', value:'16-inch model' }, missing:'Put the 16-inch model Karen asked for on the request, so the IT manager can approve it.' }, { requestField:{ id:'approval', value:'Requested' }, missing:'Set Approval to Requested on the request. The 16-inch model needs the IT manager\'s approval.' }, { teamMessage:'desk', missing:'Message Desktop Support and ask whether a standard laptop can be ready by 8:00. They set the time, not you.' }, { group:'Desktop Support (Tier 2)', missing:'Assign the incident to Desktop Support (Tier 2).' }, { followUp:true, missing:'Set a Follow-up for tonight, to confirm the laptop is ready.' }], good:'You asked for approval on the 16-inch model, got the 8:00 from Desktop Support, assigned the incident and set a follow-up.', fix:'Ask for the IT manager\'s approval on the 16-inch model, message Desktop Support for the 8:00, assign the incident to Desktop Support (Tier 2) and set a Follow-up for tonight.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note with a Next action.' }, { comment:true, missing:'Write a comment for Karen in plain words, with no internal terms.' }, { commentPattern:'desktop team|confirmed', missing:'Say in your comment that the desktop team confirmed the time. The 8:00 is theirs, not yours.' }], good:'A complete note, and a comment that says the desktop team confirmed the time.', fix:'Write a Reported / Tried / Result note. In your comment, say the desktop team confirmed the time, and say when Karen will hear from you next.' },
+      ],
+    } }),
+  hdTicket({ id:'HD-2167', ownSet:true, number:'INC0010388', requester:'Sofia Martin', department:'Operations', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-18T09:30:00Z', status:'Escalated', assignmentGroup:'Messaging & Collaboration', assignedTechnician:'Unassigned', shortDescription:'Shared calendar not updating',
+    description:'Our shared calendar is not updating for the shift team.',
+    notes:[{ time:'Tue 09:50', author:'Riley Morgan (Tue)', text:'Reported: the shared calendar is not updating for the shift team. Tried: checked with Sofia that it is still wrong after a restart; nothing more Tier 1 can do. Result: escalated to Messaging & Collaboration. Next action: Messaging & Collaboration finds the cause and updates Sofia.' }],
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      now:'2026-08-20T10:20:00Z', matrix:{ impact:'3', urgency:'2', respondedAt:'2026-08-18T09:50:00Z' },
+      conversation:{ name:'Sofia Martin', style:'chat', stages:[
+        { id:'chat', messages:['I opened a ticket TWO DAYS ago about my shared calendar and someone said it went to another team. Nobody has called me. Does anyone actually work there??'], choices:[
+          { id:'quick', text:'Checking now.', pass:true },
+          { id:'wait', text:'I\'ll look at it when I\'m free.', line:'She has waited two days already. Answer fast, even if the answer is just "checking now".' },
+        ] },
+        { id:'ack', choices:[
+          { id:'sorry', text:'Sofia, you\'re right to chase this. Two days without an update isn\'t good enough. Let me find out where it is right now.', pass:true },
+          { id:'slow', text:'That team is always slow, sorry.', line:'Never blame colleagues. Say sorry for the wait and say what you will do.' },
+        ] },
+      ] },
+      teamMessages:[{ id:'lead', to:'Messaging & Collaboration', from:'Teresa Vance', text:'INC0010388 has had no owner for two days and the user is chasing. Can someone pick it up today?', reply:'Sorry, that one slipped. Jamie Ortiz has it now and will call her by 3:00.', assign:'Jamie Ortiz' }],
+      duplicateMove:{ text:'Create new incident', feedback:'Critical error in a real shift: a second ticket splits the history and restarts the clock. INC0010388 already exists: add her chat to it.' },
+      followUp:{},
+      comments:{ timeCheck:{ time:HD_M03_TIME, promise:HD_M03_PROMISE, promiseLine:'A fix time is not yours to promise. Say who has the ticket and when they will call.', noTimeLine:'Tell Sofia when she will hear from the team.' } },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Tier 1', 'Tier 2', 'SLA', 'P3', 'P4'] },
+      feedback:[
+        { area:'Triage', checks:[{ status:['Escalated'], missing:'Work on the existing ticket, INC0010388. Do not open a new incident.' }, { call:true, missing:'Answer Sofia\'s chat on INC0010388, her existing ticket.' }], good:'You used the existing ticket, INC0010388, so the history stays in one place.', fix:'Sofia already has a ticket: INC0010388. Add her chat to it. A second ticket splits the history and restarts the clock.' },
+        { area:'Investigation', checks:[{ call:true, missing:'Reply to Sofia in the chat. Answer fast, then acknowledge her.' }], good:'You answered fast and acknowledged her without blaming anyone.', fix:'Reply to Sofia quickly in the chat, then acknowledge the wait. Never blame the other team.' },
+        { area:'Diagnosis', checks:[{ notePattern:'no (person|owner|assignee|engineer|one)|not assigned|not to (a|any) (person|one)|no (work )?notes since|unassigned|group (only|with no)|only (to )?the group', missing:'Say in your note that the ticket is with the group but has no person, and that nothing was written since it was escalated.' }], good:'You wrote what stalled it: the ticket sat with the group and had no owner.', fix:'Check the record. The ticket is with the group but has no person, and nothing was written since it was escalated. Say so in your note.' },
+        { area:'Action', checks:[{ teamMessage:'lead', missing:'Message the Messaging & Collaboration lead and ask them to pick the ticket up today.' }, { followUp:true, missing:'Set a Follow-up for 15:15 today, to check that the call happened.' }], good:'You chased the team lead, got an owner and a time, and set a follow-up.', fix:'Message the Messaging & Collaboration lead and ask for an owner and a time. Then set a Follow-up for 15:15 to check the call happened.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note with a Next action.' }, { commentTime:true, missing:'Tell Sofia in a comment who has the ticket and when she will hear from them.' }, { commentPattern:'sorry|apolog', missing:'Say sorry in your comment, without blaming anyone.' }], good:'A complete note, and a comment that says sorry and gives Sofia a time.', fix:'Write a Reported / Tried / Result note. In your comment, say sorry without blaming anyone, say who has the ticket and say when Sofia will hear from them.' },
+      ],
+    } }),
+  // Module 4 (key its-02) Practice It. Lab 4.3 (coach hd-m02, HD_COACHED_SETS
+  // 'its-02-guided') is HD-2134; Lab 4.2 ends with HD-2173 ('its-02-server');
+  // Lab 4.4 (HD_PRACTICE_SETS 'its-02') is tickets 4-A to 4-D. Each ticket's
+  // computers are in console.machines and its virtual desktops in
+  // console.vdi (ui/helpdesk.js "Machine-state console features").
+  // expectedResolution holds the model work note. Practice feedback only,
+  // never points: critical errors are feedback here, never a score.
+  hdTicket({ id:'HD-2134', ownSet:true, number:'INC0010470', requester:'Priya Shah', department:'Human Resources', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T09:12:00Z', shortDescription:'Nothing will print',
+    description:'Nothing will print from my computer. I get a print spooler error. I tried three times.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: nothing prints from NS-LT-0094; print spooler error; tried three times. Tried: other HR users print to NS-HR-MFP01, so only this PC; Get-PrintJob showed four jobs, the first (Benefits_Guide.pdf, 612 pages) in Error; with Priya\'s OK cancelled it, stopped the spooler, cleared the stuck job and started the spooler; unticked Use Printer Offline; the printer answered on port 9100. Result: test page printed; Priya confirmed her other three documents printed.',
+    console: {
+      matrix:{}, classify:{ categories:HD_ITS02_CATEGORIES, cis:['NS-LT-0094', 'NS-PRINT01', 'NS-HR-MFP01', 'NS-HR-LABEL01', 'NS-LT-0244'] },
+      priorityCoach:{ impact:'3', urgency:'2', line:'One person is affected (Impact 3). Her printing is blocked, but nothing in the ticket gives a deadline (Urgency 2): P4.' },
+      kb:true,
+      caller:{ name:'Priya Shah', style:'chat', questions:[
+        { id:'others', text:'Can anyone else in HR print to NS-HR-MFP01?', reply:'Everyone else is printing fine.' },
+        { id:'cancel', text:'Your 612-page Benefits Guide is stuck and blocking the others. May I cancel that job?', reply:'Yes, cancel it.' },
+        { id:'resend', text:'Your other three documents should print now. Could you check they came out of the printer?', afterAction:'printer-offline-off', replyBefore:'Nothing has come out yet. Is the printer working now?', reply:'All three have come out of the printer. Thank you!' },
+      ] },
+      evidence:[{ id:'printservice', title:'Event Viewer · PrintService · NS-LT-0094', rows:[
+        { label:'Event 372', value:'PrintService 372 on NS-LT-0094: job 18 (Benefits_Guide.pdf, 612 pages) failed to render' },
+        { label:'Print Spooler', value:'Local spooler restarted itself 3 times since 09:10' },
+      ] }],
+      machines:{
+        'NS-LT-0094':{
+          computer:{ ip:'10.20.70.94', health:'Healthy' },
+          spooler:'Running',
+          ports:[{ name:'IP_10.20.70.20', type:'Standard TCP/IP', address:'10.20.70.20' }],
+          driverCatalog:['Universal PCL 6 v4.2', 'Generic Label Printer', 'Generic / Text Only'],
+          reachable:{ '10.20.70.20':[9100], '10.20.70.51':[9100] },
+          printQueues:{
+            'NS-HR-MFP01':{ port:'IP_10.20.70.20', driver:'Universal PCL 6 v4.2', drivers:['Universal PCL 6 v4.2'], media:'Letter', mediaSizes:['Letter', 'A4', 'Legal'], offline:true, paused:false,
+              jobs:[
+                { id:18, document:'Benefits_Guide.pdf', pages:612, owner:'Priya Shah', status:'Error', stuck:true },
+                { id:19, document:'Offer_Letter_Draft.docx', pages:2, owner:'Priya Shah', status:'Spooling' },
+                { id:20, document:'Interview_Schedule.xlsx', pages:1, owner:'Priya Shah', status:'Spooling' },
+                { id:21, document:'Onboarding_Checklist.pdf', pages:3, owner:'Priya Shah', status:'Spooling' },
+              ] },
+          },
+        },
+        'NS-LT-0244':{
+          devices:[
+            { id:'camera', category:'Cameras', name:'Integrated Camera', camera:true, status:'43', problem:'Windows has stopped this device because it has reported problems. (Code 43)', driver:{ provider:'Northstar Imaging', date:'yesterday', version:'10.0.26100.512' }, previous:{ provider:'Northstar Imaging', date:'3 months ago', version:'10.0.26100.388' } },
+            { id:'keyboard', category:'Keyboards', name:'Standard PS/2 Keyboard', status:'OK', driver:{ provider:'Microsoft', date:'last year', version:'10.0.26100.1' } },
+            { id:'audio', category:'Sound, video and game controllers', name:'Realtime High Definition Audio', status:'OK', driver:{ provider:'Realtime Audio', date:'2 months ago', version:'6.0.9601.1' } },
+            { id:'wifi', category:'Network adapters', name:'Wireless Network Adapter AX211', status:'OK', driver:{ provider:'Northstar Networks', date:'4 months ago', version:'23.60.0.10' } },
+          ],
+          dock:{ name:'Service Desk test dock', power:true, docked:false, peripherals:['Keyboard', 'Mouse'],
+            monitors:[{ id:'left', name:'Monitor 1', cable:'DisplayPort', input:'DisplayPort', inputs:['HDMI', 'DisplayPort'] }, { id:'right', name:'Monitor 2', cable:'HDMI', input:'HDMI', inputs:['HDMI', 'DisplayPort'], needsDetect:true }] },
+          projection:'PC screen only',
+        },
+      },
+      actions:[
+        { id:'server-spooler', text:'Restart the Print Spooler on the print server NS-PRINT01 and clear its NS-HR-MFP01 queue', critical:true, feedback:'Critical error. Only Priya is affected, and the stuck job is in her own laptop\'s queue. Restarting or clearing the print server\'s spooler stops printing for everyone on it. Fix it on her laptop.', history:'Restarted the print server\'s spooler for a one-user issue.' },
+      ],
+      comments:true, resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['spooler', 'Print Spooler', 'Get-PrintJob', 'Test-NetConnection', '9100', 'NS-HR-MFP01', 'NS-LT-0094', 'NS-PRINT01', 'PowerShell', 'Tier 1', 'Tier 2', 'P4', 'SLA'] },
+      feedback:[
+        { area:'Triage', checks:[{ priority:'P4', missing:'Set Impact 3 (one person) and Urgency 2 (printing is blocked, with no deadline in the ticket). That makes the ticket P4.' }], good:'The priority is P4: one person, printing blocked, no deadline.', fix:'Set Impact 3 (one person) and Urgency 2 (no deadline in the ticket). The ticket is P4.' },
+        { area:'Investigation', checks:[{ chat:['others'], missing:'Ask Priya whether anyone else in HR can print. One user and her own job means Tier 1 fixes it on her laptop.' }, { evidence:'printservice', missing:'Open the PrintService log card on the ticket.' }], good:'You checked the scope first: only Priya is affected, and the log names job 18.', fix:'Ask Priya whether anyone else in HR can print, and open the PrintService log card.' },
+        { area:'Diagnosis', checks:[{ chat:['cancel'], missing:'Ask Priya whether you may cancel her 612-page job before you change anything.' }, { action:'job-cancel', missing:'In the print queue window, cancel job 18 (Benefits_Guide.pdf, 612 pages). It stays "Deleting": the spooler can\'t cancel it.' }], good:'One very large job in Error blocked everything behind it, and it would not cancel.', fix:'Get-PrintJob shows job 18 in Error with three jobs behind it. Ask Priya, then cancel it in the print queue window.' },
+        { area:'Action', checks:[{ action:'spooler-stop', missing:'Run Stop-Service Spooler.' }, { action:'job-clear-stuck', missing:'With the spooler stopped, click Clear stuck job in the print queue window.' }, { action:'spooler-start', missing:'Run Start-Service Spooler.' }, { action:'printer-offline-off', missing:'In the queue\'s Printer menu, untick Use Printer Offline.' }, { action:'test-page', missing:'Print a test page to check the printer.' }, { chat:['resend'], missing:'Ask Priya to check that her other three documents printed.' }], good:'You worked in the right order: cleared the stuck job with the spooler stopped, put the printer back online, printed a test page and confirmed with Priya.', fix:'Stop the spooler, clear the stuck job, start the spooler, untick Use Printer Offline, print a test page and ask Priya to confirm her documents printed.' },
+        { area:'Right owner', checks:[{ status:'Resolved', missing:'Only one user and her own job: L1 can fix this locally. Escalation is for print-server-wide impact.' }], good:'You fixed it at Tier 1: one user and her own job.', fix:'Only one user and her own job: L1 can fix this locally. Escalation is for print-server-wide impact.' },
+        { area:'Printers and peripherals', checks:[{ printerInstalled:{ computer:'NS-LT-0094', printer:'NS-HR-LABEL01' }, missing:'In Settings › Printers & scanners, add NS-HR-LABEL01 by address: Standard TCP/IP, 10.20.70.51.' }, { action:'driver-rollback', missing:'On NS-LT-0244, open Device Manager › Integrated Camera › Driver and click Roll Back Driver.' }, { action:'camera-checked', missing:'Open the Camera app on NS-LT-0244 to check that it shows video.' }, { action:'projection', missing:'Dock NS-LT-0244, then press Win + P › Extend.' }, { action:'display-detect', missing:'In Settings › Display, click Detect so the second monitor shows.' }], good:'You added the label printer by its address, rolled back the camera driver and set up both monitors.', fix:'Add NS-HR-LABEL01 by address, roll back the camera driver on NS-LT-0244, then dock it, press Win + P › Extend and click Detect.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result work note.' }, { comment:true, missing:'Write a comment for Priya in plain words, with no internal terms.' }, { code:'Solution provided', missing:'Choose the resolution code Solution provided.' }], good:'A complete work note, a plain-words comment and the right resolution code.', fix:'Write a Reported / Tried / Result note and a plain-words comment, for example: "Hi Priya, you can print again. One very large file, the 612-page Benefits Guide, got stuck and blocked everything behind it. I cleared it with your OK, and your other three documents have printed. For the guide, try sending it a section at a time, and tell us if it sticks again. – Riley"' },
+      ],
+    } }),
+  hdTicket({ id:'HD-2173', ownSet:true, number:'INC0010471', requester:'Leah Brooks', department:'Marketing', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T10:24:00Z', shortDescription:'Virtual desktop stuck on a spinning circle',
+    description:'My virtual desktop is stuck on a spinning circle. I closed the window and opened it again, same thing.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: virtual desktop stuck on a spinner; closing and reopening the window didn\'t help. Tried: other VDI-POOL-MKTG sessions Active, so not a pool outage; Leah\'s session Disconnected, hung 9 h; told her unsaved work in it may be lost and she agreed; logged that session off per KB-0072. Result: new session Active; Leah confirmed her desktop and apps load.',
+    console: {
+      matrix:{}, classify:{ categories:HD_ITS02_CATEGORIES, cis:['NS-LT-0236', 'Marketing shared drive', 'VDI-POOL-MKTG'] },
+      priorityCoach:{ impact:'3', urgency:'2', line:'One person is affected (Impact 3), and she has no deadline in the ticket (Urgency 2): P4.' },
+      kb:true,
+      caller:{ name:'Leah Brooks', style:'chat', questions:[
+        { id:'consent', text:'Your desktop is stuck in an old session on our server. If I log that session off, any unsaved work in it may be lost. May I go ahead?', reply:'Go ahead, I saved before lunch.' },
+        { id:'reconnect', text:'Please open your virtual desktop again. Does it load now?', afterAction:'vdi-logoff', replyBefore:'Still the spinning circle.', reply:'Yes, it loaded! My desktop and apps are all there.' },
+      ] },
+      vdi:{ pools:[{ name:'VDI-POOL-MKTG', sessions:[
+        { id:'mktg-leah', user:'leah.brooks', state:'Disconnected – hung', hours:9 },
+        { id:'mktg-marcus', user:'marcus.lee', state:'Active', hours:2 },
+        { id:'mktg-wes', user:'wes.turner', state:'Active', hours:3 },
+        { id:'mktg-owen', user:'owen.price', state:'Active', hours:1 },
+        { id:'mktg-jade', user:'jade.morris', state:'Active', hours:5 },
+      ] }] },
+      comments:true, resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['VDI', 'pool', 'VDI-POOL-MKTG', 'session ID', 'hung', 'KB-0072', 'Tier 1', 'Tier 2', 'P4', 'SLA', 'host'] },
+      feedback:[
+        { area:'Triage', checks:[{ priority:'P4', missing:'Set Impact 3 (one person) and Urgency 2 (no deadline in the ticket). That makes the ticket P4.' }], good:'The priority is P4: one person, no deadline.', fix:'Set Impact 3 (one person) and Urgency 2. The ticket is P4.' },
+        { area:'Investigation', checks:[{ kb:'KB-0072', missing:'Search the KB for "virtual desktop black screen" and open KB-0072.' }], good:'You used KB-0072: it says what Tier 1 may do, and that pool and host restarts are Tier 2.', fix:'Search the KB for "virtual desktop black screen", open KB-0072, then check every session in VDI-POOL-MKTG on the Virtual Desktops screen.' },
+        { area:'Diagnosis', checks:[{ action:'vdi-viewed', missing:'Open Virtual Desktops from the ticket and look at every session in VDI-POOL-MKTG. The others are Active; Leah\'s is "Disconnected – hung, 9 h".' }], good:'The pool was healthy and only Leah\'s session was hung, so it was not a pool outage.', fix:'Check every session in VDI-POOL-MKTG first. The others are Active, so only Leah\'s session is stuck.' },
+        { area:'Action', checks:[{ chat:['consent'], missing:'Before you log the session off, tell Leah that unsaved work in it may be lost, and ask if you can go ahead. Logging off without that warning is a critical error in a real shift.' }, { action:'vdi-logoff', missing:'Click Log off session on Leah\'s session only. Restarting the pool is a Tier 2 action that drops everyone.' }, { confirmed:'reconnect', missing:'After the log-off, ask Leah to reconnect and confirm her desktop loads.' }], good:'You warned Leah, got her OK, logged off only her session and checked that her desktop loads.', fix:'Warn Leah about unsaved work and get her OK, click Log off session on her session only, then ask her to reconnect. Never restart the pool: that is Tier 2.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result work note, with Leah\'s consent and its time.' }, { comment:true, missing:'Write a comment for Leah in plain words, with no internal terms.' }, { status:'Resolved', missing:'Resolve the ticket once Leah confirms her desktop loads.' }], good:'A complete work note with her consent, a plain-words comment, and the ticket resolved.', fix:'Write a Reported / Tried / Result note that records Leah\'s consent and its time, and a comment in plain words.' },
+      ],
+    } }),
+  // Ticket 4-A: a hot desk dock with no power.
+  hdTicket({ id:'HD-2169', ownSet:true, number:'INC0010472', requester:'Grace Kim', department:'Human Resources', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T09:24:00Z', shortDescription:'monitors not working!!',
+    description:'I moved to a hot desk on 4 today and plugged my laptop into the dock thing but neither of the big screens works and the keyboard on the desk doesn\'t either. My laptop screen is fine. I have a presentation to build. HELP',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: hot desk 4F-12; both monitors and the desk keyboard dead on the dock; the laptop\'s screen is fine. Tried: dock light was off and its power brick unplugged under the desk, reconnected it; set monitor 1\'s input to DisplayPort; Win + P › Extend; Display › Detect for monitor 2. Result: two monitors, the keyboard and the dock\'s Ethernet all working; Grace confirmed. Suggested to Facilities: label the dock power at the 4F hot desks.',
+    console: {
+      now:'2026-08-19T09:30:00Z', matrix:{}, classify:{ categories:HD_ITS02_CATEGORIES, cis:['NS-LT-0205', 'DOCK-4F-12', 'NS-LT-0244'], preset:{ contactType:'Email' } },
+      priorityCoach:{ impact:'3', urgency:'2', line:'One person is affected (Impact 3). Her laptop screen still works, so she can keep building her presentation while you fix the desk (Urgency 2): P4.' },
+      kb:true,
+      caller:{ name:'Grace Kim', style:'chat', questions:[
+        { id:'light', text:'Is there a small light on the dock?', afterAction:'dock-power', replyBefore:'No, no light at all.', reply:'Yes, it\'s on now, and the desk keyboard works.' },
+        { id:'brick', text:'Can you look under the desk: is the dock\'s power brick plugged in?', reply:'Oh, it\'s lying there unplugged. I\'ve plugged it back in.' },
+        { id:'screens', text:'Are both monitors showing your desktop now?', afterAction:'display-detect', replyBefore:'Not yet.', reply:'Yes, both of them, side by side like my old desk. Thank you!' },
+      ] },
+      machines:{
+        'NS-LT-0205':{
+          computer:{ ip:'10.20.70.105', health:'Healthy' },
+          dock:{ name:'DOCK-4F-12', power:false, docked:true, ethernet:'Dock USB Ethernet', peripherals:['Keyboard', 'Mouse'],
+            monitors:[{ id:'desk-left', name:'Monitor 1', cable:'DisplayPort', input:'HDMI', inputs:['HDMI', 'DisplayPort'] }, { id:'desk-right', name:'Monitor 2', cable:'DisplayPort', input:'DisplayPort', inputs:['HDMI', 'DisplayPort'], needsDetect:true }] },
+          projection:'Duplicate',
+        },
+      },
+      actions:[
+        { id:'order-dock', text:'Order a replacement dock and monitors for desk 4F-12', critical:true, feedback:'Critical error. Never order replacement hardware before you check the dock\'s power and the monitor\'s input. Here the dock was simply unplugged.', history:'Ordered replacement hardware before checking power and input.' },
+      ],
+      comments:true, resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['DOCK-4F-12', 'NS-LT-0205', 'CI', 'USB-C', 'Win + P', 'Tier 1', 'Tier 2', 'P4', 'SLA'] },
+      feedback:[
+        { area:'Triage', checks:[{ priority:'P4', missing:'Set Impact 3 (one person) and Urgency 2 (her laptop screen works, so she can keep working). That makes the ticket P4.' }], good:'The priority is P4: one person, and her laptop screen still works.', fix:'Set Impact 3 (one person) and Urgency 2. The ticket is P4.' },
+        { area:'Investigation', checks:[{ chat:['light'], missing:'Everything on the dock is dead but the laptop works: start where the power comes in. Ask Grace whether the dock has a light.' }], good:'You started where the power comes in: the dock light.', fix:'Everything on the dock is dead but the laptop works, so the dock or its power is the place to start. Ask Grace about the dock light first.' },
+        { area:'Diagnosis', checks:[{ chat:['brick'], missing:'Ask Grace to check under the desk that the dock\'s power brick is plugged in.' }, { action:'dock-power', missing:'On the Dock and displays screen, plug in the dock\'s power.' }], good:'No power to the dock turned off everything attached to it.', fix:'The dock has no light: its power brick is unplugged. Ask Grace to check it, then plug in the dock\'s power.' },
+        { area:'Action', checks:[{ action:'monitor-input', missing:'Monitor 1 says "No signal": set its Input/Source to DisplayPort.' }, { action:'projection', missing:'Press Win + P › Extend.' }, { action:'display-detect', missing:'In Settings › Display, click Detect so monitor 2 appears.' }, { chat:['screens'], missing:'Ask Grace to confirm both monitors show her desktop.' }], good:'Power, input, Win + P › Extend, Detect, and Grace confirmed both monitors.', fix:'Work along the chain: dock power, the monitor\'s input, Win + P › Extend, then Display › Detect. Check Ethernet: Connected in Settings › Network & internet, and confirm with Grace.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result work note.' }, { comment:true, missing:'Write a comment for Grace in plain words, with no internal terms.' }, { status:'Resolved', missing:'Resolve the ticket once Grace confirms.' }], good:'A complete work note, a plain-words comment, and the ticket resolved.', fix:'Write a Reported / Tried / Result note and a plain-words comment, for example: "Hi Grace, you\'re all set. The dock at that desk had come unplugged from power, which turns off everything attached to it. It\'s plugged back in, both monitors are working, and they\'re arranged like your old desk. If a hot desk acts up again, check for the small light on the dock first. – Riley"' },
+      ],
+    } }),
+  // Ticket 4-B: a swollen battery. Safety first, then Desktop Support (Tier 2).
+  hdTicket({ id:'HD-2170', ownSet:true, number:'INC0010473', requester:'Omar Haddad', department:'Sales', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T13:57:00Z', shortDescription:'trackpad popping up',
+    description:'weird question. my laptop trackpad is kind of raised up now and won\'t click right, and the battery dies in like an hour. is that a setting? also it\'s a bit warm. I\'m charging it now',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: raised trackpad that won\'t click properly, about an hour of battery, warm while charging. Tried: the signs match a swollen battery (no physical test: it is a hazard); at 14:05 told Omar to save his work, unplug the charger, shut down and leave the laptop on a hard surface; requested loaner LT-LOAN-04. Result: laptop out of use; escalated to Desktop Support for the swap. Next action: Desktop Support collects NS-LT-0183 and confirms a pickup time with Omar within the hour.',
+    console: {
+      now:'2026-08-20T14:00:00Z', matrix:{}, classify:{ categories:HD_ITS02_CATEGORIES, cis:['NS-LT-0215', 'NS-LT-0154', 'NS-LT-0183'], preset:{ contactType:'Chat' } },
+      priorityCoach:{ impact:'3', urgency:'1', line:'One person is affected (Impact 3), but a swelling battery that is warm and charging is a safety hazard, so it is urgent (Urgency 1): P3, with the safety steps first.' },
+      kb:true,
+      caller:{ name:'Omar Haddad', style:'chat', questions:[
+        { id:'charging', text:'Is the laptop still plugged in and charging right now?', reply:'Yes, it\'s on the charger.' },
+        { id:'files', text:'Are your files saved somewhere other than the laptop, like OneDrive?', reply:'Yes, everything\'s in OneDrive.' },
+        { id:'done', text:'Is the laptop off, unplugged and on a hard surface now?', afterAction:'safety', replyBefore:'Not yet. What should I do with it?', reply:'Done. It\'s off, unplugged and on the desk.' },
+      ] },
+      actions:[
+        { id:'safety', text:'Tell Omar: "Please save your work, unplug the charger, shut the laptop down and put it on a hard surface away from anything that can burn. Don\'t press on the trackpad."', feedback:'Omar: "Okay, saving now and shutting it down."', history:'Safety steps given: save, unplug the charger, shut down, hard surface, don\'t press on the trackpad.' },
+        { id:'loaner', text:'Request loaner LT-LOAN-04 for Omar (KB-0071)', feedback:'Loaner LT-LOAN-04 is reserved for Omar. His files are in OneDrive, so he can sign in and keep working.', history:'Loaner LT-LOAN-04 requested per KB-0071.' },
+        { id:'keep-using', text:'Tell Omar he can keep charging and using the laptop until the swap', critical:true, feedback:'Critical error. A swelling battery can overheat or catch fire. Tell him to unplug it, shut it down and stop using it.', history:'Told the user to keep charging and using a laptop with a swelling battery.' },
+        { id:'press', text:'Ask Omar to press on the trackpad, or open the case, to check the battery', critical:true, feedback:'Critical error. Pressing on a swollen battery or opening the case can make it fail. No physical tests on a hazard.', history:'Asked the user to press on or open a laptop with a swelling battery.' },
+      ],
+      comments:{ timeCheck:{ time:`${HD_M03_TIME}|\\bwithin the hour\\b`, promise:HD_M03_PROMISE, promiseLine:'A swap time is not yours to promise: Desktop Support sets it. Say when Omar will hear about the pickup.', noTimeLine:'Tell Omar when he will hear about the pickup.' } },
+      resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Li-ion', 'lithium', 'NS-LT-0183', 'LT-LOAN-04', 'KB-0071', 'Tier 1', 'Tier 2', 'P3', 'SLA', 'escalate', 'escalated', 'escalating'] },
+      feedback:[
+        { area:'Triage', checks:[{ priority:'P3', missing:'Set Impact 3 (one person) and Urgency 1 (a safety hazard). That makes the ticket P3.' }], good:'The priority is P3: one person, and the safety risk makes it urgent.', fix:'Set Impact 3 (one person) and Urgency 1 (a safety hazard). The ticket is P3.' },
+        { area:'Investigation', checks:[{ chat:['charging'], missing:'Ask Omar whether the laptop is still charging. Heat while charging is part of the hazard.' }, { kb:'KB-0071', missing:'Search the KB (for example "damaged laptop") and open KB-0071 for the loaner and escalation steps.' }], good:'You checked it was still charging and used KB-0071.', fix:'Ask Omar whether it is still charging, and open KB-0071 for the loaner and escalation route.' },
+        { area:'Diagnosis', checks:[{ action:'safety', missing:'A raised trackpad, a short battery life and heat are the signs of a swollen battery. That is a hazard: give the safety steps, with no physical test.' }], good:'You recognized a swollen battery and ran no physical test on it.', fix:'A raised trackpad, about an hour of battery and heat mean a swollen battery. Treat it as a hazard: no battery report, no setting, no test.' },
+        { area:'Action', checks:[{ action:'safety', missing:'First tell Omar to save, unplug the charger, shut down and leave the laptop on a hard surface, and not to press on the trackpad.' }, { chat:['done'], missing:'Check with Omar that the laptop is off, unplugged and on a hard surface.' }, { chat:['files'], missing:'Ask whether his files are in OneDrive, so the loaner has them.' }, { action:'loaner', missing:'Request loaner LT-LOAN-04 for Omar.' }, { group:'Desktop Support (Tier 2)', missing:'Assign the ticket to Desktop Support (Tier 2) for the battery swap.' }], good:'Safety steps first, a loaner requested, and the ticket with Desktop Support for the swap.', fix:'Give the safety steps first, confirm the laptop is off, request a loaner, then assign the ticket to Desktop Support (Tier 2).' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note with a Next action: Desktop Support collects the laptop and confirms a pickup time.' }, { comment:true, missing:'Write a comment for Omar in plain words, with no internal terms.' }, { commentTime:true, missing:'Tell Omar when he will hear about the pickup, for example "within the hour".' }], good:'A complete note with the next action, and a plain-words comment that says when Omar will hear back.', fix:'Write a Reported / Tried / Result note with a Next action, and a plain-words comment, for example: "Hi Omar, thanks for asking. It\'s not a setting. A raised trackpad usually means the battery inside is swelling, which can be a safety risk, so please keep the laptop off and unplugged. Our desktop team will swap it out, and we\'re setting you up with a loaner today with your OneDrive files on it. We\'ll confirm a pickup time within the hour. – Riley"' },
+      ],
+    } }),
+  // Ticket 4-C: a badge printer with six duplicate jobs and the offline flag.
+  // A phone call, worked with the caller questions. Restarting the spooler
+  // with the six jobs queued sends all six again (action spooler-start with
+  // queued); the late message says what came out.
+  hdTicket({ id:'HD-2171', ownSet:true, number:'INC0010475', requester:'Ines Calder', department:'Front Desk', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-21T09:01:00Z', shortDescription:'Badge printer offline, guest waiting',
+    description:'Phone call from the front desk: "Hi! I\'ve got a visitor standing here waiting for their badge and the printer just says \'Offline\' and nothing comes out. I clicked print like five times. Please hurry!" Desk NS-WS-0101, printer RECEPTION-BADGE.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: badge printer shows Offline with a visitor waiting; print clicked five or more times. Tried: six jobs queued, the first in Error, removed all six; Use Printer Offline was ticked on NS-WS-0101, unticked it; the printer answers on port 9100; asked Ines to print once. Result: badge printed 09:07; Ines confirmed on the phone; connection to her PC closed.',
+    console: {
+      now:'2026-08-21T09:02:00Z', matrix:{}, classify:{ categories:HD_ITS02_CATEGORIES, cis:['NS-WS-0101', 'RECEPTION-BADGE', 'NS-PRINT01'], preset:{ contactType:'Phone' } },
+      priorityCoach:{ impact:'3', urgency:'1', line:'One person is affected (Impact 3), but a guest is waiting at the desk right now (Urgency 1): P3. Work it live.' },
+      kb:true,
+      caller:{ name:'Ines Calder', style:'phone', questions:[
+        { id:'connect', text:'May I connect to your computer?', reply:'Yes, go ahead.' },
+        { id:'paper', text:'Does the printer itself show ready, with paper loaded?', reply:'Its little screen says Ready, and there are plenty of badge cards in it.' },
+        { id:'print-once', text:'Please click print once, just once, and tell me what comes out.', afterAction:'printer-offline-off', replyBefore:'Nothing is coming out. It still says Offline.', reply:'One badge came out. The visitor has it. Thank you!' },
+      ] },
+      machines:{
+        'NS-WS-0101':{
+          computer:{ ip:'10.20.10.101', health:'Healthy' },
+          spooler:'Running',
+          ports:[{ name:'IP_10.20.10.60', type:'Standard TCP/IP', address:'10.20.10.60' }],
+          driverCatalog:['Generic Label Printer', 'Generic / Text Only'],
+          reachable:{ '10.20.10.60':[9100] },
+          printQueues:{
+            'RECEPTION-BADGE':{ port:'IP_10.20.10.60', driver:'Generic Label Printer', drivers:['Generic Label Printer'], media:'Badge card', mediaSizes:['Badge card', 'Letter'], offline:true, paused:false,
+              jobs:[
+                { id:31, document:'Visitor badge', pages:1, owner:'Ines Calder', status:'Error' },
+                { id:32, document:'Visitor badge', pages:1, owner:'Ines Calder', status:'Spooling' },
+                { id:33, document:'Visitor badge', pages:1, owner:'Ines Calder', status:'Spooling' },
+                { id:34, document:'Visitor badge', pages:1, owner:'Ines Calder', status:'Spooling' },
+                { id:35, document:'Visitor badge', pages:1, owner:'Ines Calder', status:'Spooling' },
+                { id:36, document:'Visitor badge', pages:1, owner:'Ines Calder', status:'Spooling' },
+              ] },
+          },
+        },
+      },
+      // Six badges came out: the queue printed while the duplicates were still in it.
+      arrivals:[{ id:'six-badges', from:'Ines Calder', text:'Six badges just came out of the printer, all for the same visitor! Next time, can we clear the extra ones first?', when:{ machine:{ computer:'NS-WS-0101', path:['printQueues', 'RECEPTION-BADGE', 'printed', '5', 'document'], value:'Visitor badge' } } }],
+      comments:true, resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['spooler', 'Print Spooler', 'queue', 'Get-PrintJob', 'Test-NetConnection', '9100', 'NS-WS-0101', 'RECEPTION-BADGE', 'PowerShell', 'Tier 1', 'Tier 2', 'P3', 'SLA'] },
+      feedback:[
+        { area:'Triage', checks:[{ priority:'P3', missing:'Set Impact 3 (one person) and Urgency 1 (a guest is waiting now). That makes the ticket P3.' }], good:'The priority is P3: one person, and a guest waiting makes it urgent.', fix:'Set Impact 3 (one person) and Urgency 1 (a guest is waiting). The ticket is P3.' },
+        { area:'Investigation', checks:[{ chat:['connect'], missing:'Ask Ines "May I connect to your computer?" before you work on NS-WS-0101.' }, { chat:['paper'], missing:'Ask Ines whether the printer shows ready with paper loaded.' }], good:'You asked before connecting, and checked the printer itself.', fix:'Ask Ines before you connect to her computer, then check the queue with Get-PrintJob -PrinterName RECEPTION-BADGE and ask whether the printer shows ready.' },
+        { area:'Diagnosis', checks:[{ action:'job-cancel', missing:'Get-PrintJob shows six badge jobs, the first in Error. Cancel the jobs in the print queue window.' }], good:'Six duplicate jobs sat behind one in Error, and Use Printer Offline was ticked.', fix:'Six duplicate jobs sit behind one in Error, and Use Printer Offline is ticked on her computer.' },
+        { area:'Action', checks:[{ action:'job-cancel', missing:'Cancel all six badge jobs while the printer is still offline. Restarting the spooler, or the PC, with them queued prints all six.' }, { action:'printer-offline-off', missing:'After the jobs are cleared, untick Use Printer Offline in the queue\'s Printer menu.' }, { confirmed:'print-once', missing:'Ask Ines to print once, and confirm one badge came out.' }], good:'Jobs cleared before the flag, then one reprint: one badge, not six.', fix:'Order matters: cancel all six jobs first, then untick Use Printer Offline, then ask Ines to print once. Restarting the spooler or the PC with the six jobs queued prints six badges.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result work note.' }, { comment:true, missing:'Write a comment for Ines in plain words, with no internal terms.' }, { status:'Resolved', missing:'Resolve the ticket once Ines confirms the badge printed.' }], good:'A complete work note, a plain-words comment, and the ticket resolved.', fix:'Write a Reported / Tried / Result note and a plain-words comment, for example: "Hi Ines, thanks for staying calm with a guest waiting! Your printer had been switched to "offline" on your computer, and the extra print jobs were stuck behind the first one. We cleared them and switched it back online, and your badge printed. Next time, print once and call us if nothing comes out. – Riley"' },
+      ],
+    } }),
+  // Ticket 4-D: a hung virtual desktop session.
+  hdTicket({ id:'HD-2172', ownSet:true, number:'INC0010476', requester:'Ana Torres', department:'Claims', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-18T13:31:00Z', shortDescription:'work desktop just black',
+    description:'hi, my work desktop thing just shows a black screen with a spinning circle forever. I restarted my own laptop twice. I have claims to finish by 5 and I literally cant do anything',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: virtual desktop shows a black screen and a spinner; Ana restarted her laptop twice. Tried: pool VDI-POOL-CLAIMS healthy (12 sessions Active); Ana\'s session Disconnected, hung 14 h; warned her that unsaved work in that session may be lost and she agreed at 13:40; logged the session off per KB-0072. Result: new session Active 13:42; desktop loaded; Ana confirmed her apps open.',
+    console: {
+      now:'2026-08-18T13:35:00Z', matrix:{}, classify:{ categories:HD_ITS02_CATEGORIES, cis:['VDI-POOL-MKTG', 'Claims application', 'VDI-POOL-CLAIMS'], preset:{ contactType:'Chat' } },
+      priorityCoach:{ impact:'3', urgency:'2', line:'One person is affected (Impact 3), with a deadline at 5 (Urgency 2): P4. If other Claims users were stuck too, Impact would be 2 (P3).' },
+      kb:true,
+      caller:{ name:'Ana Torres', style:'chat', questions:[
+        { id:'others', text:'Is anyone else on your team stuck on a black screen?', reply:'No, my team is working. It\'s just me.' },
+        { id:'consent', text:'Your desktop is stuck in an old session on our server. If I log that session off, any unsaved work in it may be lost. May I go ahead?', reply:'Okay, go ahead. I saved most of it before it froze.' },
+        { id:'reconnect', text:'Please open your work desktop again. Does it load now?', afterAction:'vdi-logoff', replyBefore:'Still black with the spinning circle.', reply:'It\'s back! My desktop loaded and my claims apps open.' },
+      ] },
+      vdi:{ pools:[{ name:'VDI-POOL-CLAIMS', sessions:[
+        { id:'claims-ana', user:'ana.torres', state:'Disconnected – hung', hours:14 },
+        { id:'claims-dev', user:'dev.mehta', state:'Active', hours:3 },
+        { id:'claims-lena', user:'lena.fischer', state:'Active', hours:5 },
+        { id:'claims-kofi', user:'kofi.mensah', state:'Active', hours:2 },
+        { id:'claims-rosa', user:'rosa.diaz', state:'Active', hours:6 },
+        { id:'claims-tom', user:'tom.becker', state:'Active', hours:1 },
+        { id:'claims-aiko', user:'aiko.sato', state:'Active', hours:5 },
+        { id:'claims-ben', user:'ben.carter', state:'Active', hours:3 },
+        { id:'claims-nadia', user:'nadia.rahman', state:'Active', hours:2 },
+        { id:'claims-wei', user:'li.wei', state:'Active', hours:6 },
+        { id:'claims-sara', user:'sara.lopez', state:'Active', hours:1 },
+        { id:'claims-jon', user:'jon.park', state:'Active', hours:3 },
+        { id:'claims-mia', user:'mia.novak', state:'Active', hours:5 },
+      ] }] },
+      comments:true, resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['VDI', 'pool', 'VDI-POOL-CLAIMS', 'hung', 'KB-0072', 'Tier 1', 'Tier 2', 'P3', 'P4', 'SLA', 'host'] },
+      feedback:[
+        { area:'Triage', checks:[{ priority:'P4', missing:'Set Impact 3 (only Ana is stuck) and Urgency 2. That makes the ticket P4. If other Claims users were stuck, Impact would be 2.' }], good:'The priority is P4: only Ana is stuck, and the rest of the pool is Active.', fix:'Set Impact 3 (one person; the other Claims sessions are Active) and Urgency 2. The ticket is P4.' },
+        { area:'Investigation', checks:[{ kb:'KB-0072', missing:'Search the KB for "virtual desktop black screen" or "VDI" and open KB-0072.' }, { chat:['others'], missing:'Ask Ana whether anyone else on her team is stuck.' }, { action:'vdi-viewed', missing:'Open Virtual Desktops from the ticket and check every session in VDI-POOL-CLAIMS.' }], good:'You checked the pool first: 12 sessions Active, so it is not a pool outage.', fix:'Check the pool first: open the Virtual Desktops screen and look at every session in VDI-POOL-CLAIMS, and ask Ana whether her team is affected (KB-0072).' },
+        { area:'Diagnosis', checks:[{ action:'vdi-logoff', missing:'Ana\'s session shows "Disconnected – hung, 14 h". Restarting her laptop can\'t reach it: the desktop runs on a server.' }], good:'The desktop runs on a server, so restarting her laptop couldn\'t fix the hung session.', fix:'Her session is "Disconnected – hung, 14 h" on the server. Restarting her laptop reconnects her to the same frozen desktop.' },
+        { area:'Action', checks:[{ chat:['consent'], missing:'Before you log the session off, warn Ana that unsaved work in it may be lost, and get her OK. Logging off without that warning is a critical error in a real shift.' }, { action:'vdi-logoff', missing:'Click Log off session on Ana\'s session only. Restarting the pool or the host is a Tier 2 action that drops everyone.' }, { confirmed:'reconnect', missing:'After the log-off, ask Ana to reconnect and confirm her desktop loads.' }], good:'You warned Ana, got her OK, logged off only her session and confirmed her desktop loads.', fix:'Warn Ana about unsaved work and get her OK, click Log off session on her session only (KB-0072), then ask her to reconnect. Never restart the pool or the host.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result work note, with Ana\'s consent and its time.' }, { comment:true, missing:'Write a comment for Ana in plain words, with no internal terms.' }, { status:'Resolved', missing:'Resolve the ticket once Ana confirms her desktop loads.' }], good:'A complete note with her consent and its time, a plain-words comment, and the ticket resolved.', fix:'Write a Reported / Tried / Result note that records Ana\'s consent and its time, and a plain-words comment, for example: "Hi Ana, your work desktop was stuck in an old session on our server, so restarting your laptop couldn\'t reach it. We cleared that session and you\'re back in with a fresh one. Files you had already saved are safe; only unsaved changes in the stuck session may be lost. If the black screen comes back, message us and we can clear it in a minute. – Riley"' },
+      ],
+    } }),
 ];
 
 /* Prove It shifts, by module key. A Prove shift opens with only its own
@@ -763,5 +1263,170 @@ const HD_PROVE_SHIFTS = {
         description: 'Got a text from \'IT\' saying re-register MFA or lose access. I tapped the link, it looked weird, I closed it. Didn\'t type anything.',
         conversation: [] },
     ],
+  },
+  /* Module 3 (key its-11): one ticket on a fixed Tuesday 10:15 shift clock,
+   * worked on Module 1's one-ticket Prove form with Module 3's extra parts
+   * (ui/helpdesk.js): the student sets Class, Category, Impact and Urgency
+   * (Priority calculates) and the assignment group, opens the earlier calls
+   * and the evidence cards (each opening is recorded), and writes a
+   * key-finding note, the handoff note, the customer update and a KB draft.
+   * A Warm handoff control logs a call to the chosen group. No typed commands
+   * and no SLA bar. Screens show the INC number only. Only what the student
+   * sees lives here: no expected values. */
+  'its-11': {
+    title: 'Prove It: Independent Ticket',
+    labKey: 'lab-its-11-prove-it',
+    rubricVersion: 'hdesk-its-11-prove-v1',
+    now: '2026-08-18T10:15:00Z',
+    timeBoxMinutes: 30,
+    selectedComputer: 'NS-LT-0190',
+    tickets: [{
+      id: 'HD-2133', number: 'INC0010402', title: 'NorthLedger won\'t open on new laptop',
+      requester: 'Jordan Bell', requesterTitle: 'Financial Analyst', department: 'Finance',
+      device: 'NS-LT-0190', cc: '', contactType: 'Phone', createdAt: '2026-08-14T09:20:00Z',
+      status: 'New', assignedTechnician: 'Unassigned',
+      description: 'This is my THIRD call. Month-end close is tomorrow at 9 and I still can\'t run my reports. Someone promised me yesterday it would be fixed by end of day. I need a real answer, not another \'we\'re looking into it\'.',
+      conversation: [],
+      // The student sets Class, Category, Impact and Urgency (Priority is
+      // Impact x Urgency) and the assignment group (ui/helpdesk.js).
+      matrix: true,
+      categoryOptions: ['Account / access', 'Application', 'Hardware', 'Network', 'Security'],
+      // Earlier calls on this ticket. Each opens on its own and is recorded.
+      history: [
+        { id: 'fri', title: 'Friday · first call', author: 'Service Desk', text: 'New laptop NS-LT-0190: Outlook and the Finance drive weren\'t set up. Fixed both.' },
+        { id: 'mon', title: 'Monday · second call', author: 'Service Desk', text: 'NorthLedger won\'t open. Reinstalled NorthLedger from Software Center. Told the user it would be fixed by end of day.' },
+      ],
+      // Read-only evidence cards, given in place of commands (no reading has
+      // taught one). Each opens on its own and is recorded.
+      evidence: [
+        { id: 'northledger', title: 'NorthLedger on NS-LT-0190', lines: ['Required runtime NLRuntime 6 not found. Contact your administrator.'] },
+        { id: 'software-center', title: 'Software Center on NS-LT-0190', lines: ['NorthLedger 2026.2: Succeeded', 'NLRuntime 6: Failed', 'Install type: device-wide'],
+          notes: ['A runtime is an add-on a program needs before it will start.', 'A device-wide install changes the laptop for every user.'] },
+        { id: 'finance-laptops', title: 'Other Finance laptops', lines: ['Finance laptops set up before this month run NorthLedger normally. NS-LT-0190 has the new standard setup that new laptops get.'] },
+        { id: 'loaners', title: 'Service Desk loaner pool', lines: ['2 laptops with the earlier setup are available today. NorthLedger runs on them.'] },
+      ],
+      diagnosisOptions: ['Account permissions', 'NorthLedger server down', 'Runtime missing on the new laptop setup', 'User needs training'],
+      // Ids are this ticket's own, so no other Prove It's steps land on them.
+      pathPool: [
+        { id: 'q1', text: 'Read both earlier calls on the ticket before answering Jordan' },
+        { id: 'q2', text: 'Reproduce the error on NS-LT-0190' },
+        { id: 'q3', text: 'Check the Software Center install status' },
+        { id: 'q4', text: 'Confirm that older Finance laptops run NorthLedger' },
+        { id: 'q5', text: 'Escalate the ticket' },
+        { id: 'q6', text: 'Offer a loaner laptop' },
+        { id: 'q7', text: 'Reinstall NorthLedger from Software Center again' },
+      ],
+      // Module 3's writing boxes beside the work note and the reply.
+      labels: { resolutionNote: 'Handoff note', resolutionHint: 'Reported / Tried / Result / Next action, for the team that takes it next', userReply: 'Customer update' },
+      writing: {
+        keyFinding: { label: 'Key finding', hint: 'One or two sentences: what you found and why it matters.', rows: 3, max: 600 },
+        kbDraft: { label: 'KB draft: NorthLedger won\'t open on a new Finance laptop', hint: 'Symptom, cause, fix or workaround, result and owner.', rows: 6, max: 4000 },
+      },
+      warmHandoff: true,
+    }],
+    computers: [
+      { name:'NS-LT-0190', user:'Jordan Bell', os:'Windows 11 Enterprise 24H2', ip:'10.20.20.190', ou:'OU=Finance,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy', uptimeDays:4 },
+    ],
+    machines: {},
+  },
+  /* Module 4 (key its-02): one ticket on a fixed Wednesday 09:40 shift clock,
+   * on Module 3's one-ticket form (matrix fields) with Module 4's typed
+   * commands and printer screens on two dock B stations (machine state below;
+   * ui/helpdesk.js "Machine-state console features"). machineTools shows every
+   * tool on both stations, and every queue offers a driver from the
+   * manufacturer's website, so neither points at the case. printerSummary: the
+   * package carries each queue's port, driver and paper size on the selected
+   * computer (ui/helpdesk.js hdProvePrinterSummary). Theo's reply arrives once
+   * the first job prints from his queue. Only what the student sees lives
+   * here: no expected values. */
+  'its-02': {
+    title: 'Prove It: Independent Ticket',
+    labKey: 'lab-its-02-prove-it',
+    rubricVersion: 'hdesk-its-02-prove-v1',
+    now: '2026-08-19T09:40:00Z',
+    timeBoxMinutes: 20,
+    selectedComputer: 'NS-WH-PC07',
+    machineTools: true,
+    printerSummary: true,
+    tickets: [{
+      id: 'HD-2136', number: 'INC0010499', title: 'Label printer says Offline',
+      requester: 'Theo Grant', requesterTitle: 'Logistics Coordinator', department: 'Logistics',
+      device: 'NS-WH-PC07', cc: '', contactType: 'Phone', createdAt: '2026-08-19T09:36:00Z',
+      status: 'New', assignedTechnician: 'Unassigned',
+      description: 'The label printer at dock B says Offline on my PC. The printer itself says Ready. We ship at 11.',
+      conversation: [],
+      matrix: true,
+      categoryOptions: ['Account / access', 'Docking station', 'Network', 'Printer', 'Software'],
+      // The knowledge base search, and Theo's reply once a job prints from
+      // his queue while the paper is still the size the update set (the only
+      // console features a Prove ticket can turn on).
+      console: {
+        kb: true,
+        arrivals: [{ id: 'theo-printed', from: 'Theo Grant', text: 'It printed! But the barcode is cut off at the bottom.',
+          when: { all: [
+            { machine: { computer: 'NS-WH-PC07', path: ['printQueues', 'NS-WH-LABEL02', 'printed', '0', 'owner'], value: 'Theo Grant' } },
+            { machine: { computer: 'NS-WH-PC07', path: ['printQueues', 'NS-WH-LABEL02', 'media'], value: '4 × 3 in' } },
+          ] } }],
+      },
+      // Read-only evidence cards. Each opens on its own and is recorded.
+      evidence: [
+        { id: 'windows-update', title: 'Windows Update history on NS-WH-PC07', lines: ['ZetaLabel ZT driver 5.1: installed today 02:10'], notes: ['Windows Update can install a newer printer driver by itself.'] },
+        { id: 'software-catalog', title: 'Software Catalog: label printer drivers', lines: ['NS-WH-LABEL02: approved driver ZetaLabel ZT 4.6'], notes: ['Install printer drivers only from the catalog.'] },
+        { id: 'asset-record', title: 'Asset record: NS-WH-LABEL02', lines: ['Location: warehouse dock B', 'Connection: direct IP, Standard TCP/IP port, address 10.20.30.15', 'Labels: 4 × 6 in'] },
+        { id: 'label-stock', title: 'Label stock at dock B', lines: ['Loaded roll: about half full', '3 spare rolls of 4 × 6 in labels on the shelf'] },
+      ],
+      diagnosisOptions: ['Driver update changed the printer port', 'Network outage on dock B', 'Print server spooler crash', 'Printer out of labels'],
+      // Ids are this ticket's own, so no other Prove It's steps land on them.
+      pathPool: [
+        // Action-level wording with no values, so the list never states the fix.
+        { id: 'w1', text: 'Check whether the other dock B station prints' },
+        { id: 'w2', text: 'Ping the printer' },
+        { id: 'w3', text: 'Check the printer\'s port' },
+        { id: 'w4', text: 'Check what changed on the computer recently' },
+        { id: 'w5', text: 'Change the printer\'s port' },
+        { id: 'w6', text: 'Change the printer\'s driver' },
+        { id: 'w7', text: 'Change the paper size and print a test label' },
+        { id: 'w8', text: 'Confirm with Theo that the labels scan' },
+        { id: 'w9', text: 'Restart the print server\'s spooler' },
+        { id: 'w10', text: 'Replace the label roll' },
+        { id: 'w11', text: 'Delete the queued shipping labels to clear the queue' },
+        { id: 'w12', text: 'Install a driver downloaded from the manufacturer\'s website' },
+        { id: 'w13', text: 'Restart Theo\'s computer' },
+        { id: 'w14', text: 'Update the printer\'s driver to the newest version' },
+      ],
+    }],
+    computers: [
+      { name:'NS-WH-PC07', user:'Theo Grant', os:'Windows 11 Enterprise 24H2', ip:'10.20.30.107', ou:'OU=Logistics,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy', uptimeDays:6 },
+      { name:'NS-WH-PC08', user:'Dock B shared station', os:'Windows 11 Enterprise 24H2', ip:'10.20.30.108', ou:'OU=Logistics,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy', uptimeDays:6 },
+    ],
+    // Both dock B stations print to NS-WH-LABEL02 directly (no print server).
+    machines: {
+      'NS-WH-PC07': {
+        printers: ['Microsoft Print to PDF', 'NS-WH-LABEL02'], pendingPolicyPrinters: [], localAdministrators: ['NORTHSTAR\\Domain Admins', 'NS-WH-PC07\\MNT-Support'],
+        computer: { ip:'10.20.30.107', health:'Healthy' },
+        spooler: 'Running',
+        ports: [{ name:'WSD-7f3a', type:'WSD', works:false }, { name:'IP_10.20.30.15', type:'Standard TCP/IP', address:'10.20.30.15' }],
+        driverCatalog: ['ZetaLabel ZT 4.6', 'Generic / Text Only'],
+        reachable: { '10.20.30.15':[9100] },
+        printQueues: {
+          'NS-WH-LABEL02': { port:'WSD-7f3a', driver:'ZetaLabel ZT 5.1', drivers:['ZetaLabel ZT 5.1'], outsideDriver:'ZetaLabel ZT 5.2 (manufacturer download)',
+            media:'4 × 3 in', mediaSizes:['4 × 3 in', '4 × 6 in', 'Letter'], offline:false, paused:false, printed:[],
+            jobs: Array.from({ length:14 }, (_, i) => ({ id:401 + i, document:`Shipping label ${String(8811 + i)}`, pages:1, owner:'Theo Grant', status:'Spooling' })) },
+        },
+      },
+      'NS-WH-PC08': {
+        printers: ['Microsoft Print to PDF', 'NS-WH-LABEL02'], pendingPolicyPrinters: [], localAdministrators: ['NORTHSTAR\\Domain Admins', 'NS-WH-PC08\\MNT-Support'],
+        computer: { ip:'10.20.30.108', health:'Healthy' },
+        spooler: 'Running',
+        ports: [{ name:'IP_10.20.30.15', type:'Standard TCP/IP', address:'10.20.30.15' }],
+        driverCatalog: ['ZetaLabel ZT 4.6', 'Generic / Text Only'],
+        reachable: { '10.20.30.15':[9100] },
+        printQueues: {
+          'NS-WH-LABEL02': { port:'IP_10.20.30.15', driver:'ZetaLabel ZT 4.6', drivers:['ZetaLabel ZT 4.6'], outsideDriver:'ZetaLabel ZT 5.2 (manufacturer download)',
+            media:'4 × 6 in', mediaSizes:['4 × 3 in', '4 × 6 in', 'Letter'], offline:false, paused:false, jobs:[],
+            printed: [{ document:'Shipping label 8807', pages:1, owner:'Dock B shared station' }, { document:'Shipping label 8808', pages:1, owner:'Dock B shared station' }] },
+        },
+      },
+    },
   },
 };

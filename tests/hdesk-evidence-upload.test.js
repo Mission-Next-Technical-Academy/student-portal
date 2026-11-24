@@ -89,6 +89,25 @@ function chooseLab21() {
   choose('its02AddEvidence', 'its02-ev-vmsettings', pick('settings.jpg', 'image/jpeg', 4096));
 }
 
+// The simulator replaced the screenshot upload: a student with no files and
+// nothing returned sees no upload box on either VM lab.
+async function testFreshStudentGetsNoUploadBox() {
+  const user = hdUser();
+  fresh(user);
+  const html = moduleLab(2).view(user, HD);
+  assert.doesNotMatch(html, /its02-older-evidence/, 'no upload box');
+  assert.doesNotMatch(html, /id="its02-ev-(desktop|vmsettings|snapshot|ping1|ping2)"/, 'no upload tiles');
+  assert.equal(submitButton(html, LAB21), null, 'no Submit button');
+
+  // One file picked, then a refused replacement empties the field: the box
+  // and the refusal message stay so the student can pick again.
+  choose('its02AddEvidence', 'its02-ev-desktop', pick('desktop.png'));
+  choose('its02AddEvidence', 'its02-ev-desktop', pick('photo.heic', 'image/heic'));
+  const after = moduleLab(2).view(user, HD);
+  assert.match(after, /its02-older-evidence/, 'the box stays after a refused pick');
+  assert.match(section(after, 'its02-lab-2-1'), /“photo\.heic” wasn’t added/);
+}
+
 async function testRefusesWrongTypeAndSize() {
   const user = hdUser();
   fresh(user);
@@ -130,7 +149,7 @@ async function testRefusedReplacementRemovesTheEarlierFile() {
   assert.match(section(html, 'its02-lab-2-1'), /“photo\.heic” wasn’t added: it isn’t a PNG, JPEG or WebP image\. Only PNG, JPEG or WebP up to 10 MB is accepted\. Your earlier file was removed\. Choose a file again\./);
   assert.doesNotMatch(section(html, 'its02-lab-2-1'), /Added<\/strong> — desktop\.png/, 'the earlier file is no longer shown');
   assert.doesNotMatch(html, /data-its-submit="lab-its-02-vm-build"/, 'not ready after a refused replacement');
-  assert.equal(statusLine(html, LAB21), 'Upload both evidence files to complete this lab.');
+  assert.equal(statusLine(html, LAB21), 'Finish Lab 4.1 in the simulator to complete this lab.');
   assert.ok(!LabRuntime.load('its02-lab-state-v1', user, {}).evDesktop, 'the earlier name is gone from browser storage');
   assert.equal(await run('its02SubmitLab')(LAB21), false, 'Submit does nothing');
   assert.equal(calls(BUCKET).length + inserts().length, 0, 'nothing uploaded or recorded');
@@ -209,7 +228,8 @@ async function testUploadThenInsertWithTheSameId() {
   assert.equal(calls(BUCKET, 'remove').length, 0, 'nothing is removed after a successful submit');
 
   const html = moduleLab(2).view(user, HD);
-  assert.match(statusLine(html, LAB21), /^Lab 4\.1 submitted .+, waiting for instructor review$/);
+  // Practice It since Module 4's Prove It moved the gate: saved reads Complete.
+  assert.match(statusLine(html, LAB21), /^Lab 4\.1: Complete · .+$/);
   assert.match(section(html, 'its02-lab-2-1'), /<strong>Uploaded<\/strong> — Finished Windows desktop: desktop\.png/);
   assert.match(section(html, 'its02-lab-2-1'), /<strong>Uploaded<\/strong> — VM settings summary: settings\.jpg/);
   assert.equal(run(`itswPickedFile(${JSON.stringify(user)}, 'evDesktop')`), null, 'picked files are released once saved');
@@ -457,7 +477,7 @@ async function testClearedSiteDataAsksForTheFileAgain() {
   const html = moduleLab(2).view(again, HD);
   assert.doesNotMatch(html, /Looking for/, 'no copy to look for once the lookup ends');
   assert.match(tile(html, 'its02-ev-vmsettings'), /Choose this file again — “settings\.jpg” isn’t in this browser any more/);
-  assert.equal(statusLine(html, LAB21), 'Upload both evidence files to complete this lab.');
+  assert.equal(statusLine(html, LAB21), 'Finish Lab 4.1 in the simulator to complete this lab.');
 }
 
 async function testFileReplacedInAnotherBrowserIsNotRestored() {
@@ -539,7 +559,7 @@ async function testSecondStudentSeesNothingOfTheFirst() {
   await settle();
   const html = moduleLab(2).view(second, HD);
   assert.doesNotMatch(html, /desktop\.png|settings\.jpg/, 'no file name of the first student');
-  assert.match(tile(html, 'its02-ev-desktop'), /Not uploaded yet/);
+  assert.doesNotMatch(html, /its02-older-evidence|id="its02-ev-desktop"/, 'a student with no files of their own gets no upload box');
   assert.equal(submitButton(html, LAB21), null);
   assert.deepEqual(copyKeys(), [], "the first student's copies are deleted");
 }
@@ -596,6 +616,7 @@ async function testConsoleCompletedIsOnlyWrittenNeverRead() {
 
 (async () => {
   const tests = [
+    testFreshStudentGetsNoUploadBox,
     testRefusesWrongTypeAndSize,
     testRefusedReplacementRemovesTheEarlierFile,
     testRefusedPickKeepsResubmitOff,

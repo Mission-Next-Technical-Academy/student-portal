@@ -12,8 +12,13 @@
   // show as ungraded context.
   const TICKETS_BY_LAB = {
     'lab-its-01-ticket-triage': ['HD-2150'],
-    'lab-its-02-device-manager': ['HD-2106'],
+    // Module 4 (key its-02), from 2026-11-23: Lab 4.3 is HD-2134 and Lab 4.2
+    // ends with HD-2173. Lab 4.4 is a practice-set completion now; its
+    // walkthrough attempts from before then hold HD-2112 (see the
+    // registrations at the end of this file).
+    'lab-its-02-device-manager': ['HD-2134'],
     'lab-its-02-print-spooler': ['HD-2112'],
+    'lab-its-02-vm-snapshot-server': ['HD-2173'],
     'lab-its-03-blank-desktop': ['HD-2109'],
     'lab-its-04-connectivity': ['HD-2104', 'HD-2105'],
     'lab-its-05-server-ad': ['HD-2108', 'HD-2117'],
@@ -25,16 +30,17 @@
   };
   // Lab 1.2 used HD-2101 until 2026-11-09: an attempt saved before then holds
   // HD-2101 and no HD-2150, and keeps the sheet it was worked against.
-  const EARLIER_TICKETS_BY_LAB = { 'lab-its-01-ticket-triage': ['HD-2101'] };
+  // Lab 4.3 walked HD-2106 until 2026-11-23, the same way.
+  const EARLIER_TICKETS_BY_LAB = { 'lab-its-01-ticket-triage': ['HD-2101'], 'lab-its-02-device-manager': ['HD-2106'] };
   const TITLES = {
     // Retired 2026-11-10; kept so its past attempts still open.
     'lab-its-01-lms-validation': 'Module 01 · LMS & Environment Validation',
     'lab-its-01-ticket-triage': 'Module 01 · Guided Ticket Triage',
     'lab-its-01-practice-tickets': 'Module 01 · Lab 1.2 · Practice tickets',
-    'lab-its-02-vm-build': 'Module 04 · Build Your Windows Client VM',
-    'lab-its-02-vm-snapshot-server': 'Module 04 · Snapshot, Recover & Connect',
-    'lab-its-02-device-manager': 'Module 04 · The Misbehaving Peripheral',
-    'lab-its-02-print-spooler': 'Module 04 · The Stuck Queue and Offline Printer',
+    'lab-its-02-vm-build': 'Module 04 · Lab 4.1 · Guided Lab: build a Windows client VM (checked, not graded)',
+    'lab-its-02-vm-snapshot-server': 'Module 04 · Lab 4.2 · Guided Lab: snapshot, server and a virtual desktop (checked, not graded)',
+    'lab-its-02-device-manager': 'Module 04 · Lab 4.3 · Guided Lab: printers and peripherals',
+    'lab-its-02-print-spooler': 'Module 04 · Lab 4.4 · Practice tickets (not graded)',
     'lab-its-03-blank-desktop': 'Module 05 · The Blank Desktop',
     'lab-its-04-connectivity': 'Module 09 · Connected But Nothing Works',
     'lab-its-05-server-ad': 'Module 07 · Server and Active Directory',
@@ -45,7 +51,9 @@
     'lab-its-10-priority-queue': 'Module 02 · Lab 2.1 · Guided Lab: queue shift',
     'lab-its-10-practice-tickets': 'Module 02 · Lab 2.2 · Practice tickets (not graded)',
     'lab-its-10-prove-it': 'Module 02 · Prove It: queue shift',
-    'lab-its-11-handoff-documentation': 'Module 03 · Handoff Documentation',
+    'lab-its-11-handoff-documentation': 'Module 03 · Lab 3.1 · Guided Lab: a frustrated caller',
+    'lab-its-11-practice-tickets': 'Module 03 · Lab 3.2 · Practice tickets (not graded)',
+    'lab-its-11-prove-it': 'Module 03 · Prove It: Independent Ticket',
     'lab-its-12-capstone': 'Module 12 · IT Help Desk Capstone',
   };
   const workTickets = (result) => result.work && Array.isArray(result.work.tickets) ? result.work.tickets : [];
@@ -188,6 +196,105 @@
     }].concat(QUEUE_TICKETS.map((entry) => queueTicketSection(entry, byId(entry.id))));
   }
 
+  // Lab 3.1 from 2026-11-21 (Module 3, key its-11): one call, HD-2164
+  // (INC0010440), worked with the call and handoff features. An attempt that
+  // saved HD-2164 gets this sheet; an older attempt (HD-2113 and HD-2124)
+  // keeps the generic ticket sheet. Practice It: the checks inform the
+  // instructor's decision, never a score. The mood meter is feedback the
+  // student saw and is never saved, so it never shows here. The expected
+  // priority is practice content (priorityCoach on the ticket).
+  const CALL_KEY = 'lab-its-11-handoff-documentation';
+  const CALL_ID = 'HD-2164';
+  const CALL_GROUP = 'Desktop Support (Tier 2)';
+  function callSections(ticket) {
+    const work = ticket && ticket.console ? ticket.console : null;
+    const has = Boolean(work);
+    const label = (ticket && ticket.number) || CALL_ID;
+    const matrix = has && work.matrix ? work.matrix : null;
+    const cls = has && work.classification ? work.classification : null;
+    const call = has && work.call ? work.call : null;
+    const intake = has && work.intake ? work.intake : null;
+    const holds = has && work.hold ? work.hold.holds : [];
+    const explain = has && work.explain ? work.explain : null;
+    const warm = has && Array.isArray(work.warmHandoffs) ? work.warmHandoffs : [];
+    const follow = has && work.followUp ? work.followUp : null;
+    const checksMade = has && Array.isArray(work.commentChecks) ? work.commentChecks : [];
+    const comments = has && Array.isArray(ticket.customerComments) ? ticket.customerComments.filter((comment) => comment && comment.text) : [];
+    const notes = has ? savedNotes(ticket).filter((note) => note.author === 'Riley Morgan' || !note.author) : [];
+    const yes = (value) => (value ? 'Yes' : 'No');
+    const v = (value) => (has ? value : null);
+    // The simulator's clock is saved as an ISO time; staff read "2026-08-19 11:30".
+    const when = (at) => String(at || '').replace(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}).*$/, '$1 $2');
+    // A second follow-up set after the update can clear "updated"; "kept"
+    // (the simulator's check that a comment came after the jump) still
+    // shows the update was posted.
+    const updated = follow ? follow.updated || follow.kept : false;
+    return [
+      {
+        id: 'call-hd-2164', title: `The call · ${label}`, recordedSince: '2026-11-21', mechanics: false,
+        instructorPrompt: 'Wes Turner called, angry, about a slow laptop with a 3:00 deadline. Look for a professional greeting with his name and callback number first, letting him finish before replying, an acknowledgement, three questions, and a hold he was asked about and brought back from in time. Wrong replies the learner tried are listed so they can be discussed; in Practice It they never block the lab.',
+        answer: [
+          ['Caller and callback number', intake ? `${intake.caller || 'Caller not set'} · ${intake.callback || 'no callback number'}` : v(null)],
+          ['Contact type', cls ? cls.contactType || 'Not set' : v(null)],
+          ['Interrupted the caller', call ? String(call.interruptions) : v(null)],
+          ['Wrong replies tried first', call ? (call.wrong.length ? call.wrong : 'None') : v(null)],
+          ['Questions asked', has ? (work.chatAsked.length ? work.chatAsked : 'None') : null],
+          ['Holds', has ? (holds.length ? holds.map((hold) => `${hold.seconds} ${hold.seconds === 1 ? 'second' : 'seconds'} · ${hold.asked ? 'asked first' : 'not asked'}${hold.over ? ' · too long' : ''}`) : 'None') : null],
+          ['Evidence opened', has ? (Array.isArray(work.evidenceOpened) && work.evidenceOpened.length ? work.evidenceOpened : 'None') : null],
+          ['Knowledge Base articles opened', has ? (work.kbOpened.length ? work.kbOpened : 'None') : null],
+        ],
+        checks: [
+          { label: 'Caller details taken first', expected: 'Wes Turner and a callback number', test: () => (intake ? intake.caller === 'Wes Turner' && Boolean(intake.callback) : v(false)), given: () => (intake ? `${intake.caller || 'Not set'} · ${intake.callback || 'Not set'}` : v('Not set')), fix: 'Greet with your name and the desk, then get the caller’s name and a callback number before anything else.' },
+          { label: 'Let him finish, then acknowledged', expected: 'The scripted call completed', test: () => (call ? call.done : v(false)), given: () => (call ? `${call.done ? 'Completed' : 'Not completed'} · interrupted ${call.interruptions} time(s)` : v('Not started')), fix: 'Let a stressed caller finish, then name the impact: CALM’s C and A.' },
+          { label: 'Asked before the hold and came back in time', expected: 'One hold: asked first, under 2 minutes', test: () => (has ? holds.some((hold) => hold.asked && !hold.over) : null), given: () => (has ? (holds.length ? `${holds.length} hold(s)` : 'No hold') : null), fix: 'Ask “May I put you on a short hold?” first, and come back within two minutes.' },
+          { label: 'Device health card read', expected: 'Opened', test: () => (has ? (work.evidenceOpened || []).includes('device-health') : null), given: () => (has ? yes((work.evidenceOpened || []).includes('device-health')) : null), fix: 'Open the ticket’s Device health card: it shows the disk warning.' },
+          { label: 'KB-0067 opened', expected: 'Opened', test: () => (has ? work.kbOpened.includes('KB-0067') : null), given: () => (has ? yes(work.kbOpened.includes('KB-0067')) : null), fix: 'Search the KB for “disk warning” and open KB-0067: it says what Tier 1 does.' },
+        ],
+      },
+      {
+        id: 'triage-hd-2164', title: `Triage · ${label}`, recordedSince: '2026-11-21', mechanics: false,
+        instructorPrompt: 'His anger doesn’t set the priority; the 3:00 deadline does. One person whose work has stopped with a deadline today: Impact 3 × Urgency 1 = P3.',
+        answer: [
+          ['Impact × Urgency = Priority', matrix ? (matrix.priority ? `${matrix.impact} × ${matrix.urgency} = ${matrix.priority}` : 'Not set') : v(null)],
+          ['Classification', cls ? [cls.category, cls.subcategory, cls.ci].filter(Boolean).join(' · ') || 'Not set' : v(null)],
+        ],
+        checks: [
+          { label: 'Priority matches the facts', expected: 'P3', test: () => (matrix ? matrix.priority === 'P3' : v(false)), given: () => (matrix ? matrix.priority || 'Not set' : v('Not set')), fix: 'Set Impact from who is affected and Urgency from the deadline, never from the caller’s tone.' },
+          { label: 'Category and configuration item set', expected: 'Hardware › Laptop · NS-LT-0236', test: () => (cls ? cls.category === 'Hardware' && cls.ci === 'NS-LT-0236' : v(false)), given: () => (cls ? `${cls.category || 'No category'} · ${cls.ci || 'No CI'}` : v('Not set')), fix: 'Set the category from the symptom and the configuration item to his laptop.' },
+        ],
+      },
+      {
+        id: 'explain-hd-2164', title: `Plain words · ${label}`, recordedSince: '2026-11-21', mechanics: false,
+        instructorPrompt: 'What the learner told Wes about the next step. Look for the effect in his words (the part that stores his files is wearing out), what happens next, and that his files are safe, with no technical terms.',
+        response: [{ label: 'Student explanation to the caller', text: explain ? explain.text || 'None' : v(null) }],
+        answer: [['Tries before it passed', explain ? String(explain.tries) : v(null)]],
+        checks: [{ label: 'Explained with no flagged terms', expected: 'No jargon', test: () => (explain ? explain.passed : v(false)), given: () => (explain ? (explain.passed ? 'Passed' : `Flagged: ${(explain.flagged || []).join(', ') || 'not checked'}`) : v('Not explained')), fix: 'Say what it means for him, not what the part is called.' }],
+      },
+      {
+        id: 'handoff-hd-2164', title: `Handoff · ${label}`, recordedSince: '2026-11-21',
+        instructorPrompt: 'The note Desktop Support reads. Look for his words and the 3:00 deadline (Reported), what was checked, found and ruled out (Tried), why it can’t be finished at Tier 1 (Result), and the exact ask, who, by when and when Wes hears next (Next action). It’s time-critical, so a warm handoff is expected.',
+        response: notes.length ? noteResponses(notes) : [{ label: 'Student work notes', text: v('None') }],
+        answer: [['Assignment group', matrix ? matrix.assignmentGroup || 'Service Desk (Tier 1)' : v(null)], ['Warm handoff', has ? (warm.length ? warm.map((entry) => `Called ${entry.group} · ${when(entry.at)}`) : 'None') : null]],
+        checks: [
+          { label: `Assigned to ${CALL_GROUP}`, expected: CALL_GROUP, test: () => (matrix ? matrix.assignmentGroup === CALL_GROUP : v(false)), given: () => (matrix ? matrix.assignmentGroup || 'Service Desk (Tier 1)' : v('Not set')), fix: 'A failing disk needs hands-on repair: reassign to Desktop Support.' },
+          { label: 'Handoff note has all four labels', expected: 'Reported, Tried, Result, Next action', test: () => (has ? Array.isArray(work.handoffMissing) && !work.handoffMissing.length : null), given: () => (has ? (Array.isArray(work.handoffMissing) ? (work.handoffMissing.length ? `Missing: ${work.handoffMissing.join(', ')}` : 'All four') : 'Not reassigned') : null), fix: 'Write the latest work note with Reported, Tried, Result and Next action, so a stranger can act on it.' },
+          { label: 'Warm handoff logged', expected: 'Called the team', test: () => (has ? warm.length > 0 : null), given: () => (has ? (warm.length ? 'Yes' : 'No') : null), fix: 'Urgent tickets get a warm handoff: call the team as well as writing the note.' },
+        ],
+      },
+      {
+        id: 'updates-hd-2164', title: `Updates to Wes · ${label}`, recordedSince: '2026-11-21', mechanics: false,
+        instructorPrompt: 'Look for who has it, what happens next and when he’ll hear again, with an update time and never a fix time (Desktop Support sets that). Then an update at the follow-up time, even with no news.',
+        response: comments.length ? comments.map((comment) => ({ label: `Customer comment · ${comment.time || ''}`, text: comment.text })) : [{ label: 'Customer comment', text: v('No customer comment') }],
+        answer: [['Follow-up', follow ? (when(follow.at) || 'Not set') : v(null)], ['Went to the follow-up time', follow ? yes(follow.visited) : v(null)]],
+        checks: [
+          { label: 'A comment with an update time and no fix-time promise', expected: 'Yes', test: () => (has ? checksMade.some((entry) => entry.hasTime && !entry.promise) : null), given: () => (has ? `${checksMade.length} comment(s) checked${checksMade.some((entry) => entry.promise) ? ' · one promised a fix time first' : ''}` : null), fix: 'Commit to when you’ll update him, not when it will be fixed.' },
+          { label: 'Follow-up set', expected: 'A follow-up time on the ticket', test: () => (follow ? Boolean(follow.at) : v(false)), given: () => (follow ? when(follow.at) || 'Not set' : v('Not set')), fix: 'Set a Follow-up on the ticket for the time you promised.' },
+          { label: 'Update posted at the follow-up time', expected: 'Within 10 minutes of the follow-up', test: () => (follow ? updated : v(false)), given: () => (follow ? yes(updated) : v('No')), fix: 'At the follow-up time, post the update you promised, even when there’s no news yet.' },
+        ],
+      },
+    ];
+  }
+
   // HD-2101 (Lab 1.2) is worked on the simulated machines: the sheet reads its
   // investigation (outcomes, typed commands and key results) instead of the
   // step checklist and diagnosis dropdown, which that ticket doesn't show.
@@ -311,6 +418,11 @@
       const own = workTickets(result);
       return own.some((ticket) => QUEUE_IDS.includes(ticket.id)) ? queueSections(own, result) : prioritySections(tickets);
     }
+    if (key === CALL_KEY) {
+      // Chosen from this attempt's own tickets, as Lab 2.1 is.
+      const call = workTickets(result).find((ticket) => ticket.id === CALL_ID);
+      if (call) return callSections(call);
+    }
     // A card holding Lab 4.3 and Lab 4.4 grades both labs' tickets, in course order.
     const cardKeys = new Set([key].concat(ctx.rows.map((row) => row && row.lab_key)));
     const ticketsFor = (labKey) => {
@@ -319,7 +431,10 @@
       const saved = (list) => list.some((id) => tickets.some((ticket) => ticket.id === id));
       return earlier && !saved(current) && saved(earlier) ? earlier : current;
     };
-    const ids = Array.from(new Set(Object.keys(TICKETS_BY_LAB).filter((labKey) => cardKeys.has(labKey)).flatMap(ticketsFor)));
+    // Another lab in the card counts only when its tickets were saved: a
+    // newer Lab 4.4 practice record holds none.
+    const savedAny = (list) => list.some((id) => tickets.some((ticket) => ticket.id === id));
+    const ids = Array.from(new Set(Object.keys(TICKETS_BY_LAB).filter((labKey) => cardKeys.has(labKey) && (labKey === key || savedAny(ticketsFor(labKey)))).flatMap(ticketsFor)));
     return ids.flatMap((id) => {
       const ticket = tickets.find((entry) => entry.id === id) || null;
       const saved = Boolean(ticket);
@@ -455,9 +570,9 @@
     const kb = text(result.kbArticle);
     const after = text(result.afterAction);
     sections.push({
-      id: 'knowledge-article', title: 'Knowledge base article', instructorPrompt: 'Help the learner make this reusable: symptom, cause, approved fix, and how to verify it worked.', recordedSince: '2026-10-17',
+      id: 'knowledge-article', title: 'Knowledge base article', instructorPrompt: 'Help the learner make this reusable: symptom, cause, fix or workaround, result and owner.', recordedSince: '2026-10-17',
       response: [{ label: 'Student article', text: kb }],
-      checks: [{ label: 'Article includes a useful troubleshooting sequence', test: () => !kb ? null : kb.trim().length >= 80 && /(symptom|cause|fix|resolv|verif)/i.test(kb), given: () => kb ? `${kb.length} characters` : null, fix: 'Add the symptom, likely cause, approved fix, and verification result so another technician can follow it.' }],
+      checks: [{ label: 'Article includes a useful troubleshooting sequence', test: () => !kb ? null : kb.trim().length >= 80 && /(symptom|cause|fix|resolv|verif)/i.test(kb), given: () => kb ? `${kb.length} characters` : null, fix: 'Add the symptom, cause, fix or workaround, result and owner so another technician can follow it.' }],
     }, {
       id: 'after-action', title: 'After-action review', instructorPrompt: 'Invite a specific reflection: what worked, what they would change, and what they learned.', recordedSince: '2026-10-17',
       response: [{ label: 'Student reflection', text: after }],
@@ -473,17 +588,57 @@
     sections: coachSections,
   }));
 
-  ['lab-its-01-lms-validation', 'lab-its-02-vm-build', 'lab-its-02-vm-snapshot-server'].forEach((key) => {
-    AdminSubmissionSheet.register(key, { title: TITLES[key], sections: evidenceSections });
+  AdminSubmissionSheet.register('lab-its-01-lms-validation', { title: TITLES['lab-its-01-lms-validation'], sections: evidenceSections });
+
+  // Module 4's VM labs: the student's practice VMs from the simulator
+  // (checked, not graded), or an earlier attempt's evidence files.
+  const VM_TARGET = { image: 'win11', memoryGb: 4, cores: 2, diskGb: 64, diskType: 'dynamic', network: 'NAT' };
+  const VM_IMAGES = { win11: 'Windows 11', winsrv: 'Windows Server' };
+  function vmSections(result, ctx) {
+    const vms = result.work && result.work.vm && Array.isArray(result.work.vm.vms) ? result.work.vm.vms : [];
+    const find = (name) => vms.find((vm) => vm && String(vm.name).toLowerCase() === name.toLowerCase()) || null;
+    const describe = (vm) => `${VM_IMAGES[vm.image] || vm.image || 'no image'} · ${vm.memoryGb} GB · ${vm.cores} cores · ${vm.diskGb} GB ${vm.diskType === 'fixed' ? 'fixed' : 'dynamic'} disk · ${vm.network} · ${vm.installed ? 'installed' : 'not installed'}`;
+    const pings = (vm) => (Array.isArray(vm.pings) ? vm.pings : []).map((p) => `${p.to} on ${p.mode || '?'}: ${p.ok ? 'replies' : 'timed out'}`);
+    const client = find('NS-TEST-W11');
+    // Lab 4.2 moves the client to Internal on purpose, so its network isn't checked there.
+    const fields = Object.keys(VM_TARGET).filter((field) => ctx.row.lab_key === 'lab-its-02-vm-build' || field !== 'network');
+    const checks = fields.map((field) => ({
+      label: `NS-TEST-W11 ${field}`, expected: String(VM_TARGET[field]),
+      test: () => (client ? client[field] === VM_TARGET[field] : null),
+      given: () => (client ? String(client[field]) : 'No VM named NS-TEST-W11'),
+      fix: `Set NS-TEST-W11's ${field} to ${VM_TARGET[field]}.`,
+    }));
+    const sections = [{
+      id: 'practice-vms', title: 'Practice VMs (checked, not graded)', required: false,
+      instructorPrompt: 'The VMs are simulated. Ask the learner why each setting matters: memory and cores come out of the host, the disk is a file on the host, and the network mode decides who the VM can reach.',
+      answer: vms.length ? vms.map((vm) => [vm.name, `${describe(vm)}${Array.isArray(vm.snapshots) && vm.snapshots.length ? ` · snapshots: ${vm.snapshots.map((s) => s.name).join(', ')}` : ''}${vm.restored ? ` · restored ${vm.restored}×` : ''}`])
+        .concat(vms.filter((vm) => Array.isArray(vm.pings) && vm.pings.length).map((vm) => [`Pings from ${vm.name}`, pings(vm)])) : [['VMs', null]],
+      checks,
+    }];
+    return ctx.row.lab_key === 'lab-its-02-vm-snapshot-server' ? sections.concat(coachSections(result, ctx)) : sections;
+  }
+  ['lab-its-02-vm-build', 'lab-its-02-vm-snapshot-server'].forEach((key) => {
+    AdminSubmissionSheet.register(key, {
+      title: TITLES[key],
+      caseId: (result) => (result && result.work && result.work.vm ? 'Practice VMs' : null),
+      sections: (result, ctx) => (result && result.work && result.work.vm ? vmSections(result, ctx) : evidenceSections(result, ctx)),
+    });
   });
 
-  // Module 1's and Module 2's practice tickets: a completion record only.
-  ['lab-its-01-practice-tickets', 'lab-its-10-practice-tickets'].forEach((key) => {
+  // Modules 1 to 3's practice tickets: a completion record only.
+  ['lab-its-01-practice-tickets', 'lab-its-10-practice-tickets', 'lab-its-11-practice-tickets'].forEach((key) => {
     AdminSubmissionSheet.register(key, {
       title: TITLES[key],
       caseId: (result) => (Array.isArray(result.tickets) ? result.tickets.filter((id) => typeof id === 'string').join(', ') : '') || null,
       sections: practiceCompletionSections,
     });
+  });
+  // Module 4's Lab 4.4 (from 2026-11-23): a practice-set completion; an
+  // earlier walkthrough attempt keeps its HD-2112 sheet.
+  AdminSubmissionSheet.register('lab-its-02-print-spooler', {
+    title: TITLES['lab-its-02-print-spooler'],
+    caseId: (result) => (result && result.source === 'mnt-practice-complete' ? (Array.isArray(result.tickets) ? result.tickets.filter((id) => typeof id === 'string').join(', ') : '') : workTickets(result).map((ticket) => ticket.id).join(', ')) || null,
+    sections: (result, ctx) => (result && result.source === 'mnt-practice-complete' ? practiceCompletionSections(result, ctx) : coachSections(result, ctx)),
   });
 
   AdminSubmissionSheet.register('lab-its-12-capstone', {

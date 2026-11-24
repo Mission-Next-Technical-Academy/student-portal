@@ -530,7 +530,44 @@ function itsCleanConsoleWork(input) {
     passwordWritten: input.passwordWritten === true, passwordAsked: input.passwordAsked === true,
     outcomes: outcomes ? Object.fromEntries(ITS_CONSOLE_OUTCOMES.map((key) => [key, outcomes[key] === true])) : null,
     ...itsCleanMatrixWork(input),
+    ...itsCleanCommsWork(input),
   };
+}
+// Module 3 (key its-11) call and handoff work (ui/helpdesk.js
+// hdCommsProgress): the call's progress, caller details, holds, the
+// plain-words explanation, evidence cards opened, the handoff check, warm
+// handoffs, the follow-up, the comment time checks, team messages and the
+// duplicate move. Each key only when the ticket sent it, so Module 1's and
+// Module 2's saved work keep their shape. The mood meter is never sent and
+// never kept.
+function itsCleanCommsWork(input) {
+  const text = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
+  const list = (value, max, size) => Array.isArray(value) ? value.slice(-max).map((item) => text(item, size)).filter(Boolean) : [];
+  const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+  const count = (value, max) => Number.isInteger(value) && value >= 0 ? Math.min(value, max) : 0;
+  const out = {};
+  const call = object(input.call);
+  if (call) out.call = { stage: count(call.stage, 20), done: call.done === true, interruptions: count(call.interruptions, 99), wrong: list(call.wrong, 20, 30) };
+  const intake = object(input.intake);
+  if (intake) out.intake = { caller: text(intake.caller, 80), callback: text(intake.callback, 40) };
+  const hold = object(input.hold);
+  if (hold) {
+    out.hold = {
+      asked: hold.asked === true, onHold: hold.onHold === true, unasked: hold.unasked === true,
+      holds: Array.isArray(hold.holds) ? hold.holds.slice(-20).filter((entry) => object(entry)).map((entry) => ({ seconds: count(entry.seconds, 86400), asked: entry.asked === true, over: entry.over === true })) : [],
+    };
+  }
+  const explain = object(input.explain);
+  if (explain) out.explain = { passed: explain.passed === true, tries: count(explain.tries, 99), flagged: list(explain.flagged, 10, 40), text: text(explain.text, 2000) };
+  if ('evidenceOpened' in input) out.evidenceOpened = list(input.evidenceOpened, 10, 40);
+  if ('handoffMissing' in input) out.handoffMissing = Array.isArray(input.handoffMissing) ? list(input.handoffMissing, 6, 24) : null;
+  if ('warmHandoffs' in input) out.warmHandoffs = Array.isArray(input.warmHandoffs) ? input.warmHandoffs.slice(-10).filter((entry) => object(entry)).map((entry) => ({ group: text(entry.group, 60), at: text(entry.at, 40) })) : [];
+  const followUp = object(input.followUp);
+  if (followUp) out.followUp = { at: text(followUp.at, 40), visited: followUp.visited === true, updated: followUp.updated === true, kept: followUp.kept === true };
+  if ('commentChecks' in input) out.commentChecks = Array.isArray(input.commentChecks) ? input.commentChecks.slice(-20).filter((entry) => object(entry)).map((entry) => ({ hasTime: entry.hasTime === true, promise: entry.promise === true })) : [];
+  if ('teamMessages' in input) out.teamMessages = list(input.teamMessages, 10, 30);
+  if ('duplicateTried' in input) out.duplicateTried = input.duplicateTried === true;
+  return out;
 }
 // Module 2 (key its-10) queue work on a matrix ticket (ui/helpdesk.js
 // hdMatrixProgress): triage, the request, the link, knowledge, contact
@@ -570,8 +607,11 @@ function itsCleanMatrixWork(input) {
 
 // postMessage data is student-controlled. Store only the small, known work
 // fields needed by the instructor sheet; never persist simulator fixture keys.
-function itsCleanCoachWork(input) {
+// coachId (optional): a VM lab coach (ITS_VM_COACHES) keeps the student's VM
+// summary, and may send no tickets at all. Every other caller is unchanged.
+function itsCleanCoachWork(input, coachId) {
   if (!input || typeof input !== 'object' || input.version !== 1 || !Array.isArray(input.tickets)) return null;
+  const vm = ITS_VM_COACHES.includes(coachId) ? itsCleanVmState(input.vm) : null;
   const text = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
   const tickets = input.tickets.slice(0, 8).filter((ticket) => ticket && typeof ticket === 'object' && /^[A-Z]{2,4}-\d{4}$/.test(ticket.id || '')).map((ticket) => ({
     id: text(ticket.id, 16),
@@ -612,8 +652,9 @@ function itsCleanCoachWork(input) {
       })).filter((comment) => comment.text) : [],
     } : {}),
   }));
-  if (!tickets.length) return null;
+  if (!tickets.length && !vm) return null;
   const work = { version: 1, selectedTicketId: text(input.selectedTicketId, 16), tickets };
+  if (vm) work.vm = vm;
   // Module 2's guided queue: the student's work order and what Check order said.
   if (Array.isArray(input.workOrder)) {
     work.workOrder = input.workOrder.slice(0, 8).filter((id) => typeof id === 'string' && /^[A-Z]{2,4}-\d{4}$/.test(id));
@@ -634,6 +675,93 @@ function itsCleanCoachWork(input) {
   return work;
 }
 
+/* ---------- Module 4 (key its-02): the student's VMs ----------
+ * The simulator's VM screen (ui/helpdesk.js "VM screen") saves the student's
+ * practice VMs to their account through the course page that opened it:
+ * mnt-vm-save (answered by mnt-vm-received) on each change, and mnt-vm-state
+ * (answered by mnt-vm-state-reply) at launch. They are kept in
+ * module_progress.case_state under their own id (LabRuntime), beside the
+ * page's own state, so a refresh, a browser restart or a new sign-in keeps
+ * them. The message is student-controlled: only the known, bounded fields
+ * below are kept, and anything malformed or over the size limit is refused.
+ * Checked, not graded: nothing here is a score or a completion. */
+const ITS_VM_COACHES = ['hd-m02-vm', 'hd-m02-server'];
+const ITS_VM_MODES = ['NAT', 'Bridged', 'Internal', 'Host-only'];
+const ITS_VM_MAX_CHARS = 8192;
+function itsCleanVmState(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input) || input.version !== 1 || !Array.isArray(input.vms) || input.vms.length > 4) return null;
+  let size = 0;
+  try { size = JSON.stringify(input).length; } catch (_) { return null; }
+  if (size > ITS_VM_MAX_CHARS) return null;
+  const text = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
+  const int = (value, min, max, fallback) => Number.isInteger(value) && value >= min && value <= max ? value : fallback;
+  const name = (value) => typeof value === 'string' && /^[A-Za-z0-9-]{1,15}$/.test(value) ? value : '';
+  const image = (value) => typeof value === 'string' && /^[a-z0-9-]{1,20}$/.test(value) ? value : '';
+  const mode = (value) => ITS_VM_MODES.includes(value) ? value : '';
+  const vms = [];
+  for (const vm of input.vms) {
+    if (!vm || typeof vm !== 'object' || !name(vm.name) || vms.some((item) => item.name.toLowerCase() === vm.name.toLowerCase())) return null;
+    vms.push({
+      name: vm.name, image: image(vm.image),
+      memoryGb: int(vm.memoryGb, 1, 64, 1), cores: int(vm.cores, 1, 16, 1), diskGb: int(vm.diskGb, 1, 2048, 64),
+      diskType: vm.diskType === 'fixed' ? 'fixed' : 'dynamic', network: mode(vm.network) || 'NAT',
+      state: ['Off', 'Installing', 'Running'].includes(vm.state) ? vm.state : 'Off', installed: vm.installed === true,
+      installStartedAt: Number.isFinite(vm.installStartedAt) ? vm.installStartedAt : 0, shortcut: vm.shortcut !== false,
+      snapshots: Array.isArray(vm.snapshots) ? vm.snapshots.slice(0, 5).filter((item) => item && typeof item.name === 'string' && item.name.trim())
+        .map((item) => ({ name: text(item.name, 40), shortcut: item.shortcut !== false, at: text(item.at, 40) })) : [],
+      pings: Array.isArray(vm.pings) ? vm.pings.slice(-20).filter((item) => item && typeof item.to === 'string')
+        .map((item) => ({ to: text(item.to, 40), ok: item.ok === true, mode: mode(item.mode) })) : [],
+      restored: int(vm.restored, 0, 99, 0), shortcutDeleted: vm.shortcutDeleted === true,
+    });
+  }
+  const form = input.form && typeof input.form === 'object' && !Array.isArray(input.form) ? {
+    name: text(input.form.name, 15).replace(/[^A-Za-z0-9-]/g, ''), image: image(input.form.image),
+    memoryGb: int(input.form.memoryGb, 1, 64, 2), cores: int(input.form.cores, 1, 16, 1), diskGb: int(input.form.diskGb, 1, 2048, 32),
+    diskType: ['dynamic', 'fixed'].includes(input.form.diskType) ? input.form.diskType : '', network: mode(input.form.network),
+    lowRamSeen: input.form.lowRamSeen === true,
+  } : null;
+  return {
+    version: 1, lab: text(input.lab, 20), vms, form, selected: text(input.selected, 15),
+    modesViewed: Array.isArray(input.modesViewed) ? ITS_VM_MODES.filter((item) => input.modesViewed.includes(item)) : [],
+    viewMode: mode(input.viewMode), cpuSeen: input.cpuSeen === true, savedAt: text(input.savedAt, 40),
+  };
+}
+// The saved VMs (LabRuntime state { vm }), or null.
+function itsVmSaved(user, moduleKey, stateId) {
+  const saved = LabRuntime.loadCaseState(stateId, moduleKey, user, { vm: null });
+  return saved && saved.vm ? itsCleanVmState(saved.vm) : null;
+}
+// Answers both messages. Resolves once the answer is sent.
+async function itsVmReceiveMessage(event, { moduleKey, stateId }) {
+  const data = event && event.data;
+  if (!data || !['mnt-vm-save', 'mnt-vm-state'].includes(data.type) || data.id !== moduleKey) return;
+  if (event.origin !== new URL(SIM_ORIGIN).origin) return;
+  const replyType = data.type === 'mnt-vm-save' ? 'mnt-vm-received' : 'mnt-vm-state-reply';
+  const reply = (fields) => {
+    if (!event.source || typeof event.source.postMessage !== 'function') return;
+    event.source.postMessage({ type: replyType, id: moduleKey, nonce: data.nonce, ...fields }, event.origin);
+  };
+  const user = await currentUser();
+  if (!user) { reply({ saved: false, reason: 'signed-out' }); return; }
+  const wrongStudent = itsCoachStudentMismatch(event, user);
+  if (wrongStudent) { reply({ saved: false, reason: wrongStudent }); return; }
+  if (data.type === 'mnt-vm-state') { reply({ saved: true, state: itsVmSaved(user, moduleKey, stateId) }); return; }
+  const vm = itsCleanVmState(data.state);
+  if (!vm) { reply({ saved: false, reason: 'invalid' }); return; }
+  // A save names the saved copy it started from (base). Another tab saved
+  // since then: refuse, and hand back the newer copy instead of losing it.
+  const current = itsVmSaved(user, moduleKey, stateId);
+  if (typeof data.base === 'string' && current && current.savedAt && current.savedAt !== data.base) {
+    reply({ saved: false, reason: 'stale', state: current });
+    return;
+  }
+  const state = { ...LabRuntime.load(stateId, user, { vm: null }), vm };
+  const saved = await new Promise((resolve) => {
+    LabRuntime.saveCaseState(stateId, moduleKey, user, state, { debounceMs: 1, onResult: (ok) => resolve(ok === true) });
+  });
+  reply(saved ? { saved: true } : { saved: false, reason: 'unconfirmed' });
+}
+
 /* ---------- Prove It: the simulator's Submit ----------
  * Same handoff as a walkthrough's Finish: a message from the simulator tab
  * this page opened, answered with its nonce. The message is student-controlled,
@@ -650,8 +778,18 @@ const ITS_PROVE_MAX_BYTES = 96 * 1024;
 // A queue shift (Module 2) adds field_set (a ticket's field, in label, and
 // its value), order_changed (the new place) and ticket_arrived; source holds
 // the ticket's INC number.
+// Module 3 adds warm_handoff: a call to the assignment group (value) logged
+// on the ticket (label).
 const ITS_PROVE_EVENT_TYPES = ['evidence_opened', 'command_run', 'diagnosis_chosen', 'step_chosen', 'step_cleared', 'decision_chosen', 'kb_search', 'action_taken',
-  'field_set', 'order_changed', 'ticket_arrived'];
+  'field_set', 'order_changed', 'ticket_arrived', 'warm_handoff'];
+// The assignment groups a Prove ticket can go to (ui/helpdesk.js HD_ASSIGNMENT_GROUPS).
+const ITS_PROVE_GROUPS = ['Service Desk (Tier 1)', 'Desktop Support (Tier 2)', 'Network Operations', 'Server & Identity', 'Messaging & Collaboration', 'Security Operations (SOC)', 'Facilities'];
+// Seconds since the attempt started, as the simulator counted them; never
+// negative and at most a week.
+function itsProveElapsed(value) {
+  const elapsed = Number(value);
+  return Number.isFinite(elapsed) && elapsed >= 0 ? Math.min(Math.round(elapsed), 7 * 24 * 3600) : 0;
+}
 
 // The recorded actions and the laptop's end state, cleaned the same way for a
 // submit (itsCleanProveWork) and for a returned attempt's prefill.
@@ -691,7 +829,20 @@ function itsCleanProveWork(input, moduleKey, labKey) {
   const filled = (value, max) => isText(value, max) && value.trim() !== '';
   const fields = input.fields;
   if (!/^[A-Z]{2,4}-\d{4}$/.test(String(input.ticketId || '')) || !isText(input.startedAt, 40) || !fields || typeof fields !== 'object') return invalid;
-  if (!filled(fields.category, 80) || !filled(fields.type, 80) || !['P1', 'P2', 'P3', 'P4'].includes(fields.priority)) return invalid;
+  // Module 3 (rubric matrixFields): Class, Category, Impact, Urgency and the
+  // assignment group; the course page works out Priority itself (P1 to P5).
+  // Module 1 keeps Category, Type and Priority (P1 to P4).
+  const matrix = rubric.matrixFields === true;
+  if (matrix) {
+    if (!ITS_PROVE_QUEUE_CLASSES.includes(fields.ticketClass) || !filled(fields.category, 80) || !['1', '2', '3'].includes(fields.impact) || !['1', '2', '3'].includes(fields.urgency) || !ITS_PROVE_GROUPS.includes(fields.group)) return invalid;
+  } else if (!filled(fields.category, 80) || !filled(fields.type, 80) || !['P1', 'P2', 'P3', 'P4'].includes(fields.priority)) return invalid;
+  // Module 3's extra writing (rubric writing: { field: limit }): each one
+  // required, and refused (never cut) above its limit.
+  const extra = rubric.writing && typeof rubric.writing === 'object' ? rubric.writing : {};
+  for (const [field, max] of Object.entries(extra)) {
+    if (typeof input[field] !== 'string' || !input[field].trim()) return invalid;
+    if (input[field].length > max) return tooLarge;
+  }
   if (!filled(input.diagnosis, 300) || !['Resolve', 'Escalate'].includes(input.decision)) return invalid;
   if (!Array.isArray(input.steps) || !Array.isArray(input.stepTexts) || input.steps.length > 20 || input.steps.length !== input.stepTexts.length) return invalid;
   if (!input.steps.every((id) => /^[a-z0-9_-]{1,16}$/i.test(String(id))) || !input.stepTexts.every((text) => isText(text, 300))) return invalid;
@@ -707,7 +858,11 @@ function itsCleanProveWork(input, moduleKey, labKey) {
   const work = {
     version: 1, kind: 'hdesk-prove', moduleKey, labKey, rubricVersion: rubric.version, ticketId: input.ticketId, startedAt: input.startedAt,
     // Pre-set fields (Module 1) are the rubric's, never the message's.
-    fields: rubric.presetFields ? { ...rubric.presetFields } : { category: fields.category, type: fields.type, priority: fields.priority },
+    fields: rubric.presetFields ? { ...rubric.presetFields }
+      : matrix ? { ticketClass: fields.ticketClass, category: fields.category, impact: fields.impact, urgency: fields.urgency, priority: ITS_PROVE_MATRIX[fields.impact][fields.urgency], group: fields.group }
+        : { category: fields.category, type: fields.type, priority: fields.priority },
+    ...Object.fromEntries(Object.keys(extra).map((field) => [field, input[field]])),
+    ...(matrix ? { elapsedSeconds: itsProveElapsed(input.elapsedSeconds) } : {}),
     diagnosis: input.diagnosis, steps: input.steps.slice(), stepTexts: input.stepTexts.slice(), decision: input.decision,
     resolutionNote: input.resolutionNote, userReply: input.userReply, workNotes: input.workNotes.slice(),
     // Since 2026-11-20: the one Work notes box is resolutionNote, and the
@@ -861,9 +1016,12 @@ function itsProvePrefillWork(row) {
   if (!work || work.kind !== 'hdesk-prove' || !row.completed_at || !work.fields) return null;
   return {
     completedAt: row.completed_at, ticketId: text(work.ticketId),
-    fields: { category: text(work.fields.category), type: text(work.fields.type), priority: text(work.fields.priority) },
+    fields: { category: text(work.fields.category), type: text(work.fields.type), priority: text(work.fields.priority),
+      // Module 3's fields, only on its work; the simulator checks each against its ticket.
+      ...('ticketClass' in work.fields ? { ticketClass: text(work.fields.ticketClass), impact: text(work.fields.impact), urgency: text(work.fields.urgency), group: text(work.fields.group) } : {}) },
     diagnosis: text(work.diagnosis), steps: Array.isArray(work.steps) ? work.steps.map(text) : [], decision: text(work.decision),
     resolutionNote: text(work.resolutionNote), userReply: text(work.userReply),
+    ...('keyFinding' in work ? { keyFinding: text(work.keyFinding) } : {}), ...('kbDraft' in work ? { kbDraft: text(work.kbDraft) } : {}),
     workNotes: Array.isArray(work.workNotes) ? work.workNotes.map(text) : [],
     events: itsProveCleanEvents(work.events), machine: itsProveCleanMachine(work.machine),
     passwordTyped: work.passwordTyped === true, passwordWritten: work.passwordWritten === true,
@@ -958,6 +1116,7 @@ function itsProveReviewPanel(row) {
   const actions = array(work.events).filter((entry) => entry && entry.type === 'action_taken' && entry.label).map((entry) => `${entry.label}${entry.computer ? ` (on ${entry.computer})` : ''}`);
   const commands = array(work.commands).filter(Boolean).map((entry) => `${entry.command}${entry.computer ? ` (on ${entry.computer})` : ''}`);
   const machine = Object.entries(work.machine && typeof work.machine === 'object' ? work.machine : {}).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') || '(none)' : typeof value === 'object' ? JSON.stringify(value) : value}`);
+  if (rubric.matrixFields === true) return itsProveMatrixReviewPanel(row, work, { text, writing, fact, items, opened, notes, rubric, searches, actions, commands });
   return `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" data-its-prove-panel="${esc(row.id)}">
     <h3 class="text-sm font-semibold text-[#1e3a5f]">Student's written work · ${text(work.ticketId)}</h3>
     ${oneNote ? writing('Work note', work.resolutionNote) : writing('Resolution note', work.resolutionNote)}
@@ -982,6 +1141,58 @@ function itsProveReviewPanel(row) {
     ${work.logTrimmed ? '<p class="mt-1 text-xs text-gray-500">The oldest recorded actions were left out to fit. All the student\'s writing is above.</p>' : ''}
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Laptop at submit</h4>
     ${items(machine, 'Not recorded.')}
+    ${itsProveDecisionsHtml(row)}
+  </div>`;
+}
+
+/* Module 3's one-ticket work for the instructor (rubric matrixFields): the
+ * Student Analyst Response first, every piece of writing in full (the key
+ * finding, the handoff note, the customer update and the KB draft), then the
+ * student's fields and choices, the steps, what they opened (and didn't),
+ * the warm handoff (shown as "exceeds", never scored) and the time used. */
+// Module 4 (rubric panelWriting and simulatorWork): its own writing headings
+// (a work note and a reply), and what the student did on the computers: the
+// knowledge base searches, the actions on the screens, every typed command in
+// full and each print queue at submit (machine.printQueues).
+const ITS_PROVE_MATRIX_WRITING = [['keyFinding', 'Key finding'], ['resolutionNote', 'Handoff note'], ['userReply', 'Customer update'], ['kbDraft', 'KB draft']];
+function itsProvePrinterLines(work) {
+  const queues = work.machine && work.machine.printQueues && typeof work.machine.printQueues === 'object' ? work.machine.printQueues : {};
+  return Object.entries(queues).filter(([, queue]) => queue && typeof queue === 'object')
+    .map(([name, queue]) => `${name}: port ${queue.port || '(none)'}, driver ${queue.driver || '(none)'}, paper ${queue.media || '(none)'}, ${Number(queue.queued) || 0} queued, ${Number(queue.printed) || 0} printed (${Number(queue.testPages) || 0} test pages)`);
+}
+function itsProveMatrixReviewPanel(row, work, { text, writing, fact, items, opened, notes, rubric, searches, actions, commands }) {
+  const fields = work.fields || {};
+  const headings = Array.isArray(rubric && rubric.panelWriting) ? rubric.panelWriting : ITS_PROVE_MATRIX_WRITING;
+  const simulator = rubric && rubric.simulatorWork === true;
+  const levels = { 1: '1 – High', 2: '2 – Medium', 3: '3 – Low' };
+  const events = (Array.isArray(work.events) ? work.events : []).filter((entry) => entry && typeof entry.type === 'string');
+  const calls = events.filter((entry) => entry.type === 'warm_handoff').map((entry) => entry.label || `Called ${entry.value || 'a team'}`);
+  const minutes = Number.isFinite(Number(work.elapsedSeconds)) ? Math.round(Number(work.elapsedSeconds) / 60) : null;
+  return `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" data-its-prove-panel="${esc(row.id)}" data-its-prove-shape="matrix">
+    <h3 class="text-sm font-semibold text-[#1e3a5f]">Student Analyst Response · ${text(work.ticketId)}</h3>
+    ${headings.map(([field, label]) => writing(text(label), work[field])).join('\n    ')}
+    ${notes.length ? `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Earlier work notes</h4>${notes.map((note) => `<p class="mt-1 text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">${text(note)}</p>`).join('')}` : ''}
+    <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">Student's choices</h3>
+    <dl class="mt-1 grid gap-2 sm:grid-cols-3">${fact('Class', fields.ticketClass)}${fact('Category', fields.category)}${fact('Impact', levels[fields.impact] || fields.impact)}${fact('Urgency', levels[fields.urgency] || fields.urgency)}${fact('Priority', fields.priority)}${fact('Assignment group', fields.group)}${fact('Diagnosis', work.diagnosis)}${fact('Decision', work.decision)}${fact('Assigned to', work.assignedTo)}${fact('Ticket state', work.ticketState)}${fact('Time used', minutes == null ? '' : `${minutes} min`)}</dl>
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Steps the student says they took</h4>
+    ${items(Array.isArray(work.stepTexts) ? work.stepTexts : [], 'None selected.')}
+    <h3 class="mt-4 text-sm font-semibold text-[#1e3a5f]">What the student did in the simulator</h3>
+    <h4 class="mt-2 text-xs font-semibold uppercase tracking-wide text-gray-600">Earlier calls and evidence cards opened</h4>
+    ${items(opened, 'None opened.')}
+    ${simulator ? `<div data-its-prove-simulator>
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Knowledge base searches</h4>
+    ${items(searches, 'None recorded.')}
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Actions in the simulator</h4>
+    ${items(actions, 'None recorded.')}
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Commands run</h4>
+    ${items(commands, 'None recorded.')}
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Print queues at submit</h4>
+    ${items(itsProvePrinterLines(work), 'Not recorded.')}
+    ${work.passwordTyped === true ? '<p class="mt-1 text-sm font-semibold text-amber-900" data-its-prove-password>The student typed a password into the shell. The command was refused and the password was not saved.</p>' : ''}
+    </div>` : `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Warm handoff</h4>
+    ${calls.length ? `<p class="mt-1 text-sm text-gray-900" data-its-prove-warm>Exceeds: ${calls.map(text).join('; ')}. No score change.</p>` : '<p class="mt-1 text-sm text-gray-500" data-its-prove-warm>No warm handoff logged. No score change.</p>'}`}
+    ${work.passwordWritten === true ? '<p class="mt-1 text-sm font-semibold text-amber-900" data-its-prove-password-written>The student wrote a password in a ticket field. It was refused and not saved.</p>' : ''}
+    ${work.logTrimmed ? '<p class="mt-1 text-xs text-gray-500">The oldest recorded actions were left out to fit. All the student\'s writing is above.</p>' : ''}
     ${itsProveDecisionsHtml(row)}
   </div>`;
 }
@@ -1738,14 +1949,18 @@ function itsLaunchWalkthrough(event, link, user, coachId) {
 // The Start button's text for Modules 3-11; Modules 1 and 2 name their labs.
 const ITS_WALKTHROUGH_START = 'Start guided walkthrough';
 
+// The message for a Finish that arrived too early, unless a page passes its
+// own (a lab whose ticket isn't meant to be resolved).
+const ITS_WALKTHROUGH_INCOMPLETE = 'Your walkthrough wasn’t saved: its ticket isn’t finished yet. Your work is still in the simulator. Finish every part of the ticket there, resolve it, then press Finish again.';
+
 /* startLabel: the exact text of this lab's Start button, so the message
  * names the button the student actually sees. */
-function itsWalkthroughNoticeHtml(user, coachId, labKeys, startLabel) {
+function itsWalkthroughNoticeHtml(user, coachId, labKeys, startLabel, incompleteText = ITS_WALKTHROUGH_INCOMPLETE) {
   const id = `${user ? user.userId : ''}|${coachId}`;
   const text = itsBlockedWalkthroughs.has(id)
     ? 'Your browser blocked the walkthrough window. Allow pop-ups for this site, then try again.'
     : itsIncompleteWalkthroughs.has(id)
-      ? 'Your walkthrough wasn’t saved: its ticket isn’t finished yet. Your work is still in the simulator. Finish every part of the ticket there, resolve it, then press Finish again.'
+      ? incompleteText
       : itsUnrecordedWalkthroughs.has(id) && labKeys.some((key) => itsLabAcceptsAttempt(user, key))
         ? `Your walkthrough finished but wasn’t recorded. Allow pop-ups for this site, then press ${startLabel} again from this page.`
         : '';
@@ -1753,9 +1968,9 @@ function itsWalkthroughNoticeHtml(user, coachId, labKeys, startLabel) {
 }
 
 // Re-renders just the notice after a Start click, without redrawing the page.
-function itsRefreshWalkthroughNotice(user, coachId, labKeys, startLabel) {
+function itsRefreshWalkthroughNotice(user, coachId, labKeys, startLabel, incompleteText) {
   const el = document.querySelector(`[data-its-walkthrough-notice="${coachId}"]`);
-  if (el) el.outerHTML = itsWalkthroughNoticeHtml(user, coachId, labKeys, startLabel);
+  if (el) el.outerHTML = itsWalkthroughNoticeHtml(user, coachId, labKeys, startLabel, incompleteText);
 }
 
 /* An evidence lab's first submission, from its Submit button: its files,

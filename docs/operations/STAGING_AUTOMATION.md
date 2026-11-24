@@ -1,6 +1,6 @@
 # Staging automation: what keeps staging in step with master
 
-Updated 2026-11-14.
+Updated 2026-11-22 (migration order check).
 
 After every merge to `master`, staging catches up on its own, in this order:
 the staging database's migrations, then the `staging` branch, then the staging
@@ -554,10 +554,11 @@ workflows must keep that true. `tests/staging-sync-scripts.test.js` checks it.
 - "changes supabase/migrations/… (git status M, D or R)": the branch edits,
   deletes or renames a migration already on `master`. Never do that; add a
   new migration instead.
-- "sorts before master's newest migration": a newer migration reached
-  `master` after this one was created. Create it again with a new timestamp
-  (`supabase migration new`), but only if it was never applied to staging;
-  if it was, ask Alex.
+- "sorts before master's newest migration" or "has the same timestamp as
+  master's newest migration" (pull requests fail on this too, since
+  2026-11-22): a newer migration reached `master` after this one was created.
+  Create it again with a new timestamp (`supabase migration new`), but only
+  if it was never applied to staging; if it was, ask Alex.
 - "must sit directly in supabase/migrations/ and be named …" or "other than
   a plain file": rename it to `<14 digits>_<lowercase_words>.sql`, directly
   in `supabase/migrations/`, as a normal file.

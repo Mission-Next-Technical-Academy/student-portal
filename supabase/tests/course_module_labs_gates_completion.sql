@@ -1,6 +1,7 @@
 -- Regression test for 20261030175603_course_module_labs_gates_completion.sql.
--- Help Desk Module 1 gates on lab-its-01-prove-it only; every other module of
--- every track computes exactly what the previous view
+-- Help Desk Module 1 gates on lab-its-01-prove-it only; every module of every
+-- track except Help Desk Modules 1 to 4 (its-01, its-10, its-11, its-02, which
+-- gate on their Prove It) computes exactly what the previous view
 -- (20261017130000_module_one_completion_case_console.sql) computed. Practice
 -- It rows stay in course_module_labs for the one-pending rule and evidence
 -- storage. Rolls everything back.
@@ -46,8 +47,10 @@ $$;
 
 -- ------------------------------------------------------------ the map
 select pg_temp.check((select array_agg(lab_key order by lab_key) from public.course_module_labs where not gates_completion)
-    = array['lab-its-01-lms-validation', 'lab-its-01-ticket-triage', 'lab-its-10-priority-queue'],
-  'only the Practice It labs (Module 1''s two, Module 2''s Lab 2.1 since 20261120213000) have gates_completion = false');
+    = array['lab-its-01-lms-validation', 'lab-its-01-ticket-triage',
+            'lab-its-02-device-manager', 'lab-its-02-print-spooler', 'lab-its-02-vm-build', 'lab-its-02-vm-snapshot-server',
+            'lab-its-10-priority-queue', 'lab-its-11-handoff-documentation'],
+  'only the Practice It labs (Module 1''s two, Module 2''s Lab 2.1 since 20261120213000, Module 3''s handoff lab since 20261123022947, Module 4''s four older labs since 20261123190000) have gates_completion = false');
 select pg_temp.check((select array_agg(lab_key) from public.course_module_labs where track_code = 'HDESK' and module_key = 'its-01' and gates_completion)
     = array['lab-its-01-prove-it'],
   'Module 1 gates on lab-its-01-prove-it only');
@@ -57,7 +60,8 @@ select pg_temp.check(exists (select 1 from public.course_module_labs
 
 -- ------------------------------------------------------------ fixtures
 -- SOC: soc-02 approved. AI/ML: aim-01 approved. Help Desk: Labs 1.1 and 1.2
--- approved, and every Module 2 lab approved.
+-- approved, and every its-02 (Module 4) lab approved, its Prove It without an
+-- official grade.
 select pg_temp.approve('b0000000-0000-0000-0000-000000000001', 'SOCAN', 'lab-identity-investigation');
 select pg_temp.approve('b0000000-0000-0000-0000-000000000003', 'AIENG', 'lab-aim-01-cli-utility');
 select pg_temp.approve('b0000000-0000-0000-0000-000000000002', 'HDESK', 'lab-its-01-lms-validation');
@@ -96,24 +100,27 @@ group by s.user_id, r.track_code, r.module_key, mp.detail, mp.admin_override;
 
 select pg_temp.check(not exists (
     (select user_id, track_code, module_key, complete from old_view
-       where not (track_code = 'HDESK' and module_key = 'its-01')
+       where not (track_code = 'HDESK' and module_key in ('its-01', 'its-10', 'its-11', 'its-02'))
      except
      select user_id, track_code, module_key, complete from public.student_verified_module_progress)
     union all
     (select user_id, track_code, module_key, complete from public.student_verified_module_progress
-       where not (track_code = 'HDESK' and module_key = 'its-01')
+       where not (track_code = 'HDESK' and module_key in ('its-01', 'its-10', 'its-11', 'its-02'))
      except
      select user_id, track_code, module_key, complete from old_view)),
-  'every module except Help Desk Module 1 computes exactly what the previous view did');
+  'every module except Help Desk Modules 1 to 4 computes exactly what the previous view did');
 select pg_temp.check((select complete from public.student_verified_module_progress
     where user_id = 'b0000000-0000-0000-0000-000000000001' and module_key = 'soc-02'),
   'SOC soc-02 still verifies on its approved lab');
 select pg_temp.check((select complete from public.student_verified_module_progress
     where user_id = 'b0000000-0000-0000-0000-000000000003' and module_key = 'aim-01'),
   'AI/ML aim-01 still verifies on its approved lab');
-select pg_temp.check((select complete from public.student_verified_module_progress
+select pg_temp.check((select complete from old_view
     where user_id = 'b0000000-0000-0000-0000-000000000002' and module_key = 'its-02'),
-  'Help Desk its-02 still verifies on its approved labs');
+  'previously, approved its-02 labs verified Help Desk Module 4');
+select pg_temp.check((select not complete from public.student_verified_module_progress
+    where user_id = 'b0000000-0000-0000-0000-000000000002' and module_key = 'its-02'),
+  'now, approved Module 4 labs without an official Prove It grade do not verify Module 4');
 
 -- ------------------------------------------------------------ Help Desk Module 1
 select pg_temp.check((select complete from old_view

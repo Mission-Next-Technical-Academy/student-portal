@@ -33,7 +33,9 @@ const seed = (labId, user, state) => LabRuntime.save(labId, user, { ...LabRuntim
 // Module 1 saves only a finished HD-2150 (tests/hdesk-m01-guided-lab.test.js).
 const M01_FINISHED_WORK = { version: 1, tickets: [{ id: 'HD-2150', status: 'Resolved', console: {
   outcomes: { verified: true, unlocked: true, confirmed: true, comment: true, note: true, code: true } } }] };
-const coachDone = (id) => ({ data: { type: 'mnt-coach-complete', id, student: vm.runInContext('LabRuntime', ctx).anonymousStudentId(signedIn), ...(id === 'hd-m01' ? { work: M01_FINISHED_WORK } : {}) }, origin: SIM });
+// Module 4's Lab 4.3 counts only finished work too: HD-2134 resolved.
+const M02_FINISHED_WORK = { version: 1, tickets: [{ id: 'HD-2134', status: 'Resolved' }] };
+const coachDone = (id) => ({ data: { type: 'mnt-coach-complete', id, student: vm.runInContext('LabRuntime', ctx).anonymousStudentId(signedIn), ...(id === 'hd-m01' ? { work: M01_FINISHED_WORK } : id === 'hd-m02' ? { work: M02_FINISHED_WORK } : {}) }, origin: SIM });
 
 const SUBMITTED = '2026-10-01T10:00:00Z';
 const REVIEWED = '2026-10-02T10:00:00Z';

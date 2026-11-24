@@ -1,87 +1,34 @@
-/* Module 02 (IT Help Desk) is fully isolated. Every selector is scoped with
- * its02-. Shared evidence/ticket-queue widget classes (itsw-) and color
- * tokens (--its-*) come from it-support-shared.css, loaded first. Labs 2.3
- * and 2.4 are a guided walkthrough in the real simulator (the itsw-evidence-
- * button launch link), not a portal-embedded mini-app — there's no
- * dedicated CSS for them here beyond the shared lab-status indicator. */
+/* Module 4 (IT Help Desk, key its-02). The page reuses Module 1's inner
+ * classes (its01-hero, its01-section, its01-lesson, its01-check, its01-dg)
+ * and Module 2's table classes (its10-table), so it looks the same. Only its
+ * shell and what those modules have no class for live here, scoped with
+ * its02-: the older evidence uploads, inline commands, the card sort and the
+ * red battery strip in the dock diagram. The rail layout for .its02-shell is
+ * in module-labs.css. Loaded after it-support-module-01.css and -10.css. */
 
 .its02-shell { min-height: 100vh; color: #172033; background: rgba(248, 250, 252, .76); overflow-x: clip; }
-.its02-topbar { min-height: 64px; padding: 10px clamp(20px, 4vw, 48px); display: flex; align-items: center; justify-content: space-between; gap: 20px; background: rgba(255, 255, 255, .96); border-bottom: 1px solid #e5e7eb; }
-.its02-brand img { width: auto; height: 42px; display: block; }
-.its02-top-actions { display: flex; align-items: center; gap: 16px; }
-.its02-simulation, .its02-exit { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
-.its02-simulation { padding: 7px 11px; color: var(--its-navy); background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 999px; }
-.its02-exit { color: var(--its-navy); text-decoration: none; }
-.its02-exit:hover, .its02-exit:focus-visible { color: var(--its-accent); text-decoration: underline; }
-.its02-main { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 44px 0 80px; }
+.its02-shell :focus-visible { outline: 3px solid var(--its-accent-border); outline-offset: 2px; }
 
-/* Stats always sit under the description: beside the rail the column is too
-   narrow for both side by side at any width. */
-.its02-hero { display: grid; grid-template-columns: minmax(0, 1fr); align-items: end; gap: 42px; padding: clamp(30px, 5vw, 54px); color: #fff; background: linear-gradient(150deg, #0c1e32 0%, #1e3a5f 50%, #162d4a 100%); border-radius: 24px; box-shadow: 0 18px 48px rgba(10, 22, 40, .18); }
-.its02-hero h1 { max-width: 780px; margin: 8px 0 14px; font-size: clamp(32px, 5vw, 48px); line-height: 1.05; letter-spacing: -.025em; }
-.its02-lede { max-width: 760px; margin: 0; color: rgba(255, 255, 255, .76); font: 16px/1.75 Inter, sans-serif; }
-.its02-kicker { margin: 0; color: var(--its-accent); font-size: 11px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
-.its02-progress { width: 100%; max-width: 520px; min-width: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin: 0; overflow: hidden; background: rgba(255, 255, 255, .16); border: 1px solid rgba(255, 255, 255, .16); border-radius: 14px; }
-.its02-progress div { min-width: 0; padding: 14px 16px; background: rgba(10, 22, 40, .5); }
-.its02-progress dt { color: rgba(255, 255, 255, .56); font: 10px/1.3 Inter, sans-serif; }
-.its02-progress dd { margin: 5px 0 0; font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
-
-.its02-section { scroll-margin-top: 20px; margin-top: 24px; padding: clamp(23px, 4vw, 38px); background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; box-shadow: 0 8px 24px rgba(30, 58, 95, .05); }
-.its02-section-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
-.its02-section-heading > span { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; color: #fff; background: var(--its-navy); border-radius: 11px; font-weight: 800; }
-.its02-section-heading > div { min-width: 0; }
-.its02-section-heading h2 { margin: 3px 0 0; color: var(--its-navy); font-size: 22px; line-height: 1.25; }
-.its02-instruction { margin: -7px 0 20px; color: #64748b; font: 14px/1.65 Inter, sans-serif; }
-
-.its02-lesson-grid { display: grid; gap: 10px; }
-.its02-lesson { min-width: 0; overflow: hidden; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; }
-.its02-lesson[open] { background: #fff; border-color: var(--its-navy); box-shadow: 0 5px 15px rgba(30, 58, 95, .06); }
-.its02-lesson summary { min-height: 78px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 13px; padding: 15px 17px; cursor: pointer; list-style: none; }
-.its02-lesson summary::-webkit-details-marker { display: none; }
-.its02-lesson summary:hover { background: rgba(248, 250, 252, .8); }
-.its02-lesson-icon { width: 40px; height: 40px; display: grid; place-items: center; color: var(--its-navy); background: rgba(30, 58, 95, .08); border-radius: 11px; font-size: 20px; }
-.its02-lesson summary strong, .its02-lesson summary small { display: block; }
-.its02-lesson summary strong { color: var(--its-navy); font-size: 15px; }
-.its02-lesson summary small { margin-top: 4px; color: #64748b; font: 11px/1.45 Inter, sans-serif; }
-.its02-chevron { width: 30px; height: 30px; display: grid; place-items: center; color: #64748b; background: #fff; border: 1px solid #e5e7eb; border-radius: 50%; font-size: 19px; transition: transform .2s ease; }
-.its02-lesson[open] .its02-chevron { transform: rotate(180deg); }
-.its02-lesson-body { margin: 0 17px 17px 70px; }
-.its02-lesson-body h4 { margin: 16px 0 8px; color: var(--its-navy); font-size: 13px; }
-.its02-lesson-body h4:first-child { margin-top: 0; }
-.its02-lesson-body ul { margin: 0; padding-left: 18px; color: #475569; font: 13px/1.7 Inter, sans-serif; }
-.its02-lesson-topic { margin-bottom: 10px; }
-.its02-lesson-topic strong { display: block; margin-bottom: 3px; color: #334155; font-size: 12.5px; }
-.its02-lesson-topic p { margin: 0; color: #475569; font: 13px/1.7 Inter, sans-serif; }
-.its02-practice { margin-top: 14px; padding: 13px 14px; background: var(--its-accent-wash); border-left: 3px solid var(--its-accent); border-radius: 0 10px 10px 0; }
-.its02-practice strong { display: block; margin-bottom: 6px; color: var(--its-navy); font-size: 12px; }
-.its02-practice ol { margin: 0; padding-left: 18px; color: #475569; font: 12.5px/1.7 Inter, sans-serif; }
-.its02-preview { margin-top: 10px; display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; color: #64748b; background: #f8fafc; border-radius: 9px; font: 12px/1.55 Inter, sans-serif; }
-.its02-preview i { flex: 0 0 auto; color: var(--its-navy); font-size: 15px; }
-
-.its02-lab-section { border-top: 4px solid var(--its-accent); }
-.its02-lab-tag { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; padding: 3px 8px; color: #64748b; background: #f1f5f9; border-radius: 999px; font: 700 9px Inter, sans-serif; letter-spacing: .04em; text-transform: uppercase; }
+/* Upload boxes from before the simulator version of Labs 4.1 and 4.2. */
+.its02-older-evidence { margin-top: 14px; }
+.its02-older-evidence summary { cursor: pointer; color: var(--its-navy); font: 600 13px/1.5 Inter, sans-serif; }
+.its02-older-evidence[open] summary { margin-bottom: 12px; }
 .its02-evidence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .its02-evidence-grid.its02-evidence-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
-.its02-lab-status { margin-top: 16px; display: flex; align-items: center; gap: 10px; padding: 13px 15px; border-radius: 11px; font: 12.5px/1.5 Inter, sans-serif; }
-.its02-lab-status.its02-status-pass { color: var(--its-navy); background: var(--its-accent-wash); border: 1px solid var(--its-accent-border); }
-.its02-lab-status.its02-status-pending { color: #64748b; background: #fff; border: 1px dashed #cbd5e1; }
-.its02-lab-status i { flex: 0 0 auto; font-size: 18px; }
+/* A command or path inside reading text and tables. It may wrap anywhere,
+   so a long command never makes the page scroll sideways. */
+.its02-code { padding: 1px 5px; color: var(--mn-theme-text, #172d42); background: var(--mn-theme-surface-raised, #edf3f8); border: 1px solid var(--mn-theme-border, #cfdae5); border-radius: 5px; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
 
-.its02-shell :focus-visible { outline: 3px solid var(--its-accent-border); outline-offset: 2px; }
+/* The cloud models card sort: one card per row, its three boxes beside it. */
+.its02-sort-list { margin: 0; padding: 0; list-style: none; }
+.its02-sort-card { margin-bottom: 16px; color: #334155; }
+.its02-sort-boxes { display: flex; flex-wrap: wrap; gap: 6px; }
+.its02-sort-boxes .its02-sort-box { width: auto; min-width: 88px; justify-content: center; font-weight: 700; }
+
+/* Dock diagram: the swollen-battery warning strip. */
+.its01-dg-box.its02-dg-warn { fill: #fef2f2; stroke: #dc2626; stroke-width: 2.5; }
 
 @media (max-width: 940px) {
   .its02-evidence-grid, .its02-evidence-grid-3 { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 640px) {
-  .its02-main { width: min(100% - 24px, 1180px); padding-top: 22px; }
-  .its02-topbar { padding-inline: 14px; }
-  .its02-brand img { height: 34px; }
-  .its02-simulation { display: none; }
-  .its02-exit { font-size: 0; }
-  .its02-exit i { font-size: 20px; }
-  .its02-hero, .its02-section { border-radius: 16px; }
-  .its02-progress { grid-template-columns: 1fr; }
-  .its02-lesson-body { margin-left: 17px; }
 }

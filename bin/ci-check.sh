@@ -41,10 +41,21 @@ node tests/hdesk-m01-practice.test.js
 echo '== Help Desk console features: off by default, each one on per ticket =='
 node tests/hdesk-console-features.test.js
 node tests/hdesk-m02-console-features.test.js
+node tests/hdesk-m03-console-features.test.js
+node tests/hdesk-m04-console-features.test.js
+node tests/hdesk-m04-vm-screen.test.js
+node tests/hdesk-m04-guided-labs.test.js
+node tests/hdesk-m04-practice-tickets.test.js
+node tests/hdesk-m04-page.test.js
+node tests/hdesk-m04-prove.test.js
+node tests/hdesk-m03-guided-lab.test.js
+node tests/hdesk-m03-practice-tickets.test.js
+node tests/hdesk-m03-page.test.js
 node tests/hdesk-m02-guided-lab.test.js
 node tests/hdesk-m02-practice-tickets.test.js
 node tests/hdesk-m02-page.test.js
 node tests/hdesk-m02-prove.test.js
+node tests/hdesk-m03-prove.test.js
 node tests/hdesk-m01-guided-lab.test.js
 node tests/hdesk-m01-practice-tickets.test.js
 node tests/hdesk-m01-ticket-1d.test.js
@@ -126,6 +137,9 @@ node bin/render_all.js
 
 echo '== SOC entity identity lint (strict, read-only) =='
 node scripts/soc-entity-identity-lint.js --strict --no-write
+
+echo "== New migrations are dated after master's newest =="
+bash bin/ci/check-migration-order.sh
 
 echo '== Staging automation scripts and workflow boundaries (offline, throwaway git repos) =='
 node tests/staging-sync-scripts.test.js

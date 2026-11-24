@@ -358,7 +358,9 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
     ['Module 1 · PRACTICE IT', 'Module 1 · PRACTICE IT', 'Module 1 · PROVE IT']);
   assert.equal(meta(PROVE).labTitle, PROVE_TITLE);
   // Every other Help Desk lab, and SOC, keep their labels.
-  assert.equal(meta('lab-its-02-vm-build').kind, 'PROVE IT');
+  assert.equal(meta('lab-its-03-blank-desktop').kind, 'PROVE IT');
+  // Module 4's older labs are Practice It since its Prove It moved the gate.
+  assert.equal(meta('lab-its-02-vm-build').kind, 'PRACTICE IT');
   assert.equal(meta('lab-its-12-capstone').kind, 'PROVE IT');
   assert.equal(meta('lab-soc-environment', 'SOCAN').kind, 'PRACTICE IT');
   assert.equal(meta('lab-soc-escalation', 'SOCAN').kind, 'PROVE IT');
