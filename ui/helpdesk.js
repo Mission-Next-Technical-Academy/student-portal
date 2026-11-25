@@ -617,7 +617,13 @@ function hdDropStaleTicketSet() {
 function hdComputers() { return HD_PROVE ? [...HD_COMPUTERS, ...(HD_PROVE.shift.computers || [])] : HD_COMPUTERS; }
 // An article marked practiceOnly (KB-0059, Lab 1.2's printer steps) never
 // shows in a Prove It: it would hand over the Prove It's fix.
-function hdKbArticles() { return HD_PROVE ? [...HD_KB_ARTICLES.filter(article => !article.practiceOnly), ...(HD_PROVE.shift.kbArticles || [])] : HD_KB_ARTICLES; }
+// A practice or coached set may add its own articles (kbArticles, Module 6):
+// they show only in that set, never in the shared shift or a Prove It.
+function hdKbArticles() {
+  if (HD_PROVE) return [...HD_KB_ARTICLES.filter(article => !article.practiceOnly), ...(HD_PROVE.shift.kbArticles || [])];
+  const set = typeof hdActiveSet === 'function' ? hdActiveSet() : null;
+  return set && Array.isArray(set.kbArticles) && set.kbArticles.length ? [...HD_KB_ARTICLES, ...set.kbArticles] : HD_KB_ARTICLES;
+}
 function hdServers() {
   const overrides = HD_PROVE ? HD_PROVE.shift.serverOverrides || {} : {};
   return HD_SERVERS.map(server => ({ ...server, ...(overrides[server.name] || {}) }));
@@ -1649,7 +1655,8 @@ function hdConsoleRule(ticket, rule) {
   if (rule.typed) {
     // Only a command the console ran: a refused one (wrong options, a path
     // not found, a misspelling) records that as its result (hdWinTypedCommand).
-    const refused = /^(dism|sfc|chkdsk): (wrong options|volume in use)$|^path not found$|^no folder$|^no log named$|^misspelled/i;
+    // A winget line that found nothing or was mistyped is refused too (Module 6).
+    const refused = /^(dism|sfc|chkdsk): (wrong options|volume in use)$|^path not found$|^no folder$|^no log named$|^misspelled|^winget[^:]*: (no |not |more than one|unrecognized|missing value|nothing to)/i;
     return (Array.isArray(hdState.practiceLog) ? hdState.practiceLog : []).some(entry => entry && entry.type === 'command_run' && entry.computer === rule.computer
       && test(rule.typed, String(entry.command || '').trim()) && !refused.test(String(entry.result || '')));
   }
@@ -1658,6 +1665,24 @@ function hdConsoleRule(ticket, rule) {
     const at = ids.lastIndexOf(spec.after); if (at < 0) return false;
     const later = ids.slice(at + 1);
     return later.filter(id => id === spec.action).length >= Number(spec.min || 1) && !(spec.without && later.includes(spec.without));
+  }
+  // Module 6 work (each off unless a ticket uses it):
+  //   any: [rule]   one of the rules holds (a screen or a typed line)
+  //   attached: '<KB id>'   the article was attached to the ticket
+  //   requestItem: '<catalog item>'   the request was made with that item
+  //   machine: { computer, path, value | values }   a machine value (hdMachineValueIs)
+  //   appInstalled: { computer, app }   the app is in that computer's Installed apps
+  //   synced: '<computer>'   OneDrive is signed in, nothing fails to sync, and
+  //     no file was deleted to clear the error
+  if (rule.any) return Array.isArray(rule.any) && rule.any.some(item => item && hdConsoleRule(ticket, item));
+  if (rule.attached) return (state.kbAttached || []).includes(rule.attached);
+  if (rule.requestItem) return !!(ticket.request && ticket.request.item === rule.requestItem);
+  if (rule.machine) return hdMachineValueIs(rule.machine);
+  if (rule.appInstalled) return hdWinIsInstalled(hdMachine(rule.appInstalled.computer), rule.appInstalled.app);
+  if (rule.synced) {
+    const oneDrive = hdWinOneDrive(hdMachine(rule.synced));
+    return !!oneDrive && oneDrive.linked !== false && !hdWinOneDriveProblems(oneDrive).length
+      && !state.actions.some(entry => entry.id === 'onedrive-file-deleted' && entry.computer === rule.synced);
   }
   // Module 3 work: the call, hold, handoff, follow-up and team messages.
   const comms = hdCommsRule(ticket, rule);

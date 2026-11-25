@@ -150,7 +150,9 @@ function testOldTicketsTurnNothingOn() {
   // Every older practice and coached set. Module 5's own sets (its-03,
   // its-03-guided) turn these features on by design
   // (tests/hdesk-m05-guided-lab.test.js, tests/hdesk-m05-practice-tickets.test.js).
-  const module5 = (k) => /^its-03(-|$)/.test(k);
+  // Module 6's sets (its-07, its-07-guided) do the same
+  // (tests/hdesk-m06-guided-lab.test.js, tests/hdesk-m06-practice-tickets.test.js).
+  const module5 = (k) => /^its-0[37](-|$)/.test(k);
   for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter((k) => !k.startsWith('test-') && !module5(k))) {
     const set = sim({ url: `https://academy.test/sim/?practice=${key}&student=stu-1#/helpdesk/tickets` });
     for (const id of set.run('hdState.tickets.map((t) => t.id)')) assert.doesNotMatch(set.open(id), NEW_MARKERS, `${key} ${id}`);

@@ -171,12 +171,15 @@ function testOldTicketsTurnNothingOn() {
   // (tests/hdesk-m05-guided-lab.test.js, tests/hdesk-m05-practice-tickets.test.js).
   const module4 = (k) => /^its-02(-|$)/.test(k);
   const module5 = (k) => /^its-03(-|$)/.test(k);
-  for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter((k) => !k.startsWith('test-') && !module4(k) && !module5(k))) {
+  // Module 6's sets (its-07, its-07-guided) reuse the Windows client tools
+  // (tests/hdesk-m06-guided-lab.test.js, tests/hdesk-m06-practice-tickets.test.js).
+  const module6 = (k) => /^its-07(-|$)/.test(k);
+  for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter((k) => !k.startsWith('test-') && !module4(k) && !module5(k) && !module6(k))) {
     const set = sim({ url: `https://academy.test/sim/?practice=${key}&student=stu-1#/helpdesk/tickets` });
     for (const id of set.run('hdState.tickets.map((t) => t.id)')) assert.doesNotMatch(set.open(id), NEW_MARKERS, `${key} ${id}`);
     assert.deepEqual(set.run('Object.keys(hdState.machines).sort()'), set.run('Object.keys(HD_PRACTICE_MACHINES).sort()'), `${key} machines are the fixtures`);
   }
-  for (const key of Object.keys(tab.run('HD_COACHED_SETS')).filter((k) => !module4(k) && !module5(k))) {
+  for (const key of Object.keys(tab.run('HD_COACHED_SETS')).filter((k) => !module4(k) && !module5(k) && !module6(k))) {
     const set = sim(); assert.equal(set.run(`hdUseTicketSet(${JSON.stringify(key)})`), true);
     for (const id of set.run('hdState.tickets.map((t) => t.id)')) assert.doesNotMatch(set.open(id), NEW_MARKERS, `${key} ${id}`);
   }

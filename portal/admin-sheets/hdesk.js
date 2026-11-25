@@ -24,7 +24,8 @@
     'lab-its-04-connectivity': ['HD-2104', 'HD-2105'],
     'lab-its-05-server-ad': ['HD-2108', 'HD-2117'],
     'lab-its-06-identity-access': ['SR-2107', 'HD-2118'],
-    'lab-its-07-app-cert': ['HD-2119'],
+    // Module 6 (key its-07), from 2026-11-24: Lab 6.1 is HD-2176.
+    'lab-its-07-app-cert': ['HD-2176'],
     'lab-its-08-unfamiliar-problems': ['HD-2110', 'HD-2111'],
     'lab-its-09-security-incidents': ['SEC-2114', 'SEC-2115'],
     'lab-its-11-handoff-documentation': ['HD-2113', 'HD-2124'],
@@ -32,8 +33,8 @@
   // Lab 1.2 used HD-2101 until 2026-11-09: an attempt saved before then holds
   // HD-2101 and no HD-2150, and keeps the sheet it was worked against.
   // Lab 4.3 walked HD-2106 until 2026-11-23, and Module 5's lab walked HD-2109
-  // until 2026-11-24, the same way.
-  const EARLIER_TICKETS_BY_LAB = { 'lab-its-01-ticket-triage': ['HD-2101'], 'lab-its-02-device-manager': ['HD-2106'], 'lab-its-03-blank-desktop': ['HD-2109'] };
+  // and Module 6's lab HD-2119 until 2026-11-24, the same way.
+  const EARLIER_TICKETS_BY_LAB = { 'lab-its-01-ticket-triage': ['HD-2101'], 'lab-its-02-device-manager': ['HD-2106'], 'lab-its-03-blank-desktop': ['HD-2109'], 'lab-its-07-app-cert': ['HD-2119'] };
   const TITLES = {
     // Retired 2026-11-10; kept so its past attempts still open.
     'lab-its-01-lms-validation': 'Module 01 · LMS & Environment Validation',
@@ -418,6 +419,10 @@
   const LAB_CONSOLE = {
     'HD-2180': { articles: ['KB-0084', 'KB-0083'], questions: ['lumencam', 'recycle', 'restart', 'apps'],
       prompt: 'Lab 5.1 runs on NS-WS-0277’s tool screens. Look in the ticket history for the order: measure (Task Manager, Storage, Windows Update, Event ID 100), then fix (startup app with Noah’s OK, temporary files with his OK for the Recycle Bin, DISM then sfc, chkdsk, restart), then verify (Event ID 100 again, Noah confirms).' },
+    // Module 6 Lab 6.1 (from 2026-11-24), worked the same way on NS-WS-0233.
+    // The lab ends with a note and Resolve, no customer comment (comment:false).
+    'HD-2176': { articles: ['KB-0080', 'KB-0058'], questions: ['teams'], comment: false,
+      prompt: 'Lab 6.1 runs on NS-WS-0233’s tool screens and PowerShell. Look in the ticket history for: Notepad++ installed and later removed with winget, 7-Zip updated, Teams repaired (Leah confirms it opens), Windows Security read and a quick scan, Weather Now Tab removed after KB-0080, the admin password declined with a software request, and the OneDrive file renamed.' },
   };
   function labConsoleSections(ticket, id) {
     const spec = LAB_CONSOLE[id];
@@ -449,7 +454,7 @@
           { label: 'A plain-words comment', expected: 'A comment with no internal terms', test: () => (has ? comments.length > 0 && !work.lastCommentJargon.length : null), given: () => (has ? (comments.length ? (work.lastCommentJargon.length ? `Internal terms: ${work.lastCommentJargon.join(', ')}` : 'Yes') : 'No comment') : null), fix: 'Write the comment for the user: what was wrong, what you did, and what to do next, with no internal names or terms.' },
         ],
       },
-    ];
+    ].filter((section) => spec.comment !== false || !section.id.startsWith('customer-comment-'));
   }
 
   function coachSections(result, ctx) {
