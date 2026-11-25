@@ -210,7 +210,8 @@ function testLabCardsAndRail() {
   const guided = section(html, 'its07-lab-6-1');
   assert.match(guided, /\?coach=hd-m07&amp;restart=1&amp;student=/, 'Lab 6.1 launches the hd-m07 coach');
   assert.match(guided, /Start Lab 6\.1 walkthrough/);
-  assert.match(guided, /eleven steps/);
+  // No step count: the coach's own counter includes triage and Finish.
+  assert.match(guided, /A coach guides you through each step\./);
   assert.match(guided, /Feedback only, no score/);
   assert.match(guided, /Your instructor reviews your finished lab/, 'Lab 6.1 still gates Module 6');
   const practice = section(html, 'its07-practice-tickets');
