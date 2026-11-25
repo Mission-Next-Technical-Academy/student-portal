@@ -5007,9 +5007,10 @@ window.hdWinAppOptions=hdWinAppOptions; window.hdWinRepairApp=hdWinRepairApp; wi
  *       history:[{ id, name, date, severity, status }],
  *       allowed:[{ id, name, severity? }], exclusions:[paths] }
  *     Windows Security (Security at a glance, Virus & threat protection,
- *     Protection history, Allowed threats). An allowed item takes Don't
- *     allow (threat-unallowed), then Remove (threat-removed; its history
- *     row becomes Removed). Quick scan (quick-scan) finds the items no
+ *     Protection history, Allowed threats). Don't allow on Allowed threats
+ *     (threat-unallowed) moves an item to Current threats on Virus & threat
+ *     protection, where Remove (threat-removed) acts on it; its history row
+ *     becomes Removed. Quick scan (quick-scan) finds the items no
  *     longer allowed and not yet removed; after an extension or a threat was
  *     removed on this computer it also records quick-scan-after-removal.
  *     Turning off real-time protection (realtime-protection-off) and adding
@@ -5075,7 +5076,7 @@ function hdWinUndoUnsafe(computerName) {
   return typeof undo === 'string' && undo.trim() ? undo.trim() : HD_UNSAFE_UNDO_LINE;
 }
 function hdWinSetRealtime(machine, computerName, on, via) {
-  const protection = hdWinProtection(machine); if (!protection || protection.realtime === on) return false;
+  const protection = hdWinProtection(machine); if (!protection || (protection.realtime !== false) === on) return false;
   protection.realtime = on;
   protection.undoneNote = '';
   if (on) { hdMachineAction(computerName, 'realtime-protection-on', `turned real-time protection on (${via})`, { via }); return true; }
@@ -5139,7 +5140,8 @@ function hdWinThreatSet(computerName, id, step) {
 }
 function hdWinRealtimeSet(computerName, on) {
   if (hdProveLocked()) return;
-  if (!on && typeof confirm === 'function' && !confirm('Turn off real-time protection? Your device will be vulnerable.')) return;
+  // Practice only: a Prove It asks nothing (the typed line asks nothing either).
+  if (!on && !HD_PROVE && typeof confirm === 'function' && !confirm('Turn off real-time protection? Your device will be vulnerable.')) return;
   hdMachineChange(computerName, machine => hdWinSetRealtime(machine, computerName, !!on, 'Windows Security'));
 }
 function hdWinExclusionFrom(computerName) {
@@ -5157,7 +5159,9 @@ VIEWS['helpdesk/windows-security'] = () => {
   const locked = hdProveLocked() ? 'disabled' : '';
   const tab = hdWinTabOf('windows-security');
   const on = protection.realtime !== false;
-  const allowed = hdWinList(protection, 'allowed').filter(item => !item.removed);
+  // As on Windows: Don't allow takes an item off Allowed threats; Defender
+  // then shows it under Current threats, where Remove acts on it.
+  const allowed = hdWinList(protection, 'allowed').filter(item => !item.removed && !item.unallowed);
   const current = hdWinThreatsFound(protection);
   const undone = !HD_PROVE && protection.undoneNote ? `<div class="callout warn" role="alert" data-hd-unsafe-undone>${hdEsc(protection.undoneNote)}</div>` : '';
   let body;
@@ -5165,12 +5169,12 @@ VIEWS['helpdesk/windows-security'] = () => {
     body = `<dl class="hd-dl" data-hd-security-home><dt>Virus &amp; threat protection</dt><dd>${on ? 'No action needed.' : 'Real-time protection is off, leaving your device vulnerable.'}</dd><dt>Protection updates</dt><dd>Security intelligence last updated: ${hdEsc(protection.definitions || 'Unknown')}</dd><dt>Current threats</dt><dd>${current.length ? `${current.length} threat${current.length === 1 ? '' : 's'} found` : 'No current threats.'}</dd></dl>`;
   } else if (tab === 'virus-threat') {
     const exclusions = Array.isArray(protection.exclusions) ? protection.exclusions : [];
-    body = `<div data-hd-virus-threat><p><strong>Current threats</strong></p><p data-hd-current-threats>${current.length ? `${current.length} threat${current.length === 1 ? '' : 's'} found. Remove ${current.length === 1 ? 'it' : 'them'} on Allowed threats.` : 'No current threats.'}</p><dl class="hd-dl"><dt>Last scan</dt><dd data-hd-last-scan>${hdEsc(protection.lastScan || 'Never')}${protection.lastResult ? ` · ${hdEsc(protection.lastResult)}` : ''}</dd><dt>Security intelligence</dt><dd data-hd-definitions>Last updated: ${hdEsc(protection.definitions || 'Unknown')}</dd></dl><p><button type="button" class="btn btn-primary btn-sm" ${locked} data-hd-quick-scan onclick="hdWinScanNow(${n})">Quick scan</button></p><p><strong>Virus &amp; threat protection settings</strong></p><p>Real-time protection: <strong data-hd-realtime="${on ? 'on' : 'off'}">${on ? 'On' : 'Off'}</strong> <button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-realtime-toggle onclick="hdWinRealtimeSet(${n},${on ? 'false' : 'true'})">${on ? 'Turn off' : 'Turn on'}</button></p><p><strong>Exclusions</strong><br><span class="muted">Items you exclude won't be scanned.</span></p><ul class="hd-list" data-hd-exclusions>${exclusions.map(path => `<li><code>${hdEsc(path)}</code></li>`).join('') || '<li class="muted">No exclusions.</li>'}</ul><form class="filterbar" onsubmit="event.preventDefault();hdWinExclusionFrom(${n})"><label>Add an exclusion <input id="hd-exclusion-path" class="ipt" maxlength="200" ${locked} placeholder="File or folder path"></label><button type="submit" class="btn btn-secondary btn-sm" ${locked} data-hd-add-exclusion>Add an exclusion</button></form>${hdMachineView().exclusionError ? `<p class="muted" role="alert">${hdEsc(hdMachineView().exclusionError)}</p>` : ''}</div>`;
+    body = `<div data-hd-virus-threat><p><strong>Current threats</strong></p>${current.length ? `<p data-hd-current-threats>Threats found.</p><ul class="hd-list">${current.map(item => `<li data-hd-current-threat="${hdEsc(item.id)}">${hdEsc(item.name || '')}${item.severity ? ` <span class="muted">${hdEsc(item.severity)}</span>` : ''} <button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-threat-remove onclick="hdWinThreatSet(${n},'${hdJsArg(item.id)}','remove')">Remove</button></li>`).join('')}</ul>` : '<p data-hd-current-threats>No current threats.</p>'}<dl class="hd-dl"><dt>Last scan</dt><dd data-hd-last-scan>${hdEsc(protection.lastScan || 'Never')}${protection.lastResult ? ` · ${hdEsc(protection.lastResult)}` : ''}</dd><dt>Security intelligence</dt><dd data-hd-definitions>Last updated: ${hdEsc(protection.definitions || 'Unknown')}</dd></dl><p><button type="button" class="btn btn-primary btn-sm" ${locked} data-hd-quick-scan onclick="hdWinScanNow(${n})">Quick scan</button></p><p><strong>Virus &amp; threat protection settings</strong></p><p>Real-time protection: <strong data-hd-realtime="${on ? 'on' : 'off'}">${on ? 'On' : 'Off'}</strong> <button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-realtime-toggle onclick="hdWinRealtimeSet(${n},${on ? 'false' : 'true'})">${on ? 'Turn off' : 'Turn on'}</button></p><p><strong>Exclusions</strong><br><span class="muted">Items you exclude won't be scanned.</span></p><ul class="hd-list" data-hd-exclusions>${exclusions.map(path => `<li><code>${hdEsc(path)}</code></li>`).join('') || '<li class="muted">No exclusions.</li>'}</ul><form class="filterbar" onsubmit="event.preventDefault();hdWinExclusionFrom(${n})"><label>Add an exclusion <input id="hd-exclusion-path" class="ipt" maxlength="200" ${locked} placeholder="File or folder path"></label><button type="submit" class="btn btn-secondary btn-sm" ${locked} data-hd-add-exclusion>Add an exclusion</button></form>${hdMachineView().exclusionError ? `<p class="muted" role="alert">${hdEsc(hdMachineView().exclusionError)}</p>` : ''}</div>`;
   } else if (tab === 'protection-history') {
     const rows = hdWinList(protection, 'history');
     body = `<div class="table-wrap"><table data-hd-protection-history><thead><tr><th>Detected</th><th>Name</th><th>Severity</th><th>Status</th></tr></thead><tbody>${rows.map(item => `<tr data-hd-history-item="${hdEsc(item.id || item.name)}"><td>${hdEsc(item.date || '')}</td><td>${hdEsc(item.name || '')}</td><td>${hdEsc(item.severity || '')}</td><td>${hdEsc(item.status || '')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted" data-hd-history-empty>No recent items. Protection history is empty.</td></tr>'}</tbody></table></div>`;
   } else {
-    body = `<p class="muted">Items you allowed to run on this device. Defender doesn't act on them.</p><div class="table-wrap"><table data-hd-allowed-threats><thead><tr><th>Name</th><th>Severity</th><th></th></tr></thead><tbody>${allowed.map(item => `<tr data-hd-allowed="${hdEsc(item.id)}"><td>${hdEsc(item.name || '')}</td><td>${hdEsc(item.severity || '')}</td><td>${item.unallowed ? `<button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-threat-remove onclick="hdWinThreatSet(${n},'${hdJsArg(item.id)}','remove')">Remove</button>` : `<button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-threat-unallow onclick="hdWinThreatSet(${n},'${hdJsArg(item.id)}','unallow')">Don't allow</button>`}</td></tr>`).join('') || '<tr><td colspan="3" class="muted" data-hd-allowed-empty>There are no allowed threats.</td></tr>'}</tbody></table></div>`;
+    body = `<p class="muted">Items you've allowed to run on your device.</p><div class="table-wrap"><table data-hd-allowed-threats><thead><tr><th>Name</th><th>Severity</th><th></th></tr></thead><tbody>${allowed.map(item => `<tr data-hd-allowed="${hdEsc(item.id)}"><td>${hdEsc(item.name || '')}</td><td>${hdEsc(item.severity || '')}</td><td><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-threat-unallow onclick="hdWinThreatSet(${n},'${hdJsArg(item.id)}','unallow')">Don't allow</button></td></tr>`).join('') || '<tr><td colspan="3" class="muted" data-hd-allowed-empty>There are no allowed threats.</td></tr>'}</tbody></table></div>`;
   }
   return `${hdPageHeader('Windows Security', computer.name, hdMachineBack(computer))}${undone}<div class="card" data-hd-windows-security="${tab}"><div class="card-header" ${HD_CONSOLE_HEADER}>${hdWinTabs(HD_WIN_SCREENS['windows-security'].tabs, tab, id => `hdWinScreenTab(${n},'windows-security','${id}')`)}</div><div class="card-body">${body}</div></div>`;
 };
@@ -5215,7 +5219,7 @@ function hdWinDefenderCommand(command, normalized, machine, computerName) {
     if (!realtime) { hdLastCommandResult = 'Set-MpPreference: not in this training shell'; return "Set-MpPreference : That setting isn't part of this training shell."; }
     const off = ['true', '1'].includes(realtime[1]);
     if (hdWinSetRealtime(machine, computerName, !off, 'Set-MpPreference')) changed();
-    hdLastCommandResult = `Set-MpPreference: real-time ${off ? 'off' : 'on'}`;
+    hdLastCommandResult = `Set-MpPreference: real-time ${off ? 'off' : 'on'}${off && protection.realtime !== false ? ' (undone)' : ''}`;
     return '';
   }
   // add-mppreference: an exclusion path, process or extension.
@@ -5289,12 +5293,13 @@ function hdWinOneDriveRename(computerName, index, target, newName) {
       return true;
     }
     if (!folder) return false;
-    const parts = String(file.folder || '').split('\\').filter(Boolean); const at = Number(folder[1]);
+    const tidy = (text) => String(text || '').split('\\').filter(Boolean).join('\\');
+    const parts = tidy(file.folder).split('\\').filter(Boolean); const at = Number(folder[1]);
     if (at >= parts.length || parts[at] === value) return false;
     const prefix = parts.slice(0, at + 1).join('\\'); const from = parts[at];
     const renamed = [...parts.slice(0, at), value].join('\\');
     hdWinOneDriveFiles(oneDrive).forEach(item => {
-      const own = String(item.folder || '');
+      const own = tidy(item.folder);
       if (own === prefix || own.startsWith(`${prefix}\\`)) item.folder = renamed + own.slice(prefix.length);
     });
     hdMachineAction(computerName, 'onedrive-renamed', `renamed the folder ${from} to ${value} (OneDrive)`, { kind:'folder', from, to:value });
@@ -5304,7 +5309,8 @@ function hdWinOneDriveRename(computerName, index, target, newName) {
 function hdWinOneDriveDelete(computerName, index) {
   if (hdProveLocked()) return;
   const oneDrive = hdWinOneDrive(hdFeatureMachine(computerName)); const file = oneDrive && hdWinOneDriveFiles(oneDrive)[index]; if (!file) return;
-  if (typeof confirm === 'function' && !confirm(`Delete ${file.name}? It is deleted from this PC and from OneDrive.`)) return;
+  // A Prove It asks plainly; Practice says what deleting does.
+  if (typeof confirm === 'function' && !confirm(HD_PROVE ? `Delete ${file.name}?` : `Delete ${file.name}? It is deleted from this PC and from OneDrive.`)) return;
   hdMachineChange(computerName, machine => {
     const drive = hdWinOneDrive(machine);
     drive.files = drive.files.filter(item => item !== file);
@@ -5313,7 +5319,8 @@ function hdWinOneDriveDelete(computerName, index) {
 }
 function hdWinOneDriveControl(computerName, control) {
   if (!['unlink', 'reset'].includes(control) || hdProveLocked()) return;
-  const ask = control === 'unlink' ? 'Unlink this PC? Files stop syncing to this PC until you sign in again.' : 'Reset OneDrive? OneDrive disconnects every sync and syncs everything again.';
+  const ask = HD_PROVE ? (control === 'unlink' ? 'Unlink this PC?' : 'Reset OneDrive?')
+    : control === 'unlink' ? 'Unlink this PC? Files stop syncing to this PC until you sign in again.' : 'Reset OneDrive? OneDrive disconnects every sync and syncs everything again.';
   if (typeof confirm === 'function' && !confirm(ask)) return;
   hdMachineChange(computerName, machine => {
     const oneDrive = hdWinOneDrive(machine); if (!oneDrive) return false;
@@ -5338,7 +5345,7 @@ VIEWS['helpdesk/onedrive'] = () => {
   const error = hdMachineView().odError ? `<p class="muted" role="alert" data-hd-od-error>${hdEsc(hdMachineView().odError)}</p>` : '';
   let body;
   if (tab === 'status') {
-    body = `<p data-hd-onedrive-status="${status.id}"><span aria-hidden="true">${status.icon}</span> ${hdEsc(status.text)}</p><dl class="hd-dl"><dt>Storage used</dt><dd data-hd-onedrive-storage>${hdEsc(Number(oneDrive.storageUsed) || 0)}%</dd><dt>Folder</dt><dd><code>${hdEsc(oneDrive.root || '')}</code></dd></dl><p><strong>Settings › Account</strong></p><ul class="hd-list"><li><button type="button" class="btn btn-secondary btn-sm" ${locked} ${oneDrive.linked === false ? 'disabled' : ''} data-hd-onedrive-unlink onclick="hdWinOneDriveControl(${n},'unlink')">Unlink this PC</button></li><li><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-onedrive-reset onclick="hdWinOneDriveControl(${n},'reset')">Reset OneDrive</button></li></ul>`;
+    body = `<p data-hd-onedrive-status="${status.id}"><span aria-hidden="true">${status.icon}</span> ${hdEsc(status.text)}</p><dl class="hd-dl"><dt>Storage used</dt><dd data-hd-onedrive-storage>${hdEsc(Number(oneDrive.storageUsed) || 0)}%</dd><dt>Folder</dt><dd><code>${hdEsc(oneDrive.root || '')}</code></dd></dl><p><strong>Settings › Account</strong></p><ul class="hd-list"><li><button type="button" class="btn btn-secondary btn-sm" ${locked} ${oneDrive.linked === false ? 'disabled' : ''} data-hd-onedrive-unlink onclick="hdWinOneDriveControl(${n},'unlink')">Unlink this PC</button></li></ul><p><strong>Troubleshoot</strong></p><ul class="hd-list"><li><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-onedrive-reset onclick="hdWinOneDriveControl(${n},'reset')">Reset OneDrive</button> <span class="muted">Runs onedrive.exe /reset</span></li></ul>`;
   } else if (tab === 'sync-problems') {
     body = problems.length ? `<div class="hd-note-list" data-hd-sync-problems>${problems.map(({ file, index, causes }) => {
       const parts = String(file.folder || '').split('\\').filter(Boolean);

@@ -242,9 +242,14 @@ function testWindowsSecurity() {
   tab.run("hdWinThreatSet('TEST-WS-71','T-100','remove')");
   assert.deepEqual(tab.actions('HD-9701'), ['quick-scan'], 'Remove waits for Don\'t allow');
   tab.run("hdWinThreatSet('TEST-WS-71','T-100','unallow')");
-  assert.match(tab.view('helpdesk/windows-security'), /data-hd-threat-remove/);
+  // As on Windows: it leaves Allowed threats and shows under Current threats.
+  assert.match(tab.view('helpdesk/windows-security'), /data-hd-allowed-empty>There are no allowed threats\./);
+  html = tab.tab('TEST-WS-71', 'windows-security', 'virus-threat');
+  assert.match(html, /<p data-hd-current-threats>Threats found\.<\/p><ul class="hd-list"><li data-hd-current-threat="T-100">Test:Item\/Sample\.A <span class="muted">Low<\/span> <button[^>]*data-hd-threat-remove onclick="hdWinThreatSet\('TEST-WS-71','T-100','remove'\)">Remove<\/button>/);
+  assert.doesNotMatch(html, /on Allowed threats/, 'no pointer to the next step');
   assert.match(tab.tab('TEST-WS-71', 'windows-security', 'home'), /1 threat found/);
   tab.run("hdWinThreatSet('TEST-WS-71','T-100','remove')");
+  assert.match(tab.tab('TEST-WS-71', 'windows-security', 'virus-threat'), /<p data-hd-current-threats>No current threats\.<\/p>/);
   assert.match(tab.tab('TEST-WS-71', 'windows-security', 'allowed-threats'), /data-hd-allowed-empty>There are no allowed threats\./);
   assert.equal(tab.machine('TEST-WS-71').protection.history[0].status, 'Removed');
   // After the removal: quick-scan and quick-scan-after-removal; Start-MpScan the same.
@@ -495,7 +500,9 @@ function testProveShift() {
   prove.tab(name, 'onedrive', 'sync-problems'); prove.tab(name, 'onedrive', 'web');
   const opened = [...prove.run('hdState.prove.opened')].filter((s) => !s.startsWith('computer:') && !s.startsWith('screen:'));
   assert.deepEqual(opened, ['windows-security', 'windows-security:virus-threat', 'windows-security:protection-history', 'windows-security:allowed-threats', 'browser-extensions', 'onedrive', 'onedrive:sync-problems', 'onedrive:web'].map((s) => s.replace(/^([a-z-]+)/, `$1:${name}`)));
-  // Every pinned action, through the screens and the typed lines.
+  // Every pinned action, through the screens and the typed lines. A Prove It
+  // asks nothing before turning protection off, and asks plainly elsewhere.
+  prove.run('globalThis.asked = []; confirm = (text) => { asked.push(text); return true; }');
   prove.run(`hdWinRealtimeSet(${j(name)}, false)`);
   assert.equal(prove.machine(name).protection.realtime, false, 'a Prove It never undoes');
   prove.ps('Add-MpPreference -ExclusionPath C:\\Test');
@@ -506,6 +513,7 @@ function testProveShift() {
   const values = [...prove.run("hdState.prove.events.filter((e) => e.type === 'action_taken').map((e) => `${e.value}@${e.computer}`)")];
   assert.deepEqual(values, ['realtime-protection-off', 'exclusion-added', 'quick-scan', 'threat-unallowed', 'threat-removed', 'extension-removed', 'quick-scan', 'quick-scan-after-removal', 'onedrive-renamed', 'onedrive-file-deleted', 'onedrive-unlinked', 'onedrive-reset'].map((id) => `${id}@${name}`));
   for (const id of PINNED) assert.ok(values.includes(`${id}@${name}`), `pinned ${id}`);
+  assert.deepEqual([...prove.run('asked')], ['Remove "Sample Tab Extension"?', 'Delete Fine.docx?', 'Unlink this PC?', 'Reset OneDrive?']);
   assert.deepEqual(prove.machine(name).processes.map((p) => p.name), ['explorer']);
   const commands = [...prove.run("hdState.prove.events.filter((e) => e.type === 'command_run').map((e) => e.command)")];
   assert.deepEqual(commands, ['Add-MpPreference -ExclusionPath C:\\Test', 'Start-MpScan -ScanType QuickScan']);
