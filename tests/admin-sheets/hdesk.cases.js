@@ -155,9 +155,10 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
       assertContext(sheet, suggested, 'HD-2113');
     },
   },
-  // Module 6 (its-07): the coach walks HD-2119 only; the other four are the same outage.
+  // Module 6 (its-07) until 2026-11-24: the coach walked HD-2119 only; the
+  // other four are the same outage. An attempt saved then keeps this sheet.
   {
-    name: 'Module 6 (its-07) grades only HD-2119',
+    name: 'Module 6 (its-07) older attempt grades only HD-2119',
     row: coachRow('hdesk-m07-worked', 'lab-its-07-app-cert', [
       savedTicket('HD-2119', { worked: true, expectedStatus: 'Escalated' }),
       ...['HD-2120', 'HD-2121', 'HD-2122', 'HD-2123'].map((id) => savedTicket(id, { expectedStatus: 'Escalated' })),
@@ -286,6 +287,13 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
     name: 'Lab 5.1 new attempt grades HD-2180',
     row: coachRow('hdesk-m05-lab51', 'lab-its-03-blank-desktop', [savedTicket('HD-2180', { worked: true, priority: 'P4' })]),
     expect: { html: ['data-sheet-section="scenario-hd-2180"'], notHtml: ['data-sheet-section="scenario-hd-2109"'] },
+  },
+  // Module 6 from 2026-11-24: Lab 6.1 grades HD-2176; older attempts keep
+  // HD-2119 ('Module 6 (its-07) older attempt grades only HD-2119', above).
+  {
+    name: 'Lab 6.1 new attempt grades HD-2176',
+    row: coachRow('hdesk-m07-lab61', 'lab-its-07-app-cert', [savedTicket('HD-2176', { worked: true, priority: 'P4' })]),
+    expect: { html: ['data-sheet-section="scenario-hd-2176"', 'data-sheet-section="lab-work-hd-2176"'], notHtml: ['data-sheet-section="scenario-hd-2119"', 'data-sheet-section="troubleshooting-hd-2176"', 'data-sheet-section="customer-comment-hd-2176"'] },
   },
   {
     name: 'Lab 4.4 practice completion shows the four tickets, no walkthrough sections',

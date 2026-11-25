@@ -138,7 +138,10 @@ function testOldTicketsTurnNothingOn() {
   for (const route of NEW_SCREENS) assert.match(tab.view(`helpdesk/${route}`), /Not available on this computer/, route);
   // Every older practice and coached set, Module 5's included: no new control
   // on any of its computers, and winget is outside the shell everywhere.
-  for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter((k) => !k.startsWith('test-'))) {
+  // Module 6's own sets (its-07, its-07-guided) turn them on by design
+  // (tests/hdesk-m06-guided-lab.test.js, tests/hdesk-m06-practice-tickets.test.js).
+  const module6 = (k) => /^its-07(-|$)/.test(k);
+  for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter((k) => !k.startsWith('test-') && !module6(k))) {
     const set = sim({ url: `https://academy.test/sim/?practice=${key}&student=stu-1#/helpdesk/tickets` });
     for (const id of set.run('hdState.tickets.map((t) => t.id)')) assert.doesNotMatch(set.open(id), NEW_MARKERS, `${key} ${id}`);
     for (const name of set.run('Object.keys(hdState.machines)')) {
@@ -147,7 +150,7 @@ function testOldTicketsTurnNothingOn() {
       assert.match(set.out('winget upgrade'), OUTSIDE, `${key} ${name}`);
     }
   }
-  for (const key of Object.keys(tab.run('HD_COACHED_SETS'))) {
+  for (const key of Object.keys(tab.run('HD_COACHED_SETS')).filter((k) => !module6(k))) {
     const set = sim(); assert.equal(set.run(`hdUseTicketSet(${JSON.stringify(key)})`), true);
     for (const name of set.run('Object.keys(hdState.machines || {})')) {
       set.select(name);

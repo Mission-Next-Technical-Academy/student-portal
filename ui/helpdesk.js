@@ -617,7 +617,13 @@ function hdDropStaleTicketSet() {
 function hdComputers() { return HD_PROVE ? [...HD_COMPUTERS, ...(HD_PROVE.shift.computers || [])] : HD_COMPUTERS; }
 // An article marked practiceOnly (KB-0059, Lab 1.2's printer steps) never
 // shows in a Prove It: it would hand over the Prove It's fix.
-function hdKbArticles() { return HD_PROVE ? [...HD_KB_ARTICLES.filter(article => !article.practiceOnly), ...(HD_PROVE.shift.kbArticles || [])] : HD_KB_ARTICLES; }
+// A practice or coached set may add its own articles (kbArticles, Module 6):
+// they show only in that set, never in the shared shift or a Prove It.
+function hdKbArticles() {
+  if (HD_PROVE) return [...HD_KB_ARTICLES.filter(article => !article.practiceOnly), ...(HD_PROVE.shift.kbArticles || [])];
+  const set = typeof hdActiveSet === 'function' ? hdActiveSet() : null;
+  return set && Array.isArray(set.kbArticles) && set.kbArticles.length ? [...HD_KB_ARTICLES, ...set.kbArticles] : HD_KB_ARTICLES;
+}
 function hdServers() {
   const overrides = HD_PROVE ? HD_PROVE.shift.serverOverrides || {} : {};
   return HD_SERVERS.map(server => ({ ...server, ...(overrides[server.name] || {}) }));
@@ -1043,6 +1049,9 @@ function hdM01InvestigationCard(scenario) {
  *   undoUnsafe: true | '<line>'    (Module 6) turning off real-time
  *                                  protection or adding an exclusion is
  *                                  undone at once, with that line
+ *   undoOneDrive: true | '<line>'  (Module 6) deleting a OneDrive file or
+ *                                  unlinking OneDrive is undone at once,
+ *                                  with that line (still a critical error)
  *   choice: { prompt, heading?, after?, options:[{ id, text, right?,
  *              critical?, feedback, action?:{ id, label } }] }
  *                                  (Module 6) a choice a user's request asks
@@ -1649,7 +1658,8 @@ function hdConsoleRule(ticket, rule) {
   if (rule.typed) {
     // Only a command the console ran: a refused one (wrong options, a path
     // not found, a misspelling) records that as its result (hdWinTypedCommand).
-    const refused = /^(dism|sfc|chkdsk): (wrong options|volume in use)$|^path not found$|^no folder$|^no log named$|^misspelled/i;
+    // A winget line that found nothing or was mistyped is refused too (Module 6).
+    const refused = /^(dism|sfc|chkdsk): (wrong options|volume in use)$|^path not found$|^no folder$|^no log named$|^misspelled|^winget[^:]*: (no |not |more than one|unrecognized|missing value|nothing to)/i;
     return (Array.isArray(hdState.practiceLog) ? hdState.practiceLog : []).some(entry => entry && entry.type === 'command_run' && entry.computer === rule.computer
       && test(rule.typed, String(entry.command || '').trim()) && !refused.test(String(entry.result || '')));
   }
@@ -1658,6 +1668,25 @@ function hdConsoleRule(ticket, rule) {
     const at = ids.lastIndexOf(spec.after); if (at < 0) return false;
     const later = ids.slice(at + 1);
     return later.filter(id => id === spec.action).length >= Number(spec.min || 1) && !(spec.without && later.includes(spec.without));
+  }
+  // Module 6 work (each off unless a ticket uses it):
+  //   any: [rule]   one of the rules holds (a screen or a typed line)
+  //   attached: '<KB id>'   the article was attached to the ticket
+  //   requestItem: '<catalog item>'   the request was made with that item
+  //   machine: { computer, path, value | values }   a machine value (hdMachineValueIs)
+  //   appInstalled: { computer, app }   the app is in that computer's Installed apps
+  //   synced: '<computer>'   OneDrive is signed in, nothing fails to sync, and
+  //     no file was deleted to clear the error (on an undoOneDrive ticket the
+  //     file was put back, so the delete doesn't count here; it stays critical)
+  if (rule.any) return Array.isArray(rule.any) && rule.any.some(item => item && hdConsoleRule(ticket, item));
+  if (rule.attached) return (state.kbAttached || []).includes(rule.attached);
+  if (rule.requestItem) return !!(ticket.request && ticket.request.item === rule.requestItem);
+  if (rule.machine) return hdMachineValueIs(rule.machine);
+  if (rule.appInstalled) return hdWinIsInstalled(hdMachine(rule.appInstalled.computer), rule.appInstalled.app);
+  if (rule.synced) {
+    const oneDrive = hdWinOneDrive(hdMachine(rule.synced));
+    return !!oneDrive && oneDrive.linked !== false && !hdWinOneDriveProblems(oneDrive).length
+      && (!!config.undoOneDrive || !state.actions.some(entry => entry.id === 'onedrive-file-deleted' && entry.computer === rule.synced));
   }
   // Module 3 work: the call, hold, handoff, follow-up and team messages.
   const comms = hdCommsRule(ticket, rule);
@@ -4336,6 +4365,7 @@ function hdMachineValueIs(rule) {
  *       advanced: Advanced options › Repair; modify: Modify › Repair or
  *       Online repair; fixedText: the line shown once it is repaired
  *     reset?:{ available? }   Advanced options › Reset
+ *     managed?: true   kept by the organization: no Uninstall (screen or winget)
  *   catalog[]: + wingetId?, version?   winget finds only entries with an Id
  *   defaultApps: { '.pdf':'<app name>', ... }   Settings › Apps › Default apps
  *   companyPortal: true   Company Portal (installs from the Software Catalog)
@@ -4640,6 +4670,10 @@ VIEWS['helpdesk/settings-update'] = () => {
 // Settings › Apps › Installed apps, with Uninstall.
 function hdWinUninstall(computerName, appName) {
   if (hdProveLocked()) return;
+  // Module 6: an app marked managed (installedApps[].managed) is kept by the
+  // organization; Uninstall is off for it, here and in winget.
+  const kept = hdWinAppByName(hdFeatureMachine(computerName), appName);
+  if (kept && kept.managed === true) return;
   if (typeof confirm === 'function' && !confirm(`Uninstall ${appName}? This app and its related info will be uninstalled.`)) return;
   hdMachineChange(computerName, machine => {
     const app = hdWinList(machine, 'installedApps').find(item => item.name === appName); if (!app) return false;
@@ -4722,7 +4756,7 @@ VIEWS['helpdesk/settings-apps'] = () => {
   // An app with repair or reset gets an Advanced options (or Modify) button
   // before Uninstall; every other row is exactly Module 5's.
   const options = (app) => hdWinAppHasOptions(app) ? `<button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-app-options="${hdEsc(app.name)}" aria-label="${hdWinAppRepair(app) && hdWinAppRepair(app).via === 'modify' ? 'Modify' : 'Advanced options'}: ${hdEsc(app.name)}" onclick="hdWinAppOptions(${name},'${hdJsArg(app.name)}')">${hdWinAppRepair(app) && hdWinAppRepair(app).via === 'modify' ? 'Modify' : 'Advanced options'}</button> ` : '';
-  return `${hdPageHeader('Installed apps', `Settings › Apps › Installed apps · ${computer.name}`, hdMachineBack(computer))}${hdWinAppPanel(computer, machine, locked)}<div class="card" data-hd-installed-apps><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${apps.length} app${apps.length === 1 ? '' : 's'} found</strong></div><div class="table-wrap"><table><thead><tr><th>App</th><th>Publisher</th><th>Version</th><th>Installed</th><th></th></tr></thead><tbody>${apps.map(app => `<tr data-hd-app="${hdEsc(app.name)}"><td>${hdEsc(app.name)}${app.sizeMb ? ` <span class="muted">${hdEsc(app.sizeMb)} MB</span>` : ''}</td><td>${hdEsc(app.publisher || '')}</td><td>${hdEsc(app.version || '')}</td><td>${hdEsc(app.installed || '')}</td><td>${options(app)}<button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdWinUninstall(${name},'${hdJsArg(app.name)}')">Uninstall</button></td></tr>`).join('') || '<tr><td colspan="5" class="muted">No apps listed.</td></tr>'}</tbody></table></div></div>`;
+  return `${hdPageHeader('Installed apps', `Settings › Apps › Installed apps · ${computer.name}`, hdMachineBack(computer))}${hdWinAppPanel(computer, machine, locked)}<div class="card" data-hd-installed-apps><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${apps.length} app${apps.length === 1 ? '' : 's'} found</strong></div><div class="table-wrap"><table><thead><tr><th>App</th><th>Publisher</th><th>Version</th><th>Installed</th><th></th></tr></thead><tbody>${apps.map(app => `<tr data-hd-app="${hdEsc(app.name)}"><td>${hdEsc(app.name)}${app.sizeMb ? ` <span class="muted">${hdEsc(app.sizeMb)} MB</span>` : ''}</td><td>${hdEsc(app.publisher || '')}</td><td>${hdEsc(app.version || '')}</td><td>${hdEsc(app.installed || '')}</td><td>${options(app)}${app.managed === true ? '<span class="muted" data-hd-app-managed>Managed by your organization</span>' : `<button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdWinUninstall(${name},'${hdJsArg(app.name)}')">Uninstall</button>`}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">No apps listed.</td></tr>'}</tbody></table></div></div>`;
 };
 
 // Settings › Apps › Default apps: each file type and the app that opens it.
@@ -4982,6 +5016,7 @@ function hdWinWinget(command, machine, computerName) {
   const found = hdWingetPick(installed, target, exact);
   if (!found.length) { hdLastCommandResult = `winget uninstall ${target.value}: not installed`; return HD_WINGET_NOT_INSTALLED; }
   if (found.length > 1) return multiple(found);
+  if (found[0].app.managed === true) { hdLastCommandResult = `winget uninstall ${found[0].id || found[0].name}: not allowed (managed)`; return `${found[0].name} is managed by your organization and can't be uninstalled here.`; }
   hdWinRemoveApp(machine, computerName, found[0].app, `uninstalled ${found[0].name} with winget`);
   changed();
   hdLastCommandResult = `winget uninstall ${found[0].id || found[0].name}: uninstalled`;
@@ -5313,9 +5348,23 @@ function hdWinOneDriveDelete(computerName, index) {
   if (typeof confirm === 'function' && !confirm(HD_PROVE ? `Delete ${file.name}?` : `Delete ${file.name}? It is deleted from this PC and from OneDrive.`)) return;
   hdMachineChange(computerName, machine => {
     const drive = hdWinOneDrive(machine);
+    const before = drive.files;
     drive.files = drive.files.filter(item => item !== file);
     hdMachineAction(computerName, 'onedrive-file-deleted', `deleted ${file.name} (OneDrive)`, { file:String(file.name) });
+    if (hdWinUndoOneDrive(computerName, `On ${computerName}: ${file.name} put back (Practice).`)) drive.files = before;
   });
+}
+// Module 6: a Practice ticket's undoOneDrive puts a deleted file or an
+// unlinked OneDrive back at once, with a line, so a lab can still finish.
+// The critical error stays recorded. A Prove It never undoes.
+const HD_ONEDRIVE_UNDO_LINE = 'Deleting the file or unlinking OneDrive never fixes a sync problem. It has been put back. Fix the cause View sync problems names. In a graded ticket this is a critical error.';
+function hdWinUndoOneDrive(computerName, history) {
+  const ticket = !HD_PROVE && hdMachineTicket(computerName);
+  const undo = ticket && hdConsole(ticket).undoOneDrive;
+  if (!undo) return false;
+  hdHistory(ticket, history);
+  if (typeof toast === 'function') toast(typeof undo === 'string' && undo.trim() ? undo.trim() : HD_ONEDRIVE_UNDO_LINE);
+  return true;
 }
 function hdWinOneDriveControl(computerName, control) {
   if (!['unlink', 'reset'].includes(control) || hdProveLocked()) return;
@@ -5328,6 +5377,7 @@ function hdWinOneDriveControl(computerName, control) {
       if (oneDrive.linked === false) return false;
       oneDrive.linked = false;
       hdMachineAction(computerName, 'onedrive-unlinked', 'unlinked OneDrive from this PC', {});
+      if (hdWinUndoOneDrive(computerName, `On ${computerName}: OneDrive signed in again (Practice).`)) oneDrive.linked = true;
       return true;
     }
     hdMachineAction(computerName, 'onedrive-reset', 'reset OneDrive', {});

@@ -118,7 +118,10 @@ function testExistingTicketsTurnNothingOn() {
   // shift then (ownSet); its template still has no console settings.
   const MODULE_5 = ['HD-2180', 'HD-2181', 'HD-2182', 'HD-2183', 'HD-2186', 'HD-2187', 'HD-2188', 'HD-2109'];
   assert.equal(tab.run("HD_TICKET_TEMPLATES.find((t) => t.id === 'HD-2109').console"), undefined, 'HD-2109 has no console settings');
-  for (const id of ids.filter((item) => !MODULE_1.includes(item) && !MODULE_2.includes(item) && !MODULE_3.includes(item) && !MODULE_4.includes(item) && !MODULE_5.includes(item))) {
+  // Module 6's (key its-07) tickets, the same way (tests/hdesk-m06-guided-lab.test.js
+  // and tests/hdesk-m06-practice-tickets.test.js).
+  const MODULE_6 = ['HD-2176', 'HD-2177', 'HD-2178', 'HD-2179'];
+  for (const id of ids.filter((item) => !MODULE_1.includes(item) && !MODULE_2.includes(item) && !MODULE_3.includes(item) && !MODULE_4.includes(item) && !MODULE_5.includes(item) && !MODULE_6.includes(item))) {
     assert.equal(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === ${JSON.stringify(id)}).console`), undefined, `${id} has no console settings`);
     const html = tab.open(id);
     assert.doesNotMatch(html, NEW_MARKERS, `${id} shows no new feature`);

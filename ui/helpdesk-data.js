@@ -61,6 +61,10 @@ const HD_USERS = [
   { id:'u-1029', employeeId:'E-58735', phone:'ext. 4233', name:'Theo Grant', username:'tgrant', email:'theo.grant@northstar.example', department:'Logistics', title:'Logistics Coordinator', ou:'OU=Logistics,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:5, groups:['GG-Logistics-Users'], manager:'Monica Hall', mfa:'Registered' },
   // Module 5 (key its-03): Lisa Park (ticket 5-B), a user only.
   { id:'u-1030', employeeId:'E-59846', phone:'ext. 4183', name:'Lisa Park', username:'lpark', email:'lisa.park@northstar.example', department:'Finance', title:'Financial Analyst', ou:'OU=Finance,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:11, groups:['GG-Finance-Users'], manager:'Ava Robinson', mfa:'Registered' },
+  // Module 6 (key its-07): Leo Brandt (ticket 6-A), Tom Becker (6-B) and Hannah Cole (6-C), users only.
+  { id:'u-1031', employeeId:'E-60957', phone:'ext. 4192', name:'Leo Brandt', username:'lbrandt', email:'lbrandt@northstar.example', department:'Finance', title:'Budget Analyst', ou:'OU=Finance,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:23, groups:['GG-Finance-Users'], manager:'Ava Robinson', mfa:'Registered' },
+  { id:'u-1032', employeeId:'E-62068', phone:'ext. 4247', name:'Tom Becker', username:'tbecker', email:'tbecker@northstar.example', department:'Sales', title:'Account Executive', ou:'OU=Sales,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:31, groups:['GG-Sales-Users'], manager:'Tara Singh', mfa:'Registered' },
+  { id:'u-1033', employeeId:'E-63179', phone:'ext. 4358', name:'Hannah Cole', username:'hcole', email:'hcole@northstar.example', department:'Operations', title:'Purchasing Coordinator', ou:'OU=Operations,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:14, groups:['GG-Operations-Users'], manager:'Caleb Wright', mfa:'Registered' },
 ];
 
 const HD_GROUPS = [
@@ -99,6 +103,11 @@ const HD_COMPUTERS = [
   { name:'NS-LT-0099', user:'Dina Foster', os:'Windows 11 Enterprise 24H2', ip:'10.20.50.99', ou:'OU=Executive Office,OU=Workstations', trust:'Healthy', bitlocker:'Recovery', lastSeen:'9 minutes ago', health:'BitLocker recovery' },
   { name:'NS-LT-0150', user:'Lisa Park', os:'Windows 11 Enterprise 24H2', ip:'10.20.20.150', ou:'OU=Finance,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'2 minutes ago', health:'Healthy' },
   { name:'NS-LT-0118', user:'Evan Parker', os:'Windows 11 Enterprise 24H2', ip:'10.20.20.118', ou:'OU=Finance,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'3 minutes ago', health:'Healthy' },
+  // Module 6 (key its-07) computers
+  { name:'NS-WS-0233', user:'Leah Brooks', os:'Windows 11 Enterprise 24H2', ip:'10.20.70.233', ou:'OU=Marketing,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'2 minutes ago', health:'Healthy' },
+  { name:'NS-LT-0252', user:'Leo Brandt', os:'Windows 11 Enterprise 24H2', ip:'10.20.20.252', ou:'OU=Finance,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'3 minutes ago', health:'Healthy' },
+  { name:'NS-LT-0241', user:'Tom Becker', os:'Windows 11 Enterprise 24H2', ip:'10.20.40.241', ou:'OU=Sales,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy' },
+  { name:'NS-WS-0318', user:'Hannah Cole', os:'Windows 11 Enterprise 24H2', ip:'10.20.10.218', ou:'OU=Operations,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'4 minutes ago', health:'Healthy' },
 ];
 
 const HD_SERVERS = [
@@ -172,6 +181,16 @@ const HD_KB_ARTICLES = [
   { id:'KB-0084', title:'Slow start-up: what to check and what Tier 1 may change', category:'Windows', updated:'2026-11-24', audience:'Service Desk', practiceOnly:true, keywords:'slow · startup · slow start · slow computer · slow pc · slow to start · slow to open · takes forever · freezing · Event ID 100 · boot time · Task Manager · startup apps · Software Catalog', summary:'1. Ask when it started and whether it is one device. 2. Measure it: Event Viewer › Applications and Services Logs › Microsoft › Windows › Diagnostics-Performance › Operational, Event ID 100, gives the last boot time. 3. Open Task Manager › Startup apps and read each app\'s publisher and startup impact. Tier 1 may disable a startup app the user doesn\'t need at sign-in; disabling doesn\'t uninstall it. 4. Check that each app is approved: the Software Catalog lists every approved app. An app that isn\'t in the catalog isn\'t approved. Disable its startup entry, uninstall it from Settings › Apps › Installed apps (never by deleting its files), and offer the user the approved alternative from the catalog. 5. Restart and read Event ID 100 again. 6. Resetting or reinstalling Windows is never a first step for a slow start. It is a Tier 2 decision after the lighter steps fail.' },
   { id:'KB-0090', title:'"You\'ve been signed in with a temporary profile"', category:'Windows', updated:'2026-11-24', audience:'Service Desk', practiceOnly:true, keywords:'temporary profile · blank desktop · signed in with a temporary profile · desktop is empty · shortcuts missing · default background · Outlook asking to set up · User Profile Service · 1511 · 1515', summary:'1. Tell the user their files are very likely still there, and ask them not to save new files or set up Outlook: anything saved in a temporary profile is lost at sign-out. 2. Confirm it: the notification, and Event Viewer › Windows Logs › Application, User Profile Service Event ID 1511 (often with 1515). 3. Tier 1 step: sign out and restart once. Sometimes the profile loads normally. 4. Confirm the data is safe: the user\'s folder under C:\\Users still holds their Desktop and Documents. 5. Still on a temporary profile: escalate to Desktop Support with the event IDs and the fact that the files are present. Profile registry repairs are Tier 2. Never delete the profile folder, and never reset the password: this is a profile problem, not an account problem.' },
   { id:'KB-0072', title:'Virtual desktop stuck on a black screen or spinner', category:'Virtual desktops', updated:'2026-11-23', audience:'Service Desk', practiceOnly:true, keywords:'virtual desktop · VDI · black screen · spinner · spinning circle · stuck · frozen · hung session · Disconnected · Log off session · pool · work desktop', summary:'1. A virtual desktop runs on a server. Restarting the user\'s laptop, or closing and reopening the window, doesn\'t restart it. 2. Check the pool first. If other sessions in the same pool are Active, it isn\'t a pool outage. If several users in one pool are stuck, stop: set Impact 2, link the tickets and escalate to Server & Identity. 3. One user, with a session shown as Disconnected or hung: tell them that unsaved work in that session may be lost, and get their OK. 4. Click Log off session on that user\'s session only. Never restart the pool or the host: that is a Tier 2 action that drops everyone. 5. Ask the user to reconnect, and confirm the desktop loads. 6. Record the consent and its time in the work note.' },
+  { id:'KB-0079', title:'OneDrive shows a red X: files that won\'t sync', category:'Cloud storage', updated:'2026-11-24', audience:'Service Desk', practiceOnly:true, keywords:'onedrive red x · red x · sync · sync problems · onedrive · files not backing up · path too long · invalid characters · View sync problems · green tick', summary:'1. The user\'s files are still on their computer. Say so first. 2. Click the OneDrive icon › View sync problems and read the cause it names. 3. An invalid character in the name (" * : < > ? / \\ |): rename the file. 4. A full path longer than 400 characters: shorten a folder name or move the file up. 5. Storage full: free space or request more. 6. Signed out: sign in again. 7. Confirm the file shows a green tick and appears on OneDrive on the web. 8. Don\'t unlink or reset OneDrive first, and never delete the file to clear the error: unlinking can create duplicates, and deleting loses the user\'s work.' },
+  { id:'KB-0080', title:'Unwanted browser extensions and apps (PUA)', category:'Endpoint security', updated:'2026-11-24', audience:'Service Desk', practiceOnly:true, keywords:'extension · extensions · toolbar · pua · browser slow · unwanted app · potentially unwanted · Extensions page · Protection history · Allowed threats · quick scan', summary:'Approved Chrome extensions at Northstar: Microsoft Single Sign On, Northstar Password Manager, Adobe Acrobat, Microsoft Editor. Anything else is removed, and the user can ask for it with a software request. 1. Open the browser\'s Extensions page and compare it with the list above. 2. Remove any extension that isn\'t on it. 3. Open Windows Security › Protection history. If an item says "Allowed", open Allowed threats, choose Don\'t allow, then Remove. 4. Run a quick scan and confirm real-time protection is on. 5. Tell the user how it got there and how to avoid it. 6. Stop and escalate to Security Operations if Defender names malware instead of a PUA (a trojan, ransomware, a script that ran), or if security tools were switched off. 7. Never turn off real-time protection or add an exclusion.' },
+];
+// Module 6 (key its-07): KB-0058 with the software sentence in place of the
+// printer one. Module 1's Prove shift has its own KB-0058, so this copy is
+// never in HD_KB_ARTICLES (bin/its-curriculum-check.js keeps Prove articles out
+// of the shared Practice list): only Module 6's two sets carry it (kbArticles,
+// ui/helpdesk.js hdKbArticles).
+const HD_ITS07_KB_ARTICLES = [
+  { id:'KB-0058', title:'Local administrator rights on managed devices', category:'Endpoint policy', updated:'2026-11-24', audience:'All Support', practiceOnly:true, keywords:'admin · admin password · administrator · local admin · uac · install · software · Company Portal · software request · Software Catalog', summary:'Local admin rights are never granted to standard users. Exceptions need a Cybersecurity exception request, and a manager can\'t approve one. Software in the Software Catalog installs from Company Portal with no admin rights. Software that isn\'t in the catalog needs a software request. Never type an admin password into a user\'s installer.' },
 ];
 
 /* Practice scenario for HD-2101 (Module 1 Practice It). The evidence lives on
@@ -242,6 +261,12 @@ const HD_PRACTICE_SETS = {
   // the related records 5-B links; they are not worked.
   'its-03': { title:'Module 5 practice tickets', tickets:['HD-2181', 'HD-2182', 'HD-2187', 'HD-2188', 'HD-2183', 'HD-2186'], complete:['HD-2181', 'HD-2182', 'HD-2183', 'HD-2186'], queue:true, queueList:'all', hideEventsFrom:['NS-LT-0081'],
     done:{ 'HD-2181':[{ group:'Desktop Support (Tier 2)' }, { note:true }] } },
+  // Module 6 Lab 6.2: each ticket runs on its own clock (console.now). 6-B
+  // (HD-2178) is closed once it is converted to its request.
+  // 6-B is converted to a request, which closes the incident at once; it
+  // counts as done only once Zoom is installed and the note is written.
+  'its-07': { title:'Module 6 practice tickets', tickets:['HD-2177', 'HD-2178', 'HD-2179'], complete:['HD-2177', 'HD-2178', 'HD-2179'], queue:true, queueList:'all', kbArticles:HD_ITS07_KB_ARTICLES,
+    done:{ 'HD-2178':[{ converted:true }, { appInstalled:{ computer:'NS-LT-0241', app:'Zoom' } }, { note:true }] } },
 };
 
 // Coached ticket sets: Practice It content for a coach's guided lab, opened by
@@ -258,6 +283,8 @@ const HD_COACHED_SETS = {
   'its-02-server': { title:'Lab 4.2 · Guided Lab: snapshot, server and a virtual desktop', tickets:['HD-2173'], now:'2026-08-20T10:30:00Z' },
   // Module 5: Lab 5.1 (coach hd-m03) on Wednesday 10:30.
   'its-03-guided': { title:'Lab 5.1 · Guided Lab: the slow-computer sequence and system repair', tickets:['HD-2180'], now:'2026-08-19T10:30:00Z', hideEventsFrom:['NS-LT-0081'] },
+  // Module 6: Lab 6.1 (coach hd-m07) on Wednesday 10:30.
+  'its-07-guided': { title:'Lab 6.1 · Guided Lab: endpoint check', tickets:['HD-2176'], now:'2026-08-19T10:30:00Z', kbArticles:HD_ITS07_KB_ARTICLES },
 };
 
 // VM labs (ui/helpdesk.js "VM screen"): the simulated host, its install
@@ -342,6 +369,30 @@ const HD_ITS03_CATALOG = [
   { name:'Microsoft Excel', publisher:'Microsoft Corporation' },
   { name:'Google Chrome', publisher:'Google LLC' },
   { name:'7-Zip', publisher:'7-Zip project' },
+  { name:'Northstar VPN Client', publisher:'Northstar IT' },
+  { name:'Northstar CRM', publisher:'Northstar IT' },
+];
+// Categories for the Module 6 (key its-07) tickets; each ticket adds its own CI list.
+const HD_ITS07_CATEGORIES = {
+  Software:['Endpoint check', 'Cloud storage (OneDrive)', 'Install request', 'Desktop application', 'Windows performance', 'Email (Outlook)', 'Browser'],
+  Hardware:['Laptop', 'Docking station', 'Monitor', 'Printer'],
+  Network:['Wi-Fi', 'Wired port'],
+  Request:['Hardware', 'Software', 'Access'],
+  Access:['Password reset', 'Account unlock'],
+};
+// The Software Catalog on a Module 6 computer. winget finds only the entries
+// that have an Id. FreeVideoConverter is not in it.
+const HD_ITS07_CATALOG = [
+  { name:'Notepad++', publisher:'Notepad++ Team', wingetId:'Notepad++.Notepad++', version:'8.7.1' },
+  { name:'7-Zip', publisher:'7-Zip project', wingetId:'7zip.7zip', version:'24.08' },
+  { name:'Microsoft Teams', publisher:'Microsoft Corporation', wingetId:'Microsoft.Teams' },
+  { name:'Zoom', publisher:'Zoom Video Communications', wingetId:'Zoom.Zoom', version:'6.2.5' },
+  { name:'Adobe Acrobat', publisher:'Adobe Inc.', wingetId:'Adobe.Acrobat.Reader.64-bit', version:'25.001.20531' },
+  { name:'Google Chrome', publisher:'Google LLC', wingetId:'Google.Chrome' },
+  { name:'Microsoft 365 Apps', publisher:'Microsoft Corporation' },
+  { name:'Microsoft Edge', publisher:'Microsoft Corporation', wingetId:'Microsoft.Edge' },
+  { name:'Microsoft OneDrive', publisher:'Microsoft Corporation' },
+  { name:'Windows Security', publisher:'Microsoft Corporation' },
   { name:'Northstar VPN Client', publisher:'Northstar IT' },
   { name:'Northstar CRM', publisher:'Northstar IT' },
 ];
@@ -1528,6 +1579,252 @@ const HD_TICKET_TEMPLATES = [
           { seen:'event-log:system', computer:'NS-LT-0118', after:'retry', missing:'After the second export, open the System log again and check there is no new Event ID 41.' },
         ], good:'You cooled it, moved it to a hard surface, tested under the same load and checked there was no new Event ID 41.', fix:'Have Evan shut down and cool the laptop, move it to a hard surface and clear the vents, then run the export again. Confirm with him, and check the System log for a new Event ID 41. Never ask him to open the case.' },
         { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note with a Next action.' }, { comment:true, missing:'Write a comment for Evan in plain words, with no internal terms.' }, { commentPattern:'call|again|happens', missing:'Tell Evan what to do if it shuts off again on a hard surface.' }, { status:'Resolved', missing:'Resolve the ticket once Evan confirms the export finished.' }], good:'A complete note, a plain-words comment that says what to do if it returns, and the ticket resolved.', fix:'Write a Reported / Tried / Result note and a plain-words comment, for example: "Hi Evan, your laptop was shutting itself off to protect itself from heat. Sitting on the folders blocked the air vents underneath. On the bare desk it stayed cool and your export finished. Keep it on a hard, flat surface, and if it ever shuts off like that again, call us and our desktop team will check the fan. – Riley"' },
+      ],
+    } }),
+  // Module 6 (key its-07) Practice It. Lab 6.1 (coach hd-m07, HD_COACHED_SETS
+  // 'its-07-guided') is HD-2176; Lab 6.2 (HD_PRACTICE_SETS 'its-07') is tickets
+  // 6-A to 6-C (HD-2177, HD-2178, HD-2179). Each ticket's computer is in
+  // console.machines (ui/helpdesk.js "Software install tools" and "Security,
+  // browser and OneDrive tools"). expectedResolution holds the model work
+  // note. Practice feedback only, never points: critical errors are feedback
+  // here, never a score.
+  // Lab 6.1: a routine endpoint check (install, update and remove an app,
+  // repair Teams, protection, one extension, an admin-password request and a
+  // OneDrive file name).
+  hdTicket({ id:'HD-2176', ownSet:true, number:'INC0010486', requester:'Leah Brooks', department:'Marketing', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T10:12:00Z', shortDescription:'Notepad++, Teams freezing, OneDrive red X',
+    description:'Hi! A few things on my PC, sorry for the list. 1) I need Notepad++ today to edit a web page. 2) Teams keeps freezing. 3) One of my OneDrive files has a red X. Thanks, Leah',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: needs Notepad++ today; Teams keeps freezing; one OneDrive file has a red X. Tried: installed Notepad++ with winget and removed it when she had finished; updated 7-Zip; repaired Teams; real-time protection on and definitions current; quick scan found nothing and the protection history is empty; removed the Weather Now Tab extension, which isn\'t on the approved list (KB-0080); declined an admin password for FreeVideoConverter.exe per KB-0058 and opened a software request; renamed "Budget: Q4?.xlsx" to "Budget - Q4.xlsx". Result: Teams opens; OneDrive shows a green tick and the file is on OneDrive on the web; Leah confirmed.',
+    console: {
+      matrix:{}, classify:{ categories:HD_ITS07_CATEGORIES, cis:['NS-WS-0233', 'OneDrive – lbrooks', 'Microsoft Teams'], preset:{ contactType:'Self-service' } },
+      priorityCoach:{ impact:'3', urgency:'2', line:'One person is affected (Impact 3). She needs Notepad++ today (Urgency 2): P4.' },
+      kb:true, undoUnsafe:true, undoOneDrive:true,
+      caller:{ name:'Leah Brooks', style:'chat', questions:[
+        { id:'teams', text:'Please open Teams. Does it still freeze?', afterAction:'app-repaired', replyBefore:'It froze again just now.', reply:'No, it opens straight away now. Thanks!' },
+      ] },
+      machines:{
+        'NS-WS-0233':{
+          computer:{ ip:'10.20.70.233', health:'Healthy' },
+          installedApps:[
+            // managed: kept by the organization, so the lab can't lose the
+            // repair or the upgrade to an uninstall.
+            { name:'Microsoft Teams', publisher:'Microsoft Corporation', version:'24295.605', installed:'3/4/2025', managed:true, repair:{ via:'advanced', broken:'freezes', fixedText:'Teams opens.' } },
+            { name:'7-Zip', publisher:'7-Zip project', version:'23.01', installed:'3/4/2025', managed:true, wingetId:'7zip.7zip', upgrade:{ version:'24.08' } },
+            { name:'Google Chrome', publisher:'Google LLC', version:'139.0.7258.67', installed:'3/4/2025' },
+            { name:'Microsoft 365 Apps', publisher:'Microsoft Corporation', version:'16.0.18025', installed:'3/4/2025' },
+            { name:'Adobe Acrobat', publisher:'Adobe Inc.', version:'25.001.20531', installed:'3/4/2025' },
+            { name:'Microsoft OneDrive', publisher:'Microsoft Corporation', version:'25.150.0', installed:'3/4/2025' },
+            { name:'Windows Security', publisher:'Microsoft Corporation', version:'1.0', installed:'3/4/2025' },
+          ],
+          catalog:HD_ITS07_CATALOG,
+          winget:true,
+          protection:{ realtime:true, definitions:'Today 07:42', lastScan:'9 days ago', history:[], allowed:[], exclusions:[] },
+          extensions:[
+            { name:'Microsoft Single Sign On', publisher:'Microsoft Corporation', added:'3/4/2025' },
+            { name:'Northstar Password Manager', publisher:'Northstar IT', added:'3/4/2025' },
+            { name:'Weather Now Tab', publisher:'Weather Now Apps', added:'6 days ago' },
+          ],
+          browser:{ name:'Google Chrome' },
+          oneDrive:{ root:'C:\\Users\\lbrooks\\OneDrive - Northstar', storageUsed:37, files:[
+            { name:'Budget: Q4?.xlsx', folder:'Marketing\\Campaigns' },
+            { name:'Campaign calendar.xlsx', folder:'Marketing\\Campaigns' },
+            { name:'Brand guidelines.pdf', folder:'Marketing' },
+            { name:'Meeting notes.docx' },
+          ] },
+        },
+      },
+      criticalActions:[
+        { action:'onedrive-unlinked', text:'Critical error. Unlinking OneDrive can create duplicate files. Fix the cause the sync problem names (KB-0079).' },
+        { action:'onedrive-reset', text:'Critical error. Resetting OneDrive can create duplicate files. Fix the cause the sync problem names (KB-0079).' },
+        { action:'onedrive-file-deleted', text:'Critical error. Deleting a file to clear the error loses the user\'s work. Fix the cause the sync problem names (KB-0079).' },
+      ],
+      choice:{ heading:'Choose your response', after:'app-repaired',
+        prompt:'Leah asks in the chat: "While you\'re in there, can you type the admin password for FreeVideoConverter.exe? I downloaded it for a campaign video."',
+        options:[
+          { id:'type-password', text:'Type the admin password into the installer for her', critical:true, feedback:'Critical error. Never type an admin password into a user\'s installer (KB-0058). The step stays open: choose again.' },
+          { id:'admin-today', text:'Give her local admin rights for today', critical:true, feedback:'Critical error. Local admin rights are never granted to standard users, even for a day (KB-0058). The step stays open: choose again.' },
+          { id:'decline-request', text:'Decline, and open a software request for it', right:true, action:{ id:'software-request-opened', label:'Opened a software request (Software request, not in the Software Catalog)' }, feedback:'Right. FreeVideoConverter isn\'t in the Software Catalog, so it needs a software request, and an admin password is never typed into a user\'s installer (KB-0058). Tell Leah she can ask for it that way.' },
+          { id:'personal-laptop', text:'Tell her to use a personal laptop for it', feedback:'Not this. A personal laptop puts company data on a device the company doesn\'t manage. Software that isn\'t in the Software Catalog needs a software request (KB-0058). The step stays open: choose again.' },
+        ] },
+      comments:true, resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['winget', 'Defender', 'KB-0058', 'KB-0079', 'KB-0080', 'NS-WS-0233', 'Tier 1', 'P4', 'SLA', 'RITM'],
+        needs:[{ label:'Notepad++ installed and removed', pattern:'notepad\\+\\+' }, { label:'7-Zip updated', pattern:'7-?zip' }, { label:'Teams repaired', pattern:'teams' }, { label:'Protection and scan', pattern:'real-time|quick scan|defender|protection' }, { label:'Extension removed', pattern:'weather now' }, { label:'Admin password declined', pattern:'freevideoconverter|admin password|software request' }, { label:'OneDrive file renamed', pattern:'budget' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Software', subcategory:'Endpoint check', ci:'NS-WS-0233' }, missing:'Set Category Software › Endpoint check and CI NS-WS-0233, Leah\'s PC.' }, { priority:'P4', missing:'Set Impact 3 (one person) and Urgency 2 (she needs Notepad++ today). That makes the ticket P4.' }], good:'The priority is P4: one person, and she needs Notepad++ today.', fix:'Set Impact 3 (one person) and Urgency 2 (she needs Notepad++ today). The ticket is P4.' },
+        { area:'Investigation', checks:[
+          { any:[{ seen:'windows-security:virus-threat', computer:'NS-WS-0233' }, { typed:'^get-mpcomputerstatus\\b', computer:'NS-WS-0233' }], missing:'Open Windows Security › Virus & threat protection on NS-WS-0233. Read whether real-time protection is on and when the definitions were updated.' },
+          { any:[{ seen:'windows-security:protection-history', computer:'NS-WS-0233' }, { typed:'^get-mpthreatdetection\\b', computer:'NS-WS-0233' }], missing:'Open Windows Security › Protection history on NS-WS-0233 and look for any item.' },
+          { seen:'browser-extensions', computer:'NS-WS-0233', missing:'Open the browser\'s Extensions page on NS-WS-0233 and compare it with the list in KB-0080.' },
+          { seen:'onedrive:sync-problems', computer:'NS-WS-0233', missing:'Click the OneDrive icon › View sync problems on NS-WS-0233 and read the cause it names.' },
+        ], good:'You checked protection, the history, the extensions and the OneDrive problem before you changed anything.', fix:'On NS-WS-0233, open Windows Security (protection and history), the browser\'s Extensions page, and OneDrive › View sync problems. Look first, then fix.' },
+        { area:'Diagnosis', checks:[{ kb:'KB-0080', missing:'Search the KB for "extension" and open KB-0080.' }, { kb:'KB-0058', missing:'Search the KB for "admin password" and open KB-0058.' }], good:'KB-0080 gave you the list to compare the extensions with, and KB-0058 told you what to do about an admin password.', fix:'Search the KB for "extension" and open KB-0080, then search for "admin password" and open KB-0058.' },
+        { area:'Action', checks:[
+          { typed:'^winget(\\.exe)?\\s+(install|add)\\b.*notepad', computer:'NS-WS-0233', missing:'Install Notepad++ from the Software Catalog: find it with winget, then install it by its Id.' },
+          { action:'app-upgraded', missing:'List the apps with a newer version, then update 7-Zip, the one that is behind.' },
+          { typed:'^winget(\\.exe)?\\s+(uninstall|remove|rm)\\b.*notepad', computer:'NS-WS-0233', missing:'Once Leah has finished, remove Notepad++ with winget.' },
+          { action:'app-repaired', missing:'In Settings › Apps › Installed apps, open Microsoft Teams › Advanced options and choose Repair.' },
+          { confirmed:'teams', missing:'Ask Leah to open Teams and tell you whether it still freezes.' },
+          { action:'quick-scan', missing:'In Windows Security, run a Quick scan.' },
+          { action:'extension-removed', missing:'Remove the Weather Now Tab extension. It isn\'t on the list in KB-0080.' },
+          { action:'software-request-opened', missing:'Decline the admin password and open a software request. FreeVideoConverter isn\'t in the Software Catalog.' },
+          { synced:'NS-WS-0233', missing:'In OneDrive › View sync problems, rename the file whose name has invalid characters, for example to "Budget - Q4.xlsx". Then check it shows a green tick.' },
+        ], good:'You installed, updated and removed apps from the Software Catalog with winget, repaired Teams, checked protection, removed the extension that isn\'t on the list, declined the admin password and fixed the file name.', fix:'Install Notepad++, update 7-Zip, remove Notepad++ when Leah has finished, repair Teams, run a Quick scan, remove Weather Now Tab, decline the admin password with a software request, and rename the OneDrive file with invalid characters.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note that covers each thing you did.' }, { code:'Solution provided', missing:'Choose the resolution code Solution provided.' }], good:'A complete note and the right resolution code.', fix:'Write a Reported / Tried / Result note that covers the Notepad++ install and removal, the 7-Zip update, the Teams repair, the protection check and scan, the extension, the admin-password request and the renamed file. Choose the code Solution provided.' },
+      ],
+    } }),
+  // Ticket 6-A: a OneDrive red X caused by a path that is too long.
+  hdTicket({ id:'HD-2177', ownSet:true, number:'INC0010487', requester:'Leo Brandt', department:'Finance', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T09:05:00Z', shortDescription:'OneDrive red X, losing my files',
+    description:'From: Leo Brandt lbrandt@northstar.example · Subject: OneDrive red X – losing my files??\nThere\'s a red X on the OneDrive cloud icon and it says some files can\'t sync. I\'m terrified I\'m going to lose the Q3 forecast. Please help.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: red X on the OneDrive icon and a message that some files can\'t sync; worried about losing the Q3 forecast. Tried: View sync problems listed 1 file, Q3 forecast - final.xlsx; its name is valid; its full path is 412 characters (the limit is 400); storage 41% used; Leo renamed the folder "Final versions approved by Finance leadership" to "Final". Result: path now 372 characters; synced, visible on OneDrive on the web, status green. KB-0079 attached.',
+    console: {
+      now:'2026-08-20T09:15:00Z', matrix:{}, classify:{ categories:HD_ITS07_CATEGORIES, cis:['OneDrive – lbrandt', 'NS-LT-0252', 'Microsoft 365 Apps'], preset:{ contactType:'Email' } },
+      priorityCoach:{ impact:'3', urgency:'3', line:'One person is affected (Impact 3). His files are still on his laptop (Urgency 3): P5. Answer today anyway, because he is worried.' },
+      kb:{ attach:true },
+      caller:{ name:'Leo Brandt', style:'chat', questions:[
+        { id:'onlaptop', text:'Can you still open the Q3 forecast on your laptop?', reply:'Yes, it opens fine on my laptop.' },
+        { id:'other', text:'Does anything else show an error, apart from the red X?', reply:'No, only the red X.' },
+      ] },
+      machines:{
+        'NS-LT-0252':{
+          computer:{ ip:'10.20.20.252', health:'Healthy' },
+          installedApps:[
+            { name:'Microsoft OneDrive', publisher:'Microsoft Corporation', version:'25.150.0', installed:'3/4/2025' },
+            { name:'Microsoft 365 Apps', publisher:'Microsoft Corporation', version:'16.0.18025', installed:'3/4/2025' },
+            { name:'Microsoft Teams', publisher:'Microsoft Corporation', version:'24295.605', installed:'3/4/2025' },
+            { name:'Microsoft Edge', publisher:'Microsoft Corporation', version:'139.0.3405.86', installed:'3/4/2025' },
+          ],
+          oneDrive:{ root:'C:\\Users\\lbrandt\\OneDrive - Northstar', storageUsed:41, files:[
+            { name:'Q3 forecast - final.xlsx', folder:'Finance planning and budget forecasting working documents\\Fiscal year 2026 quarterly forecast cycle submissions and reviews\\Q3 forecast workbook drafts, comments and supporting schedules\\Regional cost centre roll-ups for the operations and sales teams\\Final versions approved by Finance leadership\\Board pack copies, shared with the executive office' },
+            { name:'Budget FY26.xlsx', folder:'Finance planning' },
+            { name:'Travel policy.pdf', folder:'Finance planning' },
+            { name:'Meeting notes.txt' },
+          ] },
+        },
+      },
+      criticalActions:[
+        { action:'onedrive-unlinked', text:'Critical error. Unlinking OneDrive can create duplicate files. Fix the cause the sync problem names (KB-0079).' },
+        { action:'onedrive-reset', text:'Critical error. Resetting OneDrive can create duplicate files. Fix the cause the sync problem names (KB-0079).' },
+        { action:'onedrive-file-deleted', text:'Critical error. Deleting the file to clear the error loses Leo\'s work. Fix the cause the sync problem names (KB-0079).' },
+      ],
+      comments:true, resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0079', 'NS-LT-0252', 'Tier 1', 'P5', 'SLA', 'RITM'] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Software', subcategory:'Cloud storage (OneDrive)', ci:'OneDrive – lbrandt' }, missing:'Set Category Software › Cloud storage (OneDrive) and CI OneDrive – lbrandt.' }, { priority:'P5', missing:'Set Impact 3 (one person) and Urgency 3 (his files are still on his laptop). That makes the ticket P5. Answer today anyway, because he is worried.' }], good:'The priority is P5: one person, and his files are safe on his laptop. You still answer today because he is worried.', fix:'Set Impact 3 (one person) and Urgency 3 (his files are still on his laptop). The ticket is P5. Answer the same day, because he is worried.' },
+        { area:'Investigation', checks:[{ chat:['onlaptop'], missing:'Ask Leo whether he can still open the file on his laptop.' }, { seen:'onedrive:sync-problems', computer:'NS-LT-0252', missing:'Click the OneDrive icon › View sync problems on NS-LT-0252 and read the cause it names.' }], good:'You checked that the file is still on his laptop, and you read the cause in View sync problems.', fix:'Ask Leo whether he can still open the file, then click the OneDrive icon › View sync problems on NS-LT-0252 and read the cause it names.' },
+        { area:'Diagnosis', checks:[{ kb:'KB-0079', missing:'Search the KB for "onedrive red x" and open KB-0079.' }], good:'The file name is fine. The full path is longer than 400 characters, and KB-0079 told you what to do.', fix:'Search the KB for "onedrive red x" and open KB-0079. The cause is the full path, which is longer than 400 characters. The file name is valid.' },
+        { area:'Action', checks:[
+          { synced:'NS-LT-0252', missing:'Shorten the path: rename the folder "Final versions approved by Finance leadership" to something short, for example "Final". Renaming the file alone doesn\'t fix it, because the name was never the problem. Never unlink or reset OneDrive, and never delete the file.' },
+          { seen:'onedrive:web', computer:'NS-LT-0252', after:'onedrive-renamed', missing:'After you rename it, open OneDrive on the web and confirm the file is there.' },
+        ], good:'You shortened the path, did not unlink, reset or delete anything, and confirmed the file on OneDrive on the web.', fix:'Rename the long folder "Final versions approved by Finance leadership" to "Final", wait for the green tick, and confirm the file on OneDrive on the web. Never unlink or reset OneDrive, and never delete the file.' },
+        { area:'Documentation', checks:[{ attached:'KB-0079', missing:'Attach KB-0079 to the ticket.' }, { note:true, missing:'Write a Reported / Tried / Result note.' }, { comment:true, missing:'Write a comment for Leo in plain words, with no internal terms.' }, { commentPattern:'still on (your|the|his) laptop|never at risk|not lost', missing:'Reassure Leo first: tell him his files were never at risk and are still on his laptop.' }, { commentPattern:'keep (the |your )?(folder )?names short|shorter (folder )?names|nest(ing)?\\b', missing:'Give Leo a tip: keep folder names short, and don\'t nest folders many levels deep.' }], good:'KB-0079 attached, a complete note, and a plain-words comment that reassures Leo and gives him the tip.', fix:'Attach KB-0079, write a Reported / Tried / Result note, and write a plain-words comment, for example: "Hi Leo, your files were never at risk. They were all still on your laptop. OneDrive can\'t back up a file when its folder path is longer than 400 characters, and this one was six folders deep with long folder names. We shortened one folder name, and the forecast is now backed up and showing a green tick. Tip: keep folder names short, and avoid nesting more than a few folders deep. – Riley"' },
+      ],
+    } }),
+  // Ticket 6-B: an admin-password prompt for an app that is in the Software
+  // Catalog. It arrives as an incident and becomes a request.
+  hdTicket({ id:'HD-2178', ownSet:true, number:'INC0010488', requester:'Tom Becker', department:'Sales', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T10:20:00Z', shortDescription:'Zoom install asks for an admin password',
+    description:'Tom Becker (Sales): a customer wants a Zoom call in 20 min and when I try to install Zoom it asks for an admin password. can you just type it in for me real quick?',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: user needs Zoom for a customer call in 20 minutes; the installer asked for admin credentials. Tried: Zoom is in the Software Catalog and in Company Portal; declined admin credentials per KB-0058; converted to RITM0010120; guided the install from Company Portal. Result: installed 10:42; test meeting OK; browser-join fallback explained.',
+    console: {
+      now:'2026-08-20T10:22:00Z', matrix:{}, classify:{ categories:HD_ITS07_CATEGORIES, cis:['NS-LT-0241', 'Zoom', 'Company Portal'], preset:{ contactType:'Chat' } },
+      priorityCoach:{ impact:'3', urgency:'1', line:'One person is affected (Impact 3). A customer call starts in 20 minutes, so his work is blocked today (Urgency 1): P3.' },
+      kb:true,
+      caller:{ name:'Tom Becker', style:'chat', questions:[
+        { id:'portal', text:'Please open Company Portal, search for Zoom and choose Install. Does it ask for an admin password?', reply:'No password this time. It\'s installing.' },
+        { id:'browser', text:'If the call starts before Zoom is ready, open the meeting link and choose "Join from your browser". OK?', reply:'Good to know. Thanks.' },
+        { id:'test', text:'Please open Zoom and join a test meeting. Does it connect?', afterAction:'app-installed', replyBefore:'Zoom isn\'t on my laptop yet.', reply:'Test meeting connected. I\'m all set!' },
+      ] },
+      convert:{ number:'RITM0010120', needsTriage:true, items:[
+        { name:'Software install (Software Catalog app)', approval:'Not required (Software Catalog app)' },
+        { name:'Software request (not in the Software Catalog)', approver:'Manager and Security review' },
+      ] },
+      machines:{
+        'NS-LT-0241':{
+          computer:{ ip:'10.20.40.241', health:'Healthy' },
+          installedApps:[
+            { name:'Microsoft Teams', publisher:'Microsoft Corporation', version:'24295.605', installed:'3/4/2025' },
+            { name:'Microsoft 365 Apps', publisher:'Microsoft Corporation', version:'16.0.18025', installed:'3/4/2025' },
+            { name:'Microsoft Edge', publisher:'Microsoft Corporation', version:'139.0.3405.86', installed:'3/4/2025' },
+            { name:'Google Chrome', publisher:'Google LLC', version:'139.0.7258.67', installed:'3/4/2025' },
+            { name:'Microsoft OneDrive', publisher:'Microsoft Corporation', version:'25.150.0', installed:'3/4/2025' },
+          ],
+          catalog:HD_ITS07_CATALOG,
+          companyPortal:true,
+          winget:true,
+        },
+      },
+      actions:[
+        { id:'type-admin-password', text:'Type the admin password into Tom\'s Zoom installer', critical:true, feedback:'Critical error. Never type an admin password into a user\'s installer. Zoom is in the Software Catalog, so it installs from Company Portal with no admin password (KB-0058).', history:'Typed an admin password into a user\'s installer.' },
+        { id:'grant-local-admin', text:'Add Tom to the local Administrators group on NS-LT-0241 for today', critical:true, feedback:'Critical error. Local admin rights are never granted to standard users, even for a day. Zoom installs from Company Portal with no admin rights (KB-0058).', history:'Gave a standard user local admin rights.' },
+      ],
+      comments:true, resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0058', 'RITM', 'RITM0010120', 'NS-LT-0241', 'winget', 'Tier 1', 'P3', 'SLA'] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Software', subcategory:'Install request' }, missing:'Set Category Software › Install request. Tom needs new software, so nothing is broken.' }, { priority:'P3', missing:'Set Impact 3 (one person) and Urgency 1 (a customer call in 20 minutes). That makes the ticket P3.' }, { converted:true, missing:'Convert the incident to a request.' }, { requestItem:'Software install (Software Catalog app)', missing:'Choose the catalog item "Software install (Software Catalog app)". Zoom is in the Software Catalog.' }, { requestFor:'Tom Becker', missing:'Set Requested for to Tom Becker, the person who needs Zoom.' }], good:'You saw that this is a request for a Software Catalog app, set P3 for the deadline and made the request for Tom.', fix:'Set Impact 3 and Urgency 1 (P3), then convert the incident to the catalog item "Software install (Software Catalog app)", Requested for Tom Becker. No extra approval is needed for a Software Catalog app.' },
+        { area:'Investigation', checks:[{ any:[{ seen:'company-portal', computer:'NS-LT-0241' }, { seen:'software-catalog', computer:'NS-LT-0241' }, { typed:'^winget(\\.exe)?\\s+(search|find)\\b.*zoom', computer:'NS-LT-0241' }], missing:'On NS-LT-0241, open Company Portal or the Software Catalog and check that Zoom is there.' }], good:'You checked that Zoom is in the Software Catalog before you decided what to do.', fix:'On NS-LT-0241, open Company Portal or the Software Catalog and look for Zoom. You can also type winget search zoom.' },
+        { area:'Diagnosis', checks:[{ kb:'KB-0058', missing:'Search the KB for "admin password" and open KB-0058.' }], good:'Zoom is in the Software Catalog, so it installs with no admin password. KB-0058 says never to type one into an installer.', fix:'Search the KB for "admin password" and open KB-0058. Software in the Software Catalog installs from Company Portal with no admin rights.' },
+        { area:'Action', checks:[
+          { appInstalled:{ computer:'NS-LT-0241', app:'Zoom' }, missing:'Install Zoom from the Software Catalog: in Company Portal while Tom watches, or by typing winget install --id Zoom.Zoom -e on his laptop. Never type an admin password.' },
+          { confirmed:'test', missing:'Ask Tom to open Zoom and join a test meeting, and confirm it connects.' },
+        ], good:'Zoom is installed with no admin password, and Tom confirmed a test meeting connects.', fix:'Install Zoom from Company Portal (or with winget install --id Zoom.Zoom -e), then ask Tom to join a test meeting. Never type an admin password or add Tom to the Administrators group.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note.' }, { comment:true, missing:'Write a comment for Tom in plain words, with no internal terms.' }, { commentPattern:'browser', missing:'Tell Tom about the fallback: "Join from your browser" works if a customer link opens before an app is ready.' }], good:'A complete note, and a plain-words comment that tells Tom about the browser fallback.', fix:'Write a Reported / Tried / Result note and a plain-words comment, for example: "Hi Tom, Zoom is installed and working. You\'ll find it in the Start menu. For security we never type admin passwords into installers, but nearly everything you need is in Company Portal and installs without one. If a customer link ever opens before an app is ready, \'Join from your browser\' works too. – Riley"' },
+      ],
+    } }),
+  // Ticket 6-C: a failed update broke Acrobat, and PDFs fell back to the browser.
+  hdTicket({ id:'HD-2179', ownSet:true, number:'INC0010489', requester:'Hannah Cole', department:'Operations', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T08:40:00Z', shortDescription:'PDFs broken, Acrobat crashes',
+    description:'From: Hannah Cole hcole@northstar.example · Subject: PDFs broken\nSince yesterday all my PDFs open in the browser instead of Acrobat, and when I open Acrobat directly it crashes. I have contracts to sign today.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: PDFs open in the browser; Acrobat crashes on launch since yesterday. Tried: Reliability Monitor shows an Acrobat update failed yesterday at 15:10, with app crashes after it; ran Acrobat Repair; completed the update with winget; set .pdf to open in Acrobat. Result: PDFs open in Acrobat; signing works; user confirmed.',
+    console: {
+      now:'2026-08-20T08:50:00Z', matrix:{}, classify:{ categories:HD_ITS07_CATEGORIES, cis:['NS-WS-0318', 'Adobe Acrobat', 'Microsoft Edge'], preset:{ contactType:'Email' } },
+      priorityCoach:{ impact:'3', urgency:'2', line:'One person is affected (Impact 3). She has contracts to sign today, but she can still open PDFs in the browser (Urgency 2): P4.' },
+      kb:true,
+      caller:{ name:'Hannah Cole', style:'chat', questions:[
+        { id:'changed', text:'Did anything change on your PC yesterday, such as an update?', reply:'Acrobat asked to update yesterday afternoon. I said yes, and it hasn\'t worked since.' },
+        { id:'pdf', text:'Please open one of the contracts. Does it open in Acrobat, and does the signing tool work?', afterAction:'default-app-set', replyBefore:'It still opens in the browser.', reply:'Yes! It opens in Acrobat and I can sign. Thank you!' },
+      ] },
+      machines:{
+        'NS-WS-0318':{
+          computer:{ ip:'10.20.10.218', health:'Healthy' },
+          installedApps:[
+            { name:'Adobe Acrobat', publisher:'Adobe Inc.', version:'25.001.20435', installed:'3/4/2025', wingetId:'Adobe.Acrobat.Reader.64-bit', repair:{ via:'modify', broken:'crashes on launch', fixedText:'Acrobat opens.' }, upgrade:{ version:'25.001.20531', afterRepair:true }, opens:['.pdf'] },
+            { name:'Microsoft Edge', publisher:'Microsoft Corporation', version:'139.0.3405.86', installed:'3/4/2025', opens:['.pdf', '.htm'] },
+            { name:'Microsoft 365 Apps', publisher:'Microsoft Corporation', version:'16.0.18025', installed:'3/4/2025', opens:['.docx'] },
+            { name:'Microsoft Teams', publisher:'Microsoft Corporation', version:'24295.605', installed:'3/4/2025' },
+            { name:'Microsoft OneDrive', publisher:'Microsoft Corporation', version:'25.150.0', installed:'3/4/2025' },
+            { name:'Northstar CRM', publisher:'Northstar IT', version:'8.2.0', installed:'3/4/2025' },
+          ],
+          catalog:HD_ITS07_CATALOG,
+          winget:true,
+          defaultApps:{ '.pdf':'Microsoft Edge', '.htm':'Microsoft Edge', '.docx':'Microsoft 365 Apps' },
+          resetPc:true,
+          reliability:[
+            { day:'Sunday', critical:[], warnings:[], installs:[] },
+            { day:'Monday', critical:[], warnings:[], installs:[] },
+            { day:'Tuesday', critical:[], warnings:[], installs:[] },
+            { day:'Yesterday', critical:['Adobe Acrobat stopped working', 'Adobe Acrobat stopped working'], warnings:['Adobe Acrobat update: failed (15:10)'], installs:[] },
+            { day:'Today', today:true, critical:['Adobe Acrobat stopped working'], warnings:[], installs:[] },
+          ],
+        },
+      },
+      criticalActions:[{ action:'pc-reset-chosen', text:'Critical error. Resetting the PC wipes it for a one-app problem. Repair the app first.' }],
+      actions:[
+        { id:'delete-program-folder', text:'Delete C:\\Program Files\\Adobe\\Acrobat by hand, then reinstall', critical:true, feedback:'Critical error. Never delete a program\'s folder by hand: it leaves the app half-removed. Use Repair in Installed apps first. If that fails, use the uninstaller.', history:'Deleted an app\'s program folder by hand.' },
+      ],
+      comments:true, resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Reliability Monitor', 'winget', 'Modify', 'NS-WS-0318', 'Tier 1', 'P4', 'SLA'] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Software', subcategory:'Desktop application', ci:'NS-WS-0318' }, missing:'Set Category Software › Desktop application and CI NS-WS-0318, Hannah\'s PC.' }, { priority:'P4', missing:'Set Impact 3 (one person) and Urgency 2 (she can still read PDFs in the browser). That makes the ticket P4.' }], good:'The priority is P4: one person, and she can still open PDFs in the browser.', fix:'Set Impact 3 (one person) and Urgency 2 (she can still open PDFs in the browser). The ticket is P4.' },
+        { area:'Investigation', checks:[{ chat:['changed'], missing:'Ask Hannah what changed yesterday, such as an update.' }, { seen:'reliability', computer:'NS-WS-0318', missing:'Open Reliability Monitor on NS-WS-0318 and look for what changed.' }], good:'You asked what changed, and you opened Reliability Monitor.', fix:'Ask Hannah what changed yesterday, then open Reliability Monitor on NS-WS-0318.' },
+        { area:'Diagnosis', checks:[{ seen:'reliability:day:Yesterday', computer:'NS-WS-0318', missing:'In Reliability Monitor, open Yesterday and read the Acrobat update that failed at 15:10.' }], good:'An Acrobat update failed yesterday at 15:10, and the crashes began after it. That broke Acrobat and sent PDFs to the browser.', fix:'In Reliability Monitor, open Yesterday. The Acrobat update failed at 15:10, and the crashes follow it.' },
+        { area:'Action', checks:[
+          { action:'app-repaired', missing:'Repair Acrobat before you reinstall it: in Settings › Apps › Installed apps, open Adobe Acrobat › Modify and choose Repair.' },
+          { action:'app-upgraded', missing:'Finish the update: list the apps with a newer version, then update Acrobat.' },
+          { machine:{ computer:'NS-WS-0318', path:['defaultApps', '.pdf'], value:'Adobe Acrobat' }, missing:'In Settings › Apps › Default apps, set .pdf to open with Adobe Acrobat.' },
+          { confirmed:'pdf', missing:'Ask Hannah to open a contract and confirm it opens in Acrobat and the signing tool works.' },
+        ], good:'You repaired Acrobat first, finished the update, restored the .pdf default and checked with Hannah.', fix:'Repair Acrobat (Installed apps › Modify › Repair), finish the update, set .pdf to open with Adobe Acrobat, and ask Hannah to open a contract. Never reset the PC or delete program folders by hand.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note.' }, { comment:true, missing:'Write a comment for Hannah in plain words, with no internal terms.' }, { code:'Solution provided', missing:'Choose the resolution code Solution provided.' }], good:'A complete note, a plain-words comment and the right resolution code.', fix:'Write a Reported / Tried / Result note and a plain-words comment, for example: "Hi Hannah, Acrobat is working again. An update yesterday didn\'t finish installing properly, which broke Acrobat and sent your PDFs to the browser instead. We repaired it, completed the update, and set PDFs to open in Acrobat again. You\'re ready to sign those contracts. – Riley" Choose the code Solution provided.' },
       ],
     } }),
 ];

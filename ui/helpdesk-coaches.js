@@ -45,7 +45,9 @@
     'hd-m04': ['HD-2104', 'HD-2105', 'HD-2113'],
     'hd-m05': ['HD-2108', 'HD-2117'],
     'hd-m06': ['SR-2107', 'HD-2118'],
-    'hd-m07': ['HD-2119', 'HD-2120', 'HD-2121', 'HD-2122', 'HD-2123'],
+    // Module 6 (key its-07) Lab 6.1. Older attempts keep HD-2119 on their
+    // sheet (portal/admin-sheets/hdesk.js).
+    'hd-m07': ['HD-2176'],
     'hd-m08': ['HD-2110', 'HD-2111'],
     'hd-m09': ['SEC-2114', 'SEC-2115'],
     'hd-m10': ['HD-2158', 'HD-2159', 'HD-2160', 'SR-2161', 'HD-2162', 'SEC-2163'],
@@ -929,8 +931,183 @@
     ],
   });
 
+  /* ---------------------------------------------------------- hd-m07 ---- */
+  /* Module 6 (key its-07) Lab 6.1, the endpoint check on HD-2176 (coached set
+   * its-07-guided). Feedback only, no points. Every check reads saved state
+   * (the ticket, the computer, the command history), never a tick box, so a
+   * step done early passes when it comes up. The five winget lines are typed:
+   * they pass from the command history, in any letter case, with extra valid
+   * options. The coach names the goal and keeps each typed command behind
+   * Show me the command. The optional Defender lines pass steps 6 and 7 like
+   * their screens do. The old HD-2119 coach is gone; a saved run of it starts
+   * fresh. */
+  const HD7_ID = 'HD-2176';
+  const HD7_PC = 'NS-WS-0233';
+  const hd7Seen = (key) => { const m = hd2Machine(HD7_PC); return Boolean(m && Array.isArray(m.seen) && m.seen.includes(key)); };
+  const hd7Log = () => (typeof hdState !== 'undefined' && hdState && Array.isArray(hdState.practiceLog) ? hdState.practiceLog : []);
+  const hd7Cmds = () => hd7Log().filter((e) => e && e.type === 'command_run' && e.computer === HD7_PC);
+  const hd7TypedAny = (pattern) => hd7Cmds().some((e) => pattern.test(String(e.command || '').trim()));
+  // A winget line the console accepted: the result the console logged for it.
+  const hd7Result = (pattern) => hd7Cmds().some((e) => pattern.test(String(e.result || '').trim()));
+  const hd7App = (name) => {
+    const m = hd2Machine(HD7_PC);
+    return m && Array.isArray(m.installedApps) ? m.installedApps.find((a) => a && a.name === name) || null : null;
+  };
+  const hd7SearchFound = (e) => {
+    const r = String(e.result || '').toLowerCase();
+    return /^winget(\.exe)?\s+(search|find)\b.*notepad/i.test(String(e.command || '').trim()) && !r.endsWith('no package found') && !r.includes(': no ');
+  };
+  // Step 11: one complete note also holds every item its "Your note needs"
+  // list asks for (the ticket's notes.needs).
+  const hd7NoteHasEvidence = () => {
+    const t = hd2Ticket(HD7_ID);
+    const needs = t && typeof hdConsole === 'function' && hdConsole(t).notes && Array.isArray(hdConsole(t).notes.needs) ? hdConsole(t).notes.needs : [];
+    const note = t && typeof hdConsoleCompleteNote === 'function' ? hdConsoleCompleteNote(t) : null;
+    return Boolean(note) && needs.every((item) => { try { return new RegExp(item.pattern, 'i').test(note.text); } catch { return false; } });
+  };
+  hd2ForgetStale('hd-m07', 'its-07-guided');
+
+  MODULE_COACHES.push({
+    id: 'hd-m07', module: 6, name: 'Guided Lab: endpoint check', role: 'Tier 1 Help Desk Technician',
+    summary: 'Leah Brooks in Marketing sends three things: she needs Notepad++ today, Teams keeps freezing, and a OneDrive file has a red X. Work all three, then run the standard endpoint check: protection, a quick scan and browser extensions. Feedback only, no score.',
+    completionToken: 'hd-m07', home: '#/helpdesk/tickets',
+    resetState: () => {
+      if (typeof hdUseTicketSet === 'function') hdUseTicketSet('its-07-guided');
+      if (typeof hdState !== 'undefined' && hdState) hdState.selectedTicketId = null;
+    },
+    allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket', '#/helpdesk/windows', '#/helpdesk/powershell', '#/helpdesk/settings-apps',
+      '#/helpdesk/software-catalog', '#/helpdesk/windows-security', '#/helpdesk/browser-extensions', '#/helpdesk/onedrive', '#/helpdesk/knowledge-base'],
+    steps: [
+      {
+        route: '#/helpdesk/ticket', target: 'select[data-hd-field="category"], [data-hd-machines]',
+        title: 'Triage the ticket and open the computer',
+        instruction: 'Open Leah’s ticket. Set <strong>Category</strong> Software › Endpoint check, <strong>Configuration item</strong> NS-WS-0233, <strong>Impact</strong> 3 and <strong>Urgency</strong> 2. Assign it to yourself. Then open <strong>NS-WS-0233</strong> from the ticket.',
+        body: 'Why: Impact 3 is one person. Urgency 2 is because she needs Notepad++ today. Success looks like: the priority is P4, the ticket is yours, and you are on NS-WS-0233.',
+        waitLabel: 'Next Step: Triaged, and the computer opened',
+        check: () => {
+          const t = hd2Ticket(HD7_ID);
+          // NS-WS-0233 open too, so the winget lines in steps 1 to 4 run on it.
+          return hd2Triaged(HD7_ID, 'Software', 'Endpoint check', HD7_PC, 'P4') && Boolean(t) && t.assignedTechnician === 'Riley Morgan'
+            && typeof hdState !== 'undefined' && hdState.selectedComputer === HD7_PC;
+        },
+      },
+      {
+        route: '#/helpdesk/powershell', target: '#hd-ps-input',
+        title: 'Install Notepad++ with winget',
+        instruction: 'In the elevated PowerShell window on NS-WS-0233, find Notepad++ in the Software Catalog with winget. Then install it by its exact Id. <details><summary>Show me the command</summary><code>winget search notepad++</code> then <code>winget install --id Notepad++.Notepad++ -e</code></details>',
+        body: 'Why: Notepad++ is in the Software Catalog, so the Service Desk may install it. winget installs exactly the app whose Id you give. Success looks like: the install finishes, and Notepad++ appears in Installed apps.',
+        waitLabel: 'Next Step: Notepad++ installed',
+        check: () => hd7Cmds().some(hd7SearchFound) && hd7Result(/^winget install notepad\+\+\.notepad\+\+: (installed|already installed)/i),
+      },
+      {
+        route: '#/helpdesk/powershell', target: '#hd-ps-input',
+        title: 'List the apps that have a newer version',
+        instruction: 'In the same window, list the apps on NS-WS-0233 that have a newer version. <details><summary>Show me the command</summary><code>winget upgrade</code></details>',
+        body: 'Why: Windows Update does not update apps, so an up-to-date Windows can still run an outdated app. Success looks like: a list that includes 7-Zip.',
+        waitLabel: 'Next Step: Upgrade list read',
+        // The listing is always typed. A 7-Zip already updated can't show in it
+        // again, so then any listing counts, even "nothing to upgrade".
+        check: () => hd7Result(/^winget upgrade: .*7zip\.7zip/i)
+          || (hd2Did(HD7_ID, 'app-upgraded', (a) => a.app === '7-Zip') && hd7Result(/^winget upgrade: /i)),
+      },
+      {
+        route: '#/helpdesk/powershell', target: '#hd-ps-input',
+        title: 'Update 7-Zip',
+        instruction: 'Update 7-Zip, the one app that is behind, by its Id. <details><summary>Show me the command</summary><code>winget upgrade --id 7zip.7zip -e</code></details>',
+        body: 'Why: update the one app that is behind, and nothing else. Success looks like: the upgrade finishes, and the upgrade list no longer shows 7-Zip.',
+        waitLabel: 'Next Step: 7-Zip updated',
+        check: () => hd2Did(HD7_ID, 'app-upgraded', (a) => a.app === '7-Zip'),
+      },
+      {
+        route: '#/helpdesk/powershell', target: '#hd-ps-input',
+        title: 'Remove Notepad++',
+        instruction: 'Leah has finished her edit and doesn’t need Notepad++ any more. Before you remove anything, ask whether something else depends on it. Nothing does here. Remove Notepad++ with winget by its exact Id. This step asks for the typed line. If you removed Notepad++ from Installed apps instead, install it again with winget, then remove it with winget. <details><summary>Show me the command</summary><code>winget uninstall --id Notepad++.Notepad++ -e</code></details>',
+        body: 'Why: the uninstaller also clears the app’s settings. Ask first whether anything else depends on it. Success looks like: Notepad++ is gone from Installed apps.',
+        waitLabel: 'Next Step: Notepad++ removed',
+        check: () => hd7Result(/^winget uninstall notepad\+\+\.notepad\+\+: uninstalled$/i) && !hd7App('Notepad++'),
+      },
+      {
+        route: '#/helpdesk/windows', target: '[data-hd-tools="settings-apps"], [data-hd-installed-apps]',
+        title: 'Repair Teams, then ask Leah',
+        instruction: 'On NS-WS-0233’s desktop, open <strong>Settings › Apps › Installed apps</strong>. Open <strong>Microsoft Teams › Advanced options</strong> and choose <strong>Repair</strong>. Then ask Leah to open Teams and tell you whether it still freezes.',
+        body: 'Why: repair is the lightest fix for a misbehaving app, and it keeps the app’s data. Success looks like: the repair completes, and Leah says Teams opens.',
+        waitLabel: 'Next Step: Teams repaired, and Leah asked',
+        check: () => {
+          const teams = hd7App('Microsoft Teams');
+          return Boolean(teams && teams.repair && teams.repair.repaired === true) && hd2Rule(HD7_ID, { confirmed: 'teams' });
+        },
+      },
+      {
+        route: '#/helpdesk/windows', target: '[data-hd-tools="windows-security"], [data-hd-windows-security]',
+        title: 'Check that protection is on and current',
+        instruction: 'Steps 6 to 8 are the standard endpoint check a technician runs while on the machine. On NS-WS-0233’s desktop, open <strong>Windows Security › Virus &amp; threat protection</strong>. Read whether real-time protection is on, and when the definitions were last updated. Never turn off protection or add an exclusion to make a problem go away. In a graded ticket this is a critical error. If protection is turned off here, the coach turns it back on. The same check in PowerShell (optional): <code>Get-MpComputerStatus | Select-Object AMServiceEnabled, RealTimeProtectionEnabled, AntivirusSignatureLastUpdated</code>',
+        body: 'Why: is protection on and current? Success looks like: real-time protection is On, and the definitions were updated today.',
+        waitLabel: 'Next Step: Protection read',
+        check: () => hd7Seen('windows-security:virus-threat') || hd7TypedAny(/^get-mpcomputerstatus\b/i),
+      },
+      {
+        route: '#/helpdesk/windows', target: '[data-hd-tools="windows-security"], [data-hd-windows-security]',
+        title: 'Run a quick scan, then read Protection history',
+        instruction: 'In Windows Security run a <strong>Quick scan</strong>. Then open <strong>Protection history</strong>. The same check in PowerShell (optional): <code>Start-MpScan -ScanType QuickScan</code>, then <code>Get-MpThreatDetection</code>',
+        body: 'Why: a quick scan checks for known threats, and the history shows anything a user chose to allow. Success looks like: the scan finds no threats and the history is empty. You can say what you would do if it weren’t. Nothing found, and nothing allowed. If the history showed an item marked Allowed, you would open KB-0080 before doing anything. If it named malware (a trojan, ransomware, a script that ran), you would stop and send the ticket to Security Operations.',
+        waitLabel: 'Next Step: Scan run, history read',
+        check: () => hd2Did(HD7_ID, 'quick-scan') && (hd7Seen('windows-security:protection-history') || hd7TypedAny(/^get-mpthreatdetection\b/i)),
+      },
+      {
+        route: '#/helpdesk/windows', target: '[data-hd-tools="browser-extensions"], [data-hd-browser-extensions]',
+        title: 'Compare the browser extensions with KB-0080',
+        instruction: 'In the knowledge search on Leah’s ticket, search <strong>extension</strong> and open <strong>KB-0080</strong>. Then, on NS-WS-0233’s desktop, open the browser’s <strong>Extensions</strong> page and compare it with the approved list in KB-0080. Remove the extension that is not on the list.',
+        body: 'Why: extensions that are not approved come off, and the user can ask for one with a software request. Success looks like: the extension that is not on the list is gone. Weather Now Tab isn’t harmful, but it isn’t on the approved list, so it comes off. Tell Leah she can ask for it with a software request.',
+        waitLabel: 'Next Step: KB-0080 read, extension removed',
+        check: () => {
+          const m = hd2Machine(HD7_PC);
+          const list = m && Array.isArray(m.extensions) ? m.extensions : [];
+          return hd2Rule(HD7_ID, { kb: 'KB-0080' }) && !list.some((x) => x && x.name === 'Weather Now Tab')
+            && hd2Did(HD7_ID, 'extension-removed', (a) => a.extension === 'Weather Now Tab');
+        },
+      },
+      {
+        route: '#/helpdesk/ticket', target: '[data-hd-choice-card], .hd-chat',
+        title: 'Answer the admin password request',
+        instruction: 'While you work, Leah asks in the chat to type the admin password for FreeVideoConverter.exe. She downloaded it for a campaign video. Search <strong>admin</strong> in the knowledge search and open <strong>KB-0058</strong>. Then, on her ticket, under <strong>Choose your response</strong>, pick your answer.',
+        body: 'Why: this is KB-0058 in practice. Never type an admin password into a user’s installer. Success looks like: you decline, and you open a software request.',
+        waitLabel: 'Next Step: Admin password declined',
+        check: () => hd2Rule(HD7_ID, { kb: 'KB-0058' }) && hd2Did(HD7_ID, 'software-request-opened'),
+      },
+      {
+        route: '#/helpdesk/windows', target: '[data-hd-tools="onedrive"], [data-hd-onedrive]',
+        title: 'Fix the OneDrive red X',
+        instruction: 'On NS-WS-0233’s desktop, click the <strong>OneDrive</strong> cloud icon and open <strong>View sync problems</strong>. Read the cause. Rename the file <code>Budget: Q4?.xlsx</code> to <code>Budget - Q4.xlsx</code>. Then open <strong>OneDrive on the web</strong> and find the file.',
+        body: 'Why: fix the cause of a red X. Her file was always safe on the computer. Never unlink OneDrive or delete the file first. Success looks like: a green tick, and the file is on OneDrive on the web.',
+        waitLabel: 'Next Step: File renamed, and found on the web',
+        check: () => {
+          const m = hd2Machine(HD7_PC);
+          const od = m && m.oneDrive && typeof m.oneDrive === 'object' ? m.oneDrive : null;
+          return hd2Did(HD7_ID, 'onedrive-renamed') && Boolean(od) && od.linked !== false
+            && typeof hdWinOneDriveProblems === 'function' && hdWinOneDriveProblems(od).length === 0
+            && hd2Rule(HD7_ID, { seen: 'onedrive:web', computer: HD7_PC, after: 'onedrive-renamed' });
+        },
+      },
+      {
+        route: '#/helpdesk/ticket', target: '#hd-note-input, #hd-resolution-code',
+        title: 'Write the note and resolve it',
+        instruction: 'Write a <strong>work note</strong> with the lines Reported:, Tried: and Result:. Name each part of the check: the install and removal, the 7-Zip update, the Teams repair, protection and the scan, the extension, the admin password request and the OneDrive rename. Set the resolution code to <strong>Solution provided</strong> and resolve the ticket.',
+        body: 'Why: the note is the evidence trail for the next technician. Success looks like: the checker finds each part in your note, and the ticket is Resolved.',
+        waitLabel: 'Next Step: Noted and resolved',
+        check: () => hd2Rule(HD7_ID, { note: true }) && hd7NoteHasEvidence()
+          && hd2Rule(HD7_ID, { code: 'Solution provided' }) && hd2Rule(HD7_ID, { status: 'Resolved' }),
+      },
+      {
+        title: 'Finish the lab',
+        instruction: 'Ticket worked. Press <strong>Finish</strong> to send your work to your course page.',
+        body: 'Your triage, commands, screens and note count once your course page confirms it saved them. There is no score.',
+        finish: { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/6', 'hd-m07') },
+      },
+    ],
+  });
+
   /* ------------------------------------------------------ hd-m04..hd-m11 -
-   * (hd-m03 has its own steps above since 2026-11-24.)
+   * (hd-m03 and hd-m07 have their own steps above since 2026-11-24.)
    * Modules 3-9 each work one or two real tickets through the same generic
    * evidence/path/diagnose/note/resolve flow hd-m01/hd-m02 already proved
    * out — reused here via hdTicketFlowSteps() instead of hand-duplicating
@@ -1113,22 +1290,6 @@
       noteBody: 'Name the effective-access evidence, the group you restored, and that Modify was verified without a direct user ACL.',
       resolveBody: 'Resolving is gated on your diagnosis actually being correct.',
     }));
-
-  /* hd-m07 — Module 6 (key its-07): Software, Applications & Endpoint Management. Five
-   * correlated tickets scoped (same underlying cert expiry); guides just
-   * HD-2119 and leaves the other four for free practice — matching hd-m01's
-   * own "guide one, scope the rest" precedent, doubly appropriate here
-   * since all five are literally the same root cause from different users. */
-  hdRegisterSimpleCoach('hd-m07', 6, 'The Purchasing App Everyone’s Locked Out Of', 'Work one of five correlated tickets end to end — a shared application certificate expiry — and recognize the pattern across the others.', ['HD-2119', 'HD-2120', 'HD-2121', 'HD-2122', 'HD-2123']).steps =
-    hdTicketFlowSteps('HD-2119', {
-      opening: true, isLast: true, finalStatus: 'Escalated', finishHref: itsPortalUrl('#/program/it-support/module/6', 'hd-m07'),
-      openBody: 'Maya can’t sign in to the Purchasing app — a secure-connection error, not a login error. Four other tickets in this queue report the exact same thing.',
-      evidenceBody: 'A certificate-date browser error alongside a NotAfter timestamp that’s already passed is the clue — this isn’t a user account or browser-cache problem.',
-      pathBody: 'Comparing timestamps and linking the related incidents comes before escalating — confirm the pattern, don’t just assume it.',
-      diagnosisBody: 'The same error, on the same application, for multiple unrelated users, on the same day points at the shared application certificate, not any one user’s setup.',
-      noteBody: 'Name the certificate-expiry evidence, the other correlated tickets, and that this needs a controlled renewal, not a per-user fix.',
-      resolveBody: 'This is a shared production certificate — outside what a technician fixes alone. Escalate it, don’t try to resolve it user by user.',
-    });
 
   /* hd-m08 — Module 10 (key its-08): Troubleshooting Methodology & Diagnostics. Two
    * tickets, both genuinely unfamiliar-shaped problems worked with the
