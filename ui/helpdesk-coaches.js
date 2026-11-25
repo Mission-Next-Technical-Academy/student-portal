@@ -107,6 +107,8 @@
         })) : [],
         resolution: ticket.resolution || '',
         closureCode: ticket.closureCode || '',
+        // Module 7: a ticket the student raised from another (console.raise).
+        ...(ticket.raisedFrom ? { raisedFrom: String(ticket.raisedFrom), parentId: String(ticket.parentId || '') } : {}),
         ...hdCoachConsoleWork(ticket),
       })),
     };

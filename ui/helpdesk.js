@@ -329,7 +329,8 @@ function hdFreshState(templates = hdSharedTemplates(), practice = templates.ever
   }
   // Only a Practice shift gets the Practice scenarios (and the tickets'
   // own machine state, console.machines).
-  return practice ? hdSeedTicketMachines(hdEnsurePractice(state)) : state;
+  // A ticket another one raises (console.raise, Module 7) waits until it is raised.
+  return practice ? hdHoldRaised(hdSeedTicketMachines(hdEnsurePractice(state))) : state;
 }
 // A shift with only a set's tickets, built from every Practice template so
 // a set's own (ownSet) tickets are there. A set with `now` runs on its own
@@ -2838,7 +2839,7 @@ function hdPriorityCoachCard(ticket) {
   return `<div class="callout ${match ? 'success' : 'warn'} hd-priority-coach" role="status" data-hd-priority-coach="${match ? 'match' : 'differs'}"><p style="margin:0 0 4px">${head}</p><p style="margin:0">${hdEsc(coach.line || '')}</p></div>`;
 }
 function hdMatrixCards(ticket) {
-  return `${hdPriorityCoachCard(ticket)}${hdArrivalsCard(ticket)}${hdConvertCard(ticket)}${hdLinkCard(ticket)}${hdRewriteCard(ticket)}${hdContactCard(ticket)}${hdKnowledgeCard(ticket)}`;
+  return `${hdPriorityCoachCard(ticket)}${hdArrivalsCard(ticket)}${hdRaiseCard(ticket)}${hdConvertCard(ticket)}${hdLinkCard(ticket)}${hdRewriteCard(ticket)}${hdContactCard(ticket)}${hdKnowledgeCard(ticket)}`;
 }
 // What a coach reads about the new features on one ticket (added to
 // hdConsoleProgress only for a ticket that turns one on).
@@ -3416,9 +3417,12 @@ function hdDirectoryTable(users) {
   // employee ID. Practice and Prove alike.
   return `<div class="table-wrap"><table><thead><tr><th>User</th><th>Employee ID</th><th>Department</th><th>Phone</th><th>Account</th><th>MFA</th><th>OU</th><th></th></tr></thead><tbody>${users.map(user=>`<tr><td><strong>${hdEsc(user.name)}</strong><small>${hdEsc(user.email)}</small></td><td>${hdEsc(user.employeeId || '')}</td><td>${hdEsc(user.department)}</td><td>${hdEsc(user.phone || '')}</td><td>${user.enabled?hdBadge(user.locked?'Locked':'Enabled',user.locked?'bad':'ok'):hdBadge('Disabled','bad')}</td><td>${hdBadge(user.mfa,user.mfa==='Registered'?'ok':'warn')}</td><td><code>${hdEsc(user.ou)}</code></td><td><button class="btn btn-sm btn-secondary" onclick="hdOpenUser('${user.id}')">Open</button></td></tr>`).join('')}</tbody></table></div>`;
 }
-function hdOpenUser(id) { hdState.selectedUserId=id; hdState.adTab='users'; const user=hdUserById(id); hdProveOpened(`ad-user:${id}`, `Active Directory · ${user ? user.name : id}`); hdSave(); navigate('#/helpdesk/active-directory'); }
+// With a directory block the pane records what it shows (hdAdUserPaneDirectory).
+function hdOpenUser(id) { hdState.selectedUserId=id; hdState.adTab='users'; if (hdDirectory()) { hdState.adUserOpened = id; hdSave(); navigate('#/helpdesk/active-directory'); return; } const user=hdUserById(id); hdProveOpened(`ad-user:${id}`, `Active Directory · ${user ? user.name : id}`); hdSave(); navigate('#/helpdesk/active-directory'); }
 function hdSetAdTab(tab) { hdState.adTab=tab; hdRerender(); }
 function hdAdAction(action) {
+  // Module 7: a read-only directory changes no account, whatever calls this.
+  if (hdDirectoryReadOnly()) { hdPracticeEvent('action_refused', { action:`ad-${action}`, user:hdState.selectedUserId }); toast('Read-only: this ticket reads the account and changes nothing.'); return; }
   const user = hdUserById(hdState.selectedUserId); if (!user) return;
   // HD-2101 Practice: jbell's lock state is the scenario's.
   if (action === 'unlock' && hdM01() && user.id === hdM01Spec().userId) {
@@ -3451,6 +3455,9 @@ function hdLockoutDetailsHtml(user) {
 }
 VIEWS['helpdesk/active-directory'] = () => {
   hdM01Tick();
+  // Module 7: a shift with a directory block (read-only unless it says not).
+  const dir = hdDirectory();
+  if (dir) return hdAdDirectoryView(dir);
   const selected = hdUserById(hdState.selectedUserId) || hdUserById('u-1005');
   return `${hdPageHeader('Active Directory', `${HD_ORG.domain} · Users, groups, computers, and delegated help desk tasks`)}<div class="tabs"><button class="tab ${hdState.adTab==='users'?'active':''}" onclick="hdSetAdTab('users')">Users</button><button class="tab ${hdState.adTab==='groups'?'active':''}" onclick="hdSetAdTab('groups')">Groups</button><button class="tab ${hdState.adTab==='computers'?'active':''}" onclick="hdSetAdTab('computers')">Computers</button></div>
     ${hdState.adTab==='users'?`<div class="hd-admin-layout"><div class="card">${hdDirectoryTable(HD_USERS.map(user=>hdUserById(user.id)))}</div><aside class="card hd-object-pane"><div class="card-header"><strong>${hdEsc(selected.name)}</strong>${selected.locked?hdBadge('Locked','bad'):hdBadge(selected.enabled?'Enabled':'Disabled',selected.enabled?'ok':'bad')}</div><div class="card-body"><dl class="hd-dl"><dt>Username</dt><dd>${hdEsc(HD_ORG.netbios+'\\'+selected.username)}</dd><dt>OU</dt><dd>${hdEsc(selected.ou)}</dd><dt>Manager</dt><dd>${hdEsc(selected.manager)}</dd><dt>Password age</dt><dd>${selected.passwordAge} days</dd><dt>Groups</dt><dd>${selected.groups.map(group=>hdBadge(group)).join(' ')}</dd></dl>${hdLockoutDetailsHtml(selected)}<div class="hd-action-grid"><button class="btn btn-secondary" onclick="hdAdAction('unlock')">Unlock</button><button class="btn btn-secondary" onclick="hdAdAction('reset')">Reset password</button><button class="btn btn-secondary" onclick="hdAdAction('${selected.enabled?'disable':'enable'}')">${selected.enabled?'Disable':'Enable'}</button><button class="btn btn-secondary" onclick="hdAdAction('add-hr')">Add approved group</button></div><div class="callout info">Verify identity and approval before any account or access action. Never place passwords in ticket notes.</div></div></aside></div>`:''}
@@ -3842,8 +3849,10 @@ function hdPingText(target, open) {
 }
 // interfaceAlias: the machine's own (default Ethernet; a laptop off its dock
 // is on Wi-Fi).
-function hdTestNetText(target, port, open, source, alias) {
-  const rows = [['ComputerName', target], ['RemoteAddress', target]];
+// address: the target's address when it differs from its name (Module 7's
+// servers); older callers pass none and see the name, as before.
+function hdTestNetText(target, port, open, source, alias, address) {
+  const rows = [['ComputerName', target], ['RemoteAddress', address || target]];
   if (port) rows.push(['RemotePort', port]);
   rows.push(['InterfaceAlias', alias || 'Ethernet'], ['SourceAddress', source || '']);
   const tcp = !!(open !== null && open.includes(Number(port)));
@@ -5740,8 +5749,9 @@ function hdAdComputerTabs(name) {
   return computer ? HD_AD_COMPUTER_TABS.filter(tab => tab.id === 'general' || tab.show(computer, machine)) : [];
 }
 // A row opens when a tab beyond General shows for it (then every row does).
-function hdAdComputerOpens(name) { return hdAdComputerTabs(name).length > 1; }
-function hdAdComputerLookup() { return hdAdKeysAnywhere(); }
+// Module 7: with a directory block every computer opens on General (its OU).
+function hdAdComputerOpens(name) { return hdAdComputerTabs(name).length > 1 || (!!hdDirectory() && !!hdComputerByName(name)); }
+function hdAdComputerLookup() { return hdAdKeysAnywhere() || !!hdDirectory(); }
 function hdAdComputerFind(event) {
   if (event && event.preventDefault) event.preventDefault();
   const el = document.getElementById('hd-ad-computer-q');
@@ -5752,7 +5762,8 @@ function hdAdOpenComputer(name) {
   if (!hdAdComputerOpens(name)) return;
   hdState.adTab = 'computers';
   hdState.adComputer = { ...hdAdComputerState(), name, tab:'general', reveal:'' };
-  hdProveOpened(`ad-computer:${name}`, `Active Directory › Computers › ${name}`);
+  if (hdDirectory()) hdServerSeen(`ad-computer:${name}`, `Active Directory › Computers › ${name}`);
+  else hdProveOpened(`ad-computer:${name}`, `Active Directory › Computers › ${name}`);
   hdWinSeenSave(hdFeatureMachine(name), ['ad-computer']);
   hdSave(); render();
 }
@@ -6838,9 +6849,14 @@ function hdPowerShellOutput(command) {
 Sessions: Enter-PSSession -ComputerName <name>, Exit-PSSession
 Scheduled tasks: Get-ScheduledTask [-TaskName <name>], Get-ScheduledTaskInfo -TaskName <name>, Start-ScheduledTask -TaskName <name>, Set-ScheduledTask -TaskName <name> -User <DOMAIN\\user>, schtasks /Query [/TN <name> /V /FO LIST], schtasks /Change /TN <name> /RU <DOMAIN\\user>, schtasks /Run /TN <name>
 Accounts: Get-ADUser <user> -Properties *, Search-ADAccount -LockedOut, Unlock-ADAccount -Identity <user>
-Events: Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4740}`}${hdFeatureHelp(computer)}`;
+Events: Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4740}`}${hdFeatureHelp(computer)}${hdDirectoryHelp()}`;
   const practiceOutput = hdPracticeCommand(command, normalized, computer);
   if(practiceOutput !== null) return practiceOutput;
+  // Module 7: a server with state, or a shift with a directory block.
+  const serverOutput = hdServerCommand(command, normalized, computer);
+  if(serverOutput !== null) return serverOutput;
+  const directoryOutput = hdDirectoryCommand(command, normalized, computer);
+  if(directoryOutput !== null) return directoryOutput;
   const featureOutput = hdFeatureCommand(command, normalized, computer);
   if(featureOutput !== null) return featureOutput;
   const machineOutput = hdMachineCommand(command, normalized, computer);
@@ -6888,9 +6904,13 @@ VIEWS['helpdesk/powershell'] = () => `${hdPageHeader('PowerShell', `Connected to
 
 // The fixed screen every older ticket sees (no server state in the shift).
 const hdServerManagerFixed = () => `${hdPageHeader('Server Manager', 'Inspect Windows Server roles, services, health, and endpoint dependencies.')}<div class="hd-metric-grid">${hdMetric('Servers',hdServers().length,'2 domain controllers')}${hdMetric('Online',hdServers().filter(s=>s.status==='Online').length,'Responding to management')}${hdMetric('Degraded',hdServers().filter(s=>s.status==='Degraded').length,'Service investigation required','warning')}${hdMetric('Critical roles','AD DS · DNS · DHCP','Authentication and connectivity')}</div><div class="card"><div class="table-wrap"><table><thead><tr><th>Server</th><th>Role</th><th>Address</th><th>Status</th><th>CPU</th><th>Memory</th><th>Role / service health</th></tr></thead><tbody>${hdServers().map(s=>`<tr><td><strong>${s.name}</strong><small>${s.os}</small></td><td>${s.role}</td><td><code>${s.ip}</code></td><td>${hdBadge(s.status,s.status==='Online'?'ok':'warn')}</td><td>${s.cpu}</td><td>${s.memory}</td><td>${s.service}</td></tr>`).join('')}</tbody></table></div></div>`;
-VIEWS['helpdesk/dns'] = () => `${hdPageHeader('DNS Manager', 'Validate forward records and connect name-resolution evidence to client symptoms.')}<div class="two-col"><div class="card"><div class="card-header"><strong>Forward lookup zone · ${HD_ORG.domain}</strong></div><div class="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Value</th><th>TTL</th><th>Status</th></tr></thead><tbody>${HD_DNS_RECORDS.map(r=>`<tr><td><strong>${r.name}</strong></td><td>${r.type}</td><td><code>${r.value}</code></td><td>${r.ttl}</td><td>${hdBadge(r.status,r.status==='Healthy'?'ok':'warn')}</td></tr>`).join('')}</tbody></table></div></div><div class="card"><div class="card-header"><strong>Diagnostic decision</strong></div><div class="card-body">${hdList(['Confirm the client resolver, not only network reachability','Compare hostname and IP tests','Query the authoritative/internal resolver directly','Avoid hosts-file workarounds','Escalate when multiple clients or zones are affected'],true)}<pre class="hd-evidence">Resolve-DnsName purchasing.northstar.example\nServer: 10.20.0.10\nAddress: 10.20.0.50</pre></div></div></div>`;
-VIEWS['helpdesk/dhcp'] = () => `${hdPageHeader('DHCP Manager', 'Inspect scope utilization, leases, reservations, and APIPA evidence.')}<div class="card"><div class="table-wrap"><table><thead><tr><th>Scope</th><th>Range</th><th>VLAN</th><th>Leased</th><th>Free</th><th>Utilization</th><th>Status</th></tr></thead><tbody>${HD_DHCP_SCOPES.map(s=>`<tr><td><strong>${s.name}</strong></td><td><code>${s.range}</code></td><td>${s.vlan}</td><td>${s.leased}</td><td>${s.free}</td><td><div class="hd-progress"><i style="width:${s.utilization}"></i></div>${s.utilization}</td><td>${hdBadge(s.status,s.status==='Active'?'ok':'warn')}</td></tr>`).join('')}</tbody></table></div></div><div class="callout warning"><strong>APIPA investigation:</strong> 169.254.44.19 on NS-LT-0094 has no lease. One device is affected; test the client interfaces before declaring a DHCP-server outage.</div>`;
-VIEWS['helpdesk/group-policy'] = () => `${hdPageHeader('Group Policy Management', 'Inspect policy links, scope, versions, and resultant policy before changing configuration.')}<div class="card"><div class="table-wrap"><table><thead><tr><th>GPO</th><th>Linked to</th><th>Security filtering</th><th>Version</th><th>Status</th><th>Purpose</th></tr></thead><tbody>${HD_GPOS.map(g=>`<tr><td><strong>${g.name}</strong></td><td><code>${hdEsc(g.link)}</code></td><td>${g.scope}</td><td>${g.version}</td><td>${hdBadge(g.status,'ok')}</td><td>${g.purpose}</td></tr>`).join('')}</tbody></table></div></div><div class="two-col"><div class="card"><div class="card-header"><strong>gpresult · NS-LT-0145</strong></div><div class="card-body"><pre class="hd-evidence">Computer DN: CN=NS-LT-0145,CN=Computers\nApplied: Default Domain Policy\nDenied: Operations Drive Mapping\nReason: Link out of scope</pre></div></div><div class="card"><div class="card-header"><strong>Safe policy workflow</strong></div><div class="card-body">${hdList(['Define outcome and rollback','Confirm target OU and filtering','Test one scoped endpoint','Use gpupdate to refresh','Use gpresult to prove application','Record the change and verification'],true)}</div></div></div>`;
+VIEWS['helpdesk/dns'] = () => { const dir = hdDirectory(); return dir ? hdDnsView(dir) : hdDnsFixed(); };
+VIEWS['helpdesk/dhcp'] = () => { const dir = hdDirectory(); return dir ? hdDhcpView(dir) : hdDhcpFixed(); };
+VIEWS['helpdesk/group-policy'] = () => (hdDirectory() ? hdGroupPolicyView() : hdGroupPolicyFixed());
+// The fixed screens every older ticket sees (no directory block in the shift).
+const hdDnsFixed = () => `${hdPageHeader('DNS Manager', 'Validate forward records and connect name-resolution evidence to client symptoms.')}<div class="two-col"><div class="card"><div class="card-header"><strong>Forward lookup zone · ${HD_ORG.domain}</strong></div><div class="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Value</th><th>TTL</th><th>Status</th></tr></thead><tbody>${HD_DNS_RECORDS.map(r=>`<tr><td><strong>${r.name}</strong></td><td>${r.type}</td><td><code>${r.value}</code></td><td>${r.ttl}</td><td>${hdBadge(r.status,r.status==='Healthy'?'ok':'warn')}</td></tr>`).join('')}</tbody></table></div></div><div class="card"><div class="card-header"><strong>Diagnostic decision</strong></div><div class="card-body">${hdList(['Confirm the client resolver, not only network reachability','Compare hostname and IP tests','Query the authoritative/internal resolver directly','Avoid hosts-file workarounds','Escalate when multiple clients or zones are affected'],true)}<pre class="hd-evidence">Resolve-DnsName purchasing.northstar.example\nServer: 10.20.0.10\nAddress: 10.20.0.50</pre></div></div></div>`;
+const hdDhcpFixed = () => `${hdPageHeader('DHCP Manager', 'Inspect scope utilization, leases, reservations, and APIPA evidence.')}<div class="card"><div class="table-wrap"><table><thead><tr><th>Scope</th><th>Range</th><th>VLAN</th><th>Leased</th><th>Free</th><th>Utilization</th><th>Status</th></tr></thead><tbody>${HD_DHCP_SCOPES.map(s=>`<tr><td><strong>${s.name}</strong></td><td><code>${s.range}</code></td><td>${s.vlan}</td><td>${s.leased}</td><td>${s.free}</td><td><div class="hd-progress"><i style="width:${s.utilization}"></i></div>${s.utilization}</td><td>${hdBadge(s.status,s.status==='Active'?'ok':'warn')}</td></tr>`).join('')}</tbody></table></div></div><div class="callout warning"><strong>APIPA investigation:</strong> 169.254.44.19 on NS-LT-0094 has no lease. One device is affected; test the client interfaces before declaring a DHCP-server outage.</div>`;
+const hdGroupPolicyFixed = () => `${hdPageHeader('Group Policy Management', 'Inspect policy links, scope, versions, and resultant policy before changing configuration.')}<div class="card"><div class="table-wrap"><table><thead><tr><th>GPO</th><th>Linked to</th><th>Security filtering</th><th>Version</th><th>Status</th><th>Purpose</th></tr></thead><tbody>${HD_GPOS.map(g=>`<tr><td><strong>${g.name}</strong></td><td><code>${hdEsc(g.link)}</code></td><td>${g.scope}</td><td>${g.version}</td><td>${hdBadge(g.status,'ok')}</td><td>${g.purpose}</td></tr>`).join('')}</tbody></table></div></div><div class="two-col"><div class="card"><div class="card-header"><strong>gpresult · NS-LT-0145</strong></div><div class="card-body"><pre class="hd-evidence">Computer DN: CN=NS-LT-0145,CN=Computers\nApplied: Default Domain Policy\nDenied: Operations Drive Mapping\nReason: Link out of scope</pre></div></div><div class="card"><div class="card-header"><strong>Safe policy workflow</strong></div><div class="card-body">${hdList(['Define outcome and rollback','Confirm target OU and filtering','Test one scoped endpoint','Use gpupdate to refresh','Use gpresult to prove application','Record the change and verification'],true)}</div></div></div>`;
 const hdFileServerFixed = () => `${hdPageHeader('File Server', 'Calculate effective access across share permissions, NTFS permissions, groups, and inheritance.')}<div class="two-col"><div class="card"><div class="card-header"><strong>Shares · NS-FILE01</strong></div><div class="table-wrap"><table><thead><tr><th>Share</th><th>UNC path</th><th>Share permission</th><th>NTFS model</th><th>Status</th></tr></thead><tbody><tr><td>Finance</td><td><code>\\NS-FILE01\Finance</code></td><td>Authenticated Users · Change</td><td>GG-Finance-Contributors · Modify</td><td>${hdBadge('Warning','warn')}</td></tr><tr><td>HR</td><td><code>\\NS-FILE01\HR</code></td><td>HR Users · Change</td><td>Readers / Contributors groups</td><td>${hdBadge('Healthy','ok')}</td></tr><tr><td>Operations</td><td><code>\\NS-FILE01\Operations</code></td><td>Operations Users · Change</td><td>GG-Operations-Drive · Modify</td><td>${hdBadge('Healthy','ok')}</td></tr></tbody></table></div></div><div class="card"><div class="card-header"><strong>Effective access · Evan Parker</strong></div><div class="card-body"><dl class="hd-dl"><dt>Share</dt><dd>Change</dd><dt>NTFS</dt><dd>Read &amp; Execute</dd><dt>Effective network access</dt><dd>${hdBadge('Read only','warn')}</dd><dt>Evidence</dt><dd>Not a member of GG-Finance-Contributors</dd></dl><div class="callout info">Use an approved security group. Do not add a direct user ACL to bypass the access model.</div></div></div></div>`;
 /* ---------- Server state and screens (added for Module 7, key its-05, console A) ----------
  * Off unless a shift gives a server state. Every older ticket, set and Prove
@@ -7058,6 +7078,9 @@ function hdServerDetail(name) {
   const state = hdServerState(name);
   const services = hdServerList(state, 'services');
   hdServerSeen(`server:${name}`, `Server Manager › ${name}`);
+  // Module 7, console B: the volume list is the same evidence as
+  // Get-CimInstance Win32_LogicalDisk -ComputerName (hdServerCommand).
+  if (hdServerList(state, 'volumes').length) hdServerSeen(`volumes:${name}`, `Volumes · ${name}`);
   const roles = hdServerList(state, 'roles').map(role => {
     const own = (Array.isArray(role.services) ? role.services : []).map(id => services.find(service => service.name === id)).filter(Boolean);
     const down = own.find(service => service.status !== 'Running');
@@ -7118,7 +7141,8 @@ function hdServerServicesView() {
   const state = name ? hdServerState(name) : null;
   const services = hdServerList(state, 'services');
   if (!services.length) return hdServerMissing('Services');
-  hdServerSeen(`services:${name}`, `Services · ${name}`);
+  // One key per service too, the same as Get-Service -ComputerName (console B).
+  hdSeenAll([`services:${name}`, ...services.map(service => `service:${name}:${service.name}`)], `Services · ${name}`);
   const rows = services.map(service => {
     const start = hdServerStartRule(name, service);
     const control = start ? `<button type="button" class="btn btn-primary btn-sm" data-hd-service-start="${hdEsc(service.name)}" onclick="hdServerStart('${hdJsArg(name)}','${hdJsArg(service.name)}')">Start</button>` : '';
@@ -7195,7 +7219,12 @@ function hdFileServersWithShares() { return hdServerNames().filter(name => { con
 function hdFileUsers() { return [...HD_USERS, ...(HD_PROVE && Array.isArray(HD_PROVE.shift.users) ? HD_PROVE.shift.users : [])]; }
 function hdFileUser(id) {
   const base = hdFileUsers().find(user => user && user.id === id);
-  return base ? { ...base, ...((hdState.userOverrides || {})[id] || {}) } : null;
+  if (!base) return null;
+  const user = { ...base, ...((hdState.userOverrides || {})[id] || {}) };
+  // Module 7: a group in the shift's directory block that lists this user
+  // counts here too, so Effective access agrees with Member Of.
+  const dir = typeof hdDirectory === 'function' ? hdDirectory() : null;
+  return dir ? { ...user, groups:hdDirUserGroups(user, dir) } : user;
 }
 // The entries of one permission list that cover this user, and the highest.
 function hdAccessFor(list, user) {
@@ -7297,6 +7326,494 @@ function hdConsoleServersCard(ticket) {
   if (!names.length && !changes) return '';
   const buttons = names.map(name => `<button type="button" class="btn btn-secondary" onclick="hdServerOpen('${hdJsArg(name)}')">Open ${hdEsc(name)}</button>`).join('');
   return `<div class="card" data-hd-servers-card><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Servers</strong><span class="muted">Read the server; change nothing the runbook doesn't allow</span></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:8px">${buttons}${changes ? `<button type="button" class="btn btn-secondary" onclick="navigate('#/helpdesk/change-log')">Change log</button>` : ''}</div></div></div>`;
+}
+
+/* ---------- Directory, Group Policy, DNS and DHCP (Module 7, key its-05, console B) ----------
+ * Off unless a shift has a directory block. Every older ticket, set and Prove
+ * shift sees the fixed Active Directory, Group Policy, DNS and DHCP screens
+ * and today's command answers (each kept as an hd...Fixed function).
+ *
+ * Where it comes from, later layers adding to earlier ones:
+ *   a Prove shift's directory (Prove), or a practice or coached set's
+ *   directory → the Practice ticket the student opened and still has
+ *   selected: its console.directory (hdServerPracticeTicket, console A).
+ *
+ * A directory block: {
+ *   readOnly?: false    Active Directory is read-only unless every layer that
+ *     names readOnly says false: no Unlock, Reset password, Disable / Enable
+ *     or Add approved group button, and hdAdAction refuses each one
+ *   groups?: { '<group>': { members?:[user id | username | name], scope?,
+ *     type?, resource? } }   added members; a group HD_GROUPS lacks is added.
+ *     A group's members are the users whose groups name it plus these, so
+ *     Members, Member Of and Effective access always agree
+ *   dns?: [{ name, type:'A'|'AAAA'|'CNAME'|'MX'|'TXT', value, ttl?, status? }]
+ *     records added to the zone (one name and type replaces the fixture's)
+ *   dhcp?: { '<scope>': { server?, range?, vlan?, leased?, free?,
+ *     utilization?, status?, leases?:[{ name, ip, mac?, leased? }],
+ *     reservations?:[{ name, ip, mac? }], exclusions?:[{ start, end }] } }
+ * }
+ * With a directory block every Active Directory computer opens (General shows
+ * its OU), Group Policy shows Results per computer and every DHCP scope opens.
+ * Group Policy Results come from HD_GPOS and the computer's OU, and the typed
+ * gpresult /r reads the same result. gpupdate /force refreshes a computer's
+ * "Last applied" time (a GPO's version changes only when the GPO is edited).
+ *
+ * The server lines answer from console A's server state, on a server that has
+ * one: Get-Service -ComputerName, Test-NetConnection, Get-SmbShareAccess,
+ * Get-CimInstance Win32_LogicalDisk -ComputerName, Get-WinEvent -ComputerName.
+ * The directory lines answer only with a directory block: Get-ADUser,
+ * Get-ADPrincipalGroupMembership, Get-ADGroup, Get-ADGroupMember,
+ * Get-ADComputer, Resolve-DnsName, gpresult /r, gpupdate /force.
+ * Each screen and its command record the same key through hdServerSeen, so a
+ * coach or "Check my work" gives them the same credit:
+ *   ad-user:<user id>, ad-user-groups:<user id>, ad-group:<group>,
+ *   ad-computer:<name>, gp-results:<computer>, gpupdate:<computer>,
+ *   dns-zone, dns-record:<name>:<type>, dhcp-scope:<scope>,
+ *   volumes:<server>, services:<server>, service:<server>:<service>,
+ *   port:<server>:<port>, ping:<server>, and console A's file-share: and
+ *   server-log: keys.
+ *
+ * "Raise a related incident" (console.raise: { ticket:'<id>' } on a Practice
+ * matrix ticket; the card shows with the other matrix cards): the named ticket, from the same set, stays out of the shift until
+ * the student raises it. Then it is built the way hdFreshState builds a
+ * ticket, created at the shift clock, linked as a related child of the
+ * ticket it came from, and opened for the student to write and triage. */
+function hdDirectoryLayers() {
+  if (HD_PROVE) { const own = hdServerObject(HD_PROVE.shift.directory); return own ? [own] : []; }
+  const layers = [];
+  const set = typeof hdActiveSet === 'function' ? hdActiveSet() : null;
+  if (set && hdServerObject(set.directory)) layers.push(set.directory);
+  const ticket = hdServerPracticeTicket();
+  const own = ticket && hdServerObject(hdConsole(ticket).directory);
+  if (own) layers.push(own);
+  return layers;
+}
+// The shift's directory block, merged, or null (every feature off).
+function hdDirectory() {
+  const layers = hdDirectoryLayers();
+  if (!layers.length) return null;
+  const merged = { readOnly:layers.some(layer => layer.readOnly === true) || !layers.some(layer => layer.readOnly === false), groups:{}, dns:[], dhcp:{} };
+  layers.forEach(layer => {
+    if (hdServerObject(layer.groups)) Object.entries(layer.groups).forEach(([name, group]) => {
+      if (!hdServerObject(group)) return;
+      const before = merged.groups[name] || {};
+      const members = [...(before.members || []), ...(Array.isArray(group.members) ? group.members.map(String) : [])];
+      merged.groups[name] = { ...before, ...hdClone(group), members };
+    });
+    (Array.isArray(layer.dns) ? layer.dns : []).forEach(record => {
+      if (!record || !record.name || !record.type) return;
+      const at = merged.dns.findIndex(item => item.name === record.name && item.type === record.type);
+      if (at > -1) merged.dns.splice(at, 1);
+      merged.dns.push(hdClone(record));
+    });
+    if (hdServerObject(layer.dhcp)) Object.entries(layer.dhcp).forEach(([name, scope]) => { if (hdServerObject(scope)) merged.dhcp[name] = { ...(merged.dhcp[name] || {}), ...hdClone(scope) }; });
+  });
+  return merged;
+}
+function hdDirectoryReadOnly() { const dir = hdDirectory(); return !!(dir && dir.readOnly); }
+// Each key once in Prove (hdProveOpened); in Practice every key.
+function hdSeenAll(keys, label) { (HD_PROVE ? keys.slice(0, 1) : keys).forEach(key => hdServerSeen(key, label)); }
+
+// Users, groups and members.
+function hdDirUserMatch(user, ref) {
+  const value = String(ref || '').toLowerCase().replace(/^[^\\]+\\/, '');
+  return !!value && [user.id, user.username, user.name].some(item => String(item || '').toLowerCase() === value);
+}
+function hdDirUser(ref) { const base = hdFileUsers().find(user => user && hdDirUserMatch(user, ref)); return base ? hdFileUser(base.id) : null; }
+function hdDirGroups(dir) {
+  const names = [...HD_GROUPS.map(group => group.name), ...Object.keys(dir.groups).filter(name => !HD_GROUPS.some(group => group.name === name))];
+  return names.map(name => {
+    const base = HD_GROUPS.find(group => group.name === name) || { name, scope:'Global', type:'Security', resource:'' };
+    const own = dir.groups[name] || {};
+    return { ...base, ...own, name, extra:Array.isArray(own.members) ? own.members : [] };
+  });
+}
+// A user's groups: their own, plus every group that lists them.
+function hdDirUserGroups(user, dir) {
+  const own = Array.isArray(user.groups) ? user.groups : [];
+  const listed = Object.entries(dir.groups).filter(([, group]) => (group.members || []).some(ref => hdDirUserMatch(user, ref))).map(([name]) => name);
+  return [...new Set([...own, ...listed])];
+}
+// A group's members: users (by name) first, then any other listed name.
+function hdDirMembers(group) {
+  const users = hdFileUsers().filter(user => user && user.id && ((Array.isArray(user.groups) && user.groups.includes(group.name)) || group.extra.some(ref => hdDirUserMatch(user, ref))));
+  const others = group.extra.filter(ref => !users.some(user => hdDirUserMatch(user, ref)));
+  return [...users.map(user => ({ name:user.name, username:user.username || '', department:user.department || '', kind:'user' })), ...[...new Set(others)].map(name => ({ name, username:'', department:'', kind:'other' }))];
+}
+function hdDirGroup(name) { const dir = hdDirectory(); return dir ? hdDirGroups(dir).find(group => group.name.toLowerCase() === String(name || '').toLowerCase()) || null : null; }
+
+// Active Directory, with a directory block.
+function hdAdGroupOpen(name) {
+  if (!hdDirGroup(name)) return;
+  hdState.adTab = 'groups'; hdState.adGroup = hdDirGroup(name).name;
+  hdSave(); render();
+}
+window.hdAdGroupOpen = hdAdGroupOpen;
+function hdAdUserPaneDirectory(user, dir) {
+  const groups = hdDirUserGroups(user, dir);
+  // Only a user the student opened is recorded (the default pane is not).
+  if (hdState.adUserOpened === user.id) hdSeenAll([`ad-user:${user.id}`, `ad-user-groups:${user.id}`], `Active Directory › Users › ${user.name}`);
+  const actions = dir.readOnly
+    ? `<p class="muted" data-hd-ad-read-only>Read-only: this view reads the account and changes nothing.</p>`
+    : `<div class="hd-action-grid"><button class="btn btn-secondary" onclick="hdAdAction('unlock')">Unlock</button><button class="btn btn-secondary" onclick="hdAdAction('reset')">Reset password</button><button class="btn btn-secondary" onclick="hdAdAction('${user.enabled ? 'disable' : 'enable'}')">${user.enabled ? 'Disable' : 'Enable'}</button><button class="btn btn-secondary" onclick="hdAdAction('add-hr')">Add approved group</button></div>`;
+  return `<aside class="card hd-object-pane" data-hd-ad-user="${hdEsc(user.id)}"><div class="card-header"><strong>${hdEsc(user.name)}</strong>${user.locked ? hdBadge('Locked', 'bad') : hdBadge(user.enabled ? 'Enabled' : 'Disabled', user.enabled ? 'ok' : 'bad')}</div><div class="card-body"><dl class="hd-dl"><dt>Username</dt><dd>${hdEsc(`${HD_ORG.netbios}\\${user.username || ''}`)}</dd><dt>OU</dt><dd><code>${hdEsc(user.ou || '')}</code></dd><dt>Manager</dt><dd>${hdEsc(user.manager || '')}</dd><dt>Account</dt><dd>${user.enabled ? 'Enabled' : 'Disabled'}</dd><dt>Locked out</dt><dd>${user.locked ? 'Yes' : 'No'}</dd><dt>Password age</dt><dd>${hdEsc(user.passwordAge)} days</dd><dt>Member Of</dt><dd data-hd-member-of>${groups.map(group => hdBadge(group)).join(' ') || '<span class="muted">No groups</span>'}</dd></dl>${hdLockoutDetailsHtml(user)}${actions}</div></aside>`;
+}
+function hdAdGroupsDirectory(dir) {
+  const groups = hdDirGroups(dir);
+  const open = groups.find(group => group.name === hdState.adGroup) || null;
+  const rows = groups.map(group => `<tr data-hd-ad-group="${hdEsc(group.name)}"${open === group ? ' aria-current="true"' : ''}><td><strong>${hdEsc(group.name)}</strong></td><td>${hdEsc(group.scope || '')}</td><td>${hdEsc(group.type || '')}</td><td>${hdDirMembers(group).length}</td><td>${hdEsc(group.resource || '')}</td><td><button type="button" class="btn btn-sm btn-secondary" onclick="hdAdGroupOpen('${hdJsArg(group.name)}')">Members</button></td></tr>`).join('');
+  let pane = '<aside class="card hd-object-pane"><div class="card-body"><p class="muted">Open a group to read its members.</p></div></aside>';
+  if (open) {
+    hdServerSeen(`ad-group:${open.name}`, `Active Directory › Groups › ${open.name}`);
+    const members = hdDirMembers(open);
+    const list = members.map(member => `<tr data-hd-group-member="${hdEsc(member.name)}"><td>${hdEsc(member.name)}</td><td>${hdEsc(member.username)}</td><td>${hdEsc(member.department)}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">No members.</td></tr>';
+    pane = `<aside class="card hd-object-pane" data-hd-group-members="${hdEsc(open.name)}"><div class="card-header"><strong>${hdEsc(open.name)} · Members</strong><span class="muted">${members.length}</span></div><div class="table-wrap"><table><thead><tr><th>Name</th><th>Username</th><th>Department</th></tr></thead><tbody>${list}</tbody></table></div>${HD_PROVE ? '' : '<div class="card-body"><p class="muted">Permissions are given to groups, so "who can do this?" is a group\'s member list. Read-only.</p></div>'}</aside>`;
+  }
+  return `<div class="hd-admin-layout"><div class="card"><div class="table-wrap"><table data-hd-ad-groups><thead><tr><th>Group</th><th>Scope</th><th>Type</th><th>Members</th><th>Resource / purpose</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>${pane}</div>`;
+}
+function hdAdDirectoryView(dir) {
+  const tab = ['users', 'groups', 'computers'].includes(hdState.adTab) ? hdState.adTab : 'users';
+  const users = hdFileUsers().filter(user => user && user.id).map(user => hdFileUser(user.id));
+  const selected = hdFileUser(hdState.selectedUserId) || hdFileUser('u-1005');
+  const tabs = ['users', 'groups', 'computers'].map(id => `<button class="tab ${tab === id ? 'active' : ''}" onclick="hdSetAdTab('${id}')">${id[0].toUpperCase()}${id.slice(1)}</button>`).join('');
+  let body = '';
+  if (tab === 'users') body = `<div class="hd-admin-layout"><div class="card">${hdDirectoryTable(users)}</div>${hdAdUserPaneDirectory(selected, dir)}</div>`;
+  if (tab === 'groups') body = hdAdGroupsDirectory(dir);
+  if (tab === 'computers') body = hdAdComputersWithPane();
+  return `${hdPageHeader('Active Directory', `${HD_ORG.domain} · Users, groups and computers${dir.readOnly ? ' · read-only' : ''}`)}<div class="tabs">${tabs}</div>${body}`;
+}
+
+// Group Policy Results: from HD_GPOS and the computer's OU. A GPO linked to
+// the domain reaches every computer; one linked to an OU reaches a computer
+// whose OU path has that OU. Security filtering names Authenticated Users,
+// Domain Computers or a group the computer's user is in. A GPO filtered to
+// the user but linked elsewhere is listed as not applied, link out of scope.
+function hdGpoLinked(gpo, ou) {
+  const link = String(gpo.link || '').toLowerCase();
+  if (link === String(HD_ORG.domain).toLowerCase() || link.startsWith('dc=')) return true;
+  const parts = String(ou || '').toLowerCase().split(',').map(part => part.trim());
+  return link.split(',').map(part => part.trim()).every(part => parts.includes(part));
+}
+function hdGpResult(name) {
+  const computer = hdComputerByName(name); if (!computer) return null;
+  const dir = hdDirectory();
+  const user = hdFileUsers().find(item => item && item.name === computer.user);
+  const groups = user && dir ? hdDirUserGroups(hdFileUser(user.id) || user, dir) : [];
+  const generic = gpo => ['authenticated users', 'domain computers'].includes(String(gpo.scope || '').toLowerCase());
+  const applied = []; const notApplied = [];
+  HD_GPOS.forEach(gpo => {
+    const linked = hdGpoLinked(gpo, computer.ou);
+    const filtered = generic(gpo) || groups.includes(gpo.scope);
+    if (linked && filtered) applied.push(gpo);
+    else if (linked) notApplied.push({ gpo, reason:'Denied (Security filtering)' });
+    else if (filtered && !generic(gpo)) notApplied.push({ gpo, reason:'Not applied (link out of scope)' });
+  });
+  const refresh = hdServerObject(hdState.gpRefresh) || {};
+  return { computer, user, applied, notApplied, lastApplied:refresh[computer.name] || 'At sign-in today' };
+}
+function hdGpResultText(result) {
+  const pad = '    ';
+  const account = result.user ? `${HD_ORG.netbios}\\${result.user.username}` : 'NT AUTHORITY\\SYSTEM';
+  const lines = [`RSOP data for ${account} on ${result.computer.name} : Logging Mode`, '', 'COMPUTER SETTINGS', '-----------------', `${pad}CN=${result.computer.name},${result.computer.ou}`, `${pad}Last time Group Policy was applied: ${result.lastApplied}`, `${pad}Group Policy was applied from:      ns-dc01.${HD_ORG.domain}`, '', `${pad}Applied Group Policy Objects`, `${pad}-----------------------------`];
+  (result.applied.length ? result.applied.map(gpo => gpo.name) : ['N/A']).forEach(name => lines.push(`${pad}${pad}${name}`));
+  lines.push('', `${pad}The following GPOs were not applied because they were filtered out`, `${pad}-------------------------------------------------------------------`);
+  if (!result.notApplied.length) lines.push(`${pad}${pad}N/A`);
+  result.notApplied.forEach(item => lines.push(`${pad}${pad}${item.gpo.name}`, `${pad}${pad}${pad}Filtering:  ${item.reason}`));
+  return lines.join('\n');
+}
+function hdGpResultsOpen(name) {
+  if (!hdDirectory() || !hdComputerByName(name)) return;
+  hdState.gpResultsFor = name;
+  hdSave(); render();
+}
+window.hdGpResultsOpen = hdGpResultsOpen;
+function hdGroupPolicyView() {
+  const name = hdComputerByName(hdState.gpResultsFor) ? hdState.gpResultsFor : '';
+  const result = name ? hdGpResult(name) : null;
+  if (result) hdServerSeen(`gp-results:${name}`, `Group Policy › Results · ${name}`);
+  const gpos = HD_GPOS.map(g => `<tr data-hd-gpo="${hdEsc(g.name)}"><td><strong>${hdEsc(g.name)}</strong></td><td><code>${hdEsc(g.link)}</code></td><td>${hdEsc(g.scope)}</td><td>${hdEsc(g.version)}</td><td>${hdBadge(g.status, 'ok')}</td><td>${hdEsc(g.purpose)}</td></tr>`).join('');
+  const options = hdComputers().map(item => `<option value="${hdEsc(item.name)}"${item.name === name ? ' selected' : ''}>${hdEsc(item.name)}</option>`).join('');
+  const picker = `<label>Computer <select class="ipt" data-hd-gp-computer onchange="hdGpResultsOpen(this.value)"><option value="">Choose a computer</option>${options}</select></label>`;
+  const card = result
+    ? `<dl class="hd-dl" data-hd-gp-results="${hdEsc(name)}"><dt>Computer</dt><dd><code>CN=${hdEsc(name)},${hdEsc(result.computer.ou)}</code></dd><dt>User</dt><dd>${hdEsc(result.user ? result.user.name : 'None signed in')}</dd><dt>Last applied</dt><dd data-hd-gp-last-applied>${hdEsc(result.lastApplied)}</dd><dt>Applied</dt><dd data-hd-gp-applied>${result.applied.map(gpo => hdEsc(gpo.name)).join('<br>') || 'None'}</dd><dt>Not applied</dt><dd data-hd-gp-denied>${result.notApplied.map(item => `${hdEsc(item.gpo.name)} <small>${hdEsc(item.reason)}</small>`).join('<br>') || 'None'}</dd></dl>`
+    : '<p class="muted">Choose a computer to read the policies that reached it.</p>';
+  return `${hdPageHeader('Group Policy Management', HD_PROVE ? 'Policy links, filtering and results per computer.' : 'Read which policies reach a computer and why. gpresult /r shows the same result.')}<div class="card"><div class="table-wrap"><table><thead><tr><th>GPO</th><th>Linked to</th><th>Security filtering</th><th>Version</th><th>Status</th><th>Purpose</th></tr></thead><tbody>${gpos}</tbody></table></div></div><div class="card" data-hd-gp-results-card><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Group Policy Results</strong>${picker}</div><div class="card-body">${card}</div></div>${HD_PROVE ? '' : '<div class="callout info">Where a computer object lives decides which policies reach it. Reading results changes nothing.</div>'}`;
+}
+
+// DNS.
+const HD_DNS_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT'];
+function hdDnsRecords(dir) {
+  const records = HD_DNS_RECORDS.filter(record => !dir.dns.some(item => item.name === record.name && item.type === record.type)).map(record => ({ ...record }));
+  return [...records, ...dir.dns.map(record => ({ zone:HD_ORG.domain, ttl:'3600', status:'Healthy', ...record }))];
+}
+function hdDnsSetType(type) { hdState.dnsType = HD_DNS_TYPES.includes(type) ? type : ''; hdSave(); render(); }
+window.hdDnsSetType = hdDnsSetType;
+function hdDnsView(dir) {
+  const all = hdDnsRecords(dir);
+  const type = HD_DNS_TYPES.includes(hdState.dnsType) ? hdState.dnsType : '';
+  const rows = all.filter(record => !type || record.type === type);
+  hdSeenAll(['dns-zone', ...rows.map(record => `dns-record:${String(record.name).toLowerCase()}:${record.type}`)], `DNS Manager › ${HD_ORG.domain}`);
+  const filters = [['', 'All'], ...HD_DNS_TYPES.map(item => [item, item])].map(([id, label]) => `<button type="button" class="btn ${id === type ? 'btn-primary' : 'btn-secondary'} btn-sm" aria-pressed="${id === type}" data-hd-dns-type="${id}" onclick="hdDnsSetType('${id}')">${label}</button>`).join('');
+  const table = rows.map(r => `<tr data-hd-dns-record="${hdEsc(r.name)}:${hdEsc(r.type)}"><td><strong>${hdEsc(r.name)}</strong></td><td>${hdEsc(r.type)}</td><td><code>${hdEsc(r.value)}</code></td><td>${hdEsc(r.ttl)}</td><td>${hdBadge(r.status, r.status === 'Healthy' ? 'ok' : 'warn')}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">No records of this type.</td></tr>';
+  const legend = HD_PROVE ? '' : '<div class="callout info">A: a name to an IPv4 address. AAAA: a name to an IPv6 address. CNAME: a name for another name. MX: the server that takes the domain\'s mail. TXT: text other systems read, such as SPF, DKIM and DMARC. Reading a record changes nothing.</div>';
+  return `${hdPageHeader('DNS Manager', 'Read the forward lookup zone. Reading changes nothing.')}<div class="card" data-hd-dns-zone><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Forward lookup zone · ${hdEsc(HD_ORG.domain)}</strong><div style="display:flex;flex-wrap:wrap;gap:6px">${filters}</div></div><div class="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Value</th><th>TTL</th><th>Status</th></tr></thead><tbody>${table}</tbody></table></div></div>${legend}`;
+}
+
+// DHCP.
+function hdDhcpScopes(dir) {
+  const names = [...HD_DHCP_SCOPES.map(scope => scope.name), ...Object.keys(dir.dhcp).filter(name => !HD_DHCP_SCOPES.some(scope => scope.name === name))];
+  return names.map(name => {
+    const own = dir.dhcp[name] || {};
+    const scope = { server:'NS-DHCP01', range:'', vlan:'', leased:0, free:0, utilization:'', status:'Active', ...(HD_DHCP_SCOPES.find(item => item.name === name) || {}), ...own, name };
+    ['leases', 'reservations', 'exclusions'].forEach(key => { scope[key] = Array.isArray(own[key]) ? own[key].filter(item => item && typeof item === 'object') : []; });
+    return scope;
+  });
+}
+function hdDhcpOpen(name) {
+  const dir = hdDirectory(); if (!dir || !hdDhcpScopes(dir).some(scope => scope.name === name)) return;
+  hdState.dhcpScope = name;
+  hdSave(); render();
+}
+window.hdDhcpOpen = hdDhcpOpen;
+function hdDhcpTable(head, rows, empty) {
+  return `<div class="table-wrap"><table><thead><tr>${head.map(item => `<th>${item}</th>`).join('')}</tr></thead><tbody>${rows.join('') || `<tr><td colspan="${head.length}" class="muted">${empty}</td></tr>`}</tbody></table></div>`;
+}
+function hdDhcpView(dir) {
+  const scopes = hdDhcpScopes(dir);
+  const open = scopes.find(scope => scope.name === hdState.dhcpScope) || null;
+  const rows = scopes.map(s => `<tr data-hd-dhcp-scope="${hdEsc(s.name)}"${open === s ? ' aria-current="true"' : ''}><td><strong>${hdEsc(s.name)}</strong><small>${hdEsc(s.server)}</small></td><td><code>${hdEsc(s.range)}</code></td><td>${hdEsc(s.vlan)}</td><td>${hdEsc(s.leased)}</td><td>${hdEsc(s.free)}</td><td><div class="hd-progress"><i style="width:${hdEsc(s.utilization)}"></i></div>${hdEsc(s.utilization)}</td><td>${hdBadge(s.status, s.status === 'Active' ? 'ok' : 'warn')}</td><td><button type="button" class="btn btn-ghost btn-sm" onclick="hdDhcpOpen('${hdJsArg(s.name)}')">Open</button></td></tr>`).join('');
+  let detail = '';
+  if (open) {
+    hdServerSeen(`dhcp-scope:${open.name}`, `DHCP › ${open.server} › ${open.name}`);
+    const leases = open.leases.map(item => `<tr data-hd-dhcp-lease="${hdEsc(item.name)}"><td>${hdEsc(item.name)}</td><td><code>${hdEsc(item.ip)}</code></td><td><code>${hdEsc(item.mac || '')}</code></td><td>${hdEsc(item.leased || '')}</td></tr>`);
+    const reservations = open.reservations.map(item => `<tr data-hd-dhcp-reservation="${hdEsc(item.name)}"><td>${hdEsc(item.name)}</td><td><code>${hdEsc(item.ip)}</code></td><td><code>${hdEsc(item.mac || '')}</code></td></tr>`);
+    const exclusions = open.exclusions.map(item => `<tr data-hd-dhcp-exclusion="${hdEsc(item.start)}"><td><code>${hdEsc(item.start)}</code></td><td><code>${hdEsc(item.end)}</code></td></tr>`);
+    detail = `<div class="card" data-hd-dhcp-detail="${hdEsc(open.name)}"><div class="card-header"><strong>${hdEsc(open.server)} › ${hdEsc(open.name)}</strong><span class="muted">VLAN ${hdEsc(open.vlan)} · ${hdEsc(open.utilization)} used · ${hdEsc(open.free)} free</span></div><div class="card-body"><strong>Address leases</strong></div>${hdDhcpTable(['Device', 'Address', 'Hardware address', 'Leased'], leases, 'No leases listed.')}<div class="card-body"><strong>Reservations</strong></div>${hdDhcpTable(['Device', 'Reserved address', 'Hardware address'], reservations, 'No reservations in this scope.')}<div class="card-body"><strong>Exclusion ranges</strong></div>${hdDhcpTable(['Start', 'End'], exclusions, 'No exclusions in this scope.')}</div>`;
+  }
+  const legend = HD_PROVE ? '' : '<div class="callout info">One scope serves one VLAN. A lease is an address lent to a device for a time. A reservation keeps one address for one device; an exclusion range is never handed out. Reading a scope changes nothing.</div>';
+  return `${hdPageHeader('DHCP Manager', 'Read each scope’s VLAN, use, leases, reservations and exclusions. Reading changes nothing.')}<div class="card" data-hd-dhcp-scopes><div class="table-wrap"><table><thead><tr><th>Scope</th><th>Range</th><th>VLAN</th><th>Leased</th><th>Free</th><th>Utilization</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>${detail}${legend}`;
+}
+
+// The typed lines. null: not this feature's command, so the older answers
+// stay as they were.
+function hdServerByTarget(target) {
+  const value = String(target || '').replace(/^["']|["']$/g, '').toLowerCase();
+  if (!value) return null;
+  const server = HD_SERVERS.find(item => [item.name.toLowerCase(), `${item.name.toLowerCase()}.${HD_ORG.domain}`, item.ip].includes(value));
+  return server && hdServerState(server.name) ? server : null;
+}
+function hdServerPorts(state) { return Array.isArray(state.ports) ? state.ports.map(Number) : [135, 445, 3389, 5985]; }
+function hdServerCommand(command, normalized, computer) {
+  const target = hdParam(command, 'computername') || hdParam(command, 'cimsession');
+  const trimmed = command.trim();
+  if (/^get-service\b/.test(normalized) && hdServerByTarget(target)) {
+    const server = hdServerByTarget(target); const state = hdServerState(server.name);
+    const wanted = hdParam(command, 'name') || (/^get-service\s+("[^"]*"|'[^']*'|[^\s-]\S*)/i.exec(trimmed) || [])[1] || '';
+    const all = hdServerList(state, 'services');
+    const rows = wanted ? all.filter(service => [service.name, service.displayName].some(item => String(item || '').toLowerCase() === wanted.replace(/^["']|["']$/g, '').toLowerCase())) : all;
+    if (!rows.length) { hdLastCommandResult = `no service ${wanted} on ${server.name}`; return `Get-Service : Cannot find any service with service name '${wanted.replace(/^["']|["']$/g, '')}'.`; }
+    hdSeenAll([`services:${server.name}`, ...rows.map(service => `service:${server.name}:${service.name}`)], `Services · ${server.name}`);
+    hdLastCommandResult = rows.map(service => `${service.name} ${service.status || 'Stopped'}`).join(', ');
+    return ['Status   Name               DisplayName', '------   ----               -----------', ...rows.map(service => `${String(service.status || 'Stopped').padEnd(8)} ${String(service.name).padEnd(18)} ${service.displayName || service.name}`)].join('\n');
+  }
+  if (/^test-netconnection\b/.test(normalized)) {
+    const named = target || (/^test-netconnection\s+("[^"]*"|'[^']*'|[^\s-]\S*)/i.exec(trimmed) || [])[1] || '';
+    const server = hdServerByTarget(named); if (!server) return null;
+    const state = hdServerState(server.name);
+    const port = hdParam(command, 'port');
+    if (port && !/^\d{1,5}$/.test(port)) return `Test-NetConnection : Cannot validate argument on parameter 'Port'.`;
+    const up = state.status !== 'Offline';
+    const open = up ? hdServerPorts(state) : null;
+    hdServerSeen(port ? `port:${server.name}:${Number(port)}` : `ping:${server.name}`, `Test-NetConnection ${server.name}${port ? ` -Port ${port}` : ''}`);
+    const text = hdTestNetText(server.name, port, open, (hdComputerByName(computer.name) || {}).ip, 'Ethernet', server.ip);
+    hdLastCommandResult = port ? `${server.name}:${port} TcpTestSucceeded ${!!(open && open.includes(Number(port)))}` : `${server.name} ping ${up}`;
+    return text;
+  }
+  if (/^get-smbshareaccess\b/.test(normalized)) {
+    const name = (hdParam(command, 'name') || (/^get-smbshareaccess\s+("[^"]*"|'[^']*'|[^\s-]\S*)/i.exec(trimmed) || [])[1] || '').replace(/^["']|["']$/g, '');
+    const servers = (target ? [hdServerByTarget(target)].filter(Boolean).map(item => item.name) : hdServerNames()).filter(item => hdServerList(hdServerState(item), 'shares').length);
+    if (!servers.length) return null;
+    if (!name) return 'Get-SmbShareAccess : Add the share name, for example Get-SmbShareAccess -Name <share> -CimSession <server>.';
+    const found = servers.map(item => ({ server:item, share:hdServerList(hdServerState(item), 'shares').find(share => String(share.name).toLowerCase() === name.toLowerCase()) })).find(item => item.share);
+    if (!found) { hdLastCommandResult = `no share ${name}`; return `Get-SmbShareAccess : No MSFT_SmbShare objects found with property 'Name' equal to '${name}'.`; }
+    hdServerSeen(`file-share:${found.server}:${found.share.name}:share`, `Share permissions · ${found.share.path || found.share.name}`);
+    const entries = (Array.isArray(found.share.share) ? found.share.share : []).filter(entry => entry && entry.who);
+    hdLastCommandResult = entries.map(entry => `${entry.who} ${entry.access}`).join(', ');
+    return ['Name         ScopeName AccountName                  AccessControlType AccessRight', '----         --------- -----------                  ----------------- -----------', ...entries.map(entry => `${String(found.share.name).padEnd(12)} *         ${String(/\\/.test(entry.who) || HD_EVERYONE.includes(String(entry.who).toLowerCase()) ? entry.who : `${HD_ORG.netbios}\\${entry.who}`).padEnd(28)} Allow             ${entry.access}`)].join('\n');
+  }
+  if (/^get-ciminstance\b/.test(normalized) && /win32_logicaldisk/.test(normalized) && hdServerByTarget(target)) {
+    const server = hdServerByTarget(target); const state = hdServerState(server.name);
+    const filter = /deviceid\s*=\s*\\?["']?([a-z]:)/i.exec(command);
+    const volumes = hdServerList(state, 'volumes').filter(volume => !filter || String(volume.drive).toLowerCase() === filter[1].toLowerCase());
+    hdServerSeen(`volumes:${server.name}`, `Volumes · ${server.name}`);
+    const bytes = gb => String(Math.round(Number(gb) * 1073741824));
+    hdLastCommandResult = volumes.map(volume => `${volume.drive} ${volume.freeGb} GB free of ${volume.sizeGb} GB`).join(', ');
+    return [...['DeviceID DriveType ProviderName VolumeName       Size          FreeSpace', '-------- --------- ------------ ----------       ----          ---------'], ...volumes.map(volume => `${String(volume.drive).padEnd(8)} 3                      ${String(volume.label || '').padEnd(16)} ${bytes(volume.sizeGb).padEnd(13)} ${bytes(volume.freeGb)}`), ...(HD_PROVE ? [] : ['', '(Size and FreeSpace are in bytes: 1 GB is 1,073,741,824 bytes.)'])].join('\n');
+  }
+  if (/^get-winevent\b/.test(normalized) && hdServerByTarget(target)) {
+    const server = hdServerByTarget(target); const state = hdServerState(server.name);
+    const named = (hdParam(command, 'logname') || '').toLowerCase();
+    if (!named) return 'Get-WinEvent : Name the log, for example Get-WinEvent -ComputerName <server> -LogName System.';
+    const log = HD_SERVER_LOGS.find(([id, label]) => id === named || label.toLowerCase() === named);
+    const events = log ? hdServerLogRows(state, log[0]) : [];
+    if (!log || !Array.isArray((hdServerEvents(state) || {})[log[0]])) return `Get-WinEvent : There is not an event log on the ${server.name} computer that matches "${hdParam(command, 'logname')}".`;
+    hdServerSeen(`server-log:${server.name}:${log[0]}`, `Event Viewer › ${log[1]} · ${server.name}`);
+    const max = Number(hdParam(command, 'maxevents')) || events.length;
+    const rows = events.slice(0, max);
+    hdLastCommandResult = `${rows.length} event(s) in ${log[1]} on ${server.name}`;
+    if (!rows.length) return 'Get-WinEvent : No events were found that match the specified selection criteria.';
+    return ['TimeCreated        Id    LevelDisplayName Message', ...rows.map(event => `${String(event.time || '').padEnd(18)} ${String(event.id || '').padEnd(5)} ${String(event.level || 'Information').padEnd(16)} ${event.message || ''}`)].join('\n');
+  }
+  return null;
+}
+function hdDirectoryCommand(command, normalized, computer) {
+  const dir = hdDirectory(); if (!dir) return null;
+  const trimmed = command.trim();
+  const arg = (verb) => (hdParam(command, 'identity') || (new RegExp(`^${verb}\\s+("[^"]*"|'[^']*'|[^\\s-]\\S*)`, 'i').exec(trimmed) || [])[1] || '').replace(/^["']|["']$/g, '');
+  const list = rows => { const width = Math.max(...rows.map(([key]) => key.length)); return rows.map(([key, value]) => `${key.padEnd(width)} : ${value}`).join('\n'); };
+  const dn = name => `CN=${name},CN=Users,DC=northstar,DC=example`;
+  if (/^get-adprincipalgroupmembership\b/.test(normalized)) {
+    const user = hdDirUser(arg('get-adprincipalgroupmembership'));
+    if (!user) return `Get-ADPrincipalGroupMembership : Cannot find an object with identity: '${arg('get-adprincipalgroupmembership') || '(none)'}'.`;
+    hdServerSeen(`ad-user-groups:${user.id}`, `Active Directory › Users › ${user.name} › Member Of`);
+    const groups = hdDirUserGroups(user, dir); const all = hdDirGroups(dir);
+    hdLastCommandResult = `${user.username}: ${groups.join(', ')}`;
+    return ['name                       GroupCategory GroupScope', '----                       ------------- ----------', ...groups.map(name => { const group = all.find(item => item.name === name) || {}; return `${name.padEnd(26)} ${String(group.type || 'Security').padEnd(13)} ${group.scope || 'Global'}`; })].join('\n');
+  }
+  if (/^get-aduser\b/.test(normalized)) {
+    const user = hdDirUser(arg('get-aduser'));
+    if (!user) return `Get-ADUser : Cannot find an object with identity: '${arg('get-aduser') || '(none)'}'.`;
+    const props = (hdParam(command, 'properties') || '').toLowerCase();
+    const more = /\*|memberof|lockedout|passwordlastset|enabled/.test(props);
+    const rows = [['DistinguishedName', `CN=${user.name},${user.ou}`], ['Enabled', user.enabled ? 'True' : 'False'], ['Name', user.name], ['SamAccountName', user.username], ['UserPrincipalName', user.email || '']];
+    const keys = [`ad-user:${user.id}`];
+    if (more) {
+      rows.push(['LockedOut', user.locked ? 'True' : 'False'], ['PasswordLastSet', `${user.passwordAge} days ago`]);
+      if (/\*|memberof/.test(props)) { rows.push(['MemberOf', `{${hdDirUserGroups(user, dir).map(name => dn(name)).join(', ')}}`]); keys.push(`ad-user-groups:${user.id}`); }
+    }
+    keys.forEach(key => hdServerSeen(key, `Active Directory › Users › ${user.name}`));
+    hdLastCommandResult = `${user.username} Enabled=${user.enabled} LockedOut=${!!user.locked}`;
+    return list(rows);
+  }
+  if (/^get-adgroupmember\b/.test(normalized)) {
+    const name = arg('get-adgroupmember'); const group = hdDirGroup(name);
+    if (!group) return `Get-ADGroupMember : Cannot find an object with identity: '${name || '(none)'}'.`;
+    hdServerSeen(`ad-group:${group.name}`, `Active Directory › Groups › ${group.name}`);
+    const members = hdDirMembers(group);
+    hdLastCommandResult = `${group.name}: ${members.length} member(s)`;
+    return ['name                 SamAccountName objectClass', '----                 -------------- -----------', ...members.map(member => `${member.name.padEnd(20)} ${String(member.username).padEnd(14)} ${member.kind === 'user' ? 'user' : 'computer'}`)].join('\n');
+  }
+  if (/^get-adgroup\b/.test(normalized)) {
+    const name = arg('get-adgroup'); const groups = hdDirGroups(dir);
+    if (!name) return groups.map(group => `${group.name.padEnd(26)} ${group.scope} ${group.type}`).join('\n');
+    const group = hdDirGroup(name);
+    if (!group) return `Get-ADGroup : Cannot find an object with identity: '${name}'.`;
+    return list([['DistinguishedName', dn(group.name)], ['GroupCategory', group.type || 'Security'], ['GroupScope', group.scope || 'Global'], ['Name', group.name]]);
+  }
+  if (/^get-adcomputer\b/.test(normalized)) {
+    const name = arg('get-adcomputer');
+    if (!name) return hdComputers().map(item => `${item.name.padEnd(14)} ${hdComputerByName(item.name).ou}`).join('\n');
+    const found = hdComputers().find(item => item.name.toLowerCase() === name.toLowerCase());
+    if (!found) return `Get-ADComputer : Cannot find an object with identity: '${name}'.`;
+    const item = hdComputerByName(found.name);
+    hdServerSeen(`ad-computer:${item.name}`, `Active Directory › Computers › ${item.name}`);
+    hdLastCommandResult = `${item.name} in ${item.ou}`;
+    return list([['DistinguishedName', `CN=${item.name},${item.ou}`], ['DNSHostName', `${item.name.toLowerCase()}.${HD_ORG.domain}`], ['Enabled', 'True'], ['Name', item.name], ['ObjectClass', 'computer']]);
+  }
+  if (/^gpresult\b/.test(normalized)) {
+    if (!/(^|\s)\/(r|z|v)\b/.test(normalized)) return 'ERROR: Invalid Syntax. Type "gpresult /r" for the policies that reached this computer.';
+    const named = (/\/s\s+("[^"]*"|\S+)/i.exec(trimmed) || [])[1];
+    const name = named ? named.replace(/^["']|["']$/g, '') : computer.name;
+    const found = hdComputers().find(item => item.name.toLowerCase() === name.toLowerCase());
+    if (!found) { hdLastCommandResult = `no computer ${name}`; return 'ERROR: The RPC server is unavailable.'; }
+    const result = hdGpResult(found.name);
+    hdServerSeen(`gp-results:${found.name}`, `gpresult /r · ${found.name}`);
+    hdLastCommandResult = `${found.name}: applied ${result.applied.map(gpo => gpo.name).join(', ') || 'none'}; not applied ${result.notApplied.map(item => item.gpo.name).join(', ') || 'none'}`;
+    return hdGpResultText(result);
+  }
+  if (/^gpupdate(\s+\/force)?(\s+\/target:(computer|user))?$/.test(normalized)) {
+    // Recorded here; hdMachineCommand still answers (and adds policy printers).
+    hdState.gpRefresh = { ...(hdServerObject(hdState.gpRefresh) || {}), [computer.name]:hdShiftTimeText(hdShiftNow(hdServerPracticeTicket())) || 'Just now' };
+    hdServerSeen(`gpupdate:${computer.name}`, `gpupdate /force · ${computer.name}`);
+    return null;
+  }
+  if (/^resolve-dnsname\b/.test(normalized)) {
+    const name = (hdParam(command, 'name') || (/^resolve-dnsname\s+("[^"]*"|'[^']*'|[^\s-]\S*)/i.exec(trimmed) || [])[1] || '').replace(/^["']|["']$/g, '').toLowerCase();
+    const type = (hdParam(command, 'type') || 'A').toUpperCase();
+    if (!name) return 'Resolve-DnsName : Add the name, for example Resolve-DnsName files.northstar.example.';
+    const short = name.endsWith(`.${HD_ORG.domain}`) ? name.slice(0, -HD_ORG.domain.length - 1) : name === HD_ORG.domain ? '@' : name;
+    const records = hdDnsRecords(dir);
+    const find = (n, t) => records.find(record => String(record.name).toLowerCase() === n && record.type === t);
+    const chain = [];
+    let hit = find(short, type);
+    if (!hit && ['A', 'AAAA'].includes(type)) { const alias = find(short, 'CNAME'); if (alias) { chain.push(alias); const next = String(alias.value).toLowerCase().replace(`.${HD_ORG.domain}`, ''); hit = find(next, type); } }
+    if (hit) chain.push(hit);
+    if (!chain.length) { hdLastCommandResult = `${name} ${type} not found`; return `Resolve-DnsName : ${name} : DNS name does not exist`; }
+    chain.forEach(record => hdServerSeen(`dns-record:${String(record.name).toLowerCase()}:${record.type}`, `Resolve-DnsName ${name}`));
+    const fqdn = record => (record.name === '@' ? HD_ORG.domain : `${record.name}.${HD_ORG.domain}`);
+    hdLastCommandResult = chain.map(record => `${record.type} ${record.value}`).join(' → ');
+    return ['Name                              Type  TTL   Section Data', ...chain.map(record => `${fqdn(record).padEnd(33)} ${record.type.padEnd(5)} ${String(record.ttl || '3600').padEnd(5)} Answer  ${record.value}`)].join('\n');
+  }
+  return null;
+}
+function hdDirectoryHelp() {
+  if (HD_PROVE) return '';
+  const lines = [];
+  if (hdServerNames().length) lines.push('Servers: Get-Service -ComputerName <server> -Name <service>, Test-NetConnection <server> -Port <port>, Get-SmbShareAccess -Name <share>, Get-CimInstance Win32_LogicalDisk -ComputerName <server>, Get-WinEvent -ComputerName <server> -LogName System');
+  if (hdDirectory()) lines.push('Directory (read-only): Get-ADUser <username> -Properties MemberOf, Get-ADPrincipalGroupMembership <username>, Get-ADGroupMember <group>, Get-ADComputer <name>, gpresult /r, gpupdate /force, Resolve-DnsName <name> -Type <A | AAAA | CNAME | MX | TXT>');
+  return lines.length ? `\n${lines.join('\n')}` : '';
+}
+
+// Raise a related incident (console.raise on a Practice ticket).
+function hdRaiseConfig(ticket) {
+  if (HD_PROVE || !ticket) return null;
+  const config = hdConsole(ticket).raise;
+  const id = config && typeof config === 'object' ? String(config.ticket || '') : '';
+  return id && id !== ticket.id && HD_TICKET_TEMPLATES.some(template => template.id === id) ? { ticket:id } : null;
+}
+// A fresh Practice shift leaves out every ticket another one raises.
+function hdHoldRaised(state) {
+  const held = state.tickets.map(ticket => hdRaiseConfig(ticket)).filter(Boolean).map(config => config.ticket);
+  if (!held.length) return state;
+  state.tickets = state.tickets.filter(ticket => !held.includes(ticket.id));
+  if (!state.tickets.some(ticket => ticket.id === state.selectedTicketId)) state.selectedTicketId = state.tickets[0] ? state.tickets[0].id : null;
+  return state;
+}
+function hdRaiseIncident(sourceId) {
+  const source = hdTicketById(sourceId); const config = hdRaiseConfig(source); if (!config) return;
+  if (hdTicketById(config.ticket)) { hdSelectTicket(config.ticket); return; }
+  if (['Resolved', 'Closed', 'Canceled'].includes(source.status)) { toast('Raise it from an open ticket.'); return; }
+  const template = HD_TICKET_TEMPLATES.find(item => item.id === config.ticket);
+  const ticket = {
+    ...hdClone(template),
+    createdTimestamp:hdShiftNow(source).toISOString(),
+    troubleshootingHistory:[{ time:'Created', action:`Raised by the Service Desk from ${hdTicketLabel(source)}.` }],
+    diagnosis:'', diagnosisCorrect:false, linkedProblem:'', checkedSteps:[],
+  };
+  hdMatrixStart(ticket);
+  ticket.parentId = source.id; ticket.raisedFrom = source.id;
+  hdState.tickets.push(ticket);
+  hdConsoleState(source).actions.push({ id:'incident-raised', time:hdConsoleTime(source), ticket:ticket.id });
+  hdHistory(source, `Raised ${hdTicketLabel(ticket)} as a related incident.`);
+  hdPracticeEvent('incident_raised', { ticket:source.id, raised:ticket.id });
+  hdSelectTicket(ticket.id);
+}
+window.hdRaiseIncident = hdRaiseIncident;
+function hdRaiseCard(ticket) {
+  if (HD_PROVE || !ticket) return '';
+  const from = ticket.raisedFrom ? hdTicketById(ticket.raisedFrom) : null;
+  const fromLine = from ? `<p data-hd-raised-from="${hdEsc(from.id)}">Raised from <strong>${hdEsc(hdTicketLabel(from))}</strong>. Write the short description, set Impact and Urgency, assign it and write the work note.</p>` : '';
+  const config = hdRaiseConfig(ticket);
+  if (!config && !fromLine) return '';
+  let body = fromLine;
+  if (config) {
+    const raised = hdTicketById(config.ticket);
+    body += raised
+      ? `<p data-hd-raised="${hdEsc(raised.id)}">Raised <strong>${hdEsc(hdTicketLabel(raised))}</strong> · ${hdEsc(raised.status)}</p><button type="button" class="btn btn-secondary btn-sm" onclick="hdSelectTicket('${hdJsArg(raised.id)}')">Open ${hdEsc(hdTicketLabel(raised))}</button>`
+      : ['Resolved', 'Closed', 'Canceled'].includes(ticket.status) ? '' : `<button type="button" class="btn btn-secondary" data-hd-raise onclick="hdRaiseIncident('${hdJsArg(ticket.id)}')">Raise a related incident</button>`;
+  }
+  if (!body) return '';
+  return `<div class="card hd-raise" data-hd-raise-card><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Related incident</strong><span class="muted">For something you found that another team owns</span></div><div class="card-body">${body}</div></div>`;
 }
 
 function hdPrinter(name){const base=HD_PRINTERS.find(p=>p.name===name);return {...base,...(hdState.printerOverrides[name]||{})};}
