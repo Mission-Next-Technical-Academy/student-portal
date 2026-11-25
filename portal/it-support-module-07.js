@@ -60,6 +60,7 @@ const ITS07_LESSONS = [
       { p: 'Remove software through Settings › Apps › Installed apps (or `winget`), never by deleting its folder, because the uninstaller also cleans up its settings. Before removing anything, ask whether another process or team depends on it.' },
       { h5: 'When one app misbehaves' },
       { p: 'When one app crashes, won’t open or freezes while everything else works, suspect the app first, but check its update state and whether the problem follows the user. Many apps offer Modify › Repair or Reset in Installed apps, which fixes the app without losing data. Windows Update keeps Windows current; apps update separately (their own updater, the Store, `winget` or company tools), so a fully updated Windows can still run an outdated app.' },
+      { p: 'If a type of file opens in the wrong app, for example PDFs open in the browser, set its app again in Settings › Apps › Default apps.' },
       { p: 'Office apps have a safe mode of their own. If Outlook, Word or Excel crashes or freezes as it opens, start it in safe mode: hold Ctrl while you open it, or run `outlook.exe /safe`. If it works there, an add-in is the likely cause. Go to File › Options › Add-ins › COM Add-ins › Go, untick one add-in at a time, and restart the app after each.' },
       // This table is about the repair paragraphs above, so it sits here in
       // Reading 1, not with Reading 2's diagram.
@@ -130,7 +131,7 @@ const ITS07_LESSONS = [
               ['Red X', 'A file can’t sync', 'Click the OneDrive icon › View sync problems, and fix the cause it names'],
             ],
           } },
-          { p: 'OneDrive won’t sync a file whose name contains any of `" * : < > ? / \\ |`, or whose full path is longer than 400 characters. It also stops when the storage quota is reached or the user is signed out. Fix the cause; don’t unlink or reset OneDrive first, which can create duplicate files.' },
+          { p: 'OneDrive won’t sync a file whose name contains any of `" * : < > ? / \\ |`, or whose full path is longer than 400 characters. It also stops when the storage quota is reached or the user is signed out. A name with a character it doesn’t allow: rename the file. A path that is too long: shorten a folder name or move the file up a level. Fix the cause; don’t unlink or reset OneDrive first, which can create duplicate files.' },
         ],
         comingUp: 'Check protection, remove an extension that isn’t approved and fix a red X in the guided lab (Lab 6.1), then work the three practice tickets (Lab 6.2).',
       },
@@ -508,7 +509,7 @@ const ITS07_CHECK = {
       why: 'File synchronization keeps one file the same on every device and in the cloud, which is what OneDrive does (Reading 3).',
       ifWrong: ['Rapid elasticity is a cloud service growing or shrinking its capacity quickly.', null, 'Metered utilization means paying for what you use.', 'High availability means the service stays up.'] },
     { q: 'A user asks you to type an admin password so they can install a free tool. What do you do?',
-      choices: ['Type it', 'Grant temporary admin rights', 'Decline, and deliver it the approved way: Company Portal if it’s in the Software Catalog, a software request if it isn’t', 'Tell them to use a personal laptop'], answer: 2,
+      choices: ['Type it', 'Grant temporary admin rights', 'Decline, and deliver it the approved way', 'Tell them to use a personal laptop'], answer: 2,
       why: 'Local admin rights and admin passwords are never given to users (KB-0058). You decline, then deliver it the approved way: Company Portal if it’s in the Software Catalog, a software request if it isn’t (Reading 2).',
       ifWrong: ['Typing it lets an installer you haven’t checked change the whole machine.', '“Temporary” admin rights are still admin rights, and KB-0058 allows none.', null, 'Work on a personal laptop puts company data on a device nobody manages.'] },
     { q: 'One app crashes on launch after an update; everything else works. What’s the best first fix?',
@@ -518,7 +519,7 @@ const ITS07_CHECK = {
     { q: 'OneDrive shows a red X on one file named Plan: v2?.docx. What’s the cause?',
       choices: ['No license', 'Invalid characters in the file name', 'The PC is offline', 'The disk is full'], answer: 1,
       why: 'OneDrive won’t sync a name that contains : or ?, and this one has both (Reading 3).',
-      ifWrong: ['A licence problem would stop every file, not one.', null, 'Offline shows as paused or not connected, not a red X on one file.', 'A full disk or a full quota gives a storage warning for every new file.'] },
+      ifWrong: ['A license problem would stop every file, not one.', null, 'Offline shows as paused or not connected, not a red X on one file.', 'A full disk or a full quota gives a storage warning for every new file.'] },
     { q: 'Which of these do you stop and escalate to the SOC instead of fixing yourself?',
       choices: ['7-Zip is two versions behind', 'A browser search add-on that Defender lists as a potentially unwanted app', 'Files renamed overnight, with a ransom note on the desktop', 'A OneDrive file with a red X'], answer: 2,
       why: 'Renamed files and a ransom note are malware signs, so you stop and escalate (Reading 3).',
@@ -739,11 +740,11 @@ function its07PracticeTickets() {
   return `<section class="its01-section its01-lab-section" id="its07-practice-tickets" aria-labelledby="its07-practice-tickets-title">
     <div class="its01-section-heading"><span>2</span><div><p class="its01-kicker">Practice It · on your own</p><h2 id="its07-practice-tickets-title">${esc(itsLabTitle(ITS07_PRACTICE_KEY))}</h2></div></div>
     <p class="its01-instruction">Three tickets to work on your own, each a different problem: Leo Brandt’s OneDrive shows a red X and he is afraid he will lose his forecast (6-A), Tom Becker needs Zoom for a customer call in 20 minutes and the installer wants an admin password (6-B), and Hannah Cole’s PDFs open in the wrong program and Acrobat crashes (6-C). On each one, set the Category, CI, Impact and Urgency yourself, use the tool screens and the knowledge base, and press Check my work for feedback.</p>
-    <p class="its01-instruction">Practice: not graded. Your answers aren’t sent. Finish all three tickets: resolve each one. Check my work shows what is still missing. The simulator then tells this page, and your account records that you completed Lab 6.2.</p>
+    <p class="its01-instruction">Practice: not graded. Your answers aren’t sent. Finish all three tickets: resolve each one you can fix, or convert it to the request it needs and finish that work, and write the note. Check my work shows what is still missing. The simulator then tells this page, and your account records that you completed Lab 6.2.</p>
     <a class="itsw-evidence-button" data-its07-practice-launch href="${esc(its07PracticeTicketsHref(its07User))}" target="_blank" rel="opener">
       <i class="ri-play-list-line" aria-hidden="true"></i> Open the practice tickets
     </a>
-    ${itsLabStatusHtml(its07User, ITS07_PRACTICE_KEY, { label: 'Lab 6.2', prefix: 'its01', pendingText: 'Finish all three tickets: resolve each one.' })}
+    ${itsLabStatusHtml(its07User, ITS07_PRACTICE_KEY, { label: 'Lab 6.2', prefix: 'its01', pendingText: 'Finish all three tickets: resolve each one, or convert it to its request and finish that work.' })}
   </section>`;
 }
 
@@ -798,7 +799,7 @@ function viewItsModuleSixPage(user, program) {
     ${moduleTopbar(user, program)}
     ${its07Rail(user)}
     <main class="its01-main">
-      <section class="its01-hero" aria-labelledby="its07-title"><div><p class="its01-kicker">Module ${String(module.number).padStart(2, '0')} · ${formatInstructionalMinutes(module.durationMinutes)} · Week ${esc(String(module.week))}</p><h1 id="its07-title">${esc(module.title)}</h1><p class="its01-lede">${esc(ITS07_OBJECTIVE)}</p></div><dl class="its01-progress" aria-label="Saved module progress"><div><dt>Lessons</dt><dd>${module.lessons}</dd></div><div><dt>Guided labs</dt><dd>1</dd></div><div><dt>Labs</dt><dd id="its07-status">${itsLabCounterText(user, ITS07_LAB_KEYS)}</dd></div></dl></section>
+      <section class="its01-hero" aria-labelledby="its07-title"><div><p class="its01-kicker">Module ${String(module.number).padStart(2, '0')} · ${formatInstructionalMinutes(module.durationMinutes)} · Week ${esc(String(module.week))}</p><h1 id="its07-title">${esc(module.title)}</h1><p class="its01-lede">${esc(ITS07_OBJECTIVE)}</p></div><dl class="its01-progress" aria-label="Saved module progress"><div><dt>Lessons</dt><dd>${its07Cards().length}</dd></div><div><dt>Guided labs</dt><dd>1</dd></div><div><dt>Labs</dt><dd id="its07-status">${itsLabCounterText(user, ITS07_LAB_KEYS)}</dd></div></dl></section>
 
       ${its07Learn()}
       ${its07Checks()}

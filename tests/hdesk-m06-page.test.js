@@ -140,6 +140,10 @@ function testPageContent() {
   assert.deepEqual([...html.matchAll(/<strong>Lesson (6\.\d) · /g)].map((m) => m[1]), ['6.1', '6.2', '6.3'], 'three lessons, 6.1 to 6.3');
   assert.deepEqual([...html.matchAll(/data-its07-lesson="([^"]+)"/g)].map((m) => m[1]), ['its-07-lesson-01', 'its-07-lesson-02', 'its-07-lesson-02'], 'Lessons 6.2 and 6.3 share the second filed lesson');
   assert.equal((html.match(/Lessons 6\.2 and 6\.3 together: 1 Hour/g) || []).length, 2, 'Lessons 6.2 and 6.3 say they share its minutes');
+  assert.match(html, /<dt>Lessons<\/dt><dd>3<\/dd>/, 'the hero counts the three lessons the page shows');
+  // What 6-A and 6-C need is taught: a path that is too long, and Default apps.
+  assert.match(shown, /A path that is too long: shorten a folder name or move the file up a level\./);
+  assert.match(shown, /Settings › Apps › Default apps/);
   [1, 2, 3].forEach((n) => assert.equal((html.match(new RegExp(`<h4>Reading ${n} · `, 'g')) || []).length, 1, `Reading ${n}`));
   assert.equal((html.match(/<figure /g) || []).length, 3, 'three diagrams');
   ['Three approved ways to get software, and one that is never used', 'A user asks you to type the admin password', 'Unwanted app or malware? Who handles it'].forEach((title) => {
@@ -213,7 +217,7 @@ function testLabCardsAndRail() {
   assert.match(practice, /\?practice=its-07&amp;student=/, 'Lab 6.2 opens practice set its-07');
   assert.match(practice, /Practice: not graded/);
   assert.match(practice, /\(6-A\)[\s\S]*\(6-B\)[\s\S]*\(6-C\)/);
-  assert.equal(statusLine(html, PRACTICE), 'Finish all three tickets: resolve each one.');
+  assert.equal(statusLine(html, PRACTICE), 'Finish all three tickets: resolve each one, or convert it to its request and finish that work.');
   // The Prove It opens nothing yet.
   const prove = section(html, 'its07-prove-it');
   assert.match(prove, /Opens soon/);
