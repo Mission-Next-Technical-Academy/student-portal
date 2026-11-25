@@ -1003,8 +1003,10 @@
         instruction: 'In the same window, list the apps on NS-WS-0233 that have a newer version. <details><summary>Show me the command</summary><code>winget upgrade</code></details>',
         body: 'Why: Windows Update does not update apps, so an up-to-date Windows can still run an outdated app. Success looks like: a list that includes 7-Zip.',
         waitLabel: 'Next Step: Upgrade list read',
-        // A 7-Zip already updated cannot show in the list again, so that passes too.
-        check: () => hd7Result(/^winget upgrade: .*7zip\.7zip/i) || hd2Did(HD7_ID, 'app-upgraded', (a) => a.app === '7-Zip'),
+        // The listing is always typed. A 7-Zip already updated can't show in it
+        // again, so then any listing counts, even "nothing to upgrade".
+        check: () => hd7Result(/^winget upgrade: .*7zip\.7zip/i)
+          || (hd2Did(HD7_ID, 'app-upgraded', (a) => a.app === '7-Zip') && hd7Result(/^winget upgrade: /i)),
       },
       {
         route: '#/helpdesk/powershell', target: '#hd-ps-input',

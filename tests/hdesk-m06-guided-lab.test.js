@@ -308,6 +308,11 @@ function testRefusedWingetDoesNotPass() {
   tab.ps('winget install --id Notepad++.Notepad++ -e');
   tab.ps('winget uninstall --id Notepad++.Notepad++ -e');
   assert.equal(steps[4].check(), true, 'install again, then remove with winget');
+  // 7-Zip updated before the listing: step 2 still needs the listing typed.
+  tab.ps('winget upgrade --id 7zip.7zip -e');
+  assert.equal(steps[2].check(), false, 'the listing is not typed yet');
+  assert.match(tab.ps('winget upgrade'), /No installed package found/);
+  assert.equal(steps[2].check(), true, 'the listing counts once 7-Zip is updated');
 }
 
 // The optional Defender lines pass steps 6 and 7 in place of the screens.
