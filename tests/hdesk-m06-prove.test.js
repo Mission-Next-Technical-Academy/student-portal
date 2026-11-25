@@ -399,14 +399,16 @@ function testPrefillPutsTheLaptopBack(saved) {
   assert.equal(machine.protection.history.find((h) => h.id === ITEM.id).status, 'Removed');
   same(plain(tab.run('hdProvePackage()')).machine, saved.machine, 'a resubmission sends the same summary');
   assert.equal(tab.prove().keyFinding, saved.keyFinding, 'the key finding is back');
-  // The chat is back, and the asked questions aren't offered again.
+  // The action log starts empty (2026-11-25): the chat is empty and every
+  // question is offered again, so a question is earned in this attempt.
+  same(tab.prove().events, [], 'no earlier actions');
   const html = ticketView(tab);
-  assert.ok(html.includes(tab.run('hdEsc')(QUESTIONS[0].reply)), 'the earlier reply shows');
-  assert.ok(!html.includes(`hdChatAsk('${SPEC.id}','${QUESTIONS[0].id}')`));
-  assert.ok(html.includes(`hdChatAsk('${SPEC.id}','${QUESTIONS[1].id}')`), 'the others are still offered');
-  // A scan after the prefill still knows the removals were made.
+  assert.ok(!html.includes(tab.run('hdEsc')(QUESTIONS[0].reply)), 'the earlier reply is not shown');
+  assert.ok(html.includes(`hdChatAsk('${SPEC.id}','${QUESTIONS[0].id}')`), 'the earlier question is offered again');
+  // A scan after the prefill still knows the removals were made (the laptop
+  // is kept), and only this attempt's scan is recorded.
   tab.ctx.hdWinScanNow(MAIN);
-  assert.equal(actions(tab).filter((e) => e.value === 'quick-scan-after-removal').length, 2, 'the earlier one and the new one');
+  assert.equal(actions(tab).filter((e) => e.value === 'quick-scan-after-removal').length, 1, 'this attempt\'s scan only');
   // Names the laptop doesn't have are ignored; nothing is invented.
   const stale = plain(lastWork);
   stale.machine = { ...stale.machine, browserExtensions: [...FIXTURE.extensions.map((e) => e.name), 'Retired extension'], defender: { realtime: true, exclusions: [], threats: { 'Retired item': 'Removed' } } };

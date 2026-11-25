@@ -551,6 +551,8 @@ function hdProveUpgrade(saved) {
     resolutionNote:text(old.resolutionNote), userReply:text(old.userReply),
     events:Array.isArray(old.events) ? old.events.slice(-400) : [], opened:Array.isArray(old.opened) ? old.opened.slice() : [],
     passwordTyped:old.passwordTyped === true, passwordWritten:old.passwordWritten === true,
+    // The returned attempt this draft's log was already cleared for (hdProveFreshLog).
+    ...(typeof old.freshFor === 'string' ? { freshFor:old.freshFor.slice(0, 40) } : {}),
   };
   const oldTicket = Array.isArray(saved.tickets) ? saved.tickets[0] : null;
   if (oldTicket && Array.isArray(oldTicket.notes)) fresh.tickets[0].notes = oldTicket.notes.slice();
@@ -7073,11 +7075,13 @@ function hdProveQueuePackage() {
     rewrite:{ ticketId:rewrite ? rewrite.id : '', shortDescription:prove.rewrite.shortDescription, description:prove.rewrite.description },
     events:prove.events.slice(-400),
     passwordTyped:prove.passwordTyped === true, passwordWritten:prove.passwordWritten === true,
+    freshFor:prove.freshFor || '',
   };
 }
 // A returned attempt reopens with what the student last sent, only over a
 // draft older than it (as hdProvePrefill). Every ticket is there, the
 // arrival counts as done, and values the shift no longer offers stay empty.
+// The action log starts empty (hdProveFreshLog).
 function hdProveQueuePrefill(work) {
   const prove = hdState.prove;
   const submitted = Date.parse(work && work.completedAt);
@@ -7107,9 +7111,7 @@ function hdProveQueuePrefill(work) {
     shortDescription:hdMaskPasswordText(String(rewrite.shortDescription || '').slice(0, HD_PROVE_QUEUE_LIMITS.shortDescription)),
     description:hdMaskPasswordText(String(rewrite.description || '').slice(0, HD_PROVE_QUEUE_LIMITS.description)),
   };
-  if (Array.isArray(work.events)) prove.events = work.events.filter(event => event && typeof event === 'object' && typeof event.type === 'string').slice(-400).map(event => ({ ...event }));
-  if (work.passwordTyped === true) prove.passwordTyped = true;
-  if (work.passwordWritten === true) prove.passwordWritten = true;
+  // The recorded actions and password flags are earned again (hdProveFreshLog).
   hdSave();
   return true;
 }
@@ -7394,6 +7396,9 @@ function hdProvePackage() {
     passwordTyped:prove.passwordTyped === true, passwordWritten:prove.passwordWritten === true,
     // Module 3: the extra writing and the time used (the efficiency band).
     ...hdProveExtraPackage(prove),
+    // The returned attempt this log was cleared for: the course page refuses a
+    // resubmission whose log wasn't (never saved in the row).
+    freshFor:prove.freshFor || '',
   };
 }
 // Module 4 (shift printerSummary): a small summary of the selected computer's
@@ -7591,6 +7596,7 @@ const HD_PROVE_NOTICES = {
   'too-large': 'Your work notes are too long to send, so they weren\'t saved. Your work is still here. Shorten them, then press Submit.',
   'save-failed': 'Your work wasn\'t saved. Your work is still here. Check your connection, then press Submit.',
   unconfirmed: 'Your course page didn\'t confirm it has your work. Your work is still here. Make sure you\'re signed in on your course page, then press Submit.',
+  'stale-draft': 'Your instructor returned this Prove It, so nothing was sent. Your earlier actions were cleared: work the ticket again, then press Resubmit.',
 };
 function hdPortalOrigin() {
   return ['127.0.0.1', 'localhost'].includes(location.hostname) ? `${location.protocol}//${location.hostname}:8768` : location.origin;
@@ -7612,10 +7618,11 @@ function hdProveAsk(type, extra, done) {
   timer = setTimeout(() => finish({ reason:'unconfirmed' }), HD_PROVE_REPLY_MS);
   opener.postMessage({ type, id:HD_PROVE.moduleKey, nonce, student:HD_PROVE.student, ...extra }, origin);
 }
-// A returned attempt reopens with what the student last submitted, so signing
-// out or changing device doesn't empty the form. Only over a draft older than
-// that attempt: newer work in this browser stays. Values the ticket no longer
-// offers stay empty, and Submit asks for them.
+// A returned attempt reopens with the form the student last submitted, so
+// signing out or changing device doesn't empty it. Only over a draft older
+// than that attempt: newer work in this browser stays. Values the ticket no
+// longer offers stay empty, and Submit asks for them. The action log starts
+// empty (hdProveFreshLog).
 function hdProvePrefill(work) {
   if (hdProveQueue()) return hdProveQueuePrefill(work);
   const prove = hdState.prove;
@@ -7647,16 +7654,13 @@ function hdProvePrefill(work) {
   hdSave();
   return true;
 }
-// What the student did before, so a resubmission from another browser (or
-// after clearing site data) keeps it, as one from the same browser does:
-// the recorded actions, the laptop as they left it, the two password flags,
-// and the ticket's assignment and close. An attempt sent before 2026-11-20
-// has no assignment or close, so the ticket starts unassigned.
+// What the student left, so a resubmission from another browser (or after
+// clearing site data) keeps it, as one from the same browser does: the laptop
+// as they left it, and the ticket's assignment and close. Never the recorded
+// actions, the password flags or the chat: a returned attempt earns those
+// again (hdProveFreshLog). An attempt sent before 2026-11-20 has no
+// assignment or close, so the ticket starts unassigned.
 function hdProvePrefillActions(work, prove, ticket) {
-  if (Array.isArray(work.events)) {
-    prove.events = work.events.filter(event => event && typeof event === 'object' && typeof event.type === 'string').slice(-400).map(event => ({ ...event }));
-    prove.opened = [...new Set(prove.events.filter(event => event.type === 'evidence_opened' && event.source).map(event => event.source))];
-  }
   const name = HD_PROVE.shift.selectedComputer;
   const fixture = (HD_PROVE.shift.machines || {})[name];
   if (fixture && work.machine && typeof work.machine === 'object' && !Array.isArray(work.machine)) {
@@ -7671,22 +7675,6 @@ function hdProvePrefillActions(work, prove, ticket) {
     if (HD_PROVE.shift.windowsSummary === true) hdProvePrefillWindows(work.machine, machine, fixture);
     hdState.machines = { ...(hdState.machines || {}), [name]:machine };
   }
-  if (work.passwordTyped === true) prove.passwordTyped = true;
-  if (work.passwordWritten === true) prove.passwordWritten = true;
-  // Module 3: a warm handoff from the earlier attempt stays in the history.
-  prove.events.filter(event => event.type === 'warm_handoff' && event.label).forEach(event => {
-    if (!ticket.troubleshootingHistory.some(entry => entry.action === `${event.label}.`)) ticket.troubleshootingHistory.push({ time:'Earlier attempt', action:`${event.label}.` });
-  });
-  // Module 6: the questions already asked show in the chat again, with the
-  // user's replies, and aren't offered twice.
-  const caller = hdConsole(ticket).caller;
-  if (caller) {
-    const state = hdConsoleState(ticket);
-    prove.events.filter(event => event.type === 'caller_question').forEach(event => {
-      const question = caller.questions.find(item => item.id === event.value);
-      if (question && !state.chat.some(entry => entry.id === question.id)) state.chat.push({ id:question.id, question:question.text, reply:question.reply, whileLocked:false, time:'Earlier attempt' });
-    });
-  }
   if (work.assignedTo === 'Riley Morgan') {
     ticket.assignedTechnician = 'Riley Morgan';
     ticket.closureCode = HD_PROVE_RESOLUTION_CODES.includes(work.resolutionCode) ? work.resolutionCode : '';
@@ -7698,14 +7686,43 @@ function hdProvePrefillActions(work, prove, ticket) {
     ticket.closureCode = '';
   }
 }
+// A returned attempt starts with an empty action log (Megan, 2026-11-25, PR
+// #155's review): the earlier attempt's actions stay in its own saved row for
+// the instructor, and each one is earned again in this attempt. Cleared: the
+// recorded events (screens, searches, commands, actions, chat questions), the
+// screens opened, the two password flags, the time used, and the chat and
+// knowledge base lists that stop a question or an article from being recorded
+// twice. Kept: the laptop as the student left it, and the form (choices and
+// writing). Once per returned attempt: prove.freshFor holds the returned
+// attempt's submit time (from the course page), so a reload keeps this
+// attempt's new work and a third attempt starts empty again.
+function hdProveFreshLog(returnedAt) {
+  const prove = hdState.prove;
+  if (!prove || typeof returnedAt !== 'string' || !returnedAt || prove.freshFor === returnedAt) return false;
+  prove.events = [];
+  prove.opened = [];
+  prove.passwordTyped = false;
+  prove.passwordWritten = false;
+  prove.startedAt = new Date().toISOString();
+  hdState.tickets.forEach(ticket => {
+    const state = ticket && ticket.consoleState;
+    if (!state) return;
+    state.chat = []; state.kbQuery = ''; state.kbOpen = ''; state.kbSearches = []; state.kbOpened = [];
+  });
+  prove.freshFor = returnedAt;
+  hdSave();
+  return true;
+}
 function hdProveApply(reply) {
   const wasLocked = hdProveLocked();
   hdProveServer.sending = false;
   if (reply.status) hdProveServer.status = reply.status;
   else if (hdProveServer.status === 'checking') hdProveServer.status = 'unknown';
   hdProveServer.notice = hdProveLocked() || !reply.reason ? '' : HD_PROVE_NOTICES[reply.reason] || HD_PROVE_NOTICES.unconfirmed;
+  const returnedAt = reply.status === 'returned' ? reply.returnedAt || (reply.lastWork && reply.lastWork.completedAt) : '';
+  const cleared = hdProveFreshLog(returnedAt);
   const prefilled = reply.status === 'returned' && reply.lastWork && hdProvePrefill(reply.lastWork);
-  if (prefilled || hdProveLocked() !== wasLocked) render(); else hdProveSyncSubmit();
+  if (prefilled || cleared || hdProveLocked() !== wasLocked) render(); else hdProveSyncSubmit();
 }
 function hdProveSubmit() {
   if (hdProveLocked() || hdProveServer.sending || hdProveServer.status === 'checking' || hdProveMissing().length || Object.keys(hdProveRefused).length) return;

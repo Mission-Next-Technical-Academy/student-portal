@@ -844,11 +844,12 @@ async function testReturnedPrefillsFromTheLastAttemptOnAnotherBrowser() {
   assert.equal(prove.userReply, 'Hello Evan.');
   assert.deepEqual(JSON.parse(JSON.stringify(tab.run('hdState.tickets[0].notes.map((n) => n.text)'))), ['Checked the account.']);
   assert.equal(prove.editedAt, undefined, 'prefilling is not an edit');
-  // The earlier actions come back too: what was recorded, the ticket's
-  // assignment and its close.
-  const types = (events) => events.map((event) => `${event.type}:${event.value || event.step || ''}`);
-  assert.deepEqual(types(prove.events), types(was.events), 'the recorded actions are kept');
-  assert.ok(prove.events.length > 0);
+  // The action log starts empty (2026-11-25): the earlier attempt's actions
+  // stay in its own row. The ticket's assignment and close come back.
+  assert.ok(was.events.length > 0, 'the first attempt recorded actions');
+  assert.deepEqual(prove.events, [], 'the returned attempt starts with an empty action log');
+  assert.deepEqual(prove.opened, []);
+  assert.ok(db.attempts[0].result.events.length > 0, 'the earlier row keeps its actions');
   assert.equal(tab.run('hdState.tickets[0].assignedTechnician'), 'Riley Morgan');
   assert.equal(tab.run('hdState.tickets[0].status'), 'Escalated');
   assert.equal(tab.submitState().enabled, true, 'nothing left to fill in');
@@ -859,10 +860,11 @@ async function testReturnedPrefillsFromTheLastAttemptOnAnotherBrowser() {
   read.forEach((call) => assert.equal(call.filters.user_id, user.userId, 'only ever this student\'s attempts'));
 }
 
-// The laptop as the student left it and the password flags come back on
-// another browser, as a same-browser return keeps them. Only the fixture's
-// own keys, with the fixture's types.
-async function testReturnedKeepsTheLaptopAndFlags() {
+// The laptop as the student left it comes back on another browser, as a
+// same-browser return keeps it. Only the fixture's own keys, with the
+// fixture's types. The password flags and the actions are the earlier
+// attempt's: they stay in its row and the resubmission starts without them.
+async function testReturnedKeepsTheLaptopNotTheLog() {
   resetWorld();
   const first = await openTab(null, { local: store() });
   fill(first);
@@ -879,13 +881,15 @@ async function testReturnedKeepsTheLaptopAndFlags() {
   assert.ok(machine.printers.includes('Added printer'), 'the earlier change to the laptop is kept');
   assert.equal(machine.extraKey, undefined, 'a key the fixture lacks is dropped');
   assert.equal(machine.spooler, 'Running', 'a value of the wrong type keeps the fixture');
-  assert.equal(tab.run('hdState.prove.passwordWritten'), true);
+  assert.equal(tab.run('hdState.prove.passwordWritten'), false, 'the flag is the earlier attempt\'s');
   tab.run('hdProveSubmit()');
   await flush();
   assert.equal(db.attempts.length, 2);
-  assert.ok(db.attempts[1].result.machine.printers.includes('Added printer'), 'the resubmission carries it');
-  assert.ok(db.attempts[1].result.events.length > 0, 'and the earlier actions');
-  assert.equal(db.attempts[1].result.passwordWritten, true);
+  assert.ok(db.attempts[1].result.machine.printers.includes('Added printer'), 'the resubmission carries the laptop');
+  assert.deepEqual([...db.attempts[1].result.events], [], 'but none of the earlier actions');
+  assert.equal(db.attempts[1].result.passwordWritten, false);
+  assert.equal(db.attempts[0].result.passwordWritten, true, 'the earlier row keeps its flag');
+  assert.ok(db.attempts[0].result.events.length > 0, 'and its actions');
 }
 
 // After a return, a recorded action with no form edit (a KB search, a
@@ -930,9 +934,9 @@ function testPrefillCarriesOnlyTheStudentsOwnWork() {
     result: { kind: 'hdesk-prove', ticketId: 'HD-2125', fields: { category: 'c', type: 't', priority: 'P1', extra: 'no' }, diagnosis: 'd', steps: ['s1'], decision: 'Resolve', resolutionNote: 'r', userReply: 'u', workNotes: ['n'],
       official_score: 88, competency_scores: [1], answerKey: 'no', expectedDiagnosis: 'no', events: [{ type: 'x' }], machine: { a: 1 } },
   });
-  assert.deepEqual(Object.keys(work).sort(), ['assignedTo', 'completedAt', 'decision', 'diagnosis', 'events', 'fields', 'machine', 'passwordTyped', 'passwordWritten', 'resolutionCode', 'resolutionNote', 'steps', 'ticketId', 'ticketState', 'userReply', 'workNotes']);
+  // No events and no password flags: a returned attempt earns those again.
+  assert.deepEqual(Object.keys(work).sort(), ['assignedTo', 'completedAt', 'decision', 'diagnosis', 'fields', 'machine', 'resolutionCode', 'resolutionNote', 'steps', 'ticketId', 'ticketState', 'userReply', 'workNotes']);
   assert.deepEqual(Object.keys(work.fields).sort(), ['category', 'priority', 'type']);
-  assert.deepEqual([...work.events], [], 'events are cleaned as a submit is: an unknown type is dropped');
   assert.deepEqual({ ...work.machine }, { a: 1 });
   assert.equal(work.assignedTo, '', 'an attempt from before the assignment was recorded');
   assert.equal(prun('itsProvePrefillWork')({ completed_at: 'x', result: { kind: 'other', fields: {} } }), null, 'only a Prove It package');
@@ -1044,7 +1048,7 @@ async function testPrefillDropsValuesTheTicketNoLongerOffers() {
 }
 
 const tests = [
-  testSubmitTurnsOnFromCompletenessOnly, testConfirmedSaveOnlyAfterTheServerHasTheRow, testOneWorkNoteIsTheResolution, testOlderDraftKeepsItsAssignmentAndNotes, testReturnedKeepsTheLaptopAndFlags, testReloadKeepsActionsTakenAfterTheReturn, testOldSimulatorPackageStillSaves,
+  testSubmitTurnsOnFromCompletenessOnly, testConfirmedSaveOnlyAfterTheServerHasTheRow, testOneWorkNoteIsTheResolution, testOlderDraftKeepsItsAssignmentAndNotes, testReturnedKeepsTheLaptopNotTheLog, testReloadKeepsActionsTakenAfterTheReturn, testOldSimulatorPackageStillSaves,
   testReloadTakesTheLockFromTheServer, testFailuresKeepWorkAndShowNoSuccess, testSimulatorOnlyAcceptsItsOwnReply, testPortalRefusals,
   testOneWaitingAttempt, testReturnedReopensForOneResubmission, testReturnedPrefillsFromTheLastAttemptOnAnotherBrowser, testPrefillCarriesOnlyTheStudentsOwnWork,
   testNewerBrowserDraftIsKept, testDraftOlderThanTheAttemptIsReplaced, testNoPrefillUnlessReturnedOrForAnotherStudent, testPrefillDropsValuesTheTicketNoLongerOffers,

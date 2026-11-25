@@ -271,7 +271,10 @@ function testOnlyMeaningfulEventsAndThePackage() {
   const pkg = tab.run('hdProvePackage()');
   assert.deepEqual([...Object.keys(pkg)], ['version', 'kind', 'moduleKey', 'labKey', 'rubricVersion', 'ticketId', 'startedAt', 'fields', 'diagnosis',
     'steps', 'stepTexts', 'decision', 'resolutionNote', 'userReply', 'noteIsResolution', 'workNotes', 'assignedTo', 'ticketState', 'resolutionCode',
-    'commands', 'events', 'machine', 'passwordTyped', 'passwordWritten']);
+    'commands', 'events', 'machine', 'passwordTyped', 'passwordWritten', 'freshFor']);
+  // freshFor: the returned attempt this log was cleared for (none here); the
+  // course page reads it and never saves it.
+  assert.equal(pkg.freshFor, '');
   // Assigning and closing are recorded as ticket state, not as events.
   assert.equal(pkg.noteIsResolution, true);
   assert.equal(pkg.assignedTo, 'Unassigned');
