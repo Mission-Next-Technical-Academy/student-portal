@@ -714,6 +714,9 @@ function hdHistory(ticket, action) {
 
 function hdSelectTicket(id) {
   hdState.selectedTicketId = id;
+  // The ticket the student opened (a set opens with its first ticket
+  // selected but not opened). Module 7's server state reads it.
+  hdState.openedTicketId = id;
   hdPendingState = {};
   // A message can wait for a ticket to be opened (arrivals: when.opened).
   if (hdHasArrivals()) { const ticket = hdTicketById(id); if (ticket) ticket.opened = true; hdCheckArrivals(); }
@@ -6898,7 +6901,8 @@ const hdFileServerFixed = () => `${hdPageHeader('File Server', 'Calculate effect
  * Where a server's state comes from, later layers winning, key by key:
  *   HD_SERVERS → a Prove shift's serverOverrides (older Prove shifts) →
  *   a Prove shift's servers, or a practice or coached set's servers →
- *   the selected Practice ticket's console.servers →
+ *   the Practice ticket the student opened (hdSelectTicket) and still has
+ *   selected: its console.servers →
  *   that ticket's own service starts (console.serviceStart[].after).
  * So two tickets in one set can show the same server differently: the one
  * the student has open decides.
@@ -6939,9 +6943,13 @@ const HD_SERVER_LOGS = [
   ['directory-service', 'Directory Service', 'Applications and Services Logs › Directory Service'],
 ];
 function hdServerObject(value) { return value && typeof value === 'object' && !Array.isArray(value) ? value : null; }
+// The ticket the student opened and still has selected, or null. A set opens
+// with its first ticket selected but not opened: that ticket never decides.
 function hdServerPracticeTicket() {
   if (HD_PROVE || !hdState || !Array.isArray(hdState.tickets)) return null;
-  return hdState.tickets.find(ticket => ticket.id === hdState.selectedTicketId) || null;
+  const id = hdState.openedTicketId;
+  if (!id || id !== hdState.selectedTicketId) return null;
+  return hdState.tickets.find(ticket => ticket.id === id) || null;
 }
 function hdServerLayers(name) {
   if (HD_PROVE) { const own = hdServerObject(HD_PROVE.shift.servers); return own && hdServerObject(own[name]) ? [own[name]] : []; }

@@ -44,6 +44,10 @@ const SET_SERVERS = {
   'NS-FILE01': {
     status: 'Online', service: 'TEST file service healthy',
     volumes: [{ drive: 'D:', label: 'TEST data', sizeGb: 500, freeGb: 250 }],
+    events: { system: [
+      { level: 'Warning', time: 'Today 05:00', source: 'srv', id: '2013', message: 'TEST disk is at or near capacity.' },
+      { level: 'Error', time: 'Today 04:00', source: 'Service Control Manager', id: '7031', message: 'TEST service terminated unexpectedly; restart action taken.' },
+    ] },
     shares: [{ name: 'TESTShare', path: '\\\\NS-FILE01\\TESTShare', status: 'Healthy',
       share: [{ who: 'GG-HR-Users', access: 'Change' }, { who: 'Everyone', access: 'Read' }],
       ntfs: [{ who: 'GG-HR-Readers', access: 'Read' }, { who: 'NORTHSTAR\\mchen', access: 'Full Control' }, { who: 'TEST-Contributors', access: 'Modify' }] },
@@ -118,13 +122,9 @@ function sim({ url = 'https://academy.test/sim/#/helpdesk/tickets', withTest = t
     seen: () => [...(run('hdState.serverSeen') || [])],
   };
 }
-// A practice set opens with its first ticket selected; these tests start with
-// none selected, so only the set's own state shows until a ticket is opened.
-const servers = (local) => {
-  const tab = sim({ url: 'https://academy.test/sim/?practice=test-servers&student=stu-1#/helpdesk/tickets', local });
-  tab.run('hdState.selectedTicketId = null');
-  return tab;
-};
+// A practice set opens with its first ticket selected but not opened, so only
+// the set's own state shows until the student opens a ticket.
+const servers = (local) => sim({ url: 'https://academy.test/sim/?practice=test-servers&student=stu-1#/helpdesk/tickets', local });
 const NEW_MARKERS = /data-hd-(server-state|server-detail|server-warnings|server-tool|services=|service-start|server-logs|server-log-picker|server-event|shares=|share-detail|effective-access|folder-sizes|change-log|change-detail|servers-card)/;
 const NOT_THERE = { 'helpdesk/server-services': /Not available on this server in this shift/, 'helpdesk/server-events': /Not available on this server in this shift/, 'helpdesk/change-log': /Change log<\/h1><div class="page-subtitle">Not available in this shift/ };
 // master's output before this change, on the shared shift and Module 1's
@@ -204,13 +204,35 @@ function testServerStatePerTicket() {
   assert.match(row(tab.view('helpdesk/server-manager'), 'NS-PRINT01'), /TEST print healthy/);
   // A set with no servers: only the ticket that names one turns it on.
   const only = sim({ url: 'https://academy.test/sim/?practice=test-ticket-only&student=stu-1#/helpdesk/tickets' });
-  only.run('hdState.selectedTicketId = null');
   assert.equal(only.view('helpdesk/server-manager'), only.run('hdServerManagerFixed()'));
   only.open('HD-9703');
   assert.equal(only.view('helpdesk/server-manager'), only.run('hdServerManagerFixed()'));
   assert.doesNotMatch(only.open('HD-9703'), /data-hd-servers-card/);
   assert.match(only.open('HD-9701'), /data-hd-servers-card[\s\S]*Open NS-PRINT01[\s\S]*Change log/);
   assert.match(only.view('helpdesk/server-manager'), /data-hd-server-row="NS-PRINT01"/);
+}
+
+// A fresh set, whichever ticket it selects first: until the student opens a
+// ticket, only the set's state shows, no Start is offered and no ticket
+// records anything. A coach that clears the selection clears it again.
+function testUnopenedTicketDecidesNothing() {
+  for (let round = 0; round < 6; round += 1) {
+    const tab = servers();
+    assert.ok(tab.run('hdState.selectedTicketId'), 'the set selects a ticket');
+    assert.match(tab.view('helpdesk/server-manager'), /data-hd-server-row="NS-PRINT01"[\s\S]*?TEST print healthy/);
+    assert.match(tab.view('helpdesk/server-manager'), /data-hd-server-warnings="0"/);
+    const services = tab.server('NS-PRINT01', '#/helpdesk/server-services');
+    assert.doesNotMatch(services, /data-hd-service-start/);
+    tab.run("hdServerStart('NS-PRINT01','TESTSpool')");
+    tab.view('helpdesk/change-log'); tab.server('NS-FILE01', '#/helpdesk/file-server');
+    assert.deepEqual(JSON.parse(tab.run("JSON.stringify(hdState.tickets.filter((t) => t.consoleState && ((t.consoleState.serverSeen || []).length || (t.consoleState.serverStarts || []).length)).map((t) => t.id))")), []);
+    assert.deepEqual(JSON.parse(tab.run('JSON.stringify(hdServerChanges().map((c) => c.number))')), ['CHG-9701'], 'only the set\'s changes');
+  }
+  const tab = servers();
+  tab.open('HD-9701');
+  assert.match(tab.view('helpdesk/server-manager'), /data-hd-server-row="NS-PRINT01"[\s\S]*?TEST spooler stopped/);
+  tab.run('hdState.selectedTicketId = null');
+  assert.match(tab.view('helpdesk/server-manager'), /data-hd-server-row="NS-PRINT01"[\s\S]*?TEST print healthy/);
 }
 
 // Server Manager's detail and warning tile.
@@ -315,8 +337,15 @@ function testServerEventLogs() {
   // their three tabs (no Directory Service).
   assert.match(tab.view('helpdesk/event-viewer'), /data-hd-server-log-picker[\s\S]*NS-DC01[\s\S]*NS-PRINT01/);
   assert.equal(tab.run("HD_WIN_LOGS.map(([id]) => id).join(',')"), 'system,application,diagnostics-performance');
-  // A server with no logs.
-  assert.match(tab.server('NS-FILE01', '#/helpdesk/server-events'), /Not available on this server/);
+  // 7031 and 2013 are plain fixtures too, and each opens.
+  tab.open('HD-9703');
+  const file = tab.server('NS-FILE01', '#/helpdesk/server-events');
+  assert.deepEqual([...file.matchAll(/data-hd-server-event="(\d+)"/g)].map((m) => m[1]), ['2013', '7031']);
+  tab.run('hdServerLogOpen(0)');
+  assert.match(tab.view('helpdesk/server-events'), /data-hd-server-event-detail="2013"[\s\S]*TEST disk is at or near capacity/);
+  tab.run('hdServerLogOpen(1)');
+  assert.match(tab.view('helpdesk/server-events'), /data-hd-server-event-detail="7031"[\s\S]*restart action taken/);
+  assert.ok(tab.run("hdTicketById('HD-9703').consoleState.serverSeen").includes('server-event:NS-FILE01:system:2013'));
 }
 
 // File server: two layers, effective access worked out from groups, sizes.
@@ -435,7 +464,7 @@ function testReloadKeepsState() {
   assert.match(reloaded.view('helpdesk/file-server'), /data-hd-shares="NS-FILE01"/);
 }
 
-const tests = [testOldTicketsTurnNothingOn, testServerStatePerTicket, testServerManagerDetailAndWarnings, testServicesStartOnlyByRunbook,
+const tests = [testOldTicketsTurnNothingOn, testServerStatePerTicket, testUnopenedTicketDecidesNothing, testServerManagerDetailAndWarnings, testServicesStartOnlyByRunbook,
   testServerEventLogs, testFileServer, testChangeLog, testProveShift, testReloadKeepsState];
 let failed = 0;
 for (const test of tests) {
