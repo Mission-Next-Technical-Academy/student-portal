@@ -2306,10 +2306,9 @@ const LABS = [
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
     skills: ['Hardware Triage', 'Evidence-Based Diagnosis', 'Documentation'], portalEntry: '#/program/it-support/module/4' }),
   // Module 5's guided lab. Students see it as Lab 5.1; the key is older than
-  // that numbering. Until Module 5's Prove It gates completion it stays the
-  // gating lab (course_module_labs), so it has no `phase: 'practice'`: an
-  // instructor still reviews and approves it.
-  itsLab({ key: 'lab-its-03-blank-desktop', module: 'its-03', title: 'Lab 5.1 · Guided Lab: the slow-computer sequence and system repair', difficulty: 'Foundational', minutes: 25,
+  // that numbering. Since 2026-11-24 Module 5's Prove It gates completion (the
+  // its03 Prove It migration) and Lab 5.1 is Practice It.
+  itsLab({ key: 'lab-its-03-blank-desktop', module: 'its-03', title: 'Lab 5.1 · Guided Lab: the slow-computer sequence and system repair', difficulty: 'Foundational', minutes: 25, phase: 'practice',
     parentAllocations: [allocation('ITHD-101.4', 25)], objective: 'Work a slow desk PC in the right order with Windows’ tool screens, free space safely, run the system-file repairs, restart to finish an update, and prove the fix with the boot time.',
     description: 'A coach-guided ticket in the IT Service Desk simulator, each step with a why and what success looks like. Feedback only, no score.',
     skills: ['Windows Performance', 'System Repair', 'Evidence-Based Diagnosis'], portalEntry: '#/program/it-support/module/5' }),
@@ -2321,8 +2320,8 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.4', 15)], objective: 'Work four tickets on your own: a temporary profile, a driver blue screen on a dock, a BitLocker recovery screen and a laptop that shuts off from heat.',
     description: 'Four unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all four and a completion record is saved to your account.',
     skills: ['Windows Profiles', 'Driver Troubleshooting', 'BitLocker Recovery', 'Hardware Triage'], portalEntry: '#/program/it-support/module/5' }),
-  // Module 5's Prove It. The page shows "Opens soon" and launches nothing
-  // until its simulator shift, scoring and gating row are built.
+  // Module 5's Prove It: one ticket (?prove=its-03), scored on the server and
+  // graded by the instructor. It gates Module 5's completion.
   itsLab({ key: 'lab-its-03-prove-it', module: 'its-03', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 20,
     parentAllocations: [allocation('ITHD-101.4', 20)], objective: 'Independently work a new Windows ticket: find what is wrong from the tool screens, fix it, verify it, and write for both the next technician and the user.',
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',

@@ -160,8 +160,10 @@ function testOldTicketsTurnNothingOn() {
     const set = sim(); assert.equal(set.run(`hdUseTicketSet(${JSON.stringify(key)})`), true);
     for (const name of set.run('Object.keys(hdState.machines || {})')) { set.select(name); assert.doesNotMatch(set.view('helpdesk/windows'), NEW_MARKERS, `${key} ${name}`); }
   }
-  // Every Prove shift, including Module 4's machineTools shift.
-  for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS'))) {
+  // Every older Prove shift, including Module 4's machineTools shift. Module
+  // 5's own shift (its-03) turns these features on by design
+  // (tests/hdesk-m05-prove.test.js).
+  for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS')).filter((k) => !module5(k))) {
     const url = `https://academy.test/sim/?prove=${key}&student=student-m05#/helpdesk/tickets`;
     const prove = sim({ url }); const before = sim({ url, withTest: false });
     for (const name of before.run('hdComputers().map((c) => c.name)')) {

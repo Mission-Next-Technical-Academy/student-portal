@@ -51,6 +51,7 @@ node tests/hdesk-m05-console-b.test.js
 node tests/hdesk-m05-guided-lab.test.js
 node tests/hdesk-m05-practice-tickets.test.js
 node tests/hdesk-m05-page.test.js
+node tests/hdesk-m05-prove.test.js
 node tests/hdesk-m04-vm-screen.test.js
 node tests/hdesk-m04-guided-labs.test.js
 node tests/hdesk-m04-practice-tickets.test.js

@@ -185,7 +185,9 @@ function testOldTicketsTurnNothingOn() {
     assert.doesNotMatch(set.view('helpdesk/event-viewer'), NEW_MARKERS, `${key} event viewer`);
     for (const name of set.run('Object.keys(hdState.machines || {})')) { set.select(name); assert.doesNotMatch(set.view('helpdesk/windows'), NEW_MARKERS, `${key} ${name}`); }
   }
-  for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS'))) {
+  // Older Prove shifts only; Module 5's own (its-03) turns these on by design
+  // (tests/hdesk-m05-prove.test.js).
+  for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS')).filter((k) => !module5(k))) {
     const url = `https://academy.test/sim/?prove=${key}&student=student-m05#/helpdesk/tickets`;
     const prove = sim({ url }); const before = sim({ url, withTest: false });
     assert.equal(prove.view('helpdesk/event-viewer'), before.view('helpdesk/event-viewer'), `prove ${key} Event Viewer`);

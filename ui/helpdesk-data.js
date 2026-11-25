@@ -1820,4 +1820,141 @@ const HD_PROVE_SHIFTS = {
       },
     },
   },
+  // BEGIN Module 5 Prove It shift (tests/hdesk-m05-guided-lab.test.js skips
+  // this block, the only place its ticket's names may appear).
+  /* Module 5 (key its-03): one ticket on a fixed Monday 09:05 shift clock, on
+   * Module 3's one-ticket form (matrix fields), worked on one laptop with
+   * Module 5's Windows tool screens (ui/helpdesk.js "Windows client tools").
+   * machineTools shows the same tools a Module 5 computer has, so the buttons
+   * don't point at the case. windowsSummary: the package carries each startup
+   * app's status, the installed apps, the restarts and the boot time
+   * (ui/helpdesk.js hdProveWindowsSummary). The fast boot after a Restart
+   * waits for the startup app named in bootSecondsAfterFixNeeds to be off.
+   * Only what the student sees lives here: no expected values. */
+  'its-03': {
+    title: 'Prove It: Independent Ticket',
+    labKey: 'lab-its-03-prove-it',
+    rubricVersion: 'hdesk-its-03-prove-v1',
+    now: '2026-08-24T09:05:00Z',
+    timeBoxMinutes: 20,
+    selectedComputer: 'NS-LT-0102',
+    machineTools: true,
+    windowsSummary: true,
+    hideEventsFrom: ['NS-LT-0081'],
+    catalog: [...HD_ITS03_CATALOG, { name:'PDF Studio Enterprise', publisher:'Northstar IT', note:'Approved PDF editor and viewer' }, { name:'Northstar Recruiting', publisher:'Northstar IT' }],
+    tickets: [{
+      id: 'HD-2126', number: 'INC0010485', title: 'Laptop takes 10 minutes to start',
+      requester: 'Grace Kim', requesterTitle: 'Recruiting Coordinator', department: 'Human Resources',
+      device: 'NS-LT-0102', cc: '', contactType: 'Self-service', createdAt: '2026-08-24T08:58:00Z',
+      status: 'New', assignedTechnician: 'Unassigned',
+      description: 'Since last Tuesday my laptop takes about 10 minutes to start. Once it\'s up it\'s mostly fine. I have interviews all afternoon.',
+      conversation: [],
+      matrix: true,
+      categoryOptions: ['Account / access', 'Hardware', 'Network', 'Printer', 'Software'],
+      // The four note parts the Module 2 standard names, for every ticket.
+      labels: { resolutionHint: 'Reported / Tried / Result / Next action' },
+      // The knowledge base search (the only console feature this ticket turns on).
+      console: { kb: true },
+      // Read-only evidence cards. Each opens on its own and is recorded.
+      evidence: [
+        { id: 'windows-security', title: 'Windows Security on NS-LT-0102', lines: ['Last quick scan: today 08:52', 'Current threats: none found', 'Virus & threat protection: on'] },
+        { id: 'hr-laptops', title: 'Endpoint report: Human Resources laptops', lines: ['Start-up time this week, 6 other HR laptops: 41 to 55 seconds', 'NS-LT-0102: about 10 minutes since last Tuesday'] },
+      ],
+      diagnosisOptions: ['Failing hard drive', 'Pending Windows Update', 'Unapproved startup application', 'Malware infection'],
+      // Ids are this ticket's own, so no other Prove It's steps land on them.
+      pathPool: [
+        // Action-level wording with no names or values, and wrong-direction
+        // steps beside the checks, so the list isn't a plan of the fix.
+        { id: 'p1', text: 'Ask Grace when it started and whether other laptops are affected' },
+        { id: 'p2', text: 'Review the startup apps in Task Manager' },
+        { id: 'p3', text: 'Check Event Viewer for errors' },
+        { id: 'p4', text: 'Compare the installed apps with the Software Catalog' },
+        { id: 'p5', text: 'Remove an app from the laptop' },
+        { id: 'p6', text: 'Restart and compare the boot time' },
+        { id: 'p7', text: 'Run Disk Cleanup' },
+        { id: 'p8', text: 'Check the Wi-Fi signal' },
+        { id: 'p9', text: 'Delete unfamiliar files from C:\\Windows\\System32' },
+        { id: 'p10', text: 'Reset or reinstall Windows' },
+        { id: 'p11', text: 'Run a full malware scan' },
+        { id: 'p12', text: 'Install the latest Windows updates' },
+        { id: 'p13', text: 'Update the laptop\'s drivers' },
+      ],
+    }],
+    computers: [
+      { name:'NS-LT-0102', user:'Grace Kim', os:'Windows 11 Enterprise 24H2', ip:'10.20.70.102', ou:'OU=Human Resources,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy', uptimeDays:0 },
+    ],
+    machines: {
+      'NS-LT-0102': {
+        computer: { ip:'10.20.70.102', health:'Healthy' },
+        processes: [
+          { name:'Microsoft Teams', cpu:4, memory:540, disk:0.6 },
+          { name:'Microsoft Edge', cpu:3, memory:720, disk:0.4 },
+          { name:'Microsoft Outlook', cpu:1, memory:310, disk:0.3 },
+          { name:'Antimalware Service Executable', cpu:1, memory:190, disk:0.2 },
+          { name:'Windows Explorer', cpu:1, memory:150, disk:0.1 },
+          { name:'System', cpu:0, memory:20, disk:0.1 },
+        ],
+        performance: { cpu:7, memory:44, disk:2 },
+        startupApps: [
+          { name:'Microsoft Teams', publisher:'Microsoft Corporation', verified:true, status:'Enabled', impact:'High' },
+          { name:'Microsoft OneDrive', publisher:'Microsoft Corporation', verified:true, status:'Enabled', impact:'Medium' },
+          { name:'QuickPDF Updater', publisher:'', verified:false, status:'Enabled', impact:'High', command:'"C:\\Users\\gkim\\AppData\\Local\\QuickPDF\\QPUpdater.exe" /background', location:'HKU\\S-1-5-21\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run' },
+          { name:'Windows Security notification icon', publisher:'Microsoft Corporation', verified:true, status:'Enabled', impact:'Low' },
+        ],
+        storage: { drive:'C:', sizeGb:476, freeGb:290.4,
+          categories:[{ name:'Apps & features', gb:71 }, { name:'Documents', gb:48 }, { name:'System & reserved', gb:54 }, { name:'Other', gb:12.6 }],
+          temporaryFiles:[{ id:'temp', name:'Temporary files', gb:1.4 }, { id:'recycle', name:'Recycle Bin', gb:0.6, recycleBin:true }],
+          driveHealth:'Good' },
+        updates: { lastInstalledDaysAgo:12, restartRequired:false, pending:null,
+          history:[{ kb:'KB5099101', name:'2026-08 Cumulative Update for Windows 11', date:'8/12/2026', status:'Successfully installed', description:'Security Update' }, { kb:'KB5098807', name:'2026-07 Cumulative Update for Windows 11', date:'7/15/2026', status:'Successfully installed', description:'Security Update' }] },
+        uptimeDays:0, bootSeconds:612, bootTime:'Today 08:41', bootSecondsAfterFix:51, bootSecondsAfterFixNeeds:{ startupOff:['QuickPDF Updater'] },
+        installedApps: [
+          { name:'Microsoft Teams', publisher:'Microsoft Corporation', version:'24295.605', installed:'1/13/2026', startup:'Microsoft Teams' },
+          { name:'Microsoft OneDrive', publisher:'Microsoft Corporation', version:'25.150.0', installed:'1/13/2026', startup:'Microsoft OneDrive' },
+          { name:'Windows Security', publisher:'Microsoft Corporation', version:'1.0', installed:'1/13/2026', startup:'Windows Security notification icon' },
+          { name:'Microsoft Edge', publisher:'Microsoft Corporation', version:'139.0.3405.86', installed:'1/13/2026' },
+          { name:'Microsoft Outlook', publisher:'Microsoft Corporation', version:'16.0.18025', installed:'1/13/2026' },
+          { name:'Microsoft Word', publisher:'Microsoft Corporation', version:'16.0.18025', installed:'1/13/2026' },
+          { name:'Microsoft Excel', publisher:'Microsoft Corporation', version:'16.0.18025', installed:'1/13/2026' },
+          { name:'Northstar Recruiting', publisher:'Northstar IT', version:'5.1.2', installed:'1/13/2026' },
+          { name:'QuickPDF', publisher:'QuickPDF Software', version:'2.4', installed:'8/18/2026 (this user only)', sizeMb:212, startup:'QuickPDF Updater' },
+        ],
+        catalog: true,
+        events: {
+          system: [
+            { level:'Information', time:'Today 08:41', source:'Kernel-General', id:'12', message:'The operating system started.' },
+            { level:'Information', time:'Fri 8/21 17:32', source:'Kernel-General', id:'13', message:'The operating system is shutting down.' },
+            { level:'Information', time:'Fri 8/21 08:20', source:'Kernel-General', id:'12', message:'The operating system started.' },
+          ],
+          application: [
+            { level:'Error', time:'Today 08:47', source:'Application Error', id:'1000', message:'Faulting application name: QPUpdater.exe, version: 2.4.0.112. Faulting module name: QPUpdater.exe. Exception code: 0xc0000005.' },
+            { level:'Information', time:'Today 08:46', source:'Microsoft Office', id:'2001', message:'Microsoft Outlook started.' },
+            { level:'Error', time:'Fri 8/21 08:26', source:'Application Error', id:'1000', message:'Faulting application name: QPUpdater.exe, version: 2.4.0.112. Faulting module name: QPUpdater.exe. Exception code: 0xc0000005.' },
+            { level:'Error', time:'Thu 8/20 08:39', source:'Application Error', id:'1000', message:'Faulting application name: QPUpdater.exe, version: 2.4.0.112. Faulting module name: QPUpdater.exe. Exception code: 0xc0000005.' },
+            { level:'Error', time:'Wed 8/19 08:24', source:'Application Error', id:'1000', message:'Faulting application name: QPUpdater.exe, version: 2.4.0.112. Faulting module name: QPUpdater.exe. Exception code: 0xc0000005.' },
+            { level:'Error', time:'Tue 8/18 13:11', source:'Application Error', id:'1000', message:'Faulting application name: QPUpdater.exe, version: 2.4.0.112. Faulting module name: QPUpdater.exe. Exception code: 0xc0000005.' },
+            { level:'Information', time:'Tue 8/18 12:52', source:'MsiInstaller', id:'11707', message:'Product: QuickPDF 2.4 -- Installation completed successfully.' },
+          ],
+          'diagnostics-performance': [
+            { level:'Warning', time:'Fri 8/21 08:20', source:'Diagnostics-Performance', id:'100', message:'Windows has started up: Boot Duration: 598000 ms (598 s)' },
+            { level:'Warning', time:'Thu 8/20 08:29', source:'Diagnostics-Performance', id:'100', message:'Windows has started up: Boot Duration: 607000 ms (607 s)' },
+            { level:'Warning', time:'Wed 8/19 08:14', source:'Diagnostics-Performance', id:'100', message:'Windows has started up: Boot Duration: 615000 ms (615 s)' },
+            { level:'Warning', time:'Tue 8/18 13:01', source:'Diagnostics-Performance', id:'100', message:'Windows has started up: Boot Duration: 604000 ms (604 s)' },
+            { level:'Warning', time:'Mon 8/17 08:16', source:'Diagnostics-Performance', id:'100', message:'Windows has started up: Boot Duration: 48000 ms (48 s)' },
+          ],
+        },
+        // No Reliability Monitor here: its data names a day's crashes
+        // "critical", which bin/its-curriculum-check.js keeps out of every
+        // Prove shift as a possible answer field.
+        files: {
+          'C:\\Users\\gkim\\Desktop':['Interview schedule.xlsx', 'Offer letter template.docx', 'Candidate notes.txt'],
+          'C:\\Users\\gkim\\Documents':['Job descriptions', 'Onboarding checklist.docx'],
+        },
+        repairs: { dism:'The restore operation completed successfully.', sfc:'Windows Resource Protection did not find any integrity violations.', chkdsk:'Windows has scanned the file system and found no problems.' },
+        safeMode:false,
+        profile:{ temporary:false, restartClears:false, path:'C:\\Users\\gkim' },
+      },
+    },
+    // END Module 5 Prove It shift.
+  },
 };
