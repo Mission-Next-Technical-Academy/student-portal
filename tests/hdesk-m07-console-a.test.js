@@ -437,7 +437,9 @@ function testProveShift() {
   const opened = [...prove.run('hdState.prove.opened')].filter((s) => !s.startsWith('screen:'));
   // No server: source from the first Server Manager visit: a fresh shift's
   // default server is not shown as opened.
-  assert.deepEqual(opened, ['services:NS-PRINT01', 'server-log:NS-PRINT01:system', 'file-share:NS-FILE01:TESTShare:share', 'effective-access:NS-FILE01:TESTShare:u-1004', 'change-log', 'change:CHG-9701']);
+  // service:<server>:<name>: one per listed service, the same keys as
+  // Get-Service -ComputerName (console B), so screen and command earn the same.
+  assert.deepEqual(opened, ['services:NS-PRINT01', 'service:NS-PRINT01:TESTSpool', 'service:NS-PRINT01:TESTOther', 'server-log:NS-PRINT01:system', 'file-share:NS-FILE01:TESTShare:share', 'effective-access:NS-FILE01:TESTShare:u-1004', 'change-log', 'change:CHG-9701']);
   assert.equal(prove.run('hdState.practiceLog'), undefined);
   assert.equal(prove.run('hdState.serverSeen'), undefined);
   assert.deepEqual([...prove.toasts], []);

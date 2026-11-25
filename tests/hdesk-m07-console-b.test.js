@@ -50,9 +50,14 @@ const OWN = base({ id: 'HD-9804', number: 'INC0019804', requester: 'Maya Chen', 
   directory: { groups: { 'TEST-Ticket-Group': { members: ['mchen'] } } },
   servers: { 'NS-PRINT01': { status: 'Degraded', services: [{ name: 'Spooler', displayName: 'Print Spooler', status: 'Stopped', startup: 'Automatic', logOnAs: 'Local System' }] }, 'NS-FILE01': { status: 'Offline' } } } });
 const CONVERT = base({ id: 'HD-9805', number: 'INC0019805', requester: 'Monica Hall', createdAt: at(WED, '08:07'), description: 'TEST reservation', console: { matrix: {}, convert: { number: 'RITM0019805', items: [] } } });
-const TICKETS = [SOURCE, RAISED, PLAIN, OWN, CONVERT];
+// HD-9806: a locked account card, and a laptop whose own state says the file
+// server's port 445 is closed from it.
+const ACCOUNT = base({ id: 'HD-9806', number: 'INC0019806', requester: 'Sam Rivera', createdAt: at(WED, '08:08'), description: 'TEST account and laptop', console: { matrix: {},
+  account: { userId: 'u-1013', locked: true },
+  machines: { 'NS-LT-0244': { computer: { ip: '10.20.10.244', health: 'Healthy' }, reachable: { 'NS-FILE01': [] } } } } });
+const TICKETS = [SOURCE, RAISED, PLAIN, OWN, CONVERT, ACCOUNT];
 const SETS = {
-  'test-directory': { title: 'Test directory', tickets: ['HD-9801', 'HD-9802', 'HD-9803', 'HD-9804'], now: at(WED, '08:40'), servers: SERVERS, directory: DIRECTORY },
+  'test-directory': { title: 'Test directory', tickets: ['HD-9801', 'HD-9802', 'HD-9803', 'HD-9804', 'HD-9806'], now: at(WED, '08:40'), servers: SERVERS, directory: DIRECTORY },
   'test-writable': { title: 'Test writable', tickets: ['HD-9803'], now: at(WED, '08:40'), directory: { readOnly: false } },
   'test-ticket-dir': { title: 'Test ticket directory', tickets: ['HD-9803', 'HD-9804'], now: at(WED, '08:40') },
   'test-convert': { title: 'Test convert', tickets: ['HD-9805'], now: at(WED, '08:40') },
@@ -182,9 +187,16 @@ function testReadOnlyDirectory() {
   assert.equal(tab.run("JSON.stringify(hdState.userOverrides)"), before, 'no account changed');
   assert.match(tab.toasts.join('|'), /Read-only/);
   for (const id of ['HD-9801', 'HD-9803', 'HD-9804']) { tab.open(id); assert.doesNotMatch(tab.ad('users'), /hdAdAction/, `${id} read-only`); }
-  // Typed account changes do nothing either.
+  // Typed account changes do nothing either, and Get-Help offers none.
   assert.match(tab.ps('Unlock-ADAccount -Identity jbell'), /outside this training shell/);
   assert.equal(tab.run("JSON.stringify(hdState.userOverrides)"), before);
+  assert.doesNotMatch(tab.ps('Get-Help'), /Unlock-ADAccount/);
+  assert.match(sim().ps('Get-Help'), /Unlock-ADAccount/, 'the shared shift still lists it');
+  // A ticket's Account card cannot unlock in a read-only shift.
+  tab.open('HD-9806');
+  assert.equal(tab.run("hdUserById('u-1013').locked"), true);
+  tab.run("hdConsoleUnlock('HD-9806')");
+  assert.equal(tab.run("hdUserById('u-1013').locked"), true, 'still locked');
   // A directory block that says readOnly:false keeps the buttons.
   const writable = setSim('test-writable');
   assert.match(writable.ad('users'), /hdAdAction\('unlock'\)[\s\S]*Reset password[\s\S]*Add approved group/);
@@ -228,6 +240,11 @@ function testGroupMembers() {
   assert.deepEqual(cmd.seen(), ['ad-group:GG-HR-Contributors', 'ad-user-groups:u-1004']);
   assert.match(cmd.ps('Get-ADUser pshah -Properties MemberOf'), /MemberOf\s+: \{.*CN=TEST-Share-Users/);
   assert.ok(cmd.seen().includes('ad-user:u-1004'));
+  // A spaced property list, as most guides write it.
+  const spaced = directory();
+  const listed = spaced.ps('Get-ADUser gkim -Properties LockedOut, Enabled, MemberOf');
+  assert.match(listed, /LockedOut\s+: False[\s\S]*MemberOf\s+: \{.*CN=GG-HR-Contributors/);
+  assert.deepEqual(spaced.seen(), ['ad-user:u-1006', 'ad-user-groups:u-1006']);
   // Console A's effective access reads the same groups.
   tab.run("hdServerOpen('NS-FILE01', '#/helpdesk/file-server'); hdFileSet({ share:'TESTShare' }); hdFileSet({ tab:'effective' }); hdFileSet({ user:'u-1004' })");
   assert.match(tab.view('helpdesk/file-server'), /data-hd-effective-access="Modify"/);
@@ -256,8 +273,10 @@ function testGroupPolicyResults() {
   const tab = directory();
   const result = (name) => JSON.parse(tab.run(`JSON.stringify((({ applied, notApplied }) => ({ applied:applied.map((g) => g.name), notApplied:notApplied.map((i) => [i.gpo.name, i.reason]) }))(hdGpResult(${JSON.stringify(name)})))`));
   assert.deepEqual(result('NS-LT-0215'), { applied: ['Default Domain Policy', 'Workstation Security Baseline'], notApplied: [] });
-  assert.deepEqual(result('NS-LT-0145'), { applied: ['Default Domain Policy'], notApplied: [['Operations Drive Mapping', 'Not applied (link out of scope)']] });
-  assert.deepEqual(result('NS-LT-0042').applied, ['Default Domain Policy', 'Workstation Security Baseline'], 'Maya Chen is not in GG-Operations-Drive');
+  // A computer in CN=Computers gets only the domain policy; an unlinked GPO
+  // is not listed (real gpresult), so the student works out why.
+  assert.deepEqual(result('NS-LT-0145'), { applied: ['Default Domain Policy'], notApplied: [] });
+  assert.deepEqual(result('NS-LT-0042'), { applied: ['Default Domain Policy', 'Workstation Security Baseline'], notApplied: [['Operations Drive Mapping', 'Denied (Security)']] }, 'Maya Chen is not in GG-Operations-Drive');
   assert.deepEqual(result('NS-LT-0117').applied, ['Default Domain Policy', 'Workstation Security Baseline', 'Finance Printer Deployment']);
   let page = tab.view('helpdesk/group-policy');
   assert.match(page, /data-hd-gp-results-card/);
@@ -275,8 +294,14 @@ function testGroupPolicyResults() {
   assert.deepEqual(cmd.seen(), tab.seen(), 'the command earns the same key');
   cmd.run("hdState.selectedComputer = 'NS-LT-0145'");
   out = cmd.ps('gpresult /r');
-  assert.match(out, /CN=NS-LT-0145,CN=Computers[\s\S]*Operations Drive Mapping\n\s+Filtering:  Not Applied \(link out of scope\)|Operations Drive Mapping\n\s+Filtering:  Not applied \(link out of scope\)/);
-  assert.match(cmd.ps('gpresult'), /Invalid Syntax/);
+  assert.match(out, /CN=NS-LT-0145,CN=Computers[\s\S]*Applied Group Policy Objects\n\s+-+\n\s+Default Domain Policy\n\n/);
+  assert.doesNotMatch(out, /Operations Drive Mapping|link out of scope/);
+  cmd.run("hdState.selectedComputer = 'NS-LT-0042'");
+  assert.match(cmd.ps('gpresult /r'), /Operations Drive Mapping\n\s+Filtering:  Denied \(Security\)/);
+  assert.match(cmd.ps('gpresult'), /Invalid Syntax\. Type "gpresult \/r"/);
+  // Only the two forms the shell answers move Last applied.
+  assert.match(cmd.ps('gpupdate /target:computer'), /outside this training shell/);
+  assert.equal(cmd.seen().includes('gpupdate:NS-LT-0042'), false);
   assert.match(cmd.ps('gpresult /s NS-NOPE /r'), /RPC server is unavailable/);
   // gpupdate /force: today's answer, and the computer's Last applied moves.
   cmd.run("hdState.selectedComputer = 'NS-LT-0215'");
@@ -326,7 +351,8 @@ function testDhcp() {
   assert.deepEqual(tab.seen(), ['dhcp-scope:Warehouse']);
   tab.run("hdDhcpOpen('Guest Wi-Fi')");
   page = tab.view('helpdesk/dhcp');
-  assert.match(page, /data-hd-dhcp-detail="Guest Wi-Fi"[\s\S]*VLAN 90 · 95% used · 12 free[\s\S]*No leases listed[\s\S]*No reservations[\s\S]*No exclusions/);
+  assert.match(page, /data-hd-dhcp-detail="Guest Wi-Fi"[\s\S]*VLAN 90 · 95% used · 12 free[\s\S]*Lease list not shown for this scope \(209 in use\)[\s\S]*No reservations[\s\S]*No exclusions/);
+  assert.match(page, /<th>Lease obtained<\/th>/);
   tab.run("hdDhcpOpen('No such scope')");
   assert.equal(tab.run('hdState.dhcpScope'), 'Guest Wi-Fi');
 }
@@ -355,6 +381,13 @@ function testServerLines() {
   assert.match(out, /TcpTestSucceeded : False/);
   // A server with no state: today's answers.
   assert.match(tab.ps('Test-NetConnection NS-APP01 -Port 443'), /purchasing\.northstar\.example/);
+  // The student's own laptop decides first when its state lists the target.
+  const laptop = directory();
+  laptop.open('HD-9806');
+  laptop.run("hdState.selectedComputer = 'NS-LT-0244'");
+  const fromLaptop = laptop.ps('Test-NetConnection NS-FILE01 -Port 445');
+  assert.match(fromLaptop, /RemoteAddress\s+: NS-FILE01[\s\S]*TcpTestSucceeded : False/, 'answered from the laptop (Module 4 behaviour)');
+  assert.equal(laptop.seen().includes('port:NS-FILE01:445'), false);
   // Optional lines: shares, volumes, events.
   const cmd = directory();
   assert.match(cmd.ps('Get-SmbShareAccess -Name TESTShare -CimSession NS-FILE01'), /TESTShare\s+\*\s+NORTHSTAR\\TEST-Share-Users\s+Allow\s+Change/);
@@ -455,8 +488,12 @@ function testProveShift() {
   assert.doesNotMatch(prove.ps('Get-CimInstance Win32_LogicalDisk -ComputerName NS-FILE01'), /1 GB is/);
   assert.doesNotMatch(prove.ps('Get-Help'), /Directory \(read-only\)/);
   const opened = [...prove.run('hdState.prove.opened')].filter((s) => !s.startsWith('screen:'));
-  assert.deepEqual(opened, ['ad-user:u-1004', 'ad-group:GG-HR-Contributors', 'ad-computer:NS-LT-0215', 'gp-results:NS-LT-0215', 'dns-zone', 'dhcp-scope:Warehouse', 'services:NS-PRINT01', 'volumes:NS-FILE01']);
+  // The same keys as Practice, so a screen and its command earn the same.
+  const records = ['dc01:A', 'dc02:A', 'files:A', 'print:A', 'purchasing:CNAME', 'vpn:A', 'legacy-erp:A', 'files:AAAA', '@:MX', '@:TXT'].map((r) => `dns-record:${r}`);
+  assert.deepEqual(opened, ['ad-user:u-1004', 'ad-user-groups:u-1004', 'ad-group:GG-HR-Contributors', 'ad-computer:NS-LT-0215', 'gp-results:NS-LT-0215', 'dns-zone', ...records, 'dhcp-scope:Warehouse', 'services:NS-PRINT01', 'service:NS-PRINT01:Spooler', 'volumes:NS-FILE01']);
   assert.equal(prove.run('hdState.serverSeen'), undefined);
+  // No teaching hint in a Prove It's error lines.
+  for (const command of ['Get-SmbShareAccess', 'Get-WinEvent -ComputerName NS-FILE01', 'gpresult', 'Resolve-DnsName']) assert.doesNotMatch(prove.ps(command), /for example|Type "gpresult/, command);
 }
 
 // An older save with none of the new keys loads, and new state reloads.
@@ -469,6 +506,16 @@ function testReloadKeepsState() {
   assert.match(again.view('helpdesk/group-policy'), /data-hd-gp-results="NS-LT-0215"/);
   assert.match(again.view('helpdesk/dns'), /aria-pressed="true" data-hd-dns-type="TXT"/);
   assert.match(again.ad('groups'), /data-hd-group-members="GG-HR-Readers"/);
+  // Opening another ticket starts it with nothing open, so nothing read on
+  // one ticket is recorded on the next.
+  const move = directory();
+  move.open('HD-9803');
+  move.run("hdOpenUser('u-1004'); hdAdGroupOpen('GG-HR-Readers'); hdGpResultsOpen('NS-LT-0215'); hdDhcpOpen('Warehouse')");
+  move.ad('users'); move.ad('groups'); move.view('helpdesk/group-policy'); move.view('helpdesk/dhcp');
+  move.open('HD-9801');
+  move.ad('users'); move.ad('groups'); move.view('helpdesk/group-policy'); move.view('helpdesk/dhcp');
+  assert.deepEqual(move.run("hdTicketById('HD-9801').consoleState.serverSeen || []").length, 0);
+  assert.equal(move.run("hdTicketById('HD-9803').consoleState.serverSeen.length"), 5);
   const old = store();
   directory(old);
   old.map.forEach((value, key) => { const saved = JSON.parse(value); if (saved && saved.version === 1) { ['dhcpScope', 'gpResultsFor', 'gpRefresh', 'dnsType', 'adGroup', 'adUserOpened'].forEach((k) => delete saved[k]); old.map.set(key, JSON.stringify(saved)); } });
