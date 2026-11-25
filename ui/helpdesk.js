@@ -2244,10 +2244,13 @@ function hdConvertToRequest(id) {
   const missing = (item.fields || []).find(field => !draft.fields[field.id]);
   if (missing) { toast(`Choose the ${missing.label} first.`); return; }
   const approved = item.approval === 'Approved';
+  // Module 6: an item whose approval starts "Not required" (a Software
+  // Catalog app) keeps that text and needs no approver.
+  const notRequired = hdApprovalNotRequired(item.approval);
   ticket.request = {
     number:config.number || 'RITM', item:item.name, requestedFor:draft.requestedFor,
     fields:(item.fields || []).map(field => ({ id:field.id, label:field.label, value:draft.fields[field.id] })),
-    approval:approved ? 'Approved' : 'Requested', approver:item.approver || '', approvedAt:approved ? hdShiftIso(ticket) : '', state:'Open',
+    approval:approved ? 'Approved' : notRequired ? String(item.approval) : 'Requested', approver:item.approver || '', approvedAt:approved ? hdShiftIso(ticket) : '', state:'Open',
   };
   hdMatrixRespond(ticket);
   // keepIncident (Module 3 on): the request is opened from the incident, and
@@ -2264,19 +2267,22 @@ function hdConvertToRequest(id) {
   hdPracticeEvent('converted', { ticket:ticket.id, item:item.name });
   hdRerender();
 }
+function hdApprovalNotRequired(value) { return /^not required\b/i.test(String(value || '')); }
+// Approved, or no approval needed (Module 6's Software Catalog item).
+function hdApprovalCleared(value) { return value === 'Approved' || hdApprovalNotRequired(value); }
 function hdRequestApprove(ticket) {
-  if (!ticket.request || ticket.request.approval === 'Approved') return;
+  if (!ticket.request || hdApprovalCleared(ticket.request.approval)) return;
   ticket.request.approval = 'Approved'; ticket.request.approvedAt = hdShiftIso(ticket);
   hdHistory(ticket, `${ticket.request.number} approved${ticket.request.approver ? ` by ${ticket.request.approver}` : ''}.`);
 }
 function hdRequestClose(id) {
   const ticket = hdTicketById(id); if (!ticket || !ticket.request || ticket.request.state !== 'Open') return;
-  if (ticket.request.approval !== 'Approved') { toast('The request can\'t be closed before it is approved.'); return; }
+  if (!hdApprovalCleared(ticket.request.approval)) { toast('The request can\'t be closed before it is approved.'); return; }
   ticket.request.state = 'Closed Complete';
   hdHistory(ticket, `${ticket.request.number} closed complete.`);
   hdRerender();
 }
-function hdRequestApproved(ticket) { return !!(ticket.request && ticket.request.approval === 'Approved'); }
+function hdRequestApproved(ticket) { return !!(ticket.request && hdApprovalCleared(ticket.request.approval)); }
 
 // Link tickets as related: a child names its parent. Linking meets the
 // child's respond target; each ticket keeps its own resolve clock.
@@ -2642,8 +2648,8 @@ function hdConvertCard(ticket) {
   const request = ticket.request;
   if (request) {
     const fields = request.fields.map(field => `<dt>${hdEsc(field.label)}</dt><dd>${hdEsc(field.value)}</dd>`).join('');
-    const close = request.state === 'Open' ? `<button type="button" class="btn btn-secondary" ${request.approval === 'Approved' ? '' : 'disabled style="opacity:.55;cursor:not-allowed"'} onclick="hdRequestClose('${ticket.id}')">Close the request (Closed Complete)</button>` : '';
-    return `<div class="card hd-request-item" data-hd-request="${hdEsc(request.number)}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Requested item ${hdEsc(request.number)}</strong>${hdBadge(`Approval: ${request.approval}`, request.approval === 'Approved' ? 'ok' : 'warn')}${hdBadge(request.state, request.state === 'Open' ? 'in-progress' : 'closed')}</div><div class="card-body"><dl class="hd-dl"><dt>Catalog item</dt><dd>${hdEsc(request.item)}</dd><dt>Requested for</dt><dd>${hdEsc(request.requestedFor)}</dd>${fields}${request.approver ? `<dt>Approver</dt><dd>${hdEsc(request.approver)}</dd>` : ''}<dt>SLA</dt><dd class="muted">None: requests have no SLA bar here</dd></dl>${close}</div></div>`;
+    const close = request.state === 'Open' ? `<button type="button" class="btn btn-secondary" ${hdApprovalCleared(request.approval) ? '' : 'disabled style="opacity:.55;cursor:not-allowed"'} onclick="hdRequestClose('${ticket.id}')">Close the request (Closed Complete)</button>` : '';
+    return `<div class="card hd-request-item" data-hd-request="${hdEsc(request.number)}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Requested item ${hdEsc(request.number)}</strong>${hdBadge(`Approval: ${request.approval}`, hdApprovalCleared(request.approval) ? 'ok' : 'warn')}${hdBadge(request.state, request.state === 'Open' ? 'in-progress' : 'closed')}</div><div class="card-body"><dl class="hd-dl"><dt>Catalog item</dt><dd>${hdEsc(request.item)}</dd><dt>Requested for</dt><dd>${hdEsc(request.requestedFor)}</dd>${fields}${request.approver ? `<dt>Approver</dt><dd>${hdEsc(request.approver)}</dd>` : ''}<dt>SLA</dt><dd class="muted">None: requests have no SLA bar here</dd></dl>${close}</div></div>`;
   }
   if (['Resolved', 'Closed', 'Canceled'].includes(ticket.status)) return '';
   const draft = hdConvertDraft(ticket);
@@ -3567,7 +3573,9 @@ function hdMachineCommand(command, normalized, computer) {
  * in Practice, an entry in the ticket's consoleState.actions and history. */
 const HD_MACHINE_SCREENS = ['print-queue', 'printer-properties', 'device-manager', 'camera', 'dock', 'settings-network',
   // Windows client screens (Module 5, key its-03; see "Windows client tools" below).
-  'pc-task-manager', 'settings-storage', 'settings-update', 'settings-apps', 'software-catalog', 'reliability', 'settings-recovery'];
+  'pc-task-manager', 'settings-storage', 'settings-update', 'settings-apps', 'software-catalog', 'reliability', 'settings-recovery',
+  // Software install screens (Module 6, key its-07).
+  'default-apps', 'company-portal'];
 function hdOwn(object, key) { return !!object && typeof object === 'object' && Object.prototype.hasOwnProperty.call(object, key); }
 function hdTicketMachineSpecs(ticket) {
   if (HD_PROVE || !ticket) return null;
@@ -4245,7 +4253,25 @@ function hdMachineValueIs(rule) {
  * Every screen records its Prove source once (task-manager:<computer>:<tab>,
  * storage:, windows-update:, installed-apps:, software-catalog:) and adds
  * the same key to machine.seen, which a coach reads in Practice. Every
- * change is an hdMachineAction. */
+ * change is an hdMachineAction.
+ * Module 6 (key its-07), console A, adds (each off unless the machine has it;
+ * see "Software install tools" below):
+ *   installedApps[]: + wingetId?, opens?:['.pdf'] (Default apps can pick it),
+ *     upgrade?:{ version, afterRepair? }   a waiting upgrade; afterRepair
+ *       lists it only once the app is repaired
+ *     repair?:{ available?, broken?, via?:'advanced' | 'modify', fixedText? }
+ *       broken: what is wrong until it is repaired (e.g. 'freezes');
+ *       advanced: Advanced options › Repair; modify: Modify › Repair or
+ *       Online repair; fixedText: the line shown once it is repaired
+ *     reset?:{ available? }   Advanced options › Reset
+ *   catalog[]: + wingetId?, version?   winget finds only entries with an Id
+ *   defaultApps: { '.pdf':'<app name>', ... }   Settings › Apps › Default apps
+ *   companyPortal: true   Company Portal (installs from the Software Catalog)
+ *   winget: true   the five winget lines answer on this computer
+ *   resetPc: true   Reset this PC on Recovery is a recorded choice
+ *     (pc-reset-chosen); nothing is ever wiped
+ * Console B reads these (documented here, built there): protection,
+ * extensions, oneDrive. */
 const HD_WIN_SCREENS = {
   'pc-task-manager':{ source:'task-manager', label:'Task Manager', key:'processes' },
   'settings-storage':{ source:'storage', label:'Settings › System › Storage', key:'storage' },
@@ -4255,6 +4281,9 @@ const HD_WIN_SCREENS = {
   // Console B.
   reliability:{ source:'reliability', label:'Reliability Monitor', key:'reliability' },
   'settings-recovery':{ source:'recovery', label:'Settings › System › Recovery', key:'safeMode' },
+  // Module 6, console A.
+  'default-apps':{ source:'default-apps', label:'Settings › Apps › Default apps', key:'defaultApps' },
+  'company-portal':{ source:'company-portal', label:'Company Portal', key:'companyPortal' },
 };
 const HD_WIN_TASK_TABS = [['processes', 'Processes'], ['performance', 'Performance'], ['startup', 'Startup apps']];
 function hdWinList(machine, key) { return machine && Array.isArray(machine[key]) ? machine[key].filter(item => item && typeof item === 'object') : []; }
@@ -4276,8 +4305,12 @@ function hdWinHas(machine, screen) {
     // Console B.
     if (screen === 'event-logs') return !!hdWinEvents(m);
     if (screen === 'reliability') return !!m && Array.isArray(m.reliability);
-    if (screen === 'settings-recovery') return !!m && typeof m.safeMode === 'boolean';
+    if (screen === 'settings-recovery') return hdWinHasRecovery(m);
     if (screen === 'ad-computer') return !!m && Array.isArray(m.bitlockerKeys);
+    // Module 6, console A.
+    if (screen === 'default-apps') return !!hdWinDefaults(m);
+    if (screen === 'company-portal') return !!m && m.companyPortal === true;
+    if (screen === 'winget') return !!m && m.winget === true;
     return false;
   };
   if (own(machine)) return true;
@@ -4317,7 +4350,9 @@ function hdWinToolButtons(name) {
     open('settings-storage', '⚙ Settings › System › Storage'),
     open('settings-update', '⚙ Settings › Windows Update'),
     open('settings-apps', '⚙ Settings › Apps › Installed apps'),
+    open('default-apps', '⚙ Settings › Apps › Default apps'),
     open('software-catalog', '📚 Software Catalog'),
+    open('company-portal', '🏢 Company Portal'),
     open('reliability', '📈 Reliability Monitor'),
     open('settings-recovery', '⚙ Settings › System › Recovery'),
   ].join('');
@@ -4519,13 +4554,76 @@ function hdWinUninstall(computerName, appName) {
   if (hdProveLocked()) return;
   if (typeof confirm === 'function' && !confirm(`Uninstall ${appName}? This app and its related info will be uninstalled.`)) return;
   hdMachineChange(computerName, machine => {
-    const apps = hdWinList(machine, 'installedApps');
-    const app = apps.find(item => item.name === appName); if (!app) return false;
-    machine.installedApps = machine.installedApps.filter(item => item !== app);
-    const startup = typeof app.startup === 'string' && app.startup ? app.startup : app.name;
-    if (Array.isArray(machine.startupApps)) machine.startupApps = machine.startupApps.filter(item => !item || item.name !== startup);
-    hdMachineAction(computerName, 'app-uninstalled', `uninstalled ${appName}`, { app:appName });
+    const app = hdWinList(machine, 'installedApps').find(item => item.name === appName); if (!app) return false;
+    hdWinRemoveApp(machine, computerName, app, `uninstalled ${appName}`);
   });
+}
+// Removes an installed app and its startup entry, and records it. Shared by
+// Uninstall on the screen and winget uninstall (same action, same detail).
+function hdWinRemoveApp(machine, computerName, app, label) {
+  machine.installedApps = machine.installedApps.filter(item => item !== app);
+  const startup = typeof app.startup === 'string' && app.startup ? app.startup : app.name;
+  if (Array.isArray(machine.startupApps)) machine.startupApps = machine.startupApps.filter(item => !item || item.name !== startup);
+  hdMachineAction(computerName, 'app-uninstalled', label, { app:app.name });
+}
+
+/* ---------- Software install tools (added for Module 6, key its-07), console A ----------
+ * Installed apps' Repair, Modify and Reset; Settings › Apps › Default apps;
+ * Company Portal; and the five winget lines. Each is off unless the machine
+ * has the key it reads (see the machine-state list above). Install, upgrade
+ * and uninstall from a screen or from winget call the same functions and
+ * record the same action (app-installed, app-upgraded, app-uninstalled), so
+ * a ticket can't tell the two routes apart. */
+function hdWinAppRepair(app) { return app && app.repair && typeof app.repair === 'object' && app.repair.available !== false ? app.repair : null; }
+function hdWinAppReset(app) { return app && app.reset && typeof app.reset === 'object' && app.reset.available !== false ? app.reset : null; }
+function hdWinAppHasOptions(app) { return !!(hdWinAppRepair(app) || hdWinAppReset(app)); }
+function hdWinAppByName(machine, appName) { return hdWinList(machine, 'installedApps').find(item => item.name === appName) || null; }
+// The upgrade winget lists for an app, or null (afterRepair waits for Repair).
+function hdWinUpgradeShown(app) {
+  const upgrade = app && app.upgrade && typeof app.upgrade === 'object' && app.upgrade.version ? app.upgrade : null;
+  if (!upgrade) return null;
+  if (upgrade.afterRepair && !(app.repair && app.repair.repaired === true)) return null;
+  return upgrade;
+}
+function hdWinAppOptions(computerName, appName) {
+  const machine = hdFeatureMachine(computerName); const app = hdWinAppByName(machine, appName);
+  if (!app || !hdWinAppHasOptions(app)) return;
+  const view = hdMachineView();
+  hdState.machineView = { ...view, computer:computerName, app:view.app === appName ? '' : appName };
+  hdSave(); render();
+}
+function hdWinRepairApp(computerName, appName, mode) {
+  if (!['repair', 'online'].includes(mode)) return;
+  hdMachineChange(computerName, machine => {
+    const app = hdWinAppByName(machine, appName); const repair = hdWinAppRepair(app); if (!repair) return false;
+    const modify = repair.via === 'modify';
+    if (mode === 'online' && !modify) return false;
+    const wasBroken = !!repair.broken;
+    repair.broken = '';
+    repair.repaired = true;
+    hdMachineAction(computerName, 'app-repaired', `repaired ${appName} (${modify ? `Modify › ${mode === 'online' ? 'Online repair' : 'Repair'}` : 'Advanced options › Repair'})`, { app:appName, mode, wasBroken });
+  });
+}
+function hdWinResetApp(computerName, appName) {
+  if (hdProveLocked()) return;
+  if (typeof confirm === 'function' && !confirm(`Reset ${appName}? This permanently deletes the app's data on this device, including its settings and sign-in details.`)) return;
+  hdMachineChange(computerName, machine => {
+    const app = hdWinAppByName(machine, appName); const reset = hdWinAppReset(app); if (!reset) return false;
+    reset.done = true;
+    hdMachineAction(computerName, 'app-reset', `reset ${appName} (Advanced options › Reset)`, { app:appName });
+  });
+}
+// The Advanced options or Modify panel for the open app.
+function hdWinAppPanel(computer, machine, locked) {
+  const app = hdWinAppByName(machine, hdMachineView().app); if (!app || !hdWinAppHasOptions(app)) return '';
+  const n = `'${hdJsArg(computer.name)}'`; const a = `'${hdJsArg(app.name)}'`;
+  const repair = hdWinAppRepair(app); const reset = hdWinAppReset(app);
+  const done = repair && repair.repaired ? ` <span data-hd-repaired>✓${repair.fixedText ? ` ${hdEsc(repair.fixedText)}` : ''}</span>` : '';
+  const close = `<button type="button" class="btn btn-ghost btn-sm" onclick="hdWinAppOptions(${n},${a})">Close</button>`;
+  if (repair && repair.via === 'modify') {
+    return `<div class="card" data-hd-app-modify="${hdEsc(app.name)}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Modify · ${hdEsc(app.name)}</strong>${close}</div><div class="card-body"><p>How do you want to repair this app?</p><ul class="hd-list"><li><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-repair="repair" onclick="hdWinRepairApp(${n},${a},'repair')">Repair</button> <span class="muted">Fixes most problems quickly, offline.</span></li><li><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-repair="online" onclick="hdWinRepairApp(${n},${a},'online')">Online repair</button> <span class="muted">A fuller repair that downloads the app again. It takes longer.</span></li></ul>${done}</div></div>`;
+  }
+  return `<div class="card" data-hd-app-advanced="${hdEsc(app.name)}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(app.name)} › Advanced options</strong>${close}</div><div class="card-body">${repair ? `<p><strong>Repair</strong><br><span class="muted">If this app isn't working right, Windows can try to repair it. The app's data stays.</span></p><p><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-repair="repair" onclick="hdWinRepairApp(${n},${a},'repair')">Repair</button>${done}</p>` : ''}${reset ? `<p><strong>Reset</strong><br><span class="muted">If it still isn't working right, reset it. The app's data is deleted.</span></p><p><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-reset-app onclick="hdWinResetApp(${n},${a})">Reset</button>${reset.done ? ' <span data-hd-reset-done>✓</span>' : ''}</p>` : ''}</div></div>`;
 }
 VIEWS['helpdesk/settings-apps'] = () => {
   const found = hdWinScreen('settings-apps'); if (!found || !Array.isArray(found.machine.installedApps)) return hdMachineMissing('Installed apps');
@@ -4533,7 +4631,67 @@ VIEWS['helpdesk/settings-apps'] = () => {
   const name = `'${hdJsArg(computer.name)}'`;
   const locked = hdProveLocked() ? 'disabled' : '';
   const apps = hdWinList(machine, 'installedApps').slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
-  return `${hdPageHeader('Installed apps', `Settings › Apps › Installed apps · ${computer.name}`, hdMachineBack(computer))}<div class="card" data-hd-installed-apps><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${apps.length} app${apps.length === 1 ? '' : 's'} found</strong></div><div class="table-wrap"><table><thead><tr><th>App</th><th>Publisher</th><th>Version</th><th>Installed</th><th></th></tr></thead><tbody>${apps.map(app => `<tr data-hd-app="${hdEsc(app.name)}"><td>${hdEsc(app.name)}${app.sizeMb ? ` <span class="muted">${hdEsc(app.sizeMb)} MB</span>` : ''}</td><td>${hdEsc(app.publisher || '')}</td><td>${hdEsc(app.version || '')}</td><td>${hdEsc(app.installed || '')}</td><td><button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdWinUninstall(${name},'${hdJsArg(app.name)}')">Uninstall</button></td></tr>`).join('') || '<tr><td colspan="5" class="muted">No apps listed.</td></tr>'}</tbody></table></div></div>`;
+  // An app with repair or reset gets an Advanced options (or Modify) button
+  // before Uninstall; every other row is exactly Module 5's.
+  const options = (app) => hdWinAppHasOptions(app) ? `<button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-app-options="${hdEsc(app.name)}" onclick="hdWinAppOptions(${name},'${hdJsArg(app.name)}')">${hdWinAppRepair(app) && hdWinAppRepair(app).via === 'modify' ? 'Modify' : 'Advanced options'}</button> ` : '';
+  return `${hdPageHeader('Installed apps', `Settings › Apps › Installed apps · ${computer.name}`, hdMachineBack(computer))}${hdWinAppPanel(computer, machine, locked)}<div class="card" data-hd-installed-apps><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${apps.length} app${apps.length === 1 ? '' : 's'} found</strong></div><div class="table-wrap"><table><thead><tr><th>App</th><th>Publisher</th><th>Version</th><th>Installed</th><th></th></tr></thead><tbody>${apps.map(app => `<tr data-hd-app="${hdEsc(app.name)}"><td>${hdEsc(app.name)}${app.sizeMb ? ` <span class="muted">${hdEsc(app.sizeMb)} MB</span>` : ''}</td><td>${hdEsc(app.publisher || '')}</td><td>${hdEsc(app.version || '')}</td><td>${hdEsc(app.installed || '')}</td><td>${options(app)}<button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdWinUninstall(${name},'${hdJsArg(app.name)}')">Uninstall</button></td></tr>`).join('') || '<tr><td colspan="5" class="muted">No apps listed.</td></tr>'}</tbody></table></div></div>`;
+};
+
+// Settings › Apps › Default apps: each file type and the app that opens it.
+// Change offers the current app and every installed app whose opens lists
+// the type.
+function hdWinDefaults(machine) { return machine && machine.defaultApps && typeof machine.defaultApps === 'object' && !Array.isArray(machine.defaultApps) ? machine.defaultApps : null; }
+function hdWinDefaultChoices(machine, type) {
+  const current = String((hdWinDefaults(machine) || {})[type] || '');
+  const able = hdWinList(machine, 'installedApps').filter(app => Array.isArray(app.opens) && app.opens.some(item => String(item).toLowerCase() === type.toLowerCase())).map(app => String(app.name));
+  return [...new Set([current, ...able].filter(Boolean))];
+}
+function hdWinSetDefault(computerName, type, appName) {
+  hdMachineChange(computerName, machine => {
+    const defaults = hdWinDefaults(machine); if (!defaults || !hdOwn(defaults, type)) return false;
+    if (defaults[type] === appName || !hdWinDefaultChoices(machine, type).includes(appName)) return false;
+    defaults[type] = appName;
+    hdMachineAction(computerName, 'default-app-set', `set ${type} files to open with ${appName} (Settings › Apps › Default apps)`, { fileType:type, app:appName });
+  });
+}
+VIEWS['helpdesk/default-apps'] = () => {
+  const found = hdWinScreen('default-apps'); const defaults = found && hdWinDefaults(found.machine);
+  if (!defaults) return hdMachineMissing('Default apps');
+  const { computer, machine } = found; const n = `'${hdJsArg(computer.name)}'`;
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const types = Object.keys(defaults).sort();
+  const rows = types.map(type => {
+    const current = String(defaults[type] || '');
+    const choices = hdWinDefaultChoices(machine, type);
+    return `<tr data-hd-default="${hdEsc(type)}"><td><strong>${hdEsc(type)}</strong></td><td data-hd-default-app>${hdEsc(current || 'Choose a default')}</td><td><label>Change <select class="select" ${locked} data-hd-default-change="${hdEsc(type)}" onchange="hdWinSetDefault(${n},'${hdJsArg(type)}',this.value)">${choices.map(app => `<option ${app === current ? 'selected' : ''}>${hdEsc(app)}</option>`).join('')}</select></label></td></tr>`;
+  }).join('');
+  return `${hdPageHeader('Default apps', `Settings › Apps › Default apps · ${computer.name}`, hdMachineBack(computer))}<div class="card" data-hd-default-apps><div class="card-header"><strong>Choose a default by file type</strong></div><div class="table-wrap"><table><thead><tr><th>File type</th><th>Opens with</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="muted">No file types listed.</td></tr>'}</tbody></table></div></div>`;
+};
+
+// Installs a Software Catalog app, from Company Portal or winget.
+function hdWinInstallEntry(machine, computerName, entry, label) {
+  if (!Array.isArray(machine.installedApps)) machine.installedApps = [];
+  machine.installedApps.push({ name:entry.name, publisher:entry.publisher || '', version:entry.version || '', installed:'Today', ...(entry.wingetId ? { wingetId:entry.wingetId } : {}) });
+  hdMachineAction(computerName, 'app-installed', label, { app:entry.name });
+}
+function hdWinIsInstalled(machine, appName) { return hdWinList(machine, 'installedApps').some(app => String(app.name).toLowerCase() === String(appName).toLowerCase()); }
+function hdWinPortalInstall(computerName, appName) {
+  hdMachineChange(computerName, machine => {
+    if (machine.companyPortal !== true) return false;
+    const entry = hdSoftwareCatalog(machine).find(item => item && item.name === appName);
+    if (!entry || hdWinIsInstalled(machine, entry.name)) return false;
+    hdWinInstallEntry(machine, computerName, entry, `installed ${entry.name} from Company Portal`);
+  });
+}
+VIEWS['helpdesk/company-portal'] = () => {
+  const found = hdWinScreen('company-portal');
+  if (!found || found.machine.companyPortal !== true) return hdMachineMissing('Company Portal');
+  const { computer, machine } = found; const n = `'${hdJsArg(computer.name)}'`;
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const q = String(hdMachineView().q || '').toLowerCase();
+  const all = hdSoftwareCatalog(machine).filter(item => item && item.name).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const rows = all.filter(item => !q || `${item.name} ${item.publisher || ''}`.toLowerCase().includes(q));
+  return `${hdPageHeader('Company Portal', 'Apps from the Software Catalog. Install them yourself, with no admin password.', hdMachineBack(computer))}<form class="filterbar" onsubmit="hdWinCatalogFilter(event,'${hdJsArg(computer.name)}','hd-portal-q')"><label>Search apps <input id="hd-portal-q" class="ipt" maxlength="60" value="${hdEsc(hdMachineView().q || '')}" placeholder="App or publisher"></label><button class="btn btn-primary btn-sm" type="submit">Search</button><span class="muted">${rows.length} of ${all.length} shown</span></form><div class="card" data-hd-company-portal><div class="table-wrap"><table><thead><tr><th>App</th><th>Publisher</th><th>Version</th><th></th></tr></thead><tbody>${rows.map(item => `<tr data-hd-portal-app="${hdEsc(item.name)}"><td>${hdEsc(item.name)}</td><td>${hdEsc(item.publisher || '')}</td><td>${hdEsc(item.version || 'Latest')}</td><td>${hdWinIsInstalled(machine, item.name) ? '<span class="muted" data-hd-portal-installed>Installed</span>' : `<button type="button" class="btn btn-primary btn-sm" ${locked} data-hd-portal-install onclick="hdWinPortalInstall(${n},'${hdJsArg(item.name)}')">Install</button>`}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No app matches this search.</td></tr>'}</tbody></table></div></div>`;
 };
 
 // The Software Catalog: the approved apps, read-only.
@@ -4542,9 +4700,9 @@ function hdSoftwareCatalog(machine) {
   if (HD_PROVE && Array.isArray(HD_PROVE.shift.catalog)) return HD_PROVE.shift.catalog;
   return typeof HD_SOFTWARE_CATALOG !== 'undefined' && Array.isArray(HD_SOFTWARE_CATALOG) ? HD_SOFTWARE_CATALOG : [];
 }
-function hdWinCatalogFilter(event, computerName) {
+function hdWinCatalogFilter(event, computerName, inputId) {
   if (event && event.preventDefault) event.preventDefault();
-  const el = document.getElementById('hd-catalog-q');
+  const el = document.getElementById(inputId === 'hd-portal-q' ? 'hd-portal-q' : 'hd-catalog-q');
   hdState.machineView = { ...hdMachineView(), computer:computerName, q:String(el ? el.value : '').trim().slice(0, 60) };
   hdSave(); render();
 }
@@ -4561,6 +4719,8 @@ VIEWS['helpdesk/software-catalog'] = () => {
 // today's answers stay as they were.
 function hdWinFirst(normalized, fallback) { const match = /select-object -first (\d+)/.exec(normalized); return match ? Math.max(1, Math.min(50, Number(match[1]))) : fallback; }
 function hdWinCommand(command, normalized, machine, computerName) {
+  const winget = hdWinWinget(command, machine, computerName);
+  if (winget !== null) return winget;
   const typed = hdWinTypedCommand(command, normalized, machine);
   if (typed !== null) return typed;
   const processes = hdWinList(machine, 'processes');
@@ -4595,6 +4755,140 @@ function hdWinCommand(command, normalized, machine, computerName) {
   }
   return null;
 }
+/* The five winget lines (Module 6, key its-07), on a machine with
+ * winget: true (in a machineTools Prove shift, on every computer when any
+ * has it). Any letter case; quotes and the extra options below are allowed.
+ * Packages are the Software Catalog entries that have a wingetId; an
+ * installed app matches by its wingetId (or its catalog entry's) or name.
+ * Compared as lowercase strings, never as patterns. */
+const HD_WINGET_COMMANDS = { search:'search', find:'search', install:'install', add:'install', upgrade:'upgrade', update:'upgrade', uninstall:'uninstall', remove:'uninstall', rm:'uninstall' };
+const HD_WINGET_OTHER = ['list', 'ls', 'show', 'view', 'source', 'settings', 'config', 'features', 'export', 'import', 'pin', 'configure', 'configuration', 'download', 'repair', 'hash', 'validate', 'complete', 'dscv3', 'mcp'];
+const HD_WINGET_VALUE = ['--id', '--name', '--query', '-q', '--source', '-s', '--scope', '--version', '-v', '--architecture', '-a', '--locale', '--count', '-n'];
+const HD_WINGET_FLAGS = ['-e', '--exact', '--accept-source-agreements', '--accept-package-agreements', '--disable-interactivity', '-h', '--silent', '--force', '--all', '-r', '--recurse', '--include-unknown', '-u', '--unknown'];
+const HD_WINGET_LINES = 'winget search <name>, winget install --id <ID> -e, winget upgrade, winget upgrade --id <ID> -e, winget uninstall --id <ID> -e';
+const HD_WINGET_NONE = 'No package found matching input criteria.';
+const HD_WINGET_NOT_INSTALLED = 'No installed package found matching input criteria.';
+function hdWingetTokens(command) { return (String(command).trim().match(/"[^"]*"|'[^']*'|\S+/g) || []).map(token => token.replace(/^["']|["']$/g, '')); }
+function hdWingetIdOf(machine, app) {
+  if (app && app.wingetId) return String(app.wingetId);
+  const entry = hdSoftwareCatalog(machine).find(item => item && item.wingetId && String(item.name).toLowerCase() === String(app && app.name).toLowerCase());
+  return entry ? String(entry.wingetId) : '';
+}
+function hdWingetTable(head, rows) {
+  const widths = head.map((title, i) => Math.max(title.length, ...rows.map(row => String(row[i]).length)));
+  const line = (cells) => cells.map((cell, i) => (i === cells.length - 1 ? String(cell) : String(cell).padEnd(widths[i]))).join(' ');
+  return [line(head), '-'.repeat(widths.reduce((sum, w) => sum + w + 1, -1)), ...rows.map(line)].join('\n');
+}
+// What the user typed to name the package: { field:'id'|'name'|'query', value }.
+function hdWingetMatch(item, target, exact) {
+  const value = target.value.toLowerCase();
+  const fields = target.field === 'id' ? [item.id] : target.field === 'name' ? [item.name] : [item.id, item.name];
+  return fields.some(field => { const text = String(field || '').toLowerCase(); return !!text && (exact ? text === value : text.includes(value)); });
+}
+function hdWingetPick(items, target, exact) {
+  const found = items.filter(item => hdWingetMatch(item, target, exact));
+  // Without -e, an exact Id or name still wins over partial matches.
+  if (found.length > 1 && !exact) { const strict = found.filter(item => hdWingetMatch(item, target, true)); if (strict.length === 1) return strict; }
+  return found;
+}
+function hdWingetPractice(text, hint) { return HD_PROVE ? text : `${text}\n${hint}`; }
+function hdWinWinget(command, machine, computerName) {
+  const tokens = hdWingetTokens(command);
+  const head = String(tokens[0] || '').toLowerCase().replace(/\.exe$/, '');
+  if (head !== 'winget' || !hdWinHas(machine, 'winget')) return null;
+  const typedSub = String(tokens[1] || '').toLowerCase();
+  if (!typedSub) { hdLastCommandResult = 'winget: no command'; return `Windows Package Manager\nUsage: winget <command> [<options>]\nSupported here: ${HD_WINGET_LINES}`; }
+  const sub = HD_WINGET_COMMANDS[typedSub];
+  if (!sub) {
+    if (HD_WINGET_OTHER.includes(typedSub)) { hdLastCommandResult = `winget ${typedSub}: not in this training shell`; return `winget ${typedSub} isn't part of this training shell. Supported here: ${HD_WINGET_LINES}`; }
+    hdLastCommandResult = `winget: unrecognized command ${typedSub}`;
+    return hdWingetPractice(`Unrecognized command: '${tokens[1]}'`, `Did you mean: ${HD_WINGET_LINES}`);
+  }
+  // Options: values for --id and the rest, flags, and one bare query.
+  const opts = {}; const flags = new Set(); let query = '';
+  for (let i = 2; i < tokens.length; i += 1) {
+    const raw = tokens[i]; const word = raw.toLowerCase();
+    const eq = /^(--?[a-z-]+)=(.*)$/.exec(raw);
+    const name = eq ? eq[1].toLowerCase() : word;
+    if (HD_WINGET_VALUE.includes(name)) {
+      const value = eq ? eq[2] : tokens[i + 1];
+      if (!eq) i += 1;
+      if (value === undefined || value === '') { hdLastCommandResult = `winget ${sub}: missing value for ${name}`; return hdWingetPractice(`Argument value missing: '${name}'`, `Did you mean: winget ${sub === 'upgrade' ? 'upgrade --id <ID> -e' : `${sub} --id <ID> -e`}`); }
+      opts[{ '-q':'--query', '-s':'--source', '-v':'--version', '-a':'--architecture', '-n':'--count' }[name] || name] = value;
+    } else if (HD_WINGET_FLAGS.includes(name)) {
+      flags.add({ '--exact':'-e', '--silent':'-h', '--recurse':'--all', '-r':'--all', '-u':'--include-unknown', '--unknown':'--include-unknown' }[name] || name);
+    } else if (!raw.startsWith('-') && !query) {
+      query = raw;
+    } else {
+      hdLastCommandResult = `winget ${sub}: unrecognized option ${raw}`;
+      return hdWingetPractice(`Argument name was not recognized for the current command: '${raw}'`, `Did you mean: ${HD_WINGET_LINES}`);
+    }
+  }
+  const exact = flags.has('-e');
+  const target = opts['--id'] ? { field:'id', value:opts['--id'] } : opts['--name'] ? { field:'name', value:opts['--name'] } : (opts['--query'] || query) ? { field:'query', value:opts['--query'] || query } : null;
+  const packages = hdSoftwareCatalog(machine).filter(item => item && item.name && item.wingetId).map(item => ({ id:String(item.wingetId), name:String(item.name), version:String(item.version || 'Unknown'), entry:item }));
+  const installed = hdWinList(machine, 'installedApps').map(app => ({ id:hdWingetIdOf(machine, app), name:String(app.name), version:String(app.version || 'Unknown'), app }));
+  const outside = () => hdWingetPractice(HD_WINGET_NONE, 'Apps outside the Software Catalog need a software request.');
+  const multiple = (items) => { hdLastCommandResult = `winget ${sub}: more than one match`; return `Multiple packages found matching input criteria. Please refine the input.\n${hdWingetTable(['Name', 'Id', 'Source'], items.map(item => [item.name, item.id || item.name, 'winget']))}`; };
+  const changed = () => { hdProveEdited(); };
+
+  if (sub === 'search') {
+    if (!target) { hdLastCommandResult = 'winget search: no query'; return hdWingetPractice('No query was given.', 'Name the app, for example: winget search <name>'); }
+    const found = hdWingetPick(packages, target, exact);
+    if (!found.length) { hdLastCommandResult = `winget search ${target.value}: no package found`; return outside(); }
+    hdLastCommandResult = `winget search ${target.value}: ${found.map(item => item.id).join(', ')}`;
+    return hdWingetTable(['Name', 'Id', 'Version', 'Source'], found.map(item => [item.name, item.id, item.version, 'winget']));
+  }
+  if (sub === 'install') {
+    if (!target) { hdLastCommandResult = 'winget install: no package named'; return hdWingetPractice('No package was named.', 'Name the app by its Id: winget install --id <ID> -e'); }
+    const found = hdWingetPick(packages, target, exact);
+    if (!found.length) { hdLastCommandResult = `winget install ${target.value}: no package found`; return outside(); }
+    if (found.length > 1) return multiple(found);
+    const pkg = found[0];
+    if (hdWinIsInstalled(machine, pkg.name)) { hdLastCommandResult = `winget install ${pkg.id}: already installed`; return 'Found an existing package already installed. Trying to upgrade the installed package...\nNo available upgrade found.\nNo newer package versions are available from the configured sources.'; }
+    hdWinInstallEntry(machine, computerName, pkg.entry, `installed ${pkg.name} with winget`);
+    changed();
+    hdLastCommandResult = `winget install ${pkg.id}: installed ${pkg.name} ${pkg.version}`;
+    return `Found ${pkg.name} [${pkg.id}] Version ${pkg.version}\nDownloading and verifying the installer...\nStarting package install...\nSuccessfully installed`;
+  }
+  const upgradeOne = (item) => {
+    const upgrade = hdWinUpgradeShown(item.app); const from = item.app.version || '';
+    item.app.version = String(upgrade.version);
+    item.app.upgrade = null;
+    hdMachineAction(computerName, 'app-upgraded', `upgraded ${item.name} from ${from || 'an older version'} to ${item.app.version} with winget`, { app:item.name, from, to:item.app.version });
+    return `Found ${item.name} [${item.id}] Version ${item.app.version}\nDownloading and verifying the installer...\nStarting package install...\nSuccessfully installed`;
+  };
+  if (sub === 'upgrade') {
+    const waiting = installed.filter(item => item.id && hdWinUpgradeShown(item.app));
+    if (!target && !flags.has('--all')) {
+      if (!waiting.length) { hdLastCommandResult = 'winget upgrade: nothing to upgrade'; return HD_WINGET_NOT_INSTALLED; }
+      hdLastCommandResult = `winget upgrade: ${waiting.map(item => item.id).join(', ')}`;
+      return `${hdWingetTable(['Name', 'Id', 'Version', 'Available', 'Source'], waiting.map(item => [item.name, item.id, item.version, hdWinUpgradeShown(item.app).version, 'winget']))}\n${waiting.length} upgrade${waiting.length === 1 ? '' : 's'} available.`;
+    }
+    if (!target) {
+      if (!waiting.length) { hdLastCommandResult = 'winget upgrade --all: nothing to upgrade'; return HD_WINGET_NOT_INSTALLED; }
+      const out = waiting.map(upgradeOne); changed();
+      hdLastCommandResult = `winget upgrade --all: upgraded ${waiting.map(item => item.id).join(', ')}`;
+      return out.join('\n\n');
+    }
+    const found = hdWingetPick(installed.filter(item => item.id), target, exact);
+    if (!found.length) { hdLastCommandResult = `winget upgrade ${target.value}: not installed`; return HD_WINGET_NOT_INSTALLED; }
+    if (found.length > 1) return multiple(found);
+    if (!hdWinUpgradeShown(found[0].app)) { hdLastCommandResult = `winget upgrade ${found[0].id}: no upgrade available`; return 'No available upgrade found.\nNo newer package versions are available from the configured sources.'; }
+    const out = upgradeOne(found[0]); changed();
+    hdLastCommandResult = `winget upgrade ${found[0].id}: upgraded to ${found[0].app.version}`;
+    return out;
+  }
+  // uninstall
+  if (!target) { hdLastCommandResult = 'winget uninstall: no package named'; return hdWingetPractice('No package was named.', 'Name the app by its Id: winget uninstall --id <ID> -e'); }
+  const found = hdWingetPick(installed, target, exact);
+  if (!found.length) { hdLastCommandResult = `winget uninstall ${target.value}: not installed`; return HD_WINGET_NOT_INSTALLED; }
+  if (found.length > 1) return multiple(found);
+  hdWinRemoveApp(machine, computerName, found[0].app, `uninstalled ${found[0].name} with winget`);
+  changed();
+  hdLastCommandResult = `winget uninstall ${found[0].id || found[0].name}: uninstalled`;
+  return `Found ${found[0].name}${found[0].id ? ` [${found[0].id}]` : ''}\nStarting package uninstall...\nSuccessfully uninstalled`;
+}
 function hdWinHelp(machine) {
   const lines = [];
   if (hdWinList(machine, 'processes').length) lines.push('Get-Process | Sort-Object CPU -Descending | Select-Object -First 5 Name, CPU, WorkingSet');
@@ -4605,6 +4899,7 @@ function hdWinHelp(machine) {
 }
 window.hdWinTaskTab=hdWinTaskTab; window.hdWinTaskSort=hdWinTaskSort; window.hdWinStartupSet=hdWinStartupSet; window.hdWinTempTick=hdWinTempTick; window.hdWinTempRemove=hdWinTempRemove;
 window.hdWinRestart=hdWinRestart; window.hdWinUninstall=hdWinUninstall; window.hdWinCatalogFilter=hdWinCatalogFilter;
+window.hdWinAppOptions=hdWinAppOptions; window.hdWinRepairApp=hdWinRepairApp; window.hdWinResetApp=hdWinResetApp; window.hdWinSetDefault=hdWinSetDefault; window.hdWinPortalInstall=hdWinPortalInstall; window.hdWinResetPc=hdWinResetPc;
 
 /* ---------- Windows client tools, console B (added for Module 5, key its-03) ----------
  * Event Viewer's logs on a computer, Reliability Monitor, the Safe Mode
@@ -4798,9 +5093,19 @@ const HD_WIN_RECOVERY_FLOW = {
 };
 const HD_WIN_STARTUP_OPTIONS = ['Enable debugging', 'Enable boot logging', 'Enable low-resolution video', 'Enable Safe Mode', 'Enable Safe Mode with Networking', 'Enable Safe Mode with Command Prompt', 'Disable driver signature enforcement', 'Disable early launch anti-malware protection', 'Disable automatic restart after failure'];
 function hdWinRecoveryStep(machine) { const step = machine && machine.recoveryStep; return step === 'recovery' || hdOwn(HD_WIN_RECOVERY_FLOW, step) ? step : 'recovery'; }
+// Recovery shows on a machine with safeMode, or (Module 6) with resetPc.
+function hdWinHasRecovery(machine) { return !!machine && (typeof machine.safeMode === 'boolean' || machine.resetPc === true); }
+// Module 6: Reset this PC is a recorded choice on a resetPc machine. The
+// simulator never wipes anything; a ticket's critical rule can mark it.
+function hdWinResetPc(computerName) {
+  if (hdProveLocked()) return;
+  const machine = hdFeatureMachine(computerName); if (!machine || machine.resetPc !== true) return;
+  if (typeof confirm === 'function' && !confirm('Reset this PC? This reinstalls Windows.')) return;
+  hdMachineChange(computerName, () => { hdMachineAction(computerName, 'pc-reset-chosen', 'chose Reset this PC (Settings › System › Recovery)'); });
+}
 function hdWinRecoveryGo(computerName, to) {
   hdMachineChange(computerName, machine => {
-    if (typeof machine.safeMode !== 'boolean') return false;
+    if (!hdWinHasRecovery(machine)) return false;
     const at = hdWinRecoveryStep(machine);
     if (to === 'back') { machine.recoveryStep = hdOwn(HD_WIN_RECOVERY_FLOW, at) ? HD_WIN_RECOVERY_FLOW[at].from : 'recovery'; return false; }
     if (to === 'continue') {
@@ -4820,7 +5125,7 @@ function hdWinStartupOption(computerName, number) {
   if (option < 1 || option > HD_WIN_STARTUP_OPTIONS.length) return;
   let started = false;
   hdMachineChange(computerName, machine => {
-    if (typeof machine.safeMode !== 'boolean' || hdWinRecoveryStep(machine) !== 'startup-menu') return false;
+    if (!hdWinHasRecovery(machine) || hdWinRecoveryStep(machine) !== 'startup-menu') return false;
     machine.recoveryStep = 'recovery';
     const safe = option >= 4 && option <= 6;
     machine.safeMode = safe;
@@ -4831,23 +5136,25 @@ function hdWinStartupOption(computerName, number) {
   if (started) navigate('#/helpdesk/windows');
 }
 VIEWS['helpdesk/settings-recovery'] = () => {
-  const found = hdWinScreen('settings-recovery'); if (!found || typeof found.machine.safeMode !== 'boolean') return hdMachineMissing('Recovery');
+  const found = hdWinScreen('settings-recovery'); if (!found || !hdWinHasRecovery(found.machine)) return hdMachineMissing('Recovery');
   const { computer, machine } = found; const n = `'${hdJsArg(computer.name)}'`;
   const locked = hdProveLocked() ? 'disabled' : '';
   const step = hdWinRecoveryStep(machine);
   const go = (to, label, note) => `<li><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-recovery-go="${to}" onclick="hdWinRecoveryGo(${n},'${to}')">${label}</button>${note ? ` <span class="muted">${note}</span>` : ''}</li>`;
   const off = (label, note) => `<li><button type="button" class="btn btn-secondary btn-sm" disabled>${label}</button> <span class="muted">${note ? `${note} · ` : ''}Not available in this training shell.</span></li>`;
+  // Module 6: on a resetPc machine, Reset is a live (recorded) choice.
+  const reset = (label, note) => machine.resetPc === true ? `<li><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-reset-pc onclick="hdWinResetPc(${n})">${label}</button> <span class="muted">${note}</span></li>` : off(label, note);
   const back = step === 'recovery' ? '' : `<button type="button" class="btn btn-ghost btn-sm" ${locked} onclick="hdWinRecoveryGo(${n},'back')">← Back</button>`;
   let title; let body;
   if (step === 'recovery') {
     title = 'Recovery options';
-    body = `<ul class="hd-list">${off('Reset PC', 'Reset this PC: choose to keep or remove your personal files, then reinstall Windows')}${go('choose', 'Restart now', 'Advanced startup: restart from a device or disc, change Windows startup settings, or restore Windows from a system image')}</ul>${machine.safeMode && !HD_PROVE ? '<p class="muted">This computer is in Safe Mode. Restart it to start Windows normally.</p>' : ''}`;
+    body = `<ul class="hd-list">${reset('Reset PC', 'Reset this PC: choose to keep or remove your personal files, then reinstall Windows')}${go('choose', 'Restart now', 'Advanced startup: restart from a device or disc, change Windows startup settings, or restore Windows from a system image')}</ul>${machine.safeMode && !HD_PROVE ? '<p class="muted">This computer is in Safe Mode. Restart it to start Windows normally.</p>' : ''}`;
   } else if (step === 'choose') {
     title = 'Choose an option';
     body = `<ul class="hd-list">${go('continue', 'Continue', 'Exit and continue to Windows 11')}${go('troubleshoot', 'Troubleshoot', 'Reset your PC or see advanced options')}${off('Turn off your PC')}</ul>`;
   } else if (step === 'troubleshoot') {
     title = 'Troubleshoot';
-    body = `<ul class="hd-list">${off('Reset this PC', 'Lets you choose to keep or remove your personal files, and then reinstalls Windows')}${go('advanced', 'Advanced options')}</ul>`;
+    body = `<ul class="hd-list">${reset('Reset this PC', 'Lets you choose to keep or remove your personal files, and then reinstalls Windows')}${go('advanced', 'Advanced options')}</ul>`;
   } else if (step === 'advanced') {
     title = 'Advanced options';
     body = `<ul class="hd-list">${off('Startup Repair')}${go('startup-settings', 'Startup Settings', 'Change Windows startup behavior')}${off('Command Prompt')}${off('Uninstall Updates')}${off('UEFI Firmware Settings')}${off('System Restore')}</ul>`;
@@ -4974,7 +5281,9 @@ function hdAdComputersWithPane() {
 // Get-WinEvent on a computer's logs. Any letter case; extra valid options
 // allowed. In Practice a wrong option or a misspelled command name gets a
 // one-line hint with the right command; a Prove It answers as Windows would.
-const HD_WIN_TYPED = { dism:'DISM /Online /Cleanup-Image /RestoreHealth', sfc:'sfc /scannow', chkdsk:'chkdsk C: /scan', dir:'dir <folder>', 'get-childitem':'Get-ChildItem <folder>' };
+const HD_WIN_TYPED = { dism:'DISM /Online /Cleanup-Image /RestoreHealth', sfc:'sfc /scannow', chkdsk:'chkdsk C: /scan', dir:'dir <folder>', 'get-childitem':'Get-ChildItem <folder>',
+  // Module 6, console A.
+  winget:HD_WINGET_LINES };
 function hdWinDistance(a, b) {
   const d = Array.from({ length:a.length + 1 }, (_, i) => Array.from({ length:b.length + 1 }, (__, j) => (i === 0 ? j : j === 0 ? i : 0)));
   for (let i = 1; i <= a.length; i += 1) for (let j = 1; j <= b.length; j += 1) {
@@ -5056,7 +5365,7 @@ function hdWinTypedCommand(command, normalized, machine) {
 function hdWinNearMiss(command, computer) {
   const machine = !HD_PROVE && computer && hdFeatureMachine(computer.name); if (!machine) return null;
   const head = command.trim().toLowerCase().split(/\s+/)[0].replace(/\.exe$/, '').replace(/\/.*$/, '');
-  const words = [...(hdWinRepairs(machine) ? ['dism', 'sfc', 'chkdsk'] : []), ...(hdWinFiles(machine) ? ['dir', 'get-childitem'] : [])];
+  const words = [...(hdWinRepairs(machine) ? ['dism', 'sfc', 'chkdsk'] : []), ...(hdWinFiles(machine) ? ['dir', 'get-childitem'] : []), ...(machine.winget === true ? ['winget'] : [])];
   const near = words.find(word => head !== word && Math.abs(head.length - word.length) <= (word.length <= 3 ? 0 : 1) && hdWinDistance(head, word) <= (word.length <= 4 ? 1 : 2));
   if (!near) return null;
   hdLastCommandResult = `misspelled: ${near}`;
@@ -5067,6 +5376,8 @@ function hdWinTypedHelp(machine) {
   if (hdWinEvents(machine)) lines.push("Events: Get-WinEvent -LogName <System | Application | 'Microsoft-Windows-Diagnostics-Performance/Operational'> -MaxEvents <n>");
   if (hdWinRepairs(machine)) lines.push(`Repair: ${HD_WIN_TYPED.dism}, ${HD_WIN_TYPED.sfc}, ${HD_WIN_TYPED.chkdsk}`);
   if (hdWinFiles(machine)) lines.push('Files: dir <folder>, Get-ChildItem <folder>');
+  // Module 6, console A.
+  if (machine && machine.winget === true) lines.push(`Apps: ${HD_WINGET_LINES}`);
   return lines;
 }
 window.hdWinEventPick=hdWinEventPick; window.hdWinEventSet=hdWinEventSet; window.hdWinEventOpen=hdWinEventOpen; window.hdWinReliabilityDay=hdWinReliabilityDay;
