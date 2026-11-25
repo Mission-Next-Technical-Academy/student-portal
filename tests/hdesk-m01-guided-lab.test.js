@@ -203,7 +203,9 @@ function testShiftTicketAndKb() {
   assert.match(opened, /<li>Never ask for, type or write down a user&#39;s password|<li>Never ask for, type or write down a user's password/);
   const page = tab.view('helpdesk/knowledge-base');
   assert.match(page, /-TaskName &lt;task&gt; -User &lt;DOMAIN\\user&gt;/, 'placeholders are shown, not swallowed as tags');
-  assert.equal((page.match(/<ol class="hd-kb-steps"/g) || []).length, 14, 'KB-0024, KB-0059, KB-0062, KB-0063, KB-0064, KB-0066, KB-0067, KB-0071, KB-0072, KB-0079, KB-0080, KB-0083, KB-0084 and KB-0090 have numbered steps');
+  // KB-0080 is in Module 6's own sets only (HD_ITS07_KB_ARTICLES), so the
+  // shared page doesn't list it.
+  assert.equal((page.match(/<ol class="hd-kb-steps"/g) || []).length, 13, 'KB-0024, KB-0059, KB-0062, KB-0063, KB-0064, KB-0066, KB-0067, KB-0071, KB-0072, KB-0079, KB-0083, KB-0084 and KB-0090 have numbered steps');
   assert.match(page, /<p>Validate link state, DHCP reachability/, 'other articles stay one paragraph');
   const body = (text) => tab.run(`hdKbBody(${JSON.stringify(text)})`);
   assert.equal(body('Restart it. Open port 3389. Done.'), '<p>Restart it. Open port 3389. Done.</p>', 'a lone number is not a list');

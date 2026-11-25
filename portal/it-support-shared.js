@@ -779,9 +779,10 @@ const ITS_PROVE_MAX_BYTES = 96 * 1024;
 // its value), order_changed (the new place) and ticket_arrived; source holds
 // the ticket's INC number.
 // Module 3 adds warm_handoff: a call to the assignment group (value) logged
-// on the ticket (label).
+// on the ticket (label). Module 6 adds caller_question: a question asked in
+// the chat with the user (value: its neutral id; label: its text).
 const ITS_PROVE_EVENT_TYPES = ['evidence_opened', 'command_run', 'diagnosis_chosen', 'step_chosen', 'step_cleared', 'decision_chosen', 'kb_search', 'action_taken',
-  'field_set', 'order_changed', 'ticket_arrived', 'warm_handoff'];
+  'field_set', 'order_changed', 'ticket_arrived', 'warm_handoff', 'caller_question'];
 // The assignment groups a Prove ticket can go to (ui/helpdesk.js HD_ASSIGNMENT_GROUPS).
 const ITS_PROVE_GROUPS = ['Service Desk (Tier 1)', 'Desktop Support (Tier 2)', 'Network Operations', 'Server & Identity', 'Messaging & Collaboration', 'Security Operations (SOC)', 'Facilities'];
 // Seconds since the attempt started, as the simulator counted them; never
@@ -1163,17 +1164,33 @@ function itsProvePrinterLines(work) {
 // Module 5 (machine.startup, machine.installed): the laptop's Windows state
 // at submit: each startup app's status, the installed apps, the restarts and
 // the last boot time. None when the summary has none of these.
+// Module 6 adds (machine.browserExtensions, machine.defender, machine.running):
+// the browser extensions, real-time protection, the exclusions, each allowed
+// item's state, the last scan and the running processes.
 function itsProveWindowsLines(work) {
   const machine = work.machine && typeof work.machine === 'object' && !Array.isArray(work.machine) ? work.machine : {};
   const startup = machine.startup && typeof machine.startup === 'object' && !Array.isArray(machine.startup) ? machine.startup : null;
   const installed = Array.isArray(machine.installed) ? machine.installed.filter((name) => typeof name === 'string') : null;
-  if (!startup && !installed) return null;
+  const names = (value) => (Array.isArray(value) ? value.filter((name) => typeof name === 'string') : null);
+  const extensions = names(machine.browserExtensions);
+  const running = names(machine.running);
+  const defender = machine.defender && typeof machine.defender === 'object' && !Array.isArray(machine.defender) ? machine.defender : null;
+  if (!startup && !installed && !extensions && !defender) return null;
   const lines = [];
   if (startup) lines.push(`Startup apps: ${Object.entries(startup).map(([name, status]) => `${name} (${status})`).join(', ') || '(none)'}`);
   if (installed) lines.push(`Installed apps: ${installed.join(', ') || '(none)'}`);
   const restarts = Number(machine.restarts) || 0;
   lines.push(`Restarted: ${restarts ? `yes (${restarts} time${restarts === 1 ? '' : 's'})` : 'no'}`);
   if (typeof machine.bootSeconds === 'number' && Number.isFinite(machine.bootSeconds)) lines.push(`Last boot time (Event ID 100): ${Number(machine.bootSeconds)} s`);
+  if (extensions) lines.push(`Browser extensions: ${extensions.join(', ') || '(none)'}`);
+  if (defender) {
+    lines.push(`Real-time protection: ${defender.realtime === false ? 'off' : 'on'}`);
+    lines.push(`Defender exclusions: ${(names(defender.exclusions) || []).join(', ') || '(none)'}`);
+    const threats = defender.threats && typeof defender.threats === 'object' && !Array.isArray(defender.threats) ? Object.entries(defender.threats) : [];
+    if (threats.length) lines.push(`Allowed threats: ${threats.map(([name, state]) => `${name} (${state})`).join(', ')}`);
+    if (typeof defender.lastScan === 'string' && defender.lastScan) lines.push(`Last quick scan: ${defender.lastScan}`);
+  }
+  if (running) lines.push(`Running processes: ${running.join(', ') || '(none)'}`);
   return lines;
 }
 function itsProveMatrixReviewPanel(row, work, { text, writing, fact, items, opened, notes, rubric, searches, actions, commands }) {
@@ -1184,6 +1201,9 @@ function itsProveMatrixReviewPanel(row, work, { text, writing, fact, items, open
   const levels = { 1: '1 – High', 2: '2 – Medium', 3: '3 – Low' };
   const events = (Array.isArray(work.events) ? work.events : []).filter((entry) => entry && typeof entry.type === 'string');
   const calls = events.filter((entry) => entry.type === 'warm_handoff').map((entry) => entry.label || `Called ${entry.value || 'a team'}`);
+  // Module 6: each question asked in the chat, in order. A ticket with no
+  // chat shows no section.
+  const questions = events.filter((entry) => entry.type === 'caller_question').map((entry) => entry.label || entry.value || 'A question');
   const minutes = Number.isFinite(Number(work.elapsedSeconds)) ? Math.round(Number(work.elapsedSeconds) / 60) : null;
   return `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" data-its-prove-panel="${esc(row.id)}" data-its-prove-shape="matrix">
     <h3 class="text-sm font-semibold text-[#1e3a5f]">Student Analyst Response · ${text(work.ticketId)}</h3>
@@ -1197,6 +1217,8 @@ function itsProveMatrixReviewPanel(row, work, { text, writing, fact, items, open
     <h4 class="mt-2 text-xs font-semibold uppercase tracking-wide text-gray-600">Earlier calls and evidence cards opened</h4>
     ${items(opened, 'None opened.')}
     ${simulator ? `<div data-its-prove-simulator>
+    ${questions.length ? `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Questions asked in the chat</h4>
+    <div data-its-prove-questions>${items(questions, 'None asked.')}</div>` : ''}
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Knowledge base searches</h4>
     ${items(searches, 'None recorded.')}
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Actions in the simulator</h4>

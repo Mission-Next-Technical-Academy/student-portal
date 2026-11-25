@@ -182,14 +182,15 @@ const HD_KB_ARTICLES = [
   { id:'KB-0090', title:'"You\'ve been signed in with a temporary profile"', category:'Windows', updated:'2026-11-24', audience:'Service Desk', practiceOnly:true, keywords:'temporary profile · blank desktop · signed in with a temporary profile · desktop is empty · shortcuts missing · default background · Outlook asking to set up · User Profile Service · 1511 · 1515', summary:'1. Tell the user their files are very likely still there, and ask them not to save new files or set up Outlook: anything saved in a temporary profile is lost at sign-out. 2. Confirm it: the notification, and Event Viewer › Windows Logs › Application, User Profile Service Event ID 1511 (often with 1515). 3. Tier 1 step: sign out and restart once. Sometimes the profile loads normally. 4. Confirm the data is safe: the user\'s folder under C:\\Users still holds their Desktop and Documents. 5. Still on a temporary profile: escalate to Desktop Support with the event IDs and the fact that the files are present. Profile registry repairs are Tier 2. Never delete the profile folder, and never reset the password: this is a profile problem, not an account problem.' },
   { id:'KB-0072', title:'Virtual desktop stuck on a black screen or spinner', category:'Virtual desktops', updated:'2026-11-23', audience:'Service Desk', practiceOnly:true, keywords:'virtual desktop · VDI · black screen · spinner · spinning circle · stuck · frozen · hung session · Disconnected · Log off session · pool · work desktop', summary:'1. A virtual desktop runs on a server. Restarting the user\'s laptop, or closing and reopening the window, doesn\'t restart it. 2. Check the pool first. If other sessions in the same pool are Active, it isn\'t a pool outage. If several users in one pool are stuck, stop: set Impact 2, link the tickets and escalate to Server & Identity. 3. One user, with a session shown as Disconnected or hung: tell them that unsaved work in that session may be lost, and get their OK. 4. Click Log off session on that user\'s session only. Never restart the pool or the host: that is a Tier 2 action that drops everyone. 5. Ask the user to reconnect, and confirm the desktop loads. 6. Record the consent and its time in the work note.' },
   { id:'KB-0079', title:'OneDrive shows a red X: files that won\'t sync', category:'Cloud storage', updated:'2026-11-24', audience:'Service Desk', practiceOnly:true, keywords:'onedrive red x · red x · sync · sync problems · onedrive · files not backing up · path too long · invalid characters · View sync problems · green tick', summary:'1. The user\'s files are still on their computer. Say so first. 2. Click the OneDrive icon › View sync problems and read the cause it names. 3. An invalid character in the name (" * : < > ? / \\ |): rename the file. 4. A full path longer than 400 characters: shorten a folder name or move the file up. 5. Storage full: free space or request more. 6. Signed out: sign in again. 7. Confirm the file shows a green tick and appears on OneDrive on the web. 8. Don\'t unlink or reset OneDrive first, and never delete the file to clear the error: unlinking can create duplicates, and deleting loses the user\'s work.' },
-  { id:'KB-0080', title:'Unwanted browser extensions and apps (PUA)', category:'Endpoint security', updated:'2026-11-24', audience:'Service Desk', practiceOnly:true, keywords:'extension · extensions · toolbar · pua · browser slow · unwanted app · potentially unwanted · Extensions page · Protection history · Allowed threats · quick scan', summary:'Approved Chrome extensions at Northstar: Microsoft Single Sign On, Northstar Password Manager, Adobe Acrobat, Microsoft Editor. Anything else is removed, and the user can ask for it with a software request. 1. Open the browser\'s Extensions page and compare it with the list above. 2. Remove any extension that isn\'t on it. 3. Open Windows Security › Protection history. If an item says "Allowed", open Allowed threats, choose Don\'t allow, then Remove. 4. Run a quick scan and confirm real-time protection is on. 5. Tell the user how it got there and how to avoid it. 6. Stop and escalate to Security Operations if Defender names malware instead of a PUA (a trojan, ransomware, a script that ran), or if security tools were switched off. 7. Never turn off real-time protection or add an exclusion.' },
 ];
 // Module 6 (key its-07): KB-0058 with the software sentence in place of the
-// printer one. Module 1's Prove shift has its own KB-0058, so this copy is
-// never in HD_KB_ARTICLES (bin/its-curriculum-check.js keeps Prove articles out
-// of the shared Practice list): only Module 6's two sets carry it (kbArticles,
+// printer one, and KB-0080. Module 1's Prove shift has its own KB-0058 and
+// Module 6's Prove shift its own copies of both, so these are never in
+// HD_KB_ARTICLES (bin/its-curriculum-check.js keeps Prove articles out of the
+// shared Practice list): only Module 6's two sets carry them (kbArticles,
 // ui/helpdesk.js hdKbArticles).
 const HD_ITS07_KB_ARTICLES = [
+  { id:'KB-0080', title:'Unwanted browser extensions and apps (PUA)', category:'Endpoint security', updated:'2026-11-24', audience:'Service Desk', practiceOnly:true, keywords:'extension · extensions · toolbar · pua · browser slow · unwanted app · potentially unwanted · Extensions page · Protection history · Allowed threats · quick scan', summary:'Approved Chrome extensions at Northstar: Microsoft Single Sign On, Northstar Password Manager, Adobe Acrobat, Microsoft Editor. Anything else is removed, and the user can ask for it with a software request. 1. Open the browser\'s Extensions page and compare it with the list above. 2. Remove any extension that isn\'t on it. 3. Open Windows Security › Protection history. If an item says "Allowed", open Allowed threats, choose Don\'t allow, then Remove. 4. Run a quick scan and confirm real-time protection is on. 5. Tell the user how it got there and how to avoid it. 6. Stop and escalate to Security Operations if Defender names malware instead of a PUA (a trojan, ransomware, a script that ran), or if security tools were switched off. 7. Never turn off real-time protection or add an exclusion.' },
   { id:'KB-0058', title:'Local administrator rights on managed devices', category:'Endpoint policy', updated:'2026-11-24', audience:'All Support', practiceOnly:true, keywords:'admin · admin password · administrator · local admin · uac · install · software · Company Portal · software request · Software Catalog', summary:'Local admin rights are never granted to standard users. Exceptions need a Cybersecurity exception request, and a manager can\'t approve one. Software in the Software Catalog installs from Company Portal with no admin rights. Software that isn\'t in the catalog needs a software request. Never type an admin password into a user\'s installer.' },
 ];
 
@@ -2253,5 +2254,138 @@ const HD_PROVE_SHIFTS = {
       },
     },
     // END Module 5 Prove It shift.
+  },
+  // BEGIN Module 6 Prove It shift (tests/hdesk-m06-guided-lab.test.js skips
+  // this block, the only place its ticket's names may appear).
+  /* Module 6 (key its-07): one ticket on a fixed Monday 10:20 shift clock, on
+   * Module 3's one-ticket form (matrix fields and a key-finding note), worked
+   * on one laptop with the Module 5 and Module 6 tool screens. machineTools
+   * shows every tool the laptop has; none is needed by a typed command.
+   * windowsSummary: the package carries the laptop's Windows and protection
+   * state (ui/helpdesk.js hdProveWindowsSummary). console.caller: the user
+   * answers questions in the chat (text and a plain reply only; each question
+   * asked is recorded). A process with goneWhen leaves Task Manager once each
+   * named removal was made. Only what the student sees lives here: no
+   * expected values. */
+  'its-07': {
+    title: 'Prove It: Independent Ticket',
+    labKey: 'lab-its-07-prove-it',
+    rubricVersion: 'hdesk-its-07-prove-v1',
+    now: '2026-08-31T10:20:00Z',
+    timeBoxMinutes: 20,
+    selectedComputer: 'NS-LT-0163',
+    machineTools: true,
+    windowsSummary: true,
+    catalog: HD_ITS07_CATALOG,
+    // Prove copies of the two articles this ticket may need (the practice
+    // copies are practiceOnly, so no Prove It shows them).
+    kbArticles: [
+      { id:'KB-0080', title:'Unwanted browser extensions and apps (PUA)', category:'Endpoint security', updated:'2026-11-24', audience:'Service Desk', keywords:'extension · extensions · toolbar · pua · browser slow · unwanted app · potentially unwanted · Extensions page · Protection history · Allowed threats · quick scan', summary:'Approved Chrome extensions at Northstar: Microsoft Single Sign On, Northstar Password Manager, Adobe Acrobat, Microsoft Editor. Anything else is removed, and the user can ask for it with a software request. 1. Open the browser\'s Extensions page and compare it with the list above. 2. Remove any extension that isn\'t on it. 3. Open Windows Security › Protection history. If an item says "Allowed", open Allowed threats, choose Don\'t allow, then Remove. 4. Run a quick scan and confirm real-time protection is on. 5. Tell the user how it got there and how to avoid it. 6. Stop and escalate to Security Operations if Defender names malware instead of a PUA (a trojan, ransomware, a script that ran), or if security tools were switched off. 7. Never turn off real-time protection or add an exclusion.' },
+      { id:'KB-0058', title:'Local administrator rights on managed devices', category:'Endpoint policy', updated:'2026-11-24', audience:'All Support', keywords:'admin · admin password · administrator · local admin · uac · install · software · Company Portal · software request · Software Catalog', summary:'Local admin rights are never granted to standard users. Exceptions need a Cybersecurity exception request, and a manager can\'t approve one. Software in the Software Catalog installs from Company Portal with no admin rights. Software that isn\'t in the catalog needs a software request. Never type an admin password into a user\'s installer.' },
+    ],
+    tickets: [{
+      id: 'HD-2130', number: 'INC0010490', title: 'My computer is slow',
+      requester: 'Amir Patel', requesterTitle: 'Inventory Planner', department: 'Operations',
+      device: 'NS-LT-0163', cc: '', contactType: 'Self-service', createdAt: '2026-08-31T09:40:00Z',
+      status: 'New', assignedTechnician: 'Unassigned',
+      description: 'My computer is slow.',
+      conversation: [],
+      matrix: true,
+      categoryOptions: ['Endpoint performance', 'Hardware', 'Malware or security alert', 'Network / connectivity', 'Software installation', 'Windows Update'],
+      labels: { resolutionHint: 'Reported / Tried / Result (+ Next action if it stays open)', userReply: 'Reply to Amir' },
+      writing: {
+        keyFinding: { label: 'Key finding', hint: 'One or two sentences: what you found and how the pieces connect.', rows: 3, max: 600 },
+      },
+      // The knowledge base search and the chat with the user. Every question
+      // gets a reply; none costs anything.
+      console: {
+        kb: true,
+        caller: { name: 'Amir Patel', style: 'chat', questions: [
+          { id: 'q1', text: 'What is slow, and since when?', reply: 'Since sometime last week. Mostly when Chrome is open.' },
+          { id: 'q2', text: 'Have you restarted the laptop?', reply: 'Yes, this morning. It didn\'t really help.' },
+          { id: 'q3', text: 'Is anyone near you having the same problem?', reply: 'Not that I know of.' },
+          { id: 'q4', text: 'Have you installed anything new?', reply: 'Nothing I can think of.' },
+          { id: 'q5', text: 'Can you save your work and leave the laptop on while I look?', reply: 'Sure, everything is saved. Go ahead.' },
+        ] },
+      },
+      diagnosisOptions: ['Failing RAM', 'Windows Update running', 'Potentially unwanted browser add-on', 'Ransomware'],
+      // Ids are this ticket's own, so no other Prove It's steps land on them.
+      // Action-level wording that doesn't name the fix, with wrong-direction
+      // steps beside the checks, so the list isn't a plan of the answer.
+      pathPool: [
+        { id: 'r1', text: 'Ask Amir what is slow and since when' },
+        { id: 'r2', text: 'Check CPU and memory in Task Manager' },
+        { id: 'r3', text: 'Compare the browser extensions with the approved list' },
+        { id: 'r4', text: 'Read the protection history in Windows Security' },
+        { id: 'r5', text: 'Remove software from the laptop with the managed tools' },
+        { id: 'r6', text: 'Run a quick scan and confirm protection is on' },
+        { id: 'r7', text: 'Give Amir two lines of safe-browsing advice' },
+        { id: 'r8', text: 'Request more RAM' },
+        { id: 'r9', text: 'Reimage the laptop' },
+        { id: 'r10', text: 'Install the latest Windows updates' },
+        { id: 'r11', text: 'Run Disk Cleanup' },
+        { id: 'r12', text: 'Check the Wi-Fi signal' },
+      ],
+    }],
+    computers: [
+      { name:'NS-LT-0163', user:'Amir Patel', os:'Windows 11 Enterprise 24H2', ip:'10.20.10.163', ou:'OU=Operations,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy', uptimeDays:0 },
+    ],
+    machines: {
+      'NS-LT-0163': {
+        computer: { ip:'10.20.10.163', health:'Healthy' },
+        processes: [
+          { name:'ShopSmart Helper', cpu:38, memory:410, disk:0.8, goneWhen:{ extensionRemoved:'ShopSmart Coupons', threatRemoved:'pua-shopsmart' } },
+          { name:'Google Chrome', cpu:9, memory:1240, disk:0.6 },
+          { name:'Microsoft Teams', cpu:4, memory:560, disk:0.4 },
+          { name:'Antimalware Service Executable', cpu:2, memory:190, disk:0.2 },
+          { name:'Microsoft Outlook', cpu:1, memory:320, disk:0.2 },
+          { name:'Windows Explorer', cpu:1, memory:150, disk:0.1 },
+          { name:'System', cpu:0, memory:20, disk:0.1 },
+        ],
+        performance: { cpu:57, memory:52, disk:3 },
+        startupApps: [
+          { name:'Microsoft Teams', publisher:'Microsoft Corporation', verified:true, status:'Enabled', impact:'High' },
+          { name:'Microsoft OneDrive', publisher:'Microsoft Corporation', verified:true, status:'Enabled', impact:'Medium' },
+          { name:'Windows Security notification icon', publisher:'Microsoft Corporation', verified:true, status:'Enabled', impact:'Low' },
+        ],
+        storage: { drive:'C:', sizeGb:476, freeGb:228.5,
+          categories:[{ name:'Apps & features', gb:96 }, { name:'Documents', gb:71 }, { name:'System & reserved', gb:58 }, { name:'Other', gb:22.5 }],
+          temporaryFiles:[{ id:'temp', name:'Temporary files', gb:1.2 }, { id:'recycle', name:'Recycle Bin', gb:0.4, recycleBin:true }],
+          driveHealth:'Good' },
+        updates: { lastInstalledDaysAgo:13, restartRequired:false, pending:null,
+          history:[{ kb:'KB5099101', name:'2026-08 Cumulative Update for Windows 11', date:'8/18/2026', status:'Successfully installed', description:'Security Update' }, { kb:'KB5098807', name:'2026-07 Cumulative Update for Windows 11', date:'7/15/2026', status:'Successfully installed', description:'Security Update' }] },
+        uptimeDays:0, bootSeconds:46, bootTime:'Today 08:02',
+        installedApps: [
+          { name:'Google Chrome', publisher:'Google LLC', version:'139.0.7258.67', installed:'2/9/2026' },
+          { name:'Microsoft Teams', publisher:'Microsoft Corporation', version:'24295.605', installed:'2/9/2026' },
+          { name:'Microsoft 365 Apps', publisher:'Microsoft Corporation', version:'16.0.18025', installed:'2/9/2026' },
+          { name:'Adobe Acrobat', publisher:'Adobe Inc.', version:'25.001.20531', installed:'2/9/2026', opens:['.pdf'] },
+          { name:'Microsoft Edge', publisher:'Microsoft Corporation', version:'139.0.3405.86', installed:'2/9/2026', opens:['.pdf'] },
+          { name:'Microsoft OneDrive', publisher:'Microsoft Corporation', version:'25.150.0', installed:'2/9/2026' },
+          { name:'Windows Security', publisher:'Microsoft Corporation', version:'1.0', installed:'2/9/2026' },
+          { name:'Northstar VPN Client', publisher:'Northstar IT', version:'4.2.1', installed:'2/9/2026' },
+        ],
+        catalog: true,
+        companyPortal: true,
+        winget: true,
+        defaultApps: { '.pdf':'Adobe Acrobat', '.htm':'Google Chrome', '.html':'Google Chrome' },
+        protection: { realtime:true, definitions:'Today 07:55', lastScan:'Mon 8/24 13:12',
+          history:[{ id:'pua-shopsmart', name:'PUA:Win32/ShopSmart', date:'Mon 8/24 13:12', severity:'Low', status:'Allowed by user' }],
+          allowed:[{ id:'pua-shopsmart', name:'PUA:Win32/ShopSmart', severity:'Low' }],
+          exclusions:[] },
+        extensions: [
+          { name:'Microsoft Single Sign On', publisher:'Microsoft Corporation', added:'2/9/2026' },
+          { name:'Adobe Acrobat', publisher:'Adobe Inc.', added:'2/9/2026' },
+          { name:'ShopSmart Coupons', publisher:'ShopSmart Deals · toolbar', added:'Mon 8/24/2026' },
+        ],
+        browser: { name:'Google Chrome' },
+        oneDrive: { root:'C:\\Users\\apatel\\OneDrive - Northstar', storageUsed:44, files:[
+          { name:'Inventory forecast.xlsx', folder:'Operations' },
+          { name:'Supplier list.xlsx', folder:'Operations' },
+          { name:'Weekly report.docx' },
+        ] },
+      },
+    },
+    // END Module 6 Prove It shift.
   },
 };

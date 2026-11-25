@@ -1064,10 +1064,10 @@ function hdM01InvestigationCard(scenario) {
  * ticket.customerComments, created only for a ticket that has the feature. */
 function hdConsole(ticket) {
   if (!ticket) return {};
-  // A Prove ticket can turn on the knowledge base search and (Module 4) a
-  // user's plain late reply that waits for a machine value, and nothing else:
-  // no caller chat, verification, actions, owner, comments, feedback, or an
-  // arrival that reopens, resumes or approves anything.
+  // A Prove ticket can turn on the knowledge base search, (Module 4) a
+  // user's plain late reply that waits for a machine value, and (Module 6) a
+  // plain caller chat, and nothing else: no verification, actions, owner,
+  // comments, feedback, or an arrival that reopens, resumes or approves anything.
   if (HD_PROVE) {
     const proveTicket = (HD_PROVE.shift.tickets || []).find(item => item.id === ticket.id);
     const config = proveTicket && proveTicket.console;
@@ -1082,7 +1082,15 @@ function hdConsole(ticket) {
     const arrivals = (Array.isArray(config.arrivals) ? config.arrivals : [])
       .filter(item => item && item.id && item.text && machineOnly(item.when) && !item.reopen && !item.resume && !item.approve && !item.at)
       .map(item => ({ id:item.id, from:item.from, text:item.text, when:machineOnly(item.when) }));
-    return { ...(config.kb === true ? { kb:true } : {}), ...(arrivals.length ? { arrivals } : {}) };
+    // Module 6: a chat with the user, questions and plain replies only (no
+    // feedback, waiting replies or password question). Each one asked is
+    // recorded (hdChatAsk); none is marked.
+    const caller = config.caller && typeof config.caller === 'object' && Array.isArray(config.caller.questions) ? {
+      name:String(config.caller.name || ticket.requester || ''), style:config.caller.style === 'phone' ? 'phone' : 'chat',
+      questions:config.caller.questions.filter(item => item && typeof item.id === 'string' && typeof item.text === 'string' && typeof item.reply === 'string' && !item.asksPassword)
+        .map(item => ({ id:item.id, text:item.text, reply:item.reply })),
+    } : null;
+    return { ...(config.kb === true ? { kb:true } : {}), ...(arrivals.length ? { arrivals } : {}), ...(caller && caller.questions.length ? { caller } : {}) };
   }
   const template = HD_TICKET_TEMPLATES.find(item => item.id === ticket.id);
   return (template && template.console) || {};
@@ -1339,7 +1347,7 @@ function hdChatQuestionOpen(ticket, question) {
 function hdChatAsk(id, questionId) {
   const ticket = hdTicketById(id); const caller = ticket && hdConsole(ticket).caller;
   const question = caller && (caller.questions || []).find(item => item.id === questionId);
-  if (!question || !hdChatQuestionOpen(ticket, question)) return;
+  if (!question || !hdChatQuestionOpen(ticket, question) || hdProveLocked()) return;
   const state = hdConsoleState(ticket);
   if (question.asksPassword) {
     ticket.passwordAsked = true;
@@ -1352,6 +1360,8 @@ function hdChatAsk(id, questionId) {
   const reply = whileLocked ? (question.replyLocked && hdConsoleAccountLocked(ticket) ? question.replyLocked : question.replyBefore || question.replyLocked) : question.reply;
   state.chat.push({ id:question.id, question:question.text, reply, whileLocked, time:hdConsoleTime(ticket) });
   hdPracticeEvent('caller_question', { ticket:ticket.id, question:question.id });
+  // Module 6 (Prove It): the question asked, by its neutral id and its text.
+  hdProveEvent('caller_question', { value:question.id, label:question.text });
   hdRerender();
 }
 
@@ -1824,7 +1834,7 @@ function hdConsoleChatCard(ticket) {
   const log = state.chat.length ? state.chat.map(entry => entry.refused
     ? `<div><strong>You (not asked)</strong><p>${hdEsc(entry.question)}</p><p class="muted">The help desk never asks for a password.</p></div>`
     : `<div><strong>You · ${hdEsc(entry.time)}</strong><p>${hdEsc(entry.question)}</p><strong>${hdEsc(caller.name)}</strong><p>${hdEsc(entry.reply)}</p></div>`).join('') : '<p class="muted">No questions asked yet.</p>';
-  const open = (caller.questions || []).filter(question => hdChatQuestionOpen(ticket, question));
+  const open = hdProveLocked() ? [] : (caller.questions || []).filter(question => hdChatQuestionOpen(ticket, question));
   const buttons = open.length ? `<div class="hd-chat-questions" style="display:grid;gap:8px">${open.map(question => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} onclick="hdChatAsk('${ticket.id}','${hdEsc(question.id)}')">${hdEsc(question.text)}</button>`).join('')}</div>` : '';
   return `<div class="card hd-chat"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${caller.style === 'phone' ? 'Phone call' : caller.style === 'chat' ? 'Chat' : 'Caller chat'}</strong><span class="muted">${hdEsc(caller.name)} · ${caller.style === 'chat' ? 'in the chat' : 'on the line'}</span></div><div class="card-body"><div class="hd-note-list">${log}</div>${buttons}</div></div>`;
 }
@@ -5101,7 +5111,11 @@ function hdWinSweepGone(machine) {
     if (when.threatRemoved) needs.push(removed.threats.includes(String(when.threatRemoved)));
     return needs.length > 0 && needs.every(Boolean);
   };
+  const gone = machine.processes.filter(p => done(p));
   machine.processes = machine.processes.filter(p => !done(p));
+  // Module 6 (Prove It): the CPU it used leaves the total with it.
+  const perf = machine.performance && typeof machine.performance === 'object' ? machine.performance : null;
+  if (perf && typeof perf.cpu === 'number') gone.forEach(p => { perf.cpu = Math.max(0, perf.cpu - (Number(p.cpu) || 0)); });
 }
 // The unsafe changes. undoUnsafe (Practice ticket) puts it back at once.
 function hdWinUndoUnsafe(computerName) {
@@ -7434,6 +7448,24 @@ function hdProveWindowsSummary(name) {
   };
   if (typeof machine.bootSeconds === 'number') summary.bootSeconds = machine.bootSeconds;
   if (typeof machine.uptimeDays === 'number') summary.uptimeDays = machine.uptimeDays;
+  // Module 6: the browser extensions, Windows Security and the running
+  // processes, only on a computer that has them. The keys are the summary's
+  // own (never a machine key), so the prefill's general copy leaves them alone.
+  if (Array.isArray(machine.extensions)) summary.browserExtensions = hdWinList(machine, 'extensions').slice(0, 20).map(item => String(item.name).slice(0, 80));
+  const protection = hdWinProtection(machine);
+  if (protection) {
+    summary.defender = {
+      realtime:protection.realtime !== false,
+      exclusions:(Array.isArray(protection.exclusions) ? protection.exclusions : []).slice(0, 10).map(path => String(path).slice(0, 200)),
+      threats:Object.fromEntries(hdWinList(protection, 'allowed').slice(0, 10).map(item => [String(item.name).slice(0, 80), item.removed ? 'Removed' : item.unallowed ? 'Not allowed' : 'Allowed'])),
+      lastScan:String(protection.lastScan || '').slice(0, 40),
+    };
+  }
+  if (Array.isArray(machine.extensions) || protection) {
+    const removed = hdWinRemoved(machine);
+    summary.removedExtensions = removed.extensions.slice(0, 20).map(name => String(name).slice(0, 80));
+    summary.running = hdWinList(machine, 'processes').slice(0, 20).map(item => String(item.name).slice(0, 80));
+  }
   return summary;
 }
 // A returned attempt's Windows summary back onto the selected computer:
@@ -7455,6 +7487,7 @@ function hdProvePrefillWindows(summary, machine, fixture) {
     });
     machine.installedApps = machine.installedApps.filter(app => app && kept.includes(app.name));
   }
+  hdProvePrefillProtection(summary, machine);
   const restarts = Number.isInteger(summary.restarts) ? Math.max(0, Math.min(summary.restarts, 20)) : 0;
   if (!restarts) return;
   const first = fixture.bootSeconds;
@@ -7467,6 +7500,43 @@ function hdProvePrefillWindows(summary, machine, fixture) {
     machine.bootHistory = [{ seconds:first, restart:false }];
     if ([first, fixture.bootSecondsAfterFix].includes(summary.bootSeconds)) machine.bootSeconds = summary.bootSeconds;
   }
+}
+// Module 6: a returned attempt's extensions and Windows Security state back
+// onto the computer, only for extensions and allowed items this computer has:
+// removed extensions stay removed, each allowed item keeps its state (Don't
+// allow, then Removed, with its history row), then a process whose removals
+// were all made leaves again. Real-time protection and the exclusions come
+// back as they were, so a resubmission sends the same state.
+function hdProvePrefillProtection(summary, machine) {
+  if (!Array.isArray(machine.extensions) && !hdWinProtection(machine)) return;
+  const removed = hdWinRemoved(machine);
+  if (Array.isArray(summary.browserExtensions) && Array.isArray(machine.extensions)) {
+    const kept = summary.browserExtensions.filter(name => typeof name === 'string');
+    hdWinList(machine, 'extensions').filter(item => !kept.includes(item.name)).forEach(item => { if (!removed.extensions.includes(item.name)) removed.extensions.push(String(item.name)); });
+    machine.extensions = machine.extensions.filter(item => item && kept.includes(item.name));
+  }
+  const protection = hdWinProtection(machine);
+  const saved = summary.defender && typeof summary.defender === 'object' && !Array.isArray(summary.defender) ? summary.defender : null;
+  if (protection && saved) {
+    if (typeof saved.realtime === 'boolean') protection.realtime = saved.realtime;
+    if (Array.isArray(saved.exclusions)) protection.exclusions = saved.exclusions.filter(path => typeof path === 'string' && path.trim()).slice(0, 10).map(path => path.slice(0, 200));
+    const threats = saved.threats && typeof saved.threats === 'object' && !Array.isArray(saved.threats) ? saved.threats : {};
+    hdWinList(protection, 'allowed').forEach(item => {
+      const state = threats[item.name];
+      if (state !== 'Not allowed' && state !== 'Removed') return;
+      item.unallowed = true;
+      if (state !== 'Removed') return;
+      item.removed = true;
+      hdWinList(protection, 'history').filter(entry => String(entry.id) === String(item.id)).forEach(entry => { entry.status = 'Removed'; });
+      if (!removed.threats.includes(String(item.id))) removed.threats.push(String(item.id));
+    });
+    if (saved.lastScan === 'Just now') {
+      protection.lastScan = 'Just now';
+      const found = hdWinThreatsFound(protection);
+      protection.lastResult = found.length ? `${found.length} threat${found.length === 1 ? '' : 's'} found. Start the recommended actions.` : 'No current threats.';
+    }
+  }
+  hdWinSweepGone(machine);
 }
 function hdProveExtraPackage(prove) {
   if (!hdProveMatrix()) return {};
@@ -7602,6 +7672,16 @@ function hdProvePrefillActions(work, prove, ticket) {
   prove.events.filter(event => event.type === 'warm_handoff' && event.label).forEach(event => {
     if (!ticket.troubleshootingHistory.some(entry => entry.action === `${event.label}.`)) ticket.troubleshootingHistory.push({ time:'Earlier attempt', action:`${event.label}.` });
   });
+  // Module 6: the questions already asked show in the chat again, with the
+  // user's replies, and aren't offered twice.
+  const caller = hdConsole(ticket).caller;
+  if (caller) {
+    const state = hdConsoleState(ticket);
+    prove.events.filter(event => event.type === 'caller_question').forEach(event => {
+      const question = caller.questions.find(item => item.id === event.value);
+      if (question && !state.chat.some(entry => entry.id === question.id)) state.chat.push({ id:question.id, question:question.text, reply:question.reply, whileLocked:false, time:'Earlier attempt' });
+    });
+  }
   if (work.assignedTo === 'Riley Morgan') {
     ticket.assignedTechnician = 'Riley Morgan';
     ticket.closureCode = HD_PROVE_RESOLUTION_CODES.includes(work.resolutionCode) ? work.resolutionCode : '';
@@ -7724,6 +7804,7 @@ function hdProveTicketView(ticket) {
       <div class="hd-ticket-main">
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Requester statement</strong>${hdBadge(ticket.status)}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid"><div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Title</span><strong>${hdEsc(ticket.requesterTitle)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Device</span><strong>${hdEsc(ticket.device)}</strong></div>${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.cc || !ticket.contactType ? `<div><span>CC</span><strong>${hdEsc(ticket.cc)}</strong></div>` : ''}<div><span>Created</span><strong>${hdEsc(created)}</strong></div>${clock ? `<div><span>Now</span><strong>${hdEsc(hdShiftTimeText(hdShiftNow()))}</strong></div>` : ''}<div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div></div></div></div>
         ${hdProveRepliesCard(ticket)}
+        ${hdConsoleChatCard(ticket)}
         ${hdProveOpenList('history', 'Earlier calls on this ticket', 'Open an entry to read it.', ticket.history, locked)}
         ${hdProveOpenList('card', 'Evidence', 'Open a card to see it.', ticket.evidence, locked)}
         ${hdConsoleKbCard(ticket)}

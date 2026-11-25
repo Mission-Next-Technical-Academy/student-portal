@@ -544,8 +544,9 @@ const ITS07_SOURCES = [
 // knowledge check's "complete" and its time, and whether the walkthrough was
 // started. Never answers or a score.
 const ITS07_STATE_ID = 'its07-page-v1';
-// Lab 6.1 is Module 6's gating lab (course_module_labs) until the Prove It
-// opens, so an instructor still reviews it.
+// Since 2026-11-25 Module 6's Prove It gates completion (the its07 Prove It
+// migration) and Lab 6.1 is Practice It. It keeps its course_module_labs
+// row, so its walkthrough record still saves.
 const ITS07_LAB1_KEY = 'lab-its-07-app-cert';
 const ITS07_PRACTICE_KEY = 'lab-its-07-practice-tickets';
 const ITS07_PROVE_KEY = 'lab-its-07-prove-it';
@@ -718,7 +719,7 @@ function its07Lab1() {
   return `<section class="its01-section its01-lab-section" id="its07-lab-6-1" aria-labelledby="its07-lab-6-1-title">
     <div class="its01-section-heading"><span>1</span><div><p class="its01-kicker">Practice It · coached</p><h2 id="its07-lab-6-1-title">${esc(itsLabTitle(ITS07_LAB1_KEY))}</h2></div></div>
     <p class="its01-instruction">Leah Brooks has three things for you on her PC: she needs Notepad++ today, Teams keeps freezing, and one of her OneDrive files has a red X. In the IT Service Desk simulator you set the ticket’s fields, then install, update and remove apps with winget, repair Teams, check Windows Security and run a quick scan, remove a browser extension that isn’t approved, answer her request for the admin password, fix the OneDrive file and write the note. A coach guides you through each step.</p>
-    <p class="its01-instruction">The coach names the goal of each typed step; open Show me the command if you need it. Feedback only, no score. Your instructor reviews your finished lab.</p>
+    <p class="its01-instruction">The coach names the goal of each typed step; open Show me the command if you need it. Practice: not graded. Feedback only, no score.</p>
     <a class="itsw-evidence-button" data-its07-console-launch href="${esc(itsCoachLaunchHref(ITS07_COACH_ID, its07User))}" target="_blank" rel="opener">
       <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: ITS07_LAB1_START }[button.mode]}
     </a>
@@ -748,13 +749,29 @@ function its07PracticeTickets() {
   </section>`;
 }
 
-// The Prove It opens nothing yet: its simulator shift isn't built.
+// Module 6's Prove It, on Module 5's pattern: a new ticket in the simulator
+// (?prove=its-07), reviewed by the instructor. Practice It is recommended
+// first, never required. A submitted attempt has nothing left to open. What
+// it shows comes from the server's attempt (itsLabStatus); the simulator
+// reports back by message (itsProveReceiveMessage).
 function its07Prove() {
+  const user = its07User;
+  const returned = itsLabReturned(user, ITS07_PROVE_KEY);
   return `<section class="its01-section its01-lab-section" id="its07-prove-it" aria-labelledby="its07-prove-it-title">
     <div class="its01-section-heading"><span>3</span><div><p class="its01-kicker">Prove It · Assessment Lab · instructor reviewed</p><h2 id="its07-prove-it-title">${esc(itsLabTitle(ITS07_PROVE_KEY))}</h2></div></div>
-    <p class="its01-instruction">Work a new ticket on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Your instructor reviews your work.</p>
-    <p class="its01-lab-status its01-status-pending" data-its07-prove-soon role="status"><i class="ri-time-line" aria-hidden="true"></i> Opens soon. Nothing to do here yet: work Labs 6.1 and 6.2 first.</p>
+    <p class="its01-instruction">Work a new ticket on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Set the ticket fields, ask the user what you need in the chat, check the user’s computer with the tool screens, fix what you can the approved way, decide what happens next, and write a key finding, a work note and a reply to the user. You don’t need to type any command. Plan on about 20 minutes. Your instructor reviews your work.</p>
+    ${itsLabRail(user, [ITS07_LAB1_KEY]).isComplete ? '' : '<p class="its01-instruction">Work Lab 6.1, the guided lab, first: it prepares you for this.</p>'}
+    ${itsLabSubmitted(user, ITS07_PROVE_KEY) ? '' : `<a class="itsw-evidence-button" data-its07-prove-launch href="${esc(itsProveLaunchHref('its-07', user))}" target="_blank" rel="opener">
+      <i class="${returned ? 'ri-restart-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${returned ? 'Reopen the Prove It' : 'Start the Prove It'}
+    </a>`}
+    ${itsLabStatusHtml(user, ITS07_PROVE_KEY, { label: 'Prove It', prefix: 'its01', pendingText: 'Press Submit in the simulator when you finish the ticket.' })}
+    ${itsLabStatus(user, ITS07_PROVE_KEY) === 'passed' && typeof markedLabLinkHtml === 'function' ? `<p>${markedLabLinkHtml(ITS07_PROVE_KEY, 'See your score and feedback')}</p>` : ''}
+    ${itsRedoNoticeHtml(user, [{ key: ITS07_PROVE_KEY, action: 'Reopen the Prove It, make your changes, then press Resubmit in the simulator. You can resubmit once for each return.' }])}
   </section>`;
+}
+// A Prove It message changed the attempt: show it if this page is open.
+function its07ProveChanged() {
+  if (document.querySelector('.its07-shell')) render();
 }
 
 function its07Sources() {
@@ -1070,6 +1087,7 @@ async function its07SavedPracticeAttempt(user) {
 }
 
 function its07OnMessage(event) {
+  itsProveReceiveMessage(event, { moduleKey: 'its-07', labKey: ITS07_PROVE_KEY, onChange: its07ProveChanged });
   return Promise.all([its07ReceivePracticeCompletion(event), its07ReceiveCoachCompletion(event)]);
 }
 

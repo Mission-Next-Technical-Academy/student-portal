@@ -2341,10 +2341,9 @@ const LABS = [
     description: 'A coach-guided walkthrough of tickets SR-2107 (approved group-membership restore) and HD-2118 (missing NTFS permission) in the IT Service Desk simulator.',
     skills: ['Identity Management', 'Group Membership', 'Access Troubleshooting'], portalEntry: '#/program/it-support/module/8' }),
   // Module 6's guided lab. Students see it as Lab 6.1; the key is older than
-  // that numbering. Until Module 6's Prove It gates completion it stays the
-  // gating lab (course_module_labs), so it has no `phase: 'practice'`: an
-  // instructor still reviews and approves it.
-  itsLab({ key: 'lab-its-07-app-cert', module: 'its-07', title: 'Lab 6.1 · Guided Lab: endpoint check', difficulty: 'Foundational', minutes: 12,
+  // that numbering. Since 2026-11-25 Module 6's Prove It gates completion (the
+  // its07 Prove It migration) and Lab 6.1 is Practice It.
+  itsLab({ key: 'lab-its-07-app-cert', module: 'its-07', title: 'Lab 6.1 · Guided Lab: endpoint check', difficulty: 'Foundational', minutes: 12, phase: 'practice',
     parentAllocations: [allocation('ITHD-101.4', 12)], objective: 'Install, update and remove apps with winget, repair an app, check a PC’s protection, remove an extension that isn’t approved, decline an admin password, and fix a OneDrive file that won’t sync.',
     description: 'A coach-guided ticket in the IT Service Desk simulator, each step with a why and what success looks like. Feedback only, no score.',
     skills: ['Software Management', 'Endpoint Hygiene', 'OneDrive Sync'], portalEntry: '#/program/it-support/module/6' }),
@@ -2356,8 +2355,8 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.4', 8)], objective: 'Work three tickets on your own: a OneDrive file whose path is too long, an admin prompt for an app in the Software Catalog, and a failed update that broke an app and its default.',
     description: 'Three unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all three and a completion record is saved to your account.',
     skills: ['OneDrive Sync', 'Least Privilege', 'Application Troubleshooting'], portalEntry: '#/program/it-support/module/6' }),
-  // Module 6's Prove It. The page shows "Opens soon" and launches nothing
-  // until its simulator shift, scoring and gating row are built.
+  // Module 6's Prove It: one ticket (?prove=its-07), scored on the server and
+  // graded by the instructor. It gates Module 6's completion.
   itsLab({ key: 'lab-its-07-prove-it', module: 'its-07', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 10,
     parentAllocations: [allocation('ITHD-101.4', 10)], objective: 'Independently work a new software ticket: find the cause from the tool screens, fix it the approved way, verify it, and write for both the next technician and the user.',
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
