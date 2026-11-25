@@ -269,10 +269,10 @@ async function testModuleOneHasNoEvidenceLab() {
 async function testSharedWalkthroughModules() {
   for (let n = 3; n <= 11; n += 1) {
     const key = `its-${String(n).padStart(2, '0')}`;
-    // Modules 2 (its-10), 3 (its-11) and 5 (its-03) have their own pages now:
-    // tests/hdesk-m02-page.test.js, tests/hdesk-m03-page.test.js and
-    // tests/hdesk-m05-page.test.js.
-    if (key === 'its-10' || key === 'its-11' || key === 'its-03') continue;
+    // Modules 2 (its-10), 3 (its-11), 5 (its-03) and 6 (its-07) have their own
+    // pages now: tests/hdesk-m02-page.test.js, tests/hdesk-m03-page.test.js,
+    // tests/hdesk-m05-page.test.js and tests/hdesk-m06-page.test.js.
+    if (key === 'its-10' || key === 'its-11' || key === 'its-03' || key === 'its-07') continue;
     // The page anchor follows the module's display number, not its key.
     const rail = `itss-lab-${String(HD.modules[key].number).padStart(2, '0')}`;
     const [lab] = run('LABS').filter((l) => l.module === key).map((l) => l.key);
@@ -570,7 +570,9 @@ async function testReturnLinkRecordsNothing() {
     [1, 'hd-m01', 'its01-lab-1-2', 'lab-its-01-ticket-triage', 'its01-lab-1-2', 'Start Lab 1.1 walkthrough'],
     [2, 'hd-m02', 'its02-lab-2-3', LAB23, 'its02-lab-2-3', 'Start Lab 4.3 walkthrough'],
     [8, 'hd-m08', null, 'lab-its-08-unfamiliar-problems', 'itss-lab-10', 'Start guided walkthrough'],
-    [7, 'hd-m07', null, run('LABS').find((l) => l.module === 'its-07').key, 'itss-lab-06', 'Start guided walkthrough'],
+    // Module 6 (its-07) has its own page now; Module 11 (key its-09) is the
+    // second example of the shared walkthrough page.
+    [9, 'hd-m09', null, run('LABS').find((l) => l.module === 'its-09').key, 'itss-lab-11', 'Start guided walkthrough'],
   ];
   for (const [n, coachId, sectionId, lab, railId, start] of cases) {
     const user = hdUser();
