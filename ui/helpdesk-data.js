@@ -190,7 +190,7 @@ const HD_KB_ARTICLES = [
 // shared Practice list): only Module 6's two sets carry them (kbArticles,
 // ui/helpdesk.js hdKbArticles).
 const HD_ITS07_KB_ARTICLES = [
-  { id:'KB-0080', title:'Unwanted browser extensions and apps (PUA)', category:'Endpoint security', updated:'2026-11-24', audience:'Service Desk', practiceOnly:true, keywords:'extension · extensions · toolbar · pua · browser slow · unwanted app · potentially unwanted · Extensions page · Protection history · Allowed threats · quick scan', summary:'Approved Chrome extensions at Northstar: Microsoft Single Sign On, Northstar Password Manager, Adobe Acrobat, Microsoft Editor. Anything else is removed, and the user can ask for it with a software request. 1. Open the browser\'s Extensions page and compare it with the list above. 2. Remove any extension that isn\'t on it. 3. Open Windows Security › Protection history. If an item says "Allowed", open Allowed threats, choose Don\'t allow, then Remove. 4. Run a quick scan and confirm real-time protection is on. 5. Tell the user how it got there and how to avoid it. 6. Stop and escalate to Security Operations if Defender names malware instead of a PUA (a trojan, ransomware, a script that ran), or if security tools were switched off. 7. Never turn off real-time protection or add an exclusion.' },
+  { id:'KB-0080', title:'Unwanted browser extensions and apps (PUA)', category:'Endpoint security', updated:'2026-11-24', audience:'Service Desk', practiceOnly:true, keywords:'extension · extensions · toolbar · pua · browser slow · unwanted app · potentially unwanted · Extensions page · Protection history · Allowed threats · quick scan', summary:'Approved Chrome extensions at Northstar: Microsoft Single Sign On, Northstar Password Manager, Adobe Acrobat, Microsoft Editor. Anything else is removed, and the user can ask for it with a software request. 1. Open the browser\'s Extensions page and compare it with the list above. 2. Remove any extension that isn\'t on it. 3. Open Windows Security › Protection history. If an item says "Allowed", open Allowed threats and choose Don\'t allow, then choose Remove for it under Virus & threat protection › Current threats. 4. Run a quick scan and confirm real-time protection is on. 5. Tell the user how it got there and how to avoid it. 6. Stop and escalate to Security Operations if Defender names malware instead of a PUA (a trojan, ransomware, a script that ran), or if security tools were switched off. 7. Never turn off real-time protection or add an exclusion.' },
   { id:'KB-0058', title:'Local administrator rights on managed devices', category:'Endpoint policy', updated:'2026-11-24', audience:'All Support', practiceOnly:true, keywords:'admin · admin password · administrator · local admin · uac · install · software · Company Portal · software request · Software Catalog', summary:'Local admin rights are never granted to standard users. Exceptions need a Cybersecurity exception request, and a manager can\'t approve one. Software in the Software Catalog installs from Company Portal with no admin rights. Software that isn\'t in the catalog needs a software request. Never type an admin password into a user\'s installer.' },
 ];
 
@@ -2280,7 +2280,7 @@ const HD_PROVE_SHIFTS = {
     // Prove copies of the two articles this ticket may need (the practice
     // copies are practiceOnly, so no Prove It shows them).
     kbArticles: [
-      { id:'KB-0080', title:'Unwanted browser extensions and apps (PUA)', category:'Endpoint security', updated:'2026-11-24', audience:'Service Desk', keywords:'extension · extensions · toolbar · pua · browser slow · unwanted app · potentially unwanted · Extensions page · Protection history · Allowed threats · quick scan', summary:'Approved Chrome extensions at Northstar: Microsoft Single Sign On, Northstar Password Manager, Adobe Acrobat, Microsoft Editor. Anything else is removed, and the user can ask for it with a software request. 1. Open the browser\'s Extensions page and compare it with the list above. 2. Remove any extension that isn\'t on it. 3. Open Windows Security › Protection history. If an item says "Allowed", open Allowed threats, choose Don\'t allow, then Remove. 4. Run a quick scan and confirm real-time protection is on. 5. Tell the user how it got there and how to avoid it. 6. Stop and escalate to Security Operations if Defender names malware instead of a PUA (a trojan, ransomware, a script that ran), or if security tools were switched off. 7. Never turn off real-time protection or add an exclusion.' },
+      { id:'KB-0080', title:'Unwanted browser extensions and apps (PUA)', category:'Endpoint security', updated:'2026-11-24', audience:'Service Desk', keywords:'extension · extensions · toolbar · pua · browser slow · unwanted app · potentially unwanted · Extensions page · Protection history · Allowed threats · quick scan', summary:'Approved Chrome extensions at Northstar: Microsoft Single Sign On, Northstar Password Manager, Adobe Acrobat, Microsoft Editor. Anything else is removed, and the user can ask for it with a software request. 1. Open the browser\'s Extensions page and compare it with the list above. 2. Remove any extension that isn\'t on it. 3. Open Windows Security › Protection history. If an item says "Allowed", open Allowed threats and choose Don\'t allow, then choose Remove for it under Virus & threat protection › Current threats. 4. Run a quick scan and confirm real-time protection is on. 5. Tell the user how it got there and how to avoid it. 6. Stop and escalate to Security Operations if Defender names malware instead of a PUA (a trojan, ransomware, a script that ran), or if security tools were switched off. 7. Never turn off real-time protection or add an exclusion.' },
       { id:'KB-0058', title:'Local administrator rights on managed devices', category:'Endpoint policy', updated:'2026-11-24', audience:'All Support', keywords:'admin · admin password · administrator · local admin · uac · install · software · Company Portal · software request · Software Catalog', summary:'Local admin rights are never granted to standard users. Exceptions need a Cybersecurity exception request, and a manager can\'t approve one. Software in the Software Catalog installs from Company Portal with no admin rights. Software that isn\'t in the catalog needs a software request. Never type an admin password into a user\'s installer.' },
     ],
     tickets: [{
@@ -2309,22 +2309,25 @@ const HD_PROVE_SHIFTS = {
         ] },
       },
       diagnosisOptions: ['Failing RAM', 'Windows Update running', 'Potentially unwanted browser add-on', 'Ransomware'],
-      // Ids are this ticket's own, so no other Prove It's steps land on them.
-      // Action-level wording that doesn't name the fix, with wrong-direction
-      // steps beside the checks, so the list isn't a plan of the answer.
+      // Ids are this ticket's own, so no other Prove It's steps land on them,
+      // and their order says nothing. Action-level wording that doesn't name
+      // the fix, with checks of the same kind and wrong-direction steps beside
+      // the right ones, so the list isn't a plan of the answer.
       pathPool: [
-        { id: 'r1', text: 'Ask Amir what is slow and since when' },
-        { id: 'r2', text: 'Check CPU and memory in Task Manager' },
-        { id: 'r3', text: 'Compare the browser extensions with the approved list' },
-        { id: 'r4', text: 'Read the protection history in Windows Security' },
-        { id: 'r5', text: 'Remove software from the laptop with the managed tools' },
-        { id: 'r6', text: 'Run a quick scan and confirm protection is on' },
-        { id: 'r7', text: 'Give Amir two lines of safe-browsing advice' },
-        { id: 'r8', text: 'Request more RAM' },
-        { id: 'r9', text: 'Reimage the laptop' },
-        { id: 'r10', text: 'Install the latest Windows updates' },
-        { id: 'r11', text: 'Run Disk Cleanup' },
-        { id: 'r12', text: 'Check the Wi-Fi signal' },
+        { id: 's1', text: 'Check the Wi-Fi signal' },
+        { id: 's2', text: 'Check CPU and memory in Task Manager' },
+        { id: 's3', text: 'Read the System log in Event Viewer' },
+        { id: 's4', text: 'Compare the browser extensions with the approved list' },
+        { id: 's5', text: 'Request more RAM' },
+        { id: 's6', text: 'Ask Amir what is slow and since when' },
+        { id: 's7', text: 'Install the latest Windows updates' },
+        { id: 's8', text: 'Read the protection history in Windows Security' },
+        { id: 's9', text: 'Compare the startup apps with the approved list' },
+        { id: 's10', text: 'Remove what you found with the managed tools' },
+        { id: 's11', text: 'Reimage the laptop' },
+        { id: 's12', text: 'Run a quick scan and confirm protection is on' },
+        { id: 's13', text: 'Run Disk Cleanup' },
+        { id: 's14', text: 'Give Amir two lines of safe-browsing advice' },
       ],
     }],
     computers: [

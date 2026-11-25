@@ -1183,6 +1183,8 @@ function itsProveWindowsLines(work) {
   lines.push(`Restarted: ${restarts ? `yes (${restarts} time${restarts === 1 ? '' : 's'})` : 'no'}`);
   if (typeof machine.bootSeconds === 'number' && Number.isFinite(machine.bootSeconds)) lines.push(`Last boot time (Event ID 100): ${Number(machine.bootSeconds)} s`);
   if (extensions) lines.push(`Browser extensions: ${extensions.join(', ') || '(none)'}`);
+  const removedExtensions = names(machine.removedExtensions);
+  if (removedExtensions) lines.push(`Extensions removed: ${removedExtensions.join(', ') || '(none)'}`);
   if (defender) {
     lines.push(`Real-time protection: ${defender.realtime === false ? 'off' : 'on'}`);
     lines.push(`Defender exclusions: ${(names(defender.exclusions) || []).join(', ') || '(none)'}`);

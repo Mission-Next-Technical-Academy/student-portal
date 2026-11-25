@@ -132,8 +132,8 @@ function fill(tab) {
   tab.run('hdProveAssign(hdState.tickets[0].id)');
   tab.ctx.hdProveSetField('ticketClass', CLASSES[1]);
   tab.ctx.hdProveSetField('category', SPEC.categoryOptions[1]);
-  tab.ctx.hdProveSetField('impact', '3');
-  tab.ctx.hdProveSetField('urgency', '2');
+  tab.ctx.hdProveSetField('impact', '2');
+  tab.ctx.hdProveSetField('urgency', '1');
   tab.ctx.hdProveSetField('group', GROUPS[2]);
   tab.ctx.hdProveChoose('diagnosis', SPEC.diagnosisOptions[0]);
   tab.ctx.hdProveChoose('decision', 'Escalate');
@@ -193,6 +193,16 @@ function testChat() {
   assert.ok(html.includes(tab.run('hdEsc')(QUESTIONS[0].reply)), 'the reply shows in the chat');
   assert.ok(!html.includes(`hdChatAsk('${SPEC.id}','${QUESTIONS[0].id}')`), 'an asked question is not offered again');
   assert.deepEqual([...tab.toasts], [], 'no toast');
+  // The chat shows the shift's clock, never this browser's.
+  same(plain(tab.ticket().consoleState.chat).map((entry) => entry.time), [0, 1].map(() => tab.run('hdShiftTimeText(hdShiftNow())')), 'the shift clock');
+  // The questions show in a per-attempt order, the same on every redraw.
+  const firstShown = (student) => {
+    const t = sim('its-07', student);
+    const view = ticketView(t);
+    assert.equal(ticketView(t), view, 'the same order on a redraw');
+    return /hdChatAsk\('[^']+','([^']+)'\)/.exec(view)[1];
+  };
+  assert.ok(new Set(['o1', 'o2', 'o3', 'o4', 'o5', 'o6', 'o7', 'o8'].map((s) => firstShown(`stu-order-${s}`))).size > 1, 'no question always comes first');
   // A question that asks for a password, or with a waiting reply, never
   // reaches a Prove ticket's chat.
   const probe = sim('its-07', 'stu-chat-shape');
@@ -365,7 +375,7 @@ function testPortalKeepsTheWork(work) {
   const { work: saved, reason } = clean(work, 'its-07', LAB);
   assert.equal(reason, undefined);
   same(saved.machine, work.machine, 'the summary is kept as it came');
-  assert.equal(saved.fields.priority, 'P4', 'Priority is the course page\'s own (3 x 2)');
+  assert.equal(saved.fields.priority, prun('ITS_PROVE_MATRIX')['2']['1'], 'Priority is the course page\'s own, from Impact and Urgency');
   assert.equal(saved.keyFinding, WRITING.keyFinding, 'the key finding is kept');
   same(saved.events.filter((e) => e.type === 'caller_question').map((e) => [e.value, e.label]), [[QUESTIONS[0].id, QUESTIONS[0].text], [QUESTIONS[4].id, QUESTIONS[4].text]], 'the questions are kept');
   assert.ok(saved.events.some((e) => e.type === 'action_taken' && e.value === 'threat-removed'), 'the actions are kept');
@@ -432,6 +442,7 @@ function testReviewPanel(saved) {
   ['KB draft', 'Warm handoff', 'Print queues at submit', 'Handoff note'].forEach((heading) => assert.ok(!html.includes(heading), `no ${heading}`));
   [QUESTIONS[0].text, QUESTIONS[4].text].forEach((text) => assert.ok(html.includes(pesc(text)), 'each question asked'));
   assert.ok(html.includes(pesc(`Browser extensions: ${saved.machine.browserExtensions.join(', ')}`)), 'the extensions at submit');
+  assert.ok(html.includes(pesc(`Extensions removed: ${saved.machine.removedExtensions.join(', ')}`)), 'what was removed');
   assert.ok(html.includes('Real-time protection: on'));
   assert.ok(html.includes('Defender exclusions: (none)'));
   assert.ok(html.includes(pesc(`Allowed threats: ${ITEM.name} (Removed)`)), 'each allowed item\'s state');

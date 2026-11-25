@@ -1131,6 +1131,8 @@ function hdComments(ticket) {
 // time.
 function hdConsoleTime(ticket) {
   if (hdTicketClock(ticket)) return hdShiftTimeText(hdShiftNow(ticket));
+  // A Prove shift on a fixed clock (Module 6's chat): the shift's time, not this browser's.
+  if (HD_PROVE && HD_PROVE.shift.now) return hdShiftTimeText(hdShiftNow());
   const set = hdActiveSet();
   return set && set.now ? hdShiftTimeText(hdShiftNow()) : new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
 }
@@ -1834,7 +1836,10 @@ function hdConsoleChatCard(ticket) {
   const log = state.chat.length ? state.chat.map(entry => entry.refused
     ? `<div><strong>You (not asked)</strong><p>${hdEsc(entry.question)}</p><p class="muted">The help desk never asks for a password.</p></div>`
     : `<div><strong>You · ${hdEsc(entry.time)}</strong><p>${hdEsc(entry.question)}</p><strong>${hdEsc(caller.name)}</strong><p>${hdEsc(entry.reply)}</p></div>`).join('') : '<p class="muted">No questions asked yet.</p>';
-  const open = hdProveLocked() ? [] : (caller.questions || []).filter(question => hdChatQuestionOpen(ticket, question));
+  const offered = (caller.questions || []).filter(question => hdChatQuestionOpen(ticket, question));
+  // A Prove It shows the questions in a per-attempt order (seeded, so a reload
+  // keeps it), so no question has a fixed place.
+  const open = hdProveLocked() ? [] : HD_PROVE ? hdSeededOrder(offered, ((hdState && hdState.seed) || 1) ^ 0x2c1b3c6d) : offered;
   const buttons = open.length ? `<div class="hd-chat-questions" style="display:grid;gap:8px">${open.map(question => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} onclick="hdChatAsk('${ticket.id}','${hdEsc(question.id)}')">${hdEsc(question.text)}</button>`).join('')}</div>` : '';
   return `<div class="card hd-chat"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${caller.style === 'phone' ? 'Phone call' : caller.style === 'chat' ? 'Chat' : 'Caller chat'}</strong><span class="muted">${hdEsc(caller.name)} · ${caller.style === 'chat' ? 'in the chat' : 'on the line'}</span></div><div class="card-body"><div class="hd-note-list">${log}</div>${buttons}</div></div>`;
 }
