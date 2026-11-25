@@ -267,7 +267,12 @@ function testDefaultApps() {
   // An app that can't open the type, and the same app again, change nothing.
   tab.run("hdWinSetDefault('TEST-WS-61','.pdf','Test Zip'); hdWinSetDefault('TEST-WS-61','.pdf','Test Browser'); hdWinSetDefault('TEST-WS-61','.doc','Test Reader')");
   assert.deepEqual(tab.actions('HD-9601'), []);
-  tab.run("hdWinSetDefault('TEST-WS-61','.pdf','Test Reader')");
+  // The list only records on Set default (no onchange), from the row's select.
+  assert.doesNotMatch(pdf, /onchange/);
+  const selectId = /<select id="([^"]+)"/.exec(pdf)[1];
+  assert.match(pdf, new RegExp(`data-hd-default-set="\\.pdf" onclick="hdWinSetDefaultFrom\\('TEST-WS-61','\\.pdf','${selectId}'\\)">Set default`));
+  tab.input(selectId, 'Test Reader');
+  tab.run(`hdWinSetDefaultFrom('TEST-WS-61','.pdf','${selectId}')`);
   assert.equal(tab.machine('TEST-WS-61').defaultApps['.pdf'], 'Test Reader');
   assert.deepEqual(tab.actions('HD-9601'), ['default-app-set']);
   const event = tab.log().find((e) => e.action === 'default-app-set');
@@ -277,6 +282,15 @@ function testDefaultApps() {
   html = tab.view('helpdesk/default-apps');
   assert.match(html.split('data-hd-default=".pdf"')[1], /data-hd-default-app>Test Reader</);
   assert.equal(tab.machine('TEST-WS-61').seen.includes('default-apps'), true);
+  // A type with no default: a disabled "Choose…" first, so the first app can be set.
+  const empty = sim({ url: 'https://academy.test/sim/?practice=test-software&student=stu-4#/helpdesk/tickets',
+    before: "HD_TICKET_TEMPLATES.find((t) => t.id === 'HD-9601').console.machines['TEST-WS-61'].defaultApps['.pdf'] = '';" });
+  empty.open('HD-9601');
+  const row = empty.screen('TEST-WS-61', 'default-apps').split('data-hd-default=".pdf"')[1].split('</tr>')[0];
+  assert.match(row, /data-hd-default-app>Choose a default</);
+  assert.match(row, /<option value="" selected disabled>Choose…<\/option><option >Test Browser<\/option><option >Test Reader<\/option>/);
+  empty.run("hdWinSetDefault('TEST-WS-61','.pdf','Test Browser')");
+  assert.deepEqual(empty.actions('HD-9601'), ['default-app-set']);
 }
 
 function testCompanyPortal() {
@@ -363,7 +377,8 @@ function testWingetMistakes() {
   assert.match(tab.ps('winget instal --id TestCo.Zip -e'), /^Unrecognized command: 'instal'\nDid you mean: winget search <name>/);
   assert.match(tab.ps('winget install --idd TestCo.Zip -e'), /^Argument name was not recognized for the current command: '--idd'\nDid you mean:/);
   assert.match(tab.ps('winget install --id'), /^Argument value missing: '--id'\nDid you mean: winget install --id <ID> -e$/);
-  assert.match(tab.ps('winget list'), /^winget list isn't part of this training shell\./);
+  assert.match(tab.ps('winget list'), /^winget list isn't part of this training shell\.\nSupported here: winget search <name>/);
+  assert.equal(tab.ps('winget'), 'Windows Package Manager\nUsage: winget <command> [<options>]\nSupported here: winget search <name>, winget install --id <ID> -e, winget upgrade, winget upgrade --id <ID> -e, winget uninstall --id <ID> -e');
   assert.deepEqual(tab.actions('HD-9601'), []);
 }
 
@@ -378,6 +393,7 @@ function testResetThisPc() {
   assert.deepEqual(tab.actions('HD-9601'), []);
   tab.run("hdWinResetPc('TEST-WS-61')");
   assert.deepEqual(tab.actions('HD-9601'), ['pc-reset-chosen']);
+  assert.ok(tab.toasts.some((t) => /^Reset this PC recorded as your choice\./.test(t)), 'Practice says the choice was recorded');
   const after = tab.machine('TEST-WS-61');
   const strip = (m) => { const { seen, seenAt, ...rest } = m; return rest; };
   assert.deepEqual(strip(after), strip(before), 'nothing else changes');
@@ -447,6 +463,12 @@ function testProveShift() {
   assert.equal(prove.ps('winget install --id Other.FreeTool -e'), 'No package found matching input criteria.');
   assert.equal(prove.ps('winget instal --id TestCo.Zip -e'), "Unrecognized command: 'instal'");
   assert.match(prove.ps('wingt upgrade'), /outside this training shell/);
+  // The supported lines and the admin-password line are Practice help only.
+  assert.equal(prove.ps('winget'), 'Windows Package Manager\nUsage: winget <command> [<options>]');
+  assert.equal(prove.ps('winget list'), "winget list isn't part of this training shell.");
+  const portal = prove.screen(name, 'company-portal');
+  assert.match(portal, /Apps from the Software Catalog\./);
+  assert.doesNotMatch(portal, /admin password/);
   assert.doesNotMatch(prove.ps('Get-Help'), /winget|Apps: /);
   assert.equal(prove.run('hdState.practiceLog'), undefined);
   assert.deepEqual([...prove.toasts], []);

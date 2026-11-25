@@ -4633,18 +4633,23 @@ VIEWS['helpdesk/settings-apps'] = () => {
   const apps = hdWinList(machine, 'installedApps').slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
   // An app with repair or reset gets an Advanced options (or Modify) button
   // before Uninstall; every other row is exactly Module 5's.
-  const options = (app) => hdWinAppHasOptions(app) ? `<button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-app-options="${hdEsc(app.name)}" onclick="hdWinAppOptions(${name},'${hdJsArg(app.name)}')">${hdWinAppRepair(app) && hdWinAppRepair(app).via === 'modify' ? 'Modify' : 'Advanced options'}</button> ` : '';
+  const options = (app) => hdWinAppHasOptions(app) ? `<button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-app-options="${hdEsc(app.name)}" aria-label="${hdWinAppRepair(app) && hdWinAppRepair(app).via === 'modify' ? 'Modify' : 'Advanced options'}: ${hdEsc(app.name)}" onclick="hdWinAppOptions(${name},'${hdJsArg(app.name)}')">${hdWinAppRepair(app) && hdWinAppRepair(app).via === 'modify' ? 'Modify' : 'Advanced options'}</button> ` : '';
   return `${hdPageHeader('Installed apps', `Settings › Apps › Installed apps · ${computer.name}`, hdMachineBack(computer))}${hdWinAppPanel(computer, machine, locked)}<div class="card" data-hd-installed-apps><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${apps.length} app${apps.length === 1 ? '' : 's'} found</strong></div><div class="table-wrap"><table><thead><tr><th>App</th><th>Publisher</th><th>Version</th><th>Installed</th><th></th></tr></thead><tbody>${apps.map(app => `<tr data-hd-app="${hdEsc(app.name)}"><td>${hdEsc(app.name)}${app.sizeMb ? ` <span class="muted">${hdEsc(app.sizeMb)} MB</span>` : ''}</td><td>${hdEsc(app.publisher || '')}</td><td>${hdEsc(app.version || '')}</td><td>${hdEsc(app.installed || '')}</td><td>${options(app)}<button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdWinUninstall(${name},'${hdJsArg(app.name)}')">Uninstall</button></td></tr>`).join('') || '<tr><td colspan="5" class="muted">No apps listed.</td></tr>'}</tbody></table></div></div>`;
 };
 
 // Settings › Apps › Default apps: each file type and the app that opens it.
 // Change offers the current app and every installed app whose opens lists
-// the type.
+// the type, in name order (so the order never points at one). Set default
+// records the choice; moving through the list records nothing.
 function hdWinDefaults(machine) { return machine && machine.defaultApps && typeof machine.defaultApps === 'object' && !Array.isArray(machine.defaultApps) ? machine.defaultApps : null; }
 function hdWinDefaultChoices(machine, type) {
   const current = String((hdWinDefaults(machine) || {})[type] || '');
   const able = hdWinList(machine, 'installedApps').filter(app => Array.isArray(app.opens) && app.opens.some(item => String(item).toLowerCase() === type.toLowerCase())).map(app => String(app.name));
-  return [...new Set([current, ...able].filter(Boolean))];
+  return [...new Set([current, ...able].filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+function hdWinSetDefaultFrom(computerName, type, elementId) {
+  const el = document.getElementById(String(elementId));
+  hdWinSetDefault(computerName, type, String(el ? el.value : ''));
 }
 function hdWinSetDefault(computerName, type, appName) {
   hdMachineChange(computerName, machine => {
@@ -4660,10 +4665,11 @@ VIEWS['helpdesk/default-apps'] = () => {
   const { computer, machine } = found; const n = `'${hdJsArg(computer.name)}'`;
   const locked = hdProveLocked() ? 'disabled' : '';
   const types = Object.keys(defaults).sort();
-  const rows = types.map(type => {
+  const rows = types.map((type, index) => {
     const current = String(defaults[type] || '');
     const choices = hdWinDefaultChoices(machine, type);
-    return `<tr data-hd-default="${hdEsc(type)}"><td><strong>${hdEsc(type)}</strong></td><td data-hd-default-app>${hdEsc(current || 'Choose a default')}</td><td><label>Change <select class="select" ${locked} data-hd-default-change="${hdEsc(type)}" onchange="hdWinSetDefault(${n},'${hdJsArg(type)}',this.value)">${choices.map(app => `<option ${app === current ? 'selected' : ''}>${hdEsc(app)}</option>`).join('')}</select></label></td></tr>`;
+    const id = `hd-default-${index}`;
+    return `<tr data-hd-default="${hdEsc(type)}"><td><strong>${hdEsc(type)}</strong></td><td data-hd-default-app>${hdEsc(current || 'Choose a default')}</td><td><label>Change <select id="${id}" class="select" ${locked} data-hd-default-change="${hdEsc(type)}">${current ? '' : '<option value="" selected disabled>Choose…</option>'}${choices.map(app => `<option ${app === current ? 'selected' : ''}>${hdEsc(app)}</option>`).join('')}</select></label> <button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-default-set="${hdEsc(type)}" onclick="hdWinSetDefaultFrom(${n},'${hdJsArg(type)}','${id}')">Set default</button></td></tr>`;
   }).join('');
   return `${hdPageHeader('Default apps', `Settings › Apps › Default apps · ${computer.name}`, hdMachineBack(computer))}<div class="card" data-hd-default-apps><div class="card-header"><strong>Choose a default by file type</strong></div><div class="table-wrap"><table><thead><tr><th>File type</th><th>Opens with</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="muted">No file types listed.</td></tr>'}</tbody></table></div></div>`;
 };
@@ -4691,7 +4697,8 @@ VIEWS['helpdesk/company-portal'] = () => {
   const q = String(hdMachineView().q || '').toLowerCase();
   const all = hdSoftwareCatalog(machine).filter(item => item && item.name).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const rows = all.filter(item => !q || `${item.name} ${item.publisher || ''}`.toLowerCase().includes(q));
-  return `${hdPageHeader('Company Portal', 'Apps from the Software Catalog. Install them yourself, with no admin password.', hdMachineBack(computer))}<form class="filterbar" onsubmit="hdWinCatalogFilter(event,'${hdJsArg(computer.name)}','hd-portal-q')"><label>Search apps <input id="hd-portal-q" class="ipt" maxlength="60" value="${hdEsc(hdMachineView().q || '')}" placeholder="App or publisher"></label><button class="btn btn-primary btn-sm" type="submit">Search</button><span class="muted">${rows.length} of ${all.length} shown</span></form><div class="card" data-hd-company-portal><div class="table-wrap"><table><thead><tr><th>App</th><th>Publisher</th><th>Version</th><th></th></tr></thead><tbody>${rows.map(item => `<tr data-hd-portal-app="${hdEsc(item.name)}"><td>${hdEsc(item.name)}</td><td>${hdEsc(item.publisher || '')}</td><td>${hdEsc(item.version || 'Latest')}</td><td>${hdWinIsInstalled(machine, item.name) ? '<span class="muted" data-hd-portal-installed>Installed</span>' : `<button type="button" class="btn btn-primary btn-sm" ${locked} data-hd-portal-install onclick="hdWinPortalInstall(${n},'${hdJsArg(item.name)}')">Install</button>`}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No app matches this search.</td></tr>'}</tbody></table></div></div>`;
+  // The admin-password line is Practice help; a Prove It shows the plain title.
+  return `${hdPageHeader('Company Portal', HD_PROVE ? 'Apps from the Software Catalog.' : 'Apps from the Software Catalog. Install them yourself, with no admin password.', hdMachineBack(computer))}<form class="filterbar" onsubmit="hdWinCatalogFilter(event,'${hdJsArg(computer.name)}','hd-portal-q')"><label>Search apps <input id="hd-portal-q" class="ipt" maxlength="60" value="${hdEsc(hdMachineView().q || '')}" placeholder="App or publisher"></label><button class="btn btn-primary btn-sm" type="submit">Search</button><span class="muted">${rows.length} of ${all.length} shown</span></form><div class="card" data-hd-company-portal><div class="table-wrap"><table><thead><tr><th>App</th><th>Publisher</th><th>Version</th><th></th></tr></thead><tbody>${rows.map(item => `<tr data-hd-portal-app="${hdEsc(item.name)}"><td>${hdEsc(item.name)}</td><td>${hdEsc(item.publisher || '')}</td><td>${hdEsc(item.version || 'Latest')}</td><td>${hdWinIsInstalled(machine, item.name) ? '<span class="muted" data-hd-portal-installed>Installed</span>' : `<button type="button" class="btn btn-primary btn-sm" ${locked} data-hd-portal-install onclick="hdWinPortalInstall(${n},'${hdJsArg(item.name)}')">Install</button>`}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No app matches this search.</td></tr>'}</tbody></table></div></div>`;
 };
 
 // The Software Catalog: the approved apps, read-only.
@@ -4797,10 +4804,11 @@ function hdWinWinget(command, machine, computerName) {
   const head = String(tokens[0] || '').toLowerCase().replace(/\.exe$/, '');
   if (head !== 'winget' || !hdWinHas(machine, 'winget')) return null;
   const typedSub = String(tokens[1] || '').toLowerCase();
-  if (!typedSub) { hdLastCommandResult = 'winget: no command'; return `Windows Package Manager\nUsage: winget <command> [<options>]\nSupported here: ${HD_WINGET_LINES}`; }
+  // The supported lines are a Practice hint; a Prove It never lists them.
+  if (!typedSub) { hdLastCommandResult = 'winget: no command'; return hdWingetPractice('Windows Package Manager\nUsage: winget <command> [<options>]', `Supported here: ${HD_WINGET_LINES}`); }
   const sub = HD_WINGET_COMMANDS[typedSub];
   if (!sub) {
-    if (HD_WINGET_OTHER.includes(typedSub)) { hdLastCommandResult = `winget ${typedSub}: not in this training shell`; return `winget ${typedSub} isn't part of this training shell. Supported here: ${HD_WINGET_LINES}`; }
+    if (HD_WINGET_OTHER.includes(typedSub)) { hdLastCommandResult = `winget ${typedSub}: not in this training shell`; return hdWingetPractice(`winget ${typedSub} isn't part of this training shell.`, `Supported here: ${HD_WINGET_LINES}`); }
     hdLastCommandResult = `winget: unrecognized command ${typedSub}`;
     return hdWingetPractice(`Unrecognized command: '${tokens[1]}'`, `Did you mean: ${HD_WINGET_LINES}`);
   }
@@ -4899,7 +4907,7 @@ function hdWinHelp(machine) {
 }
 window.hdWinTaskTab=hdWinTaskTab; window.hdWinTaskSort=hdWinTaskSort; window.hdWinStartupSet=hdWinStartupSet; window.hdWinTempTick=hdWinTempTick; window.hdWinTempRemove=hdWinTempRemove;
 window.hdWinRestart=hdWinRestart; window.hdWinUninstall=hdWinUninstall; window.hdWinCatalogFilter=hdWinCatalogFilter;
-window.hdWinAppOptions=hdWinAppOptions; window.hdWinRepairApp=hdWinRepairApp; window.hdWinResetApp=hdWinResetApp; window.hdWinSetDefault=hdWinSetDefault; window.hdWinPortalInstall=hdWinPortalInstall; window.hdWinResetPc=hdWinResetPc;
+window.hdWinAppOptions=hdWinAppOptions; window.hdWinRepairApp=hdWinRepairApp; window.hdWinResetApp=hdWinResetApp; window.hdWinSetDefault=hdWinSetDefault; window.hdWinSetDefaultFrom=hdWinSetDefaultFrom; window.hdWinPortalInstall=hdWinPortalInstall; window.hdWinResetPc=hdWinResetPc;
 
 /* ---------- Windows client tools, console B (added for Module 5, key its-03) ----------
  * Event Viewer's logs on a computer, Reliability Monitor, the Safe Mode
@@ -5096,12 +5104,14 @@ function hdWinRecoveryStep(machine) { const step = machine && machine.recoverySt
 // Recovery shows on a machine with safeMode, or (Module 6) with resetPc.
 function hdWinHasRecovery(machine) { return !!machine && (typeof machine.safeMode === 'boolean' || machine.resetPc === true); }
 // Module 6: Reset this PC is a recorded choice on a resetPc machine. The
-// simulator never wipes anything; a ticket's critical rule can mark it.
+// simulator never wipes anything.
 function hdWinResetPc(computerName) {
   if (hdProveLocked()) return;
   const machine = hdFeatureMachine(computerName); if (!machine || machine.resetPc !== true) return;
   if (typeof confirm === 'function' && !confirm('Reset this PC? This reinstalls Windows.')) return;
   hdMachineChange(computerName, () => { hdMachineAction(computerName, 'pc-reset-chosen', 'chose Reset this PC (Settings › System › Recovery)'); });
+  // Practice only: a Prove It shows nothing.
+  if (!HD_PROVE && typeof toast === 'function') toast('Reset this PC recorded as your choice. This training shell never wipes a computer.');
 }
 function hdWinRecoveryGo(computerName, to) {
   hdMachineChange(computerName, machine => {
