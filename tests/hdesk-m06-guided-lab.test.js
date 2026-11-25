@@ -536,11 +536,12 @@ async function testPortalKeepsTheWork(work) {
 
 /* ------------------------------------------- nothing from the graded ticket */
 
-// The Prove It ticket for this module isn't built yet (it comes with the
-// module's Prove It part, in its own Prove shift). Its ticket id, laptop,
-// product and story words are kept here only as short hashes, so this file
-// names none of them, and no Help Desk lab, practice ticket, coach or test does.
-// ui/data.js (the SOC simulator) is not a Help Desk file and is not scanned.
+// The Prove It ticket for this module lives only in its Prove shift
+// (HD_PROVE_SHIFTS['its-07'] in ui/helpdesk-data.js, between the BEGIN and END
+// Module 6 Prove It shift comments, which this scan skips). Its ticket id,
+// laptop, product and story words are kept here only as short hashes, so this
+// file names none of them, and no Help Desk lab, practice ticket, coach or test
+// does. ui/data.js (the SOC simulator) is not a Help Desk file and is not scanned.
 const hash = (value) => crypto.createHash('sha256').update(value).digest('hex').slice(0, 16);
 const GRADED = new Set(['f24718e82192f945', '7b4dab15cc7eda02', 'e53ad2ce9badf645', '72309c04a6254384', '1180412af43d7860']);
 const HELP_DESK = /^(ui\/helpdesk[^/]*\.js|portal\/it-support-[^/]*\.js|portal\/admin-sheets\/hdesk[^/]*\.js|tests\/hdesk-[^/]*\.js|tests\/admin-sheets\/hdesk[^/]*\.js)$/;
@@ -552,6 +553,13 @@ function testNothingFromTheGradedTicket() {
   for (const file of files) {
     let source;
     try { source = fs.readFileSync(path.join(ROOT, file), 'utf8'); } catch { continue; }
+    if (file === 'ui/helpdesk-data.js') {
+      const begin = source.indexOf('// BEGIN Module 6 Prove It shift');
+      const end = source.indexOf('// END Module 6 Prove It shift.');
+      assert.ok(begin > 0 && end > begin, 'the Prove shift block is marked');
+      assert.equal(source.indexOf('// BEGIN Module 6 Prove It shift', begin + 1), -1, 'one marked block');
+      source = source.slice(0, begin) + source.slice(end);
+    }
     const words = new Set(source.split(/[^A-Za-z0-9-]+/).filter(Boolean).map((w) => hash(w.toLowerCase())));
     GRADED.forEach((h) => { if (words.has(h)) hits.push(`${file}: ${h}`); });
   }

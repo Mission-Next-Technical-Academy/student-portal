@@ -190,7 +190,9 @@ function testOldTicketsTurnNothingOn() {
       assert.match(set.out('Set-MpPreference -DisableRealtimeMonitoring $true'), OUTSIDE, `${key} ${name}`);
     }
   }
-  for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS'))) {
+  // Every older Prove shift. Module 6's own Prove shift turns the features on
+  // (tests/hdesk-m06-prove.test.js).
+  for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS')).filter((k) => !module6(k))) {
     const url = `https://academy.test/sim/?prove=${key}&student=student-m06#/helpdesk/tickets`;
     const prove = sim({ url }); const before = sim({ url, withTest: false });
     for (const name of before.run('hdComputers().map((c) => c.name)')) {
