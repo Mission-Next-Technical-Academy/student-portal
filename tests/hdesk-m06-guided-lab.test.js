@@ -345,14 +345,43 @@ function testStep8NeverStrandsTheLab() {
   assert.equal(step.check(), true);
 }
 
-// Deleting the file or unlinking OneDrive is critical-error feedback.
+// Deleting the file or unlinking OneDrive is critical-error feedback, and in
+// the lab it is put back at once (undoOneDrive), so step 10 can still pass.
 function testOneDriveShortcutsAreFeedback() {
   const tab = startLab();
   triage(tab);
   tab.run(`hdWinOneDriveDelete('${PC}', 0)`);
+  assert.match(tab.lastToast(), /^Deleting the file or unlinking OneDrive never fixes a sync problem\. It has been put back\./);
   tab.run(`hdWinOneDriveControl('${PC}', 'unlink')`);
   assert.equal(tab.feedback(LEAH).critical.length, 2);
-  assert.equal(tab.run(`hdConsoleRule(hdTicketById('${LEAH}'), { synced: '${PC}' })`), false);
+  const od = tab.machine(PC).oneDrive;
+  assert.ok(od.files.some((f) => f.name === 'Budget: Q4?.xlsx'), 'the file is back');
+  assert.notEqual(od.linked, false, 'OneDrive is signed in again');
+  assert.equal(tab.run(`hdConsoleRule(hdTicketById('${LEAH}'), { synced: '${PC}' })`), false, 'a deleted file never counts as synced');
+  tab.run(`hdWinOneDriveRename('${PC}', 0, 'file', 'Budget - Q4.xlsx')`);
+  tab.tab(PC, 'onedrive', 'web');
+  assert.equal(tab.coach('hd-m07').steps[10].check(), true, 'step 10 still passes');
+  // 6-A has no undo: its shortcuts stay as the student left them.
+  assert.equal(tab.run("hdConsole(HD_TICKET_TEMPLATES.find((t) => t.id === 'HD-2177')).undoOneDrive"), undefined);
+}
+
+// Teams and 7-Zip are managed on the lab computer: no uninstall by either
+// route, so the repair and the upgrade can never be lost.
+function testManagedAppsStay() {
+  const tab = startLab();
+  triage(tab);
+  const html = tab.screen(PC, 'settings-apps');
+  const row = (name) => html.split(`data-hd-app="${name}"`)[1].split('</tr>')[0];
+  ['Microsoft Teams', '7-Zip'].forEach((name) => {
+    assert.match(row(name), /data-hd-app-managed>Managed by your organization/, name);
+    assert.doesNotMatch(row(name), />Uninstall</, name);
+  });
+  assert.match(row('Google Chrome'), />Uninstall</, 'other apps keep Uninstall');
+  tab.run(`hdWinUninstall('${PC}', 'Microsoft Teams')`);
+  assert.match(tab.ps('winget uninstall --id 7zip.7zip -e'), /7-Zip is managed by your organization and can't be uninstalled here\./);
+  const apps = tab.machine(PC).installedApps.map((a) => a.name);
+  assert.ok(apps.includes('Microsoft Teams') && apps.includes('7-Zip'));
+  assert.ok(!tab.actions(LEAH).includes('app-uninstalled'));
 }
 
 // The typed commands sit behind "Show me the command", nowhere else.
@@ -546,7 +575,7 @@ const work = runTest('testLab61', testLab61);
 const portalDone = work
   ? testPortalKeepsTheWork(work).then(() => console.log('ok   testPortalKeepsTheWork'), (error) => { failed += 1; console.error(`FAIL testPortalKeepsTheWork\n${error.stack}`); })
   : Promise.resolve().then(() => { failed += 1; console.error('FAIL testPortalKeepsTheWork (the lab walk failed)'); });
-const tests = [testTypedStepsAnyCase, testRefusedWingetDoesNotPass, testOptionalLinesPassTheirSteps, testStep8NeverStrandsTheLab, testOneDriveShortcutsAreFeedback, testShowMeTheCommand,
+const tests = [testTypedStepsAnyCase, testRefusedWingetDoesNotPass, testOptionalLinesPassTheirSteps, testStep8NeverStrandsTheLab, testOneDriveShortcutsAreFeedback, testManagedAppsStay, testShowMeTheCommand,
   testScreenStepsStartOnTheDesktop, testEveryStepRouteAndText, testOldHd2119RunIsForgotten, testHd2119StaysInTheSharedShift, testNothingFromTheGradedTicket, testCiRunsThisFile];
 portalDone.then(() => {
   tests.forEach((test) => runTest(test.name, test));

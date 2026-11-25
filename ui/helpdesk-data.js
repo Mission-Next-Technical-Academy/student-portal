@@ -1598,7 +1598,7 @@ const HD_TICKET_TEMPLATES = [
     console: {
       matrix:{}, classify:{ categories:HD_ITS07_CATEGORIES, cis:['NS-WS-0233', 'OneDrive – lbrooks', 'Microsoft Teams'], preset:{ contactType:'Self-service' } },
       priorityCoach:{ impact:'3', urgency:'2', line:'One person is affected (Impact 3). She needs Notepad++ today (Urgency 2): P4.' },
-      kb:true, undoUnsafe:true,
+      kb:true, undoUnsafe:true, undoOneDrive:true,
       caller:{ name:'Leah Brooks', style:'chat', questions:[
         { id:'teams', text:'Please open Teams. Does it still freeze?', afterAction:'app-repaired', replyBefore:'It froze again just now.', reply:'No, it opens straight away now. Thanks!' },
       ] },
@@ -1606,8 +1606,10 @@ const HD_TICKET_TEMPLATES = [
         'NS-WS-0233':{
           computer:{ ip:'10.20.70.233', health:'Healthy' },
           installedApps:[
-            { name:'Microsoft Teams', publisher:'Microsoft Corporation', version:'24295.605', installed:'3/4/2025', repair:{ via:'advanced', broken:'freezes', fixedText:'Teams opens.' } },
-            { name:'7-Zip', publisher:'7-Zip project', version:'23.01', installed:'3/4/2025', wingetId:'7zip.7zip', upgrade:{ version:'24.08' } },
+            // managed: kept by the organization, so the lab can't lose the
+            // repair or the upgrade to an uninstall.
+            { name:'Microsoft Teams', publisher:'Microsoft Corporation', version:'24295.605', installed:'3/4/2025', managed:true, repair:{ via:'advanced', broken:'freezes', fixedText:'Teams opens.' } },
+            { name:'7-Zip', publisher:'7-Zip project', version:'23.01', installed:'3/4/2025', managed:true, wingetId:'7zip.7zip', upgrade:{ version:'24.08' } },
             { name:'Google Chrome', publisher:'Google LLC', version:'139.0.7258.67', installed:'3/4/2025' },
             { name:'Microsoft 365 Apps', publisher:'Microsoft Corporation', version:'16.0.18025', installed:'3/4/2025' },
             { name:'Adobe Acrobat', publisher:'Adobe Inc.', version:'25.001.20531', installed:'3/4/2025' },
@@ -1639,9 +1641,9 @@ const HD_TICKET_TEMPLATES = [
       choice:{ heading:'Choose your response', after:'app-repaired',
         prompt:'Leah asks in the chat: "While you\'re in there, can you type the admin password for FreeVideoConverter.exe? I downloaded it for a campaign video."',
         options:[
-          { id:'decline-request', text:'Decline, and open a software request for it', right:true, action:{ id:'software-request-opened', label:'Opened a software request (Software request, not in the Software Catalog)' }, feedback:'Right. FreeVideoConverter isn\'t in the Software Catalog, so it needs a software request, and an admin password is never typed into a user\'s installer (KB-0058). Tell Leah she can ask for it that way.' },
           { id:'type-password', text:'Type the admin password into the installer for her', critical:true, feedback:'Critical error. Never type an admin password into a user\'s installer (KB-0058). The step stays open: choose again.' },
           { id:'admin-today', text:'Give her local admin rights for today', critical:true, feedback:'Critical error. Local admin rights are never granted to standard users, even for a day (KB-0058). The step stays open: choose again.' },
+          { id:'decline-request', text:'Decline, and open a software request for it', right:true, action:{ id:'software-request-opened', label:'Opened a software request (Software request, not in the Software Catalog)' }, feedback:'Right. FreeVideoConverter isn\'t in the Software Catalog, so it needs a software request, and an admin password is never typed into a user\'s installer (KB-0058). Tell Leah she can ask for it that way.' },
           { id:'personal-laptop', text:'Tell her to use a personal laptop for it', feedback:'Not this. A personal laptop puts company data on a device the company doesn\'t manage. Software that isn\'t in the Software Catalog needs a software request (KB-0058). The step stays open: choose again.' },
         ] },
       comments:true, resolutionCode:{ required:true },
@@ -1657,9 +1659,9 @@ const HD_TICKET_TEMPLATES = [
         ], good:'You checked protection, the history, the extensions and the OneDrive problem before you changed anything.', fix:'On NS-WS-0233, open Windows Security (protection and history), the browser\'s Extensions page, and OneDrive › View sync problems. Look first, then fix.' },
         { area:'Diagnosis', checks:[{ kb:'KB-0080', missing:'Search the KB for "extension" and open KB-0080.' }, { kb:'KB-0058', missing:'Search the KB for "admin password" and open KB-0058.' }], good:'KB-0080 gave you the list to compare the extensions with, and KB-0058 told you what to do about an admin password.', fix:'Search the KB for "extension" and open KB-0080, then search for "admin password" and open KB-0058.' },
         { area:'Action', checks:[
-          { action:'app-installed', missing:'Install Notepad++ from the Software Catalog: find it with winget, then install it by its Id.' },
+          { typed:'^winget(\\.exe)?\\s+(install|add)\\b.*notepad', computer:'NS-WS-0233', missing:'Install Notepad++ from the Software Catalog: find it with winget, then install it by its Id.' },
           { action:'app-upgraded', missing:'List the apps with a newer version, then update 7-Zip, the one that is behind.' },
-          { action:'app-uninstalled', missing:'Once Leah has finished, remove Notepad++.' },
+          { typed:'^winget(\\.exe)?\\s+(uninstall|remove|rm)\\b.*notepad', computer:'NS-WS-0233', missing:'Once Leah has finished, remove Notepad++ with winget.' },
           { action:'app-repaired', missing:'In Settings › Apps › Installed apps, open Microsoft Teams › Advanced options and choose Repair.' },
           { confirmed:'teams', missing:'Ask Leah to open Teams and tell you whether it still freezes.' },
           { action:'quick-scan', missing:'In Windows Security, run a Quick scan.' },
@@ -1715,7 +1717,7 @@ const HD_TICKET_TEMPLATES = [
           { synced:'NS-LT-0252', missing:'Shorten the path: rename the folder "Final versions approved by Finance leadership" to something short, for example "Final". Renaming the file alone doesn\'t fix it, because the name was never the problem. Never unlink or reset OneDrive, and never delete the file.' },
           { seen:'onedrive:web', computer:'NS-LT-0252', after:'onedrive-renamed', missing:'After you rename it, open OneDrive on the web and confirm the file is there.' },
         ], good:'You shortened the path, did not unlink, reset or delete anything, and confirmed the file on OneDrive on the web.', fix:'Rename the long folder "Final versions approved by Finance leadership" to "Final", wait for the green tick, and confirm the file on OneDrive on the web. Never unlink or reset OneDrive, and never delete the file.' },
-        { area:'Documentation', checks:[{ attached:'KB-0079', missing:'Attach KB-0079 to the ticket.' }, { note:true, missing:'Write a Reported / Tried / Result note.' }, { comment:true, missing:'Write a comment for Leo in plain words, with no internal terms.' }, { commentPattern:'still on (your|the) laptop|never at risk|not lost|safe', missing:'Reassure Leo first: tell him his files were never at risk and are still on his laptop.' }, { commentPattern:'short|nest|deep', missing:'Give Leo a tip: keep folder names short, and don\'t nest folders many levels deep.' }], good:'KB-0079 attached, a complete note, and a plain-words comment that reassures Leo and gives him the tip.', fix:'Attach KB-0079, write a Reported / Tried / Result note, and write a plain-words comment, for example: "Hi Leo, your files were never at risk. They were all still on your laptop. OneDrive can\'t back up a file when its folder path is longer than 400 characters, and this one was six folders deep with long folder names. We shortened one folder name, and the forecast is now backed up and showing a green tick. Tip: keep folder names short, and avoid nesting more than a few folders deep. – Riley"' },
+        { area:'Documentation', checks:[{ attached:'KB-0079', missing:'Attach KB-0079 to the ticket.' }, { note:true, missing:'Write a Reported / Tried / Result note.' }, { comment:true, missing:'Write a comment for Leo in plain words, with no internal terms.' }, { commentPattern:'still on (your|the|his) laptop|never at risk|not lost', missing:'Reassure Leo first: tell him his files were never at risk and are still on his laptop.' }, { commentPattern:'keep (the |your )?(folder )?names short|shorter (folder )?names|nest(ing)?\\b', missing:'Give Leo a tip: keep folder names short, and don\'t nest folders many levels deep.' }], good:'KB-0079 attached, a complete note, and a plain-words comment that reassures Leo and gives him the tip.', fix:'Attach KB-0079, write a Reported / Tried / Result note, and write a plain-words comment, for example: "Hi Leo, your files were never at risk. They were all still on your laptop. OneDrive can\'t back up a file when its folder path is longer than 400 characters, and this one was six folders deep with long folder names. We shortened one folder name, and the forecast is now backed up and showing a green tick. Tip: keep folder names short, and avoid nesting more than a few folders deep. – Riley"' },
       ],
     } }),
   // Ticket 6-B: an admin-password prompt for an app that is in the Software

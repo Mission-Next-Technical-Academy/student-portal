@@ -293,7 +293,7 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
   {
     name: 'Lab 6.1 new attempt grades HD-2176',
     row: coachRow('hdesk-m07-lab61', 'lab-its-07-app-cert', [savedTicket('HD-2176', { worked: true, priority: 'P4' })]),
-    expect: { html: ['data-sheet-section="scenario-hd-2176"', 'data-sheet-section="lab-work-hd-2176"'], notHtml: ['data-sheet-section="scenario-hd-2119"', 'data-sheet-section="troubleshooting-hd-2176"'] },
+    expect: { html: ['data-sheet-section="scenario-hd-2176"', 'data-sheet-section="lab-work-hd-2176"'], notHtml: ['data-sheet-section="scenario-hd-2119"', 'data-sheet-section="troubleshooting-hd-2176"', 'data-sheet-section="customer-comment-hd-2176"'] },
   },
   {
     name: 'Lab 4.4 practice completion shows the four tickets, no walkthrough sections',
