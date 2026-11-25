@@ -988,10 +988,12 @@ async function itsProveRefreshAttempt(user, moduleKey, labKey) {
 }
 
 // What a returned attempt's form reopens with: the student's own choices,
-// writing and recorded actions (events, the laptop's end state, the password
-// flags, the ticket's assignment and close) from the saved package, field by
-// field and cleaned as a submit is. Never the instructor's scores or notes,
-// which aren't in the package, and never anything else in it.
+// writing, the laptop's end state and the ticket's assignment and close from
+// the saved package, field by field and cleaned as a submit is. Never the
+// recorded actions or the password flags: a returned attempt starts with an
+// empty action log (Megan, 2026-11-25), and they stay in the earlier row for
+// the instructor. Never the instructor's scores or notes, which aren't in the
+// package, and never anything else in it.
 function itsProvePrefillWork(row) {
   const work = row && row.result;
   const text = (value) => (typeof value === 'string' ? value : '');
@@ -1010,8 +1012,6 @@ function itsProvePrefillWork(row) {
       order: Array.isArray(work.order) ? work.order.map(text) : [],
       interrupt: { arrivedAt: itsProveShort(interrupt.arrivedAt, 40), reason: itsProveShort(interrupt.reason, 20) },
       rewrite: { shortDescription: text(rewrite.shortDescription), description: text(rewrite.description) },
-      events: itsProveCleanEvents(work.events),
-      passwordTyped: work.passwordTyped === true, passwordWritten: work.passwordWritten === true,
     };
   }
   if (!work || work.kind !== 'hdesk-prove' || !row.completed_at || !work.fields) return null;
@@ -1024,8 +1024,7 @@ function itsProvePrefillWork(row) {
     resolutionNote: text(work.resolutionNote), userReply: text(work.userReply),
     ...('keyFinding' in work ? { keyFinding: text(work.keyFinding) } : {}), ...('kbDraft' in work ? { kbDraft: text(work.kbDraft) } : {}),
     workNotes: Array.isArray(work.workNotes) ? work.workNotes.map(text) : [],
-    events: itsProveCleanEvents(work.events), machine: itsProveCleanMachine(work.machine),
-    passwordTyped: work.passwordTyped === true, passwordWritten: work.passwordWritten === true,
+    machine: itsProveCleanMachine(work.machine),
     assignedTo: itsProveShort(work.assignedTo, 40), ticketState: itsProveShort(work.ticketState, 40), resolutionCode: itsProveShort(work.resolutionCode, 80),
   };
 }
@@ -1063,12 +1062,20 @@ async function itsProveReceiveMessage(event, { moduleKey, labKey, onChange }) {
     const status = await itsProveRefreshAttempt(user, moduleKey, labKey);
     if (!status) { answer({ reason: 'unreadable' }); return; }
     if (status !== before && onChange) onChange();
+    // A returned attempt: its submit time goes with every answer, so the
+    // simulator clears its action log once for that attempt (hdProveFreshLog).
+    const returnedAt = status === 'returned' ? String((user.latestLabAttemptByKey || {})[labKey]?.completedAt || '') : '';
+    const returned = returnedAt ? { returnedAt } : {};
     if (data.type === ITS_PROVE_STATUS) {
       const lastWork = status === 'returned' ? await itsProveLastWork(user, labKey) : null;
-      answer(lastWork ? { status, lastWork } : { status });
+      answer(lastWork ? { status, ...returned, lastWork } : { status, ...returned });
       return;
     }
     if (status === 'waiting' || status === 'passed') { answer({ status, reason: 'already-submitted' }); return; }
+    // A resubmission whose log wasn't cleared for this return (the page never
+    // heard it was returned) would resend the earlier attempt's actions:
+    // refused, and the simulator clears the log on this answer.
+    if (returnedAt && (!data.work || data.work.freshFor !== returnedAt)) { answer({ status, ...returned, reason: 'stale-draft' }); return; }
     const { work, reason } = itsCleanProveWork(data.work, moduleKey, labKey);
     if (!work) { answer({ status, reason }); return; }
     const saved = await itsSubmitLabAttempt(user, moduleKey, labKey, {

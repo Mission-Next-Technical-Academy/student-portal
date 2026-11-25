@@ -402,9 +402,14 @@ function testPrefillRoundTrip(saved) {
   ['keyFinding', 'resolutionNote', 'userReply', 'kbDraft'].forEach((field) => assert.equal(prove[field], saved[field], `${field} restored`));
   assert.equal(prove.diagnosis, saved.diagnosis);
   assert.equal(prove.decision, saved.decision);
-  same(prove.opened.slice().sort(), saved.events.filter((e) => e.type === 'evidence_opened').map((e) => e.source).sort(), 'the opened cards');
+  // The action log starts empty (2026-11-25): the cards and the warm handoff
+  // are the earlier attempt's, kept in its row, and earned again here.
+  assert.ok(saved.events.some((e) => e.type === 'evidence_opened'), 'the first attempt opened cards');
+  same(prove.opened, [], 'no opened cards carried over');
+  same(prove.events, [], 'no recorded actions carried over');
   const warm = saved.events.find((e) => e.type === 'warm_handoff');
-  assert.ok(tab.ticket().troubleshootingHistory.some((entry) => entry.action === `${warm.label}.`), 'the warm handoff stays in the history');
+  assert.ok(!tab.ticket().troubleshootingHistory.some((entry) => entry.action === `${warm.label}.`), 'the earlier warm handoff is not put back');
+  assert.ok(!tab.run('hdState.prove.events.some((e) => e.type === "warm_handoff")'), 'so the call can be made again');
   // Values no longer offered stay ''.
   const stale = sim('its-11', 'stu-prefill-stale');
   const old = plain(lastWork);
