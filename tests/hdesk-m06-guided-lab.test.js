@@ -362,10 +362,11 @@ function testOneDriveShortcutsAreFeedback() {
   const od = tab.machine(PC).oneDrive;
   assert.ok(od.files.some((f) => f.name === 'Budget: Q4?.xlsx'), 'the file is back');
   assert.notEqual(od.linked, false, 'OneDrive is signed in again');
-  assert.equal(tab.run(`hdConsoleRule(hdTicketById('${LEAH}'), { synced: '${PC}' })`), false, 'a deleted file never counts as synced');
+  assert.equal(tab.run(`hdConsoleRule(hdTicketById('${LEAH}'), { synced: '${PC}' })`), false, 'still a red X');
   tab.run(`hdWinOneDriveRename('${PC}', 0, 'file', 'Budget - Q4.xlsx')`);
   tab.tab(PC, 'onedrive', 'web');
   assert.equal(tab.coach('hd-m07').steps[10].check(), true, 'step 10 still passes');
+  assert.equal(tab.run(`hdConsoleRule(hdTicketById('${LEAH}'), { synced: '${PC}' })`), true, 'the file was put back, so the rename counts');
   // 6-A has no undo: its shortcuts stay as the student left them.
   assert.equal(tab.run("hdConsole(HD_TICKET_TEMPLATES.find((t) => t.id === 'HD-2177')).undoOneDrive"), undefined);
 }

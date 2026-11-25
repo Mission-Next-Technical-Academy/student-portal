@@ -170,6 +170,10 @@ function test6A() {
     bad.open('HD-2177'); bad.select('NS-LT-0252');
     bad.run(code);
     assert.equal(bad.feedback('HD-2177').critical.length, 1, label);
+    // The ticket can still be resolved: Practice never strands a ticket.
+    bad.note('HD-2177', A_NOTE);
+    bad.resolve('HD-2177', 'Resolved after the critical move.');
+    assert.equal(bad.ticket('HD-2177').status, 'Resolved', `${label}: still resolves`);
   });
   // Deleting the file clears the red X, but it never counts as synced.
   const del = sim();
@@ -270,6 +274,9 @@ function test6C() {
   bad.run("hdWinResetPc('NS-WS-0318')");
   bad.act('HD-2179', 'delete-program-folder');
   assert.equal(bad.feedback('HD-2179').critical.length, 2);
+  bad.note('HD-2179', C_NOTE);
+  bad.resolve('HD-2179', 'Resolved after the critical moves.');
+  assert.equal(bad.ticket('HD-2179').status, 'Resolved', 'still resolves');
 }
 
 /* ------------------------------------------------------------ the set */

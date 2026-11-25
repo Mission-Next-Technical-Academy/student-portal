@@ -986,7 +986,9 @@
         waitLabel: 'Next Step: Triaged, and the computer opened',
         check: () => {
           const t = hd2Ticket(HD7_ID);
-          return hd2Triaged(HD7_ID, 'Software', 'Endpoint check', HD7_PC, 'P4') && Boolean(t) && t.assignedTechnician === 'Riley Morgan';
+          // NS-WS-0233 open too, so the winget lines in steps 1 to 4 run on it.
+          return hd2Triaged(HD7_ID, 'Software', 'Endpoint check', HD7_PC, 'P4') && Boolean(t) && t.assignedTechnician === 'Riley Morgan'
+            && typeof hdState !== 'undefined' && hdState.selectedComputer === HD7_PC;
         },
       },
       {

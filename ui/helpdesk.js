@@ -1676,7 +1676,8 @@ function hdConsoleRule(ticket, rule) {
   //   machine: { computer, path, value | values }   a machine value (hdMachineValueIs)
   //   appInstalled: { computer, app }   the app is in that computer's Installed apps
   //   synced: '<computer>'   OneDrive is signed in, nothing fails to sync, and
-  //     no file was deleted to clear the error
+  //     no file was deleted to clear the error (on an undoOneDrive ticket the
+  //     file was put back, so the delete doesn't count here; it stays critical)
   if (rule.any) return Array.isArray(rule.any) && rule.any.some(item => item && hdConsoleRule(ticket, item));
   if (rule.attached) return (state.kbAttached || []).includes(rule.attached);
   if (rule.requestItem) return !!(ticket.request && ticket.request.item === rule.requestItem);
@@ -1685,7 +1686,7 @@ function hdConsoleRule(ticket, rule) {
   if (rule.synced) {
     const oneDrive = hdWinOneDrive(hdMachine(rule.synced));
     return !!oneDrive && oneDrive.linked !== false && !hdWinOneDriveProblems(oneDrive).length
-      && !state.actions.some(entry => entry.id === 'onedrive-file-deleted' && entry.computer === rule.synced);
+      && (!!config.undoOneDrive || !state.actions.some(entry => entry.id === 'onedrive-file-deleted' && entry.computer === rule.synced));
   }
   // Module 3 work: the call, hold, handoff, follow-up and team messages.
   const comms = hdCommsRule(ticket, rule);
