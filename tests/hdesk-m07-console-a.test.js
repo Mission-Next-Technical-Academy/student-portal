@@ -173,6 +173,9 @@ function testOldTicketsTurnNothingOn() {
   for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS'))) {
     const prove = sim({ url: `https://academy.test/sim/?prove=${key}&student=student-m07#/helpdesk/tickets` });
     assertFixed(prove, `prove ${key}`);
+    // A screen that shows nothing is never recorded as evidence.
+    const opened = [...prove.run('hdState.prove.opened')];
+    for (const route of Object.keys(NOT_THERE)) assert.equal(opened.includes(`screen:${route}`), false, `prove ${key} ${route}`);
   }
   // A Service Start control never exists, and no Stop or Restart anywhere.
   assert.doesNotMatch(read('helpdesk.js'), /data-hd-service-(stop|restart)|hdServer(Stop|Restart)\b/);
@@ -303,6 +306,11 @@ function testServerEventLogs() {
   assert.ok(tab.seen().includes('server-log:NS-PRINT01:system'));
   assert.ok(tab.seen().includes('server-event:NS-PRINT01:system:7038'));
   assert.ok(tab.seen().includes('server-log:NS-DC01:directory-service'));
+  assert.ok(tab.run("hdTicketById('HD-9701').consoleState.serverSeen").includes('server-event:NS-PRINT01:system:7038'));
+  // Another ticket gives NS-PRINT01 no logs: the open event does not carry over.
+  tab.open('HD-9702');
+  assert.match(tab.view('helpdesk/server-events'), /Not available on this server/);
+  assert.equal(tab.run("(hdTicketById('HD-9702').consoleState.serverSeen || []).some((k) => k.startsWith('server-event:'))"), false);
   // The shared Event Viewer lists the servers with logs; a PC's logs keep
   // their three tabs (no Directory Service).
   assert.match(tab.view('helpdesk/event-viewer'), /data-hd-server-log-picker[\s\S]*NS-DC01[\s\S]*NS-PRINT01/);
@@ -330,6 +338,10 @@ function testFileServer() {
     return tab.view('helpdesk/file-server').match(/data-hd-effective-access="([^"]+)"/)[1];
   };
   assert.equal(access('u-1004'), 'Read', 'share Change, NTFS Read: the more restrictive');
+  // Each layer keeps its own words: Change on the share, Read on NTFS.
+  assert.match(tab.view('helpdesk/file-server'), /Share permissions<\/dt><dd>Change<small>GG-HR-Users · Change<br>Everyone · Read<\/small>[\s\S]*NTFS permissions<\/dt><dd>Read<small>GG-HR-Readers · Read/);
+  assert.match(tab.view('helpdesk/file-server'), /more restrictive of the two layers/, 'Practice teaches the rule');
+  assert.match(tab.view('helpdesk/file-server'), /data-hd-share="TESTShare"[\s\S]*?hd-badge ok">Healthy</, 'a share shows its own status');
   assert.equal(access('u-1001'), 'Read', 'Everyone Read on the share, Full Control by username on NTFS');
   assert.equal(access('u-1011'), 'No access', 'Everyone Read on the share, nothing on NTFS');
   assert.equal(access('u-1004', 'TESTLocked'), 'No access', 'NTFS Modify, no share entry');
@@ -383,6 +395,12 @@ function testProveShift() {
   prove.run("hdFileSet({ tab:'effective' }); hdFileSet({ user:'u-1004' })");
   prove.view('helpdesk/file-server'); prove.view('helpdesk/file-server');
   prove.view('helpdesk/change-log'); prove.run("hdChangeLogOpen('CHG-9701')");
+  // Neutral wording in a Prove It: no teaching line points at a cause.
+  const proveFile = prove.view('helpdesk/file-server');
+  assert.doesNotMatch(proveFile, /more restrictive|actually do/);
+  assert.match(proveFile, /Shares, permissions and folder sizes\./);
+  assert.doesNotMatch(prove.view('helpdesk/change-log'), /lines up with a symptom/);
+  assert.doesNotMatch(prove.view('helpdesk/server-services'), /change log before you act/);
   const opened = [...prove.run('hdState.prove.opened')].filter((s) => !s.startsWith('screen:'));
   // No server: source from the first Server Manager visit: a fresh shift's
   // default server is not shown as opened.
@@ -398,6 +416,7 @@ function testReloadKeepsState() {
   const tab = servers(local);
   tab.open('HD-9701');
   tab.run("hdServerStart('NS-PRINT01','TESTSpool'); hdChangeLogOpen('CHG-9702')");
+  tab.view('helpdesk/change-log');
   const again = servers(local);
   again.open('HD-9701');
   assert.match(again.server('NS-PRINT01', '#/helpdesk/server-services'), /data-hd-service="TESTSpool" data-hd-service-status="Running"/);

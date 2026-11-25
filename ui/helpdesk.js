@@ -6917,8 +6917,8 @@ const hdFileServerFixed = () => `${hdPageHeader('File Server', 'Calculate effect
  *   shares?: [{ name, path, status?, share:[{ who, access }],
  *       ntfs:[{ who, access }] }]   who: a group, a username or Everyone,
  *       Authenticated Users or Domain Users; share access Read | Change |
- *       Full Control, NTFS Read | Read & Execute | List folder contents |
- *       Write | Modify | Full Control
+ *       Full Control, NTFS Read | Read & Execute | Modify | Full Control
+ *       (any other word counts as no access)
  *   folderSizes?: [{ path, gb, created?, modified? }]   read-only view
  * } }
  * A Practice ticket's console.serviceStart: [{ server, service, after?:{
@@ -7051,7 +7051,8 @@ function hdServerDetail(name) {
   const roles = hdServerList(state, 'roles').map(role => {
     const own = (Array.isArray(role.services) ? role.services : []).map(id => services.find(service => service.name === id)).filter(Boolean);
     const down = own.find(service => service.status !== 'Running');
-    return `<tr data-hd-role="${hdEsc(role.name)}"><td><strong>${hdEsc(role.name)}</strong></td><td>${own.map(service => hdEsc(service.displayName || service.name)).join(', ') || '<span class="muted">None listed</span>'}</td><td>${hdServerBadge(down ? down.status || 'Stopped' : 'Running')}</td></tr>`;
+    const badge = !own.length ? '<span class="muted">—</span>' : hdServerBadge(down ? down.status || 'Stopped' : 'Running');
+    return `<tr data-hd-role="${hdEsc(role.name)}"><td><strong>${hdEsc(role.name)}</strong></td><td>${own.map(service => hdEsc(service.displayName || service.name)).join(', ') || '<span class="muted">None listed</span>'}</td><td>${badge}</td></tr>`;
   }).join('');
   const volumes = hdServerList(state, 'volumes').map(volume => `<tr data-hd-volume="${hdEsc(volume.drive)}"><td><strong>${hdEsc(volume.drive)}</strong>${volume.label ? `<small>${hdEsc(volume.label)}</small>` : ''}</td><td>${hdEsc(volume.sizeGb)} GB</td><td>${hdEsc(volume.freeGb)} GB</td><td><div class="hd-progress"><i style="width:${hdServerPercentUsed(volume)}%"></i></div>${hdServerPercentUsed(volume)}% used</td><td>${volume.growth ? hdEsc(volume.growth) : '<span class="muted">—</span>'}</td></tr>`).join('');
   return `<div class="card" data-hd-server-detail="${hdEsc(name)}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(name)} · Roles and services</strong><div style="display:flex;flex-wrap:wrap;gap:6px">${hdServerTools(name, state)}</div></div>${roles ? `<div class="table-wrap"><table><thead><tr><th>Role</th><th>Services</th><th>State</th></tr></thead><tbody>${roles}</tbody></table></div>` : ''}${volumes ? `<div class="card-body"><strong>Volumes</strong></div><div class="table-wrap"><table><thead><tr><th>Volume</th><th>Size</th><th>Free</th><th>Used</th><th>Growth</th></tr></thead><tbody>${volumes}</tbody></table></div>` : ''}${!roles && !volumes ? '<div class="card-body"><p class="muted">No roles or volumes listed for this server.</p></div>' : ''}</div>`;
@@ -7113,19 +7114,20 @@ function hdServerServicesView() {
     const control = start ? `<button type="button" class="btn btn-primary btn-sm" data-hd-service-start="${hdEsc(service.name)}" onclick="hdServerStart('${hdJsArg(name)}','${hdJsArg(service.name)}')">Start</button>` : '';
     return `<tr data-hd-service="${hdEsc(service.name)}" data-hd-service-status="${hdEsc(service.status || '')}"><td><strong>${hdEsc(service.displayName || service.name)}</strong><small>${hdEsc(service.name)}</small></td><td>${hdServerBadge(service.status)}</td><td>${hdEsc(service.startup || '')}</td><td><code>${hdEsc(service.logOnAs || '')}</code></td><td>${control}</td></tr>`;
   }).join('');
-  return `${hdPageHeader('Services', `${name} · read a service's state and the account it runs as`, hdServerBack())}<div class="card" data-hd-services="${hdEsc(name)}"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Status</th><th>Startup type</th><th>Log On As</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div><div class="callout info">A service on a server runs for everyone who uses that server. Read the server's System log and the change log before you act, and act only as the ticket's runbook allows.</div>`;
+  return `${hdPageHeader('Services', `${name} · read a service's state and the account it runs as`, hdServerBack())}<div class="card" data-hd-services="${hdEsc(name)}"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Status</th><th>Startup type</th><th>Log On As</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>${HD_PROVE ? '' : '<div class="callout info">A service on a server runs for everyone who uses that server. Read the server\'s System log and the change log before you act, and act only as the ticket\'s runbook allows.</div>'}`;
 }
 VIEWS['helpdesk/server-services'] = () => hdServerServicesView();
 
 // A server's event logs (System, Directory Service).
 function hdServerLogState() { return hdServerObject(hdState.serverLog) || {}; }
 function hdServerLogsOf(state) { const events = hdServerEvents(state) || {}; return HD_SERVER_LOGS.filter(([id]) => Array.isArray(events[id])); }
+function hdServerLogRows(state, log) { const events = hdServerEvents(state) || {}; return (Array.isArray(events[log]) ? events[log] : []).filter(event => event && typeof event === 'object'); }
 function hdServerLogSet(patch) {
   const current = hdServerLogState(); const clean = {};
   if (patch && HD_SERVER_LOGS.some(([id]) => id === patch.log)) clean.log = patch.log;
   if (patch && hdOwn(patch, 'level') && (patch.level === '' || HD_WIN_LEVELS.includes(patch.level))) clean.level = patch.level;
   if (!Object.keys(clean).length) return;
-  hdState.serverLog = { ...current, ...clean, open:null };
+  hdState.serverLog = { ...current, ...clean, server:hdState.selectedServer, open:null };
   hdSave(); render();
 }
 window.hdServerLogSet = hdServerLogSet;
@@ -7134,9 +7136,10 @@ function hdServerLogOpen(index) {
   const state = hdServerState(name); if (!state) return;
   const logs = hdServerLogsOf(state);
   const log = logs.some(([id]) => id === current.log) ? current.log : (logs[0] || [])[0];
-  const event = log ? hdServerEvents(state)[log][Number(index)] : null; if (!event) return;
-  hdState.serverLog = { ...current, log, open:Number(index) };
-  hdServerSeen(`server-event:${name}:${log}:${event.id}`, `Event ${event.id} · ${name}`);
+  const event = log ? hdServerLogRows(state, log)[Number(index)] : null; if (!event) return;
+  // The view records the event it shows (hdServerEventsView), so what is
+  // recorded always matches the screen, whichever ticket is open.
+  hdState.serverLog = { ...current, server:name, log, open:Number(index) };
   hdSave(); render();
 }
 window.hdServerLogOpen = hdServerLogOpen;
@@ -7150,9 +7153,10 @@ function hdServerEventsView() {
   const meta = logs.find(([id]) => id === log);
   const level = HD_WIN_LEVELS.includes(current.level) ? current.level : '';
   hdServerSeen(`server-log:${name}:${log}`, `Event Viewer › ${meta[1]} · ${name}`);
-  const all = hdServerEvents(state)[log].filter(event => event && typeof event === 'object');
+  const all = hdServerLogRows(state, log);
   const rows = all.map((event, index) => ({ event, index })).filter(({ event }) => !level || event.level === level);
-  const open = Number.isInteger(current.open) && current.log === log ? all[current.open] : null;
+  const open = Number.isInteger(current.open) && current.log === log && current.server === name ? all[current.open] || null : null;
+  if (open) hdServerSeen(`server-event:${name}:${log}:${open.id}`, `Event ${open.id} · ${name}`);
   const tabs = logs.map(([id, , path]) => `<button type="button" class="btn ${id === log ? 'btn-primary' : 'btn-secondary'} btn-sm" role="tab" aria-selected="${id === log}" data-hd-server-log="${id}" onclick="hdServerLogSet({log:'${id}'})">${hdEsc(path)}</button>`).join('');
   const levels = [['', 'All levels'], ...HD_WIN_LEVELS.map(item => [item, item])].map(([id, label]) => `<button type="button" class="btn ${id === level ? 'btn-primary' : 'btn-secondary'} btn-sm" aria-pressed="${id === level}" onclick="hdServerLogSet({level:'${id}'})">${label}</button>`).join('');
   const table = rows.map(({ event, index }) => `<tr data-hd-server-event="${hdEsc(event.id)}"><td>${hdWinLevelBadge(event.level)}</td><td>${hdEsc(event.time || '')}</td><td>${hdEsc(event.source || '')}</td><td>${hdEsc(event.id || '')}</td><td>${hdEsc(event.message || '')}</td><td><button type="button" class="btn btn-ghost btn-sm" onclick="hdServerLogOpen(${index})">Open</button></td></tr>`).join('') || '<tr><td colspan="6" class="muted">No events match this filter.</td></tr>';
@@ -7169,8 +7173,11 @@ function hdServerLogPicker() {
 
 // File server: share and NTFS permissions, effective access for a named
 // user (worked out from the user's groups, never stored), and folder sizes.
-const HD_ACCESS_RANK = { 'read':1, 'read & execute':1, 'list folder contents':1, 'write':2, 'change':2, 'modify':2, 'full control':3 };
+// Each layer keeps its own words (share: Read, Change, Full Control; NTFS:
+// Read, Read & Execute, Modify, Full Control); the effective line uses NTFS's.
+const HD_ACCESS_RANK = { 'read':1, 'read & execute':1, 'change':2, 'modify':2, 'full control':3 };
 const HD_ACCESS_NAME = ['No access', 'Read', 'Modify', 'Full Control'];
+const HD_SHARE_ACCESS_NAME = ['No access', 'Read', 'Change', 'Full Control'];
 const HD_EVERYONE = ['everyone', 'authenticated users', 'domain users'];
 function hdFileView() { return hdServerObject(hdState.fileView) || {}; }
 function hdFileServersWithShares() { return hdServerNames().filter(name => { const state = hdServerState(name); return hdServerList(state, 'shares').length || hdServerList(state, 'folderSizes').length; }); }
@@ -7216,7 +7223,7 @@ function hdEffectiveAccessCard(server, share, userId) {
   hdServerSeen(`effective-access:${server}:${share.name}:${user.id}`, `Effective access · ${share.path || share.name} · ${user.name}`);
   const result = hdEffectiveAccess(share, user);
   const from = (layer) => layer.entries.length ? layer.entries.map(entry => `${hdEsc(entry.who)} · ${hdEsc(entry.access || '')}`).join('<br>') : 'No entry covers this user';
-  return `<div class="card-body">${picker}<dl class="hd-dl" data-hd-effective-access="${hdEsc(HD_ACCESS_NAME[result.rank])}"><dt>Share permissions</dt><dd>${HD_ACCESS_NAME[result.share.rank]}<small>${from(result.share)}</small></dd><dt>NTFS permissions</dt><dd>${HD_ACCESS_NAME[result.ntfs.rank]}<small>${from(result.ntfs)}</small></dd><dt>Effective access</dt><dd>${hdBadge(HD_ACCESS_NAME[result.rank], result.rank ? 'ok' : 'bad')}</dd></dl><div class="callout info">Over the network a user gets the more restrictive of the two layers. Read-only: nothing here changes a permission.</div></div>`;
+  return `<div class="card-body">${picker}<dl class="hd-dl" data-hd-effective-access="${hdEsc(HD_ACCESS_NAME[result.rank])}"><dt>Share permissions</dt><dd>${HD_SHARE_ACCESS_NAME[result.share.rank]}<small>${from(result.share)}</small></dd><dt>NTFS permissions</dt><dd>${HD_ACCESS_NAME[result.ntfs.rank]}<small>${from(result.ntfs)}</small></dd><dt>Effective access</dt><dd>${hdBadge(HD_ACCESS_NAME[result.rank], result.rank ? 'ok' : 'bad')}</dd></dl>${HD_PROVE ? '' : '<div class="callout info">Over the network a user gets the more restrictive of the two layers. Read-only: nothing here changes a permission.</div>'}</div>`;
 }
 function hdFolderSizesCard(server, state) {
   const folders = hdServerList(state, 'folderSizes').slice().sort((a, b) => Number(b.gb) - Number(a.gb));
@@ -7235,7 +7242,7 @@ function hdFileServerView() {
   const tab = view.tab === 'sizes' && hasSizes ? 'sizes' : ['share', 'ntfs', 'effective'].includes(view.tab) ? view.tab : 'share';
   const picker = servers.length > 1 ? `<div class="filterbar">${servers.map(name => `<button type="button" class="btn ${name === server ? 'btn-primary' : 'btn-secondary'} btn-sm" aria-pressed="${name === server}" onclick="hdFileSet({server:'${hdJsArg(name)}'})">${hdEsc(name)}</button>`).join('')}</div>` : '';
   const sizesButton = hasSizes ? `<button type="button" class="btn ${tab === 'sizes' ? 'btn-primary' : 'btn-secondary'} btn-sm" data-hd-file-tab="sizes" onclick="hdFileSet({tab:'sizes'})">Folder sizes</button>` : '';
-  const list = shares.map(share => `<tr data-hd-share="${hdEsc(share.name)}"${share.name === view.share ? ' aria-current="true"' : ''}><td><strong>${hdEsc(share.name)}</strong></td><td><code>${hdEsc(share.path || '')}</code></td><td>${share.status ? hdServerBadge(share.status === 'Healthy' ? 'Online' : share.status) : ''}</td><td><button type="button" class="btn btn-ghost btn-sm" onclick="hdFileSet({share:'${hdJsArg(share.name)}',tab:'share'})">Open</button></td></tr>`).join('');
+  const list = shares.map(share => `<tr data-hd-share="${hdEsc(share.name)}"${share.name === view.share ? ' aria-current="true"' : ''}><td><strong>${hdEsc(share.name)}</strong></td><td><code>${hdEsc(share.path || '')}</code></td><td>${share.status ? hdBadge(share.status, share.status === 'Healthy' ? 'ok' : 'warn') : ''}</td><td><button type="button" class="btn btn-ghost btn-sm" onclick="hdFileSet({share:'${hdJsArg(share.name)}',tab:'share'})">Open</button></td></tr>`).join('');
   const shareCard = shares.length ? `<div class="card" data-hd-shares="${hdEsc(server)}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Shares · ${hdEsc(server)}</strong>${sizesButton}</div><div class="table-wrap"><table><thead><tr><th>Share</th><th>UNC path</th><th>Status</th><th></th></tr></thead><tbody>${list}</tbody></table></div></div>` : `<div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(server)}</strong>${sizesButton}</div></div>`;
   let detail = '';
   const share = tab !== 'sizes' ? shares.find(item => item.name === view.share) : null;
@@ -7247,15 +7254,15 @@ function hdFileServerView() {
     else { hdServerSeen(`file-share:${server}:${share.name}:${tab}`, `${tab === 'ntfs' ? 'Security (NTFS)' : 'Share permissions'} · ${share.path || share.name}`); body = hdAccessList(tab === 'ntfs' ? share.ntfs : share.share); }
     detail = `<div class="card" data-hd-share-detail="${hdEsc(share.name)}" data-hd-share-tab="${tab}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(share.path || share.name)}</strong><div style="display:flex;flex-wrap:wrap;gap:6px" role="tablist">${tabs}</div></div>${body}</div>`;
   }
-  return `${hdPageHeader('File Server', 'Read a share’s two permission layers and what a named user can actually do. Reading changes nothing.', hdServerBack())}${picker}${shareCard}${detail}`;
+  return `${hdPageHeader('File Server', HD_PROVE ? 'Shares, permissions and folder sizes.' : 'Read a share’s two permission layers and what a named user can actually do. Reading changes nothing.', hdServerBack())}${picker}${shareCard}${detail}`;
 }
 VIEWS['helpdesk/file-server'] = () => hdFileServerView();
 
 // The change log: recent changes, one opens.
 function hdChangeLogOpen(number) {
   const change = hdServerChanges().find(item => String(item.number) === String(number)); if (!change) return;
+  // The view records the entry it shows (hdChangeLogView).
   hdState.changeLogOpen = String(change.number);
-  hdServerSeen(`change:${change.number}`, `Change log › ${change.number}`);
   hdSave(); render();
 }
 window.hdChangeLogOpen = hdChangeLogOpen;
@@ -7264,9 +7271,10 @@ function hdChangeLogView() {
   if (!changes.length) return `${hdPageHeader('Change log', 'Not available in this shift.', `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/server-manager')">← Server Manager</button>`)}<div class="card"><div class="card-body"><p class="muted">Open a ticket that uses the change log to read it.</p></div></div>`;
   hdServerSeen('change-log', 'Change log');
   const open = changes.find(item => String(item.number) === hdState.changeLogOpen) || null;
+  if (open) hdServerSeen(`change:${open.number}`, `Change log › ${open.number}`);
   const rows = changes.map(change => `<tr data-hd-change="${hdEsc(change.number)}"${open === change ? ' aria-current="true"' : ''}><td><strong>${hdEsc(change.number)}</strong></td><td>${hdEsc(change.when || '')}</td><td>${hdEsc(change.what || '')}</td><td>${hdEsc(change.who || '')}</td><td>${hdBadge(change.state || 'Unknown', change.state === 'Completed' ? 'ok' : 'warn')}</td><td><button type="button" class="btn btn-ghost btn-sm" onclick="hdChangeLogOpen('${hdJsArg(change.number)}')">Open</button></td></tr>`).join('');
   const detail = open ? `<div class="card" data-hd-change-detail="${hdEsc(open.number)}"><div class="card-header"><strong>${hdEsc(open.number)} · ${hdEsc(open.what || '')}</strong></div><div class="card-body"><dl class="hd-dl"><dt>When</dt><dd>${hdEsc(open.when || '')}</dd><dt>Raised by</dt><dd>${hdEsc(open.who || '')}</dd><dt>State</dt><dd>${hdEsc(open.state || '')}</dd>${open.ci ? `<dt>Configuration item</dt><dd>${hdEsc(open.ci)}</dd>` : ''}</dl>${open.details ? `<p>${hdEsc(open.details)}</p>` : ''}</div></div>` : '';
-  return `${hdPageHeader('Change log', 'Recent changes to servers and services. A change that lines up with a symptom is evidence.', hdServerBack())}<div class="card" data-hd-change-log><div class="table-wrap"><table><thead><tr><th>Number</th><th>When</th><th>What</th><th>Who</th><th>State</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>${detail}`;
+  return `${hdPageHeader('Change log', HD_PROVE ? 'Recent changes to servers and services.' : 'Recent changes to servers and services. A change that lines up with a symptom is evidence.', hdServerBack())}<div class="card" data-hd-change-log><div class="table-wrap"><table><thead><tr><th>Number</th><th>When</th><th>What</th><th>Who</th><th>State</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>${detail}`;
 }
 VIEWS['helpdesk/change-log'] = () => hdChangeLogView();
 // The ticket's servers and change log (console.servers, console.changes).
@@ -8278,9 +8286,11 @@ if (HD_PROVE) {
     'helpdesk/event-viewer':'Event Viewer', 'helpdesk/remote-support':'Remote Support', 'helpdesk/server-manager':'Server Manager',
     'helpdesk/group-policy':'Group Policy', 'helpdesk/file-server':'File Server', 'helpdesk/printers':'Printer Management',
     'helpdesk/knowledge-base':'Knowledge Base', 'helpdesk/settings-printers':'Settings · Printers & scanners',
-    // Module 7 (key its-05), console A.
-    'helpdesk/server-services':'Services', 'helpdesk/server-events':'Server event logs', 'helpdesk/change-log':'Change log',
   };
+  // Module 7 (key its-05), console A: only a shift that has server state or
+  // a change log records these screens (elsewhere they show nothing).
+  if (HD_PROVE.shift.servers) Object.assign(HD_PROVE_EVIDENCE_ROUTES, { 'helpdesk/server-services':'Services', 'helpdesk/server-events':'Server event logs' });
+  if (Array.isArray(HD_PROVE.shift.changes) && HD_PROVE.shift.changes.length) HD_PROVE_EVIDENCE_ROUTES['helpdesk/change-log'] = 'Change log';
   Object.entries(HD_PROVE_EVIDENCE_ROUTES).forEach(([route, label]) => {
     const view = VIEWS[route];
     if (typeof view === 'function') VIEWS[route] = (...args) => { hdProveOpened(`screen:${route}`, label); return view(...args); };
