@@ -1,0 +1,33 @@
+/* Module 6 (IT Help Desk, key its-07). The page reuses Module 1's inner
+ * classes (its01-hero, its01-section, its01-lesson, its01-check, its01-dg) and
+ * Module 2's table classes (its10-table), so it looks the same. Only its shell
+ * and what those modules have no class for live here, scoped with its07-:
+ * inline commands, the red strips in the diagrams and the small labels on the
+ * decision diagram. Loaded after it-support-module-01.css and -10.css. */
+
+.its07-shell { min-height: 100vh; color: #172033; background: rgba(248, 250, 252, .76); overflow-x: clip; }
+.its07-shell :focus-visible { outline: 3px solid var(--its-accent-border); outline-offset: 2px; }
+
+/* The shared rail as a left pane beside main, as on Module 1
+   (module-labs.css does this for .its01-shell). */
+@media (min-width: 961px) {
+  .its07-shell > .munified-nav {
+    float: left;
+    margin: 12px 24px 24px max(20px, calc((100vw - 1180px) / 2));
+  }
+  .its07-shell > .munified-nav ~ main {
+    display: flow-root;
+    width: auto;
+    margin-left: 0;
+    margin-right: max(20px, calc((100vw - 1180px) / 2));
+  }
+}
+
+/* A command or path inside reading text and tables. It may wrap anywhere,
+   so a long command never makes the page scroll sideways. */
+.its07-code { padding: 1px 5px; color: var(--mn-theme-text, #172d42); background: var(--mn-theme-surface-raised, #edf3f8); border: 1px solid var(--mn-theme-border, #cfdae5); border-radius: 5px; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+
+/* Diagrams: the "never" strips and the malware box, outlined in red. */
+.its01-dg-box.its07-dg-warn { fill: #fef2f2; stroke: #dc2626; stroke-width: 2.5; }
+/* The small Yes and No labels on the decision diagram. */
+.its07-dg-label { fill: var(--its-navy); font: 700 13px Inter, sans-serif; }

@@ -367,16 +367,18 @@ const PROGRAMS = [
             objective: 'Describe how Entra ID relates to on-premises Active Directory and work an MFA reset or shared-mailbox access request at the L1 level.' }),
         ],
         skills: ['Identity Management', 'Account Troubleshooting', 'Group Membership', 'Entra ID'] },
-      'its-07': { number: 6, week: 3, title: 'Software, Applications & Endpoint Management', hours: '2 Hours', durationMinutes: 120, creditMinutes: 120, lessons: 2, labs: 1,
+      // Lessons 6.2 and 6.3 share its-07-lesson-02 on the page; both share
+      // that lesson's filed minutes (it-support-module-07.js).
+      'its-07': { number: 6, week: 3, title: 'Software, Applications & Endpoint Management', hours: '2 Hours', durationMinutes: 120, creditMinutes: 120, lessons: 2, labs: 3,
         status: 'authored',
-        summary: 'Round out the picture with the software layer: installing it, updating it, and diagnosing it when it misbehaves.',
+        summary: 'Install, update, repair and remove software the approved way, decline requests for admin rights, check a machine’s protection, and fix OneDrive sync problems.',
         curriculumItems: [
           itsItem({ key: 'its-07-lesson-01', title: 'Installing, Updating & Removing Software', durationMinutes: 45, parentAllocations: [allocation('ITHD-101.4', 45)],
-            objective: 'Install and uninstall applications correctly and distinguish Windows Update from application-specific update mechanisms.' }),
+            objective: 'Install, update and remove an app the approved way, and choose the lightest fix for one misbehaving app.' }),
           itsItem({ key: 'its-07-lesson-02', title: 'Diagnosing Application Problems & Endpoint Security Hygiene', durationMinutes: 45, parentAllocations: [allocation('ITHD-101.4', 45)],
-            objective: 'Work a vague "computer is slow" ticket through a systematic diagnostic sequence and describe endpoint security hygiene at the L1 level.' }),
+            objective: 'Decline an admin-rights request and route it the approved way, tell an unwanted app from malware, and fix the cause of a OneDrive sync error.' }),
         ],
-        skills: ['Software Management', 'Application Troubleshooting', 'Endpoint Hygiene'] },
+        skills: ['Software Management', 'Least Privilege', 'Endpoint Hygiene', 'OneDrive Sync'] },
       'its-08': { number: 10, week: 5, title: 'Troubleshooting Methodology & Diagnostics', hours: '2 Hours', durationMinutes: 120, creditMinutes: 120, lessons: 2, labs: 1,
         status: 'authored',
         summary: 'Connect to a user\'s machine responsibly, and apply a consistent method to any problem you haven\'t seen before.',
@@ -2338,10 +2340,28 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.6', 135)], objective: 'Verify authorization and resolve two real identity/access tickets correctly.',
     description: 'A coach-guided walkthrough of tickets SR-2107 (approved group-membership restore) and HD-2118 (missing NTFS permission) in the IT Service Desk simulator.',
     skills: ['Identity Management', 'Group Membership', 'Access Troubleshooting'], portalEntry: '#/program/it-support/module/8' }),
-  itsLab({ key: 'lab-its-07-app-cert', module: 'its-07', title: 'The Purchasing App Everyone’s Locked Out Of', difficulty: 'Foundational', minutes: 30,
-    parentAllocations: [allocation('ITHD-101.4', 30)], objective: 'Recognize a correlated incident pattern and escalate a shared application certificate expiry.',
-    description: 'A coach-guided walkthrough of ticket HD-2119 (one of five correlated tickets) in the IT Service Desk simulator.',
-    skills: ['Application Troubleshooting', 'Incident Correlation'], portalEntry: '#/program/it-support/module/6' }),
+  // Module 6's guided lab. Students see it as Lab 6.1; the key is older than
+  // that numbering. Until Module 6's Prove It gates completion it stays the
+  // gating lab (course_module_labs), so it has no `phase: 'practice'`: an
+  // instructor still reviews and approves it.
+  itsLab({ key: 'lab-its-07-app-cert', module: 'its-07', title: 'Lab 6.1 · Guided Lab: endpoint check', difficulty: 'Foundational', minutes: 12,
+    parentAllocations: [allocation('ITHD-101.4', 12)], objective: 'Install, update and remove apps with winget, repair an app, check a PC’s protection, remove an extension that isn’t approved, decline an admin password, and fix a OneDrive file that won’t sync.',
+    description: 'A coach-guided ticket in the IT Service Desk simulator, each step with a why and what success looks like. Feedback only, no score.',
+    skills: ['Software Management', 'Endpoint Hygiene', 'OneDrive Sync'], portalEntry: '#/program/it-support/module/6' }),
+  // Module 6's three unguided practice tickets: not graded, no score. The
+  // simulator reports when all three are done and the course page saves a
+  // completion record (it-support-module-07.js). No course_module_labs row:
+  // it never gates completion.
+  itsLab({ key: 'lab-its-07-practice-tickets', module: 'its-07', title: 'Lab 6.2 · Practice tickets (not graded)', difficulty: 'Foundational', minutes: 8, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.4', 8)], objective: 'Work three tickets on your own: a OneDrive file whose path is too long, an admin prompt for an app in the Software Catalog, and a failed update that broke an app and its default.',
+    description: 'Three unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all three and a completion record is saved to your account.',
+    skills: ['OneDrive Sync', 'Least Privilege', 'Application Troubleshooting'], portalEntry: '#/program/it-support/module/6' }),
+  // Module 6's Prove It. The page shows "Opens soon" and launches nothing
+  // until its simulator shift, scoring and gating row are built.
+  itsLab({ key: 'lab-its-07-prove-it', module: 'its-07', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 10,
+    parentAllocations: [allocation('ITHD-101.4', 10)], objective: 'Independently work a new software ticket: find the cause from the tool screens, fix it the approved way, verify it, and write for both the next technician and the user.',
+    description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
+    skills: ['Endpoint Hygiene', 'Evidence-Based Diagnosis', 'Documentation'], portalEntry: '#/program/it-support/module/6' }),
   itsLab({ key: 'lab-its-08-unfamiliar-problems', module: 'its-08', title: 'Two Problems You Haven’t Seen Before', difficulty: 'Foundational', minutes: 30,
     parentAllocations: [allocation('ITHD-101.8', 30)], objective: 'Apply the five-step troubleshooting method to two genuinely unfamiliar-shaped tickets.',
     description: 'A coach-guided walkthrough of tickets HD-2110 (broken domain trust) and HD-2111 (BitLocker recovery) in the IT Service Desk simulator.',
