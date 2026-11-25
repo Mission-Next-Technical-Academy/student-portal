@@ -7175,9 +7175,10 @@ function hdServerLogPicker() {
 // user (worked out from the user's groups, never stored), and folder sizes.
 // Each layer keeps its own words (share: Read, Change, Full Control; NTFS:
 // Read, Read & Execute, Modify, Full Control); the effective line uses NTFS's.
-const HD_ACCESS_RANK = { 'read':1, 'read & execute':1, 'change':2, 'modify':2, 'full control':3 };
-const HD_ACCESS_NAME = ['No access', 'Read', 'Modify', 'Full Control'];
-const HD_SHARE_ACCESS_NAME = ['No access', 'Read', 'Change', 'Full Control'];
+// Read & Execute sits between Read and Modify, so it keeps its own name.
+const HD_ACCESS_RANK = { 'read':1, 'read & execute':1.5, 'change':2, 'modify':2, 'full control':3 };
+const HD_ACCESS_NAME = { 0:'No access', 1:'Read', 1.5:'Read & Execute', 2:'Modify', 3:'Full Control' };
+const HD_SHARE_ACCESS_NAME = { 0:'No access', 1:'Read', 2:'Change', 3:'Full Control' };
 const HD_EVERYONE = ['everyone', 'authenticated users', 'domain users'];
 function hdFileView() { return hdServerObject(hdState.fileView) || {}; }
 function hdFileServersWithShares() { return hdServerNames().filter(name => { const state = hdServerState(name); return hdServerList(state, 'shares').length || hdServerList(state, 'folderSizes').length; }); }
@@ -7223,7 +7224,7 @@ function hdEffectiveAccessCard(server, share, userId) {
   hdServerSeen(`effective-access:${server}:${share.name}:${user.id}`, `Effective access · ${share.path || share.name} · ${user.name}`);
   const result = hdEffectiveAccess(share, user);
   const from = (layer) => layer.entries.length ? layer.entries.map(entry => `${hdEsc(entry.who)} · ${hdEsc(entry.access || '')}`).join('<br>') : 'No entry covers this user';
-  return `<div class="card-body">${picker}<dl class="hd-dl" data-hd-effective-access="${hdEsc(HD_ACCESS_NAME[result.rank])}"><dt>Share permissions</dt><dd>${HD_SHARE_ACCESS_NAME[result.share.rank]}<small>${from(result.share)}</small></dd><dt>NTFS permissions</dt><dd>${HD_ACCESS_NAME[result.ntfs.rank]}<small>${from(result.ntfs)}</small></dd><dt>Effective access</dt><dd>${hdBadge(HD_ACCESS_NAME[result.rank], result.rank ? 'ok' : 'bad')}</dd></dl>${HD_PROVE ? '' : '<div class="callout info">Over the network a user gets the more restrictive of the two layers. Read-only: nothing here changes a permission.</div>'}</div>`;
+  return `<div class="card-body">${picker}<dl class="hd-dl" data-hd-effective-access="${hdEsc(HD_ACCESS_NAME[result.rank])}"><dt>Share permissions</dt><dd>${hdEsc(HD_SHARE_ACCESS_NAME[result.share.rank] || HD_ACCESS_NAME[result.share.rank])}<small>${from(result.share)}</small></dd><dt>NTFS permissions</dt><dd>${hdEsc(HD_ACCESS_NAME[result.ntfs.rank])}<small>${from(result.ntfs)}</small></dd><dt>Effective access</dt><dd>${hdBadge(HD_ACCESS_NAME[result.rank], result.rank ? 'ok' : 'bad')}</dd></dl>${HD_PROVE ? '' : '<div class="callout info">Over the network a user gets the more restrictive of the two layers. Read-only: nothing here changes a permission.</div>'}</div>`;
 }
 function hdFolderSizesCard(server, state) {
   const folders = hdServerList(state, 'folderSizes').slice().sort((a, b) => Number(b.gb) - Number(a.gb));

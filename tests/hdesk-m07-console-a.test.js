@@ -346,6 +346,10 @@ function testFileServer() {
   assert.equal(access('u-1011'), 'No access', 'Everyone Read on the share, nothing on NTFS');
   assert.equal(access('u-1004', 'TESTLocked'), 'No access', 'NTFS Modify, no share entry');
   assert.match(tab.view('helpdesk/file-server'), /Share permissions<\/dt><dd>No access<small>No entry covers this user/);
+  // Read & Execute keeps its own name when it is the more restrictive layer.
+  tab.run("HD_PRACTICE_SETS['test-servers'].servers['NS-FILE01'].shares.push({ name:'TESTExec', path:'\\\\\\\\NS-FILE01\\\\TESTExec', share:[{ who:'Everyone', access:'Full Control' }], ntfs:[{ who:'GG-HR-Readers', access:'Read & Execute' }] })");
+  assert.equal(access('u-1004', 'TESTExec'), 'Read &amp; Execute');
+  assert.match(tab.view('helpdesk/file-server'), /Share permissions<\/dt><dd>Full Control<small>[\s\S]*NTFS permissions<\/dt><dd>Read &amp; Execute<small>/);
   // A group change on the account is read live (userOverrides).
   tab.run("hdState.userOverrides['u-1004'] = { groups:['GG-HR-Users','TEST-Managers'] }");
   assert.equal(access('u-1004', 'TESTLocked'), 'Modify');
