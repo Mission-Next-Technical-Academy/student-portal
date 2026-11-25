@@ -942,7 +942,7 @@ VIEWS['helpdesk/ticket'] = () => {
     ${related.length > 1 ? `<div class="callout warning hd-related"><strong>${related.length} related reports detected.</strong> Same application, symptom, and time window. ${ticket.linkedProblem ? `Linked to ${hdEsc(ticket.linkedProblem)}.` : `<button class="btn btn-sm btn-secondary" onclick="hdLinkProblem('${ticket.id}')">Link to problem record</button>`}</div>` : ''}
     <div class="hd-ticket-layout">
       <div class="hd-ticket-main">
-        <div class="card"><div class="card-header"><strong>Requester statement</strong>${hdVipBadge(ticket)}${matrix ? `${ticket.priority ? hdBadge(ticket.priority, ticket.priority.toLowerCase()) : '<span class="muted">Priority not set</span>'}${hdStatusBadge(ticket)}${hdSlaBadge(ticket)}` : `${hdBadge(ticket.priority,ticket.priority.toLowerCase())}${hdBadge(ticket.status)}${hdBadge(sla.label,sla.cls)}`}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid">${matrix ? fieldGrid : `<div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Business impact</span><strong>${hdEsc(ticket.businessImpact)}</strong></div><div><span>SLA target</span><strong>${hdEsc(ticket.sla)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}${ticket.callerStatus ? `<div><span>Caller</span><strong>${hdEsc(ticket.callerStatus)}</strong></div>` : ''}`}</div></div></div>${hdConsoleVerifyCard(ticket)}${hdConsoleChatCard(ticket)}${hdConsoleKbCard(ticket)}${hdConsoleAccountCard(ticket)}${hdConsoleActionsCard(ticket)}${hdConsoleComputerCard(ticket)}${hdConsoleMachinesCard(ticket)}${hdConsoleOwnerCard(ticket)}${hdMatrixCards(ticket)}${hdCommsCards(ticket)}
+        <div class="card"><div class="card-header"><strong>Requester statement</strong>${hdVipBadge(ticket)}${matrix ? `${ticket.priority ? hdBadge(ticket.priority, ticket.priority.toLowerCase()) : '<span class="muted">Priority not set</span>'}${hdStatusBadge(ticket)}${hdSlaBadge(ticket)}` : `${hdBadge(ticket.priority,ticket.priority.toLowerCase())}${hdBadge(ticket.status)}${hdBadge(sla.label,sla.cls)}`}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid">${matrix ? fieldGrid : `<div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Business impact</span><strong>${hdEsc(ticket.businessImpact)}</strong></div><div><span>SLA target</span><strong>${hdEsc(ticket.sla)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}${ticket.callerStatus ? `<div><span>Caller</span><strong>${hdEsc(ticket.callerStatus)}</strong></div>` : ''}`}</div></div></div>${hdConsoleVerifyCard(ticket)}${hdConsoleChoiceCard(ticket)}${hdConsoleChatCard(ticket)}${hdConsoleKbCard(ticket)}${hdConsoleAccountCard(ticket)}${hdConsoleActionsCard(ticket)}${hdConsoleComputerCard(ticket)}${hdConsoleMachinesCard(ticket)}${hdConsoleOwnerCard(ticket)}${hdMatrixCards(ticket)}${hdCommsCards(ticket)}
         ${factCards}
         ${evidenceCard}
         ${pathAndDiagnosis}
@@ -1037,6 +1037,17 @@ function hdM01InvestigationCard(scenario) {
  *                                  area, never points (hdConsoleFeedback);
  *                                  rule printerInstalled:{ computer, printer }
  *                                  reads the laptop's installed printers
+ *   criticalActions: [{ action, text }]   (Module 6) a machine action id
+ *                                  (hdMachineAction) that is a critical
+ *                                  error on this ticket, by any route
+ *   undoUnsafe: true | '<line>'    (Module 6) turning off real-time
+ *                                  protection or adding an exclusion is
+ *                                  undone at once, with that line
+ *   choice: { prompt, heading?, after?, options:[{ id, text, right?,
+ *              critical?, feedback, action?:{ id, label } }] }
+ *                                  (Module 6) a choice a user's request asks
+ *                                  for (hdChoose); after: shown only once
+ *                                  that action was taken
  *   resolveByOutcomes: true        worked through these features alone: no
  *                                  diagnosis or path checklist; Resolved needs
  *                                  every outcome (HD_CONSOLE_OUTCOMES)
@@ -1359,6 +1370,46 @@ function hdVerify(id, optionId) {
   hdPracticeEvent('identity_checked', { ticket:ticket.id, choice:option.id, pass:option.pass === true, critical:option.critical === true });
   hdRerender();
 }
+// Module 6 (console B): a choice a user's request asks for (console.choice).
+// Its own card and state, apart from caller verification: no "Caller
+// verified" history, no identity_checked event, nothing about Unlock. Every
+// try is kept; a critical option is recorded as a critical error; the right
+// option records its action and closes the card. Practice only: a Prove
+// ticket's console never carries it (hdConsole).
+function hdChoiceState(ticket) {
+  const state = hdConsoleState(ticket);
+  const choice = state.choice = state.choice && typeof state.choice === 'object' ? state.choice : {};
+  choice.tries = Array.isArray(choice.tries) ? choice.tries : [];
+  choice.last = typeof choice.last === 'string' ? choice.last : '';
+  choice.done = choice.done === true;
+  return choice;
+}
+function hdChoiceOpen(ticket) {
+  const config = hdConsole(ticket).choice;
+  if (!config || !Array.isArray(config.options) || !config.options.length) return false;
+  return !config.after || hdConsoleState(ticket).actions.some(entry => entry.id === config.after);
+}
+function hdChoose(id, optionId) {
+  const ticket = hdTicketById(id); if (!ticket || !hdChoiceOpen(ticket)) return;
+  const option = hdConsole(ticket).choice.options.find(item => item && item.id === optionId);
+  const choice = hdChoiceState(ticket);
+  if (!option || choice.done) return;
+  choice.tries.push(option.id);
+  choice.last = option.id;
+  if (option.critical) hdConsoleCritical(ticket, `choice:${option.id}`, `Chose: ${option.text}`);
+  if (option.right) {
+    choice.done = true;
+    const action = option.action && option.action.id ? option.action : null;
+    if (action) {
+      const state = hdConsoleState(ticket);
+      state.actions.push({ id:action.id, time:hdConsoleTime(ticket), choice:option.id });
+      hdHistory(ticket, `${action.label || option.text}.`);
+    }
+  }
+  hdPracticeEvent('choice_made', { ticket:ticket.id, choice:option.id, right:option.right === true, critical:option.critical === true, ...(option.right && option.action && option.action.id ? { action:option.action.id } : {}) });
+  hdRerender();
+}
+window.hdChoose = hdChoose;
 // Why an unlock of this user must wait, or '' when it can go ahead. Whatever
 // state the ticket is in: resolving it first doesn't skip the caller check.
 function hdConsoleUnlockBlock(userId) {
@@ -1729,6 +1780,7 @@ function hdConsoleProgress(id) {
     outcomes:hdConsoleOutcomes(ticket),
     unverified:state.verification.unverified, actions:state.actions.map(entry => entry.id),
     critical:state.critical.map(entry => entry.id), owner:state.owner.choice, ownerTries:state.owner.tries.slice(),
+    ...(config.choice ? { choiceTries:hdChoiceState(ticket).tries.slice(), choiceDone:hdChoiceState(ticket).done } : {}),
     ...hdMatrixProgress(ticket),
     ...hdCommsProgress(ticket),
   };
@@ -1779,6 +1831,18 @@ function hdConsoleVerifyCard(ticket) {
   const choices = done ? '' : `<div class="hd-identity-options" style="display:grid;gap:8px">${options.map(option => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} onclick="hdVerify('${ticket.id}','${hdEsc(option.id)}')">${hdEsc(option.text)}</button>`).join('')}</div>`;
   const badge = verification.passed ? hdBadge('Verified', 'ok') : verification.unverified ? hdBadge('Caller unverified', 'bad') : hdBadge('Not verified', 'warn');
   return `<div class="card hd-verify"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Verify caller</strong>${badge}</div><div class="card-body">${config.prompt ? `<p>${hdEsc(config.prompt)}</p>` : ''}${choices}${feedback}</div></div>`;
+}
+// Module 6: the choice card (hdChoose). The verification card's look, with
+// its own heading; hidden until its after action.
+function hdConsoleChoiceCard(ticket) {
+  if (!hdChoiceOpen(ticket)) return '';
+  const config = hdConsole(ticket).choice; const choice = hdChoiceState(ticket);
+  const shown = config.options.find(option => option && option.id === choice.last);
+  const tone = shown ? (shown.right ? 'success' : shown.critical ? 'bad' : 'warn') : '';
+  const feedback = shown ? `<div class="callout ${tone}" role="${shown.critical ? 'alert' : 'status'}" data-hd-choice-feedback="${hdEsc(shown.id)}">${hdEsc(shown.feedback || '')}</div>` : '';
+  const choices = choice.done ? '' : `<div class="hd-choice-options" style="display:grid;gap:8px">${config.options.filter(option => option && option.id).map(option => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} data-hd-choice="${hdEsc(option.id)}" onclick="hdChoose('${ticket.id}','${hdJsArg(option.id)}')">${hdEsc(option.text)}</button>`).join('')}</div>`;
+  const badge = choice.done ? hdBadge('Done', 'ok') : hdBadge('Your call', 'warn');
+  return `<div class="card hd-choice" data-hd-choice-card><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(config.heading || 'Choose your response')}</strong>${badge}</div><div class="card-body">${config.prompt ? `<p>${hdEsc(config.prompt)}</p>` : ''}${choices}${feedback}</div></div>`;
 }
 function hdConsoleActionsCard(ticket) {
   const actions = hdConsole(ticket).actions; if (!Array.isArray(actions) || !actions.length) return '';
@@ -3575,7 +3639,9 @@ const HD_MACHINE_SCREENS = ['print-queue', 'printer-properties', 'device-manager
   // Windows client screens (Module 5, key its-03; see "Windows client tools" below).
   'pc-task-manager', 'settings-storage', 'settings-update', 'settings-apps', 'software-catalog', 'reliability', 'settings-recovery',
   // Software install screens (Module 6, key its-07).
-  'default-apps', 'company-portal'];
+  'default-apps', 'company-portal',
+  // Security, browser and OneDrive screens (Module 6, key its-07, console B).
+  'windows-security', 'browser-extensions', 'onedrive'];
 function hdOwn(object, key) { return !!object && typeof object === 'object' && Object.prototype.hasOwnProperty.call(object, key); }
 function hdTicketMachineSpecs(ticket) {
   if (HD_PROVE || !ticket) return null;
@@ -3657,6 +3723,12 @@ function hdMachineAction(computerName, id, label, extra) {
     if (state.actions.length > 200) state.actionsDropped = (Number(state.actionsDropped) || 0) + state.actions.splice(0, state.actions.length - 200).length;
     hdHistory(ticket, `On ${computerName}: ${label}.`);
   }
+  // Module 6 (console B): a Practice ticket's criticalActions:[{ action, text }]
+  // records that machine action as a critical error, whichever route took it
+  // (a screen or a typed line). A Prove ticket has no console, so its key
+  // decides instead.
+  const rules = ticket ? hdConsole(ticket).criticalActions : null;
+  if (Array.isArray(rules)) rules.filter(rule => rule && rule.action === id).forEach(rule => hdConsoleCritical(ticket, `machine:${id}`, rule.text || label));
   hdPracticeEvent('action_taken', { ticket:ticket ? ticket.id : '', action:id, computer:computerName, label, ...(extra || {}) });
   hdProveEvent('action_taken', { label, computer:computerName, value:id });
 }
@@ -4284,6 +4356,11 @@ const HD_WIN_SCREENS = {
   // Module 6, console A.
   'default-apps':{ source:'default-apps', label:'Settings › Apps › Default apps', key:'defaultApps' },
   'company-portal':{ source:'company-portal', label:'Company Portal', key:'companyPortal' },
+  // Module 6, console B. tabs: each page records its own source; the first
+  // tab of a bare:true screen records the bare source (no :<tab>).
+  'windows-security':{ source:'windows-security', label:'Windows Security', key:'protection', bare:true, tabs:[['home', 'Security at a glance'], ['virus-threat', 'Virus & threat protection'], ['protection-history', 'Protection history'], ['allowed-threats', 'Allowed threats']] },
+  'browser-extensions':{ source:'browser-extensions', label:'Browser › Extensions', key:'extensions' },
+  onedrive:{ source:'onedrive', label:'OneDrive', key:'oneDrive', bare:true, tabs:[['status', 'OneDrive'], ['sync-problems', 'View sync problems'], ['web', 'OneDrive on the web']] },
 };
 const HD_WIN_TASK_TABS = [['processes', 'Processes'], ['performance', 'Performance'], ['startup', 'Startup apps']];
 function hdWinList(machine, key) { return machine && Array.isArray(machine[key]) ? machine[key].filter(item => item && typeof item === 'object') : []; }
@@ -4311,6 +4388,10 @@ function hdWinHas(machine, screen) {
     if (screen === 'default-apps') return !!hdWinDefaults(m);
     if (screen === 'company-portal') return !!m && m.companyPortal === true;
     if (screen === 'winget') return !!m && m.winget === true;
+    // Module 6, console B.
+    if (screen === 'windows-security') return !!hdWinProtection(m);
+    if (screen === 'browser-extensions') return !!m && Array.isArray(m.extensions);
+    if (screen === 'onedrive') return !!hdWinOneDrive(m);
     return false;
   };
   if (own(machine)) return true;
@@ -4337,9 +4418,13 @@ function hdWinSeen(machine, key) {
 }
 function hdWinOpened(computerName, screen, tab) {
   const meta = HD_WIN_SCREENS[screen]; const machine = hdFeatureMachine(computerName); if (!meta || !machine) return;
-  const part = screen === 'pc-task-manager' ? `:${HD_WIN_TASK_TABS.some(([id]) => id === tab) ? tab : 'processes'}` : '';
+  // Task Manager always names its tab; a screen with tabs (Module 6) names
+  // every tab but a bare screen's first.
+  const tabs = screen === 'pc-task-manager' ? HD_WIN_TASK_TABS : meta.tabs || null;
+  const picked = tabs ? (tabs.some(([id]) => id === tab) ? tab : tabs[0][0]) : '';
+  const part = tabs && !(meta.bare && picked === tabs[0][0]) ? `:${picked}` : '';
   hdWinSeen(machine, `${meta.source}${part}`);
-  const tabLabel = part ? ` › ${HD_WIN_TASK_TABS.find(([id]) => id === part.slice(1))[1]}` : '';
+  const tabLabel = part ? ` › ${tabs.find(([id]) => id === part.slice(1))[1]}` : '';
   hdProveOpened(`${meta.source}:${computerName}${part}`, `${meta.label}${tabLabel} · ${computerName}`);
 }
 function hdWinToolButtons(name) {
@@ -4353,6 +4438,9 @@ function hdWinToolButtons(name) {
     open('default-apps', '⚙ Settings › Apps › Default apps'),
     open('software-catalog', '📚 Software Catalog'),
     open('company-portal', '🏢 Company Portal'),
+    open('windows-security', '🛡 Windows Security'),
+    open('browser-extensions', '🌐 Browser › Extensions'),
+    open('onedrive', '☁ OneDrive'),
     open('reliability', '📈 Reliability Monitor'),
     open('settings-recovery', '⚙ Settings › System › Recovery'),
   ].join('');
@@ -4728,6 +4816,8 @@ function hdWinFirst(normalized, fallback) { const match = /select-object -first 
 function hdWinCommand(command, normalized, machine, computerName) {
   const winget = hdWinWinget(command, machine, computerName);
   if (winget !== null) return winget;
+  const defender = hdWinDefenderCommand(command, normalized, machine, computerName);
+  if (defender !== null) return defender;
   const typed = hdWinTypedCommand(command, normalized, machine);
   if (typed !== null) return typed;
   const processes = hdWinList(machine, 'processes');
@@ -4908,6 +4998,368 @@ function hdWinHelp(machine) {
 window.hdWinTaskTab=hdWinTaskTab; window.hdWinTaskSort=hdWinTaskSort; window.hdWinStartupSet=hdWinStartupSet; window.hdWinTempTick=hdWinTempTick; window.hdWinTempRemove=hdWinTempRemove;
 window.hdWinRestart=hdWinRestart; window.hdWinUninstall=hdWinUninstall; window.hdWinCatalogFilter=hdWinCatalogFilter;
 window.hdWinAppOptions=hdWinAppOptions; window.hdWinRepairApp=hdWinRepairApp; window.hdWinResetApp=hdWinResetApp; window.hdWinSetDefault=hdWinSetDefault; window.hdWinSetDefaultFrom=hdWinSetDefaultFrom; window.hdWinPortalInstall=hdWinPortalInstall; window.hdWinResetPc=hdWinResetPc;
+
+/* ---------- Security, browser and OneDrive tools (added for Module 6, key its-07), console B ----------
+ * Windows Security for one device, the Defender PowerShell lines, the
+ * browser's Extensions page, a process a fix removes, and OneDrive. Each is
+ * off unless the computer's machine state has the key it reads:
+ *   protection: { realtime:bool, definitions:'<when updated>', lastScan,
+ *       history:[{ id, name, date, severity, status }],
+ *       allowed:[{ id, name, severity? }], exclusions:[paths] }
+ *     Windows Security (Security at a glance, Virus & threat protection,
+ *     Protection history, Allowed threats). Don't allow on Allowed threats
+ *     (threat-unallowed) moves an item to Current threats on Virus & threat
+ *     protection, where Remove (threat-removed) acts on it; its history row
+ *     becomes Removed. Quick scan (quick-scan) finds the items no
+ *     longer allowed and not yet removed; after an extension or a threat was
+ *     removed on this computer it also records quick-scan-after-removal.
+ *     Turning off real-time protection (realtime-protection-off) and adding
+ *     an exclusion (exclusion-added) work as on Windows and are marked
+ *     unsafe in the Practice record. A Practice ticket's undoUnsafe undoes
+ *     them at once with a line; a Prove It never warns or undoes.
+ *   extensions: [{ name, added, publisher? }]; browser?: { name, homePage }
+ *     Browser › Extensions. Remove records extension-removed.
+ *   processes[].goneWhen: { extensionRemoved?:'<name>', threatRemoved?:'<id>' }
+ *     the process leaves Task Manager and Get-Process once every named
+ *     removal was made on this computer
+ *   oneDrive: { root, storageUsed (percent), linked?, files:[{ name,
+ *       folder? ('A\\B', under root) }] }
+ *     The full path is root + '\' + folder + '\' + name (no folder: root +
+ *     '\' + name), counted in characters. A file can't sync while a name in
+ *     it has any of " * : < > ? / \ | or the full path is longer than 400.
+ *     Rename (onedrive-renamed) a file or one of its folders (every file
+ *     under that folder follows); delete a file (onedrive-file-deleted),
+ *     Unlink this PC (onedrive-unlinked), Reset OneDrive (onedrive-reset).
+ * Action ids are what the Prove It key matches (action_taken value); keep
+ * them stable. Sources: windows-security:<pc> (Security at a glance) and
+ * :virus-threat, :protection-history, :allowed-threats;
+ * browser-extensions:<pc>; onedrive:<pc>, :sync-problems, :web. */
+const HD_DEFENDER_LINES = 'Get-MpComputerStatus, Start-MpScan -ScanType QuickScan, Get-MpThreatDetection';
+const HD_UNSAFE_UNDO_LINE = 'Never turn off protection or add an exclusion to make a problem go away. In a graded ticket this is a critical error.';
+const HD_ONEDRIVE_BAD = /["*:<>?/\\|]/;
+const HD_ONEDRIVE_LIMIT = 400;
+function hdWinProtection(machine) { return machine && machine.protection && typeof machine.protection === 'object' && !Array.isArray(machine.protection) ? machine.protection : null; }
+function hdWinOneDrive(machine) { return machine && machine.oneDrive && typeof machine.oneDrive === 'object' && !Array.isArray(machine.oneDrive) ? machine.oneDrive : null; }
+function hdWinScreenTab(computerName, screen, tab) {
+  const meta = HD_WIN_SCREENS[screen]; if (!meta || !meta.tabs || !meta.tabs.some(([id]) => id === tab)) return;
+  hdState.machineView = { ...hdMachineView(), computer:computerName, tab, odError:'' };
+  hdWinOpened(computerName, screen, tab);
+  hdSave(); render();
+}
+function hdWinTabOf(screen) { const tabs = HD_WIN_SCREENS[screen].tabs; const tab = hdMachineView().tab; return tabs.some(([id]) => id === tab) ? tab : tabs[0][0]; }
+// What was removed on this computer (kept on the machine, so a Prove It has it).
+function hdWinRemoved(machine) {
+  const removed = machine.removed = machine.removed && typeof machine.removed === 'object' ? machine.removed : {};
+  removed.extensions = Array.isArray(removed.extensions) ? removed.extensions : [];
+  removed.threats = Array.isArray(removed.threats) ? removed.threats : [];
+  return removed;
+}
+// A process whose goneWhen removals were all made leaves the machine.
+function hdWinSweepGone(machine) {
+  if (!Array.isArray(machine.processes)) return;
+  const removed = hdWinRemoved(machine);
+  const lower = (list) => list.map(item => String(item).toLowerCase());
+  const done = (p) => {
+    const when = p && p.goneWhen && typeof p.goneWhen === 'object' ? p.goneWhen : null; if (!when) return false;
+    const needs = [];
+    if (when.extensionRemoved) needs.push(lower(removed.extensions).includes(String(when.extensionRemoved).toLowerCase()));
+    if (when.threatRemoved) needs.push(removed.threats.includes(String(when.threatRemoved)));
+    return needs.length > 0 && needs.every(Boolean);
+  };
+  machine.processes = machine.processes.filter(p => !done(p));
+}
+// The unsafe changes. undoUnsafe (Practice ticket) puts it back at once.
+function hdWinUndoUnsafe(computerName) {
+  const ticket = !HD_PROVE && hdMachineTicket(computerName);
+  const undo = ticket && hdConsole(ticket).undoUnsafe;
+  if (!undo) return '';
+  return typeof undo === 'string' && undo.trim() ? undo.trim() : HD_UNSAFE_UNDO_LINE;
+}
+function hdWinSetRealtime(machine, computerName, on, via) {
+  const protection = hdWinProtection(machine); if (!protection || (protection.realtime !== false) === on) return false;
+  protection.realtime = on;
+  protection.undoneNote = '';
+  if (on) { hdMachineAction(computerName, 'realtime-protection-on', `turned real-time protection on (${via})`, { via }); return true; }
+  hdMachineAction(computerName, 'realtime-protection-off', `turned off real-time protection (${via})`, { via, unsafe:true });
+  const line = hdWinUndoUnsafe(computerName);
+  if (line) {
+    protection.realtime = true; protection.undoneNote = line;
+    const ticket = hdMachineTicket(computerName); if (ticket) hdHistory(ticket, `On ${computerName}: real-time protection turned back on (Practice).`);
+    if (typeof toast === 'function') toast(line);
+  }
+  return true;
+}
+function hdWinAddExclusion(machine, computerName, path, via) {
+  const protection = hdWinProtection(machine); const value = String(path || '').trim().slice(0, 200);
+  if (!protection || !value) return false;
+  if (!Array.isArray(protection.exclusions)) protection.exclusions = [];
+  protection.exclusions.push(value);
+  protection.undoneNote = '';
+  hdMachineAction(computerName, 'exclusion-added', `added the exclusion ${value} (${via})`, { path:value, via, unsafe:true });
+  const line = hdWinUndoUnsafe(computerName);
+  if (line) {
+    protection.exclusions.pop(); protection.undoneNote = line;
+    const ticket = hdMachineTicket(computerName); if (ticket) hdHistory(ticket, `On ${computerName}: the exclusion ${value} removed again (Practice).`);
+    if (typeof toast === 'function') toast(line);
+  }
+  return true;
+}
+// Items Defender finds now: no longer allowed, not yet removed.
+function hdWinThreatsFound(protection) { return hdWinList(protection, 'allowed').filter(item => item.unallowed && !item.removed); }
+function hdWinQuickScan(machine, computerName, via) {
+  const protection = hdWinProtection(machine); if (!protection) return false;
+  const found = hdWinThreatsFound(protection);
+  protection.lastScan = 'Just now';
+  protection.lastResult = found.length ? `${found.length} threat${found.length === 1 ? '' : 's'} found. Start the recommended actions.` : 'No current threats.';
+  protection.undoneNote = '';
+  hdMachineAction(computerName, 'quick-scan', `ran a quick scan (${via}): ${protection.lastResult}`, { via, threats:found.length });
+  const removed = hdWinRemoved(machine);
+  if (removed.extensions.length || removed.threats.length) hdMachineAction(computerName, 'quick-scan-after-removal', `ran a quick scan after the removal (${via})`, { via, threats:found.length });
+  return true;
+}
+function hdWinThreatSet(computerName, id, step) {
+  if (!['unallow', 'remove'].includes(step)) return;
+  hdMachineChange(computerName, machine => {
+    const protection = hdWinProtection(machine);
+    const item = hdWinList(protection, 'allowed').find(entry => String(entry.id) === String(id)); if (!item || item.removed) return false;
+    protection.undoneNote = '';
+    if (step === 'unallow') {
+      if (item.unallowed) return false;
+      item.unallowed = true;
+      hdMachineAction(computerName, 'threat-unallowed', `chose Don't allow for ${item.name} (Windows Security › Allowed threats)`, { threat:String(item.id) });
+      return true;
+    }
+    if (!item.unallowed) return false;
+    item.removed = true;
+    hdWinList(protection, 'history').filter(entry => String(entry.id) === String(item.id)).forEach(entry => { entry.status = 'Removed'; });
+    hdWinRemoved(machine).threats.push(String(item.id));
+    hdMachineAction(computerName, 'threat-removed', `removed ${item.name} (Windows Security)`, { threat:String(item.id) });
+    hdWinSweepGone(machine);
+    return true;
+  });
+}
+function hdWinRealtimeSet(computerName, on) {
+  if (hdProveLocked()) return;
+  // Practice only: a Prove It asks nothing (the typed line asks nothing either).
+  if (!on && !HD_PROVE && typeof confirm === 'function' && !confirm('Turn off real-time protection? Your device will be vulnerable.')) return;
+  hdMachineChange(computerName, machine => hdWinSetRealtime(machine, computerName, !!on, 'Windows Security'));
+}
+function hdWinExclusionFrom(computerName) {
+  const el = document.getElementById('hd-exclusion-path');
+  const value = String(el ? el.value : '').trim();
+  if (!value) { hdState.machineView = { ...hdMachineView(), computer:computerName, exclusionError:'Type the file or folder path to exclude.' }; hdSave(); render(); return; }
+  hdState.machineView = { ...hdMachineView(), computer:computerName, exclusionError:'' };
+  hdMachineChange(computerName, machine => hdWinAddExclusion(machine, computerName, value, 'Windows Security'));
+}
+function hdWinScanNow(computerName) { hdMachineChange(computerName, machine => hdWinQuickScan(machine, computerName, 'Windows Security')); }
+VIEWS['helpdesk/windows-security'] = () => {
+  const found = hdWinScreen('windows-security'); const protection = found && hdWinProtection(found.machine);
+  if (!protection) return hdMachineMissing('Windows Security');
+  const { computer } = found; const n = `'${hdJsArg(computer.name)}'`;
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const tab = hdWinTabOf('windows-security');
+  const on = protection.realtime !== false;
+  // As on Windows: Don't allow takes an item off Allowed threats; Defender
+  // then shows it under Current threats, where Remove acts on it.
+  const allowed = hdWinList(protection, 'allowed').filter(item => !item.removed && !item.unallowed);
+  const current = hdWinThreatsFound(protection);
+  const undone = !HD_PROVE && protection.undoneNote ? `<div class="callout warn" role="alert" data-hd-unsafe-undone>${hdEsc(protection.undoneNote)}</div>` : '';
+  let body;
+  if (tab === 'home') {
+    body = `<dl class="hd-dl" data-hd-security-home><dt>Virus &amp; threat protection</dt><dd>${on ? 'No action needed.' : 'Real-time protection is off, leaving your device vulnerable.'}</dd><dt>Protection updates</dt><dd>Security intelligence last updated: ${hdEsc(protection.definitions || 'Unknown')}</dd><dt>Current threats</dt><dd>${current.length ? `${current.length} threat${current.length === 1 ? '' : 's'} found` : 'No current threats.'}</dd></dl>`;
+  } else if (tab === 'virus-threat') {
+    const exclusions = Array.isArray(protection.exclusions) ? protection.exclusions : [];
+    body = `<div data-hd-virus-threat><p><strong>Current threats</strong></p>${current.length ? `<p data-hd-current-threats>Threats found.</p><ul class="hd-list">${current.map(item => `<li data-hd-current-threat="${hdEsc(item.id)}">${hdEsc(item.name || '')}${item.severity ? ` <span class="muted">${hdEsc(item.severity)}</span>` : ''} <button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-threat-remove onclick="hdWinThreatSet(${n},'${hdJsArg(item.id)}','remove')">Remove</button></li>`).join('')}</ul>` : '<p data-hd-current-threats>No current threats.</p>'}<dl class="hd-dl"><dt>Last scan</dt><dd data-hd-last-scan>${hdEsc(protection.lastScan || 'Never')}${protection.lastResult ? ` · ${hdEsc(protection.lastResult)}` : ''}</dd><dt>Security intelligence</dt><dd data-hd-definitions>Last updated: ${hdEsc(protection.definitions || 'Unknown')}</dd></dl><p><button type="button" class="btn btn-primary btn-sm" ${locked} data-hd-quick-scan onclick="hdWinScanNow(${n})">Quick scan</button></p><p><strong>Virus &amp; threat protection settings</strong></p><p>Real-time protection: <strong data-hd-realtime="${on ? 'on' : 'off'}">${on ? 'On' : 'Off'}</strong> <button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-realtime-toggle onclick="hdWinRealtimeSet(${n},${on ? 'false' : 'true'})">${on ? 'Turn off' : 'Turn on'}</button></p><p><strong>Exclusions</strong><br><span class="muted">Items you exclude won't be scanned.</span></p><ul class="hd-list" data-hd-exclusions>${exclusions.map(path => `<li><code>${hdEsc(path)}</code></li>`).join('') || '<li class="muted">No exclusions.</li>'}</ul><form class="filterbar" onsubmit="event.preventDefault();hdWinExclusionFrom(${n})"><label>Add an exclusion <input id="hd-exclusion-path" class="ipt" maxlength="200" ${locked} placeholder="File or folder path"></label><button type="submit" class="btn btn-secondary btn-sm" ${locked} data-hd-add-exclusion>Add an exclusion</button></form>${hdMachineView().exclusionError ? `<p class="muted" role="alert">${hdEsc(hdMachineView().exclusionError)}</p>` : ''}</div>`;
+  } else if (tab === 'protection-history') {
+    const rows = hdWinList(protection, 'history');
+    body = `<div class="table-wrap"><table data-hd-protection-history><thead><tr><th>Detected</th><th>Name</th><th>Severity</th><th>Status</th></tr></thead><tbody>${rows.map(item => `<tr data-hd-history-item="${hdEsc(item.id || item.name)}"><td>${hdEsc(item.date || '')}</td><td>${hdEsc(item.name || '')}</td><td>${hdEsc(item.severity || '')}</td><td>${hdEsc(item.status || '')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted" data-hd-history-empty>No recent items. Protection history is empty.</td></tr>'}</tbody></table></div>`;
+  } else {
+    body = `<p class="muted">Items you've allowed to run on your device.</p><div class="table-wrap"><table data-hd-allowed-threats><thead><tr><th>Name</th><th>Severity</th><th></th></tr></thead><tbody>${allowed.map(item => `<tr data-hd-allowed="${hdEsc(item.id)}"><td>${hdEsc(item.name || '')}</td><td>${hdEsc(item.severity || '')}</td><td><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-threat-unallow onclick="hdWinThreatSet(${n},'${hdJsArg(item.id)}','unallow')">Don't allow</button></td></tr>`).join('') || '<tr><td colspan="3" class="muted" data-hd-allowed-empty>There are no allowed threats.</td></tr>'}</tbody></table></div>`;
+  }
+  return `${hdPageHeader('Windows Security', computer.name, hdMachineBack(computer))}${undone}<div class="card" data-hd-windows-security="${tab}"><div class="card-header" ${HD_CONSOLE_HEADER}>${hdWinTabs(HD_WIN_SCREENS['windows-security'].tabs, tab, id => `hdWinScreenTab(${n},'windows-security','${id}')`)}</div><div class="card-body">${body}</div></div>`;
+};
+
+/* The Defender lines, on a computer with protection. The three optional
+ * lines show what the screen shows; Start-MpScan, Set-MpPreference and
+ * Add-MpPreference make the same change, and record the same action, as the
+ * screen's control. Any letter case. In a machineTools Prove shift, a
+ * computer without protection answers each line neutrally. */
+function hdWinDefenderCommand(command, normalized, machine, computerName) {
+  if (!/^(get-mpcomputerstatus|start-mpscan|get-mpthreatdetection|set-mppreference|add-mppreference)\b/.test(normalized)) return null;
+  if (!hdWinHas(machine, 'windows-security')) return null;
+  const protection = hdWinProtection(machine);
+  const verb = normalized.split(/[\s|]/)[0];
+  if (!protection) { hdLastCommandResult = `${verb}: nothing to show`; return 'Nothing to show on this computer.'; }
+  const changed = () => { hdProveEdited(); };
+  if (verb === 'get-mpcomputerstatus') {
+    if (!/^get-mpcomputerstatus(\s*\|\s*(select-object|select|format-list|fl)\b.*)?$/.test(normalized)) return null;
+    const all = [['AMServiceEnabled', 'True'], ['AntivirusEnabled', 'True'], ['AntivirusSignatureLastUpdated', protection.definitions || 'Unknown'], ['QuickScanEndTime', protection.lastScan || 'Never'], ['RealTimeProtectionEnabled', protection.realtime !== false ? 'True' : 'False']];
+    const select = /\|\s*(?:select-object|select)\s+(?:-property\s+)?(.+)$/.exec(normalized);
+    const wanted = select ? select[1].split(/[\s,]+/).filter(Boolean) : [];
+    const shown = wanted.length && !wanted.includes('*') ? all.filter(([key]) => wanted.includes(key.toLowerCase())) : all;
+    hdLastCommandResult = `Get-MpComputerStatus: real-time ${protection.realtime !== false ? 'on' : 'off'}`;
+    return hdFormatList(shown.length ? shown : all);
+  }
+  if (verb === 'start-mpscan') {
+    const type = /^start-mpscan(?:\s+-scantype\s+(\S+))?$/.exec(normalized);
+    if (!type) return null;
+    if (type[1] && !['quickscan', '1'].includes(type[1])) { hdLastCommandResult = 'Start-MpScan: quick scan only'; return 'Start-MpScan : This training shell runs a quick scan only.'; }
+    hdWinQuickScan(machine, computerName, 'Start-MpScan'); changed();
+    hdLastCommandResult = `Start-MpScan: ${protection.lastResult}`;
+    return '';
+  }
+  if (verb === 'get-mpthreatdetection') {
+    if (!/^get-mpthreatdetection(\s*\|.*)?$/.test(normalized)) return null;
+    const rows = hdWinList(protection, 'history');
+    hdLastCommandResult = `Get-MpThreatDetection: ${rows.length} item${rows.length === 1 ? '' : 's'}`;
+    return rows.map(item => hdFormatList([['ActionSuccess', 'True'], ['InitialDetectionTime', item.date || ''], ['ThreatID', item.id || ''], ['ThreatName', item.name || ''], ['SeverityLevel', item.severity || ''], ['ThreatStatus', item.status || '']])).join('\n\n');
+  }
+  if (verb === 'set-mppreference') {
+    const realtime = /^set-mppreference\s+-disablerealtimemonitoring(?::|\s+)\$?(true|false|1|0)$/.exec(normalized);
+    if (!realtime) { hdLastCommandResult = 'Set-MpPreference: not in this training shell'; return "Set-MpPreference : That setting isn't part of this training shell."; }
+    const off = ['true', '1'].includes(realtime[1]);
+    if (hdWinSetRealtime(machine, computerName, !off, 'Set-MpPreference')) changed();
+    hdLastCommandResult = `Set-MpPreference: real-time ${off ? 'off' : 'on'}${off && protection.realtime !== false ? ' (undone)' : ''}`;
+    return '';
+  }
+  // add-mppreference: an exclusion path, process or extension.
+  const add = /^add-mppreference\s+-exclusion(path|process|extension)\s+(.+)$/i.exec(command.trim());
+  if (!add) { hdLastCommandResult = 'Add-MpPreference: not in this training shell'; return "Add-MpPreference : That setting isn't part of this training shell."; }
+  const value = add[2].trim().replace(/^["']|["']$/g, '');
+  if (hdWinAddExclusion(machine, computerName, value, 'Add-MpPreference')) changed();
+  hdLastCommandResult = `Add-MpPreference: exclusion ${value}`;
+  return '';
+}
+
+// Browser › Extensions: what is installed in the browser, with Remove.
+function hdWinRemoveExtension(computerName, name) {
+  if (hdProveLocked()) return;
+  if (typeof confirm === 'function' && !confirm(`Remove "${name}"?`)) return;
+  hdMachineChange(computerName, machine => {
+    const item = hdWinList(machine, 'extensions').find(entry => entry.name === name); if (!item) return false;
+    machine.extensions = machine.extensions.filter(entry => entry !== item);
+    hdWinRemoved(machine).extensions.push(String(item.name));
+    hdMachineAction(computerName, 'extension-removed', `removed the browser extension ${item.name}`, { extension:String(item.name) });
+    hdWinSweepGone(machine);
+  });
+}
+VIEWS['helpdesk/browser-extensions'] = () => {
+  const found = hdWinScreen('browser-extensions');
+  if (!found || !Array.isArray(found.machine.extensions)) return hdMachineMissing('Extensions');
+  const { computer, machine } = found; const n = `'${hdJsArg(computer.name)}'`;
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const browser = machine.browser && typeof machine.browser === 'object' ? machine.browser : {};
+  const items = hdWinList(machine, 'extensions');
+  return `${hdPageHeader('Extensions', `${browser.name || 'Browser'} › Extensions · ${computer.name}`, hdMachineBack(computer))}${browser.homePage ? `<p class="muted" data-hd-home-page>Home page: <code>${hdEsc(browser.homePage)}</code></p>` : ''}<div class="card" data-hd-browser-extensions><div class="table-wrap"><table><thead><tr><th>Extension</th><th>Publisher</th><th>Added</th><th></th></tr></thead><tbody>${items.map(item => `<tr data-hd-extension="${hdEsc(item.name)}"><td>${hdEsc(item.name)}</td><td>${hdEsc(item.publisher || '')}</td><td>${hdEsc(item.added || '')}</td><td><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-extension-remove onclick="hdWinRemoveExtension(${n},'${hdJsArg(item.name)}')">Remove</button></td></tr>`).join('') || '<tr><td colspan="4" class="muted">No extensions installed.</td></tr>'}</tbody></table></div></div>`;
+};
+
+// OneDrive: the status, View sync problems, OneDrive on the web, and the
+// controls. Problems are worked out from the names and the full path.
+function hdWinOneDriveFiles(oneDrive) { return hdWinList(oneDrive, 'files').filter(file => file.name); }
+function hdWinOneDrivePath(oneDrive, file) { return [oneDrive.root || 'C:\\Users\\user\\OneDrive', file.folder || '', file.name].filter(Boolean).join('\\'); }
+function hdWinOneDriveCauses(oneDrive, file) {
+  const causes = [];
+  if (HD_ONEDRIVE_BAD.test(String(file.name))) causes.push("The name contains characters that aren't allowed");
+  if (String(file.folder || '').split('\\').some(part => HD_ONEDRIVE_BAD.test(part))) causes.push("A folder name contains characters that aren't allowed");
+  const length = hdWinOneDrivePath(oneDrive, file).length;
+  if (length > HD_ONEDRIVE_LIMIT) causes.push(`The path is too long: ${length} characters (the limit is ${HD_ONEDRIVE_LIMIT})`);
+  return causes;
+}
+function hdWinOneDriveProblems(oneDrive) { return hdWinOneDriveFiles(oneDrive).map((file, index) => ({ file, index, causes:hdWinOneDriveCauses(oneDrive, file) })).filter(item => item.causes.length); }
+function hdWinOneDriveStatus(oneDrive) {
+  if (oneDrive.linked === false) return { id:'signed-out', icon:'⚪', text:'OneDrive isn\'t signed in on this PC.' };
+  if (hdWinOneDriveProblems(oneDrive).length) return { id:'error', icon:'❌', text:'Red X: some files can\'t sync.' };
+  return { id:'synced', icon:'✅', text:'Green tick: your files are synced.' };
+}
+function hdWinOneDriveError(computerName, text) { hdState.machineView = { ...hdMachineView(), computer:computerName, odError:text }; hdSave(); render(); }
+function hdWinOneDriveRenameFrom(computerName, index) {
+  const pick = document.getElementById(`hd-od-target-${index}`); const name = document.getElementById(`hd-od-name-${index}`);
+  hdWinOneDriveRename(computerName, Number(index), String(pick ? pick.value : 'file'), String(name ? name.value : ''));
+}
+function hdWinOneDriveRename(computerName, index, target, newName) {
+  if (hdProveLocked()) return;
+  const value = String(newName || '').trim();
+  if (!value) { hdWinOneDriveError(computerName, 'Type the new name first.'); return; }
+  if (HD_ONEDRIVE_BAD.test(value)) { hdWinOneDriveError(computerName, 'A file name can\'t contain any of the following characters: \\ / : * ? " < > |'); return; }
+  if (value.length > 120) { hdWinOneDriveError(computerName, 'That name is too long.'); return; }
+  hdState.machineView = { ...hdMachineView(), computer:computerName, odError:'' };
+  hdMachineChange(computerName, machine => {
+    const oneDrive = hdWinOneDrive(machine); const file = oneDrive && hdWinOneDriveFiles(oneDrive)[index]; if (!file) return false;
+    const folder = /^folder:(\d+)$/.exec(target);
+    if (target === 'file') {
+      if (file.name === value) return false;
+      const from = file.name; file.name = value;
+      hdMachineAction(computerName, 'onedrive-renamed', `renamed the file ${from} to ${value} (OneDrive)`, { kind:'file', from, to:value });
+      return true;
+    }
+    if (!folder) return false;
+    const tidy = (text) => String(text || '').split('\\').filter(Boolean).join('\\');
+    const parts = tidy(file.folder).split('\\').filter(Boolean); const at = Number(folder[1]);
+    if (at >= parts.length || parts[at] === value) return false;
+    const prefix = parts.slice(0, at + 1).join('\\'); const from = parts[at];
+    const renamed = [...parts.slice(0, at), value].join('\\');
+    hdWinOneDriveFiles(oneDrive).forEach(item => {
+      const own = tidy(item.folder);
+      if (own === prefix || own.startsWith(`${prefix}\\`)) item.folder = renamed + own.slice(prefix.length);
+    });
+    hdMachineAction(computerName, 'onedrive-renamed', `renamed the folder ${from} to ${value} (OneDrive)`, { kind:'folder', from, to:value });
+    return true;
+  });
+}
+function hdWinOneDriveDelete(computerName, index) {
+  if (hdProveLocked()) return;
+  const oneDrive = hdWinOneDrive(hdFeatureMachine(computerName)); const file = oneDrive && hdWinOneDriveFiles(oneDrive)[index]; if (!file) return;
+  // A Prove It asks plainly; Practice says what deleting does.
+  if (typeof confirm === 'function' && !confirm(HD_PROVE ? `Delete ${file.name}?` : `Delete ${file.name}? It is deleted from this PC and from OneDrive.`)) return;
+  hdMachineChange(computerName, machine => {
+    const drive = hdWinOneDrive(machine);
+    drive.files = drive.files.filter(item => item !== file);
+    hdMachineAction(computerName, 'onedrive-file-deleted', `deleted ${file.name} (OneDrive)`, { file:String(file.name) });
+  });
+}
+function hdWinOneDriveControl(computerName, control) {
+  if (!['unlink', 'reset'].includes(control) || hdProveLocked()) return;
+  const ask = HD_PROVE ? (control === 'unlink' ? 'Unlink this PC?' : 'Reset OneDrive?')
+    : control === 'unlink' ? 'Unlink this PC? Files stop syncing to this PC until you sign in again.' : 'Reset OneDrive? OneDrive disconnects every sync and syncs everything again.';
+  if (typeof confirm === 'function' && !confirm(ask)) return;
+  hdMachineChange(computerName, machine => {
+    const oneDrive = hdWinOneDrive(machine); if (!oneDrive) return false;
+    if (control === 'unlink') {
+      if (oneDrive.linked === false) return false;
+      oneDrive.linked = false;
+      hdMachineAction(computerName, 'onedrive-unlinked', 'unlinked OneDrive from this PC', {});
+      return true;
+    }
+    hdMachineAction(computerName, 'onedrive-reset', 'reset OneDrive', {});
+    return true;
+  });
+}
+VIEWS['helpdesk/onedrive'] = () => {
+  const found = hdWinScreen('onedrive'); const oneDrive = found && hdWinOneDrive(found.machine);
+  if (!oneDrive) return hdMachineMissing('OneDrive');
+  const { computer } = found; const n = `'${hdJsArg(computer.name)}'`;
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const tab = hdWinTabOf('onedrive');
+  const status = hdWinOneDriveStatus(oneDrive);
+  const problems = hdWinOneDriveProblems(oneDrive);
+  const error = hdMachineView().odError ? `<p class="muted" role="alert" data-hd-od-error>${hdEsc(hdMachineView().odError)}</p>` : '';
+  let body;
+  if (tab === 'status') {
+    body = `<p data-hd-onedrive-status="${status.id}"><span aria-hidden="true">${status.icon}</span> ${hdEsc(status.text)}</p><dl class="hd-dl"><dt>Storage used</dt><dd data-hd-onedrive-storage>${hdEsc(Number(oneDrive.storageUsed) || 0)}%</dd><dt>Folder</dt><dd><code>${hdEsc(oneDrive.root || '')}</code></dd></dl><p><strong>Settings › Account</strong></p><ul class="hd-list"><li><button type="button" class="btn btn-secondary btn-sm" ${locked} ${oneDrive.linked === false ? 'disabled' : ''} data-hd-onedrive-unlink onclick="hdWinOneDriveControl(${n},'unlink')">Unlink this PC</button></li></ul><p><strong>Troubleshoot</strong></p><ul class="hd-list"><li><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-onedrive-reset onclick="hdWinOneDriveControl(${n},'reset')">Reset OneDrive</button> <span class="muted">Runs onedrive.exe /reset</span></li></ul>`;
+  } else if (tab === 'sync-problems') {
+    body = problems.length ? `<div class="hd-note-list" data-hd-sync-problems>${problems.map(({ file, index, causes }) => {
+      const parts = String(file.folder || '').split('\\').filter(Boolean);
+      const options = [`<option value="file">This file: ${hdEsc(file.name)}</option>`, ...parts.map((part, i) => `<option value="folder:${i}">Folder: ${hdEsc(part)}</option>`)].join('');
+      return `<div data-hd-sync-problem="${index}"><strong>${hdEsc(file.name)}</strong><p><code data-hd-sync-path>${hdEsc(hdWinOneDrivePath(oneDrive, file))}</code></p><ul class="hd-list">${causes.map(cause => `<li data-hd-sync-cause>${hdEsc(cause)}</li>`).join('')}</ul><form class="filterbar" onsubmit="event.preventDefault();hdWinOneDriveRenameFrom(${n},${index})"><label>Rename <select id="hd-od-target-${index}" class="select" ${locked}>${options}</select></label><label>New name <input id="hd-od-name-${index}" class="ipt" maxlength="120" ${locked}></label><button type="submit" class="btn btn-secondary btn-sm" ${locked} data-hd-od-rename>Rename</button><button type="button" class="btn btn-ghost btn-sm" ${locked} data-hd-od-delete onclick="hdWinOneDriveDelete(${n},${index})">Delete file</button></form></div>`;
+    }).join('')}</div>${error}` : `<p class="muted" data-hd-sync-none>No sync problems.</p>${error}`;
+  } else {
+    const synced = hdWinOneDriveFiles(oneDrive).filter(file => !hdWinOneDriveCauses(oneDrive, file).length);
+    body = `<p class="muted">My files, as OneDrive on the web shows them.</p><div class="table-wrap"><table data-hd-onedrive-web><thead><tr><th>Name</th><th>Folder</th></tr></thead><tbody>${synced.map(file => `<tr data-hd-web-file="${hdEsc(file.name)}"><td>${hdEsc(file.name)}</td><td>${hdEsc(file.folder ? `My files › ${String(file.folder).split('\\').join(' › ')}` : 'My files')}</td></tr>`).join('') || '<tr><td colspan="2" class="muted">No files.</td></tr>'}</tbody></table></div>`;
+  }
+  return `${hdPageHeader('OneDrive', computer.name, hdMachineBack(computer))}<div class="card" data-hd-onedrive="${tab}"><div class="card-header" ${HD_CONSOLE_HEADER}>${hdWinTabs(HD_WIN_SCREENS.onedrive.tabs, tab, id => `hdWinScreenTab(${n},'onedrive','${id}')`)}<span aria-hidden="true" data-hd-onedrive-icon="${status.id}">${status.icon}</span></div><div class="card-body">${body}</div></div>`;
+};
+window.hdWinScreenTab=hdWinScreenTab; window.hdWinThreatSet=hdWinThreatSet; window.hdWinRealtimeSet=hdWinRealtimeSet; window.hdWinExclusionFrom=hdWinExclusionFrom; window.hdWinScanNow=hdWinScanNow;
+window.hdWinRemoveExtension=hdWinRemoveExtension; window.hdWinOneDriveRenameFrom=hdWinOneDriveRenameFrom; window.hdWinOneDriveRename=hdWinOneDriveRename; window.hdWinOneDriveDelete=hdWinOneDriveDelete; window.hdWinOneDriveControl=hdWinOneDriveControl;
 
 /* ---------- Windows client tools, console B (added for Module 5, key its-03) ----------
  * Event Viewer's logs on a computer, Reliability Monitor, the Safe Mode
@@ -5293,7 +5745,9 @@ function hdAdComputersWithPane() {
 // one-line hint with the right command; a Prove It answers as Windows would.
 const HD_WIN_TYPED = { dism:'DISM /Online /Cleanup-Image /RestoreHealth', sfc:'sfc /scannow', chkdsk:'chkdsk C: /scan', dir:'dir <folder>', 'get-childitem':'Get-ChildItem <folder>',
   // Module 6, console A.
-  winget:HD_WINGET_LINES };
+  winget:HD_WINGET_LINES,
+  // Module 6, console B: the optional Defender lines only.
+  'get-mpcomputerstatus':'Get-MpComputerStatus', 'start-mpscan':'Start-MpScan -ScanType QuickScan', 'get-mpthreatdetection':'Get-MpThreatDetection' };
 function hdWinDistance(a, b) {
   const d = Array.from({ length:a.length + 1 }, (_, i) => Array.from({ length:b.length + 1 }, (__, j) => (i === 0 ? j : j === 0 ? i : 0)));
   for (let i = 1; i <= a.length; i += 1) for (let j = 1; j <= b.length; j += 1) {
@@ -5375,7 +5829,7 @@ function hdWinTypedCommand(command, normalized, machine) {
 function hdWinNearMiss(command, computer) {
   const machine = !HD_PROVE && computer && hdFeatureMachine(computer.name); if (!machine) return null;
   const head = command.trim().toLowerCase().split(/\s+/)[0].replace(/\.exe$/, '').replace(/\/.*$/, '');
-  const words = [...(hdWinRepairs(machine) ? ['dism', 'sfc', 'chkdsk'] : []), ...(hdWinFiles(machine) ? ['dir', 'get-childitem'] : []), ...(machine.winget === true ? ['winget'] : [])];
+  const words = [...(hdWinRepairs(machine) ? ['dism', 'sfc', 'chkdsk'] : []), ...(hdWinFiles(machine) ? ['dir', 'get-childitem'] : []), ...(machine.winget === true ? ['winget'] : []), ...(hdWinProtection(machine) ? ['get-mpcomputerstatus', 'start-mpscan', 'get-mpthreatdetection'] : [])];
   const near = words.find(word => head !== word && Math.abs(head.length - word.length) <= (word.length <= 3 ? 0 : 1) && hdWinDistance(head, word) <= (word.length <= 4 ? 1 : 2));
   if (!near) return null;
   hdLastCommandResult = `misspelled: ${near}`;
@@ -5388,6 +5842,8 @@ function hdWinTypedHelp(machine) {
   if (hdWinFiles(machine)) lines.push('Files: dir <folder>, Get-ChildItem <folder>');
   // Module 6, console A.
   if (machine && machine.winget === true) lines.push(`Apps: ${HD_WINGET_LINES}`);
+  // Module 6, console B: the optional Defender lines (never the unsafe ones).
+  if (hdWinProtection(machine)) lines.push(`Defender: ${HD_DEFENDER_LINES}`);
   return lines;
 }
 window.hdWinEventPick=hdWinEventPick; window.hdWinEventSet=hdWinEventSet; window.hdWinEventOpen=hdWinEventOpen; window.hdWinReliabilityDay=hdWinReliabilityDay;
