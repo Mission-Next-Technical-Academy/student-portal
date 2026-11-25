@@ -7502,30 +7502,49 @@ function hdGpoLinked(gpo, ou) {
   const parts = String(ou || '').toLowerCase().split(',').map(part => part.trim());
   return link.split(',').map(part => part.trim()).every(part => parts.includes(part));
 }
+// Two sections, as gpresult shows them: Computer Settings (GPOs with a
+// computer part, version C: above 0) and User Settings (a user part, U:
+// above 0). The simulator scopes both by the computer's OU, as with loopback
+// processing, so a computer moved to CN=Computers loses its OU's user
+// policies too (the Operations drive mapping). Filtering: the computer side
+// takes Authenticated Users and Domain Computers; the user side takes
+// Authenticated Users and the signed-in user's groups.
+function hdGpoPart(gpo, side) { const match = new RegExp(`${side}:(\\d+)`, 'i').exec(String(gpo.version || '')); return match ? Number(match[1]) > 0 : true; }
 function hdGpResult(name) {
   const computer = hdComputerByName(name); if (!computer) return null;
   const dir = hdDirectory();
   const user = hdFileUsers().find(item => item && item.name === computer.user);
   const groups = user && dir ? hdDirUserGroups(hdFileUser(user.id) || user, dir) : [];
-  const generic = gpo => ['authenticated users', 'domain computers'].includes(String(gpo.scope || '').toLowerCase());
-  const applied = []; const notApplied = [];
-  HD_GPOS.forEach(gpo => {
-    const linked = hdGpoLinked(gpo, computer.ou);
-    const filtered = generic(gpo) || groups.includes(gpo.scope);
-    if (linked && filtered) applied.push(gpo);
-    else if (linked) notApplied.push({ gpo, reason:'Denied (Security)' });
+  const scope = gpo => String(gpo.scope || '').toLowerCase();
+  const sides = { computer:{ part:'C', allowed:gpo => ['authenticated users', 'domain computers'].includes(scope(gpo)) },
+    user:{ part:'U', allowed:gpo => scope(gpo) === 'authenticated users' || groups.includes(gpo.scope) } };
+  const result = { computer, user };
+  Object.entries(sides).forEach(([key, side]) => {
+    const applied = []; const notApplied = [];
+    HD_GPOS.filter(gpo => hdGpoPart(gpo, side.part) && hdGpoLinked(gpo, computer.ou)).forEach(gpo => {
+      if (side.allowed(gpo)) applied.push(gpo); else notApplied.push({ gpo, reason:'Denied (Security)' });
+    });
+    result[key === 'computer' ? 'computerSide' : 'userSide'] = { applied, notApplied };
   });
+  // applied / notApplied: computer settings (what reached the machine).
+  result.applied = result.computerSide.applied; result.notApplied = result.computerSide.notApplied;
   const refresh = hdServerObject(hdState.gpRefresh) || {};
-  return { computer, user, applied, notApplied, lastApplied:refresh[computer.name] || 'At sign-in today' };
+  result.lastApplied = refresh[computer.name] || 'At sign-in today';
+  return result;
 }
 function hdGpResultText(result) {
   const pad = '    ';
   const account = result.user ? `${HD_ORG.netbios}\\${result.user.username}` : 'NT AUTHORITY\\SYSTEM';
-  const lines = [`RSOP data for ${account} on ${result.computer.name} : Logging Mode`, '', 'COMPUTER SETTINGS', '-----------------', `${pad}CN=${result.computer.name},${result.computer.ou}`, `${pad}Last time Group Policy was applied: ${result.lastApplied}`, `${pad}Group Policy was applied from:      ns-dc01.${HD_ORG.domain}`, '', `${pad}Applied Group Policy Objects`, `${pad}-----------------------------`];
-  (result.applied.length ? result.applied.map(gpo => gpo.name) : ['N/A']).forEach(name => lines.push(`${pad}${pad}${name}`));
-  lines.push('', `${pad}The following GPOs were not applied because they were filtered out`, `${pad}-------------------------------------------------------------------`);
-  if (!result.notApplied.length) lines.push(`${pad}${pad}N/A`);
-  result.notApplied.forEach(item => lines.push(`${pad}${pad}${item.gpo.name}`, `${pad}${pad}${pad}Filtering:  ${item.reason}`));
+  const lines = [`RSOP data for ${account} on ${result.computer.name} : Logging Mode`];
+  const section = (title, dn, side) => {
+    lines.push('', title, '-'.repeat(title.length), `${pad}${dn}`, `${pad}Last time Group Policy was applied: ${result.lastApplied}`, `${pad}Group Policy was applied from:      ns-dc01.${HD_ORG.domain}`, '', `${pad}Applied Group Policy Objects`, `${pad}-----------------------------`);
+    (side.applied.length ? side.applied.map(gpo => gpo.name) : ['N/A']).forEach(name => lines.push(`${pad}${pad}${name}`));
+    lines.push('', `${pad}The following GPOs were not applied because they were filtered out`, `${pad}-------------------------------------------------------------------`);
+    if (!side.notApplied.length) lines.push(`${pad}${pad}N/A`);
+    side.notApplied.forEach(item => lines.push(`${pad}${pad}${item.gpo.name}`, `${pad}${pad}${pad}Filtering:  ${item.reason}`));
+  };
+  section('COMPUTER SETTINGS', `CN=${result.computer.name},${result.computer.ou}`, result.computerSide);
+  if (result.user) section('USER SETTINGS', `CN=${result.user.name},${result.user.ou}`, result.userSide);
   return lines.join('\n');
 }
 function hdGpResultsOpen(name) {
@@ -7542,7 +7561,7 @@ function hdGroupPolicyView() {
   const options = hdComputers().map(item => `<option value="${hdEsc(item.name)}"${item.name === name ? ' selected' : ''}>${hdEsc(item.name)}</option>`).join('');
   const picker = `<label>Computer <select class="ipt" data-hd-gp-computer onchange="hdGpResultsOpen(this.value)"><option value="">Choose a computer</option>${options}</select></label>`;
   const card = result
-    ? `<dl class="hd-dl" data-hd-gp-results="${hdEsc(name)}"><dt>Computer</dt><dd><code>CN=${hdEsc(name)},${hdEsc(result.computer.ou)}</code></dd><dt>User</dt><dd>${hdEsc(result.user ? result.user.name : 'None signed in')}</dd><dt>Last applied</dt><dd data-hd-gp-last-applied>${hdEsc(result.lastApplied)}</dd><dt>Applied</dt><dd data-hd-gp-applied>${result.applied.map(gpo => hdEsc(gpo.name)).join('<br>') || 'None'}</dd><dt>Not applied</dt><dd data-hd-gp-denied>${result.notApplied.map(item => `${hdEsc(item.gpo.name)} <small>${hdEsc(item.reason)}</small>`).join('<br>') || 'None'}</dd></dl>`
+    ? `<dl class="hd-dl" data-hd-gp-results="${hdEsc(name)}"><dt>Computer</dt><dd><code>CN=${hdEsc(name)},${hdEsc(result.computer.ou)}</code></dd><dt>User</dt><dd>${hdEsc(result.user ? result.user.name : 'None signed in')}</dd><dt>Last applied</dt><dd data-hd-gp-last-applied>${hdEsc(result.lastApplied)}</dd>${[['Computer settings', 'computer', result.computerSide], ...(result.user ? [['User settings', 'user', result.userSide]] : [])].map(([label, id, side]) => `<dt>${label} · applied</dt><dd data-hd-gp-applied="${id}">${side.applied.map(gpo => hdEsc(gpo.name)).join('<br>') || 'None'}</dd><dt>${label} · filtered out</dt><dd data-hd-gp-denied="${id}">${side.notApplied.map(item => `${hdEsc(item.gpo.name)} <small>${hdEsc(item.reason)}</small>`).join('<br>') || 'None'}</dd>`).join('')}</dl>`
     : '<p class="muted">Choose a computer to read the policies that reached it.</p>';
   return `${hdPageHeader('Group Policy Management', HD_PROVE ? 'Policy links, filtering and results per computer.' : 'Read which policies reach a computer and why. gpresult /r shows the same result.')}<div class="card"><div class="table-wrap"><table><thead><tr><th>GPO</th><th>Linked to</th><th>Security filtering</th><th>Version</th><th>Status</th><th>Purpose</th></tr></thead><tbody>${gpos}</tbody></table></div></div><div class="card" data-hd-gp-results-card><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Group Policy Results</strong>${picker}</div><div class="card-body">${card}</div></div>${HD_PROVE ? '' : '<div class="callout info">Where a computer object lives decides which policies reach it. Reading results changes nothing.</div>'}`;
 }
@@ -7740,7 +7759,8 @@ function hdDirectoryCommand(command, normalized, computer) {
     if (!found) { hdLastCommandResult = `no computer ${name}`; return 'ERROR: The RPC server is unavailable.'; }
     const result = hdGpResult(found.name);
     hdServerSeen(`gp-results:${found.name}`, `gpresult /r · ${found.name}`);
-    hdLastCommandResult = `${found.name}: applied ${result.applied.map(gpo => gpo.name).join(', ') || 'none'}; not applied ${result.notApplied.map(item => item.gpo.name).join(', ') || 'none'}`;
+    const names = list => list.map(item => (item.gpo || item).name).join(', ') || 'none';
+    hdLastCommandResult = `${found.name}: computer applied ${names(result.computerSide.applied)}, denied ${names(result.computerSide.notApplied)}; user applied ${names(result.userSide.applied)}, denied ${names(result.userSide.notApplied)}`.slice(0, 200);
     return hdGpResultText(result);
   }
   // Only the two forms hdMachineCommand answers.

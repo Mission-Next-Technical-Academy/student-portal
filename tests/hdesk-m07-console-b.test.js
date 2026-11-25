@@ -271,30 +271,39 @@ function testComputerOu() {
 // Group Policy Results per computer, the same as gpresult /r.
 function testGroupPolicyResults() {
   const tab = directory();
-  const result = (name) => JSON.parse(tab.run(`JSON.stringify((({ applied, notApplied }) => ({ applied:applied.map((g) => g.name), notApplied:notApplied.map((i) => [i.gpo.name, i.reason]) }))(hdGpResult(${JSON.stringify(name)})))`));
-  assert.deepEqual(result('NS-LT-0215'), { applied: ['Default Domain Policy', 'Workstation Security Baseline'], notApplied: [] });
+  const side = (s) => ({ applied: s.applied.map((g) => g.name), notApplied: s.notApplied.map((i) => [i.gpo.name, i.reason]) });
+  const result = (name) => { const r = JSON.parse(tab.run(`JSON.stringify(hdGpResult(${JSON.stringify(name)}))`)); return { computer: side(r.computerSide), user: side(r.userSide) }; };
+  // Computer settings: GPOs with a computer part; user settings: a user part.
+  assert.deepEqual(result('NS-LT-0215'), { computer: { applied: ['Default Domain Policy', 'Workstation Security Baseline'], notApplied: [] }, user: { applied: ['Default Domain Policy'], notApplied: [] } });
   // A computer in CN=Computers gets only the domain policy; an unlinked GPO
   // is not listed (real gpresult), so the student works out why.
-  assert.deepEqual(result('NS-LT-0145'), { applied: ['Default Domain Policy'], notApplied: [] });
-  assert.deepEqual(result('NS-LT-0042'), { applied: ['Default Domain Policy', 'Workstation Security Baseline'], notApplied: [['Operations Drive Mapping', 'Denied (Security)']] }, 'Maya Chen is not in GG-Operations-Drive');
-  assert.deepEqual(result('NS-LT-0117').applied, ['Default Domain Policy', 'Workstation Security Baseline', 'Finance Printer Deployment']);
+  assert.deepEqual(result('NS-LT-0145'), { computer: { applied: ['Default Domain Policy'], notApplied: [] }, user: { applied: ['Default Domain Policy'], notApplied: [] } });
+  // In OU=Operations: Amir would get the drive mapping; Maya is filtered out.
+  assert.deepEqual(result('NS-LT-0042').user, { applied: ['Default Domain Policy'], notApplied: [['Operations Drive Mapping', 'Denied (Security)']] }, 'Maya Chen is not in GG-Operations-Drive');
+  assert.deepEqual(result('NS-LT-0042').computer.applied, ['Default Domain Policy', 'Workstation Security Baseline']);
+  tab.run("hdState.computerOverrides['NS-LT-0145'] = { ou:'OU=Operations,OU=Workstations' }");
+  assert.deepEqual(result('NS-LT-0145').user.applied, ['Default Domain Policy', 'Operations Drive Mapping'], 'back in its OU, the mapping reaches Amir');
+  tab.run("delete hdState.computerOverrides['NS-LT-0145']");
+  assert.deepEqual(result('NS-LT-0117').user.applied, ['Default Domain Policy', 'Finance Printer Deployment'], 'a user policy is under User Settings');
+  assert.deepEqual(result('NS-LT-0117').computer.applied, ['Default Domain Policy', 'Workstation Security Baseline']);
   let page = tab.view('helpdesk/group-policy');
   assert.match(page, /data-hd-gp-results-card/);
   assert.doesNotMatch(page, /data-hd-gp-results=/);
   assert.deepEqual(tab.seen(), [], 'nothing recorded until a computer is chosen');
   tab.run("hdGpResultsOpen('NS-LT-0215')");
   page = tab.view('helpdesk/group-policy');
-  assert.match(page, /data-hd-gp-results="NS-LT-0215"[\s\S]*data-hd-gp-last-applied>At sign-in today[\s\S]*data-hd-gp-applied>Default Domain Policy<br>Workstation Security Baseline<[\s\S]*data-hd-gp-denied>None/);
+  assert.match(page, /data-hd-gp-results="NS-LT-0215"[\s\S]*data-hd-gp-last-applied>At sign-in today[\s\S]*data-hd-gp-applied="computer">Default Domain Policy<br>Workstation Security Baseline<[\s\S]*data-hd-gp-denied="computer">None[\s\S]*data-hd-gp-applied="user">Default Domain Policy</);
   assert.deepEqual(tab.seen(), ['gp-results:NS-LT-0215']);
   const cmd = directory();
   let out = cmd.ps('gpresult /s NS-LT-0215 /r');
   assert.match(out, /RSOP data for NORTHSTAR\\rshah on NS-LT-0215/);
-  assert.match(out, /Applied Group Policy Objects\n\s+-+\n\s+Default Domain Policy\n\s+Workstation Security Baseline\n/);
+  assert.match(out, /COMPUTER SETTINGS[\s\S]*Applied Group Policy Objects\n\s+-+\n\s+Default Domain Policy\n\s+Workstation Security Baseline\n/);
   assert.match(out, /filtered out\n\s+-+\n\s+N\/A/);
+  assert.match(out, /USER SETTINGS\n-+\n\s+CN=Ravi Shah,OU=Sales,OU=Users,DC=northstar,DC=example[\s\S]*Applied Group Policy Objects\n\s+-+\n\s+Default Domain Policy\n\n/);
   assert.deepEqual(cmd.seen(), tab.seen(), 'the command earns the same key');
   cmd.run("hdState.selectedComputer = 'NS-LT-0145'");
   out = cmd.ps('gpresult /r');
-  assert.match(out, /CN=NS-LT-0145,CN=Computers[\s\S]*Applied Group Policy Objects\n\s+-+\n\s+Default Domain Policy\n\n/);
+  assert.match(out, /CN=NS-LT-0145,CN=Computers[\s\S]*Applied Group Policy Objects\n\s+-+\n\s+Default Domain Policy\n\n[\s\S]*USER SETTINGS[\s\S]*Applied Group Policy Objects\n\s+-+\n\s+Default Domain Policy\n\n/);
   assert.doesNotMatch(out, /Operations Drive Mapping|link out of scope/);
   cmd.run("hdState.selectedComputer = 'NS-LT-0042'");
   assert.match(cmd.ps('gpresult /r'), /Operations Drive Mapping\n\s+Filtering:  Denied \(Security\)/);
