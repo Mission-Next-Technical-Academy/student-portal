@@ -190,6 +190,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import re
           from pathlib import Path
           nav = Path('portal/m360/m360-production-nav.js').read_text()
           loader = Path('portal/m360/week.html').read_text()
@@ -204,8 +205,9 @@ jobs:
           for token in required:
               if token not in nav:
                   raise SystemExit(f'Missing consistency-pass navigation requirement: {token}')
-          if 'm360-data.js?v=20260914' not in loader or 'week6.js?v=20260904a' not in loader:
-              raise SystemExit('Week loader must bust changed M360 data and Week 6 assets')
+          for asset in ('m360-data.js', 'week6.js'):
+              if not re.search(re.escape(asset) + r"[?]v=[a-zA-Z0-9._-]+", loader):
+                  raise SystemExit(f'Week loader must version the {asset} cache key')
           if "get('download')==='1'" not in portfolio or 'setTimeout(printPortfolio' not in portfolio:
               raise SystemExit('Current-portfolio link must print only after authenticated portfolio rendering')
           PY

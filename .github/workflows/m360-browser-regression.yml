@@ -15,7 +15,8 @@ permissions:
 jobs:
   browser-regression:
     name: M360 Browser Regression
-    runs-on: ubuntu-latest
+    # Playwright 1.55 cannot install Chromium on the ubuntu-latest 26.04 runner.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Checkout

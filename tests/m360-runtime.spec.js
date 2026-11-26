@@ -83,10 +83,9 @@ test('Week 6 waits for confirmation, keeps the draft on rejection, and submits o
   const message = page.locator('#validationMessage');
   await submit.click();
   await expect(message).toContainText('Complete before submitting');
-  const fields = page.locator('[data-m360]');
-  for (const field of await fields.all()) {
-    const id = await field.getAttribute('id');
-    await field.fill(id === 'slidesUrl' ? 'https://example.test/spotlight.pdf' : `Practice for ${id}`);
+  const fieldIds = await page.locator('[data-m360]').evaluateAll(fields => fields.map(field => field.id));
+  for (const id of fieldIds) {
+    await page.locator(`#${id}`).fill(id === 'slidesUrl' ? 'https://example.test/spotlight.pdf' : `Practice for ${id}`);
   }
   await page.evaluate(() => {
     window.m360TestBeforeSubmit = () => new Promise((_, reject) => {

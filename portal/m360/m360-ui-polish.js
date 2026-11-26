@@ -29,15 +29,14 @@
     nav.querySelectorAll('a').forEach(link => {
       const href = link.getAttribute('href') || '';
       if (/index\.html(?:$|\?)/.test(href) || /\/m360\/?$/.test(href)) {
-        link.textContent = 'M360 Home';
+        if (link.textContent !== 'M360 Home') link.textContent = 'M360 Home';
         return;
       }
       const match = href.match(/[?&]week=(\d+)/);
       if (!match) return;
       const target = Number(match[1]);
-      if (target < week) link.textContent = `Previous: Week ${target}`;
-      else if (target > week) link.textContent = `Next: Week ${target}`;
-      else link.textContent = `Week ${target}`;
+      const label = target < week ? `Previous: Week ${target}` : target > week ? `Next: Week ${target}` : `Week ${target}`;
+      if (link.textContent !== label) link.textContent = label;
     });
     return true;
   }
@@ -224,7 +223,7 @@
     sweepStudentFacingPromptLanguage();
     const week2Ready = applyWeek2LinkedInModel();
     const templateReady = week !== 6 || fixCareerSpotlightTemplateLinks();
-    return navReady && week2Ready && templateReady && (statusReady || Boolean(document.querySelector('.artifact-heading')));
+    return navReady && week2Ready && templateReady && (statusReady || Boolean(document.querySelector(week === 6 ? '#week6ArtifactStatus' : '.artifact-heading')));
   }
 
   if (!apply()) {
