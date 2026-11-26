@@ -7497,6 +7497,8 @@ function hdNetRows(head, rows) {
   const line = row => row.map((cell, index) => (index === row.length - 1 ? String(cell) : String(cell).padEnd(widths[index]))).join(' ');
   return [line(head), line(head.map(title => '-'.repeat(title.length))), ...rows.map(line)].join('\n');
 }
+// A typed read line records the same Practice key and Prove source as its screen.
+function hdNetOpened(machine, key, source, label) { hdWinSeen(machine, key); hdProveOpened(source, label); }
 function hdNetStatusWord(adapter) { return adapter.enabled === false ? 'Disabled' : hdNetUp(adapter) && (adapter.kind !== 'Wi-Fi' || hdNetWifiUp(adapter)) ? 'Up' : 'Disconnected'; }
 function hdNetProfile(adapter) { if (!hdNetUsable(adapter)) return 'Unidentified network'; if (adapter.kind === 'Wi-Fi') return adapter.wifi.ssid; return ['corp', 'vpn'].includes(hdNetZone(adapter)) ? HD_ORG.domain : 'Network'; }
 function hdNetDcReachable(net) { const found = hdNetAsk(net, HD_ORG.domain); return found.status === 'ok' && found.company ? found.addresses.find(address => hdNetReach(net, address).result === 'reply') || '' : ''; }
@@ -7505,7 +7507,7 @@ function hdNetPowerShell(command, normalized, machine, computerName) {
   const net = hdNetState(machine);
   const trimmed = command.trim();
   if (/^get-netadapter\b/.test(normalized)) {
-    hdWinSeen(machine, 'settings-network');
+    hdNetOpened(machine, 'settings-network', `settings-network:${computerName}`, `Settings › Network & internet · ${computerName}`);
     hdLastCommandResult = hdNetAdapters(net).map(adapter => `${adapter.name} ${hdNetStatusWord(adapter)}`).join(', ');
     return hdNetRows(['Name', 'InterfaceDescription', 'ifIndex', 'Status', 'MacAddress', 'LinkSpeed'], hdNetAdapters(net).map(adapter => [adapter.name, adapter.description || adapter.name, hdNetIndex(net, adapter), hdNetStatusWord(adapter), adapter.mac || '', hdNetStatusWord(adapter) === 'Up' ? adapter.speed || (adapter.kind === 'Wi-Fi' ? `${(adapter.wifi || {}).linkRate || 0} Mbps` : '1 Gbps') : '0 bps']));
   }
@@ -7513,7 +7515,7 @@ function hdNetPowerShell(command, normalized, machine, computerName) {
     const alias = hdParam(command, 'interfacealias');
     const adapters = hdNetPicked(net, alias);
     if (!adapters.length) return `${trimmed.split(/\s+/)[0]} : No MSFT_NetIPInterface objects found with property 'InterfaceAlias' equal to '${alias}'.`;
-    adapters.forEach(adapter => hdWinSeen(machine, `net-adapter:${adapter.name}`));
+    adapters.forEach(adapter => hdNetOpened(machine, `net-adapter:${adapter.name}`, `net-adapter:${computerName}:${adapter.name}`, `Settings › Network & internet › ${adapter.name} › Hardware properties · ${computerName}`));
     if (/^get-dnsclientserveraddress\b/.test(normalized)) {
       hdLastCommandResult = adapters.map(adapter => `${adapter.name} DNS ${(hdNetIp(adapter).dnsServers || []).join(', ') || 'none'}`).join('; ').slice(0, 200);
       return hdNetRows(['InterfaceAlias', 'Interface Index', 'Address Family', 'ServerAddresses'], adapters.map(adapter => [adapter.name, hdNetIndex(net, adapter), 'IPv4', `{${(hdNetUp(adapter) && !hdNetApipa(hdNetIp(adapter).address) ? hdNetIp(adapter).dnsServers || [] : []).join(', ')}}`]));
@@ -7550,7 +7552,8 @@ function hdNetPowerShell(command, normalized, machine, computerName) {
   if (/^netsh\s+wlan\s+show\s+interfaces?\b/.test(normalized)) {
     const wifi = hdNetAdapters(net).filter(adapter => adapter.kind === 'Wi-Fi');
     if (!wifi.length) { hdLastCommandResult = 'no wireless interface'; return 'There is no wireless interface on the system.'; }
-    if (wifi.some(hdNetWifiUp)) hdWinSeen(machine, 'wifi-properties');
+    const joined = wifi.find(hdNetWifiUp);
+    if (joined) hdNetOpened(machine, 'wifi-properties', `wifi-properties:${computerName}`, `Settings › Network & internet › Wi-Fi › ${joined.wifi.ssid} › Properties · ${computerName}`);
     hdLastCommandResult = wifi.map(adapter => (hdNetWifiUp(adapter) ? `${adapter.name} ${adapter.wifi.ssid} ${adapter.wifi.band} ch ${adapter.wifi.channel}` : `${adapter.name} disconnected`)).join(', ');
     return [`There ${wifi.length === 1 ? 'is 1 interface' : `are ${wifi.length} interfaces`} on the system:`, '', wifi.map(adapter => {
       const w = adapter.wifi || {}; const up = hdNetWifiUp(adapter);
@@ -7562,7 +7565,7 @@ function hdNetPowerShell(command, normalized, machine, computerName) {
   if (/^netsh\s+wlan\s+show\s+profiles?\b/.test(normalized)) {
     const wifi = hdNetAdapters(net).find(adapter => adapter.kind === 'Wi-Fi');
     if (!wifi) return 'There is no wireless interface on the system.';
-    hdWinSeen(machine, 'known-networks');
+    hdNetOpened(machine, 'known-networks', `known-networks:${computerName}`, `Settings › Wi-Fi › Manage known networks · ${computerName}`);
     const known = hdNetKnown(wifi);
     hdLastCommandResult = `known networks: ${known.map(item => item.ssid).join(', ') || 'none'}`;
     return [`Profiles on interface ${wifi.name}:`, '', 'Group policy profiles (read only)', '---------------------------------', '    <None>', '', 'User profiles', '-------------', ...(known.length ? known.map(item => `    All User Profile     : ${item.ssid}`) : ['    <None>'])].join('\n');
@@ -7687,12 +7690,15 @@ function hdNetForget(computerName, adapterName, ssid) {
     return undefined;
   });
 }
+// The link, as Settings names it; whether it reaches anything is shown apart
+// (a cable in a live jack is "Connected" even before it has an address).
 function hdNetStatusText(adapter) {
   if (adapter.enabled === false) return 'Disabled';
-  if (adapter.kind === 'Wi-Fi') return hdNetWifiUp(adapter) ? (hdNetUsable(adapter) ? (adapter.wifi.security && !/open/i.test(adapter.wifi.security) ? 'Connected, secured' : 'Connected') : 'No internet, secured') : 'Not connected';
+  if (adapter.kind === 'Wi-Fi') return hdNetWifiUp(adapter) ? (adapter.wifi.security && !/open/i.test(adapter.wifi.security) ? 'Connected, secured' : 'Connected') : 'Not connected';
   if (!hdNetUp(adapter)) return adapter.kind === 'VPN' ? 'Disconnected' : 'Network cable unplugged';
-  return hdNetUsable(adapter) ? 'Connected' : 'No internet';
+  return 'Connected';
 }
+function hdNetSpeedText(adapter) { const mbps = hdNetMbps(adapter); return mbps >= 1000 ? `${(mbps / 1000).toFixed(1)} Gbps` : `${mbps} Mbps`; }
 function hdNetSettingsView(found) {
   const { computer, machine } = found; const net = hdNetState(machine);
   const view = hdMachineView(); const n = `'${hdJsArg(computer.name)}'`;
@@ -7701,12 +7707,14 @@ function hdNetSettingsView(found) {
   const adapters = hdNetAdapters(net);
   const rows = adapters.map(adapter => {
     const a = `'${hdJsArg(adapter.name)}'`; const status = hdNetStatusText(adapter);
-    const speed = hdNetStatusWord(adapter) === 'Up' ? (adapter.kind === 'Wi-Fi' ? `${adapter.wifi.ssid} · ${adapter.wifi.linkRate || ''} Mbps` : adapter.speed || '1 Gbps') : '';
+    const up = hdNetStatusWord(adapter) === 'Up';
+    const speed = up ? (adapter.kind === 'Wi-Fi' ? `${adapter.wifi.ssid} · ${hdNetSpeedText(adapter)}` : adapter.kind === 'VPN' ? '' : hdNetSpeedText(adapter)) : '';
+    const internet = up ? (hdNetUsable(adapter) ? 'ok' : 'none') : 'off';
     const buttons = [`<button type="button" class="btn btn-secondary btn-sm" data-hd-net-hardware onclick="hdNetPanel(${n},'hardware',${a})">Hardware properties</button>`];
     if (adapter.kind !== 'VPN') buttons.push(`<button type="button" class="btn btn-secondary btn-sm" data-hd-net-edit ${locked} onclick="hdNetPanel(${n},'edit',${a})">Edit IP settings</button>`);
     if (hdNetWifiUp(adapter)) buttons.push(`<button type="button" class="btn btn-secondary btn-sm" data-hd-net-wifi onclick="hdNetPanel(${n},'wifi',${a})">${hdEsc(adapter.wifi.ssid)} properties</button>`);
     if (adapter.kind === 'Wi-Fi') buttons.push(`<button type="button" class="btn btn-secondary btn-sm" data-hd-net-known onclick="hdNetPanel(${n},'known',${a})">Manage known networks</button>`);
-    return `<li data-hd-net-adapter="${hdEsc(adapter.name)}" data-hd-net-status="${hdEsc(status)}"><strong>${hdEsc(adapter.name)}</strong> <span class="muted">${hdEsc(adapter.description || adapter.kind || '')}</span><br>${hdBadge(status, /^Connected/.test(status) ? 'ok' : status === 'Disabled' || status === 'Not connected' ? 'neutral' : 'bad')}${speed ? ` <span class="muted">${hdEsc(speed)}</span>` : ''}<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${buttons.join('')}</div></li>`;
+    return `<li data-hd-net-adapter="${hdEsc(adapter.name)}" data-hd-net-status="${hdEsc(status)}" data-hd-net-internet="${internet}"><strong>${hdEsc(adapter.name)}</strong> <span class="muted">${hdEsc(adapter.description || adapter.kind || '')}</span><br>${hdBadge(`${status}${speed && adapter.kind !== 'Wi-Fi' ? `, ${speed}` : ''}`, /^Connected/.test(status) ? 'ok' : status === 'Disabled' || status === 'Not connected' ? 'neutral' : 'bad')}${speed && adapter.kind === 'Wi-Fi' ? ` <span class="muted">${hdEsc(speed)}</span>` : ''}${internet === 'none' ? ` ${hdBadge('No internet', 'warn')}` : ''}<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${buttons.join('')}</div></li>`;
   }).join('');
   const adapter = adapters.find(item => item.name === view.adapter);
   let panel = '';
