@@ -319,6 +319,16 @@ function testReturnedAttemptEarnsThemAgain() {
   assert.ok(html.includes(`hdTeamMessage('${TID}','${MESSAGES[0].id}')`), 'and the message sent again');
   openRequest(tab, FIELD_ITEM, PEOPLE[0].name, approverOptions(FIELD_ITEM)[0]);
   assert.equal(tab.actions().length, 1, 'earned again in this attempt');
+  // A returned attempt comes back with its ticket closed (the form's close):
+  // the request can still be opened without changing the decision.
+  const closed = sim('its-06', 'stu-return-closed');
+  fill(closed);
+  assert.equal(closed.run('hdState.tickets[0].status'), 'Resolved');
+  closed.run(`hdProveFreshLog(${j(new Date().toISOString())})`);
+  assert.match(ticketView(closed), /data-hd-keep-incident/, 'the request card shows on the closed ticket');
+  openRequest(closed, FIELD_ITEM, PEOPLE[0].name, approverOptions(FIELD_ITEM)[0]);
+  assert.equal(closed.actions().filter((a) => a.value.startsWith('request-opened:')).length, 1, 'and opens');
+  assert.equal(closed.run('hdState.tickets[0].status'), 'Resolved', 'the ticket stays as the student closed it');
   // Account and Entra changes are actions too: the accounts start as the shift began.
   const acct = sim('its-06', 'stu-return-acct');
   const id = PEOPLE[0].id;

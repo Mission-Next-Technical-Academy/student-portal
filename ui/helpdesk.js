@@ -2458,7 +2458,7 @@ function hdConvertSet(id, field, value) {
 function hdConvertToRequest(id) {
   if (HD_PROVE && hdProveLocked()) return;
   const ticket = hdTicketById(id); const config = ticket && hdConsole(ticket).convert; if (!config || ticket.request) return;
-  if (['Resolved', 'Closed', 'Canceled'].includes(ticket.status)) { toast('This ticket is closed, so it can\'t be converted.'); return; }
+  if (!HD_PROVE && ['Resolved', 'Closed', 'Canceled'].includes(ticket.status)) { toast('This ticket is closed, so it can\'t be converted.'); return; }
   // needsTriage (Lab 2.1's request): triage it before converting, because
   // converting locks Impact, Urgency and the classification.
   const triage = hdClassification(ticket);
@@ -2893,7 +2893,9 @@ function hdConvertCard(ticket) {
     const close = HD_PROVE ? '' : request.state === 'Open' ?`<button type="button" class="btn btn-secondary" ${hdApprovalCleared(request.approval) ? '' : 'disabled style="opacity:.55;cursor:not-allowed"'} onclick="hdRequestClose('${ticket.id}')">Close the request (Closed Complete)</button>` : '';
     return `<div class="card hd-request-item" data-hd-request="${hdEsc(request.number)}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Requested item ${hdEsc(request.number)}</strong>${hdBadge(`Approval: ${request.approval}`, hdApprovalCleared(request.approval) ? 'ok' : 'warn')}${hdBadge(request.state, request.state === 'Open' ? 'in-progress' : 'closed')}</div><div class="card-body"><dl class="hd-dl"><dt>Catalog item</dt><dd>${hdEsc(request.item)}</dd><dt>Requested for</dt><dd>${hdEsc(request.requestedFor)}</dd>${fields}${request.approver ? `<dt>Approver</dt><dd>${hdEsc(request.approver)}</dd>` : ''}<dt>SLA</dt><dd class="muted">None: requests have no SLA bar here</dd></dl>${close}</div></div>`;
   }
-  if (['Resolved', 'Closed', 'Canceled'].includes(ticket.status)) return '';
+  // A Prove ticket's close is part of the form (a returned attempt comes back
+  // closed), so its request card stays until Submit.
+  if (!HD_PROVE && ['Resolved', 'Closed', 'Canceled'].includes(ticket.status)) return '';
   // A submitted Prove It opens nothing more.
   if (HD_PROVE && hdProveLocked()) return '';
   const draft = hdConvertDraft(ticket);
