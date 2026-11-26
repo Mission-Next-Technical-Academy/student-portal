@@ -88,6 +88,7 @@ function sim({ url = 'https://academy.test/sim/#/helpdesk/tickets', withTest = t
     ctx.__test = { tickets: TICKETS, sets: SETS };
     vm.runInContext(`__test.tickets.forEach((t) => HD_TICKET_TEMPLATES.push(hdTicket(JSON.parse(JSON.stringify(t)))));
       Object.assign(HD_PRACTICE_SETS, JSON.parse(JSON.stringify(__test.sets)));
+      HD_COACHED_SETS['test-coached-raise'] = { title: 'Test coached raise', tickets: ['HD-9801', 'HD-9802'], now: '2026-08-19T08:00:00Z', directory: {} };
       HD_TICKET_TEMPLATES.find((t) => t.id === 'HD-9805').console.convert.items.push(hdReservationItem({ devices: ['TEST-CLOCK'], macs: ['00-11-22-33-44-55'], addresses: ['10.20.30.61'] }));`, ctx);
   }
   if (before) vm.runInContext(before, ctx);
@@ -405,11 +406,11 @@ function testServerLines() {
   assert.match(cmd.ps('Get-WinEvent -ComputerName NS-FILE01 -LogName System -MaxEvents 5'), /Today 06:00\s+7036\s+Information\s+TEST running\./);
   assert.match(cmd.ps('Get-WinEvent -ComputerName NS-FILE01 -LogName "Directory Service"'), /There is not an event log on the NS-FILE01 computer/);
   assert.match(cmd.ps('Get-SmbShareAccess -Name Missing'), /No MSFT_SmbShare objects found/);
-  assert.deepEqual(cmd.seen(), ['file-share:NS-FILE01:TESTShare:share', 'volumes:NS-FILE01', 'server-log:NS-FILE01:system']);
+  assert.deepEqual(cmd.seen(), ['file-share:NS-FILE01:TESTShare:share', 'volumes:NS-FILE01', 'server-log:NS-FILE01:system', 'server-event:NS-FILE01:system:7036']);
   const screens = directory();
   screens.run("hdServerOpen('NS-FILE01', '#/helpdesk/file-server'); hdFileSet({ share:'TESTShare', tab:'share' })"); screens.view('helpdesk/file-server');
   screens.run("hdServerOpen('NS-FILE01')"); screens.view('helpdesk/server-manager');
-  screens.run("hdServerOpen('NS-FILE01', '#/helpdesk/server-events')"); screens.view('helpdesk/server-events');
+  screens.run("hdServerOpen('NS-FILE01', '#/helpdesk/server-events'); hdServerLogOpen(0)"); screens.view('helpdesk/server-events');
   for (const key of cmd.seen()) assert.ok(screens.seen().includes(key), `screen earns ${key}`);
   // Get-Help lists the lines only where they answer, and never in a Prove It.
   assert.match(cmd.ps('Get-Help'), /Servers: Get-Service -ComputerName[\s\S]*Directory \(read-only\): Get-ADUser/);
@@ -427,6 +428,10 @@ function testRaiseRelatedIncident() {
   }
   const local = store();
   const tab = directory(local);
+  // A reload before raising keeps it held, and the button still shows.
+  const reloaded = directory(local);
+  assert.equal(reloaded.run("hdState.tickets.some((t) => t.id === 'HD-9802')"), false, 'still held after a reload');
+  assert.match(reloaded.open('HD-9801'), /data-hd-raise onclick/);
   assert.doesNotMatch(tab.open('HD-9803'), /data-hd-raise/);
   let page = tab.open('HD-9801');
   assert.match(page, /data-hd-raise-card[\s\S]*data-hd-raise onclick="hdRaiseIncident\('HD-9801'\)"[^>]*>Raise a related incident/);
@@ -451,13 +456,29 @@ function testRaiseRelatedIncident() {
   tab.run("hdRaiseIncident('HD-9801')");
   assert.equal(tab.run("hdState.tickets.filter((t) => t.id === 'HD-9802').length"), 1);
   // The student's triage and writing save, and survive a reload.
-  tab.run("const t = hdTicketById('HD-9802'); t.impact = '2'; t.urgency = '2'; t.priority = hdMatrixPriority('2', '2'); hdConsoleState(t).rewrite = { short:'TEST scope at 95%', description:'TEST', missing:[] }; hdSave()");
+  tab.run("const t = hdTicketById('HD-9802'); t.impact = '2'; t.urgency = '2'; t.priority = hdMatrixPriority('2', '2'); t.assignmentGroup = 'Server & Identity'; hdConsoleState(t).rewrite = { short:'TEST scope at 95%', description:'TEST', missing:[] }; hdSave()");
   const again = directory(local);
   const kept = JSON.parse(again.run("JSON.stringify(hdTicketById('HD-9802'))"));
   assert.equal(kept.raisedFrom, 'HD-9801');
   assert.equal(kept.priority, 'P3');
   assert.equal(kept.consoleState.rewrite.short, 'TEST scope at 95%');
-  assert.equal(JSON.parse(again.run("JSON.stringify(hdConsoleProgress('HD-9802'))")).priority || kept.priority, 'P3');
+  // What the coach saves with the attempt (hdCoachConsoleWork reads this).
+  const progress = JSON.parse(again.run("JSON.stringify(hdConsoleProgress('HD-9802'))"));
+  assert.deepEqual([progress.matrix.impact, progress.matrix.urgency, progress.matrix.priority, progress.matrix.assignmentGroup], ['2', '2', 'P3', 'Server & Identity']);
+  assert.equal(again.run("hdState.tickets.filter((t) => t.id === 'HD-9802').length"), 1, 'a reload adds no second copy');
+  // A coached set (hdUseTicketSet, saved under the shared key): the same.
+  const coachedLocal = store();
+  const coached = sim({ local: coachedLocal });
+  assert.equal(coached.run("hdUseTicketSet('test-coached-raise')"), true);
+  assert.deepEqual(JSON.parse(coached.run('JSON.stringify(hdState.tickets.map((t) => t.id))')), ['HD-9801']);
+  assert.equal(coached.run('hdState.selectedTicketId'), null);
+  assert.equal(sim({ local: coachedLocal }).run("hdState.tickets.some((t) => t.id === 'HD-9802')"), false, 'held after a reload');
+  coached.open('HD-9801'); coached.run("hdRaiseIncident('HD-9801')");
+  assert.equal(coached.run("hdTicketById('HD-9802').createdTimestamp"), '2026-08-19T08:00:00.000Z');
+  assert.ok(coached.run('hdActiveSet()'), 'the coached set stays active');
+  const coachedAgain = sim({ local: coachedLocal });
+  assert.deepEqual(JSON.parse(coachedAgain.run('JSON.stringify(hdState.tickets.map((t) => t.id))')), ['HD-9801', 'HD-9802']);
+  assert.ok(coachedAgain.run('hdActiveSet()'), 'still the coached set after a reload');
   // A resolved source offers no raise.
   const closed = directory();
   closed.run("hdTicketById('HD-9801').status = 'Resolved'");
@@ -501,6 +522,10 @@ function testProveShift() {
   const records = ['dc01:A', 'dc02:A', 'files:A', 'print:A', 'purchasing:CNAME', 'vpn:A', 'legacy-erp:A', 'files:AAAA', '@:MX', '@:TXT'].map((r) => `dns-record:${r}`);
   assert.deepEqual(opened, ['ad-user:u-1004', 'ad-user-groups:u-1004', 'ad-group:GG-HR-Contributors', 'ad-computer:NS-LT-0215', 'gp-results:NS-LT-0215', 'dns-zone', ...records, 'dhcp-scope:Warehouse', 'services:NS-PRINT01', 'service:NS-PRINT01:Spooler', 'volumes:NS-FILE01']);
   assert.equal(prove.run('hdState.serverSeen'), undefined);
+  // Each evidence row in the Prove log names its own evidence.
+  const labels = JSON.parse(prove.run("JSON.stringify((hdState.prove.events || []).filter((e) => e.type === 'evidence_opened' && !String(e.source).startsWith('screen:')).map((e) => e.label))"));
+  assert.equal(labels.length, opened.length);
+  assert.equal(new Set(labels).size, labels.length, `distinct labels: ${labels.join(' | ')}`);
   // No teaching hint in a Prove It's error lines.
   for (const command of ['Get-SmbShareAccess', 'Get-WinEvent -ComputerName NS-FILE01', 'gpresult', 'Resolve-DnsName']) assert.doesNotMatch(prove.ps(command), /for example|Type "gpresult/, command);
 }

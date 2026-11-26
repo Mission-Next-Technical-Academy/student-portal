@@ -566,7 +566,9 @@ function hdProveUpgrade(saved) {
 // other tickets keep their work. A completion already saved stays saved.
 function hdPracticeSetUpgrade(saved) {
   if (!HD_PRACTICE_SET || !saved || !Array.isArray(saved.tickets)) return saved;
-  const missing = HD_PRACTICE_SET.set.tickets.filter(id => !saved.tickets.some(ticket => ticket.id === id));
+  // A ticket another one raises (console.raise, Module 7) joins only when raised.
+  const raised = saved.tickets.map(ticket => hdRaiseConfig(ticket)).filter(Boolean).map(config => config.ticket);
+  const missing = HD_PRACTICE_SET.set.tickets.filter(id => !raised.includes(id) && !saved.tickets.some(ticket => ticket.id === id));
   if (!missing.length) return saved;
   const fresh = hdFreshState(HD_TICKET_TEMPLATES, true);
   missing.forEach(id => {
@@ -7147,7 +7149,7 @@ function hdServerServicesView() {
   const services = hdServerList(state, 'services');
   if (!services.length) return hdServerMissing('Services');
   // One key per service too, the same as Get-Service -ComputerName (console B).
-  hdSeenAll([`services:${name}`, ...services.map(service => `service:${name}:${service.name}`)], `Services · ${name}`);
+  hdSeenAll([`services:${name}`, ...services.map(service => `service:${name}:${service.name}`)], (key, index) => `Services · ${name}${index ? ` › ${services[index - 1].displayName || services[index - 1].name}` : ''}`);
   const rows = services.map(service => {
     const start = hdServerStartRule(name, service);
     const control = start ? `<button type="button" class="btn btn-primary btn-sm" data-hd-service-start="${hdEsc(service.name)}" onclick="hdServerStart('${hdJsArg(name)}','${hdJsArg(service.name)}')">Start</button>` : '';
@@ -7418,7 +7420,8 @@ function hdDirectory() {
 function hdDirectoryReadOnly() { const dir = hdDirectory(); return !!(dir && dir.readOnly); }
 // Every key, in Practice and Prove alike, so a screen and its command always
 // record the same evidence.
-function hdSeenAll(keys, label) { keys.forEach(key => hdServerSeen(key, label)); }
+// label: one text, or a function of the key, so each Prove log row names its own evidence.
+function hdSeenAll(keys, label) { keys.forEach((key, index) => hdServerSeen(key, typeof label === 'function' ? label(key, index) : label)); }
 
 // Users, groups and members.
 function hdDirUserMatch(user, ref) {
@@ -7458,7 +7461,7 @@ window.hdAdGroupOpen = hdAdGroupOpen;
 function hdAdUserPaneDirectory(user, dir) {
   const groups = hdDirUserGroups(user, dir);
   // Only a user the student opened is recorded (the default pane is not).
-  if (hdState.adUserOpened === user.id) hdSeenAll([`ad-user:${user.id}`, `ad-user-groups:${user.id}`], `Active Directory › Users › ${user.name}`);
+  if (hdState.adUserOpened === user.id) hdSeenAll([`ad-user:${user.id}`, `ad-user-groups:${user.id}`], (key, index) => `Active Directory › Users › ${user.name}${index ? ' › Member Of' : ''}`);
   const actions = dir.readOnly
     ? `<p class="muted" data-hd-ad-read-only>Read-only: this view reads the account and changes nothing.</p>`
     : `<div class="hd-action-grid"><button class="btn btn-secondary" onclick="hdAdAction('unlock')">Unlock</button><button class="btn btn-secondary" onclick="hdAdAction('reset')">Reset password</button><button class="btn btn-secondary" onclick="hdAdAction('${user.enabled ? 'disable' : 'enable'}')">${user.enabled ? 'Disable' : 'Enable'}</button><button class="btn btn-secondary" onclick="hdAdAction('add-hr')">Add approved group</button></div>`;
@@ -7578,7 +7581,7 @@ function hdDnsView(dir) {
   const all = hdDnsRecords(dir);
   const type = HD_DNS_TYPES.includes(hdState.dnsType) ? hdState.dnsType : '';
   const rows = all.filter(record => !type || record.type === type);
-  hdSeenAll(['dns-zone', ...rows.map(record => `dns-record:${String(record.name).toLowerCase()}:${record.type}`)], `DNS Manager › ${HD_ORG.domain}`);
+  hdSeenAll(['dns-zone', ...rows.map(record => `dns-record:${String(record.name).toLowerCase()}:${record.type}`)], (key, index) => (index ? `DNS Manager › ${rows[index - 1].name} ${rows[index - 1].type}` : `DNS Manager › ${HD_ORG.domain}`));
   const filters = [['', 'All'], ...HD_DNS_TYPES.map(item => [item, item])].map(([id, label]) => `<button type="button" class="btn ${id === type ? 'btn-primary' : 'btn-secondary'} btn-sm" aria-pressed="${id === type}" data-hd-dns-type="${id}" onclick="hdDnsSetType('${id}')">${label}</button>`).join('');
   const table = rows.map(r => `<tr data-hd-dns-record="${hdEsc(r.name)}:${hdEsc(r.type)}"><td><strong>${hdEsc(r.name)}</strong></td><td>${hdEsc(r.type)}</td><td><code>${hdEsc(r.value)}</code></td><td>${hdEsc(r.ttl)}</td><td>${hdBadge(r.status, r.status === 'Healthy' ? 'ok' : 'warn')}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">No records of this type.</td></tr>';
   const legend = HD_PROVE ? '' : '<div class="callout info">A: a name to an IPv4 address. AAAA: a name to an IPv6 address. CNAME: a name for another name. MX: the server that takes the domain\'s mail. TXT: text other systems read, such as SPF, DKIM and DMARC. Reading a record changes nothing.</div>';
@@ -7638,7 +7641,7 @@ function hdServerCommand(command, normalized, computer) {
     const all = hdServerList(state, 'services');
     const rows = wanted ? all.filter(service => [service.name, service.displayName].some(item => String(item || '').toLowerCase() === wanted.replace(/^["']|["']$/g, '').toLowerCase())) : all;
     if (!rows.length) { hdLastCommandResult = `no service ${wanted} on ${server.name}`; return `Get-Service : Cannot find any service with service name '${wanted.replace(/^["']|["']$/g, '')}'.`; }
-    hdSeenAll([`services:${server.name}`, ...rows.map(service => `service:${server.name}:${service.name}`)], `Services · ${server.name}`);
+    hdSeenAll([`services:${server.name}`, ...rows.map(service => `service:${server.name}:${service.name}`)], (key, index) => `Get-Service · ${server.name}${index ? ` › ${rows[index - 1].name}` : ''}`);
     hdLastCommandResult = rows.map(service => `${service.name} ${service.status || 'Stopped'}`).join(', ');
     return ['Status   Name               DisplayName', '------   ----               -----------', ...rows.map(service => `${String(service.status || 'Stopped').padEnd(8)} ${String(service.name).padEnd(18)} ${service.displayName || service.name}`)].join('\n');
   }
@@ -7690,6 +7693,8 @@ function hdServerCommand(command, normalized, computer) {
     hdServerSeen(`server-log:${server.name}:${log[0]}`, `Event Viewer › ${log[1]} · ${server.name}`);
     const max = Number(hdParam(command, 'maxevents')) || events.length;
     const rows = events.slice(0, max);
+    // Each printed event is read in full, the same evidence as opening it on the screen.
+    rows.forEach(event => hdServerSeen(`server-event:${server.name}:${log[0]}:${event.id}`, `Get-WinEvent · Event ${event.id} · ${server.name}`));
     hdLastCommandResult = `${rows.length} event(s) in ${log[1]} on ${server.name}`;
     if (!rows.length) return 'Get-WinEvent : No events were found that match the specified selection criteria.';
     return ['TimeCreated        Id    LevelDisplayName Message', ...rows.map(event => `${String(event.time || '').padEnd(18)} ${String(event.id || '').padEnd(5)} ${String(event.level || 'Information').padEnd(16)} ${event.message || ''}`)].join('\n');
