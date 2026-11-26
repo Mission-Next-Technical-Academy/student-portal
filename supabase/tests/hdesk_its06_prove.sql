@@ -54,17 +54,17 @@ insert into k values ($key${
   "competencies": [
     { "id": "triage", "label": "Triage", "points": 10, "criteria": [
       { "id": "priority", "points": 10,
-        "check": { "type": "path_equals", "path": ["fields", "priority"], "values": ["PX3", "PX4"] },
-        "partial": { "points": 4, "check": { "type": "path_equals", "path": ["fields", "priority"], "values": ["PX2", "PX5"] } },
+        "check": { "type": "path_equals", "path": ["fields", "priority"], "values": ["PX7", "PX8"] },
+        "partial": { "points": 4, "check": { "type": "path_equals", "path": ["fields", "priority"], "values": ["PX6", "PX9"] } },
         "feedback": "Rate the impact and the urgency." } ] },
     { "id": "investigation", "label": "Investigation", "points": 20, "criteria": [
       { "id": "account-read", "points": 12,
         "check": { "type": "path_contains", "path": ["events"], "value": { "type": "evidence_opened", "source": "ad-user:x-1" } },
         "feedback": "Read the account." },
-      { "id": "callback", "points": 8,
-        "check": { "type": "path_contains", "path": ["events"], "value": { "type": "caller_question", "value": "z1" } },
-        "partial": { "points": 5, "check": { "type": "path_contains", "path": ["events"], "value": { "type": "caller_question", "value": "z2" } } },
-        "feedback": "Try to verify the caller." } ] },
+      { "id": "question", "points": 8,
+        "check": { "type": "path_contains", "path": ["events"], "value": { "type": "caller_question", "value": "za" } },
+        "partial": { "points": 5, "check": { "type": "path_contains", "path": ["events"], "value": { "type": "caller_question", "value": "zc" } } },
+        "feedback": "Ask the made-up question." } ] },
     { "id": "action", "label": "Action and decision", "points": 50, "criteria": [
       { "id": "route", "points": 20,
         "check": { "type": "path_contains", "path": ["events"], "value": { "type": "action_taken", "value": "request-opened:Person Alpha", "source": "Item One" } },
@@ -75,13 +75,13 @@ insert into k values ($key${
       { "id": "safe", "points": 15,
         "check": { "type": "not", "check": { "type": "any", "checks": [
           { "type": "path_contains", "path": ["events"], "value": { "type": "action_taken", "value": "made-up-change", "source": "xa" } },
-          { "type": "step_chosen", "step": "y4" } ] } },
+          { "type": "step_chosen", "step": "wq" } ] } },
         "partial": { "points": 3, "check": { "type": "any", "checks": [
           { "type": "path_contains", "path": ["events"], "value": { "type": "action_taken", "value": "made-up-change", "source": "xa" } },
-          { "type": "step_chosen", "step": "y4" } ] } },
+          { "type": "step_chosen", "step": "wq" } ] } },
         "feedback": "Stay within your tier." },
-      { "id": "efficiency-unlock", "points": 0,
-        "check": { "type": "not", "check": { "type": "step_chosen", "step": "y2" } } } ] },
+      { "id": "formative-step", "points": 0,
+        "check": { "type": "not", "check": { "type": "step_chosen", "step": "wm" } } } ] },
     { "id": "documentation", "label": "Documentation", "points": 20, "judgment": true, "parts": [
       { "id": "note", "label": "Work note", "points": 20, "criteria": [
         { "id": "note-parts", "points": 20,
@@ -92,17 +92,17 @@ insert into k values ($key${
     { "id": "made-up-critical", "reason": "Made-up critical rule: an unsafe change on account xa.",
       "check": { "type": "any", "checks": [
         { "type": "path_contains", "path": ["events"], "value": { "type": "action_taken", "value": "made-up-critical", "source": "xa" } },
-        { "type": "step_chosen", "step": "y6" } ] } }
+        { "type": "step_chosen", "step": "wk" } ] } }
   ]
 }$key$::jsonb);
 do $$ begin perform public.prove_validate_key((select key from k)); perform pg_temp.check(true, 'the made-up ticket-actions key validates'); end $$;
 
 create function pg_temp.work(p_changes jsonb default '{}'::jsonb) returns jsonb language sql as $$
   select jsonb_build_object('version', 1, 'kind', 'hdesk-prove', 'moduleKey', 'demo', 'ticketId', 'XB-0008', 'elapsedSeconds', 1200,
-    'fields', jsonb_build_object('ticketClass', 'Theta class', 'category', 'Cat two', 'impact', '3', 'urgency', '1', 'priority', 'PX3', 'group', 'Team Lima'),
-    'diagnosis', 'Sigma cause', 'decision', 'Resolve', 'steps', '["y1"]'::jsonb, 'stepTexts', '["Step one"]'::jsonb,
+    'fields', jsonb_build_object('ticketClass', 'Theta class', 'category', 'Cat two', 'impact', '1', 'urgency', '2', 'priority', 'PX7', 'group', 'Team Lima'),
+    'diagnosis', 'Sigma cause', 'decision', 'Resolve', 'steps', '["wa"]'::jsonb, 'stepTexts', '["Step A"]'::jsonb,
     'keyFinding', 'Synthetic finding.', 'commands', '[]'::jsonb,
-    'events', '[{"type":"caller_question","value":"z1","label":"Made-up question one"},{"type":"evidence_opened","source":"ad-user:x-1"},{"type":"action_taken","value":"request-opened:Person Alpha","source":"Item One","label":"Made-up request"},{"type":"action_taken","value":"team-message:Team Kilo","source":"m1","label":"Made-up message"}]'::jsonb,
+    'events', '[{"type":"caller_question","value":"za","label":"Made-up question A"},{"type":"evidence_opened","source":"ad-user:x-1"},{"type":"action_taken","value":"request-opened:Person Alpha","source":"Item One","label":"Made-up request"},{"type":"action_taken","value":"team-message:Team Kilo","source":"m1","label":"Made-up message"}]'::jsonb,
     'machine', '{}'::jsonb,
     'resolutionNote', E'Reported: a made-up call.\nTried: read the made-up account.\nResult: no change made here.\nNext action: sent to the approver.',
     'userReply', 'Synthetic reply.', 'workNotes', '[]'::jsonb) || p_changes;
@@ -129,9 +129,9 @@ begin
     'perfect: every automatic point and a full writing suggestion');
 
   -- Priority: two values earn full credit, two earn the partial.
-  v := pg_temp.score(pg_temp.work('{"fields":{"priority":"PX4"}}'::jsonb));
+  v := pg_temp.score(pg_temp.work('{"fields":{"priority":"PX8"}}'::jsonb));
   perform pg_temp.check((v->>'recommended_score')::int = 100, 'the second full-credit priority (100)');
-  v := pg_temp.score(pg_temp.work('{"fields":{"priority":"PX5"}}'::jsonb));
+  v := pg_temp.score(pg_temp.work('{"fields":{"priority":"PX9"}}'::jsonb));
   perform pg_temp.check((pg_temp.crit(v, 'priority')->>'earned')::int = 4 and (v->>'recommended_score')::int = 94, 'a half-credit priority (94)');
 
   -- The request counts only with its approver and its item.
@@ -145,13 +145,13 @@ begin
   v := pg_temp.score(pg_temp.work(pg_temp.without('request-opened:Person Alpha')));
   perform pg_temp.check((pg_temp.comp(v, 'action')->>'earned')::int = 30 and (v->>'recommended_score')::int = 80, 'reported, not routed (80)');
   -- Different valid questions: the second one earns the partial.
-  v := pg_temp.score(pg_temp.work(pg_temp.without('z1', '[{"type":"caller_question","value":"z2"}]'::jsonb)));
-  perform pg_temp.check((pg_temp.crit(v, 'callback')->>'earned')::int = 5 and (v->>'recommended_score')::int = 97, 'the other identity question: 5 of 8 (97)');
+  v := pg_temp.score(pg_temp.work(pg_temp.without('za', '[{"type":"caller_question","value":"zc"}]'::jsonb)));
+  perform pg_temp.check((pg_temp.crit(v, 'question')->>'earned')::int = 5 and (v->>'recommended_score')::int = 97, 'the other question: 5 of 8 (97)');
 
   -- An unsafe change on the account costs the safe criterion its partial, by either route.
   v := pg_temp.score(pg_temp.work(jsonb_build_object('events', (pg_temp.work()->'events') || '[{"type":"action_taken","value":"made-up-change","source":"xa"}]'::jsonb)));
   perform pg_temp.check((pg_temp.crit(v, 'safe')->>'earned')::int = 3 and (v->>'recommended_score')::int = 88, 'the unsafe change on the screen: 3 of 15 (88)');
-  v := pg_temp.score(pg_temp.work('{"steps":["y1","y4"],"stepTexts":["Step one","Step four"]}'::jsonb));
+  v := pg_temp.score(pg_temp.work('{"steps":["wa","wq"],"stepTexts":["Step A","Step Q"]}'::jsonb));
   perform pg_temp.check((pg_temp.crit(v, 'safe')->>'earned')::int = 3, 'the unsafe change as a step: 3 of 15');
   -- The same change on another account is not this ticket's.
   v := pg_temp.score(pg_temp.work(jsonb_build_object('events', (pg_temp.work()->'events') || '[{"type":"action_taken","value":"made-up-change","source":"xb"}]'::jsonb)));
@@ -159,13 +159,13 @@ begin
 
   -- Extra exploration: more screens, questions and steps, no penalty; an unnecessary step is formative.
   v := pg_temp.score(pg_temp.work(jsonb_build_object('events', (pg_temp.work()->'events') || '[{"type":"evidence_opened","source":"ad-user:x-2"},{"type":"evidence_opened","source":"card:c2"},{"type":"action_taken","value":"team-message:Team Lima","source":"m2"}]'::jsonb,
-    'steps', '["y1","y2","y3"]'::jsonb, 'stepTexts', '["Step one","Step two","Step three"]'::jsonb)));
+    'steps', '["wa","wm","wb"]'::jsonb, 'stepTexts', '["Step A","Step M","Step B"]'::jsonb)));
   perform pg_temp.check((v->>'recommended_score')::int = 100 and not (v->>'critical_error')::boolean, 'extra exploration is never penalized (100)');
 
   -- The critical rule: an automatic zero by each route, on its account only.
   v := pg_temp.score(pg_temp.work(jsonb_build_object('events', (pg_temp.work()->'events') || '[{"type":"action_taken","value":"made-up-critical","source":"xa"}]'::jsonb)));
   perform pg_temp.check((v->>'critical_error')::boolean and (v->>'recommended_score')::int = 0, 'critical: the unsafe action on the screen');
-  v := pg_temp.score(pg_temp.work('{"steps":["y6"],"stepTexts":["Step six"]}'::jsonb));
+  v := pg_temp.score(pg_temp.work('{"steps":["wk"],"stepTexts":["Step K"]}'::jsonb));
   perform pg_temp.check((v->>'critical_error')::boolean and (v->>'recommended_score')::int = 0, 'critical: the unsafe step chosen');
   v := pg_temp.score(pg_temp.work(jsonb_build_object('events', (pg_temp.work()->'events') || '[{"type":"action_taken","value":"made-up-critical","source":"xb"}]'::jsonb)));
   perform pg_temp.check(not (v->>'critical_error')::boolean, 'not critical on another account');

@@ -110,9 +110,11 @@ const ticketView = (tab) => { tab.run('hdState.selectedTicketId = hdState.ticket
 const WRITING = { keyFinding: 'Synthetic finding K: two made-up facts linked.', resolutionNote: 'Synthetic note A: Reported / Tried / Result / Next action, all made up.', userReply: 'Synthetic note B: a made-up reply.' };
 const sources = (tab) => tab.prove().opened.filter((s) => !s.startsWith('screen:') && !s.startsWith('computer:'));
 const ask = (tab, id) => tab.run(`hdChatAsk(hdState.tickets[0].id, ${j(id)})`);
-// An item with a field naming its approver, and one with a fixed approver.
-const FIELD_ITEM = ITEMS.find((item) => item.approverField);
-const FIXED_ITEM = ITEMS.find((item) => !item.approverField);
+// Two catalog items, each with a choice and a field naming its approver.
+const FIELD_ITEM = ITEMS[0];
+const FIXED_ITEM = ITEMS[1];
+const approverOptions = (item) => item.fields.find((field) => field.id === item.approverField).options;
+const choiceOf = (item) => item.fields.filter((field) => field.id !== item.approverField).map((field) => field.options[0]).join(', ');
 function openRequest(tab, item, forName, approver) {
   tab.run(`hdConvertSet(${j(TID)}, 'item', ${j(item.name)})`);
   tab.run(`hdConvertSet(${j(TID)}, 'requestedFor', ${j(forName)})`);
@@ -248,21 +250,36 @@ function testRequestAndTeamMessages() {
   let html = ticketView(tab);
   ITEMS.forEach((item) => assert.ok(html.includes(`>${tab.run('hdEsc')(item.name)}</option>`), `item ${item.name} offered`));
   PEOPLE.forEach((user) => assert.ok(html.includes(`>${tab.run('hdEsc')(user.name)}</option>`), `${user.name} can be chosen as Requested for`));
-  const approver = FIELD_ITEM.fields.find((field) => field.id === FIELD_ITEM.approverField).options[1];
+  assert.ok(ITEMS.every((item) => item.approverField && item.fields.length === 2), 'every item has the same shape');
+  assert.equal(new Set(MESSAGES.map((m) => m.text)).size, 1, 'every message has the same text');
+  const approver = approverOptions(FIELD_ITEM)[1];
   openRequest(tab, FIELD_ITEM, PEOPLE[0].name, approver);
-  same(tab.actions().map((a) => [a.value, a.source]), [[`request-opened:${approver}`, FIELD_ITEM.name]], 'one request, by approver and item');
+  same(tab.actions().map((a) => [a.value, a.source]), [[`request-opened:${approver}`, `${FIELD_ITEM.name}: ${choiceOf(FIELD_ITEM)} · ${PEOPLE[0].name}`]], 'one request, by approver, item, choice and who it is for');
   assert.ok(tab.actions()[0].label.includes(PEOPLE[0].name), 'the label names who it is for');
+  assert.ok(tab.actions()[0].label.length <= 120, 'the label fits the course page');
   html = ticketView(tab);
   assert.match(html, /Approval: Requested/);
   assert.ok(html.includes(`<dt>Approver</dt><dd>${tab.run('hdEsc')(approver)}</dd>`), 'the chosen approver shows');
   assert.doesNotMatch(html, /Close the request/, 'nothing closes the request in a Prove It');
   // One request per ticket.
-  openRequest(tab, FIXED_ITEM, PEOPLE[1].name, '');
+  openRequest(tab, FIXED_ITEM, PEOPLE[1].name, approverOptions(FIXED_ITEM)[0]);
   assert.equal(tab.actions().length, 1);
-  // A fixed approver comes from the item.
-  const fixed = sim('its-06', 'stu-request-fixed');
-  openRequest(fixed, FIXED_ITEM, PEOPLE[0].name, '');
-  same(fixed.actions().map((a) => [a.value, a.source]), [[`request-opened:${FIXED_ITEM.approver}`, FIXED_ITEM.name]]);
+  // Another item, for someone else: its own source.
+  const other = sim('its-06', 'stu-request-other');
+  openRequest(other, FIXED_ITEM, PEOPLE[1].name, approverOptions(FIXED_ITEM)[0]);
+  same(other.actions().map((a) => [a.value, a.source]), [[`request-opened:${approverOptions(FIXED_ITEM)[0]}`, `${FIXED_ITEM.name}: ${choiceOf(FIXED_ITEM)} · ${PEOPLE[1].name}`]]);
+  // A form with a choice missing opens nothing.
+  const half = sim('its-06', 'stu-request-half');
+  half.run(`hdConvertSet(${j(TID)}, 'item', ${j(FIELD_ITEM.name)}); hdConvertSet(${j(TID)}, 'requestedFor', ${j(PEOPLE[0].name)}); hdConvertToRequest(${j(TID)})`);
+  same(half.actions(), []);
+  // The lists come in a per-attempt order, the same after a reload.
+  const order = (t) => [...ticketView(t).matchAll(/<option >([^<]+)<\/option>/g)].map((m) => m[1]).filter((name) => ITEMS.some((item) => item.name === name));
+  const local = store();
+  const first = sim('its-06', 'stu-order', local);
+  const firstOrder = order(first);
+  first.run('hdSave()');
+  same(order(sim('its-06', 'stu-order', local)), firstOrder, 'a reload keeps the order');
+  same([...firstOrder].sort(), ITEMS.map((item) => item.name).sort(), 'every item offered');
   // Team messages: each one once, by team.
   MESSAGES.forEach((message) => tab.run(`hdTeamMessage(${j(TID)}, ${j(message.id)})`));
   tab.run(`hdTeamMessage(${j(TID)}, ${j(MESSAGES[0].id)})`);
@@ -276,13 +293,15 @@ function testRequestAndTeamMessages() {
   openRequest(locked, FIELD_ITEM, PEOPLE[0].name, approver);
   locked.run(`hdTeamMessage(${j(TID)}, ${j(MESSAGES[1].id)})`);
   same(locked.actions(), [], 'nothing recorded after submit');
+  assert.equal(locked.run('hdState.tickets[0].request'), undefined, 'no request was made after submit');
+  same(locked.run('hdConsoleState(hdState.tickets[0]).teamMessages || []'), [], 'no message was sent after submit');
   const lockedHtml = ticketView(locked);
   assert.doesNotMatch(lockedHtml, /data-hd-keep-incident|hdTeamMessage\(/, 'no request form and no message button after submit');
 }
 
 function testReturnedAttemptEarnsThemAgain() {
   const tab = sim('its-06', 'stu-return');
-  openRequest(tab, FIELD_ITEM, PEOPLE[0].name, FIELD_ITEM.fields[0].options[0]);
+  openRequest(tab, FIELD_ITEM, PEOPLE[0].name, approverOptions(FIELD_ITEM)[0]);
   tab.run(`hdTeamMessage(${j(TID)}, ${j(MESSAGES[0].id)})`);
   assert.equal(tab.actions().length, 2);
   tab.run(`hdProveFreshLog(${j(new Date().toISOString())})`);
@@ -290,7 +309,7 @@ function testReturnedAttemptEarnsThemAgain() {
   const html = ticketView(tab);
   assert.match(html, /data-hd-keep-incident/, 'the request can be opened again');
   assert.ok(html.includes(`hdTeamMessage('${TID}','${MESSAGES[0].id}')`), 'and the message sent again');
-  openRequest(tab, FIELD_ITEM, PEOPLE[0].name, FIELD_ITEM.fields[0].options[0]);
+  openRequest(tab, FIELD_ITEM, PEOPLE[0].name, approverOptions(FIELD_ITEM)[0]);
   assert.equal(tab.actions().length, 1, 'earned again in this attempt');
   // Account and Entra changes are actions too: the accounts start as the shift began.
   const acct = sim('its-06', 'stu-return-acct');
@@ -358,7 +377,7 @@ function sampleWork() {
   tab.view('helpdesk/directory');
   tab.run(`hdOpenUser(${j(PEOPLE[0].id)})`); tab.view('helpdesk/active-directory');
   tab.run(`hdProveOpenCard('card', ${j(SPEC.evidence[0].id)})`);
-  openRequest(tab, FIELD_ITEM, PEOPLE[0].name, FIELD_ITEM.fields[0].options[2]);
+  openRequest(tab, FIELD_ITEM, PEOPLE[0].name, approverOptions(FIELD_ITEM)[2]);
   tab.run(`hdTeamMessage(${j(TID)}, ${j(MESSAGES[1].id)})`);
   tab.ps(`Get-ADUser ${PEOPLE[1].username} -Properties Title`);
   return plain(tab.run('hdProvePackage()'));

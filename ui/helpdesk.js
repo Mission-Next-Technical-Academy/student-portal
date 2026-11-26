@@ -2438,6 +2438,9 @@ function hdConvertDraft(ticket) {
 }
 // Who a request can be for: the directory (a Prove shift adds its own users).
 function hdConvertUsers() { return HD_PROVE ? hdFileUsers() : HD_USERS; }
+// A Prove It shows a list in a per-attempt order (seeded, so a reload keeps
+// it), so no choice has a fixed place. Practice keeps the data's order.
+function hdProveShuffled(list, salt) { return HD_PROVE ? hdSeededOrder(list.slice(), ((hdState && hdState.seed) || 1) ^ salt) : list; }
 function hdConvertSet(id, field, value) {
   if (HD_PROVE && hdProveLocked()) return;
   const ticket = hdTicketById(id); const config = ticket && hdConsole(ticket).convert; if (!config) return;
@@ -2478,10 +2481,13 @@ function hdConvertToRequest(id) {
   };
   if (HD_PROVE) {
     // A Prove It: the request is an action on the ticket, for the instructor
-    // and the key (value: who approves it; source: the catalog item).
+    // and the key. value: who approves it; source: the catalog item, its other
+    // choices and who it is for ("<item>: <choice> · <requested for>").
     const request = ticket.request;
-    hdHistory(ticket, `Request ${request.number} (${item.name}) opened from this ticket for ${request.requestedFor}${request.approver ? `; approver ${request.approver}` : ''}.`);
-    hdProveEvent('action_taken', { label:`Opened request: ${item.name} for ${request.requestedFor}${request.approver ? `, approver ${request.approver}` : ''}`, value:`request-opened:${request.approver}`, source:item.name });
+    const choices = request.fields.filter(field => field.id !== item.approverField).map(field => field.value).join(', ');
+    const what = `${item.name}${choices ? `: ${choices}` : ''}`;
+    hdHistory(ticket, `Request ${request.number} (${what}) opened from this ticket for ${request.requestedFor}${request.approver ? `; approver ${request.approver}` : ''}.`);
+    hdProveEvent('action_taken', { label:`Opened request: ${what} for ${request.requestedFor}${request.approver ? `, approver ${request.approver}` : ''}`, value:`request-opened:${request.approver}`, source:`${what} · ${request.requestedFor}` });
     hdProveEdited();
     hdSave(); render(); return;
   }
@@ -2890,9 +2896,9 @@ function hdConvertCard(ticket) {
   if (HD_PROVE && hdProveLocked()) return '';
   const draft = hdConvertDraft(ticket);
   const item = (config.items || []).find(entry => entry.name === draft.item);
-  const fields = item ? (item.fields || []).map(field => `<label>${hdEsc(field.label)}<select class="select" data-hd-convert="${hdEsc(field.id)}" onchange="hdConvertSet('${ticket.id}','${hdEsc(field.id)}',this.value)"><option value="">Choose…</option>${(field.options || []).map(value => `<option ${draft.fields[field.id] === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></label>`).join('') : '';
+  const fields = item ? (item.fields || []).map(field => `<label>${hdEsc(field.label)}<select class="select" data-hd-convert="${hdEsc(field.id)}" onchange="hdConvertSet('${ticket.id}','${hdEsc(field.id)}',this.value)"><option value="">Choose…</option>${hdProveShuffled(field.options || [], 0x2545f491).map(value => `<option ${draft.fields[field.id] === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></label>`).join('') : '';
   const keep = config.keepIncident === true;
-  return `<div class="card hd-convert"${keep ? ' data-hd-keep-incident' : ''}><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${keep ? 'Open a request from this incident' : 'Convert to Request'}</strong><span class="muted">${keep ? 'The incident stays open for what is broken; the request is for what is new.' : 'For something new, not something broken.'}</span></div><div class="card-body" style="display:grid;gap:8px"><label>Catalog item<select class="select" data-hd-convert="item" onchange="hdConvertSet('${ticket.id}','item',this.value)"><option value="">Choose…</option>${(config.items || []).map(entry => `<option ${draft.item === entry.name ? 'selected' : ''}>${hdEsc(entry.name)}</option>`).join('')}</select></label><label>Requested for<select class="select" data-hd-convert="requestedFor" onchange="hdConvertSet('${ticket.id}','requestedFor',this.value)"><option value="">Choose…</option>${hdConvertUsers().map(user => `<option ${draft.requestedFor === user.name ? 'selected' : ''}>${hdEsc(user.name)}</option>`).join('')}</select></label>${fields}<div><button type="button" class="btn btn-primary" onclick="hdConvertToRequest('${ticket.id}')">${keep ? 'Open request' : 'Convert to Request'}</button></div></div></div>`;
+  return `<div class="card hd-convert"${keep ? ' data-hd-keep-incident' : ''}><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${keep ? 'Open a request from this incident' : 'Convert to Request'}</strong><span class="muted">${keep ? 'The incident stays open for what is broken; the request is for what is new.' : 'For something new, not something broken.'}</span></div><div class="card-body" style="display:grid;gap:8px"><label>Catalog item<select class="select" data-hd-convert="item" onchange="hdConvertSet('${ticket.id}','item',this.value)"><option value="">Choose…</option>${hdProveShuffled(config.items || [], 0x7feb352d).map(entry => `<option ${draft.item === entry.name ? 'selected' : ''}>${hdEsc(entry.name)}</option>`).join('')}</select></label><label>Requested for<select class="select" data-hd-convert="requestedFor" onchange="hdConvertSet('${ticket.id}','requestedFor',this.value)"><option value="">Choose…</option>${hdConvertUsers().map(user => `<option ${draft.requestedFor === user.name ? 'selected' : ''}>${hdEsc(user.name)}</option>`).join('')}</select></label>${fields}<div><button type="button" class="btn btn-primary" onclick="hdConvertToRequest('${ticket.id}')">${keep ? 'Open request' : 'Convert to Request'}</button></div></div></div>`;
 }
 function hdLinkCard(ticket) {
   if (!hdConsole(ticket).link) return '';
@@ -3484,7 +3490,7 @@ function hdTeamMessagesCard(ticket) {
   const list = hdConsole(ticket).teamMessages; if (!Array.isArray(list) || !list.length) return '';
   const sent = hdConsoleState(ticket).teamMessages || [];
   const log = sent.map(entry => { const message = list.find(item => item.id === entry.id); return message ? `<div data-hd-team="${hdEsc(message.id)}"><strong>You to ${hdEsc(message.to)} · ${hdEsc(entry.time)}</strong><p>${hdEsc(message.text)}</p><strong>${hdEsc(message.from || message.to)}</strong><p>${hdEsc(message.reply)}</p></div>` : ''; }).join('');
-  const open = HD_PROVE && hdProveLocked() ? [] : list.filter(message => !sent.some(entry => entry.id === message.id));
+  const open = HD_PROVE && hdProveLocked() ? [] : hdProveShuffled(list, 0x846ca68b).filter(message => !sent.some(entry => entry.id === message.id));
   return `<div class="card hd-team-messages"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Message another team</strong><span class="muted">Internal: the caller doesn't see this.</span></div><div class="card-body"><div class="hd-note-list">${log || '<p class="muted">No internal messages yet.</p>'}</div>${open.length ? `<div style="display:grid;gap:8px">${open.map(message => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} onclick="hdTeamMessage('${ticket.id}','${hdEsc(message.id)}')">To ${hdEsc(message.to)}: ${hdEsc(message.text)}</button>`).join('')}</div>` : ''}</div></div>`;
 }
 function hdWarmHandoffControl(ticket) {
@@ -8412,8 +8418,8 @@ function hdAcctGetAdUser(user, props) {
   if (want('AccountExpirationDate')) rows.push(['AccountExpirationDate', !user.accountExpires || user.accountExpires === 'Never' ? '(not set: never expires)' : user.accountExpires]);
   rows.push(['DistinguishedName', `CN=${user.name},${user.ou}`], ['Enabled', user.enabled === false ? 'False' : 'True']);
   if (want('LockedOut')) rows.push(['LockedOut', user.locked ? 'True' : 'False']);
-  // Module 8's Prove shift (userDirectory): what the pane shows, when named.
-  const named = name => props.includes(name.toLowerCase());
+  // Module 8's Prove shift (userDirectory): what the pane shows.
+  const named = want;
   if (hdProveUserDirectory()) {
     if (named('Manager')) rows.push(['Manager', user.manager ? `CN=${user.manager},CN=Users,DC=northstar,DC=example` : '']);
     if (named('OfficePhone')) rows.push(['OfficePhone', user.phone || '']);

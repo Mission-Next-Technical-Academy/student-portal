@@ -3573,8 +3573,9 @@ const HD_PROVE_SHIFTS = {
       'u-1022':{ accountExpires:'Never', passwordExpired:false, passwordLastSet:'27 days ago', passwordAge:27, lastBadPassword:'None', sspr:'Registered' },
       'u-1020':{ accountExpires:'Never', passwordExpired:false, passwordLastSet:'57 days ago', passwordAge:57, lastBadPassword:'None', sspr:'Registered' },
     }),
-    // The account controls Module 8 teaches, on every account (hdAcctShown).
-    accountActions: { 'u-1096': { unlock:true, enable:{ record:'' }, reset:true, expiry:true } },
+    // The account controls Module 8 teaches, live on every account above
+    // (hdAcctShown shows the same controls on any other account).
+    accountActions: Object.fromEntries(['u-1096', 'u-1097', 'u-1022', 'u-1020'].map(id => [id, { unlock:true, enable:{ record:'' }, reset:true, expiry:true }])),
     cloud: {
       entra: {
         users: {
@@ -3587,8 +3588,7 @@ const HD_PROVE_SHIFTS = {
         },
         audit: [{ time:'2 months ago 10:05', actor:'Service Desk', activity:'User registered security info (Microsoft Authenticator)', target:'Marcus Lane' }],
       },
-      // The button shows for every user; a change this shift doesn't allow is refused.
-      allow: { reregister:{ 'u-1096':true } },
+      allow: { reregister:{ 'u-1096':true, 'u-1097':true, 'u-1022':true } },
     },
     // Module 8's set-level articles (HD_ITS06_KB_ARTICLES, practice-only),
     // copied in as plain articles: a Prove shift lists no practice-only one.
@@ -3599,7 +3599,7 @@ const HD_PROVE_SHIFTS = {
     }),
     tickets: [{
       id: 'SR-2129', number: 'INC0012129', title: 'MFA reset needed now for a contractor',
-      requester: 'Evelyn Reed', requesterTitle: 'VP of Operations (as given by the caller)', department: 'Not given', device: '',
+      requester: 'Evelyn Reed', requesterTitle: 'VP of Operations', department: 'Operations', device: '',
       cc: '', contactType: 'Phone', createdAt: '2026-09-03T09:20:00Z',
       status: 'New', assignedTechnician: 'Unassigned',
       description: 'This is Evelyn Reed. Marcus Lane got a new phone and needs his MFA reset now. He has to be in the warehouse system for the 10 AM inventory. I\'m in a meeting, so just do it.',
@@ -3623,21 +3623,30 @@ const HD_PROVE_SHIFTS = {
           { id: 'q2', text: 'Can you give me your employee ID?', reply: 'I don\'t have it in front of me.' },
           { id: 'q3', text: 'Who is Marcus\'s manager?', reply: 'Monica, I think. Does it matter?' },
         ] },
+        // Every item has the same shape (a choice and an approver), and every
+        // message the same neutral text, so the decision is which one.
         convert: {
           number: 'RITM0012129',
           items: [
-            { name: 'Contractor account extension', approverField: 'sponsor', fields: [
-              { id: 'sponsor', label: 'Sponsor (approver)', options: ['Evelyn Reed', 'Caleb Wright', 'Monica Hall', 'Dana Whitfield'] },
-              { id: 'length', label: 'Extend by', options: ['30 days', '60 days', '90 days'] },
+            { name: 'Account change request', approverField: 'approver', fields: [
+              { id: 'change', label: 'Change', options: ['Extend the end date', 'Reset MFA methods', 'Reset the password', 'Re-enable the account'] },
+              { id: 'approver', label: 'Approver', options: ['Evelyn Reed', 'Caleb Wright', 'Monica Hall', 'Dana Whitfield'] },
             ] },
-            { name: 'MFA method reset', approver: 'Service Desk (Tier 1)', fields: [] },
-            { name: 'New phone setup', approver: 'Line manager', fields: [] },
+            { name: 'New phone setup', approverField: 'approver', fields: [
+              { id: 'change', label: 'Change', options: ['Enrol a replacement phone', 'Enrol a first company phone'] },
+              { id: 'approver', label: 'Approver', options: ['Evelyn Reed', 'Caleb Wright', 'Monica Hall', 'Dana Whitfield'] },
+            ] },
+            { name: 'Application access', approverField: 'approver', fields: [
+              { id: 'change', label: 'Change', options: ['Warehouse system', 'Microsoft Teams', 'Outlook'] },
+              { id: 'approver', label: 'Approver', options: ['Evelyn Reed', 'Caleb Wright', 'Monica Hall', 'Dana Whitfield'] },
+            ] },
           ],
         },
         teamMessages: [
-          { id: 't1', to: 'Desktop Support (Tier 2)', text: 'Marcus Lane can\'t sign in to the warehouse system before the 10:00 inventory. Can you look at it?', reply: 'Received.' },
-          { id: 't2', to: 'Security Operations (SOC)', text: 'Suspicious call: a caller giving the name Evelyn Reed asked for an MFA reset for Marcus Lane and could not be verified.', reply: 'Received.' },
-          { id: 't3', to: 'Server & Identity', text: 'Please reset MFA for Marcus Lane (mlane): he has a new phone.', reply: 'Received.' },
+          { id: 't1', to: 'Desktop Support (Tier 2)', text: 'Please review INC0012129: the details are in its work notes.', reply: 'Received.' },
+          { id: 't2', to: 'Security Operations (SOC)', text: 'Please review INC0012129: the details are in its work notes.', reply: 'Received.' },
+          { id: 't3', to: 'Server & Identity', text: 'Please review INC0012129: the details are in its work notes.', reply: 'Received.' },
+          { id: 't4', to: 'Messaging & Collaboration', text: 'Please review INC0012129: the details are in its work notes.', reply: 'Received.' },
         ],
       },
       diagnosisOptions: ['Account locked', 'Account disabled', 'Account expired', 'MFA method lost'],
