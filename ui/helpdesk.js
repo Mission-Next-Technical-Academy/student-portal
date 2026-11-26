@@ -8493,14 +8493,16 @@ window.hdAcctOtpDone=hdAcctOtpDone; window.hdCredRemove=hdCredRemove; window.hdC
  *         the same value) wins over this one.
  *       audit: [{ time, actor, activity, target }] }
  *     intune: { minOs?, devices: { '<name>': { user, ownership?, model?, os?,
- *       enrolled?, retired?, compliance?, failingRule?, lastCheckIn? } } }
- *       A device whose phone is in this block takes its OS, PIN and encryption
- *       from the phone, and is evaluated again only by Company Portal (enrol,
- *       Check status). A retired device shows Retired. A personal phone is
- *       never a device here.
+ *       enrolled?, retired?, compliance?, failingRule?, graceEnded?, lastCheckIn? } } }
+ *       A device whose phone is in this block takes its OS from the phone.
+ *       Its compliance is the fixture's (or, enrolled without one, the phone's
+ *       rules as the shift began) until Company Portal evaluates it again
+ *       (enrol, Check status). A retired device shows Retired until Company
+ *       Portal enrols it again. A personal phone is never a device here.
  *     phones: { '<name>': { label, user, company:true|false, os, update?:{ version },
- *       pin?, encrypted?, status:{ wifi, cellular?, dataUsedGb?, capGb? },
- *       bluetooth?:{ on, nearby:[{ name, pin }] }, notifications?:{ authenticator },
+ *       pin?, encrypted?, status:{ wifi, network?, cellular?, dataUsedGb?, capGb? },
+ *       bluetooth?:{ on, nearby:[{ name, pin }] }   an accessory is found only
+ *         after "Put it in pairing mode"; notifications?:{ authenticator },
  *       outlook?:{ account, sync?:{ mail, calendar, contacts } }, onedrive?:{ wifiOnly },
  *       authenticator?:{ work } } }
  *     allow: (Practice: the open ticket's layer only; Prove: the shift's) {
@@ -8656,7 +8658,7 @@ function hdM365UsersTab(cloud, view) {
     const items = licenses.map(item => item.active
       ? `<li data-hd-license="${hdEsc(item.sku)}"><strong>${hdEsc(item.sku)}</strong> ${hdBadge('Active', 'ok')}<div data-hd-license-via>Assigned via group: ${hdEsc(item.group)}</div>${item.apps.length ? `<small class="muted">Apps: ${hdEsc(item.apps.join(', '))}</small>` : ''}</li>`
       : `<li data-hd-license="${hdEsc(item.sku)}"><strong>${hdEsc(item.sku)}</strong> ${hdBadge('Not assigned', 'bad')}<div data-hd-license-via>Was assigned via group: ${hdEsc(item.group)}</div></li>`).join('');
-    pane = `<aside class="card hd-object-pane" data-hd-m365-licenses="${hdEsc(open.id)}"><div class="card-header"><strong>${hdEsc(open.name)}</strong><span class="muted">Licenses and apps</span></div><div class="card-body">${licenses.some(item => item.active) ? '' : '<p data-hd-no-license><strong>No licence.</strong></p>'}<ul class="hd-list">${items || '<li class="muted">No licences.</li>'}</ul><p class="muted" data-hd-license-read-only>Licences assigned via a group are read-only here: change the group's membership instead.</p><button type="button" class="btn btn-secondary btn-sm" data-hd-license-assign onclick="hdM365AssignDirect('${hdJsArg(open.id)}')" ${hdProveLocked() ? 'disabled' : ''}>Assign a licence directly</button></div></aside>`;
+    pane = `<aside class="card hd-object-pane" data-hd-m365-licenses="${hdEsc(open.id)}"><div class="card-header"><strong>${hdEsc(open.name)}</strong><span class="muted">Licenses and apps</span></div><div class="card-body">${licenses.some(item => item.active) ? '' : '<p data-hd-no-license><strong>No licence.</strong></p>'}<ul class="hd-list">${items || '<li class="muted">No licences.</li>'}</ul>${HD_PROVE ? '<p class="muted" data-hd-license-read-only>Assigned via group (read-only).</p>' : `<p class="muted" data-hd-license-read-only>Licences assigned via a group are read-only here: change the group's membership instead.</p><button type="button" class="btn btn-secondary btn-sm" data-hd-license-assign onclick="hdM365AssignDirect('${hdJsArg(open.id)}')">Assign a licence directly</button>`}</div></aside>`;
   }
   return `<div class="hd-ticket-layout"><div class="hd-ticket-main"><div class="card"><div class="card-header"><strong>Active users</strong></div><div class="table-wrap"><table><thead><tr><th>Display name</th><th>Username</th><th>Licences</th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="muted">No users.</td></tr>'}</tbody></table></div></div></div><div class="hd-ticket-side">${pane}</div></div>`;
 }
@@ -8670,7 +8672,7 @@ function hdM365MailboxesTab(cloud, view) {
     const users = hdM365Users(cloud);
     const off = hdProveLocked() ? 'disabled' : '';
     const add = `<div class="hd-diagnosis-row" data-hd-mailbox-add><select id="hd-mailbox-user" class="select" aria-label="User to add">${users.map(user => `<option value="${hdEsc(user.id)}">${hdEsc(user.name)}</option>`).join('')}</select><select id="hd-mailbox-permission" class="select" aria-label="Permission"><option value="fullAccess">Read and manage (Full Access)</option><option value="sendAs">Send as</option></select><button type="button" class="btn btn-secondary btn-sm" ${off} onclick="hdM365MailboxAddFrom('${hdJsArg(box.name)}')">Add</button></div>`;
-    pane = `<aside class="card hd-object-pane" data-hd-mailbox-pane="${hdEsc(box.name)}"><div class="card-header"><strong>${hdEsc(box.name)}</strong><span class="muted">${hdEsc(box.address)}</span></div><div class="card-body"><dl class="hd-dl"><dt>Owner</dt><dd>${hdEsc(box.owner || '—')}</dd><dt>Licence</dt><dd>Not needed (shared mailbox)</dd></dl><strong>Mailbox permissions</strong><p>Read and manage (Full Access)</p><ul class="hd-list" data-hd-full-access>${people(box.fullAccess)}</ul><p>Send as</p><ul class="hd-list" data-hd-send-as>${people(box.sendAs)}</ul>${add}${HD_PROVE ? '' : '<p class="muted">Each change needs the mailbox owner\'s approval on a request.</p>'}</div></aside>`;
+    pane = `<aside class="card hd-object-pane" data-hd-mailbox-pane="${hdEsc(box.name)}"><div class="card-header"><strong>${hdEsc(box.name)}</strong><span class="muted">${hdEsc(box.address)}</span></div><div class="card-body"><dl class="hd-dl"><dt>Owner</dt><dd>${hdEsc(box.owner || '—')}</dd><dt>Licence</dt><dd>Not needed (shared mailbox)</dd></dl><strong>Mailbox permissions</strong><p>Read and manage (Full Access)</p><ul class="hd-list" data-hd-full-access>${people(box.fullAccess)}</ul><p>Send as</p><ul class="hd-list" data-hd-send-as>${people(box.sendAs)}</ul>${add}${HD_PROVE ? '' : '<p class="muted" data-hd-mailbox-note>Each change needs the mailbox owner\'s approval on a request, and can take up to an hour to show in Outlook.</p>'}</div></aside>`;
   }
   return `<div class="hd-ticket-layout"><div class="hd-ticket-main"><div class="card"><div class="card-header"><strong>Shared mailboxes</strong></div><div class="table-wrap"><table><thead><tr><th>Name</th><th>Email address</th><th>Owner</th></tr></thead><tbody>${list || '<tr><td colspan="3" class="muted">No shared mailboxes.</td></tr>'}</tbody></table></div></div></div><div class="hd-ticket-side">${pane}</div></div>`;
 }
@@ -8736,7 +8738,13 @@ function hdM365MailboxAdd(name, userId, permission) {
     if (!ticket || !hdRequestApproved(ticket)) return hdCloudRefuse('m365-mailbox-add', 'Wait for the request to be approved by the mailbox owner first (KB-0107).', extra);
     if (!hdCloudAfterMet(rule)) return hdCloudRefuse('m365-mailbox-add', rule.afterText || 'Open the request first.', extra);
   }
-  if (box[permission].includes(userId)) { if (typeof toast === 'function') toast(`${user.name} already has ${label}.`); return ''; }
+  if (box[permission].includes(userId)) {
+    hdPracticeEvent('action_refused', { action:'m365-mailbox-add', reason:'already has it', ...extra });
+    hdProveEvent('action_taken', { label:`Tried: ${label} on ${box.name} for ${user.name} (already had it)`, value:'m365-mailbox-add-unchanged', source:extra.source });
+    if (typeof toast === 'function') toast(`${user.name} already has ${label}.`);
+    hdSave(); render();
+    return '';
+  }
   const own = hdCloudState().mailboxes[name] = hdCloudState().mailboxes[name] || {};
   own[permission] = [...new Set([...(Array.isArray(own[permission]) ? own[permission] : []), userId])];
   hdCloudRecord(permission === 'sendAs' ? 'm365-sendas-added' : 'm365-fullaccess-added', `${label} on ${box.name} added for ${user.name}`, extra);
@@ -8874,14 +8882,27 @@ function hdIntuneDevice(name, cloud) {
   const base = spec || { user:phone.user, ownership:'Corporate' };
   const device = { name, ownership:'Corporate', ...base, ...own };
   if (phone) { device.os = phone.os; device.user = device.user || phone.user; }
+  // A retired device stays retired until Company Portal enrols it again.
+  device.retired = !!base.retired && own.enrolled !== true;
   device.enrolled = device.retired ? false : (hdOwn(own, 'enrolled') ? own.enrolled : base.enrolled !== false);
   if (device.retired) { device.compliance = 'Retired'; device.failing = []; return device; }
   if (hdOwn(own, 'compliance')) { device.failing = Array.isArray(own.failing) ? own.failing : []; return device; }
-  // Not yet evaluated in this shift: the fixture's state, else the phone's.
+  // Not yet evaluated in this shift: the fixture's state; else, for an
+  // enrolled device, the phone as the shift began (later changes on the
+  // phone count only at the next Company Portal check).
   if (base.compliance) { device.failing = base.failingRule ? [base.failingRule] : []; return device; }
-  const failing = phone ? hdPhoneFailing(phone, cloud) : [];
+  if (!device.enrolled) { device.compliance = 'Not evaluated'; device.failing = []; return device; }
+  const start = cloud.phones[name] ? { ...cloud.phones[name], name } : null;
+  const failing = start ? hdPhoneFailing(start, cloud) : [];
   device.compliance = failing.length ? 'Not compliant' : 'Compliant'; device.failing = failing;
   return device;
+}
+// The three rules, passed or failed, for the device pane.
+function hdIntuneChecks(device, cloud) {
+  if (device.compliance === 'Retired' || device.compliance === 'Not evaluated') return '';
+  const rule = (label, failed) => `<li data-hd-check="${hdEsc(label)}">${hdEsc(label)}: ${failed ? hdBadge('Fail', 'bad') : hdBadge('Pass', 'ok')}</li>`;
+  const failing = device.failing.join(' ');
+  return `<ul class="hd-list" data-hd-intune-checks>${rule(`Minimum OS version${cloud.intune.minOs ? ` (${cloud.intune.minOs})` : ''}`, /OS version/.test(failing))}${rule('Device PIN', /PIN/.test(failing))}${rule('Encryption', /Encryption/.test(failing))}</ul>`;
 }
 // Company Portal evaluates the phone again (enrol or Check status).
 function hdIntuneEvaluate(name, cloud) {
@@ -8900,7 +8921,7 @@ VIEWS['helpdesk/intune'] = () => {
   const devices = hdIntuneDevices(cloud);
   const open = devices.find(device => device.name === hdCloudView().device);
   const rows = devices.map(device => `<tr data-hd-intune-row="${hdEsc(device.name)}"><td><button type="button" class="btn btn-ghost btn-sm" onclick="hdIntuneOpen('${hdJsArg(device.name)}')">${hdEsc(device.name)}</button></td><td>${hdEsc(hdCloudName(device.user))}</td><td>${hdEsc(device.os || '')}</td><td>${hdBadge(device.compliance, device.compliance === 'Compliant' ? 'ok' : device.compliance === 'Retired' ? 'muted' : 'bad')}</td></tr>`).join('');
-  const pane = open ? `<aside class="card hd-object-pane" data-hd-intune-device="${hdEsc(open.name)}"><div class="card-header"><strong>${hdEsc(open.name)}</strong>${hdBadge(open.compliance, open.compliance === 'Compliant' ? 'ok' : open.compliance === 'Retired' ? 'muted' : 'bad')}</div><div class="card-body"><dl class="hd-dl"><dt>Primary user</dt><dd>${hdEsc(hdCloudName(open.user))}</dd><dt>Ownership</dt><dd data-hd-ownership>${hdEsc(open.ownership)}</dd>${open.model ? `<dt>Model</dt><dd>${hdEsc(open.model)}</dd>` : ''}<dt>OS version</dt><dd data-hd-os>${hdEsc(open.os || '')}</dd><dt>Compliance</dt><dd data-hd-compliance>${hdEsc(open.compliance)}</dd>${open.failing.length ? `<dt>Failing rule</dt><dd data-hd-failing>${hdEsc(open.failing.join(' · '))}</dd>` : ''}${open.graceEnded ? `<dt>Grace period</dt><dd>${hdEsc(open.graceEnded)}</dd>` : ''}<dt>Last check-in</dt><dd data-hd-checkin>${hdEsc(open.lastCheckIn || '—')}</dd></dl></div></aside>` : '';
+  const pane = open ? `<aside class="card hd-object-pane" data-hd-intune-device="${hdEsc(open.name)}"><div class="card-header"><strong>${hdEsc(open.name)}</strong>${hdBadge(open.compliance, open.compliance === 'Compliant' ? 'ok' : open.compliance === 'Retired' ? 'muted' : 'bad')}</div><div class="card-body"><dl class="hd-dl"><dt>Primary user</dt><dd>${hdEsc(hdCloudName(open.user))}</dd><dt>Ownership</dt><dd data-hd-ownership>${hdEsc(open.ownership)}</dd>${open.model ? `<dt>Model</dt><dd>${hdEsc(open.model)}</dd>` : ''}<dt>OS version</dt><dd data-hd-os>${hdEsc(open.os || '')}</dd><dt>Compliance</dt><dd data-hd-compliance>${hdEsc(open.compliance)}</dd>${open.failing.length ? `<dt>Failing rule</dt><dd data-hd-failing>${hdEsc(open.failing.join(' · '))}</dd>` : ''}${open.graceEnded && open.compliance === 'Not compliant' ? `<dt>Grace period ended</dt><dd data-hd-grace>${hdEsc(open.graceEnded)}</dd>` : ''}<dt>Enrolled</dt><dd data-hd-enrolled>${open.enrolled ? 'Yes' : 'No'}</dd><dt>Last check-in</dt><dd data-hd-checkin>${hdEsc(open.lastCheckIn || '—')}</dd></dl>${hdIntuneChecks(open, cloud)}</div></aside>` : '';
   return `${hdPageHeader('Intune admin center', 'Devices › All devices (simulated).', hdCloudBack())}<div class="hd-ticket-layout" data-hd-intune><div class="hd-ticket-main"><div class="card"><div class="card-header"><strong>All devices</strong>${cloud.intune.minOs ? `<span class="muted">Minimum OS: ${hdEsc(cloud.intune.minOs)}</span>` : ''}</div><div class="table-wrap"><table><thead><tr><th>Device name</th><th>Primary user</th><th>OS version</th><th>Compliance</th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="muted">No devices.</td></tr>'}</tbody></table></div></div></div><div class="hd-ticket-side">${pane}</div></div>`;
 };
 function hdIntuneOpen(name) {
@@ -8909,7 +8930,7 @@ function hdIntuneOpen(name) {
 }
 
 /* The phone screen. */
-const HD_PHONE_APPS = [['home', 'Home'], ['bluetooth', 'Settings › Bluetooth'], ['notifications', 'Settings › Notifications'], ['update', 'Settings › Software update'], ['company-portal', 'Company Portal'], ['outlook', 'Outlook'], ['onedrive', 'OneDrive'], ['authenticator', 'Authenticator']];
+const HD_PHONE_APPS = [['home', 'Home'], ['wifi', 'Settings › Wi-Fi'], ['bluetooth', 'Settings › Bluetooth'], ['notifications', 'Settings › Notifications'], ['update', 'Settings › General › Software update'], ['company-portal', 'Company Portal'], ['outlook', 'Outlook'], ['teams', 'Teams'], ['onedrive', 'OneDrive'], ['authenticator', 'Authenticator']];
 function hdPhoneOpen(name, app) {
   const cloud = hdCloud(); if (!cloud || !cloud.phones[name]) return;
   const which = HD_PHONE_APPS.some(([id]) => id === app) ? app : 'home';
@@ -8933,16 +8954,24 @@ function hdPhoneApp(phone, cloud, app) {
   const n = `'${hdJsArg(phone.name)}'`;
   const off = hdProveLocked() ? 'disabled' : '';
   const toggle = (attr, on, handler) => `<button type="button" class="btn btn-sm ${on ? 'btn-primary' : 'btn-secondary'}" role="switch" aria-checked="${on}" ${off} data-hd-phone-${attr} onclick="${handler}">${on ? 'On' : 'Off'}</button>`;
+  if (app === 'wifi') return `<div data-hd-phone-app="wifi"><p>Wi-Fi ${toggle('wifi', !!phone.status.wifi, `hdPhoneWifi(${n})`)}</p>${phone.status.wifi ? `<p class="muted">Connected: ${hdEsc(phone.status.network || 'Northstar-Corp')}</p>` : ''}</div>`;
+  if (app === 'teams') {
+    const blocked = hdPhoneMailBlocked(phone, cloud);
+    return `<div data-hd-phone-app="teams">${!phone.outlook.account && phone.company !== false ? '<p>Sign in with your work account first.</p>' : blocked ? `<p data-hd-teams-blocked><strong>Teams can't open on this phone until it meets Northstar's device rules.</strong></p>` : '<p data-hd-teams-ok>Chats and meetings are up to date.</p>'}</div>`;
+  }
   if (app === 'bluetooth') {
     const bt = phone.bluetooth; const view = hdCloudView();
-    const found = bt.on && bt.scanned ? bt.nearby : [];
+    const ready = Array.isArray(bt.ready) ? bt.ready : [];
+    // An accessory shows up only once it is in pairing mode.
+    const found = bt.on && bt.scanned ? bt.nearby.filter(device => device && (ready.includes(device.name) || bt.paired.includes(device.name))) : [];
+    const modes = bt.nearby.filter(device => device && !ready.includes(device.name) && !bt.paired.includes(device.name)).map(device => `<button type="button" class="btn btn-secondary btn-sm" ${off} data-hd-bt-pairing-mode="${hdEsc(device.name)}" onclick="hdPhoneBtPairingMode(${n},'${hdJsArg(device.name)}')">Put ${hdEsc(device.name)} in pairing mode</button>`).join(' ');
     const rows = found.map(device => {
       const paired = bt.paired.includes(device.name);
       const asking = view.btPin === device.name;
       return `<li data-hd-bt-device="${hdEsc(device.name)}">${hdEsc(device.name)} ${paired ? hdBadge('Connected', 'ok') : asking ? `<div data-hd-bt-pin><label>PIN for ${hdEsc(device.name)} <input id="hd-bt-pin" class="ipt" inputmode="numeric" maxlength="8" autocomplete="off"></label> <button type="button" class="btn btn-primary btn-sm" ${off} onclick="hdPhoneBtPairFrom(${n},'${hdJsArg(device.name)}')">Pair</button></div>` : `<button type="button" class="btn btn-secondary btn-sm" ${off} onclick="hdPhoneBtAsk(${n},'${hdJsArg(device.name)}')">Pair</button>`}</li>`;
     }).join('');
     const test = bt.paired.length ? `<button type="button" class="btn btn-secondary btn-sm" ${off} data-hd-bt-test onclick="hdPhoneBtTest(${n})">Test call</button>${bt.tested ? ` <span data-hd-bt-tested>${hdEsc(bt.tested)}</span>` : ''}` : '';
-    return `<div data-hd-phone-app="bluetooth"><p>Bluetooth ${toggle('bt', bt.on, `hdPhoneBtToggle(${n})`)}</p>${bt.on ? `<button type="button" class="btn btn-secondary btn-sm" ${off} data-hd-bt-scan onclick="hdPhoneBtScan(${n})">Find devices</button>` : ''}<ul class="hd-list">${rows || (bt.on && bt.scanned ? '<li class="muted">No devices found.</li>' : '')}</ul>${test}</div>`;
+    return `<div data-hd-phone-app="bluetooth"><p>Bluetooth ${toggle('bt', bt.on, `hdPhoneBtToggle(${n})`)}</p>${modes ? `<p data-hd-bt-accessories>${modes}</p>` : ''}${bt.on ? `<button type="button" class="btn btn-secondary btn-sm" ${off} data-hd-bt-scan onclick="hdPhoneBtScan(${n})">Find devices</button>` : ''}<ul class="hd-list">${rows || (bt.on && bt.scanned ? '<li class="muted">No devices found.</li>' : '')}</ul>${test}</div>`;
   }
   if (app === 'notifications') return `<div data-hd-phone-app="notifications"><p>Authenticator · Allow notifications ${toggle('notify', phone.notifications.authenticator, `hdPhoneNotify(${n})`)}</p></div>`;
   if (app === 'update') {
@@ -8951,7 +8980,7 @@ function hdPhoneApp(phone, cloud, app) {
     return `<div data-hd-phone-app="update"><p>Current version: <strong data-hd-phone-os>${hdEsc(phone.os || '')}</strong></p>${available ? `<p>Update ${hdEsc(update.version)} is available.</p><button type="button" class="btn btn-primary btn-sm" ${off} data-hd-phone-install onclick="hdPhoneUpdate(${n})">Download and install</button>` : '<p class="muted" data-hd-phone-current>Your software is up to date.</p>'}</div>`;
   }
   if (app === 'company-portal') {
-    if (phone.company === false) return `<div data-hd-phone-app="company-portal"><p data-hd-phone-personal>This is a personal phone. It isn't enrolled; only the work apps are managed (app protection).</p></div>`;
+    if (phone.company === false) return `<div data-hd-phone-app="company-portal"><p data-hd-phone-personal>${HD_PROVE ? 'Not enrolled.' : 'This is a personal phone. It isn\'t enrolled; only the work apps are managed (app protection).'}</p></div>`;
     const device = hdIntuneDevice(phone.name, cloud);
     const enrolled = device && device.enrolled;
     return `<div data-hd-phone-app="company-portal">${enrolled ? `<p>Device: <strong>${hdEsc(phone.name)}</strong></p><p>Status: <strong data-hd-cp-status>${hdEsc(device.compliance === 'Compliant' ? 'Can access company resources' : `Can't access company resources: ${device.failing.join(', ') || device.compliance}`)}</strong></p><button type="button" class="btn btn-secondary btn-sm" ${off} data-hd-cp-check onclick="hdPhoneCheckStatus(${n})">Check status</button>` : `<p>Sign in and set up this phone for work.</p><button type="button" class="btn btn-primary btn-sm" ${off} data-hd-cp-enrol onclick="hdPhoneEnrol(${n})">Enrol this device</button>`}</div>`;
@@ -8960,8 +8989,9 @@ function hdPhoneApp(phone, cloud, app) {
     const o = phone.outlook;
     if (!o.account) return `<div data-hd-phone-app="outlook"><p>No work account on this phone.</p><button type="button" class="btn btn-primary btn-sm" ${off} data-hd-outlook-add onclick="hdPhoneOutlookAdd(${n})">Add work account</button></div>`;
     const blocked = hdPhoneMailBlocked(phone, cloud);
-    const sync = ['mail', 'calendar', 'contacts'].map(key => `<p>Sync ${key === 'mail' ? 'Mail' : key === 'calendar' ? 'Calendar' : 'Contacts'} ${toggle(`sync-${key}`, o.sync[key], `hdPhoneOutlookSync(${n},'${key}')`)}</p>`).join('');
-    return `<div data-hd-phone-app="outlook"><p>Account: <strong>${hdEsc((hdCloudUser(phone.user) || {}).email || '')}</strong></p>${blocked ? `<p data-hd-outlook-blocked><strong>Your organization requires this device to be compliant to get work email.</strong></p>` : `<p data-hd-outlook-inbox>${o.sync.mail ? 'Inbox up to date.' : 'Mail sync is off.'}</p>`}${sync}</div>`;
+    const names = { mail:'Mail', calendar:'Calendar', contacts:'Contacts' };
+    const sync = ['mail', 'calendar', 'contacts'].map(key => `<p>Sync ${names[key]} ${toggle(`sync-${key}`, o.sync[key], `hdPhoneOutlookSync(${n},'${key}')`)}${!blocked && o.sync[key] && key !== 'mail' ? ` <span class="muted" data-hd-synced="${key}">${names[key]} up to date</span>` : ''}</p>`).join('');
+    return `<div data-hd-phone-app="outlook"><p>Account: <strong>${hdEsc((hdCloudUser(phone.user) || {}).email || '')}</strong></p>${blocked ? `<p data-hd-outlook-blocked><strong>Work email is blocked on this phone until it meets Northstar's device rules.</strong></p>` : `<p data-hd-outlook-inbox>${o.sync.mail ? 'Inbox up to date.' : 'Mail sync is off.'}</p>`}${sync}</div>`;
   }
   if (app === 'onedrive') return `<div data-hd-phone-app="onedrive"><p>OneDrive › Settings</p><p>Upload on Wi-Fi only ${toggle('wifi-only', phone.onedrive.wifiOnly, `hdPhoneOneDrive(${n})`)}</p></div>`;
   if (app === 'authenticator') {
@@ -8990,10 +9020,24 @@ function hdPhoneBtScan(name) {
   if (hdPhoneAct(name, 'phone-bt-scan', 'searched for Bluetooth devices', { bluetooth:{ scanned:true } })) hdCloudFinish();
 }
 function hdPhoneBtAsk(name, device) { hdCloudSetView({ btPin:device }); }
+// The accessory's own button: it can be found once it is in pairing mode.
+function hdPhoneBtPairingMode(name, device) {
+  const found = hdPhoneGet(name); if (!found) return;
+  const bt = found.phone.bluetooth;
+  if (!bt.nearby.some(item => item && item.name === device)) return;
+  const ready = [...new Set([...(Array.isArray(bt.ready) ? bt.ready : []), device])];
+  if (hdPhoneAct(name, 'phone-bt-pairing-mode', `put ${device} in pairing mode`, { bluetooth:{ ready } }, { device })) hdCloudFinish();
+}
+function hdPhoneWifi(name) {
+  const found = hdPhoneGet(name); if (!found) return;
+  const on = !found.phone.status.wifi;
+  if (hdPhoneAct(name, on ? 'phone-wifi-on' : 'phone-wifi-off', `turned Wi-Fi ${on ? 'on' : 'off'}`, { status:{ wifi:on } })) hdCloudFinish();
+}
 function hdPhoneBtPair(name, device, pin) {
   const found = hdPhoneGet(name); if (!found || hdProveLocked()) return false;
   const bt = found.phone.bluetooth;
-  const target = bt.on && bt.scanned ? bt.nearby.find(item => item && item.name === device) : null;
+  const ready = Array.isArray(bt.ready) ? bt.ready : [];
+  const target = bt.on && bt.scanned && ready.includes(device) ? bt.nearby.find(item => item && item.name === device) : null;
   if (!target) return false;
   if (String(target.pin || '') !== String(pin || '').trim()) {
     hdPhoneAct(name, 'phone-bt-pin-wrong', `pairing with ${device} failed: wrong PIN`, null, { device });
@@ -9023,7 +9067,10 @@ function hdPhoneUpdate(name) {
   const found = hdPhoneGet(name); if (!found) return;
   const update = hdServerObject(found.phone.update);
   if (!update || !hdVersionLess(found.phone.os, update.version)) return;
-  if (!found.phone.status.wifi) { if (typeof toast === 'function') toast('Connect to Wi-Fi to download this update.'); return; }
+  if (!found.phone.status.wifi) {
+    if (hdPhoneAct(name, 'phone-os-update-no-wifi', `tried to install update ${update.version} without Wi-Fi`)) { if (typeof toast === 'function') toast('Connect to Wi-Fi to download this update.'); hdCloudFinish(); }
+    return;
+  }
   if (hdPhoneAct(name, 'phone-os-updated', `installed update ${update.version}`, { os:String(update.version) }, { version:update.version })) hdCloudFinish();
 }
 function hdPhoneEnrol(name) {
@@ -9122,7 +9169,7 @@ function hdConsoleCloudCard(ticket) {
   if (cloud.sections.has('m365')) buttons.push(`<button type="button" class="btn btn-secondary" data-hd-cloud-open="m365" onclick="navigate('#/helpdesk/m365-admin')">Microsoft 365 admin center</button>`);
   if (cloud.sections.has('entra')) buttons.push(`<button type="button" class="btn btn-secondary" data-hd-cloud-open="entra" onclick="navigate('#/helpdesk/entra-admin')">Entra admin center</button>`);
   if (cloud.sections.has('intune')) buttons.push(`<button type="button" class="btn btn-secondary" data-hd-cloud-open="intune" onclick="navigate('#/helpdesk/intune')">Intune admin center</button>`);
-  Object.entries(cloud.phones).forEach(([name, phone]) => buttons.push(`<button type="button" class="btn btn-secondary" data-hd-cloud-open="phone:${hdEsc(name)}" onclick="hdPhoneOpen('${hdJsArg(name)}','home')">📱 ${hdEsc(phone.label || name)}</button>`));
+  Object.entries(cloud.phones).forEach(([name, phone]) => buttons.push(`<button type="button" class="btn btn-secondary" data-hd-cloud-open="phone:${hdEsc(name)}" onclick="hdPhoneOpen('${hdJsArg(name)}','home')">Phone: ${hdEsc(phone.label || name)}</button>`));
   if (!buttons.length) return '';
   return `<div class="card" data-hd-cloud-card><div class="card-header" ${HD_PROVE ? HD_PROVE_HEADER : HD_CONSOLE_HEADER}><strong>Admin centers and devices</strong></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:8px">${buttons.join('')}</div></div></div>`;
 }
@@ -9130,7 +9177,7 @@ window.hdM365Tab=hdM365Tab; window.hdM365OpenUser=hdM365OpenUser; window.hdM365O
 window.hdM365MailboxAdd=hdM365MailboxAdd; window.hdM365MailboxAddFrom=hdM365MailboxAddFrom; window.hdEntraTab=hdEntraTab; window.hdEntraOpenUser=hdEntraOpenUser; window.hdEntraReregister=hdEntraReregister; window.hdEntraSsprRegister=hdEntraSsprRegister;
 window.hdIntuneOpen=hdIntuneOpen; window.hdPhoneOpen=hdPhoneOpen; window.hdPhoneBtToggle=hdPhoneBtToggle; window.hdPhoneBtScan=hdPhoneBtScan; window.hdPhoneBtAsk=hdPhoneBtAsk; window.hdPhoneBtPair=hdPhoneBtPair; window.hdPhoneBtPairFrom=hdPhoneBtPairFrom; window.hdPhoneBtTest=hdPhoneBtTest;
 window.hdPhoneNotify=hdPhoneNotify; window.hdPhoneUpdate=hdPhoneUpdate; window.hdPhoneEnrol=hdPhoneEnrol; window.hdPhoneCheckStatus=hdPhoneCheckStatus; window.hdPhoneOutlookAdd=hdPhoneOutlookAdd; window.hdPhoneOutlookSync=hdPhoneOutlookSync; window.hdPhoneOneDrive=hdPhoneOneDrive;
-window.hdPhoneAuthAdd=hdPhoneAuthAdd; window.hdPhoneAuthTest=hdPhoneAuthTest; window.hdPhoneAuthApprove=hdPhoneAuthApprove;
+window.hdPhoneAuthAdd=hdPhoneAuthAdd; window.hdPhoneAuthTest=hdPhoneAuthTest; window.hdPhoneAuthApprove=hdPhoneAuthApprove; window.hdPhoneBtPairingMode=hdPhoneBtPairingMode; window.hdPhoneWifi=hdPhoneWifi;
 
 // Raise a related incident (console.raise on a Practice ticket).
 function hdRaiseConfig(ticket) {

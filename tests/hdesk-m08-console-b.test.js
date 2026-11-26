@@ -358,7 +358,7 @@ function testPhoneSwapLoop() {
   assert.match(outlook, /data-hd-phone-sync-calendar[^>]*>Off/);
   tab.run("hdPhoneOutlookSync('NS-PH-9801', 'calendar'); hdPhoneOutlookSync('NS-PH-9801', 'contacts')");
   outlook = tab.view('helpdesk/phone');
-  assert.match(outlook, /data-hd-phone-sync-calendar[^>]*>On[\s\S]*data-hd-phone-sync-contacts[^>]*>On/);
+  assert.match(outlook, /data-hd-phone-sync-calendar[^>]*>On[\s\S]*data-hd-synced="calendar"[\s\S]*data-hd-phone-sync-contacts[^>]*>On[\s\S]*data-hd-synced="contacts"/);
   assert.deepEqual(actions(tab, 'HD-9861'), ['phone-auth-add-blocked', 'entra-mfa-reregister', 'phone-auth-added', 'phone-auth-test-sent', 'phone-auth-approved', 'phone-outlook-added', 'phone-cp-enrolled', 'phone-outlook-sync-calendar-on', 'phone-outlook-sync-contacts-on']);
 }
 
@@ -369,7 +369,10 @@ function testBluetoothOneDriveStatus() {
   let screen = tab.view('helpdesk/phone');
   assert.match(screen, /data-hd-data-used>3.6 GB of 5 GB used/);
   assert.doesNotMatch(screen, /data-hd-bt-scan/, 'no search with Bluetooth off');
-  tab.run("hdPhoneBtToggle('NS-PH-9801'); hdPhoneBtScan('NS-PH-9801'); hdPhoneBtAsk('NS-PH-9801', 'TEST-Headset')");
+  tab.run("hdPhoneBtToggle('NS-PH-9801'); hdPhoneBtScan('NS-PH-9801')");
+  assert.match(tab.view('helpdesk/phone'), /No devices found/, 'not found until it is in pairing mode');
+  assert.equal(tab.run("hdPhoneBtPair('NS-PH-9801', 'TEST-Headset', '0000')"), false);
+  tab.run("hdPhoneBtPairingMode('NS-PH-9801', 'TEST-Headset'); hdPhoneBtAsk('NS-PH-9801', 'TEST-Headset')");
   screen = tab.view('helpdesk/phone');
   assert.match(screen, /data-hd-bt-device="TEST-Headset"[\s\S]*data-hd-bt-pin/);
   assert.equal(tab.run("hdPhoneBtPair('NS-PH-9801', 'TEST-Headset', '1234')"), false);
@@ -381,7 +384,7 @@ function testBluetoothOneDriveStatus() {
   assert.match(screen, /data-hd-bt-tested>Test call: audio through TEST-Headset/);
   tab.run("hdPhoneOpen('NS-PH-9801', 'onedrive'); hdPhoneOneDrive('NS-PH-9801')");
   assert.match(tab.view('helpdesk/phone'), /data-hd-phone-wifi-only[^>]*>On/);
-  assert.deepEqual(actions(tab, 'HD-9861'), ['phone-bt-on', 'phone-bt-scan', 'phone-bt-pin-wrong', 'phone-bt-paired', 'phone-bt-tested', 'phone-onedrive-wifi-only-on']);
+  assert.deepEqual(actions(tab, 'HD-9861'), ['phone-bt-on', 'phone-bt-scan', 'phone-bt-pairing-mode', 'phone-bt-pin-wrong', 'phone-bt-paired', 'phone-bt-tested', 'phone-onedrive-wifi-only-on']);
 }
 
 // Non-compliant phone: Check status alone keeps it blocked; the update then Check status fixes it.
@@ -389,11 +392,14 @@ function testComplianceAndUpdate() {
   const tab = cloud(); tab.open('HD-9864');
   tab.run("hdIntuneOpen('NS-PH-9803')");
   let device = tab.view('helpdesk/intune');
-  assert.match(device, /data-hd-compliance>Not compliant[\s\S]*data-hd-failing>OS version below minimum/);
+  assert.match(device, /data-hd-compliance>Not compliant[\s\S]*data-hd-failing>OS version below minimum[\s\S]*data-hd-grace>Yesterday[\s\S]*data-hd-enrolled>Yes/);
+  assert.match(device, /data-hd-check="Minimum OS version \(17.5\)">[^<]*<span class="hd-badge bad">Fail[\s\S]*data-hd-check="Device PIN">[^<]*<span class="hd-badge ok">Pass/);
   tab.run("hdPhoneOpen('NS-PH-9803', 'company-portal'); hdPhoneCheckStatus('NS-PH-9803')");
   assert.match(tab.view('helpdesk/phone'), /data-hd-cp-status>Can't access company resources: OS version below minimum/);
   tab.run("hdPhoneOpen('NS-PH-9803', 'outlook')");
   assert.match(tab.view('helpdesk/phone'), /data-hd-outlook-blocked/);
+  tab.run("hdPhoneOpen('NS-PH-9803', 'teams')");
+  assert.match(tab.view('helpdesk/phone'), /data-hd-teams-blocked/);
   tab.run("hdPhoneOpen('NS-PH-9803', 'update')");
   assert.match(tab.view('helpdesk/phone'), /Update 17.6 is available[\s\S]*data-hd-phone-install/);
   tab.run("hdPhoneUpdate('NS-PH-9803')");
@@ -403,9 +409,26 @@ function testComplianceAndUpdate() {
   tab.run("hdPhoneCheckStatus('NS-PH-9803')");
   device = tab.view('helpdesk/intune');
   assert.match(device, /data-hd-os>17.6[\s\S]*data-hd-compliance>Compliant/);
-  assert.doesNotMatch(device, /data-hd-failing/);
+  assert.doesNotMatch(device, /data-hd-failing|data-hd-grace/);
   tab.run("hdPhoneOpen('NS-PH-9803', 'outlook')");
   assert.match(tab.view('helpdesk/phone'), /data-hd-outlook-inbox/);
+  tab.run("hdPhoneOpen('NS-PH-9803', 'teams')");
+  assert.match(tab.view('helpdesk/phone'), /data-hd-teams-ok/);
+}
+
+// An enrolled device with no fixture state is the phone as the shift began:
+// a later change on the phone counts only at the next Company Portal check.
+function testComplianceIsASnapshot() {
+  const tab = cloud(); tab.open('HD-9864');
+  // NS-PH-9801 is not enrolled: nothing in Intune; enrolled, it is evaluated.
+  tab.run("hdPhonePatch('NS-PH-9801', { pin: false })");
+  assert.doesNotMatch(tab.view('helpdesk/intune'), /NS-PH-9801/);
+  tab.run("hdPhoneEnrol('NS-PH-9801'); hdIntuneOpen('NS-PH-9801')");
+  assert.match(tab.view('helpdesk/intune'), /data-hd-compliance>Not compliant[\s\S]*data-hd-failing>No device PIN/);
+  tab.run("hdPhonePatch('NS-PH-9801', { pin: true })");
+  assert.match(tab.view('helpdesk/intune'), /data-hd-compliance>Not compliant/, 'not until Check status');
+  tab.run("hdPhoneCheckStatus('NS-PH-9801')");
+  assert.match(tab.view('helpdesk/intune'), /data-hd-compliance>Compliant/);
 }
 
 // A personal phone: notifications off, so prompts are missed; turned on, approved.
@@ -425,6 +448,10 @@ function testPersonalPhoneNotifications() {
   const update = cloud(); update.open('HD-9864');
   update.run("hdCloudState().phones['NS-PH-9803'] = { status: { wifi: false } }; hdPhoneUpdate('NS-PH-9803')");
   assert.match(update.toasts.pop(), /Connect to Wi-Fi/);
+  update.run("hdPhoneOpen('NS-PH-9803', 'wifi')");
+  assert.match(update.view('helpdesk/phone'), /data-hd-phone-wifi[^>]*>Off/);
+  update.run("hdPhoneWifi('NS-PH-9803'); hdPhoneUpdate('NS-PH-9803')");
+  assert.deepEqual(actions(update, 'HD-9864'), ['phone-os-update-no-wifi', 'phone-wifi-on', 'phone-os-updated']);
 }
 
 // A reload keeps every change; another ticket opens with no sub-pane open.
@@ -452,7 +479,8 @@ function testReload() {
 function testProveShift() {
   const before = `(() => { const shift = HD_PROVE_SHIFTS['its-05'];
     shift.cloud = { entra: { users: { 'u-1020': { methods: [{ method: 'Microsoft Authenticator', device: 'TEST', registered: 'Last year' }], signIns: [] }, 'u-1001': { methods: [], signIns: [] } } },
-      m365: { sharedMailboxes: { 'test-box': { address: 'b@northstar.example', fullAccess: [], sendAs: [] } } },
+      m365: { users: ['u-1020'], licenseGroups: { 'GG-TEST-Lic': { sku: 'TEST E3', formerMembers: ['u-1020'] } }, sharedMailboxes: { 'test-box': { address: 'b@northstar.example', fullAccess: [], sendAs: [] } } },
+      phones: { 'test-own': { label: 'TEST own phone', user: 'u-1020', company: false, os: '17.6', status: { wifi: true } } },
       allow: { reregister: { 'u-1020': true } } }; })();`;
   const tab = sim({ url: proveUrl('its-05'), withTest: false, before });
   const id = tab.run('hdState.tickets[0].id');
@@ -470,11 +498,24 @@ function testProveShift() {
   const events = json(tab, "hdState.prove.events.filter((e) => e.type === 'action_taken').map((e) => e.value)");
   assert.deepEqual(events, ['entra-mfa-reregister', 'entra-mfa-reregister-refused', 'm365-mailbox-add-refused']);
   tab.run("hdM365OpenMailbox('test-box')");
-  assert.doesNotMatch(tab.view('helpdesk/m365-admin'), /owner's approval/);
+  assert.doesNotMatch(tab.view('helpdesk/m365-admin'), /owner's approval|up to an hour/);
+  // No teaching text on the licence pane or a personal phone, and no direct-assign trap.
+  tab.run("hdM365OpenUser('u-1020')");
+  const licence = tab.view('helpdesk/m365-admin');
+  assert.match(licence, /Assigned via group \(read-only\)/);
+  assert.doesNotMatch(licence, /change the group's membership|data-hd-license-assign/);
+  tab.run("hdPhoneOpen('test-own', 'company-portal')");
+  assert.match(tab.view('helpdesk/phone'), /data-hd-phone-personal>Not enrolled\.</);
+  assert.ok(tab.run("hdState.prove.opened.includes('phone-app:test-own:company-portal')"));
+  // After submission nothing changes and nothing is recorded.
+  const count = tab.run('hdState.prove.events.length');
+  tab.run("hdProveServer.status = 'waiting'; hdEntraReregister('u-1020'); hdPhoneOpen('test-own', 'notifications'); hdPhoneNotify('test-own'); hdM365MailboxAdd('test-box', 'u-1020', 'sendAs')");
+  assert.equal(tab.run('hdState.prove.events.length'), count);
+  assert.equal(tab.run("JSON.stringify(hdCloudState().phones['test-own'] || null)"), 'null');
 }
 
 const tests = [testOldShiftsUnchanged, testCardOnlyWithBlock, testLicensesViaGroup, testSharedMailbox, testListsAndHealth, testEntraReregister,
-  testPhoneSwapLoop, testBluetoothOneDriveStatus, testComplianceAndUpdate, testPersonalPhoneNotifications, testReload, testProveShift];
+  testPhoneSwapLoop, testBluetoothOneDriveStatus, testComplianceAndUpdate, testComplianceIsASnapshot, testPersonalPhoneNotifications, testReload, testProveShift];
 let failed = 0;
 for (const test of tests) {
   try { test(); console.log(`ok - ${test.name}`); } catch (error) { failed += 1; console.error(`not ok - ${test.name}\n${error.stack}`); }
