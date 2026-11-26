@@ -1,0 +1,39 @@
+/* Module 7 (IT Help Desk, key its-05). The page reuses Module 1's inner
+ * classes (its01-hero, its01-section, its01-lesson, its01-check, its01-dg) and
+ * Module 2's table classes (its10-table), so it looks the same. Only its shell
+ * and what those modules have no class for live here, scoped with its05-:
+ * inline commands, the red boxes in the diagrams, the small labels, the person
+ * icon and the timeline marks. Loaded after it-support-module-01.css and
+ * -10.css. */
+
+.its05-shell { min-height: 100vh; color: #172033; background: rgba(248, 250, 252, .76); overflow-x: clip; }
+.its05-shell :focus-visible { outline: 3px solid var(--its-accent-border); outline-offset: 2px; }
+
+/* The shared rail as a left pane beside main, as on Module 1
+   (module-labs.css does this for .its01-shell). */
+@media (min-width: 961px) {
+  .its05-shell > .munified-nav {
+    float: left;
+    margin: 12px 24px 24px max(20px, calc((100vw - 1180px) / 2));
+  }
+  .its05-shell > .munified-nav ~ main {
+    display: flow-root;
+    width: auto;
+    margin-left: 0;
+    margin-right: max(20px, calc((100vw - 1180px) / 2));
+  }
+}
+
+/* A command or path inside reading text and tables. It may wrap anywhere,
+   so a long command never makes the page scroll sideways. */
+.its05-code { padding: 1px 5px; color: var(--mn-theme-text, #172d42); background: var(--mn-theme-surface-raised, #edf3f8); border: 1px solid var(--mn-theme-border, #cfdae5); border-radius: 5px; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+
+/* Diagrams: the warning boxes (the "you never" strip, the effective access
+   result and the default Computers container), outlined in red. */
+.its01-dg-box.its05-dg-warn { fill: #fef2f2; stroke: #dc2626; stroke-width: 2.5; }
+/* The small labels beside an arrow or over a branch. */
+.its05-dg-label { fill: var(--its-navy); font: 700 13px Inter, sans-serif; }
+/* The person on the permissions diagram. */
+.its05-dg-icon { fill: #f8fafc; stroke: #475569; stroke-width: 1.75; }
+/* A mark on the timeline. */
+.its05-dg-mark { fill: var(--its-accent-wash); stroke: var(--its-accent); stroke-width: 2.5; }

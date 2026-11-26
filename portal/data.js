@@ -341,20 +341,22 @@ const PROGRAMS = [
             objective: 'Identify the common causes of a failed domain join and translate a technical network diagnosis into a plain-language explanation.' }),
         ],
         skills: ['Networking Fundamentals', 'IP Addressing', 'DNS', 'DHCP', 'Domain Join'] },
-      'its-05': { number: 7, week: 4, title: 'Windows Server & Active Directory Administration', hours: '12 Hours', durationMinutes: 720, creditMinutes: 720, lessons: 4, labs: 1,
+      // Lesson 7.2 holds two readings on the page (it-support-module-05.js);
+      // both share its-05-lesson-02's filed minutes.
+      'its-05': { number: 7, week: 4, title: 'Windows Server & Active Directory Administration', hours: '12 Hours', durationMinutes: 720, creditMinutes: 720, lessons: 4, labs: 3,
         status: 'authored',
-        summary: 'Configure the Windows Server VM you built earlier, and start managing the directory structure that controls who has access to what across an organization.',
+        summary: 'Read a ready-built domain’s servers, shares, services, logs, change log, directory, DNS and DHCP from the Service Desk, and decide what Tier 1 may fix and what it hands on with evidence.',
         curriculumItems: [
           itsItem({ key: 'its-05-lesson-01', title: 'Windows Server Roles & Server Manager', durationMinutes: 120, parentAllocations: [allocation('ITHD-101.5', 120)],
-            objective: 'Navigate Server Manager to identify installed roles and check whether a server\'s core services are running properly.' }),
+            objective: 'Name what each server role and internet appliance does, say what breaks for users when it stops, and state where a Tier 1 technician’s job on a server stops.' }),
           itsItem({ key: 'its-05-lesson-02', title: 'File Sharing, Permissions & DNS/DHCP Role Awareness', durationMinutes: 120, parentAllocations: [allocation('ITHD-101.5', 120)],
-            objective: 'Recognize the shape of a file-share permissions problem at the L1 level and identify DNS/DHCP as server roles during troubleshooting.' }),
+            objective: 'Read a share’s two permission layers and say what a named person can do, read DNS records and DHCP scopes, and tell one person’s problem from everyone’s.' }),
           itsItem({ key: 'its-05-lesson-03', title: 'Logs, Services & Change Discipline', durationMinutes: 75, parentAllocations: [allocation('ITHD-101.5', 75)],
-            objective: 'Use server logs and service status as evidence before making a change, and write a clean escalation note for a server-level issue.' }),
+            objective: 'Read a server’s services, System log and change log as evidence, and decide between one runbook start and an escalation.' }),
           itsItem({ key: 'its-05-lesson-04', title: 'Active Directory Structure: Domains, OUs, Users, Groups & Computer Objects', durationMinutes: 150, parentAllocations: [allocation('ITHD-101.6', 150)],
-            objective: 'Explain how domains, OUs, users, groups, and computer objects relate to each other and create a new OU and user account.' }),
+            objective: 'Explain how domains, OUs, groups and computer objects relate, read where a computer object lives, and use gpresult /r and gpupdate /force to show which policies reached a machine.' }),
         ],
-        skills: ['Windows Server', 'Server Manager', 'Active Directory', 'Organizational Units'] },
+        skills: ['Windows Server', 'Active Directory', 'File Share Permissions', 'DNS and DHCP', 'Escalation Judgment'] },
       'its-06': { number: 8, week: 4, title: 'Identity, Accounts & Access Management', hours: '6 Hours', durationMinutes: 360, creditMinutes: 360, lessons: 3, labs: 1,
         status: 'authored',
         summary: 'Put Active Directory structure to work solving the identity tickets you\'ll see more than almost any other type, from password resets to modern cloud-identity scenarios.',
@@ -2332,10 +2334,31 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.7', 180)], objective: 'Diagnose and resolve two real connectivity tickets using ipconfig/ping/nslookup-style evidence.',
     description: 'A coach-guided walkthrough of tickets HD-2104 (APIPA/DHCP) and HD-2105 (DNS) in the IT Service Desk simulator; HD-2113 (VPN gateway certificate) remains reachable for free practice.',
     skills: ['Networking Fundamentals', 'DHCP', 'DNS'], portalEntry: '#/program/it-support/module/9' }),
-  itsLab({ key: 'lab-its-05-server-ad', module: 'its-05', title: 'The Missing Drive & The Vanishing Free Space', difficulty: 'Foundational', minutes: 255,
-    parentAllocations: [allocation('ITHD-101.5', 165), allocation('ITHD-101.6', 90)], objective: 'Diagnose and resolve a Group Policy/OU scope issue and a file-server disk-space incident.',
-    description: 'A coach-guided walkthrough of tickets HD-2108 (Group Policy/OU) and HD-2117 (disk space) in the IT Service Desk simulator.',
-    skills: ['Server Manager', 'Active Directory', 'Group Policy'], portalEntry: '#/program/it-support/module/7' }),
+  // Module 7's guided lab. Students see it as Lab 7.1; the key is older than
+  // that numbering. Until Module 7's Prove It gates completion it stays the
+  // gating lab (course_module_labs), so it has no `phase: 'practice'`: an
+  // instructor still reviews and approves it. Its 255 filed minutes are split
+  // 120 / 90 / 45 across the three labs; the parents keep ITHD-101.5 165 and
+  // ITHD-101.6 90 (90 + 50 + 25 and 30 + 40 + 20).
+  itsLab({ key: 'lab-its-05-server-ad', module: 'its-05', title: 'Lab 7.1 · Guided Lab: the morning server check', difficulty: 'Foundational', minutes: 120,
+    parentAllocations: [allocation('ITHD-101.5', 90), allocation('ITHD-101.6', 30)], objective: 'Work a scheduled server check read-only: servers, services, logs, the change log, a share’s permissions, Active Directory, Group Policy, DNS and DHCP, and raise a ticket for what another team owns.',
+    description: 'A coach-guided ticket in the IT Service Desk simulator, each step with a why and what success looks like, and a second ticket you raise yourself. Feedback only, no score.',
+    skills: ['Server Manager', 'Active Directory', 'Group Policy', 'DNS and DHCP'], portalEntry: '#/program/it-support/module/7' }),
+  // Module 7's five unguided practice tickets: not graded, no score. The
+  // simulator reports when all five are done and the course page saves a
+  // completion record (it-support-module-05.js). No course_module_labs row:
+  // it never gates completion.
+  itsLab({ key: 'lab-its-05-practice-tickets', module: 'its-05', title: 'Lab 7.2 · Practice tickets (not graded)', difficulty: 'Foundational', minutes: 90, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.5', 50), allocation('ITHD-101.6', 40)], objective: 'Work five tickets on your own: a computer object in the wrong place, a stopped print service, a server volume filling fast, a file server offline for a department and a device with no DHCP reservation.',
+    description: 'Five unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all five and a completion record is saved to your account.',
+    skills: ['Group Policy', 'Windows Services', 'Escalation Judgment', 'DHCP'], portalEntry: '#/program/it-support/module/7' }),
+  // Module 7's Prove It. The page shows "Opens soon" and launches nothing
+  // until its simulator shift, scoring and gating row are built. Coaching
+  // time box: 45 minutes.
+  itsLab({ key: 'lab-its-05-prove-it', module: 'its-05', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 45,
+    parentAllocations: [allocation('ITHD-101.5', 25), allocation('ITHD-101.6', 20)], objective: 'Independently work a new server ticket: read the evidence on the server screens, decide who owns the fix, and write for both the next tier and the user.',
+    description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
+    skills: ['Escalation Judgment', 'Evidence-Based Diagnosis', 'Documentation'], portalEntry: '#/program/it-support/module/7' }),
   itsLab({ key: 'lab-its-06-identity-access', module: 'its-06', title: 'Restoring Access the Right Way', difficulty: 'Foundational', minutes: 135,
     parentAllocations: [allocation('ITHD-101.6', 135)], objective: 'Verify authorization and resolve two real identity/access tickets correctly.',
     description: 'A coach-guided walkthrough of tickets SR-2107 (approved group-membership restore) and HD-2118 (missing NTFS permission) in the IT Service Desk simulator.',
