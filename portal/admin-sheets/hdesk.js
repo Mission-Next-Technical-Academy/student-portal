@@ -450,7 +450,7 @@
       prompt: 'Lab 8.1 Part A. Look in the ticket history for the order: Noah verified (KB-0024), his account read, Lockout details naming NS-WS-0277, cmdkey /list on NS-WS-0277, the saved NS-FILE01 credential removed with his OK, one unlock, then Wait 2 minutes with no new lockout. The note should name NS-WS-0277 and the saved credential.' },
     'HD-2197': { articles: ['KB-0065'], questions: [],
       prompt: 'Lab 8.1 Part B. Look in the ticket history for: Sam verified in person (KB-0065), the hardware request read, Service health read, MFA re-registration required, Authenticator added on NS-PH-0001 and a test sign-in approved, the phone enrolled in Company Portal and Compliant in Intune, Outlook mail, calendar and contacts on, OneDrive on Wi-Fi only, and the HS-200 headset paired and tested.' },
-    'SR-2207': { articles: ['KB-0107'], questions: [], comment: false, requestState: 'Closed Complete',
+    'SR-2207': { articles: [], questions: [], comment: false, requestState: 'Closed Complete',
       prompt: 'Lab 8.1 Part B, the request: Send as on support@ for Sam Rivera, approved by the mailbox owner. Look for Send as added (Full Access was already there), a close note that says it can take up to an hour, and the request closed.' },
   };
   function labConsoleSections(ticket, id) {

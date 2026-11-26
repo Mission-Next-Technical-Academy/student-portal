@@ -1478,10 +1478,10 @@
       {
         route: '#/helpdesk/active-directory', target: '[data-hd-acct="unlock"], [data-hd-ad-user]',
         title: 'Unlock Noah once',
-        instruction: 'In <strong>Active Directory › Users</strong>, open <strong>Noah Williams</strong> and press <strong>Unlock</strong>, once. The same fix in a command (optional): <code>Unlock-ADAccount nwilliams</code>',
+        instruction: 'On HD-2196, search the knowledge base for <strong>keeps locking</strong> and open <strong>KB-0103</strong>. Then, in <strong>Active Directory › Users</strong>, open <strong>Noah Williams</strong> and press <strong>Unlock</strong>, once. The same fix in a command (optional): <code>Unlock-ADAccount nwilliams</code>',
         body: 'Why: unlock only after the source is fixed (KB-0103). Unlocking first would let the old password lock him again. Success looks like: Locked out shows No.',
-        waitLabel: 'Next Step: Noah unlocked',
-        check: () => hd2Rule(HD6_A, { actionsAfter: { after: 'credential-removed', action: 'ad-unlocked' } }) && hd6Unlocked('u-1003'),
+        waitLabel: 'Next Step: KB-0103 read, Noah unlocked',
+        check: () => hd2Rule(HD6_A, { kb: 'KB-0103' }) && hd2Rule(HD6_A, { actionsAfter: { after: 'credential-removed', action: 'ad-unlocked' } }) && hd6Unlocked('u-1003'),
       },
       {
         route: '#/helpdesk/ticket', target: '[data-hd-wait-card], [data-hd-wait], .hd-chat',
@@ -1494,10 +1494,10 @@
       {
         route: '#/helpdesk/ticket', target: '#hd-note-input, .hd-comments, #hd-resolution-code',
         title: 'Write the note and comment, then resolve HD-2196',
-        instruction: 'Write a <strong>work note</strong> with the lines Reported:, Tried: and Result:. Post a <strong>comment</strong> to Noah in plain words. Set the resolution code to <strong>Fixed — user guided</strong> and resolve the ticket.',
+        instruction: '<strong>Attach KB-0103</strong> to HD-2196. Write a <strong>work note</strong> with the lines Reported:, Tried: and Result:. Post a <strong>comment</strong> to Noah in plain words. Set the resolution code to <strong>Fixed — user guided</strong> and resolve the ticket.',
         body: 'Why: the note is how the next technician knows what happened. Success looks like: the note has Reported, Tried and Result, the comment is in plain language, and the ticket is Resolved. A model note:<br><strong>Reported:</strong> locked out 3 times since lunch; unlocked at 12:20 and locked again; password changed yesterday.<br><strong>Tried:</strong> verified per KB-0024 (directory callback and employee ID). Account locked, enabled, never expires, password set yesterday 16:10. Lockout details: 3 lockouts today, source NS-WS-0277 (his old desk PC). <code>cmdkey /list</code> showed a saved credential for NS-FILE01 with the old password. With Noah’s OK, removed it in Credential Manager (KB-0103). Unlocked once.<br><strong>Result:</strong> no new bad attempts after 2 minutes. Noah signed in and reconnected the Sales drive with his new password.<br>A model comment: Hi Noah, you’re unlocked and it should stay that way now. Your old desk PC still had your previous password saved for the Sales drive, and it kept trying it, which locked you out. We’ve removed that saved password. If your desk PC asks for your password for the drive, type your new one. – Riley',
         waitLabel: 'Next Step: HD-2196 noted and resolved',
-        check: () => hd2Rule(HD6_A, { note: true }) && hd2Rule(HD6_A, { comment: true })
+        check: () => hd2Rule(HD6_A, { attached: 'KB-0103' }) && hd2Rule(HD6_A, { note: true }) && hd2Rule(HD6_A, { comment: true })
           && (hd2Rule(HD6_A, { code: HD6_CODE }) || hd2Rule(HD6_A, { code: 'Solution provided' })) && hd2Rule(HD6_A, { status: 'Resolved' }),
       },
       /* ---- Part B: HD-2197 and SR-2207, Sam Rivera, "New work phone" ---- */
@@ -1598,10 +1598,10 @@
       {
         route: '#/helpdesk/ticket', target: '#hd-note-input, .hd-comments, #hd-resolution-code, [data-hd-request]',
         title: 'Close both records',
-        instruction: 'On <strong>HD-2197</strong>, write a <strong>work note</strong> with Reported:, Tried: and Result:. Post a <strong>comment</strong> to Sam in plain words. Resolve the ticket. On <strong>SR-2207</strong>, write a close note with the same three parts. Then press <strong>Close the request (Closed Complete)</strong>.',
+        instruction: 'On <strong>HD-2197</strong>, <strong>attach KB-0065</strong>, then write a <strong>work note</strong> with Reported:, Tried: and Result:. Post a <strong>comment</strong> to Sam in plain words. Resolve the ticket. On <strong>SR-2207</strong>, write a close note with the same three parts. Then press <strong>Close the request (Closed Complete)</strong>.',
         body: 'Why: each record says what was done for it. Success looks like: both have Reported, Tried and Result, HD-2197 is Resolved and the request is closed. A model note for HD-2197:<br><strong>Reported:</strong> new company phone yesterday; Authenticator was on the old phone, so he can’t approve sign-ins; Teams prompting on his laptop.<br><strong>Tried:</strong> verified in person per KB-0065 (badge matches directory photo, employee ID). The hardware request shows NS-PH-0002 returned and wiped, NS-PH-0001 issued. Service health: no sign-in or Exchange advisory. Required MFA re-registration. Guided Authenticator setup on NS-PH-0001. Enrolled in Company Portal. Set OneDrive to Wi-Fi only (5 GB plan). Paired the HS-200 headset.<br><strong>Result:</strong> test sign-in approved; sign-in log Success with MFA; NS-PH-0001 Compliant; Outlook mail, calendar and contacts syncing; headset test call OK.<br>A model close note for SR-2207: Send as on support@ added for Sam Rivera per owner approval (C. Morales); Full Access was already in place; may take up to an hour to apply.',
         waitLabel: 'Next Step: Both records closed',
-        check: () => hd2Rule(HD6_B, { note: true }) && hd2Rule(HD6_B, { comment: true }) && hd2Rule(HD6_B, { status: 'Resolved' })
+        check: () => hd2Rule(HD6_B, { attached: 'KB-0065' }) && hd2Rule(HD6_B, { note: true }) && hd2Rule(HD6_B, { comment: true }) && hd2Rule(HD6_B, { status: 'Resolved' })
           && hd2Rule(HD6_R, { note: true }) && hd6RequestClosed(),
       },
       {
@@ -1652,26 +1652,27 @@
       {
         route: '#/helpdesk/ticket', target: '.hd-identity, .hd-verify, [data-hd-evidence], [data-hd-lockout="u-1005"]',
         title: 'Verify Jordan and find the lockout source',
-        instruction: 'Verify Jordan with <strong>KB-0024</strong>, the same first moves as in the lab. Then open <strong>Active Directory › Users › Jordan Bell</strong> and press <strong>Lockout details</strong>. Back on the ticket, open the evidence card <strong>Tier 2’s view: Task Scheduler on NS-LT-0117</strong>.',
-        body: 'Why: same first moves as Part A. Success looks like: the last lockout source is NS-LT-0117, Jordan’s laptop. The evidence card shows <strong>FinanceReportSync</strong> running as NORTHSTAR\\jbell every 2 minutes, with a stored password last changed 90 days ago. Credential Manager on NS-LT-0117 has no saved entry, so this is not Part A’s cause.',
+        instruction: 'Verify Jordan with <strong>KB-0024</strong>, the same first moves as in the lab. Then open <strong>Active Directory › Users › Jordan Bell</strong> and press <strong>Lockout details</strong>. Back on the ticket, open the evidence card <strong>Tier 2’s view: Task Scheduler on NS-LT-0117</strong>. Then press <strong>Open NS-LT-0117</strong> and open <strong>Credential Manager</strong> there.',
+        body: 'Why: same first moves as Part A. Success looks like: the last lockout source is NS-LT-0117, Jordan’s laptop. The evidence card shows <strong>FinanceReportSync</strong> running as NORTHSTAR\\jbell every 2 minutes, with a stored password last changed 90 days ago. Credential Manager on NS-LT-0117 has no saved entry, so this is not Part A’s cause. Say so in your note.',
         waitLabel: 'Next Step: Source found',
-        check: () => hd6eVerified() && hd6Seen('ad-lockout:u-1005') && hd2Rule(HD6E_ID, { evidence: 'task-scheduler-ns-lt-0117' }),
+        check: () => hd6eVerified() && hd6Seen('ad-lockout:u-1005') && hd2Rule(HD6E_ID, { evidence: 'task-scheduler-ns-lt-0117' })
+          && hd2Rule(HD6E_ID, { seen: 'credential-manager', computer: 'NS-LT-0117' }),
       },
       {
         route: '#/helpdesk/ticket', target: '#hd-assignment-group, [data-hd-team], .hd-handoff',
         title: 'Decide who owns the fix',
-        instruction: 'Tier 1 doesn’t change a scheduled task (KB-0024 step 6, KB-0103). Set <strong>Assignment group</strong> to <strong>Desktop Support (Tier 2)</strong> and assign the ticket. Don’t unlock Jordan yet.',
+        instruction: 'Search the knowledge base for <strong>keeps locking</strong> and open <strong>KB-0103</strong>. Tier 1 doesn’t change a scheduled task (KB-0024 step 6, KB-0103). Set <strong>Assignment group</strong> to <strong>Desktop Support (Tier 2)</strong> and assign the ticket. Don’t unlock Jordan yet.',
         body: 'Why: a task’s saved password is Tier 2 work. Success looks like: the ticket is with Desktop Support (Tier 2). Unlock stays for Tier 2 to do after the fix, because an unlock now would only be undone in two minutes.',
-        waitLabel: 'Next Step: Assigned to Tier 2',
-        check: () => hd2Rule(HD6E_ID, { group: 'Desktop Support (Tier 2)' }),
+        waitLabel: 'Next Step: KB-0103 read, assigned to Tier 2',
+        check: () => hd2Rule(HD6E_ID, { kb: 'KB-0103' }) && hd2Rule(HD6E_ID, { group: 'Desktop Support (Tier 2)' }),
       },
       {
         route: '#/helpdesk/ticket', target: '#hd-note-input, .hd-comments, .hd-handoff, [data-hd-handoff]',
         title: 'Hand it on with a note and tell Jordan',
-        instruction: 'Write a <strong>handoff note</strong> with the lines Reported:, Tried:, Result: and Next action:. Then post a <strong>comment</strong> to Jordan in plain words that says who has the ticket and when to expect an update.',
+        instruction: '<strong>Attach KB-0103</strong> to HD-2101. Write a <strong>handoff note</strong> with the lines Reported:, Tried:, Result: and Next action:. Then post a <strong>comment</strong> to Jordan in plain words that says who has the ticket and when to expect an update.',
         body: 'Why: hand it on with the evidence so nobody starts again. Success looks like: the note has Reported, Tried, Result and Next action. Jordan is told who has it and when to expect an update.',
         waitLabel: 'Next Step: Handed on, Jordan told',
-        check: () => hd2Rule(HD6E_ID, { handoffNote: true }) && hd2Rule(HD6E_ID, { comment: true }),
+        check: () => hd2Rule(HD6E_ID, { attached: 'KB-0103' }) && hd2Rule(HD6E_ID, { handoffNote: true }) && hd2Rule(HD6E_ID, { comment: true }),
       },
       {
         title: 'Back to Module 8',

@@ -213,6 +213,8 @@ function partAFromA7(tab, { typed = false } = {}) {
     assert.match(tab.view('helpdesk/credential-manager'), /No Windows credentials are saved/);
   }
   at(tab, 7, 'Part A step 7 done');
+  // Part A step 8 asks for KB-0103 first, then the unlock.
+  tab.kb(A, 'keeps locking', 'KB-0103');
   if (typed) assert.equal(tab.ps('Unlock-ADAccount nwilliams'), '');
   else { tab.run("hdOpenUser('u-1003')"); tab.pane(); tab.run("hdAcctUnlock('u-1003')"); }
   assert.equal(tab.run("hdFileUser('u-1003').locked"), false);
@@ -223,7 +225,7 @@ function partAFromA7(tab, { typed = false } = {}) {
   at(tab, 8, 'Part A step 9 waits for Noah');
   tab.run(`hdChatAsk('${A}', 'reopen')`);
   at(tab, 9, 'Part A step 9 done');
-  tab.kb(A, 'lockout source', 'KB-0103'); tab.attach(A, 'KB-0103');
+  tab.attach(A, 'KB-0103');
   tab.note(A, NOTE_A);
   tab.comment(A, COMMENT_A);
   at(tab, 9, 'Part A step 10 waits for Resolved');
@@ -447,9 +449,10 @@ function testEveryStepText() {
     assert.equal(typeof step.check, 'function', `step ${index + 1} has a check`);
   });
   coach.steps.forEach((step, index) => {
-    assert.doesNotMatch(`${step.title} ${step.instruction} ${step.body}`, /account expired|expired account|Module 6|server VM|CompTIA/i, `step ${index + 1} wording`);
+    // Graded-ticket words are checked, hashed, in tests/hdesk-m08-practice-tickets.test.js.
+    assert.doesNotMatch(`${step.title} ${step.instruction} ${step.body}`, /Module 6|server VM|CompTIA/i, `step ${index + 1} wording`);
   });
-  assert.doesNotMatch(coach.summary, /account expired|expired account|Module 6|server VM|CompTIA/i);
+  assert.doesNotMatch(coach.summary, /Module 6|server VM|CompTIA/i);
   const shown = coach.steps.map((step) => step.instruction).join('\n');
   for (const line of [LINES.getAdUser, LINES.cmdkey]) {
     assert.match(shown, new RegExp(`<details><summary>Show me the command</summary>[^]*?${line.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}`), line);
@@ -517,9 +520,11 @@ function testExtension() {
   // extension step 3: Desktop Support (Tier 2).
   tab.open(id);
   tab.run(`hdMatrixAssignGroup('${id}', 'Desktop Support (Tier 2)')`);
+  at(tab, 2, 'extension step 3 waits for KB-0103');
+  tab.kb(id, 'keeps locking', 'KB-0103');
   at(tab, 3, 'extension step 3 done');
-  // extension step 4: handoff note and a comment to Jordan.
-  tab.kb(id, 'lockout source', 'KB-0103'); tab.attach(id, 'KB-0103');
+  // extension step 4: KB-0103 attached, handoff note and a comment to Jordan.
+  tab.attach(id, 'KB-0103');
   tab.note(id, NOTE_EXT);
   at(tab, 3, 'extension step 4 waits for the comment');
   tab.comment(id, COMMENT_EXT);
@@ -536,10 +541,10 @@ function testExtension() {
   assert.deepEqual(opener.sent, [], 'nothing is posted to the opener');
   // Every step's text, as in the lab.
   coach.steps.slice(0, 4).forEach((step, index) => {
-    assert.match(step.body, /Why: /, `E${index + 1} why`);
-    assert.match(step.body, /Success looks like/, `E${index + 1} success`);
+    assert.match(step.body, /Why: /, `extension step ${index + 1} why`);
+    assert.match(step.body, /Success looks like/, `extension step ${index + 1} success`);
   });
-  coach.steps.forEach((step) => assert.doesNotMatch(`${step.title} ${step.instruction} ${step.body}`, /account expired|expired account|Module 6|server VM|CompTIA/i));
+  coach.steps.forEach((step) => assert.doesNotMatch(`${step.title} ${step.instruction} ${step.body}`, /Module 6|server VM|CompTIA/i));
   // Not in the lab's ticket list.
   const coaches = fs.readFileSync(path.join(UI, 'helpdesk-coaches.js'), 'utf8');
   assert.doesNotMatch(coaches, /'hd-m06-ext': \[/);
@@ -604,8 +609,25 @@ function testCiRunsThisFile() {
   assert.match(fs.readFileSync(path.join(ROOT, 'bin', 'ci-check.sh'), 'utf8'), /node tests\/hdesk-m08-guided-lab\.test\.js/);
 }
 
+// Every article "Check my work" asks the student to open or attach on a lab
+// record is named in an instruction of the coach that walks it, so a student
+// who follows the coach meets those checks too.
+function testEveryArticleCheckIsInTheSteps() {
+  const tab = startLab();
+  const rules = (consoleBlock) => (consoleBlock.feedback || []).flatMap((area) => area.checks || []).flatMap((rule) => [rule.kb, rule.attached]).filter(Boolean);
+  const lab = plain(tab.run(`HD_TICKET_TEMPLATES.filter((t) => ['${A}', '${B}', '${R}'].includes(t.id)).map((t) => t.console)`));
+  const labText = tab.coach('hd-m06').steps.map((step) => step.instruction || '').join('\n');
+  const labIds = [...new Set(lab.flatMap(rules))];
+  assert.ok(labIds.length > 0, 'the lab asks for articles');
+  labIds.forEach((id) => assert.ok(labText.includes(id), `hd-m06 names ${id}`));
+  const ext = plain(tab.run("HD_COACHED_SETS['its-06-extension'].ticketOverrides['HD-2101'].console"));
+  const extText = tab.coach('hd-m06-ext').steps.map((step) => step.instruction || '').join('\n');
+  [...new Set(rules(ext))].forEach((id) => assert.ok(extText.includes(id), `hd-m06-ext names ${id}`));
+}
+
 const tests = [testLabOpensOnItsSet, testLab81, testTypedStepsAnyCase, testA3FromThePane, testA6NeedsTheTypedLine, testOptionalLinesPassTheirSteps, testGetAdUserMatchesThePane,
-  testEveryStepText, testOpeningAStepsScreenDoesNotPassIt, testExtension, testHd2101Unchanged, testOldTicketsLeaveTheQueue, testOldCoachRunIsForgotten, testSheetMapping, testCiRunsThisFile];
+  testEveryStepText, testOpeningAStepsScreenDoesNotPassIt, testExtension, testHd2101Unchanged, testOldTicketsLeaveTheQueue, testOldCoachRunIsForgotten, testSheetMapping,
+  testEveryArticleCheckIsInTheSteps, testCiRunsThisFile];
 let failed = 0;
 for (const test of tests) {
   try { test(); console.log(`ok   ${test.name}`); } catch (error) { failed += 1; console.error(`FAIL ${test.name}\n${error.stack}`); }

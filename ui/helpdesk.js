@@ -8047,9 +8047,12 @@ const HD_ACCT_PROVE_REFUSED = 'Insufficient access rights to perform the operati
 function hdAcctRefuse(user, kind, reason) {
   const ticket = hdServerPracticeTicket();
   // Module 8: a refused try is its own critical action (ad-<kind>-refused).
+  // reason (optional, a regex source): only a refusal for that reason, so a
+  // verified student refused for another reason is never told they didn't verify.
   if (ticket) {
     const rules = hdConsole(ticket).criticalActions;
-    if (Array.isArray(rules)) rules.filter(rule => rule && rule.action === `ad-${kind}-refused`).forEach(rule => hdConsoleCritical(ticket, `account:ad-${kind}-refused`, rule.text || reason));
+    const forReason = rule => { if (!rule.reason) return true; try { return new RegExp(rule.reason, 'i').test(String(reason || '')); } catch (_) { return false; } };
+    if (Array.isArray(rules)) rules.filter(rule => rule && rule.action === `ad-${kind}-refused` && forReason(rule)).forEach(rule => hdConsoleCritical(ticket, `account:ad-${kind}-refused`, rule.text || reason));
   }
   hdPracticeEvent('action_refused', { ticket:ticket ? ticket.id : '', action:`ad-${kind}`, user:user ? user.id : '', reason });
   hdProveEvent('action_taken', { label:`Tried: ${kind} for ${hdAcctLabel(user)} (not done)`, value:`ad-${kind}-refused`, source:user ? user.username || user.id : '' });

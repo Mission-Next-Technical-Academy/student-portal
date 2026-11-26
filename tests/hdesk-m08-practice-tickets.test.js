@@ -18,7 +18,7 @@
 // The set reports completion once, after all four, with the ticket ids only.
 // Feedback only, never points.
 const assert = require('node:assert/strict');
-const childProcess = require('node:child_process');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
@@ -202,13 +202,20 @@ function testKnowledgeArticles() {
 }
 
 // KB-0024 is byte-for-byte what it was on the branch this part started from.
+// KB-0024 pinned as master had it at 9c6d7e4 (2026-11-26): its source line
+// and its object, by sha256. A pin, not a git lookup, so the test needs no
+// other branch (CI checkouts and a merged, deleted branch have none).
+const KB0024_LINE = '1abbc94dffc971ad96041f009c88ffcc239b8573baef96ff1231a1b35e3d06a7';
+const KB0024_OBJECT = 'be5d53182fa3466e1494ff80208eb5d2e4dfc273a45326162f32fbd669313753';
 function testKb0024Unchanged() {
-  const before = childProcess.execFileSync('git', ['show', 'origin/hdesk/m08-m365-entra-intune-phone:ui/helpdesk-data.js'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const sha = (value) => crypto.createHash('sha256').update(String(value)).digest('hex');
   const now = SOURCES[0][1];
-  const line = (text) => { const found = text.split('\n').filter((l) => l.includes("id:'KB-0024'")); assert.equal(found.length, 1, 'one KB-0024 line'); return found[0]; };
-  assert.equal(line(now), line(before), 'the source line is the same');
-  const article = (text) => { const ctx = { console }; vm.createContext(ctx); vm.runInContext(`${text}\n;this.__kb = JSON.stringify(HD_KB_ARTICLES.find((a) => a.id === 'KB-0024'));`, ctx); return ctx.__kb; };
-  assert.equal(article(now), article(before), 'the object is the same');
+  const found = now.split('\n').filter((l) => l.includes("id:'KB-0024'"));
+  assert.equal(found.length, 1, 'one KB-0024 line');
+  assert.equal(sha(found[0]), KB0024_LINE, 'the source line is the same');
+  const ctx = { console }; vm.createContext(ctx);
+  vm.runInContext(`${now}\n;this.__kb = JSON.stringify(HD_KB_ARTICLES.find((a) => a.id === 'KB-0024'));`, ctx);
+  assert.equal(sha(ctx.__kb), KB0024_OBJECT, 'the object is the same');
 }
 
 /* ------------------------------------------------------------ 8-A */
@@ -261,7 +268,17 @@ function test8A() {
   // Resetting before verifying is critical.
   const unverified = sim(); unverified.open('HD-2198');
   unverified.run("hdAcctReset('u-1038', true)");
-  assert.ok(unverified.feedback('HD-2198').critical.some((t) => /Verify Alana first/.test(t)), 'reset before verifying');
+  assert.ok(unverified.feedback('HD-2198').critical.some((t) => /before you verified her/.test(t)), 'reset before verifying');
+  // Verified, HR-8894 open, but Reset pressed before Enable: refused (the
+  // account is disabled), and never called "before verifying".
+  const order = sim(); order.open('HD-2198'); order.verify('HD-2198', 'callback'); order.evidence('HD-2198', 'HR-8894');
+  order.run("hdAcctReset('u-1038', true)");
+  order.run("hdAcctOpenDialog('u-1038', 'reset')");
+  assert.deepEqual(order.feedback('HD-2198').critical, [], 'a verified reset refused for being disabled is not critical');
+  // Enable before verifying is refused, and is not called "before HR-8894".
+  const noVerify = sim(); noVerify.open('HD-2198'); noVerify.evidence('HD-2198', 'HR-8894');
+  noVerify.run("hdAcctEnable('u-1038')");
+  assert.ok(!noVerify.feedback('HD-2198').critical.some((t) => /before you opened HR-8894/.test(t)));
   // A note holding the one-time password is refused and flagged.
   const leak = sim(); leak.open('HD-2198'); leak.verify('HD-2198', 'callback'); leak.evidence('HD-2198', 'HR-8894');
   leak.run("hdAcctEnable('u-1038')");
@@ -378,6 +395,11 @@ function test8C() {
   extra.run("hdAcctGroup('u-1019', 'add', 'GG-CRM-Users')");
   assert.ok(!extra.run("hdFileUser('u-1019').groups").includes('GG-CRM-Users'));
   assert.ok(extra.feedback('HD-2200').critical.some((t) => /not on HR-8893/.test(t)), 'a group not on HR-8893');
+  // An approved group added before HR-8893 is opened is refused, not critical.
+  const early = sim(); early.open('HD-2200');
+  early.run("hdAcctGroup('u-1019', 'add', 'GG-Finance-Users')");
+  assert.ok(!early.run("hdFileUser('u-1019').groups").includes('GG-Finance-Users'), 'waits for HR-8893');
+  assert.deepEqual(early.feedback('HD-2200').critical, [], 'not the "not on HR-8893" line');
   // A direct licence is refused and critical.
   const direct = sim(); direct.open('HD-2200');
   direct.run("hdM365AssignDirect('u-1019')");
@@ -436,22 +458,31 @@ function test8D() {
 }
 
 /* ------------------------------------------------------------ wording */
-// No Module 8 text says "account expired", and no Module 8 ticket turns on
-// the account expiry control.
-function testNoAccountExpiredWording() {
+// Module 8's Practice text holds nothing from the graded ticket, and no Module
+// 8 ticket turns on the account expiry control. The refused words are kept as
+// hashes (as tests/hdesk-m02-guided-lab.test.js keeps its graded words), so
+// this public file doesn't print them.
+const REFUSED_WORDS = new Set(['4f7ad241ce34a901']);
+const REFUSED_PAIRS = new Set(['2e145908d618fac9', '5b113a72ff6d00dd']);
+const hash16 = (value) => crypto.createHash('sha256').update(value).digest('hex').slice(0, 16);
+function assertNothingRefused(text, label) {
+  const words = String(text).toLowerCase().split(/[^a-z0-9-]+/).filter(Boolean);
+  words.forEach((word) => assert.ok(!REFUSED_WORDS.has(hash16(word)), `${label}: a refused word`));
+  words.slice(1).forEach((word, i) => assert.ok(!REFUSED_PAIRS.has(hash16(`${words[i]} ${word}`)), `${label}: a refused phrase`));
+}
+function testNothingFromTheGradedTicket() {
   const tab = sim();
-  const banned = /account expired|expired account|Set-ADAccountExpiration/i;
   const tickets = plain(tab.run(`HD_TICKET_TEMPLATES.filter((t) => ${JSON.stringify(M8_TICKETS)}.includes(t.id))`));
   assert.equal(tickets.length, M8_TICKETS.length);
   tickets.forEach((t) => {
-    assert.doesNotMatch(JSON.stringify(t), banned, t.id);
+    assertNothingRefused(JSON.stringify(t), t.id);
     const actions = (t.console && t.console.accountActions) || {};
     Object.entries(actions).forEach(([user, rule]) => assert.ok(!rule || !rule.expiry, `${t.id} ${user}: no expiry`));
   });
-  assert.doesNotMatch(JSON.stringify(plain(tab.run('HD_ITS06_KB_ARTICLES'))), banned, 'KB articles');
+  assertNothingRefused(JSON.stringify(plain(tab.run('HD_ITS06_KB_ARTICLES'))), 'KB articles');
   for (const code of ["HD_PRACTICE_SETS['its-06']", "HD_COACHED_SETS['its-06-guided']", "HD_COACHED_SETS['its-06-extension']"]) {
     const set = plain(tab.run(code));
-    assert.doesNotMatch(JSON.stringify(set), banned, code);
+    assertNothingRefused(JSON.stringify(set), code);
     Object.values(set.ticketOverrides || {}).forEach((o) => Object.values((o.console || {}).accountActions || {}).forEach((rule) => assert.ok(!rule || !rule.expiry)));
   }
   // The coaches' text, read from the source block of hd-m06 and hd-m06-ext.
@@ -459,7 +490,9 @@ function testNoAccountExpiredWording() {
   const start = coaches.indexOf('/* ---------------------------------------------------------- hd-m06 ---- */');
   const end = coaches.indexOf('/* ------------------------------------------------------ hd-m04..hd-m11');
   assert.ok(start > 0 && end > start, 'the hd-m06 block');
-  assert.doesNotMatch(coaches.slice(start, end), banned, 'coach text');
+  assertNothingRefused(coaches.slice(start, end), 'coach text');
+  // The guard finds a refused phrase (so a hash typo can't make it pass).
+  assert.throws(() => assertNothingRefused(['expired', 'account'].reverse().join(' '), 'self-test'));
 }
 
 /* ------------------------------------------------------------ completion */
@@ -500,7 +533,7 @@ function testCiRunsThisFile() {
 }
 
 const tests = [testSetOpensOnItsOwnClocks, testPeopleOnlyInThisSet, testSalesShareOnlyHere, testKnowledgeArticles, testKb0024Unchanged, test8A, test8B, test8C, test8D,
-  testNoAccountExpiredWording, testCompletionAfterAllFour, testNoScoreInTheView, testCiRunsThisFile];
+  testNothingFromTheGradedTicket, testCompletionAfterAllFour, testNoScoreInTheView, testCiRunsThisFile];
 let failed = 0;
 for (const test of tests) {
   try { test(); console.log(`ok   ${test.name}`); } catch (error) { failed += 1; console.error(`FAIL ${test.name}\n${error.stack}`); }
