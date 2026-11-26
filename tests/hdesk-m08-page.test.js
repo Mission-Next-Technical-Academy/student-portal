@@ -138,7 +138,7 @@ function testCatalogue() {
   // Lab 8.1 keeps no phase: it is still the gating lab until the Prove It's
   // migration moves the gate.
   assert.deepEqual(labs.map((l) => [l.key, l.title, l.instructionalMinutes, l.phase || null, l.parentAllocations.map((a) => [a.code, a.minutes])]), [
-    [GUIDED, 'Lab 8.1 · Guided Lab: an identity morning', 55, null, [['ITHD-101.6', 55]]],
+    [GUIDED, 'Lab 8.1 · Guided Lab: an identity morning', 55, 'practice', [['ITHD-101.6', 55]]],
     [PRACTICE, 'Lab 8.2 · Practice tickets (not graded)', 50, 'practice', [['ITHD-101.6', 50]]],
     [PROVE, 'Prove It: Independent Ticket', 30, null, [['ITHD-101.6', 30]]],
   ]);
@@ -254,7 +254,10 @@ function testLabCardsAndRail() {
   assert.match(guided, /HD-2196[\s\S]*HD-2197[\s\S]*SR-2207/);
   assert.match(guided, /A coach guides you through each step\./, 'no step count');
   assert.match(guided, /Feedback only, no score/);
-  assert.match(guided, /Your instructor reviews your finished lab/, 'Lab 8.1 still gates Module 8');
+  // Since the Prove It moved the gate, Lab 8.1 is Practice It.
+  assert.match(guided, /Practice It · coached/);
+  assert.match(guided, /Practice: not graded/);
+  assert.doesNotMatch(guided, /instructor reviews/i);
   // The optional extension: a plain link to its own coach, outside the record.
   assert.match(guided, /Optional extension \(not part of your lab record\)/);
   assert.match(guided, /data-its06-extension-launch href="[^"]*\?coach=hd-m06-ext&amp;restart=1&amp;student=[^"]*" target="_blank" rel="noopener"/);
@@ -265,12 +268,11 @@ function testLabCardsAndRail() {
   assert.match(practice, /\(8-A\)[\s\S]*\(8-B\)[\s\S]*\(8-C\)[\s\S]*\(8-D\)/);
   // All four practice tickets end resolved at Tier 1.
   assert.equal(statusLine(html, PRACTICE), 'Finish all four tickets: resolve each one and give it your work note.');
-  // The Prove It opens nothing yet.
+  // The Prove It opens its shift (tests/hdesk-m08-prove.test.js covers the card).
   const prove = section(html, 'its06-prove-it');
   assert.match(prove, /Prove It: Independent Ticket/);
-  assert.match(prove, /Opens soon/);
-  assert.doesNotMatch(prove, /<a |<button|\?prove=/, 'the Prove It card opens nothing');
-  assert.doesNotMatch(html, /\?prove=its-06/);
+  assert.doesNotMatch(prove, /Opens soon/);
+  assert.match(prove, /data-its06-prove-launch href="[^"]*\?prove=its-06&amp;student=/, 'the Prove It card opens ?prove=its-06');
   // The three lab cards show 55 / 50 / 30.
   assert.deepEqual([...html.matchAll(/data-its06-lab-minutes>Time: ([^<]+)</g)].map((m) => m[1]), [GUIDED, PRACTICE, PROVE].map((k) => run(`formatInstructionalMinutes(${run(`LABS.find((l) => l.key === '${k}').instructionalMinutes`)})`)));
   assert.deepEqual([GUIDED, PRACTICE, PROVE].map((k) => run(`LABS.find((l) => l.key === '${k}').instructionalMinutes`)), [55, 50, 30]);
@@ -279,14 +281,12 @@ function testLabCardsAndRail() {
   ['its06-prove-it', 'its06-check-learn', 'its06-check-aplus', 'its06-lab-8-2', 'its06-lab-8-1'].forEach((id) => assert.equal(railRow(html, id).locked, false, `${id} is not locked`));
   assert.doesNotMatch(html, /href="#its06-cardsort"/, 'the card sort has no rail row (it sits inside Reading 1)');
 
-  // Lab 8.1 still gates Module 8: a saved attempt waits for the instructor.
-  const waiting = hdUser({ [GUIDED]: submitted() });
-  fresh(waiting);
-  assert.match(statusLine(page().view(waiting, HD), GUIDED), /^Lab 8\.1 submitted .+, waiting for instructor review$/);
-  assert.equal(railRow(page().view(waiting, HD), 'its06-lab-8-1').ticked, false);
-  const passed = hdUser({ [GUIDED]: { ...submitted(), reviewedAt: '2026-11-25T16:00:00Z' } });
-  fresh(passed);
-  assert.equal(statusLine(page().view(passed, HD), GUIDED), 'Lab 8.1 passed');
+  // Lab 8.1 is Practice It since the Prove It moved the gate: a saved
+  // walkthrough is complete at once, with no instructor review.
+  const saved = hdUser({ [GUIDED]: submitted() });
+  fresh(saved);
+  assert.match(statusLine(page().view(saved, HD), GUIDED), /^Lab 8\.1: Complete · /);
+  assert.doesNotMatch(statusLine(page().view(saved, HD), GUIDED), /waiting for instructor review/);
 }
 
 /* ------------------------------------------------------------ card sort */
@@ -536,7 +536,7 @@ async function testGuidedLabSave() {
   assert.equal(inserts().length, 0, 'the extension saves nothing');
 
   // HD-2196 and HD-2197 resolved, with SR-2207: one Lab 8.1 attempt, then the
-  // page shows it waiting for the instructor (still the gating lab).
+  // page shows it complete (Practice It since the Prove It moved the gate).
   user = hdUser();
   fresh(user);
   page().view(user, HD);
@@ -547,7 +547,7 @@ async function testGuidedLabSave() {
   assert.deepEqual([row.state, row.score, row.track_code], ['complete', null, 'HDESK']);
   assert.deepEqual(row.result.work.tickets.map((t) => [t.id, t.status]), [['HD-2196', 'Resolved'], ['HD-2197', 'Resolved'], ['SR-2207', 'Open']]);
   assert.deepEqual(catcher.replies.map((r) => r.data.saved), [true]);
-  assert.match(statusLine(page().view(user, HD), GUIDED), /waiting for instructor review$/);
+  assert.match(statusLine(page().view(user, HD), GUIDED), /^Lab 8\.1: Complete · /);
   await page().onMessage(coachMessage(replyCatcher().source, labWork()));
   assert.equal(inserts().length, 1, 'finishing again sends nothing new');
 
@@ -655,7 +655,8 @@ function testInstructorSheets() {
   assert.match(html, /No: Practice It, no score and no answers saved/);
   assert.equal(copy(run('adminGradingLabMeta')({ lab_key: PRACTICE, track_code: 'HDESK' })).kind, 'PRACTICE IT');
   assert.equal(run('adminNeedsInstructorReview')({ lab_key: PRACTICE, track_code: 'HDESK' }), false, 'Lab 8.2 is never in the review queue');
-  assert.equal(run('adminNeedsInstructorReview')({ lab_key: GUIDED, track_code: 'HDESK' }), true, 'Lab 8.1 still is, until the Prove It gates the module');
+  assert.equal(run('adminNeedsInstructorReview')({ lab_key: GUIDED, track_code: 'HDESK' }), false, 'nor is Lab 8.1, now the Prove It gates the module');
+  assert.equal(run('adminNeedsInstructorReview')({ lab_key: PROVE, track_code: 'HDESK' }), true, 'the Prove It is');
   const guided = sheet.render({ ...base, id: 'm08g-1', lab_key: GUIDED, result: { source: 'mnt-coach-complete', work: { version: 1, tickets: [] } } });
   assert.match(guided, /Module 08 · Lab 8\.1 · Guided Lab: an identity morning/);
 }

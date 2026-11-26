@@ -3544,4 +3544,128 @@ const HD_PROVE_SHIFTS = {
     }],
     // END Module 7 Prove It shift.
   },
+  // BEGIN Module 8 Prove It shift (tests/hdesk-m08-prove.test.js reads it; no
+  // practice ticket, coach or set names what this block holds).
+  /* Module 8 (key its-06): one ticket on a fixed Thursday 09:21 shift clock,
+   * on Module 3's one-ticket form (matrix fields and a key-finding note),
+   * worked on the User Directory, Active Directory with Module 8's account
+   * controls (the same controls on every account), the Entra admin center,
+   * the knowledge base, two evidence cards, a one-question call, a request
+   * opened from the ticket and messages to other teams. users and
+   * userDirectory: this shift's own people, listed in the directory with
+   * their titles. Only what the student sees lives here: no expected values. */
+  'its-06': {
+    title: 'Prove It: Independent Ticket',
+    labKey: 'lab-its-06-prove-it',
+    rubricVersion: 'hdesk-its-06-prove-v1',
+    now: '2026-09-03T09:21:00Z',
+    timeBoxMinutes: 30,
+    userDirectory: true,
+    // The ticket's request card and team messages (ui/helpdesk.js hdConsole).
+    ticketActions: true,
+    users: [
+      { id:'u-1096', employeeId:'E-63271', phone:'mobile 407-555-0161', name:'Marcus Lane', username:'mlane', email:'marcus.lane@northstar.example', department:'Logistics', title:'Inventory Analyst (contractor)', ou:'OU=Logistics,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:34, groups:['GG-Logistics-Users'], manager:'Monica Hall', mfa:'Registered' },
+      { id:'u-1097', employeeId:'E-58804', phone:'ext. 4410 · mobile 407-555-0129', name:'Evelyn Reed', username:'ereed', email:'evelyn.reed@northstar.example', department:'Logistics', title:'Vice President, Logistics', ou:'OU=Logistics,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:18, groups:['GG-Logistics-Users'], manager:'Dana Whitfield', mfa:'Registered' },
+    ],
+    directory: hdIts06Directory({
+      'u-1096':{ accountExpires:'Yesterday 23:59', expired:true, passwordExpired:false, passwordLastSet:'34 days ago', passwordAge:34, lastBadPassword:'None', sponsor:'Monica Hall', sspr:'Not registered' },
+      'u-1097':{ accountExpires:'Never', passwordExpired:false, passwordLastSet:'18 days ago', passwordAge:18, lastBadPassword:'None', sspr:'Registered' },
+      'u-1022':{ accountExpires:'Never', passwordExpired:false, passwordLastSet:'27 days ago', passwordAge:27, lastBadPassword:'None', sspr:'Registered' },
+      'u-1020':{ accountExpires:'Never', passwordExpired:false, passwordLastSet:'57 days ago', passwordAge:57, lastBadPassword:'None', sspr:'Registered' },
+    }),
+    // The account controls Module 8 teaches, live on every account above
+    // (hdAcctShown shows the same controls on any other account).
+    accountActions: Object.fromEntries(['u-1096', 'u-1097', 'u-1022', 'u-1020'].map(id => [id, { unlock:true, enable:{ record:'' }, reset:true, expiry:true }])),
+    cloud: {
+      entra: {
+        users: {
+          'u-1096': { methods:[{ method:'Microsoft Authenticator', device:'iPhone', registered:'2 months ago' }],
+            signIns:[{ time:'Yesterday 16:42', app:'Microsoft 365', device:'iPhone', location:'Orlando, FL', status:'Success', mfa:'Satisfied: Authenticator notification' }] },
+          'u-1097': { methods:[{ method:'Microsoft Authenticator', device:'iPhone', registered:'1 year ago' }],
+            signIns:[{ time:'Today 08:34', app:'Microsoft 365', device:'NS-LT-0201', location:'Orlando, FL', status:'Success', mfa:'Satisfied: Authenticator notification' }] },
+          'u-1022': { methods:[{ method:'Microsoft Authenticator', device:'Android', registered:'8 months ago' }],
+            signIns:[{ time:'Today 07:58', app:'Microsoft Teams', device:'NS-LT-0188', location:'Orlando, FL', status:'Success', mfa:'Satisfied: Authenticator notification' }] },
+        },
+        audit: [{ time:'2 months ago 10:05', actor:'Service Desk', activity:'User registered security info (Microsoft Authenticator)', target:'Marcus Lane' }],
+      },
+      allow: { reregister:{ 'u-1096':true, 'u-1097':true, 'u-1022':true } },
+    },
+    // Module 8's set-level articles (HD_ITS06_KB_ARTICLES, practice-only),
+    // copied in as plain articles: a Prove shift lists no practice-only one.
+    kbArticles: HD_ITS06_KB_ARTICLES.filter(article => ['KB-0065', 'KB-0103', 'KB-0104', 'KB-0106'].includes(article.id)).map(article => {
+      const copy = { ...article };
+      delete copy.practiceOnly;
+      return copy;
+    }),
+    tickets: [{
+      id: 'SR-2129', number: 'INC0012129', title: 'MFA reset needed now for a contractor',
+      requester: 'Evelyn Reed', requesterTitle: 'VP of Operations', department: 'Operations', device: '',
+      cc: '', contactType: 'Phone', createdAt: '2026-09-03T09:20:00Z',
+      status: 'New', assignedTechnician: 'Unassigned',
+      description: 'This is Evelyn Reed. Marcus Lane got a new phone and needs his MFA reset now. He has to be in the warehouse system for the 10 AM inventory. I\'m in a meeting, so just do it.',
+      conversation: [
+        { from: 'Phone system', role: 'Call record', text: 'Inbound call at 09:20 from (407) 555-0186. The request is about Marcus Lane (Logistics).' },
+      ],
+      matrix: true,
+      categoryOptions: ['Account / access', 'Hardware', 'MFA reset', 'Password reset', 'Software', 'Suspicious call'],
+      labels: { resolutionHint: 'Reported / Tried / Result / Next action', userReply: 'Reply to the requester' },
+      writing: {
+        keyFinding: { label: 'Key finding', hint: 'One or two sentences: what you found and how the pieces connect.', rows: 3, max: 600 },
+      },
+      evidence: [
+        { id: 'e1', title: 'Warehouse system: sign-in record for mlane, today', lines: ['08:51 · mlane · Failed · "Your account has expired"', '08:58 · mlane · Failed · "Your account has expired"'], notes: ['The warehouse system signs in with on-site Active Directory.'] },
+        { id: 'e2', title: 'Phone system: this call', lines: ['09:20 · Inbound · (407) 555-0186 · 3 min'], notes: ['The phone system shows the number the call came from.'] },
+      ],
+      console: {
+        kb: true,
+        caller: { name: 'Evelyn Reed', style: 'phone', limit: 1, questions: [
+          { id: 'q1', text: 'Can I call you back on your number in the directory?', reply: 'No, I\'m about to go into a meeting. Just do it.' },
+          { id: 'q2', text: 'Can you give me your employee ID?', reply: 'I don\'t have it in front of me.' },
+          { id: 'q3', text: 'Who is Marcus\'s manager?', reply: 'Monica, I think. Does it matter?' },
+        ] },
+        // Every item has the same shape (a choice and an approver), and every
+        // message the same neutral text, so the decision is which one.
+        convert: {
+          number: 'RITM0012129',
+          items: [
+            { name: 'Account change request', approverField: 'approver', fields: [
+              { id: 'change', label: 'Change', options: ['Extend the end date', 'Reset MFA methods', 'Reset the password', 'Re-enable the account'] },
+              { id: 'approver', label: 'Approver', options: ['Evelyn Reed', 'Caleb Wright', 'Monica Hall', 'Dana Whitfield'] },
+            ] },
+            { name: 'New phone setup', approverField: 'approver', fields: [
+              { id: 'change', label: 'Change', options: ['Enrol a replacement phone', 'Enrol a first company phone'] },
+              { id: 'approver', label: 'Approver', options: ['Evelyn Reed', 'Caleb Wright', 'Monica Hall', 'Dana Whitfield'] },
+            ] },
+            { name: 'Application access', approverField: 'approver', fields: [
+              { id: 'change', label: 'Change', options: ['Warehouse system', 'Microsoft Teams', 'Outlook'] },
+              { id: 'approver', label: 'Approver', options: ['Evelyn Reed', 'Caleb Wright', 'Monica Hall', 'Dana Whitfield'] },
+            ] },
+          ],
+        },
+        teamMessages: [
+          { id: 't1', to: 'Desktop Support (Tier 2)', text: 'Please review INC0012129: the details are in its work notes.', reply: 'Received.' },
+          { id: 't2', to: 'Security Operations (SOC)', text: 'Please review INC0012129: the details are in its work notes.', reply: 'Received.' },
+          { id: 't3', to: 'Server & Identity', text: 'Please review INC0012129: the details are in its work notes.', reply: 'Received.' },
+          { id: 't4', to: 'Messaging & Collaboration', text: 'Please review INC0012129: the details are in its work notes.', reply: 'Received.' },
+        ],
+      },
+      diagnosisOptions: ['Account locked', 'Account disabled', 'Account expired', 'MFA method lost'],
+      // Ids are this ticket's own and their order says nothing. Action-level
+      // wording, with unsafe and wrong-direction steps beside the right ones.
+      pathPool: [
+        { id: 'p1', text: 'Try to verify the caller with a callback to the number in the directory' },
+        { id: 'p2', text: 'Unlock the account' },
+        { id: 'p3', text: 'Read the account\'s status fields in Active Directory' },
+        { id: 'p4', text: 'Extend the account\'s expiry date yourself' },
+        { id: 'p5', text: 'Check the account\'s sponsor and the policy' },
+        { id: 'p6', text: 'Require MFA re-registration for Marcus' },
+        { id: 'p7', text: 'Decline the request politely' },
+        { id: 'p8', text: 'Re-enable the account' },
+        { id: 'p9', text: 'Send a request to the account\'s sponsor for approval' },
+        { id: 'p10', text: 'Reset Marcus\'s password' },
+        { id: 'p11', text: 'Report the call to Security Operations as a suspicious request' },
+      ],
+    }],
+    // END Module 8 Prove It shift.
+  },
 };
