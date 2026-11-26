@@ -370,7 +370,7 @@ const PROGRAMS = [
           itsItem({ key: 'its-06-lesson-03', title: 'Introductory Entra ID & M365 Identity Scenarios', durationMinutes: 75, parentAllocations: [allocation('ITHD-101.6', 75)],
             objective: 'Re-register MFA after strong verification, tell a shared mailbox from a distribution list, read a sign-in log, and get work mail onto a compliant company phone.' }),
         ],
-        skills: ['Identity Management', 'Account Troubleshooting', 'Group Membership', 'Entra ID'] },
+        skills: ['Identity Management', 'Account Troubleshooting', 'Group Membership', 'Entra ID', 'Mobile Devices', 'Shared Mailboxes'] },
       // Lessons 6.2 and 6.3 share its-07-lesson-02 on the page; both share
       // that lesson's filed minutes (it-support-module-07.js).
       'its-07': { number: 6, week: 3, title: 'Software, Applications & Endpoint Management', hours: '2 Hours', durationMinutes: 120, creditMinutes: 120, lessons: 2, labs: 3,

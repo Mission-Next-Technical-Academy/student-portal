@@ -102,7 +102,7 @@ const ITS06_LESSONS = [
           { p: '**Group-based licensing.** Northstar gives every employee Microsoft 365 E3 through the group **GG-M365-E3-License**. Take someone out of it and their Outlook and Teams stop within about 15 minutes. It isn’t a department group, so a mover keeps it (KB-0106).' },
           { p: '**Distribution lists** (such as DL-Finance-Team) copy email to their members. They grant no access to files. A mover changes lists too.' },
         ],
-        comingUp: 'Move Nina from Sales to Finance, and put back the licence group that was taken by mistake, in practice ticket 8-C (Lab 8.2).',
+        comingUp: 'Work a mover who can’t open a folder or Teams in practice ticket 8-C (Lab 8.2).',
       },
     ],
   },
@@ -119,7 +119,7 @@ const ITS06_LESSONS = [
         ],
         blocks: [
           { h: 'Reading 3 · Microsoft 365 and Entra ID for Tier 1' },
-          { p: 'Northstar is **hybrid**. Users are created in on-site Active Directory and copied to **Microsoft Entra ID**, Microsoft’s cloud identity service (formerly Azure AD), by **Entra Connect**, about every 30 minutes. A password change reaches the cloud in about 2 minutes. **Microsoft 365** is software as a service (SaaS): Microsoft hosts and updates it, and Northstar pays per user per month.' },
+          { p: 'Northstar is **hybrid**: it uses on-site systems and a public cloud service together. Users are created in on-site Active Directory and copied to **Microsoft Entra ID**, Microsoft’s cloud identity service (formerly Azure AD), by **Entra Connect**, about every 30 minutes. A password change reaches the cloud in about 2 minutes. **Microsoft 365** is software as a service (SaaS): Microsoft hosts and updates it, and Northstar pays per user per month.' },
           { diagram: 'hybrid' },
           { p: 'You’ll use two consoles. The **Microsoft 365 admin center** has users and their licences, shared mailboxes, distribution lists, and **Service health**. The **Entra admin center** has each user’s sign-in methods (MFA), their self-service password reset registration, **sign-in logs** and audit logs.' },
           { p: 'A **licence** (Microsoft 365 E3) turns on Outlook, Teams and the Office apps. No licence means “you don’t have a license” or Teams won’t load. Before fixing anything locally, check **Service health**: if Microsoft has an advisory for that service, tell the user and leave their account alone.' },
@@ -137,7 +137,7 @@ const ITS06_LESSONS = [
             ],
           } },
         ],
-        comingUp: 'Re-register Sam’s MFA in the Entra admin center and give him Send as on support@ in the guided lab (Lab 8.1, Part B). Then decide whether a reset is needed at all in practice ticket 8-B (Lab 8.2).',
+        comingUp: 'Re-register Sam’s MFA in the Entra admin center and give him Send as on support@ in the guided lab (Lab 8.1, Part B). Then work an MFA request from a personal email address in practice ticket 8-B (Lab 8.2).',
       },
       {
         number: 4, icon: 'ri-smartphone-line', heading: 'Phones at work',
@@ -149,19 +149,9 @@ const ITS06_LESSONS = [
         blocks: [
           { h: 'Reading 4 · Phones at work' },
           { p: 'Phones connect in several ways, and each can be switched on or off: **cellular data** (4G or 5G), **Wi-Fi**, and **airplane mode**, which turns them all off. A **hotspot** shares the phone’s cellular data with a laptop. The **SIM** (a small card) or **eSIM** (built in) ties the phone to its carrier plan; on a new phone, the carrier moves the eSIM. **Bluetooth** pairs headsets and car kits: turn it on, put the device in pairing mode, find it on the phone, enter or confirm the PIN, then test. **Location services** use **GPS** (satellites: precise outdoors) and **cellular location** (nearby towers: rougher, but works indoors); apps ask permission first (Table 6).' },
-          { table: {
-            caption: 'Table 6 · Phone connections at Tier 1',
-            head: ['Item', 'What Tier 1 checks'],
-            rows: [
-              ['Cellular data (4G/5G) and Wi-Fi', 'Is each on? Airplane mode off? On Wi-Fi, does the work mail still need cellular?'],
-              ['Hotspot', 'Shares the phone’s cellular data with a laptop; counts against the data cap'],
-              ['SIM / eSIM', 'The physical or built-in card that ties the phone to its carrier plan; a new phone needs the eSIM moved by the carrier'],
-              ['Bluetooth', 'On → put the device in pairing mode → find it → enter or confirm the PIN → test'],
-              ['Location services', 'GPS (satellites, precise outdoors) and cellular location (towers, rougher); apps ask for permission'],
-              ['Sync', 'Mail, calendar, contacts and cloud storage per app; large uploads can be set to Wi-Fi only because of the data cap'],
-            ],
-          } },
           { p: 'Companies manage phones in two ways (Table 5). A **company phone** is enrolled in **mobile device management (MDM)**, which at Northstar is **Intune**: it enforces a PIN, encryption and a minimum OS version, installs the corporate apps and Wi-Fi settings, and can wipe the phone. A **personal phone** (bring your own device, **BYOD**) isn’t enrolled; **app protection** (MAM) manages only the work apps, such as a PIN on Outlook and no copying work data into personal apps, and can wipe only their data.' },
+          { p: 'Intune checks every company phone against Northstar’s rules. The **Intune admin center** › Devices shows each company phone, who it belongs to and whether it is compliant, with the rule it fails. A phone that falls behind gets a short grace period, then becomes **not compliant**, and **Conditional Access** blocks work mail and Teams on it until it’s fixed. The fix is on the phone: install what’s missing, then open **Company Portal › Check status** (KB-0105). Never take a user out of the policy to get them working.' },
+          { p: '**Sync** keeps business apps the same everywhere: Outlook syncs mail, calendar and contacts; OneDrive syncs files. A **data cap** limits how much cellular data a plan allows each month, so big uploads are set to Wi-Fi only.' },
           { table: {
             caption: 'Table 5 · Company phone or personal phone',
             head: ['', 'Company phone (corporate)', 'Personal phone (BYOD)'],
@@ -174,8 +164,18 @@ const ITS06_LESSONS = [
             ],
           } },
           { diagram: 'phones' },
-          { p: 'Intune checks every company phone against Northstar’s rules. A phone that falls behind gets a short grace period, then becomes **not compliant**, and **Conditional Access** blocks work mail and Teams on it until it’s fixed. The fix is on the phone: install what’s missing, then open **Company Portal › Check status** (KB-0105). Never take a user out of the policy to get them working.' },
-          { p: '**Sync** keeps business apps the same everywhere: Outlook syncs mail, calendar and contacts; OneDrive syncs files. A **data cap** limits how much cellular data a plan allows each month, so big uploads are set to Wi-Fi only.' },
+          { table: {
+            caption: 'Table 6 · Phone connections at Tier 1',
+            head: ['Item', 'What Tier 1 checks'],
+            rows: [
+              ['Cellular data (4G/5G) and Wi-Fi', 'Is each on? Airplane mode off? On Wi-Fi, does work mail still arrive?'],
+              ['Hotspot', 'Shares the phone’s cellular data with a laptop; counts against the data cap'],
+              ['SIM / eSIM', 'The physical or built-in card that ties the phone to its carrier plan; a new phone needs the eSIM moved by the carrier'],
+              ['Bluetooth', 'On → put the device in pairing mode → find it → enter or confirm the PIN → test'],
+              ['Location services', 'GPS (satellites, precise outdoors) and cellular location (towers, rougher); apps ask for permission'],
+              ['Sync', 'Mail, calendar, contacts and cloud storage per app; large uploads can be set to Wi-Fi only because of the data cap'],
+            ],
+          } },
           { p: 'When work mail stops on a phone but works on the laptop, check in this order: Service health, the phone’s compliance in Intune, the sign-in log, then the app’s account on the phone.' },
         ],
         comingUp: 'Enrol Sam’s new phone, set up Outlook, set OneDrive to Wi-Fi only and pair his headset in the guided lab (Lab 8.1, Part B). Then find out why a company phone gets no work mail in practice ticket 8-D (Lab 8.2).',
@@ -212,7 +212,7 @@ const ITS06_DIAGRAMS = {
     ],
     branches: [
       { label: 'Locked', approval: 'Approval: verification', text: 'Find the source, then unlock once.' },
-      { label: 'Disabled', approval: 'Approval: HR', text: 'Enable only with the HR record.' },
+      { label: 'Disabled', approval: 'Approval: HR or the manager', text: 'Enable only with the HR record.' },
       { label: 'Account expired', approval: 'Approval: the sponsor', text: 'Send it to the sponsor.' },
       { label: 'Password expired', approval: 'Approval: verification', text: 'The user changes it; else self-service; else KB-0104.' },
     ],
@@ -241,7 +241,7 @@ const ITS06_DIAGRAMS = {
   hybrid: {
     title: 'One identity, two places',
     left: { title: 'Active Directory', sub: 'on site', lines: ['Users, groups, passwords'] },
-    arrow: 'Entra Connect, about every 30 minutes; password changes in about 2',
+    arrow: 'Entra Connect, about every 30 minutes; password changes in about 2 minutes',
     right: { title: 'Entra ID', sub: 'cloud' },
     apps: ['Outlook', 'Teams', 'OneDrive'],
     consolesLabel: 'Where you work',
@@ -493,7 +493,8 @@ function its06HybridSvg(layout) {
   const lh = its06BoxHeight(d.left, w);
   body += its06Box(d.left, x, y, w, lh);
   y += lh;
-  const arrowLines = its06Wrap(d.arrow, 22);
+  // 18 characters: the label starts at x 174, so a longer line runs past 320.
+  const arrowLines = its06Wrap(d.arrow, 18);
   const arrowLen = Math.max(54, arrowLines.length * 15 + 14);
   body += its06Arrow(cx, y + 2, cx, y + arrowLen - 2, id);
   arrowLines.forEach((line, i) => { body += its06Label(line, cx + 14, y + 22 + i * 15); });
@@ -656,12 +657,12 @@ function its06LessonCard(card) {
  * relative, never a calendar date. */
 const ITS06_CARD_SORT = {
   title: 'Account-status card sort',
-  intro: 'Read each account’s fields, then put it in the box that matches what you see: pick a box under each card. Not graded: a wrong box tells you why, and you try again.',
+  intro: 'Read each account’s fields, then put it in the box that matches what you see: pick a box under each card. Active means nothing needs fixing today. Not graded: a wrong box tells you why, and you try again.',
   buckets: ['Locked', 'Disabled', 'Password expired', 'Active'],
   whyNot: {
     Locked: 'Look at the Locked out field. This box needs a Yes there, and this card doesn’t show one.',
     Disabled: 'Look at the Enabled field and the history. This box is for an account someone turned off, and this card isn’t one.',
-    'Password expired': 'Look for Password expired: Yes. This box is for a password past its 90 days, and this card doesn’t show one.',
+    'Password expired': 'Look for Password expired: Yes. This box is for a password past its 90 days, and this card doesn’t show Yes there.',
     Active: 'This account has something to read again. Check each field and its history before you call it fine.',
   },
   cards: [
@@ -1082,12 +1083,12 @@ function its06PracticeTickets() {
   return `<section class="its01-section its01-lab-section" id="its06-lab-8-2" aria-labelledby="its06-lab-8-2-title">
     <div class="its01-section-heading"><span>2</span><div><p class="its01-kicker">Practice It · on your own</p><h2 id="its06-lab-8-2-title">${esc(itsLabTitle(ITS06_PRACTICE_KEY))}</h2></div></div>
     <p class="its01-instruction">Four tickets to work on your own, each a different issue: someone back from leave who can’t sign in (8-A), an MFA reset asked for from a personal email address (8-B), a mover between departments missing a folder and Teams (8-C), and no work mail on a company phone (8-D). On each one, set the Category, CI, Impact and Urgency yourself, use the tool screens and the knowledge base, and press Check my work for feedback.</p>
-    <p class="its01-instruction">Practice: not graded. Your answers aren’t sent. Finish all four tickets: each one ends resolved, assigned to the team that owns it, or converted to its request, and each one gets your work note. Check my work shows what is still missing. The simulator then tells this page, and your account records that you completed Lab 8.2.</p>
+    <p class="its01-instruction">Practice: not graded. Your answers aren’t sent. Finish all four tickets: resolve each one and give it your work note. Check my work shows what is still missing. The simulator then tells this page, and your account records that you completed Lab 8.2.</p>
     <p class="its01-instruction" data-its06-lab-minutes>Time: ${formatInstructionalMinutes(its06LabMinutes(ITS06_PRACTICE_KEY))}</p>
     <a class="itsw-evidence-button" data-its06-practice-launch href="${esc(its06PracticeTicketsHref(its06User))}" target="_blank" rel="opener">
       <i class="ri-play-list-line" aria-hidden="true"></i> Open the practice tickets
     </a>
-    ${itsLabStatusHtml(its06User, ITS06_PRACTICE_KEY, { label: 'Lab 8.2', prefix: 'its01', pendingText: 'Finish all four tickets: resolve each one, assign it to the team that owns it, or convert it to its request.' })}
+    ${itsLabStatusHtml(its06User, ITS06_PRACTICE_KEY, { label: 'Lab 8.2', prefix: 'its01', pendingText: 'Finish all four tickets: resolve each one and give it your work note.' })}
   </section>`;
 }
 

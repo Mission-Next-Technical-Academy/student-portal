@@ -189,7 +189,10 @@ function testPageContent() {
   });
   // Spec section 5's Tables 1 to 6, placed by reading; Table 7 is not on the page.
   const captions = [...html.matchAll(/<caption>([^<]*)<\/caption>/g)].map((m) => m[1]);
-  assert.deepEqual(captions.map((c) => (/^Table (\d)/.exec(c) || [])[1]), ['1', '2', '3', '4', '6', '5']);
+  assert.deepEqual(captions.map((c) => (/^Table (\d)/.exec(c) || [])[1]), ['1', '2', '3', '4', '5', '6']);
+  // Reading 4's terms are defined before its tables use them.
+  const four = html.slice(html.indexOf('<h4>Reading 4 · '));
+  ['<strong>Conditional Access</strong>', '<strong>data cap</strong>', '<strong>Intune admin center</strong>'].forEach((term) => assert.ok(four.indexOf(term) >= 0 && four.indexOf(term) < four.indexOf('<caption>'), `${term} before Reading 4's tables`));
   assert.doesNotMatch(html, /Table 7|Priorities against/);
   // Spec section 8.5's key sentences, one from each reading.
   [
@@ -260,7 +263,8 @@ function testLabCardsAndRail() {
   assert.match(practice, /\?practice=its-06&amp;student=/, 'Lab 8.2 opens practice set its-06');
   assert.match(practice, /Practice: not graded/);
   assert.match(practice, /\(8-A\)[\s\S]*\(8-B\)[\s\S]*\(8-C\)[\s\S]*\(8-D\)/);
-  assert.equal(statusLine(html, PRACTICE), 'Finish all four tickets: resolve each one, assign it to the team that owns it, or convert it to its request.');
+  // All four practice tickets end resolved at Tier 1.
+  assert.equal(statusLine(html, PRACTICE), 'Finish all four tickets: resolve each one and give it your work note.');
   // The Prove It opens nothing yet.
   const prove = section(html, 'its06-prove-it');
   assert.match(prove, /Prove It: Independent Ticket/);
