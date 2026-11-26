@@ -20,7 +20,10 @@
  * (selected_evidence[], pinned_evidence[] lines, query_log (last 40),
  * query_summary (added 2026-10-17), child_incident_resolutions,
  * recommended-response labels), result.breakdown ("earned / max" per
- * competency), result.feedback, result.simulator_performance.
+ * competency), result.feedback, result.simulator_performance. From
+ * 2026-11-19 result.kind = 'soc-prove': the database also scores the attempt
+ * (staff-only recommendation, shown in the "Server recommendation" box by
+ * portal/admin-sheets/soc-prove-recommendation.js).
  */
 (() => {
   'use strict';
@@ -198,6 +201,7 @@
 
   AdminSubmissionSheet.register(['lab-siem-triage'], {
     title: 'Module 03 · PROVE IT — SIEM Alert Triage',
+    serverRecommendation: true,
     fixture: prove,
     scorer: (result) => rescore(result),
     caseId: () => `${(prove() && prove().caseId) || 'CASE-MN-517'} · ${linkRule().incidentId}`,

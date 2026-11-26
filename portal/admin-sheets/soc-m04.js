@@ -32,6 +32,10 @@
  * runs, tickets, notifications and approval requests with their reasons)
  * because the console work itself was not saved before. Every reader below
  * is defensive: a field an older attempt lacks is shown as not recorded.
+ * From 2026-11-19 result.kind = 'soc-prove' and result.work (the console
+ * state the scorer read): the database also scores the attempt (staff-only
+ * recommendation, shown in the "Server recommendation" box by
+ * portal/admin-sheets/soc-prove-recommendation.js).
  *
  * Teacher notes (owner, 2026-10-17): plain instructions that quote what the
  * student actually set, in the console's own labels; never the scorer's
@@ -318,6 +322,7 @@
 
   AdminSubmissionSheet.register(['lab-detection-rule'], {
     title: 'Module 04 · PROVE IT — Detection Rule Review & Enrichment',
+    serverRecommendation: true,
     fixture: data,
     caseId: () => {
       const s = scenario();

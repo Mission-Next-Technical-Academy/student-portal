@@ -314,6 +314,10 @@ const M03E_PRACTICE_DISPOSITIONS = {
     hints: ['What records would tell you whether this search was routine or the start of an export?', 'Compare the alert time with the billing-app collector delay you read in Data Sources.', 'If the evidence you need may still be in transit, you cannot call it yet. Say what is missing and what you will re-check.'] },
 };
 
+// Saved as lab_attempts.rubric_version on the Prove It; the server-side
+// answer key for MODULE_THREE_CATALOG_LAB_KEY is loaded under this version.
+const M03E_PROVE_RUBRIC_VERSION = 'soc-m03-prove-v1';
+
 const M03E_INCIDENT_LINK_EXPECTATIONS = {
   practice: { incidentId: 'INC-MN-428-PRACTICE', supported: ['ALT-3101'], unrelated: ['ALT-3102'] },
   prove: { incidentId: 'INC-MN-517', supported: ['ALT-5170', 'ALT-5171'], unrelated: ['ALT-5174'] },
@@ -1579,7 +1583,12 @@ function m03eSubmitAssessment() {
   // simulator_performance/breakdown/feedback feed the existing competency
   // and score-explanation panels; recommended response and pinned evidence
   // (not part of the standard ticket fields) go in `assessment` below.
+  // kind 'soc-prove' (2026-11-19): the database scores this work package
+  // (case_record, assessment.selected_evidence, assessment.query_summary)
+  // against the lab's answer key at submit, as a staff-only recommendation
+  // (migration 20261119204423).
   const result = {
+    kind: 'soc-prove',
     case_record: { ...m03eSyncFindingsView(d), alertIncidentLinks: st.incidentLinks.map(({ alertId, incidentId, at }) => ({ alertId, incidentId, at })), incidentResolutions: st.incidentResolutions },
     case_display: [...caseRecordDisplay(d, caseSpec), ['Alert-to-incident links', st.incidentLinks.length ? st.incidentLinks.map((link) => `${link.alertId} → ${link.incidentId}`).join('; ') : 'None recorded']],
     case_summary: caseRecordSummary(d, caseSpec),
@@ -1609,7 +1618,7 @@ function m03eSubmitAssessment() {
     },
   };
   if (typeof recordProveItAttempt === 'function') {
-    recordProveItAttempt(moduleThreeUser, MODULE_THREE_CATALOG_LAB_KEY, { state: 'complete', submittedAt: st.submittedAt, score: performance.score, result }, () => {
+    recordProveItAttempt(moduleThreeUser, MODULE_THREE_CATALOG_LAB_KEY, { state: 'complete', submittedAt: st.submittedAt, score: performance.score, rubricVersion: M03E_PROVE_RUBRIC_VERSION, result }, () => {
       m03eReopenUnsavedAssessment();
       const status = document.getElementById('m03-status');
       if (status) status.textContent = 'In progress';

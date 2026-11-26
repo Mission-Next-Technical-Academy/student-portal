@@ -18,7 +18,10 @@
  * state), result.case_display (ticket rows as the student saw them),
  * result.case_summary (plain-text copy of the ticket, not shown: duplicate),
  * result.access_review (fixed placeholder + copy of the notes, not shown:
- * duplicate), result.breakdown / feedback / critical_errors (scorer).
+ * duplicate), result.breakdown / feedback / critical_errors (scorer). From
+ * 2026-11-19 result.kind = 'soc-prove': the database also scores the attempt
+ * (staff-only recommendation, shown in the "Server recommendation" box by
+ * portal/admin-sheets/soc-prove-recommendation.js).
  */
 (() => {
   'use strict';
@@ -109,6 +112,7 @@
 
   AdminSubmissionSheet.register(['lab-identity-investigation'], {
     title: 'Module 02 · PROVE IT — Investigate HR file authorization',
+    serverRecommendation: true,
     caseId: () => 'CASE-025502 · INC-025811',
     // Scenario names (jsmith, cgreen, wkstn…) for the spelling allowlist.
     fixture: () => ({ USERS, DEVICES, DEPARTMENTS, DISPOSITIONS, FINDINGS, EVIDENCE }),

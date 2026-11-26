@@ -440,6 +440,25 @@ const MODULE_FOUR_RELEVANT_EVIDENCE = [
 // submission — `m04-assessment`, the only form here that calls
 // recordLabAttempt() for MODULE_FOUR_CATALOG_LAB_KEY.
 const MODULE_FOUR_CASE_ID = SocM04AssessmentData.scenario.caseId;
+// Saved as lab_attempts.rubric_version on the Prove It; the server-side
+// answer key for MODULE_FOUR_CATALOG_LAB_KEY is loaded under this version.
+const MODULE_FOUR_PROVE_RUBRIC_VERSION = 'soc-m04-prove-v1';
+// Each IOC's first/last seen as this browser's Date.parse() reads them (the
+// form takes free text, read in the student's local time zone), in
+// work.iocs order. Sent with the Prove It so the server compares the same
+// instants the browser scorer compared; null when a date does not parse.
+function moduleFourIocTimes(assessment) {
+  const at = (value) => {
+    if (typeof value !== 'string') return null;
+    const time = Date.parse(value);
+    return Number.isFinite(time) ? time : null;
+  };
+  return (Array.isArray(assessment?.iocs) ? assessment.iocs : []).map((ioc) => ({
+    id: ioc && typeof ioc === 'object' ? ioc.id ?? null : null,
+    firstSeen: at(ioc?.firstSeen),
+    lastSeen: at(ioc?.lastSeen),
+  }));
+}
 const MODULE_FOUR_DEPARTMENT_BOUNCE_THRESHOLD = 40;
 
 // Keep the submitted case selections anchored to the immutable assessment truth.
@@ -1932,7 +1951,12 @@ function wireModuleFourAssessmentLab() {
           state: 'complete',
           submittedAt,
           score: result.score,
+          rubricVersion: MODULE_FOUR_PROVE_RUBRIC_VERSION,
+          // kind 'soc-prove' (2026-11-19): the database scores this work
+          // package (work + case_record) against the lab's answer key at
+          // submit, as a staff-only recommendation (migration 20261119204423).
           result: {
+            kind: 'soc-prove',
             rubric_version: result.rubricVersion,
             breakdown: result.criteria,
             feedback: result.review.feedback,
@@ -1943,6 +1967,11 @@ function wireModuleFourAssessmentLab() {
             case_summary: caseRecordSummary(moduleFourState.caseRecord, spec),
             // Additive (2026-10-17): the console work the scorer read, in readable form, for the admin Submission Sheet. Never read by scoring.
             work_summary: moduleFourWorkSummary(moduleFourState.assessment),
+            // Additive (2026-11-19): the console state the scorer reads, as it
+            // was scored (work_summary above is a shortened, readable copy).
+            work: JSON.parse(JSON.stringify(moduleFourState.assessment)),
+            // Additive (2026-11-21): the IOC dates as the browser parsed them.
+            ioc_times: moduleFourIocTimes(moduleFourState.assessment),
             attempts: moduleFourState.attempts,
           },
         }, () => {
