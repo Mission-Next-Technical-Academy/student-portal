@@ -2905,6 +2905,8 @@ const HD_PROVE_SHIFTS = {
     now: '2026-09-02T09:12:00Z',
     timeBoxMinutes: 45,
     selectedComputer: 'NS-WS-0277',
+    // The caller's other laptop has an older Module 5 event in the shared log.
+    hideEventsFrom: ['NS-LT-0081'],
     servers: (() => {
       const servers = hdIts05BaselineServers();
       servers['NS-FILE01'].shares.push({ name:'Sales', path:'\\\\NS-FILE01\\Sales', status:'Healthy',
