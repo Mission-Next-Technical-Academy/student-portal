@@ -295,6 +295,28 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
     row: coachRow('hdesk-m07-lab61', 'lab-its-07-app-cert', [savedTicket('HD-2176', { worked: true, priority: 'P4' })]),
     expect: { html: ['data-sheet-section="scenario-hd-2176"', 'data-sheet-section="lab-work-hd-2176"'], notHtml: ['data-sheet-section="scenario-hd-2119"', 'data-sheet-section="troubleshooting-hd-2176"', 'data-sheet-section="customer-comment-hd-2176"'] },
   },
+  // Module 7 from 2026-11-25: Lab 7.1 grades HD-2189 and the incident the
+  // student raised, HD-2190, whose writing and triage show in full.
+  {
+    name: 'Lab 7.1 new attempt grades HD-2189 and the raised HD-2190',
+    row: coachRow('hdesk-m05-lab71', 'lab-its-05-server-ad', [
+      savedTicket('HD-2189', { worked: true, priority: 'P5' }),
+      { ...savedTicket('HD-2190', { worked: true, expectedStatus: 'Resolved', status: 'Escalated' }), raisedFrom: 'HD-2189', parentId: 'HD-2189',
+        writing: { shortDescription: 'Guest Wi-Fi DHCP scope at 95%', description: 'Only 12 addresses free; guests may soon get no address.', kbDraftTitle: '', kbDraftText: '' },
+        console: { kbOpened: [], chatAsked: [], resolutionCode: '', noteMissing: [], lastCommentJargon: [], matrix: { impact: '2', urgency: '2', priority: 'P3', assignmentGroup: 'Server & Identity' } } },
+    ]),
+    expect: {
+      html: ['data-sheet-section="scenario-hd-2189"', 'data-sheet-section="lab-work-hd-2189"', 'data-sheet-section="raised-hd-2190"', 'Guest Wi-Fi DHCP scope at 95%', 'Server &amp; Identity'],
+      notHtml: ['data-sheet-section="scenario-hd-2108"', 'data-sheet-section="troubleshooting-hd-2189"', 'data-sheet-section="customer-comment-hd-2189"', 'data-sheet-section="raised-hd-2189"'],
+    },
+  },
+  // An attempt saved before 2026-11-25 holds HD-2108 and HD-2117 and keeps
+  // the sheet it was worked against.
+  {
+    name: 'Lab 7.1 older attempt keeps HD-2108 and HD-2117',
+    row: coachRow('hdesk-m05-worked', 'lab-its-05-server-ad', [savedTicket('HD-2108', { worked: true }), savedTicket('HD-2117', { worked: true, priority: 'P2' })]),
+    expect: { html: ['data-sheet-section="scenario-hd-2108"', 'data-sheet-section="scenario-hd-2117"'], notHtml: ['data-sheet-section="scenario-hd-2189"'] },
+  },
   {
     name: 'Lab 4.4 practice completion shows the four tickets, no walkthrough sections',
     row: { id: 'hdesk-m04-lab44', lab_key: lab24, track_code: 'HDESK', student_id: 'synthetic-hdesk', completed_at: '2026-11-23T10:00:00Z', result: { source: 'mnt-practice-complete', practiceSet: 'its-02', tickets: ['HD-2169', 'HD-2170', 'HD-2171', 'HD-2172'] } },

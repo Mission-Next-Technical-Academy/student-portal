@@ -433,8 +433,17 @@ function testNothingFromTheGradedQueue() {
   const fiveD = tab.run("JSON.stringify(HD_TICKET_TEMPLATES.find((t) => t.id === 'HD-2186'))").toLowerCase();
   fiveD.split(/[^a-z0-9-]+/).filter(Boolean).filter((word) => word !== 'payroll')
     .forEach((word) => assert.ok(!GRADED_WORDS.has(hash(word)), 'no other graded story word in ticket 5-D'));
+  // Module 7's (key its-05) HD-2189 and ticket 7-E (HD-2195) keep their
+  // approved text: the Warehouse DHCP scope (a merged fixture name) and the
+  // warehouse time clock that payroll reads (Module 7 spec, decision 5). Those
+  // two words are allowed on those two tickets; every other graded word stays
+  // refused there too.
+  const MODULE_7 = ['HD-2189', 'HD-2195'];
+  MODULE_7.forEach((id) => tab.run(`JSON.stringify(HD_TICKET_TEMPLATES.find((t) => t.id === '${id}'))`).toLowerCase()
+    .split(/[^a-z0-9-]+/).filter(Boolean).filter((word) => !['warehouse', 'payroll'].includes(word))
+    .forEach((word) => assert.ok(!GRADED_WORDS.has(hash(word)), `no other graded story word in ${id}`)));
   const content = tab.run(`JSON.stringify({
-    tickets: HD_TICKET_TEMPLATES.filter((t) => t.ownSet && t.id !== 'HD-2186'),
+    tickets: HD_TICKET_TEMPLATES.filter((t) => t.ownSet && t.id !== 'HD-2186' && !${JSON.stringify(MODULE_7)}.includes(t.id)),
     kb: HD_KB_ARTICLES.filter((a) => ['KB-0062', 'KB-0063'].includes(a.id)),
     coach: MODULE_COACHES.find((c) => c.id === 'hd-m10').steps.map((s) => [s.title, s.instruction, s.body]),
   })`).toLowerCase();
@@ -443,10 +452,12 @@ function testNothingFromTheGradedQueue() {
   // Module 2's own tickets name no graded requester at all. A later module's
   // own-set ticket may name a directory user its spec chose as a requester:
   // Module 4's call 5 (ticket 4-A), and Module 5's call 15 and decision 15
-  // (tickets 5-C and 5-D). Every other graded name stays refused.
+  // (tickets 5-C and 5-D), and Module 7's spec section 8.2 step 10 (HD-2189
+  // reads Jordan Bell's account) and section 8.4 (ticket 7-E's caller, Monica
+  // Hall). Every other graded name stays refused.
   const module2 = new Set([...JSON.parse(tab.run("JSON.stringify(HD_COACHED_SETS['its-10-guided'].tickets)")), ...JSON.parse(tab.run("JSON.stringify(HD_PRACTICE_SETS['its-10'].tickets)"))]);
-  const REUSED_BY_LATER_MODULES = new Set([...GRADED_NAMES].filter((h) => [hash('grace kim'), hash('dina foster'), hash('evan parker')].includes(h)));
-  assert.equal(REUSED_BY_LATER_MODULES.size, 3, 'each reused name is a graded name');
+  const REUSED_BY_LATER_MODULES = new Set([...GRADED_NAMES].filter((h) => [hash('grace kim'), hash('dina foster'), hash('evan parker'), hash('jordan bell'), hash('monica hall')].includes(h)));
+  assert.equal(REUSED_BY_LATER_MODULES.size, 5, 'each reused name is a graded name');
   const pairs = (text) => { const list = text.split(/[^a-z0-9-]+/).filter(Boolean); return list.slice(1).map((w, i) => hash(`${list[i]} ${w}`)); };
   const own = JSON.parse(tab.run('JSON.stringify(HD_TICKET_TEMPLATES.filter((t) => t.ownSet))'));
   own.forEach((ticket) => pairs(JSON.stringify(ticket).toLowerCase()).forEach((h) => {

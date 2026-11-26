@@ -43,7 +43,9 @@
     // sheet (portal/admin-sheets/hdesk.js).
     'hd-m03': ['HD-2180'],
     'hd-m04': ['HD-2104', 'HD-2105', 'HD-2113'],
-    'hd-m05': ['HD-2108', 'HD-2117'],
+    // Module 7 (key its-05) Lab 7.1. Older attempts keep HD-2108 and HD-2117
+    // on their sheet (portal/admin-sheets/hdesk.js).
+    'hd-m05': ['HD-2189', 'HD-2190'],
     'hd-m06': ['SR-2107', 'HD-2118'],
     // Module 6 (key its-07) Lab 6.1. Older attempts keep HD-2119 on their
     // sheet (portal/admin-sheets/hdesk.js).
@@ -1108,8 +1110,227 @@
     ],
   });
 
+  /* ---------------------------------------------------------- hd-m05 ---- */
+  /* Module 7 (key its-05) Lab 7.1, the morning server check on HD-2189 (coached
+   * set its-05-guided). Feedback only, no points. Every check reads saved state
+   * (the shift's server and directory screens, the command history, the two
+   * tickets), never a tick box, so a step done early passes when it comes up.
+   * The four typed lines (gpresult /r, gpupdate /force, Get-Service on
+   * NS-PRINT01 and Test-NetConnection on NS-FILE01) pass from the command
+   * history, in any letter case, with extra valid options. Every other step
+   * passes from its screen or from its optional command, which earn the same
+   * evidence key. The old HD-2108 and HD-2117 coach is gone; a saved run of it
+   * starts fresh. */
+  const HD5_ID = 'HD-2189';
+  const HD5_RAISED = 'HD-2190';
+  const HD5_PC = 'NS-LT-0215';
+  // The shift's evidence list, filled by the screens and by the typed lines.
+  const hd5Seen = (key) => typeof hdState !== 'undefined' && Boolean(hdState) && Array.isArray(hdState.serverSeen) && hdState.serverSeen.includes(key);
+  const hd5Log = () => (typeof hdState !== 'undefined' && hdState && Array.isArray(hdState.practiceLog) ? hdState.practiceLog : []);
+  // A result that means the console did not run the line (outside the training
+  // shell, a misspelling, a refused option or an unknown service or computer).
+  const HD5_REFUSED = /^the term |^misspelled|^error:|^no (service|computer|share)\b|^path not found$|^no folder$|^(get-service|test-netconnection|get-winevent|get-ad\w+) :/i;
+  const hd5Typed = (test) => hd5Log().some((e) => e && e.type === 'command_run' && !HD5_REFUSED.test(String(e.result || '').trim())
+    && test(String(e.command || '').trim().replace(/\s+/g, ' '), e));
+  // gpresult /r on NS-LT-0215: typed on that laptop, or aimed at it with /s.
+  // A /s on another computer never counts, whichever laptop is open.
+  const hd5Gpresult = (cmd, e) => {
+    if (!/^gpresult(\.exe)?\s/i.test(cmd) || !/(^|\s)\/r(\s|$)/i.test(cmd)) return false;
+    const named = /\/s\s+("[^"]*"|'[^']*'|\S+)/i.exec(cmd);
+    const target = named ? named[1].replace(/^["']|["']$/g, '') : String(e.computer || '');
+    return target.toLowerCase() === HD5_PC.toLowerCase();
+  };
+  const hd5Gpupdate = (cmd, e) => /^gpupdate \/force$/i.test(cmd) && e.computer === HD5_PC;
+  const hd5Spooler = (cmd) => /^get-service\b/i.test(cmd) && /-computername\s+["']?ns-print01\b/i.test(cmd) && /(^|\s)["']?spooler["']?(\s|$)/i.test(cmd);
+  const hd5Port445 = (cmd) => /^test-netconnection\b/i.test(cmd) && /\bns-file01\b/i.test(cmd) && /-port\s+445\b/i.test(cmd);
+  // Step 17: HD-2190 as the student raised and filled it in.
+  const hd5RaisedDone = () => {
+    const t = hd2Ticket(HD5_RAISED);
+    if (!t || t.raisedFrom !== HD5_ID || typeof hdConsoleState !== 'function') return false;
+    const r = hdConsoleState(t).rewrite;
+    return Boolean(r) && /guest/i.test(String(r.short || '')) && /95/.test(String(r.short || '')) && Array.isArray(r.missing) && r.missing.length === 0
+      && String(t.impact) === '2' && String(t.urgency) === '2' && t.priority === 'P3' && t.assignmentGroup === 'Server & Identity'
+      && hd2Rule(HD5_RAISED, { note: true });
+  };
+  // Step 18: the one complete note on HD-2189 points at HD-2190.
+  const hd5NoteNamesRaised = () => {
+    const t = hd2Ticket(HD5_ID);
+    const note = t && typeof hdConsoleCompleteNote === 'function' ? hdConsoleCompleteNote(t) : null;
+    return Boolean(note) && /HD-2190|INC0010501/i.test(String(note.text || ''));
+  };
+  hd2ForgetStale('hd-m05', 'its-05-guided');
+
+  MODULE_COACHES.push({
+    id: 'hd-m05', module: 7, name: 'Guided Lab: the morning server check', role: 'Tier 1 Help Desk Technician',
+    summary: 'It is Wednesday, 08:00, and the daily server check is yours. Read the five servers, their services and logs, the change log, a file share’s permissions, Active Directory, Group Policy, DNS and DHCP. You change nothing. When you find something that another team owns, you raise a ticket for it and hand it on. Feedback only, no score.',
+    completionToken: 'hd-m05', home: '#/helpdesk/tickets',
+    resetState: () => {
+      if (typeof hdUseTicketSet === 'function') hdUseTicketSet('its-05-guided');
+      if (typeof hdState !== 'undefined' && hdState) hdState.selectedTicketId = null;
+    },
+    allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket', '#/helpdesk/windows', '#/helpdesk/powershell', '#/helpdesk/server-manager',
+      '#/helpdesk/server-services', '#/helpdesk/server-events', '#/helpdesk/file-server', '#/helpdesk/change-log', '#/helpdesk/active-directory',
+      '#/helpdesk/group-policy', '#/helpdesk/dns', '#/helpdesk/dhcp', '#/helpdesk/knowledge-base'],
+    steps: [
+      {
+        route: '#/helpdesk/ticket', target: 'select[data-hd-field="category"], [data-hd-machines]',
+        title: 'Triage the morning check',
+        instruction: 'Open <strong>Morning server check — Wednesday</strong> (HD-2189). Set <strong>Category</strong> Server › Scheduled check, <strong>Configuration item</strong> NS-DC01, <strong>Impact</strong> 3 and <strong>Urgency</strong> 3. Assign it to yourself. The contact type is already Self-service.',
+        body: 'Why: planned work is still work, and it is still triaged. This is your first P5. Everything in this lab is read-only. The only record you create is HD-2190. Success looks like: the priority calculates P5 Planning, the ticket is yours, and the SLA bar shows a 2-business-day respond target.',
+        waitLabel: 'Next Step: Triaged as P5',
+        check: () => {
+          const t = hd2Ticket(HD5_ID);
+          return hd2Triaged(HD5_ID, 'Server', 'Scheduled check', 'NS-DC01', 'P5') && Boolean(t) && t.assignedTechnician === 'Riley Morgan';
+        },
+      },
+      {
+        route: '#/helpdesk/server-manager', target: '[data-hd-server-state], [data-hd-server-warnings]',
+        title: 'Read all five servers',
+        instruction: 'Open <strong>Server Manager</strong> from the left menu. Read each server’s name, role and status. For each one, ask what breaks for users if it stops.',
+        body: 'Why: before anything is wrong, learn what each server is responsible for. Success looks like: you can say what breaks if each one stops. Sign-ins and names (NS-DC01). New addresses (NS-DHCP01). Shared folders (NS-FILE01). Printing (NS-PRINT01). One application (NS-APP01). One warning tile is showing.',
+        continueLabel: 'I can say what each one does',
+      },
+      {
+        route: '#/helpdesk/server-manager', target: '[data-hd-server-state], [data-hd-server-detail]',
+        title: 'Read the roles on NS-DC01',
+        instruction: 'In Server Manager, open <strong>NS-DC01</strong> with its <strong>Open</strong> button. Read the <strong>AD DS</strong> and <strong>DNS Server</strong> roles. The same check in PowerShell (optional): <code>Get-Service -ComputerName NS-DC01</code>',
+        body: 'Why: a domain controller is a server running AD DS, and Active Directory can’t work without DNS. Success looks like: both services show Running, started automatically.',
+        waitLabel: 'Next Step: AD DS and DNS read',
+        check: () => hd5Seen('server:NS-DC01') || hd5Seen('services:NS-DC01'),
+      },
+      {
+        route: '#/helpdesk/server-manager', target: '[data-hd-server-state], [data-hd-server-tool="services"], [data-hd-services]',
+        title: 'Find the service account on NS-APP01',
+        instruction: 'Open <strong>NS-APP01</strong>, then its <strong>Services</strong> button. Find <strong>Purchasing Service</strong> and read its <strong>Log On As</strong> column.',
+        body: 'Why: some services sign in as a service account, an account made for a program rather than a person. When that account’s password expires or is locked, the service won’t start. Success looks like: you can name the service (Purchasing Service), its state (Running) and the account it runs as: <code>NORTHSTAR\\svc-purchasing</code>.',
+        waitLabel: 'Next Step: Purchasing service account read',
+        check: () => hd5Seen('service:NS-APP01:Purchasing'),
+      },
+      {
+        route: '#/helpdesk/server-manager', target: '[data-hd-server-state], [data-hd-server-tool="logs"], [data-hd-server-logs]',
+        title: 'Read the System log on NS-FILE01',
+        instruction: 'Open <strong>NS-FILE01</strong>, then its <strong>Event logs</strong> button. Read this morning’s entries in the <strong>System</strong> log. The same check in PowerShell (optional): <code>Get-WinEvent -ComputerName NS-FILE01 -LogName System -MaxEvents 20</code>',
+        body: 'Why: the System log is where a server says a service stopped or a disk is filling. Success looks like: nothing but Information events overnight. Learn to recognise three IDs. <strong>7031</strong> and <strong>7034</strong> mean a service stopped unexpectedly. <strong>7038</strong> means a service account couldn’t sign in. You only read them. You restart nothing.',
+        waitLabel: 'Next Step: System log read',
+        check: () => hd5Seen('server-log:NS-FILE01:system'),
+      },
+      {
+        route: '#/helpdesk/change-log', target: '[data-hd-change-log], [data-hd-change-detail]',
+        title: 'Read CHG-7801 in the Change log',
+        instruction: 'Open the <strong>Change log</strong> (the button on Server Manager). Open <strong>CHG-7801</strong>.',
+        body: 'Why: a change that lines up with a symptom is the fastest evidence you’ll ever find. A change with no symptom is just as worth knowing. Success looks like: CHG-7801 was last night at 22:40, “Add DNS A record for timeclock-02”, by J. Keller, Completed. Nothing this morning relates to it.',
+        waitLabel: 'Next Step: CHG-7801 opened',
+        check: () => hd5Seen('change:CHG-7801'),
+      },
+      {
+        route: '#/helpdesk/file-server', target: '[data-hd-shares], [data-hd-share-detail]',
+        title: 'Read the two permission layers on the HR share',
+        instruction: 'Open <strong>File Server</strong>. Open the <strong>HR</strong> share, <code>\\\\NS-FILE01\\HR</code>. Read <strong>Share permissions</strong>, then <strong>Security (NTFS)</strong>.',
+        body: 'Why: two layers apply to every share, and they are set in different places. Success looks like: Share: GG-HR-Users · Change. NTFS: GG-HR-Readers · Read, and GG-HR-Contributors · Modify.',
+        waitLabel: 'Next Step: Share and NTFS permissions read',
+        check: () => hd5Seen('file-share:NS-FILE01:HR:share') && hd5Seen('file-share:NS-FILE01:HR:ntfs'),
+      },
+      {
+        route: '#/helpdesk/file-server', target: '[data-hd-effective-user], [data-hd-effective-access]',
+        title: 'Read what Priya Shah can do',
+        instruction: 'On the same share, open <strong>Effective access</strong> and choose <strong>Priya Shah</strong>.',
+        body: 'Why: this is the answer to “what can she actually do?” Success looks like: Read. She is in GG-HR-Readers, and a user gets the more restrictive of the two layers. Nothing here is broken. It is designed this way.',
+        waitLabel: 'Next Step: Effective access read',
+        check: () => hd5Seen('effective-access:NS-FILE01:HR:u-1004'),
+      },
+      {
+        route: '#/helpdesk/active-directory', target: '[data-hd-ad-groups], [data-hd-group-members]',
+        title: 'List the members of GG-HR-Contributors',
+        instruction: 'Open <strong>Active Directory › Groups</strong>. Open <strong>GG-HR-Contributors</strong> with its <strong>Members</strong> button. The same check in PowerShell (optional): <code>Get-ADGroupMember GG-HR-Contributors</code>',
+        body: 'Why: permissions are given to groups, so “who can do this?” is always a group’s member list. Success looks like: four members are listed. You can say who gets Modify on the HR share, and why.',
+        waitLabel: 'Next Step: Group members read',
+        check: () => hd5Seen('ad-group:GG-HR-Contributors'),
+      },
+      {
+        route: '#/helpdesk/active-directory', target: '[data-hd-ad-user], [data-hd-member-of]',
+        title: 'Read Jordan Bell’s account',
+        instruction: 'Open <strong>Active Directory › Users</strong>. Click <strong>Jordan Bell</strong> to open his account. Read the account state and <strong>Member Of</strong>. Change nothing. The same check in PowerShell (optional): <code>Get-ADUser jbell -Properties MemberOf, LockedOut</code>',
+        body: 'Why: reading an account is Tier 1’s daily work. Changing one comes next module. Success looks like: you can say whether he is locked, disabled or expired, and list his groups.',
+        waitLabel: 'Next Step: Account and groups read',
+        check: () => hd5Seen('ad-user:u-1005') && hd5Seen('ad-user-groups:u-1005'),
+      },
+      {
+        route: '#/helpdesk/active-directory', target: '[data-hd-ad-computers], [data-hd-ad-computer-pane]',
+        title: 'Find NS-LT-0215 and read its OU',
+        instruction: 'Open <strong>Active Directory › Computers</strong>. Find <strong>NS-LT-0215</strong> by its name, then press its <strong>Open</strong> button. Read its <strong>OU</strong>. The same check in PowerShell (optional): <code>Get-ADComputer NS-LT-0215</code>',
+        body: 'Why: where a computer object lives decides which policies reach it. Success looks like: <code>OU=Sales,OU=Workstations</code>. The laptop is in its department’s OU, where it should be.',
+        waitLabel: 'Next Step: Computer and OU read',
+        check: () => hd5Seen('ad-computer:NS-LT-0215'),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '[data-hd-machines], #hd-ps-input',
+        title: 'Check that policy reached the laptop',
+        instruction: 'Go back to HD-2189 and press <strong>Open NS-LT-0215</strong>, so PowerShell runs on that laptop. Then open <strong>PowerShell</strong> and ask the laptop which policies reached it. <details><summary>Show me the command</summary><code>gpresult /r</code></details>',
+        body: 'Why: this is the one command that answers “did the policy actually reach this machine?” This step asks for the typed line. Running it on another laptop doesn’t count. Success looks like: Applied: Default Domain Policy and Workstation Security Baseline. Denied: nothing.',
+        waitLabel: 'Next Step: gpresult run on NS-LT-0215',
+        check: () => hd5Typed(hd5Gpresult) && hd5Seen('gp-results:NS-LT-0215'),
+      },
+      {
+        route: '#/helpdesk/powershell', target: '#hd-ps-input, [data-hd-gp-results-card]',
+        title: 'Re-apply policy, then read the result again',
+        instruction: 'In the same PowerShell window on NS-LT-0215, re-apply policy. Then open <strong>Group Policy › Results</strong> for NS-LT-0215 again. <details><summary>Show me the command</summary><code>gpupdate /force</code></details>',
+        body: 'Why: re-applying policy and proving it applied is the check after any policy fix. Success looks like: the computer’s <strong>Last applied</strong> time moves, and the same two policies still apply. The GPO version numbers change only when someone edits a GPO.',
+        waitLabel: 'Next Step: Policy re-applied',
+        check: () => hd5Typed(hd5Gpupdate) && hd5Seen('gpupdate:NS-LT-0215'),
+      },
+      {
+        route: '#/helpdesk/dns', target: '[data-hd-dns-zone]',
+        title: 'Read four DNS record types',
+        instruction: 'Open <strong>DNS</strong> and the <code>northstar.example</code> zone. Keep the filter on <strong>All</strong>. Find the <strong>A</strong> record for <code>files</code>, the <strong>CNAME</strong> for <code>purchasing</code>, the <strong>MX</strong> record and the <strong>TXT</strong> record.',
+        body: 'Why: four record types, four jobs. You’ll be asked to read these, never to create them. Success looks like: <code>files</code> → 10.20.0.30. <code>purchasing</code> → <code>ns-app01.northstar.example</code>. MX → <code>mail.northstar.example</code>. The TXT record begins <code>v=spf1</code>. The new <code>timeclock-02</code> A record from CHG-7801 is there too.',
+        waitLabel: 'Next Step: Four records read',
+        check: () => ['dns-record:files:A', 'dns-record:purchasing:CNAME', 'dns-record:@:MX', 'dns-record:@:TXT'].every(hd5Seen),
+      },
+      {
+        route: '#/helpdesk/dhcp', target: '[data-hd-dhcp-scopes], [data-hd-dhcp-detail]',
+        title: 'Read the Warehouse scope',
+        instruction: 'Open <strong>DHCP</strong> (NS-DHCP01). Open the <strong>Warehouse</strong> scope. Read the <strong>leases</strong>, the <strong>reservation</strong> on NS-WH-LABEL01, the <strong>exclusion</strong> range and the <strong>VLAN</strong>.',
+        body: 'Why: scope, lease, reservation, exclusion and VLAN are the five words every DHCP ticket uses. Success looks like: 78% used, VLAN 30, one reservation, and an excluded range at the start of the scope.',
+        waitLabel: 'Next Step: Warehouse scope read',
+        check: () => hd5Seen('dhcp-scope:Warehouse'),
+      },
+      {
+        route: '#/helpdesk/dhcp', target: '[data-hd-dhcp-scopes], #hd-ps-input',
+        title: 'Read Guest Wi-Fi, then two read-only checks',
+        instruction: 'Still in DHCP, open the <strong>Guest Wi-Fi</strong> scope and read it. Then, in PowerShell, check the Print Spooler service on NS-PRINT01, and test that NS-FILE01 answers on port 445. Both lines only read. Nothing changes on a server. <details><summary>Show me the command</summary><code>Get-Service -ComputerName NS-PRINT01 -Name Spooler</code> then <code>Test-NetConnection NS-FILE01 -Port 445</code></details>',
+        body: 'Why: these are two read-only checks Tier 1 may run on any server, any day. Success looks like: Guest Wi-Fi is 95% used, 12 free of 221, status Warning. The Spooler is Running. The test shows <code>TcpTestSucceeded : True</code>.',
+        waitLabel: 'Next Step: Guest Wi-Fi read, two checks run',
+        check: () => hd5Seen('dhcp-scope:Guest Wi-Fi') && hd5Typed(hd5Spooler) && hd5Seen('service:NS-PRINT01:Spooler')
+          && hd5Typed(hd5Port445) && hd5Seen('port:NS-FILE01:445'),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '[data-hd-raise-card], .hd-rewrite, select[data-hd-field="impact"], select[data-hd-field="urgency"], #hd-assignment-group, #hd-note-input',
+        title: 'Raise HD-2190 for the Guest Wi-Fi scope',
+        instruction: 'On HD-2189, press <strong>Raise a related incident</strong>. Do this before you resolve HD-2189. HD-2190 opens. Write its short description and description, then press <strong>Save and check</strong>. Set <strong>Impact</strong> 2 and <strong>Urgency</strong> 2. Set <strong>Assignment group</strong> to <strong>Server &amp; Identity</strong> and press <strong>Assign to group</strong>. Write a work note with Reported:, Tried:, Result: and Next action:. Say plainly in it that you changed nothing.',
+        body: 'Why: you found something that isn’t yours to fix. Raising it properly is the job. Scope sizing belongs to Server &amp; Identity. Success looks like: the short description names the scope (Guest Wi-Fi), the percentage (95%) and the risk. Save and check lists any part you left out. Priority calculates P3. The note has Reported, Tried, Result and Next action, and says you changed nothing. This is the only record you create in the lab.',
+        waitLabel: 'Next Step: HD-2190 raised, filled in and assigned',
+        check: hd5RaisedDone,
+      },
+      {
+        route: '#/helpdesk/tickets', target: 'tr[onclick*="HD-2189"], #hd-note-input, #hd-resolution-code',
+        title: 'Write HD-2189’s note and resolve it',
+        instruction: 'Go back to <strong>INC0010500</strong>, the Morning server check, from <strong>Tickets</strong>. Write a <strong>work note</strong> with the lines Reported:, Tried:, Result: and Next action:. List what you checked, and name HD-2190. Set the resolution code to <strong>Solution provided</strong> and resolve the ticket.',
+        body: 'Why: a check that found nothing still gets written down. “I looked and it was healthy” is evidence next week. Success looks like: the ticket is Resolved, with a note that lists what you checked and points at HD-2190. A model note:<br><strong>Reported:</strong> Scheduled morning server check, Wednesday 08:00.<br><strong>Tried:</strong> Server Manager on all five servers. NS-DC01: AD DS and DNS Running. NS-APP01: Purchasing Service Running as NORTHSTAR\\svc-purchasing. NS-FILE01 System log clear overnight. Change log: CHG-7801 (DNS A record for timeclock-02, 22:40, Completed) with no related symptom this morning. <code>\\\\NS-FILE01\\HR</code> share and NTFS permissions read; effective access for P. Shah is Read, as designed. NS-LT-0215 in OU=Sales,OU=Workstations, all policies applied after <code>gpresult /r</code> and <code>gpupdate /force</code>. DNS zone records read. DHCP Warehouse scope 78% (one reservation, one exclusion, VLAN 30); Guest Wi-Fi scope 95%. Spooler on NS-PRINT01 Running; NS-FILE01 answers on port 445.<br><strong>Result:</strong> All roles and services healthy. Nothing changed on any server. The Guest Wi-Fi scope at 95% is raised separately as HD-2190 for Server &amp; Identity.<br><strong>Next action:</strong> none on this ticket. HD-2190 carries the scope.',
+        waitLabel: 'Next Step: Noted and resolved',
+        check: () => hd2Rule(HD5_ID, { note: true }) && hd5NoteNamesRaised()
+          && hd2Rule(HD5_ID, { code: 'Solution provided' }) && hd2Rule(HD5_ID, { status: 'Resolved' }),
+      },
+      {
+        title: 'Finish the lab',
+        instruction: 'Check worked. Press <strong>Finish</strong> to send your work to your course page.',
+        body: 'Your triage, screens, commands, both tickets and notes count once your course page confirms it saved them. There is no score.',
+        finish: { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/7', 'hd-m05') },
+      },
+    ],
+  });
+
   /* ------------------------------------------------------ hd-m04..hd-m11 -
-   * (hd-m03 and hd-m07 have their own steps above since 2026-11-24.)
+   * (hd-m03, hd-m07 and hd-m05 have their own steps above.)
    * Modules 3-9 each work one or two real tickets through the same generic
    * evidence/path/diagnose/note/resolve flow hd-m01/hd-m02 already proved
    * out — reused here via hdTicketFlowSteps() instead of hand-duplicating
@@ -1247,26 +1468,6 @@
       diagnosisBody: 'Public sites working but an internal hostname failing points at DNS configuration specifically, not a broader outage.',
       noteBody: 'Name the DNS evidence, the VPN/DNS setting you corrected, and that the hostname resolved afterward.',
       resolveBody: 'Resolving is gated on your diagnosis actually being correct, same as every ticket.',
-    }));
-
-  /* hd-m05 — Module 7 (key its-05): Windows Server & Active Directory. Two tickets. */
-  hdRegisterSimpleCoach('hd-m05', 7, 'The Missing Drive & The Vanishing Free Space', 'Work two real Windows Server tickets end to end — a Group Policy scope issue and a file-server disk-space incident.', ['HD-2108', 'HD-2117']).steps =
-    hdTicketFlowSteps('HD-2108', {
-      opening: true, isLast: false, finalStatus: 'Resolved',
-      openBody: 'Amir’s Operations drive disappeared after his laptop was replaced — his group membership is correct, so it isn’t an access problem.',
-      evidenceBody: 'gpresult showing the Operations Drive Mapping policy absent, alongside a computer object still sitting in the default Computers container, is the clue.',
-      pathBody: 'Checking the computer’s OU placement in Active Directory comes before touching any policy.',
-      diagnosisBody: 'A correct group membership but a missing policy result points at where the computer object lives, not the user’s access.',
-      noteBody: 'Name the OU evidence, the object you moved, and that the drive mapping returned after a policy refresh.',
-      resolveBody: 'Resolving is gated on your diagnosis actually being correct.',
-    }).concat(hdTicketFlowSteps('HD-2117', {
-      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/7', 'hd-m05'),
-      openBody: 'A monitoring alert: the file server’s data volume has 4% free space left and is dropping fast.',
-      evidenceBody: 'A single export path accounting for most of the growth, right after a job that ran overnight, is the clue.',
-      pathBody: 'Confirming impact and growth rate first is what keeps you from deleting something that turns out to matter.',
-      diagnosisBody: 'Accelerated growth traced to one specific export path points at a duplicate job, not normal usage or log growth.',
-      noteBody: 'Name the duplicate-export evidence, who you looped in before deleting anything, and the free-space result afterward.',
-      resolveBody: 'Resolving is gated on your diagnosis actually being correct.',
     }));
 
   /* hd-m06 — Module 8 (key its-06): Identity, Accounts & Access Management. Two

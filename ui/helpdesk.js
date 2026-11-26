@@ -1694,6 +1694,13 @@ function hdConsoleRule(ticket, rule) {
     return (Array.isArray(hdState.practiceLog) ? hdState.practiceLog : []).some(entry => entry && entry.type === 'command_run' && entry.computer === rule.computer
       && test(rule.typed, String(entry.command || '').trim()) && !refused.test(String(entry.result || '')));
   }
+  // Module 7: serverSeen: '<key>' | [keys]   this ticket's server or directory
+  // screen (or the line that earns the same key, hdServerSeen) was read while
+  // it was open; a list holds when any one of its keys was.
+  if (rule.serverSeen) {
+    const seen = Array.isArray(state.serverSeen) ? state.serverSeen : [];
+    return [].concat(rule.serverSeen).some(key => seen.includes(key));
+  }
   if (rule.actionsAfter) {
     const spec = rule.actionsAfter; const ids = state.actions.map(entry => entry.id);
     const at = ids.lastIndexOf(spec.after); if (at < 0) return false;

@@ -193,6 +193,120 @@ const HD_ITS07_KB_ARTICLES = [
   { id:'KB-0080', title:'Unwanted browser extensions and apps (PUA)', category:'Endpoint security', updated:'2026-11-24', audience:'Service Desk', practiceOnly:true, keywords:'extension · extensions · toolbar · pua · browser slow · unwanted app · potentially unwanted · Extensions page · Protection history · Allowed threats · quick scan', summary:'Approved Chrome extensions at Northstar: Microsoft Single Sign On, Northstar Password Manager, Adobe Acrobat, Microsoft Editor. Anything else is removed, and the user can ask for it with a software request. 1. Open the browser\'s Extensions page and compare it with the list above. 2. Remove any extension that isn\'t on it. 3. Open Windows Security › Protection history. If an item says "Allowed", open Allowed threats and choose Don\'t allow, then choose Remove for it under Virus & threat protection › Current threats. 4. Run a quick scan and confirm real-time protection is on. 5. Tell the user how it got there and how to avoid it. 6. Stop and escalate to Security Operations if Defender names malware instead of a PUA (a trojan, ransomware, a script that ran), or if security tools were switched off. 7. Never turn off real-time protection or add an exclusion.' },
   { id:'KB-0058', title:'Local administrator rights on managed devices', category:'Endpoint policy', updated:'2026-11-24', audience:'All Support', practiceOnly:true, keywords:'admin · admin password · administrator · local admin · uac · install · software · Company Portal · software request · Software Catalog', summary:'Local admin rights are never granted to standard users. Exceptions need a Cybersecurity exception request, and a manager can\'t approve one. Software in the Software Catalog installs from Company Portal with no admin rights. Software that isn\'t in the catalog needs a software request. Never type an admin password into a user\'s installer.' },
 ];
+// Module 7 (key its-05): KB-0100 to KB-0102. They are practice-only, so a Prove
+// shift never gets them, and they are never in HD_KB_ARTICLES: only Module 7's
+// two sets carry them (kbArticles, ui/helpdesk.js hdKbArticles). KB-0031 stays in
+// HD_KB_ARTICLES, unchanged, and 7-A finds it by "mapped drive" or "drive missing".
+const HD_ITS05_KB_ARTICLES = [
+  { id:'KB-0100', title:'Restarting a service on a shared server', category:'Servers', updated:'2026-11-25', audience:'Service Desk', practiceOnly:true, keywords:'service stopped · spooler stopped · restart service · server service · 7031 · 7034 · 7038 · monitoring alert · Services', summary:'A service on a shared server runs for everyone using that server, so restarting one is not the same as restarting something on a laptop. 1. Confirm the state before you touch anything: read the service on the server\'s Services screen, or run Get-Service -ComputerName <server> -Name <service>. 2. Read the evidence first. Open the server\'s System log and find the event that matches: 7031 or 7034 mean the service stopped unexpectedly, and 7038 means the account the service signs in as could not log on. Note the event ID and the time. 3. Check the change log for a change in the hours before it stopped, and name it in your ticket if there is one. 4. The Service Desk may start one named service once, on NS-PRINT01 (Print Spooler) or NS-APP01 (Purchasing Service), when the service simply stopped and no change is involved. Never stop, never restart in place, and never reboot a server. 5. Verify with the people affected, not just with the screen: ask someone to print or open the app. 6. Write the note: what you saw, the event ID and time, what you started, and how you confirmed it. 7. If the same service stops again within 24 hours, do not start it a second time. Escalate to Server & Identity with both events. 8. A 7038 is never a Tier 1 restart: the service account needs attention, so escalate it with the event.' },
+  { id:'KB-0101', title:'Server disk space: what the Service Desk does and doesn\'t do', category:'Servers', updated:'2026-11-25', audience:'Service Desk', practiceOnly:true, keywords:'disk full · server disk · volume · 96% · free space · 2013 · file server full · running out of space', summary:'A file server filling up affects everyone who saves to it, and the data on it is not yours. 1. Confirm the numbers from the server\'s volume list, or Get-CimInstance Win32_LogicalDisk: size, free space, and how fast it is changing. 2. Work out how long it has at that rate, and put that in the ticket. 3. Find the largest recent growth on the file server screen\'s folder-size view. This is read-only: you are collecting a clue, not a cleanup plan. 4. Delete nothing and move nothing. Files on a server may be someone\'s only copy, a backup, or under a legal hold. 5. Escalate to Server & Identity with the numbers, the rate and the largest folder. A volume above 90% is at least P2. 6. Tell the Service Desk lead, so the desk isn\'t surprised by a wave of "can\'t save" tickets. 7. Any message to the team whose files are growing goes out only after Server & Identity agrees, and asks rather than blames.' },
+  { id:'KB-0102', title:'When a device needs the same address every time (DHCP reservations)', category:'Networking', updated:'2026-11-25', audience:'Service Desk', practiceOnly:true, keywords:'reservation · DHCP reservation · printer changed address · device changed IP · time clock · scanner · fixed address · lease · exclusion', summary:'Most devices get a different address now and then, and that is fine. Printers, scanners, time clocks and anything another system connects to by address need the same one every time. 1. Confirm the address changed: open the scope on the DHCP screen and read the device\'s current lease, and compare it with the address the other system is configured with. 2. A reservation keeps one address for one device, by its hardware address. An exclusion is different: it stops addresses being handed out to anyone. 3. The Service Desk does not create reservations. Raise the catalog item Network device reservation with the device name, its hardware address, the address to reserve and the scope, and link it to the incident. 4. Give the user or the system owner the current address so they can keep working until the reservation is in place. 5. Verify after Server & Identity confirms: the device\'s lease shows the reserved address and the other system connects. 6. If a whole area has no addresses, this is not a reservation problem: read the scope\'s free count and escalate.' },
+];
+
+// Module 7 (key its-05): the servers, directory and change log of Lab 7.1 and
+// Lab 7.2. Every server that older shifts show as faulty (NS-PRINT01, NS-APP01,
+// NS-FILE01) is healthy here, and the Practice tickets that need a fault set it
+// in their own console.servers. Lab 7.1 has one warning tile (the Guest Wi-Fi
+// scope on NS-DHCP01); Lab 7.2 has none. NS-DC02 has no state. HD_SERVERS,
+// HD_DNS_RECORDS, HD_DHCP_SCOPES and HD_GROUPS are not changed: every older
+// shift's screens stay as they were. Times are shift-clock times.
+function hdIts05BaselineServers(dhcpWarnings) {
+  return {
+    'NS-DC01': { status:'Online', service:'AD DS / DNS healthy',
+      roles:[{ name:'AD DS', services:['NTDS'] }, { name:'DNS Server', services:['DNS'] }],
+      services:[
+        { name:'NTDS', displayName:'Active Directory Domain Services', status:'Running', startup:'Automatic', logOnAs:'Local System' },
+        { name:'DNS', displayName:'DNS Server', status:'Running', startup:'Automatic', logOnAs:'Local System' },
+        { name:'Kdc', displayName:'Kerberos Key Distribution Center', status:'Running', startup:'Automatic', logOnAs:'Local System' },
+        { name:'Netlogon', displayName:'Netlogon', status:'Running', startup:'Automatic', logOnAs:'Local System' },
+      ] },
+    'NS-DHCP01': { status:'Online', service:'DHCP Server running', ...(dhcpWarnings ? { warnings:dhcpWarnings } : {}),
+      roles:[{ name:'DHCP Server', services:['DHCPServer'] }],
+      services:[
+        { name:'DHCPServer', displayName:'DHCP Server', status:'Running', startup:'Automatic', logOnAs:'NT AUTHORITY\\NetworkService' },
+        { name:'W32Time', displayName:'Windows Time', status:'Running', startup:'Automatic', logOnAs:'NT AUTHORITY\\LocalService' },
+      ] },
+    'NS-FILE01': { status:'Online', service:'SMB healthy',
+      roles:[{ name:'File and Storage Services', services:['LanmanServer'] }],
+      services:[
+        { name:'LanmanServer', displayName:'Server', status:'Running', startup:'Automatic', logOnAs:'Local System' },
+        { name:'W32Time', displayName:'Windows Time', status:'Running', startup:'Automatic', logOnAs:'NT AUTHORITY\\LocalService' },
+      ],
+      volumes:[
+        { drive:'C:', label:'System', sizeGb:120, freeGb:78.4 },
+        { drive:'D:', label:'Shared data', sizeGb:500, freeGb:212.6, growth:'+1.2 GB in 6 hours' },
+      ],
+      events:{ system:[
+        { level:'Information', time:'Today 06:00', source:'Service Control Manager', id:'7036', message:'The Windows Update service entered the running state.' },
+        { level:'Information', time:'Today 03:10', source:'Service Control Manager', id:'7036', message:'The Background Intelligent Transfer Service service entered the stopped state.' },
+        { level:'Information', time:'Yesterday 23:30', source:'Service Control Manager', id:'7036', message:'The Windows Modules Installer service entered the stopped state.' },
+      ] },
+      shares:[
+        { name:'Finance', path:'\\\\NS-FILE01\\Finance', status:'Healthy', share:[{ who:'Authenticated Users', access:'Change' }], ntfs:[{ who:'GG-Finance-Contributors', access:'Modify' }] },
+        { name:'HR', path:'\\\\NS-FILE01\\HR', status:'Healthy', share:[{ who:'GG-HR-Users', access:'Change' }], ntfs:[{ who:'GG-HR-Readers', access:'Read' }, { who:'GG-HR-Contributors', access:'Modify' }] },
+        { name:'Operations', path:'\\\\NS-FILE01\\Operations', status:'Healthy', share:[{ who:'GG-Operations-Users', access:'Change' }], ntfs:[{ who:'GG-Operations-Drive', access:'Modify' }] },
+      ] },
+    'NS-PRINT01': { status:'Online', service:'Print Spooler running',
+      roles:[{ name:'Print Server', services:['Spooler'] }],
+      services:[
+        { name:'Spooler', displayName:'Print Spooler', status:'Running', startup:'Automatic', logOnAs:'Local System' },
+        { name:'LanmanServer', displayName:'Server', status:'Running', startup:'Automatic', logOnAs:'Local System' },
+      ] },
+    'NS-APP01': { status:'Online', service:'Purchasing Service running',
+      services:[
+        { name:'Purchasing', displayName:'Purchasing Service', status:'Running', startup:'Automatic', logOnAs:'NORTHSTAR\\svc-purchasing' },
+        { name:'W32Time', displayName:'Windows Time', status:'Running', startup:'Automatic', logOnAs:'NT AUTHORITY\\LocalService' },
+      ] },
+  };
+}
+// The read-only directory both sets share. Read-only is the default: no unlock,
+// reset, group change or move is reachable. extraLeases are added to the
+// Warehouse scope's address leases.
+function hdIts05BaselineDirectory(extraLeases) {
+  return {
+    groups:{
+      'GG-HR-Contributors':{ members:['u-1006', 'Owen Brooks', 'Lena Moss', 'Ben Carter'] },
+      'GG-Operations-Users':{ scope:'Global', type:'Security', resource:'Operations staff · shared folder and application access' },
+      'GG-Finance-Users':{ scope:'Global', type:'Security', resource:'Finance staff · shared folder and application access' },
+      'GG-Sales-Users':{ scope:'Global', type:'Security', resource:'Sales staff · shared folder and application access' },
+    },
+    dns:[
+      { name:'files', type:'AAAA', value:'fd00:20::30' },
+      { name:'@', type:'MX', value:'[10] mail.northstar.example' },
+      { name:'@', type:'TXT', value:'v=spf1 include:spf.northstar-mail.example -all' },
+      { name:'timeclock-02', type:'A', value:'10.20.30.61' },
+    ],
+    dhcp:{ Warehouse:{ server:'NS-DHCP01',
+      leases:[
+        { name:'NS-WH-LABEL01', ip:'10.20.30.60', mac:'00:1B:44:3A:7C:10', leased:'Today 05:58' },
+        { name:'NS-WH-SCAN01', ip:'10.20.30.101', mac:'00:1B:44:3A:81:21', leased:'Today 06:02' },
+        { name:'NS-WH-SCAN02', ip:'10.20.30.102', mac:'00:1B:44:3A:81:33', leased:'Today 06:05' },
+        { name:'NS-WH-SCAN03', ip:'10.20.30.103', mac:'00:1B:44:3A:82:07', leased:'Today 06:11' },
+        { name:'NS-WH-CLOCK01', ip:'10.20.30.140', mac:'00:1B:44:5E:9A:18', leased:'Today 06:35' },
+        ...(Array.isArray(extraLeases) ? extraLeases : []),
+      ],
+      reservations:[{ name:'NS-WH-LABEL01', ip:'10.20.30.60', mac:'00:1B:44:3A:7C:10' }],
+      exclusions:[{ start:'10.20.30.50', end:'10.20.30.59' }] } },
+  };
+}
+const HD_ITS05_LAB_SERVERS = hdIts05BaselineServers(['Guest Wi-Fi scope 95% used (12 free of 221)']);
+const HD_ITS05_LAB_DIRECTORY = hdIts05BaselineDirectory();
+// CHG-7801 is a change that worked: nothing this morning relates to it.
+const HD_ITS05_LAB_CHANGES = [
+  { number:'CHG-7801', when:'Yesterday 22:40', what:'Add DNS A record for timeclock-02', who:'J. Keller', state:'Completed', ci:'NS-DC01', details:'Added the A record timeclock-02 (10.20.30.61) for the new warehouse time clock. Completed with no errors. Nothing else on the server was touched.' },
+  { number:'CHG-7794', when:'3 days ago 21:15', what:'Install monthly Windows updates on NS-APP01', who:'J. Keller', state:'Completed', ci:'NS-APP01', details:'Monthly updates installed and the server restarted out of hours. Purchasing Service checked after the restart.' },
+  { number:'CHG-7788', when:'5 days ago 20:30', what:'Refresh the NS-DHCP01 scope backup job', who:'M. Osei', state:'Completed', ci:'NS-DHCP01', details:'The nightly scope backup now runs at 02:00. A test restore worked.' },
+];
+// Lab 7.2: the same healthy servers with no warning tile, the same directory
+// plus the time clock's lease, and older completed changes only (none on a
+// ticket's server in the last 24 hours).
+const HD_ITS05_PRACTICE_SERVERS = hdIts05BaselineServers();
+const HD_ITS05_PRACTICE_DIRECTORY = hdIts05BaselineDirectory([{ name:'NS-WH-CLOCK02', ip:'10.20.30.142', mac:'00:1B:44:5E:9A:42', leased:'Today 06:40' }]);
+const HD_ITS05_PRACTICE_CHANGES = [
+  { number:'CHG-7794', when:'3 days ago 21:15', what:'Install monthly Windows updates on NS-APP01', who:'J. Keller', state:'Completed', ci:'NS-APP01', details:'Monthly updates installed and the server restarted out of hours. Purchasing Service checked after the restart.' },
+  { number:'CHG-7788', when:'5 days ago 20:30', what:'Refresh the NS-DHCP01 scope backup job', who:'M. Osei', state:'Completed', ci:'NS-DHCP01', details:'The nightly scope backup now runs at 02:00. A test restore worked.' },
+  { number:'CHG-7779', when:'8 days ago 19:45', what:'Add 4 GB of memory to NS-DC02', who:'M. Osei', state:'Completed', ci:'NS-DC02', details:'Memory added out of hours. No change to roles or services.' },
+];
 
 /* Practice scenario for HD-2101 (Module 1 Practice It). The evidence lives on
  * the tool screens, not on the ticket: the domain controller's 4740 events,
@@ -268,6 +382,16 @@ const HD_PRACTICE_SETS = {
   // counts as done only once Zoom is installed and the note is written.
   'its-07': { title:'Module 6 practice tickets', tickets:['HD-2177', 'HD-2178', 'HD-2179'], complete:['HD-2177', 'HD-2178', 'HD-2179'], queue:true, queueList:'all', kbArticles:HD_ITS07_KB_ARTICLES,
     done:{ 'HD-2178':[{ converted:true }, { appInstalled:{ computer:'NS-LT-0241', app:'Zoom' } }, { note:true }] } },
+  // Module 7 Lab 7.2: each ticket runs on its own clock (console.now). 7-B
+  // (HD-2192) counts as done when Resolved. 7-A, 7-C and 7-D (HD-2191, HD-2193,
+  // HD-2194) are done when handed to Server & Identity with a complete note, and
+  // 7-E (HD-2195) when it is converted to its request with a complete note.
+  // HD-2202 to HD-2204 (7-B) and HD-2205 and HD-2206 (7-D) are the related
+  // records the student links; they are not worked.
+  'its-05': { title:'Module 7 practice tickets', tickets:['HD-2191', 'HD-2192', 'HD-2202', 'HD-2203', 'HD-2204', 'HD-2193', 'HD-2194', 'HD-2205', 'HD-2206', 'HD-2195'], complete:['HD-2191', 'HD-2192', 'HD-2193', 'HD-2194', 'HD-2195'], queue:true, queueList:'all', kbArticles:HD_ITS05_KB_ARTICLES,
+    servers:HD_ITS05_PRACTICE_SERVERS, directory:HD_ITS05_PRACTICE_DIRECTORY, changes:HD_ITS05_PRACTICE_CHANGES,
+    done:{ 'HD-2191':[{ group:'Server & Identity' }, { note:true }], 'HD-2193':[{ group:'Server & Identity' }, { note:true }],
+      'HD-2194':[{ group:'Server & Identity' }, { note:true }], 'HD-2195':[{ converted:true }, { requestItem:'Network device reservation' }, { note:true }] } },
 };
 
 // Coached ticket sets: Practice It content for a coach's guided lab, opened by
@@ -286,6 +410,10 @@ const HD_COACHED_SETS = {
   'its-03-guided': { title:'Lab 5.1 · Guided Lab: the slow-computer sequence and system repair', tickets:['HD-2180'], now:'2026-08-19T10:30:00Z', hideEventsFrom:['NS-LT-0081'] },
   // Module 6: Lab 6.1 (coach hd-m07) on Wednesday 10:30.
   'its-07-guided': { title:'Lab 6.1 · Guided Lab: endpoint check', tickets:['HD-2176'], now:'2026-08-19T10:30:00Z', kbArticles:HD_ITS07_KB_ARTICLES },
+  // Module 7: Lab 7.1 (coach hd-m05) on Wednesday 08:00. HD-2190 is the incident
+  // the student raises from HD-2189; it stays out of the shift until then.
+  'its-05-guided': { title:'Lab 7.1 · Guided Lab: the morning server check', tickets:['HD-2189', 'HD-2190'], now:'2026-08-19T08:00:00Z', kbArticles:HD_ITS05_KB_ARTICLES,
+    servers:HD_ITS05_LAB_SERVERS, directory:HD_ITS05_LAB_DIRECTORY, changes:HD_ITS05_LAB_CHANGES },
 };
 
 // VM labs (ui/helpdesk.js "VM screen"): the simulated host, its install
@@ -380,6 +508,13 @@ const HD_ITS07_CATEGORIES = {
   Network:['Wi-Fi', 'Wired port'],
   Request:['Hardware', 'Software', 'Access'],
   Access:['Password reset', 'Account unlock'],
+};
+// Categories for the Module 7 (key its-05) tickets; each ticket adds its own CI list.
+const HD_ITS05_CATEGORIES = {
+  Server:['Scheduled check'],
+  Software:['Group Policy / drive mapping'],
+  Hardware:['Print server', 'Server storage', 'Network device'],
+  Network:['File share access', 'DHCP scope'],
 };
 // The Software Catalog on a Module 6 computer. winget finds only the entries
 // that have an Id. FreeVideoConverter is not in it.
@@ -635,7 +770,7 @@ const HD_TICKET_TEMPLATES = [
   hdTicket({ id:'HD-2105', requester:'Maya Chen', department:'Operations', category:'Incident', subcategory:'DNS', priority:'P2', businessImpact:'Operations dashboard unavailable', sla:'8 hours', createdMinutesAgo:54, description:'Websites work, but the Operations dashboard says the server cannot be found.', symptoms:['Public internet works','Internal resource opens by IP','Hostname fails'], logs:['Resolve-DnsName opsdash.northstar.example: NXDOMAIN','Client DNS server: 192.0.2.53'], systemState:['VPN connected','Endpoint received public resolver from home router'], plausibleCauses:['Application outage','Routing failure','DNS configuration'], correctPath:['Capture DNS configuration','Query internal name','Compare direct server query','Restore VPN DNS settings','Flush and retest'], hiddenRootCause:'VPN client did not apply the corporate DNS resolver after reconnect.', expectedResolution:'Reconnect/repair the approved VPN profile so corporate DNS is assigned; verify internal hostname resolution.', escalationCriteria:['Internal resolver fails for multiple users','VPN configuration deployment defect'] }),
   hdTicket({ id:'HD-2106', requester:'Elena Ruiz', department:'Logistics', category:'Incident', subcategory:'Printer', priority:'P3', businessImpact:'One warehouse label station delayed', sla:'2 business days', createdMinutesAgo:142, description:'Labels are stuck in the queue and the printer says Ready.', symptoms:['17 jobs remain in Printing','Ping to printer succeeds'], logs:['PrintService 372: driver LabelPro 3.8 terminated unexpectedly'], systemState:['NS-WH-LABEL01 queue Error','NS-PRINT01 spooler degraded'], plausibleCauses:['Out of labels','Network port','Driver crash'], correctPath:['Confirm scope','Preserve jobs','Inspect queue and print-service log','Isolate faulty driver','Apply approved rollback','Test one label'], hiddenRootCause:'LabelPro 3.8 driver crashes the server-side spooler.', expectedResolution:'Roll back to approved driver, restart spooler under change procedure, and verify queued work.', escalationCriteria:['Print-server-wide impact','Driver package unavailable or vendor defect'] }),
   hdTicket({ id:'SR-2107', requester:'Grace Kim', department:'Human Resources', category:'Service Request', subcategory:'Group membership', priority:'P3', businessImpact:'Recruiter cannot upload forms', sla:'2 business days', createdMinutesAgo:188, description:'Approved request: restore contributor access to the HR onboarding folder.', symptoms:['Read access works','Manager approval attached'], logs:['AD group history: removed from GG-HR-Contributors during transfer'], systemState:['Member of GG-HR-Readers','Not member of GG-HR-Contributors'], plausibleCauses:['NTFS ACL issue','Missing group membership'], correctPath:['Validate approval','Add authorized group','Refresh user token','Verify effective access','Document change'], hiddenRootCause:'User was removed from the contributor group during a role transfer.', expectedResolution:'Add GG-HR-Contributors, refresh sign-in token, verify upload, document approval.', escalationCriteria:['No data-owner approval','Requested permission exceeds role'] }),
-  hdTicket({ id:'HD-2108', requester:'Amir Patel', department:'Operations', category:'Incident', subcategory:'Group Policy', priority:'P3', businessImpact:'One user lacks mapped drive', sla:'2 business days', createdMinutesAgo:201, description:'My Operations drive disappeared after my laptop was replaced.', symptoms:['Group membership correct','UNC path works manually'], logs:['gpresult: Operations Drive Mapping absent','Computer DN: CN=NS-LT-0145,CN=Computers'], systemState:['User in GG-Operations-Drive','Computer in default Computers container'], plausibleCauses:['Disconnected drive','GPO scope','File server outage'], correctPath:['Verify authorization','Run gpresult','Check computer OU','Move computer through approved admin task','Refresh policy and verify'], hiddenRootCause:'Replacement computer object was never moved into the Operations workstation OU.', expectedResolution:'Move the computer to the correct OU, run policy refresh, verify O: mapping.', escalationCriteria:['GPO link or security filtering change required','Replication/SYSVOL issue'] }),
+  hdTicket({ id:'HD-2108', ownSet:true, requester:'Amir Patel', department:'Operations', category:'Incident', subcategory:'Group Policy', priority:'P3', businessImpact:'One user lacks mapped drive', sla:'2 business days', createdMinutesAgo:201, description:'My Operations drive disappeared after my laptop was replaced.', symptoms:['Group membership correct','UNC path works manually'], logs:['gpresult: Operations Drive Mapping absent','Computer DN: CN=NS-LT-0145,CN=Computers'], systemState:['User in GG-Operations-Drive','Computer in default Computers container'], plausibleCauses:['Disconnected drive','GPO scope','File server outage'], correctPath:['Verify authorization','Run gpresult','Check computer OU','Move computer through approved admin task','Refresh policy and verify'], hiddenRootCause:'Replacement computer object was never moved into the Operations workstation OU.', expectedResolution:'Move the computer to the correct OU, run policy refresh, verify O: mapping.', escalationCriteria:['GPO link or security filtering change required','Replication/SYSVOL issue'] }),
   hdTicket({ id:'HD-2109', ownSet:true, requester:'Noah Williams', department:'Sales', category:'Incident', subcategory:'Windows profile', priority:'P3', businessImpact:'Sales user cannot access normal desktop', sla:'2 business days', createdMinutesAgo:167, description:'Windows signed me into a blank desktop and my shortcuts are missing.', symptoms:['Temporary profile notification','Another user signs in normally'], logs:['User Profile Service 1511: logged on with temporary profile'], systemState:['C:\\Users\\nwilliams exists','Profile registry entry ends in .bak'], plausibleCauses:['Cloud sync issue','Corrupt profile mapping','Malware'], correctPath:['Protect user data','Confirm temporary-profile evidence','Repair or rebuild per runbook','Restore data','Verify sign-in'], hiddenRootCause:'Corrupt ProfileList registry mapping after interrupted update.', expectedResolution:'Repair/rebuild the profile using the approved runbook and verify data and application access.', escalationCriteria:['Encrypted data inaccessible','Repeated corruption or compromise indicators'] }),
   hdTicket({ id:'HD-2110', requester:'Sofia Martin', department:'Operations', category:'Incident', subcategory:'Domain trust', priority:'P2', businessImpact:'Shift supervisor cannot domain sign in', sla:'8 hours', createdMinutesAgo:74, description:'Windows says the trust relationship between this workstation and the domain failed.', symptoms:['Local support account works','Domain sign-in fails'], logs:['Test-ComputerSecureChannel: False','NETLOGON 3210 secure session failed'], systemState:['Computer object enabled','Restored VM snapshot recorded yesterday'], plausibleCauses:['Bad user password','DNS','Machine-account mismatch'], correctPath:['Confirm recovery access','Validate DNS/time/object state','Test secure channel','Repair through approved Tier 2 procedure','Verify sign-in and policy'], hiddenRootCause:'A restored snapshot rolled back the machine-account password.', expectedResolution:'Repair the secure channel, restart if approved, verify domain authentication and gpresult.', escalationCriteria:['Computer object missing or duplicate','Multiple machines lose trust'] }),
   hdTicket({ id:'HD-2111', requester:'Dina Foster', department:'Executive Office', category:'Incident', subcategory:'BitLocker', priority:'P2', businessImpact:'Executive assistant cannot start laptop', sla:'8 hours', createdMinutesAgo:37, description:'The laptop is asking for a BitLocker recovery key after a firmware update.', symptoms:['Recovery screen shows key ID','Device asset tag verified'], logs:['Firmware change CHG-4471 completed overnight'], systemState:['Recovery key escrowed','User identity not yet verified'], plausibleCauses:['Unauthorized tamper','Expected firmware measurement change'], correctPath:['Verify user and device','Match recovery key ID','Provide key through approved secure channel','Boot and validate protection','Document disclosure'], hiddenRootCause:'Approved firmware update changed TPM measurements.', expectedResolution:'Use escrowed recovery key after identity verification, confirm BitLocker returns to Protected.', escalationCriteria:['Key unavailable or mismatch','Unapproved firmware change or tamper concern'] }),
@@ -644,7 +779,7 @@ const HD_TICKET_TEMPLATES = [
   hdTicket({ id:'SEC-2114', requester:'Luis Ortega', department:'Sales', category:'Security Incident', subcategory:'Phishing', priority:'P1', businessImpact:'Possible credential compromise', sla:'15 minutes', createdMinutesAgo:7, description:'I clicked a shipping link and signed in again. Was that real?', symptoms:['Lookalike domain','Unexpected sign-in page'], logs:['Browser history: northstar-shipping.example-login.test','Identity log: unfamiliar sign-in pending review'], systemState:['Email preserved','Endpoint protection has no malware verdict'], plausibleCauses:['Benign vendor portal','Credential phishing'], correctPath:['Verify reporter','Preserve email/URL/time','Protect account within procedure','Escalate immediately','Do not declare endpoint safe'], hiddenRootCause:'Credential-phishing page captured the password.', expectedResolution:'Escalate to cybersecurity, revoke sessions/reset credential per response runbook, preserve evidence.', escalationCriteria:['Always: potential credential compromise'] }),
   hdTicket({ id:'SEC-2115', requester:'Endpoint Security', department:'Cybersecurity', category:'Security Incident', subcategory:'Malware alert', priority:'P1', businessImpact:'Potential endpoint compromise', sla:'15 minutes', createdMinutesAgo:12, description:'High-confidence malware alert on NS-LT-0162 requires help desk contact and containment coordination.', symptoms:['User reports browser pop-ups','EDR alert high confidence'], logs:['EDR: suspicious powershell child of browser','SHA256 aaa... training fixture'], systemState:['Device online','Isolation pending security approval'], plausibleCauses:['Malicious extension','False positive'], correctPath:['Do not delete evidence','Confirm user/device','Coordinate containment','Record observations','Warm handoff to security'], hiddenRootCause:'Malicious browser extension launched an encoded PowerShell command.', expectedResolution:'Security-led containment and investigation; help desk handles user communication and replacement device.', escalationCriteria:['Always: confirmed or suspected malware'] }),
   hdTicket({ id:'SR-2116', requester:'Dina Foster', department:'Executive Office', category:'Service Request', subcategory:'Software installation', priority:'P2', businessImpact:'Board materials due tomorrow', sla:'8 hours', createdMinutesAgo:126, description:'Install the approved PDF editor before tomorrow morning.', symptoms:['Manager approval attached','License available'], logs:['Software catalog: PDF Studio Enterprise · Approved'], systemState:['Device compliant','Package available in endpoint manager'], plausibleCauses:['Standard request'], correctPath:['Validate approval/license/device','Deploy approved package','Verify launch and license','Document'], hiddenRootCause:'No fault; fulfilled standard request.', expectedResolution:'Install from managed catalog and verify with user.', escalationCriteria:['Unapproved software or elevated exception requested'] }),
-  hdTicket({ id:'HD-2117', requester:'Monitoring', department:'Information Technology', category:'Incident', subcategory:'Disk space', priority:'P2', businessImpact:'File server may stop accepting data', sla:'8 hours', createdMinutesAgo:41, description:'NS-FILE01 data volume has 4% free space.', symptoms:['Growth accelerated this morning','Finance archive share largest'], logs:['Get-Volume D: SizeRemaining 81GB of 2TB','Top path: D:\\Shares\\Finance\\Exports'], systemState:['Nightly export job created duplicate output','Backups healthy'], plausibleCauses:['Normal growth','Log growth','Duplicate export'], correctPath:['Confirm impact and growth','Identify safe cleanup candidates','Preserve business data','Stop duplicate generation through owner','Use approved cleanup/change'], hiddenRootCause:'Finance export job wrote duplicate archives after a retry loop.', expectedResolution:'Stop duplicate job via app owner, remove duplicates after approval, verify free-space threshold and monitoring.', escalationCriteria:['Storage expansion or production job change required'] }),
+  hdTicket({ id:'HD-2117', ownSet:true, requester:'Monitoring', department:'Information Technology', category:'Incident', subcategory:'Disk space', priority:'P2', businessImpact:'File server may stop accepting data', sla:'8 hours', createdMinutesAgo:41, description:'NS-FILE01 data volume has 4% free space.', symptoms:['Growth accelerated this morning','Finance archive share largest'], logs:['Get-Volume D: SizeRemaining 81GB of 2TB','Top path: D:\\Shares\\Finance\\Exports'], systemState:['Nightly export job created duplicate output','Backups healthy'], plausibleCauses:['Normal growth','Log growth','Duplicate export'], correctPath:['Confirm impact and growth','Identify safe cleanup candidates','Preserve business data','Stop duplicate generation through owner','Use approved cleanup/change'], hiddenRootCause:'Finance export job wrote duplicate archives after a retry loop.', expectedResolution:'Stop duplicate job via app owner, remove duplicates after approval, verify free-space threshold and monitoring.', escalationCriteria:['Storage expansion or production job change required'] }),
   hdTicket({ id:'HD-2118', requester:'Evan Parker', department:'Finance', category:'Incident', subcategory:'File permissions', priority:'P2', businessImpact:'Payroll file cannot be updated', sla:'8 hours', createdMinutesAgo:58, description:'I can open the payroll workbook but cannot save changes.', symptoms:['Read succeeds','Modify denied in Payroll subfolder'], logs:['Effective access: Read & Execute','Share permission: Change'], systemState:['User in GG-Finance-Users','Missing GG-Finance-Contributors'], plausibleCauses:['File locked','NTFS permission','Share offline'], correctPath:['Validate requested access','Calculate group-based effective access','Check share and NTFS','Correct approved membership','Refresh token and verify'], hiddenRootCause:'User is missing the NTFS contributor group.', expectedResolution:'Restore approved contributor group and verify Modify without direct user ACL.', escalationCriteria:['No data-owner approval','Explicit deny or ACL redesign required'] }),
   ...['Maya Chen|Operations','Elena Ruiz|Logistics','Noah Williams|Sales','Priya Shah|Human Resources','Evan Parker|Finance'].map((row, index) => {
     const [requester, department] = row.split('|');
@@ -1838,6 +1973,354 @@ const HD_TICKET_TEMPLATES = [
           { confirmed:'pdf', missing:'Ask Hannah to open a contract and confirm it opens in Acrobat and the signing tool works.' },
         ], good:'You repaired Acrobat first, finished the update, restored the .pdf default and checked with Hannah.', fix:'Repair Acrobat (Installed apps › Modify › Repair), finish the update, set .pdf to open with Adobe Acrobat, and ask Hannah to open a contract. Never reset the PC or delete program folders by hand.' },
         { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note.' }, { comment:true, missing:'Write a comment for Hannah in plain words, with no internal terms.' }, { code:'Solution provided', missing:'Choose the resolution code Solution provided.' }], good:'A complete note, a plain-words comment and the right resolution code.', fix:'Write a Reported / Tried / Result note and a plain-words comment, for example: "Hi Hannah, Acrobat is working again. An update yesterday didn\'t finish installing properly, which broke Acrobat and sent your PDFs to the browser instead. We repaired it, completed the update, and set PDFs to open in Acrobat again. You\'re ready to sign those contracts. – Riley" Choose the code Solution provided.' },
+      ],
+    } }),
+  // Module 7 (key its-05) Practice It. Lab 7.1 (coach hd-m05, HD_COACHED_SETS
+  // 'its-05-guided') is HD-2189 and the incident the student raises from it,
+  // HD-2190; Lab 7.2 (HD_PRACTICE_SETS 'its-05') is tickets 7-A to 7-E (HD-2191
+  // to HD-2195) with the related records HD-2202 to HD-2206. The servers, the
+  // directory and the change log are the set's (HD_ITS05_*); a ticket's own
+  // console.servers sets its fault. expectedResolution holds the model work
+  // note. Practice feedback only, never points: critical errors are feedback
+  // here, never a score.
+  // Lab 7.1: a routine morning check of five servers. Everything is read-only
+  // except the new incident HD-2190, which the student writes and hands on.
+  hdTicket({ id:'HD-2189', ownSet:true, number:'INC0010500', requester:'IT Operations', department:'Information Technology', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T08:00:00Z', shortDescription:'Morning server check — Wednesday',
+    description:'Daily 08:00 check. Confirm each server\'s roles and services are healthy, read what changed overnight, and raise a ticket for anything that needs another team. You read these screens; you don\'t change anything on a server. KB-0100 says what the Service Desk may restart, and KB-0101 what to do about server disk space.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: Scheduled morning server check, Wednesday 08:00. Tried: Server Manager on all five servers. NS-DC01: AD DS and DNS Running. NS-APP01: Purchasing Service Running as NORTHSTAR\\svc-purchasing. NS-FILE01 System log clear overnight. Change log: CHG-7801 (DNS A record for timeclock-02, 22:40, Completed) with no related symptom this morning. \\\\NS-FILE01\\HR share and NTFS permissions read; effective access for P. Shah is Read, as designed. NS-LT-0215 in OU=Sales,OU=Workstations, all policies applied after gpresult /r and gpupdate /force. DNS zone records read. DHCP Warehouse scope 78% (one reservation, one exclusion, VLAN 30); Guest Wi-Fi scope 95%. Spooler on NS-PRINT01 Running; NS-FILE01 answers on port 445. Result: All roles and services healthy. Nothing changed on any server. The Guest Wi-Fi scope at 95% is raised separately as HD-2190 for Server & Identity. Next action: none on this ticket. HD-2190 carries the scope.',
+    console: {
+      matrix:{}, classify:{ categories:HD_ITS05_CATEGORIES, cis:['NS-DC01', 'NS-DHCP01', 'NS-FILE01', 'NS-PRINT01', 'NS-APP01'], preset:{ contactType:'Self-service' } },
+      priorityCoach:{ impact:'3', urgency:'3', line:'Planned work is still work, and it is still triaged. Nobody is waiting (Impact 3 and Urgency 3), so the ticket is P5, the first P5 you set.' },
+      kb:true, raise:{ ticket:'HD-2190' },
+      machines:{ 'NS-LT-0215':{ computer:{ ip:'10.20.40.215', health:'Healthy' } } },
+      resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:[],
+        needs:[{ label:'Points at HD-2190 or INC0010501', pattern:'HD-2190|INC0010501' }, { label:'Says nothing was changed', pattern:'no change|nothing (was )?changed|changed nothing|made no change|did not change' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Server', subcategory:'Scheduled check', ci:'NS-DC01' }, missing:'Set Category Server › Scheduled check and CI NS-DC01.' }, { priority:'P5', missing:'Set Impact 3 and Urgency 3. Nobody is waiting, so the ticket is P5. Planned work is still work, and it is still triaged.' }], good:'Server › Scheduled check on NS-DC01, P5: planned work, nobody waiting.', fix:'Set Category Server › Scheduled check, CI NS-DC01, Impact 3 and Urgency 3. The ticket is P5.' },
+        { area:'Investigation', checks:[
+          { serverSeen:['server:NS-DC01', 'services:NS-DC01'], missing:'Open NS-DC01 in Server Manager and read its roles and services: AD DS and DNS Server.' },
+          { serverSeen:'service:NS-APP01:Purchasing', missing:'Open NS-APP01 › Services and read Purchasing Service, including the account in Log On As.' },
+          { serverSeen:'server-log:NS-FILE01:system', missing:'Open the NS-FILE01 System log and read this morning\'s entries.' },
+          { serverSeen:'change:CHG-7801', missing:'Open the Change log and open CHG-7801.' },
+          { serverSeen:'file-share:NS-FILE01:HR:share', missing:'On the file server, open the HR share and read Share permissions.' },
+          { serverSeen:'file-share:NS-FILE01:HR:ntfs', missing:'On the HR share, read Security (NTFS).' },
+          { serverSeen:'effective-access:NS-FILE01:HR:u-1004', missing:'On the HR share, read Effective access for Priya Shah.' },
+          { serverSeen:'ad-group:GG-HR-Contributors', missing:'Open Active Directory › Groups › GG-HR-Contributors and read its members.' },
+          { serverSeen:'ad-user-groups:u-1005', missing:'Open Active Directory › Users › Jordan Bell and read Account and Member Of.' },
+          { serverSeen:'ad-computer:NS-LT-0215', missing:'Open Active Directory › Computers, find NS-LT-0215 and read its OU.' },
+        ], good:'You read the roles, the service account, the System log, the change that worked, both permission layers, the group, the account and the computer\'s OU.', fix:'Read the five servers, NS-DC01\'s roles, Purchasing Service on NS-APP01, the NS-FILE01 System log, CHG-7801, the HR share (Share and NTFS, then effective access for Priya Shah), GG-HR-Contributors, Jordan Bell\'s account and NS-LT-0215 in Active Directory.' },
+        { area:'Diagnosis', checks:[
+          { serverSeen:'gp-results:NS-LT-0215', missing:'Open Group Policy › Results for NS-LT-0215, or type gpresult /r for it.' },
+          { serverSeen:'gpupdate:NS-LT-0215', missing:'Type gpupdate /force for NS-LT-0215, then open Group Policy › Results for it again.' },
+          { serverSeen:'dns-record:files:A', missing:'Open DNS and find the A record for files.' },
+          { serverSeen:'dns-record:purchasing:CNAME', missing:'In DNS, find the CNAME record for purchasing.' },
+          { serverSeen:'dns-record:@:MX', missing:'In DNS, find the MX record.' },
+          { serverSeen:'dns-record:@:TXT', missing:'In DNS, find the TXT record.' },
+          { serverSeen:'dhcp-scope:Warehouse', missing:'Open DHCP › the Warehouse scope and read its leases, reservation and exclusion range.' },
+          { serverSeen:'dhcp-scope:Guest Wi-Fi', missing:'Open DHCP › the Guest Wi-Fi scope and read how full it is.' },
+          { serverSeen:'service:NS-PRINT01:Spooler', missing:'Type Get-Service -ComputerName NS-PRINT01 -Name Spooler.' },
+          { serverSeen:'port:NS-FILE01:445', missing:'Type Test-NetConnection NS-FILE01 -Port 445.' },
+        ], good:'You proved policy reached NS-LT-0215, read four DNS record types and both DHCP scopes, and ran the two read-only checks. One thing needs another team: the Guest Wi-Fi scope at 95%.', fix:'Read Group Policy Results and run gpupdate /force for NS-LT-0215, read the files, purchasing, MX and TXT records, open the Warehouse and Guest Wi-Fi scopes, and type the Spooler and port 445 checks. The Guest Wi-Fi scope at 95% is the finding to hand on.' },
+        { area:'Action', checks:[{ action:'incident-raised', missing:'On HD-2189, choose Raise a related incident for the Guest Wi-Fi scope. It is not yours to fix, and you change nothing on any server.' }], good:'You raised HD-2190 instead of changing anything on a server.', fix:'On HD-2189, choose Raise a related incident for the Guest Wi-Fi scope, write its short description, set Impact 2 and Urgency 2, and assign it to Server & Identity.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note that lists what you checked.' }, { notePattern:'HD-2190|INC0010501', missing:'Name the incident you raised (HD-2190 or INC0010501) in your note.' }, { code:'Solution provided', missing:'Choose the resolution code Solution provided.' }, { status:'Resolved', missing:'Resolve the ticket.' }], good:'A complete note that points at HD-2190, the right code, and the ticket resolved.', fix:'Write a Reported / Tried / Result note that lists what you checked, says nothing was changed and points at HD-2190. Choose the code Solution provided and resolve the ticket.' },
+      ],
+    } }),
+  // The incident the student raises from HD-2189: an empty New record. The
+  // student writes the short description and the description, sets Impact and
+  // Urgency, assigns it and writes its note.
+  hdTicket({ id:'HD-2190', ownSet:true, number:'INC0010501', requester:'Riley Morgan', department:'Information Technology', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T08:00:00Z', shortDescription:'',
+    description:'', status:'New',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: Found during the scheduled morning check: the Guest Wi-Fi DHCP scope (10.20.90.20–10.20.90.240, VLAN 90) is 95% used. Tried: Read the scope on NS-DHCP01: 209 leased, 12 free of 221. No exclusions or reservations involved. No guest tickets about Wi-Fi so far today. Result: No change made. Scope sizing is Server & Identity\'s. Next action: Server & Identity to review the scope size or the lease time before the next visitor day. Service Desk to watch for "connected, no internet" calls from guests and link them here.',
+    console: {
+      matrix:{}, classify:{ categories:HD_ITS05_CATEGORIES, cis:['NS-DHCP01', 'NS-DC01', 'NS-FILE01', 'NS-PRINT01', 'NS-APP01'] },
+      priorityCoach:{ impact:'2', urgency:'2', line:'More than one visitor could lose Wi-Fi if the scope fills (Impact 2). Nothing is broken yet and nobody has complained (Urgency 2): P3.' },
+      rewrite:{ checks:[
+        { part:'the scope', pattern:'guest|wi-?fi', field:'short' },
+        { part:'the percentage', pattern:'95\\s*%|95 percent', field:'short' },
+        { part:'the risk', pattern:'run out|runs out|full|no (free )?addresses|exhaust|cannot connect|can.?t connect|no internet|fill', field:'either' },
+      ] },
+      resolutionCode:{ required:true },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:[],
+        needs:[{ label:'Says you changed nothing', pattern:'no change|nothing (was )?changed|changed nothing|made no change|did not change' }, { label:'Names the numbers (leased and free)', pattern:'209|12 free|12 of 221' }] },
+      feedback:[
+        { area:'Triage', checks:[{ priority:'P3', missing:'Set Impact 2 and Urgency 2. More than one visitor could lose Wi-Fi, and nothing is broken yet. That makes the ticket P3.' }, { group:'Server & Identity', missing:'Assign the ticket to Server & Identity. Scope sizing is theirs.' }], good:'P3, assigned to Server & Identity, who size the scope.', fix:'Set Impact 2 and Urgency 2 (P3) and assign the ticket to Server & Identity.' },
+        { area:'Documentation', checks:[{ rewrite:true, missing:'Write a short description that names the scope and the percentage (Guest Wi-Fi, 95%), and a description that says the risk.' }, { note:true, missing:'Write a Reported / Tried / Result / Next action note. Say plainly that you changed nothing.' }], good:'A short description that names the scope, the percentage and the risk, and a complete note.', fix:'Write a short description that names the scope and the percentage, a description that says the risk, and a Reported / Tried / Result / Next action note that says you changed nothing.' },
+      ],
+    } }),
+  // Ticket 7-A: a rebuilt laptop whose computer object is in the default
+  // container, so the Operations drive policy never reaches it.
+  hdTicket({ id:'HD-2191', ownSet:true, number:'INC0010502', requester:'Amir Patel', department:'Operations', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T14:10:00Z', shortDescription:'My O: drive is gone since my laptop came back',
+    description:'From: Amir Patel apatel@northstar.example · Subject: O drive missing after laptop rebuild\nI got my laptop back from the rebuild yesterday and the Operations O: drive isn\'t there any more. Everyone else on my team has it. The shift schedules live on it and I need them for tomorrow\'s rota.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: O: (Operations) missing since the laptop rebuild, NS-LT-0145. Shift schedules needed for tomorrow\'s rota. Tried: Amir is in GG-Operations-Drive, so access is fine. gpresult /r on NS-LT-0145: Operations Drive Mapping not applied. Active Directory › Computers shows the object in CN=Computers, not OU=Operations,OU=Workstations. Result: No change made on the server. Amir can reach the files now through \\\\NS-FILE01\\Operations and has the schedules. Next action: Server & Identity to move the computer object to OU=Operations,OU=Workstations per KB-0031, then gpupdate /force and confirm O: returns at his next sign-in.',
+    console: {
+      now:'2026-08-19T14:20:00Z', matrix:{}, classify:{ categories:HD_ITS05_CATEGORIES, cis:['NS-LT-0145', 'NS-FILE01', 'GG-Operations-Drive'], preset:{ contactType:'Email' } },
+      priorityCoach:{ impact:'3', urgency:'2', line:'One person is affected (Impact 3). He needs the schedules for tomorrow, not now (Urgency 2): P4.' },
+      kb:{ attach:true }, comments:true, resolutionCode:{ required:true },
+      machines:{ 'NS-LT-0145':{ computer:{ ip:'10.20.10.145', health:'Policy scope warning' } } },
+      caller:{ name:'Amir Patel', style:'chat', questions:[
+        { id:'team', text:'Do the other people on your team still have the O: drive?', reply:'Yes, everyone else on my team has it.' },
+        { id:'schedules', text:'Please open \\\\NS-FILE01\\Operations in File Explorer. Do the shift schedules open?', reply:'Yes, I can see the schedules. Thanks!' },
+      ] },
+      choice:{ heading:'Choose your response',
+        prompt:'Amir is in GG-Operations-Drive, and his rebuilt laptop is in CN=Computers, where no company policy is linked. He needs the schedules and he wants O: back. What do you do?',
+        options:[
+          { id:'add-group', text:'Add Amir to another group so O: maps for him', critical:true, feedback:'Critical error in a graded ticket. His access was never the problem: he is already in GG-Operations-Drive. Adding a group changes his access for no reason. The step stays open: choose again.' },
+          { id:'move-object', text:'Move NS-LT-0145 into the Operations OU yourself', critical:true, feedback:'Critical error in a graded ticket. Moving a computer object is Tier 2 (KB-0031), and the screens in this module only read. The step stays open: choose again.' },
+          { id:'workaround-and-handoff', text:'Tell Amir to open \\\\NS-FILE01\\Operations now, and send the cause to Server & Identity', right:true, action:{ id:'workaround-and-handoff-chosen', label:'Gave Amir the share path as a workaround and chose to escalate the computer object' }, feedback:'Right. The share is fine, so Amir can work now, and the cause (the computer object\'s place) is Tier 2 work for Server & Identity (KB-0031).' },
+        ] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['GG-Operations-Drive', 'gpresult', 'Group Policy', 'OU=', 'CN=Computers', 'KB-0031', 'NS-LT-0145', 'Tier 1', 'Tier 2', 'P4', 'SLA', 'Server & Identity'],
+        needs:[{ label:'Amir is in GG-Operations-Drive', pattern:'GG-Operations-Drive|member of|in the group' }, { label:'Policy not applied (gpresult)', pattern:'gpresult|Operations Drive Mapping|not applied' }, { label:'Where the computer object is', pattern:'CN=Computers|default container' }, { label:'The workaround', pattern:'\\\\\\\\NS-FILE01\\\\Operations|workaround' }, { label:'What Server & Identity do next', pattern:'move|OU=Operations' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Software', subcategory:'Group Policy / drive mapping', ci:'NS-LT-0145' }, missing:'Set Category Software › Group Policy / drive mapping and CI NS-LT-0145, Amir\'s laptop.' }, { priority:'P4', missing:'Set Impact 3 (one person) and Urgency 2 (he needs it for tomorrow, not now). That makes the ticket P4.' }], good:'The priority is P4: one person, and he needs the schedules for tomorrow.', fix:'Set Impact 3 (one person) and Urgency 2 (needed for tomorrow, not now). The ticket is P4.' },
+        { area:'Investigation', checks:[
+          { chat:['team'], missing:'Ask Amir whether the rest of his team still has O:. It scopes the problem to his laptop.' },
+          { serverSeen:'ad-user-groups:u-1009', missing:'Check his access first: open Active Directory › Users › Amir Patel › Member Of.' },
+          { serverSeen:'gp-results:NS-LT-0145', missing:'Check the policy: open Group Policy › Results for NS-LT-0145, or type gpresult /r for it.' },
+        ], good:'You scoped it to one laptop, checked his groups before blaming a policy, and read the policy result.', fix:'Ask whether his team still has O:, open Amir Patel in Active Directory and read Member Of, then read Group Policy Results (or type gpresult /r) for NS-LT-0145.' },
+        { area:'Diagnosis', checks:[{ serverSeen:'ad-computer:NS-LT-0145', missing:'Open Active Directory › Computers › NS-LT-0145 and read where the object lives.' }, { kb:'KB-0031', missing:'Search the KB for "mapped drive" and open KB-0031.' }], good:'The computer object is in CN=Computers, where no company policy is linked, and KB-0031 says moving it is Tier 2.', fix:'Open NS-LT-0145 in Active Directory › Computers and read its container (CN=Computers), then open KB-0031.' },
+        { area:'Action', checks:[
+          { action:'workaround-and-handoff-chosen', missing:'Choose the response that gives Amir a workaround and escalates the cause. Never add him to a group or move the object yourself.' },
+          { confirmed:'schedules', missing:'Ask Amir to open \\\\NS-FILE01\\Operations and confirm the schedules open.' },
+          { group:'Server & Identity', missing:'Assign the ticket to Server & Identity. Do not close it after the workaround: Amir would have no O: on every future sign-in.' },
+        ], good:'Amir can work now, and the cause went to Server & Identity instead of being changed or closed.', fix:'Give Amir \\\\NS-FILE01\\Operations to open now, confirm the schedules open, and assign the ticket to Server & Identity with the evidence. Do not close it.' },
+        { area:'Documentation', checks:[{ attached:'KB-0031', missing:'Attach KB-0031 to the ticket.' }, { note:true, missing:'Write a Reported / Tried / Result / Next action note: what Server & Identity do next.' }, { comment:true, missing:'Write a comment for Amir in plain words, with no internal terms.' }], good:'KB-0031 attached, a complete note and a plain-words comment for Amir.', fix:'Attach KB-0031, write a Reported / Tried / Result / Next action note, and write a plain-words comment, for example: "Hi Amir, you can get to the schedules right now by opening \\\\NS-FILE01\\Operations. I\'ve checked and your access is exactly as it should be. The drive letter is missing because your rebuilt laptop was registered in the wrong place in our directory, so it isn\'t picking up the setting that maps O:. Our server team is moving it, and O: will be back by itself when you next sign in. I\'ll let you know when that\'s done. – Riley"' },
+      ],
+    } }),
+  // Ticket 7-B: the Print Spooler stopped on the print server. Three related
+  // records (HD-2202 to HD-2204) are the callers from the 2nd floor.
+  hdTicket({ id:'HD-2192', ownSet:true, number:'INC0010503', requester:'IT Monitoring', department:'Information Technology', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T08:15:00Z', shortDescription:'Monitoring: Print Spooler stopped on NS-PRINT01',
+    description:'Source: IT Monitoring · Severity: Major\nService "Print Spooler" on NS-PRINT01 changed state to Stopped at 08:12. Three user tickets mentioning printing have arrived from the 2nd floor since 08:14.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: Monitoring — Print Spooler on NS-PRINT01 Stopped at 08:12. Three related 2nd-floor tickets linked. Tried: Get-Service confirmed Stopped. System log 7034 at 08:12, first in 30 days. No change in the change log in the last 24 hours. Result: Started the Print Spooler once at 08:21 under KB-0100; service Running. A 2nd-floor caller confirmed a test page printed. The three linked tickets are resolved with a comment. Next action: none while it stays up. If 7031 or 7034 recurs on this service within 24 hours, do not start it again: escalate to Server & Identity with both events.',
+    console: {
+      now:'2026-08-20T08:19:00Z', matrix:{}, classify:{ categories:HD_ITS05_CATEGORIES, cis:['NS-PRINT01', 'NS-FILE01', 'NS-APP01'], preset:{ contactType:'Self-service' } },
+      priorityCoach:{ impact:'2', urgency:'2', line:'A whole floor can\'t print (Impact 2). They have other ways to work for now (Urgency 2): P3.' },
+      link:true, kb:{ attach:true }, comments:true, resolutionCode:{ required:true },
+      servers:{ 'NS-PRINT01':{ status:'Degraded', service:'Print Spooler stopped',
+        services:[
+          { name:'Spooler', displayName:'Print Spooler', status:'Stopped', startup:'Automatic', logOnAs:'Local System' },
+          { name:'LanmanServer', displayName:'Server', status:'Running', startup:'Automatic', logOnAs:'Local System' },
+        ],
+        events:{ system:[
+          { level:'Error', time:'Today 08:12', source:'Service Control Manager', id:'7034', message:'The Print Spooler service terminated unexpectedly. It has done this 1 time(s).', details:'This is the first 7031 or 7034 for this service in the last 30 days.' },
+          { level:'Information', time:'Today 06:00', source:'Service Control Manager', id:'7036', message:'The Windows Update service entered the running state.' },
+        ] } } },
+      serviceStart:[{ server:'NS-PRINT01', service:'Spooler', after:{ status:'Online', service:'Print Spooler running' } }],
+      caller:{ name:'Priya Shah', style:'chat', questions:[
+        { id:'print', text:'Please print a test page. Does it print now?', afterAction:'service-started', replyBefore:'No. The job still sits in the queue.', reply:'Yes, it printed. Thank you!' },
+      ] },
+      choice:{ heading:'Choose your response',
+        prompt:'The Print Spooler is Stopped on NS-PRINT01. Three people on the 2nd floor can\'t print. How do you get printing back?',
+        options:[
+          { id:'restart-server', text:'Restart NS-PRINT01 so everything starts clean', critical:true, feedback:'Critical error in a graded ticket. Every other role on the print server goes down with it, and KB-0100 says never to reboot a server. The step stays open: choose again.' },
+          { id:'start-again', text:'Start the Print Spooler, and start it again each time it stops', critical:true, feedback:'Critical error in a graded ticket. KB-0100 allows one start. If the same service stops again within 24 hours, you do not start it a second time: you escalate to Server & Identity with both events. The step stays open: choose again.' },
+          { id:'resolve-on-screen', text:'Start it once, then resolve the ticket as soon as the Services screen shows Running', feedback:'Not this. A screen can say Running while printing still fails. Ask one of the callers to print a test page before you resolve. The step stays open: choose again.' },
+          { id:'start-once', text:'Start the Print Spooler once under KB-0100, then ask a caller to print before you resolve', right:true, action:{ id:'runbook-start-chosen', label:'Chose to start the Print Spooler once under KB-0100 and verify with a caller' }, feedback:'Right. KB-0100 allows one start of this service when it simply stopped and no change is involved. Then you verify with a person, not only with the screen.' },
+        ] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Spooler', 'Print Spooler', 'NS-PRINT01', '7034', '7031', 'KB-0100', 'Services', 'Tier 1', 'P3', 'SLA', 'Server & Identity'],
+        needs:[{ label:'The state you confirmed', pattern:'stopped' }, { label:'The event ID and time', pattern:'7034|7031' }, { label:'The change log check', pattern:'change' }, { label:'That you started it once', pattern:'once|one start|started' }, { label:'What to do if it stops again', pattern:'24 hours|again|recur' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Hardware', subcategory:'Print server', ci:'NS-PRINT01' }, missing:'Set Category Hardware › Print server and CI NS-PRINT01.' }, { priority:'P3', missing:'Set Impact 2 (a whole floor) and Urgency 2 (they can\'t print now, but the floor has other ways to work). That makes the ticket P3.' }], good:'The priority is P3: a floor can\'t print, and it has other ways to work for now.', fix:'Set Impact 2 (a whole floor) and Urgency 2. The ticket is P3.' },
+        { area:'Investigation', checks:[
+          { child:'HD-2202', missing:'Link INC0010513 to this ticket as related, so one ticket carries the work.' },
+          { child:'HD-2203', missing:'Link INC0010514 to this ticket as related.' },
+          { child:'HD-2204', missing:'Link INC0010515 to this ticket as related.' },
+          { serverSeen:['service:NS-PRINT01:Spooler', 'services:NS-PRINT01'], missing:'Confirm the state: open NS-PRINT01 › Services, or type Get-Service -ComputerName NS-PRINT01 -Name Spooler.' },
+        ], good:'You linked the three callers to one ticket and confirmed the Spooler is Stopped.', fix:'Link the three 2nd-floor tickets to this one as related, then open NS-PRINT01 › Services (or type Get-Service -ComputerName NS-PRINT01 -Name Spooler) to confirm the state.' },
+        { area:'Diagnosis', checks:[
+          { serverSeen:'server-event:NS-PRINT01:system:7034', missing:'Open the NS-PRINT01 System log and open event 7034 at 08:12. Read the evidence before you start the service.' },
+          { serverSeen:'change-log', missing:'Open the Change log and check for a change in the last 24 hours.' },
+          { kb:'KB-0100', missing:'Search the KB for "spooler stopped" and open KB-0100.' },
+        ], good:'Event 7034 at 08:12 is the first in 30 days, nothing changed, and KB-0100 says what you may do.', fix:'Open the NS-PRINT01 System log and event 7034, check the Change log, and open KB-0100.' },
+        { area:'Action', checks:[
+          { action:'runbook-start-chosen', missing:'Choose the response that starts the Print Spooler once under KB-0100. Never restart the whole server and never start it twice.' },
+          { action:'service-started', missing:'On NS-PRINT01 › Services, start the Print Spooler once, then check it shows Running.' },
+          { confirmed:'print', missing:'Ask a caller to print a test page and confirm it prints.' },
+        ], good:'You started the Print Spooler once, and a caller confirmed a page printed.', fix:'Start the Print Spooler once on NS-PRINT01 › Services, then ask a caller to print. Never restart the server and never start the service twice.' },
+        { area:'Documentation', checks:[
+          { attached:'KB-0100', missing:'Attach KB-0100 to the ticket.' },
+          { note:true, missing:'Write a Reported / Tried / Result note with the event ID and time.' },
+          { notePattern:'24 hours|again|recur', missing:'Put the watch condition in your note: if it stops again within 24 hours, do not start it a second time. Escalate to Server & Identity with both events.' },
+          { comment:true, missing:'Write a comment for the callers in plain words, with no internal terms.' },
+          { code:'Solution provided', missing:'Choose the resolution code Solution provided.' },
+          { status:'Resolved', missing:'Resolve the ticket once a caller confirms.' },
+        ], good:'KB-0100 attached, a complete note with the watch condition, a plain-words comment, and the ticket resolved.', fix:'Attach KB-0100, write a Reported / Tried / Result note with the event ID, the single start and what to do if it stops again within 24 hours, and write a plain-words comment, for example: "Hi, printing on the 2nd floor is working again. The service that sends jobs to the printers had stopped on our print server, and we\'ve started it back up. Please send anything that didn\'t print earlier. Sorry for the interruption. If anything still won\'t print, reply here and it comes straight back to me. – Riley" Choose the code Solution provided.' },
+      ],
+    } }),
+  // Related records for 7-B: three callers from the 2nd floor, no feedback of
+  // their own.
+  hdTicket({ id:'HD-2202', ownSet:true, number:'INC0010513', requester:'Priya Shah', department:'Human Resources', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T08:14:00Z', shortDescription:'Can\'t print from the 2nd floor',
+    description:'Nothing prints from the 2nd floor. My jobs go into the queue and nothing comes out. It started about 08:10.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      now:'2026-08-20T08:19:00Z', matrix:{ impact:'3', urgency:'2' }, link:true, comments:true,
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Spooler', 'NS-PRINT01', '7034', 'KB-0100', 'Tier 1', 'P3', 'P4', 'SLA', 'parent ticket'] },
+    } }),
+  hdTicket({ id:'HD-2203', ownSet:true, number:'INC0010514', requester:'Grace Kim', department:'Human Resources', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T08:16:00Z', shortDescription:'Printer on the 2nd floor not printing',
+    description:'The printer on the 2nd floor has stopped printing for me. I have a stack of offer letters to print this morning.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      now:'2026-08-20T08:19:00Z', matrix:{ impact:'3', urgency:'2' }, link:true, comments:true,
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Spooler', 'NS-PRINT01', '7034', 'KB-0100', 'Tier 1', 'P3', 'P4', 'SLA', 'parent ticket'] },
+    } }),
+  hdTicket({ id:'HD-2204', ownSet:true, number:'INC0010515', requester:'Karen Holt', department:'Executive Office', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T08:18:00Z', shortDescription:'Print jobs stuck on the 2nd floor',
+    description:'My print jobs are stuck and the 2nd floor printer shows nothing. Is the printing down for everyone up here?',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      now:'2026-08-20T08:19:00Z', matrix:{ impact:'3', urgency:'2' }, link:true, comments:true,
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['Spooler', 'NS-PRINT01', '7034', 'KB-0100', 'Tier 1', 'P3', 'P4', 'SLA', 'parent ticket'] },
+    } }),
+  // Ticket 7-C: a file server volume filling fast. The student collects
+  // numbers, the rate and the largest folder, and hands it on without
+  // deleting or moving anything.
+  hdTicket({ id:'HD-2193', ownSet:true, number:'INC0010504', requester:'IT Monitoring', department:'Information Technology', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T09:36:00Z', shortDescription:'Monitoring: file server volume 96% full',
+    description:'Source: IT Monitoring · Severity: Critical\nNS-FILE01 volume D: (Shared data) is 96% used — 19 GB free of 500 GB. Growth: +40 GB in the last 6 hours.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: Monitoring — NS-FILE01 D: 96% used, 19 GB free of 500 GB, +40 GB in 6 hours. Tried: Confirmed 19.1 GB free on the volume list. Largest recent growth is Marketing\\Video-Exports, 38 GB, created today. No change-log entry for this server today. Result: Nothing deleted or moved. Escalated P2 to Server & Identity at 10:04 with the numbers and the folder. Service Desk lead told at 10:06. Next action: Server & Identity to decide on more space or a cleanup with the data\'s owner. At the current rate the volume fills in about 3 hours; re-check and chase at 11:30 if there is no response.',
+    console: {
+      now:'2026-08-20T09:45:00Z', matrix:{}, classify:{ categories:HD_ITS05_CATEGORIES, cis:['NS-FILE01', 'NS-PRINT01', 'NS-APP01'], preset:{ contactType:'Self-service' } },
+      priorityCoach:{ impact:'1', urgency:'2', line:'Every department saves to this server (Impact 1). It has hours, not minutes (Urgency 2): P2. Nobody has complained yet, but the volume is over 90%.' },
+      kb:{ attach:true }, resolutionCode:{ required:true },
+      servers:{ 'NS-FILE01':{ service:'SMB healthy · D: 96% used',
+        volumes:[
+          { drive:'C:', label:'System', sizeGb:120, freeGb:78.4 },
+          { drive:'D:', label:'Shared data', sizeGb:500, freeGb:19.1, growth:'+40 GB in 6 hours' },
+        ],
+        events:{ system:[
+          { level:'Warning', time:'Today 09:31', source:'srv', id:'2013', message:'The D: disk is at or near capacity. You may need to delete some files.' },
+          { level:'Information', time:'Today 06:00', source:'Service Control Manager', id:'7036', message:'The Windows Update service entered the running state.' },
+        ] },
+        folderSizes:[
+          { path:'Marketing\\Video-Exports', gb:38, created:'Today 06:50', modified:'Today 09:30' },
+          { path:'Operations\\Archive', gb:22, created:'3 months ago', modified:'Yesterday 17:20' },
+          { path:'Finance\\Exports', gb:17.4, created:'2 years ago', modified:'Today 02:00' },
+          { path:'HR\\Onboarding', gb:6.2, created:'1 year ago', modified:'3 days ago' },
+        ] } },
+      teamMessages:[{ id:'lead', to:'Service Desk lead', from:'Morgan Lee', text:'NS-FILE01 volume D: is 96% full and growing about 40 GB every 6 hours. I have escalated it to Server & Identity as a P2. You may see "can\'t save" tickets.', reply:'Thanks for the warning. I will tell the desk and keep the queue ready.' }],
+      choice:{ heading:'Choose your response',
+        prompt:'The largest new folder on D: is Marketing\\Video-Exports, 38 GB, created today. The volume has about 3 hours left at this rate. What do you do about it?',
+        options:[
+          { id:'delete-temp', text:'Delete the large video files that look temporary', critical:true, feedback:'Critical error in a graded ticket. Files on a server may be someone\'s only copy, a backup, or under a legal hold, and the data is not yours (KB-0101). The step stays open: choose again.' },
+          { id:'empty-bin', text:'Empty the Recycle Bin on the share to free space', critical:true, feedback:'Critical error in a graded ticket. Emptying a Recycle Bin deletes files for good, and they may be someone\'s only copy (KB-0101). The step stays open: choose again.' },
+          { id:'message-marketing', text:'Message the Marketing team now and tell them to stop saving videos', feedback:'Not this. A message to the team whose files are growing goes out only after Server & Identity agrees, and it asks rather than blames (KB-0101). The step stays open: choose again.' },
+          { id:'leave-and-escalate', text:'Leave the files alone and escalate to Server & Identity with the numbers, the rate and the folder', right:true, action:{ id:'files-left-alone-chosen', label:'Chose to delete and move nothing and escalate with the numbers, the rate and the largest folder' }, feedback:'Right. You collect the clue and hand it on. The decision about space or cleanup belongs to Server & Identity and the data\'s owner (KB-0101).' },
+        ] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:[],
+        needs:[{ label:'Free space and size (19 GB of 500 GB, 96%)', pattern:'19(\\.1)?\\s*GB|96\\s*%' }, { label:'The rate (+40 GB in 6 hours)', pattern:'40\\s*GB|6 hours|rate' }, { label:'The largest folder', pattern:'Video-Exports' }, { label:'That you deleted and moved nothing', pattern:'nothing (was )?(deleted|moved)|deleted nothing|moved nothing|not deleted|did not delete' }, { label:'How long it has', pattern:'3 hours|three hours|about 3|runway|fills? in|run out' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Hardware', subcategory:'Server storage', ci:'NS-FILE01' }, missing:'Set Category Hardware › Server storage and CI NS-FILE01.' }, { priority:'P2', missing:'Set Impact 1 (every department saves here) and Urgency 2 (hours, not minutes). That makes the ticket P2. P3 is too low: a volume above 90% is at least P2, even if nobody has complained yet.' }], good:'The priority is P2: every department saves here, and the volume has hours.', fix:'Set Impact 1 (every department saves here) and Urgency 2 (hours, not minutes). The ticket is P2.' },
+        { area:'Investigation', checks:[
+          { serverSeen:'volumes:NS-FILE01', missing:'Confirm the numbers: open NS-FILE01 in Server Manager and read the volume list.' },
+          { serverSeen:'server-event:NS-FILE01:system:2013', missing:'Open the NS-FILE01 System log and open event 2013, the disk at or near capacity.' },
+          { serverSeen:'folder-sizes:NS-FILE01', missing:'Open the file server screen\'s folder-size view and find the largest recent growth. It is read-only.' },
+          { serverSeen:'change-log', missing:'Open the Change log and check for a change on this server today.' },
+        ], good:'You confirmed the numbers, read event 2013, found the largest new folder and checked the change log, all read-only.', fix:'Read the volume list on NS-FILE01, open event 2013 in the System log, read the folder-size view, and check the Change log.' },
+        { area:'Diagnosis', checks:[{ kb:'KB-0101', missing:'Search the KB for "disk full" and open KB-0101.' }, { notePattern:'3 hours|three hours|about 3|runway|fills? in|run out', missing:'Work out how long the volume has at +40 GB in 6 hours (about 3 hours) and put it in your note.' }], good:'KB-0101 told you to delete nothing, and the runway (about 3 hours) is in your note.', fix:'Open KB-0101 and work out the runway: 19 GB free at +40 GB in 6 hours is about 3 hours. Put it in the note.' },
+        { area:'Action', checks:[
+          { action:'files-left-alone-chosen', missing:'Choose the response that deletes and moves nothing, and escalates. Never delete files, empty a Recycle Bin or message the Marketing team first.' },
+          { group:'Server & Identity', missing:'Assign the ticket to Server & Identity inside the 30-minute P2 response.' },
+          { teamMessage:'lead', missing:'Tell the Service Desk lead, so the desk isn\'t surprised by "can\'t save" tickets.' },
+        ], good:'You deleted and moved nothing, escalated inside the P2 clock and warned the lead.', fix:'Leave the files alone, assign the ticket to Server & Identity with the numbers, the rate and the folder, and tell the Service Desk lead.' },
+        { area:'Documentation', checks:[{ attached:'KB-0101', missing:'Attach KB-0101 to the ticket.' }, { note:true, missing:'Write a Reported / Tried / Result / Next action note.' }, { notePattern:'19(\\.1)?\\s*GB|96\\s*%', missing:'Put the numbers in your note: free space, size and percent used.' }, { notePattern:'40\\s*GB|6 hours|rate', missing:'Put the rate in your note: +40 GB in 6 hours.' }, { notePattern:'Video-Exports', missing:'Name the largest folder in your note: Marketing\\Video-Exports.' }], good:'KB-0101 attached, and a complete note with the numbers, the rate and the largest folder.', fix:'Attach KB-0101 and write a Reported / Tried / Result / Next action note with the free space, the rate (+40 GB in 6 hours), the folder Marketing\\Video-Exports, that nothing was deleted or moved, and when you will chase.' },
+      ],
+    } }),
+  // Ticket 7-D: the file server is offline for a whole department. Two related
+  // records (HD-2205, HD-2206) are other Finance callers.
+  hdTicket({ id:'HD-2194', ownSet:true, number:'INC0010505', requester:'Carla Rivas', department:'Finance', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T09:38:00Z', shortDescription:'The whole AP team has lost the Finance drive',
+    description:'From: Carla Rivas, Accounts Payable Supervisor\nSubject: Finance drive gone??\nHi — the Finance drive has disappeared for me and I think for the whole AP team, at least six of us. We\'re in the middle of month-end close and the invoices we\'re posting live on it. Is something down?',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: Finance share unavailable for the Accounts Payable team, 6+ users, during month-end close. Reported by C. Rivas 09:38. Tried: Two further Finance tickets linked (3 total). Server Manager shows NS-FILE01 Offline. Test-NetConnection NS-FILE01 -Port 445 from the Service Desk workstation returns False. Nothing changed on the server or on any laptop. Result: Server-side outage, not a user or device problem. Service Desk lead told 09:42. Escalated P1 to Server & Identity 09:44 with the above. Next action: Server & Identity own the restore. Next update to Carla and the linked callers by 10:15, and every 30 minutes after that until it is back.',
+    console: {
+      now:'2026-08-20T09:42:00Z', matrix:{}, classify:{ categories:HD_ITS05_CATEGORIES, cis:['NS-FILE01', 'NS-DHCP01', 'NS-PRINT01'], preset:{ contactType:'Email' } },
+      priorityCoach:{ impact:'1', urgency:'1', line:'A whole department is affected (Impact 1) and month-end close is blocked (Urgency 1): P1. Tell the Service Desk lead now.' },
+      link:true, kb:{ attach:true }, resolutionCode:{ required:true },
+      comments:{ timeCheck:{ time:HD_M03_TIME, promise:HD_M03_PROMISE, promiseLine:'A fix time is not yours to promise: Server & Identity give it. Say when you will send the next update.', noTimeLine:'Tell Carla when she will hear from you next, for example "by 10:15".' } },
+      servers:{ 'NS-FILE01':{ status:'Offline', service:'Not responding' } },
+      teamMessages:[{ id:'lead', to:'Service Desk lead', from:'Morgan Lee', text:'P1: NS-FILE01 is Offline and the Finance share is down for the Accounts Payable team during month-end close. I am escalating to Server & Identity now.', reply:'Understood. I will warn Finance management and keep the queue clear for updates.' }],
+      choice:{ heading:'Choose your response',
+        prompt:'NS-FILE01 is Offline, and Carla asks: "Is something down? What should we do?" You are inside the 15-minute P1 response. What do you do?',
+        options:[
+          { id:'restart-server', text:'Restart NS-FILE01 yourself to bring the Finance drive back', critical:true, feedback:'Critical error in a graded ticket. A restart is not a Service Desk action: the restore belongs to Server & Identity. The step stays open: choose again.' },
+          { id:'restart-laptops', text:'Tell the six users to restart their laptops and try again', feedback:'Not this. The fault is on the server, so nothing on a laptop will fix it, and a restart wastes time during month-end close. The step stays open: choose again.' },
+          { id:'promise-time', text:'Tell Carla the Finance drive will be back in 30 minutes', feedback:'Not this. A restore time is Server & Identity\'s to give. Promise your own next update with a time, not their fix. The step stays open: choose again.' },
+          { id:'escalate-and-update', text:'Escalate with the evidence, and tell Carla it is a server problem, nothing for her team to do, and when your next update comes', right:true, action:{ id:'update-plan-chosen', label:'Chose to escalate with the evidence and send an update with a time' }, feedback:'Right. You prove it from the server side, escalate inside the P1 clock, and tell the users what you know and when they will hear next.' },
+        ] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['NS-FILE01', 'SMB', '445', 'Test-NetConnection', 'Server Manager', 'Tier 1', 'P1', 'SLA', 'Server & Identity', 'escalated', 'escalate', 'TcpTestSucceeded'],
+        needs:[{ label:'NS-FILE01 Offline', pattern:'offline' }, { label:'The port 445 test', pattern:'445|Test-NetConnection' }, { label:'The tickets you linked', pattern:'linked|3 total|three|INC0010516|INC0010517' }, { label:'That the lead was told', pattern:'lead' }, { label:'When the next update goes out', pattern:'\\d{1,2}:\\d{2}|next update' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Network', subcategory:'File share access', ci:'NS-FILE01' }, missing:'Set Category Network › File share access and CI NS-FILE01.' }, { priority:'P1', missing:'Set Impact 1 (a whole department) and Urgency 1 (month-end close is blocked). That makes the ticket P1. Rating it as one person\'s P4 misses that six people are blocked.' }], good:'The priority is P1: a whole department, with month-end close blocked.', fix:'Set Impact 1 (a whole department) and Urgency 1 (month-end close is blocked). The ticket is P1.' },
+        { area:'Investigation', checks:[
+          { child:'HD-2205', missing:'Search the queue and link INC0010516, a Finance caller, to this ticket as related.' },
+          { child:'HD-2206', missing:'Link INC0010517, the other Finance caller, to this ticket as related, so one ticket carries the escalation.' },
+          { serverSeen:'server:NS-FILE01', missing:'Open Server Manager and read NS-FILE01. Check the server without changing anything.' },
+        ], good:'You scoped it first: three tickets, one ticket carrying them, and you read the server.', fix:'Search the queue for the other Finance tickets and link them to this one as related, then open NS-FILE01 in Server Manager.' },
+        { area:'Diagnosis', checks:[{ serverSeen:'port:NS-FILE01:445', missing:'Prove it from your own side: type Test-NetConnection NS-FILE01 -Port 445. SMB is the protocol a share is reached on.' }], good:'Port 445 does not answer, so the server itself is down. It is not six laptops with the same fault.', fix:'Type Test-NetConnection NS-FILE01 -Port 445. It returns TcpTestSucceeded : False, so the fault is the server.' },
+        { area:'Action', checks:[
+          { action:'update-plan-chosen', missing:'Choose the response that escalates and sends an update with a time. Never restart the server, never ask users to restart laptops and never promise a fix time.' },
+          { group:'Server & Identity', missing:'Assign the ticket to Server & Identity inside the 15-minute P1 response.' },
+          { teamMessage:'lead', missing:'Tell the Service Desk lead now. A P1 is never a quiet escalation.' },
+        ], good:'You restarted nothing, escalated inside the P1 clock and told the lead.', fix:'Restart nothing, assign the ticket to Server & Identity with the evidence, and tell the Service Desk lead.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result / Next action note with the evidence and the time of your next update.' }, { comment:true, missing:'Write a first update for Carla in plain words, with no internal terms.' }, { commentTime:true, missing:'Put a time in your update: when Carla will hear from you next, for example "by 10:15".' }], good:'A complete note, and a plain-words first update that says when the next one comes.', fix:'Write a Reported / Tried / Result / Next action note, and a plain-words first update, for example: "Hi Carla, thank you for flagging this so quickly. I\'ve confirmed it isn\'t just you: the server that holds the Finance drive is down, and our server team is on it as a top priority. There\'s nothing you or the team need to do, and nothing needs restarting at your end. Please save anything you\'re working on locally for now. I\'ll come back to you by 10:15 with an update, even if there\'s nothing new to report. – Riley"' },
+      ],
+    } }),
+  // Related records for 7-D: two more Finance callers, no feedback of their own.
+  hdTicket({ id:'HD-2205', ownSet:true, number:'INC0010516', requester:'Lisa Park', department:'Finance', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T09:36:00Z', shortDescription:'Finance drive missing',
+    description:'The Finance drive has vanished from my PC. We are in month-end close and I can\'t open the invoice files.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      now:'2026-08-20T09:42:00Z', matrix:{ impact:'3', urgency:'1' }, link:true, comments:true,
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['NS-FILE01', 'SMB', '445', 'Server Manager', 'Tier 1', 'P1', 'SLA', 'parent ticket'] },
+    } }),
+  hdTicket({ id:'HD-2206', ownSet:true, number:'INC0010517', requester:'Leo Brandt', department:'Finance', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T09:40:00Z', shortDescription:'Finance share not opening',
+    description:'The Finance share won\'t open for me or the people near me. Is the server down?',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      now:'2026-08-20T09:42:00Z', matrix:{ impact:'3', urgency:'1' }, link:true, comments:true,
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['NS-FILE01', 'SMB', '445', 'Server Manager', 'Tier 1', 'P1', 'SLA', 'parent ticket'] },
+    } }),
+  // Ticket 7-E: a warehouse time clock with no DHCP reservation. It takes the
+  // request route: the incident is converted to a Network device reservation.
+  hdTicket({ id:'HD-2195', ownSet:true, number:'INC0010506', requester:'Monica Hall', department:'Logistics', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-21T07:15:00Z', shortDescription:'The warehouse time clock stopped taking badges',
+    description:'Phone call, taken by Riley. Monica Hall, Logistics Manager: "The time clock on dock A isn\'t taking badges this morning — it says it can\'t reach the server. The night shift couldn\'t clock out and day shift is queuing. Payroll say the clock has to be on a fixed address and I\'m told it\'s moved?"',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: Dock A time clock NS-WH-CLOCK02 not reaching the payroll system since this morning; night shift could not clock out. Tried: One device only; other warehouse devices unaffected. DHCP Warehouse scope (VLAN 30) shows NS-WH-CLOCK02 leased 10.20.30.142 at 06:40. The payroll system is configured for 10.20.30.61. The scope has one reservation (NS-WH-LABEL01) and an exclusion range; nothing is reserved for this clock, so it takes a free address after each reboot. Result: Gave payroll the current address, 10.20.30.142, so badges are recorded today. Nothing changed on the DHCP server. Request raised for a reservation on 10.20.30.61 and linked here. Next action: Server & Identity to add the reservation per KB-0102. When it is in place, reboot the clock out of hours, confirm the lease shows 10.20.30.61, and set payroll back to that address.',
+    console: {
+      now:'2026-08-21T07:25:00Z', matrix:{}, classify:{ categories:HD_ITS05_CATEGORIES, cis:['NS-WH-CLOCK02', 'NS-DHCP01', 'NS-WH-LABEL01'], preset:{ contactType:'Phone' } },
+      priorityCoach:{ impact:'2', urgency:'2', line:'A team can\'t record their hours (Impact 2). Today\'s shift has paper as a fallback (Urgency 2): P3.' },
+      kb:{ attach:true }, comments:true, resolutionCode:{ required:true },
+      convert:{ number:'RITM0010163', needsTriage:true, items:[hdReservationItem({ devices:['NS-WH-CLOCK02'], macs:['00:1B:44:5E:9A:42'], addresses:['10.20.30.61'] })] },
+      choice:{ heading:'Choose your response',
+        prompt:'The clock took a new address after its overnight restart. Monica needs badges recorded today. How do you keep the team working?',
+        options:[
+          { id:'call-outage', text:'Call it a warehouse network outage and tell the lead the whole network is down', feedback:'Not this. One device is affected and other warehouse devices work, so this is not an outage. The step stays open: choose again.' },
+          { id:'restart-clock', text:'Ask the warehouse to restart the clock again', feedback:'Not this. A restart would take another free address, because nothing is reserved for the clock. The step stays open: choose again.' },
+          { id:'set-by-hand', text:'Tell the warehouse to type 10.20.30.61 into the clock by hand', feedback:'Not this. An address typed on the device can clash with a lease, and it does not fix the cause. The fix is a reservation, which Server & Identity create (KB-0102). The step stays open: choose again.' },
+          { id:'give-payroll-address', text:'Give payroll the clock\'s current address so badges are recorded today', right:true, action:{ id:'payroll-address-given', label:'Gave payroll the clock\'s current address (10.20.30.142)' }, feedback:'Right. This keeps the team working today (KB-0102). The lasting fix is the reservation request.' },
+        ] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['DHCP', 'NS-WH-CLOCK02', 'lease', 'scope', 'VLAN', 'RITM', 'RITM0010163', 'KB-0102', 'Tier 1', 'P3', 'SLA', 'Server & Identity'],
+        needs:[{ label:'The clock\'s current address', pattern:'10\\.20\\.30\\.142' }, { label:'The address payroll uses', pattern:'10\\.20\\.30\\.61' }, { label:'That nothing is reserved for the clock', pattern:'reserv' }, { label:'What you gave payroll', pattern:'payroll' }, { label:'That you changed nothing on DHCP', pattern:'nothing changed|no change|changed nothing|did not change' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Hardware', subcategory:'Network device', ci:'NS-WH-CLOCK02' }, missing:'Set Category Hardware › Network device and CI NS-WH-CLOCK02.' }, { priority:'P3', missing:'Set Impact 2 (a team whose hours are not recorded) and Urgency 2 (today\'s shift, with paper as a fallback). That makes the ticket P3.' }], good:'The priority is P3: a team can\'t record hours, and paper is a fallback.', fix:'Set Impact 2 (a team) and Urgency 2 (today\'s shift, with paper as a fallback). The ticket is P3.' },
+        { area:'Investigation', checks:[
+          { serverSeen:'dhcp-scope:Warehouse', missing:'Open DHCP › the Warehouse scope and read the address leases. Read the lease, don\'t guess.' },
+          { serverSeen:'dns-record:timeclock-02:A', missing:'Open DNS and read the timeclock-02 record: it is the address payroll calls (10.20.30.61).' },
+        ], good:'You read the lease (10.20.30.142) and the address payroll calls (10.20.30.61).', fix:'Open DHCP › Warehouse and read the lease for NS-WH-CLOCK02, then read the timeclock-02 record in DNS.' },
+        { area:'Diagnosis', checks:[{ kb:'KB-0102', missing:'Search the KB for "reservation" and open KB-0102.' }], good:'Nothing is reserved for the clock, so it takes a free address after each restart (KB-0102).', fix:'Open KB-0102. The Warehouse scope has one reservation (NS-WH-LABEL01) and an exclusion range, and nothing for the time clock.' },
+        { area:'Action', checks:[
+          { action:'payroll-address-given', missing:'Choose the response that gives payroll the clock\'s current address. Never call it an outage, restart the clock or type an address on it.' },
+          { converted:true, missing:'Convert the incident to a request for the reservation.' },
+          { requestItem:'Network device reservation', missing:'Choose the catalog item Network device reservation.' },
+          { requestFor:'Monica Hall', missing:'Set Requested for to Monica Hall, the clock\'s owner.' },
+          { requestField:{ id:'device', value:'NS-WH-CLOCK02' }, missing:'Set Device to NS-WH-CLOCK02.' },
+          { requestField:{ id:'mac', value:'00:1B:44:5E:9A:42' }, missing:'Set Hardware address to the one on the clock\'s lease.' },
+          { requestField:{ id:'address', value:'10.20.30.61' }, missing:'Set Address to reserve to 10.20.30.61, the address payroll calls.' },
+          { requestField:{ id:'scope', value:'Warehouse' }, missing:'Set Scope to Warehouse.' },
+        ], good:'Payroll has the current address, and the reservation is requested instead of changing DHCP.', fix:'Give payroll the clock\'s current address, then convert the incident to Network device reservation with the device, its hardware address, 10.20.30.61 and the Warehouse scope.' },
+        { area:'Documentation', checks:[{ attached:'KB-0102', missing:'Attach KB-0102 to the ticket.' }, { note:true, missing:'Write a Reported / Tried / Result / Next action note.' }, { comment:true, missing:'Write a comment for Monica in plain words, with no internal terms.' }], good:'KB-0102 attached, a complete note and a plain-words comment for Monica.', fix:'Attach KB-0102, write a Reported / Tried / Result / Next action note, and write a plain-words comment, for example: "Hi Monica, badges are being recorded again. Payroll has the clock\'s current address, so nothing is lost from this morning, including the night shift\'s clock-outs. The cause is that the clock is picking up a new address each time it restarts, instead of keeping one of its own. I\'ve put in a request for our server team to reserve its proper address, and once that\'s in place it\'ll stay put after any restart. I\'ll confirm when it\'s done. – Riley"' },
       ],
     } }),
 ];
