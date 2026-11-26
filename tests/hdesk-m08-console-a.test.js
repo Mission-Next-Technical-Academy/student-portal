@@ -409,6 +409,11 @@ function testEnableAndReset() {
   assert.ok(pane.includes(otp), 'shown');
   assert.match(pane, /Read this to the user; never type it into the ticket/);
   assert.ok(tab.pane().includes(otp), 'a redraw before it is read keeps it on screen');
+  // A new shift in the same page (a coach's reset) never shows it.
+  const reset = acct(); reset.open('HD-9852'); reset.run("hdVerify('HD-9852', 'callback'); hdServerSeen('test-hr-record', 'T'); hdAcctEnable('u-1004'); hdAcctReset('u-1004', true)");
+  const resetOtp = reset.run('hdAcctOtp.value');
+  reset.run("hdState = hdFreshPracticeSetState(); hdSelectTicket('HD-9852'); hdOpenUser('u-1004')");
+  assert.ok(!reset.pane().includes(resetOtp), 'not in a fresh shift');
   tab.run('hdAcctOtpDone()');
   pane = tab.pane();
   assert.ok(!pane.includes(otp), 'and never again once read');

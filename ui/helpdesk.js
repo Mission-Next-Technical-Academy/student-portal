@@ -6969,7 +6969,7 @@ function hdRunPowerShell(event) {
   if (hdHasArrivals()) hdCheckArrivals();
   hdSave(); render();
 }
-VIEWS['helpdesk/powershell'] = () => `${hdPageHeader('PowerShell', `Connected to ${hdEsc(hdState.selectedComputer)} · training commands`)}<div class="hd-terminal"><div class="hd-terminal-title">Northstar Enterprise Support Shell</div><div class="hd-terminal-output">${hdState.powershell.map((row, index)=>`<pre class="${row.type}">${hdEsc(hdAcctOtp && !hdAcctOtp.shown && hdAcctOtp.psRow === index ? String(row.text).split(HD_OTP_HIDDEN).join(hdAcctOtp.value) : row.text)}</pre>`).join('')}</div><form onsubmit="hdRunPowerShell(event)" class="hd-terminal-input"><span>PS C:\\Support&gt;</span><input id="hd-ps-input" autocomplete="off" spellcheck="false" placeholder="Get-Help" autofocus><button>Run</button></form></div><div class="callout info">Command-line output is simulated and limited to the course fixtures. Use it to collect repeatable evidence for ticket notes.</div>`;
+VIEWS['helpdesk/powershell'] = () => `${hdPageHeader('PowerShell', `Connected to ${hdEsc(hdState.selectedComputer)} · training commands`)}<div class="hd-terminal"><div class="hd-terminal-title">Northstar Enterprise Support Shell</div><div class="hd-terminal-output">${hdState.powershell.map((row, index)=>`<pre class="${row.type}">${hdEsc(hdAcctOtp && !hdAcctOtp.shown && hdAcctOtp.state === hdState && hdAcctOtp.psRow === index ? String(row.text).split(HD_OTP_HIDDEN).join(hdAcctOtp.value) : row.text)}</pre>`).join('')}</div><form onsubmit="hdRunPowerShell(event)" class="hd-terminal-input"><span>PS C:\\Support&gt;</span><input id="hd-ps-input" autocomplete="off" spellcheck="false" placeholder="Get-Help" autofocus><button>Run</button></form></div><div class="callout info">Command-line output is simulated and limited to the course fixtures. Use it to collect repeatable evidence for ticket notes.</div>`;
 
 // The fixed screen every older ticket sees (no server state in the shift).
 const hdServerManagerFixed = () => `${hdPageHeader('Server Manager', 'Inspect Windows Server roles, services, health, and endpoint dependencies.')}<div class="hd-metric-grid">${hdMetric('Servers',hdServers().length,'2 domain controllers')}${hdMetric('Online',hdServers().filter(s=>s.status==='Online').length,'Responding to management')}${hdMetric('Degraded',hdServers().filter(s=>s.status==='Degraded').length,'Service investigation required','warning')}${hdMetric('Critical roles','AD DS · DNS · DHCP','Authentication and connectivity')}</div><div class="card"><div class="table-wrap"><table><thead><tr><th>Server</th><th>Role</th><th>Address</th><th>Status</th><th>CPU</th><th>Memory</th><th>Role / service health</th></tr></thead><tbody>${hdServers().map(s=>`<tr><td><strong>${s.name}</strong><small>${s.os}</small></td><td>${s.role}</td><td><code>${s.ip}</code></td><td>${hdBadge(s.status,s.status==='Online'?'ok':'warn')}</td><td>${s.cpu}</td><td>${s.memory}</td><td>${s.service}</td></tr>`).join('')}</tbody></table></div></div>`;
@@ -8054,7 +8054,8 @@ function hdAcctReset(userId, mustChange, via = 'Active Directory › Reset passw
   const user = hdFileUser(userId);
   const block = hdAcctBlock(user, 'reset'); if (block) return { ok:false, message:hdAcctRefuse(user, 'reset', block) };
   const value = hdAcctNewOtp();
-  hdAcctOtp = { userId, value, shown:false };
+  // Bound to this shift: a reset or another shift in this page never shows it.
+  hdAcctOtp = { userId, value, shown:false, state:hdState };
   hdState.acctDialog = null;
   hdAcctPatch(userId, { passwordExpired:false, passwordLastSet:`${hdAcctTime()} (reset)`, passwordAge:0, mustChange:mustChange === true, locked:user.locked });
   hdAcctRecord(user, 'ad-password-reset', `Password reset for ${user.username}, ${mustChange ? 'with' : 'without'} "User must change password at next logon" (${via})`, { via, mustChange:mustChange === true });
@@ -8224,7 +8225,7 @@ function hdAcctExpiryFrom(userId) {
 // again after that, and never after a reload (it is not saved).
 function hdAcctOtpDone() { if (hdAcctOtp) hdAcctOtp.shown = true; render(); }
 function hdAcctOtpHtml(user) {
-  if (!hdAcctOtp || hdAcctOtp.userId !== user.id) return '';
+  if (!hdAcctOtp || hdAcctOtp.userId !== user.id || hdAcctOtp.state !== hdState) return '';
   if (hdAcctOtp.shown) return '<p class="muted" data-hd-otp-hidden>The one-time password was shown once and is hidden now.</p>';
   const line = HD_PROVE ? 'Shown once.' : 'Read this to the user; never type it into the ticket. It shows only once.';
   return `<div class="callout warn" role="status" data-hd-otp><strong>One-time password: <code>${hdEsc(hdAcctOtp.value)}</code></strong><br>${line} <button type="button" class="btn btn-ghost btn-sm" data-hd-otp-done onclick="hdAcctOtpDone()">${HD_PROVE ? 'Hide' : 'I\'ve read it to the user'}</button></div>`;
