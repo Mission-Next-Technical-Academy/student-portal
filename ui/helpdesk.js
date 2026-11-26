@@ -2433,7 +2433,8 @@ function hdShortDescription(ticket) { return ticket.shortDescription || ticket.t
 // Requested Item (ticket.request), which has no SLA bar.
 function hdConvertDraft(ticket) {
   const state = hdConsoleState(ticket);
-  state.convert = state.convert || { item:'', requestedFor:ticket.requester, fields:{} };
+  // A Prove It starts with no one chosen, so the student picks who it is for.
+  state.convert = state.convert || { item:'', requestedFor:HD_PROVE ? '' : ticket.requester, fields:{} };
   return state.convert;
 }
 // Who a request can be for: the directory (a Prove shift adds its own users).
@@ -2474,7 +2475,8 @@ function hdConvertToRequest(id) {
   const notRequired = hdApprovalNotRequired(item.approval);
   ticket.request = {
     number:config.number || 'RITM', item:item.name, requestedFor:draft.requestedFor,
-    fields:(item.fields || []).map(field => ({ id:field.id, label:field.label, value:draft.fields[field.id] })),
+    // The approver field shows once, as the request's Approver.
+    fields:(item.fields || []).filter(field => field.id !== item.approverField).map(field => ({ id:field.id, label:field.label, value:draft.fields[field.id] })),
     approval:approved ? 'Approved' : notRequired ? String(item.approval) : 'Requested',
     // approverField (Module 8's Prove It): the approver is the one chosen on the form.
     approver:(item.approverField ? draft.fields[item.approverField] : item.approver) || '', approvedAt:approved ? hdShiftIso(ticket) : '', state:'Open',
@@ -2484,7 +2486,7 @@ function hdConvertToRequest(id) {
     // and the key. value: who approves it; source: the catalog item, its other
     // choices and who it is for ("<item>: <choice> · <requested for>").
     const request = ticket.request;
-    const choices = request.fields.filter(field => field.id !== item.approverField).map(field => field.value).join(', ');
+    const choices = request.fields.map(field => field.value).join(', ');
     const what = `${item.name}${choices ? `: ${choices}` : ''}`;
     hdHistory(ticket, `Request ${request.number} (${what}) opened from this ticket for ${request.requestedFor}${request.approver ? `; approver ${request.approver}` : ''}.`);
     hdProveEvent('action_taken', { label:`Opened request: ${what} for ${request.requestedFor}${request.approver ? `, approver ${request.approver}` : ''}`, value:`request-opened:${request.approver}`, source:`${what} · ${request.requestedFor}` });

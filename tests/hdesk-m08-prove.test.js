@@ -260,6 +260,7 @@ function testRequestAndTeamMessages() {
   html = ticketView(tab);
   assert.match(html, /Approval: Requested/);
   assert.ok(html.includes(`<dt>Approver</dt><dd>${tab.run('hdEsc')(approver)}</dd>`), 'the chosen approver shows');
+  assert.equal((html.match(/<dt>Approver<\/dt>/g) || []).length, 1, 'the approver shows once');
   assert.doesNotMatch(html, /Close the request/, 'nothing closes the request in a Prove It');
   // One request per ticket.
   openRequest(tab, FIXED_ITEM, PEOPLE[1].name, approverOptions(FIXED_ITEM)[0]);
@@ -268,6 +269,13 @@ function testRequestAndTeamMessages() {
   const other = sim('its-06', 'stu-request-other');
   openRequest(other, FIXED_ITEM, PEOPLE[1].name, approverOptions(FIXED_ITEM)[0]);
   same(other.actions().map((a) => [a.value, a.source]), [[`request-opened:${approverOptions(FIXED_ITEM)[0]}`, `${FIXED_ITEM.name}: ${choiceOf(FIXED_ITEM)} · ${PEOPLE[1].name}`]]);
+  // Nobody is chosen as Requested for until the student picks someone.
+  const blank = sim('its-06', 'stu-request-blank');
+  assert.equal(blank.run('hdConvertDraft(hdState.tickets[0]).requestedFor'), '');
+  blank.run(`hdConvertSet(${j(TID)}, 'item', ${j(FIELD_ITEM.name)})`);
+  FIELD_ITEM.fields.forEach((field) => blank.run(`hdConvertSet(${j(TID)}, ${j(field.id)}, ${j(field.options[0])})`));
+  blank.run(`hdConvertToRequest(${j(TID)})`);
+  same(blank.actions(), [], 'no request without Requested for');
   // A form with a choice missing opens nothing.
   const half = sim('its-06', 'stu-request-half');
   half.run(`hdConvertSet(${j(TID)}, 'item', ${j(FIELD_ITEM.name)}); hdConvertSet(${j(TID)}, 'requestedFor', ${j(PEOPLE[0].name)}); hdConvertToRequest(${j(TID)})`);
