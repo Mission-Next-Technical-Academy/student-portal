@@ -170,8 +170,9 @@ function testOldTicketsKeepTheOldClockAndStates() {
   // HD-2109 is the one hidden template (ownSet, no set, no console): Module 5
   // retired it from the queue on 2026-11-24, and the capstone and older
   // instructor sheets still read it. Module 7 (key its-05) retired HD-2108 and
-  // HD-2117 the same way on 2026-11-25.
-  const HIDDEN = ['HD-2109', 'HD-2108', 'HD-2117'];
+  // HD-2117 the same way on 2026-11-25, and Module 8 (key its-06) SR-2107 and
+  // HD-2118 on 2026-11-26.
+  const HIDDEN = ['HD-2109', 'HD-2108', 'HD-2117', 'SR-2107', 'HD-2118'];
   for (const t of matrixTickets.filter((item) => !HIDDEN.includes(item.id))) {
     assert.equal(t.ownSet, true, `${t.id} needs ownSet: true`);
     assert.ok(realSets.includes(t.id), `${t.id} belongs to no set`);
@@ -588,11 +589,16 @@ function testContactAttemptsAndCoachedSetGuard() {
 // A coached set's tickets must be kept out of the shared shift (ownSet).
 // Then no other coach's reset can leave only some of them on the shift, and
 // the set guard (hdActiveSet) can't keep a set for tickets that aren't its own.
+// One named exception: Module 8's optional extension (its-06-extension) works
+// HD-2101, which stays on the shared shift for Module 1. The set is HD-2101
+// alone, and no coach narrows the shared shift to HD-2101 alone, so no reset
+// can leave the shift looking like that set.
+const SHARED_ON_PURPOSE = { 'its-06-extension': ['HD-2101'] };
 function testCoachedSetTicketsAreOwnSet() {
   const tab = sim({ withTest: false });
   const sets = tab.run("typeof HD_COACHED_SETS === 'undefined' ? {} : HD_COACHED_SETS");
   for (const [key, set] of Object.entries(plain(sets))) {
-    for (const id of set.tickets) {
+    for (const id of set.tickets.filter((item) => !(SHARED_ON_PURPOSE[key] || []).includes(item))) {
       const template = plain(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === ${JSON.stringify(id)}) || null`));
       assert.ok(template, `coached set ${key}: ticket ${id} has no template`);
       assert.equal(template.ownSet, true, `coached set ${key}: ticket ${id} needs ownSet: true`);

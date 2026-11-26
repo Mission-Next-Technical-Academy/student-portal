@@ -46,7 +46,10 @@
     // Module 7 (key its-05) Lab 7.1. Older attempts keep HD-2108 and HD-2117
     // on their sheet (portal/admin-sheets/hdesk.js).
     'hd-m05': ['HD-2189', 'HD-2190'],
-    'hd-m06': ['SR-2107', 'HD-2118'],
+    // Module 8 (key its-06) Lab 8.1. Older attempts keep SR-2107 and HD-2118
+    // on their sheet (portal/admin-sheets/hdesk.js). The optional extension
+    // (hd-m06-ext) sends nothing, so it has no entry.
+    'hd-m06': ['HD-2196', 'HD-2197', 'SR-2207'],
     // Module 6 (key its-07) Lab 6.1. Older attempts keep HD-2119 on their
     // sheet (portal/admin-sheets/hdesk.js).
     'hd-m07': ['HD-2176'],
@@ -1331,8 +1334,365 @@
     ],
   });
 
+  /* ---------------------------------------------------------- hd-m06 ---- */
+  /* Module 8 (key its-06) Lab 8.1, an identity morning (coached set
+   * its-06-guided): Part A on HD-2196 (Noah Williams, a lockout that comes
+   * back), Part B on HD-2197 and its request SR-2207 (Sam Rivera, a new work
+   * phone). Feedback only, no points. Every check reads saved state (the
+   * tickets, the shift's screen list, the command history, the phone), never
+   * a tick box, so a step done early passes when it comes up. Lab 8.1 types
+   * cmdkey /list (required) and Get-ADUser (or reads the same pane); ticket
+   * 8-C types the third line, whoami /groups. Every other step passes from its
+   * screen or from its optional command, which earn the same evidence key. Phone and cloud changes record on whichever ticket is
+   * open, so Part B reads both HD-2197 and SR-2207. A toggle on the phone is
+   * read from the phone's state, because a toggle done twice is off. The old
+   * SR-2107 and HD-2118 coach is gone; a saved run of it starts fresh. */
+  const HD6_A = 'HD-2196';
+  const HD6_B = 'HD-2197';
+  const HD6_R = 'SR-2207';
+  const HD6_PC = 'NS-WS-0277';
+  const HD6_PHONE = 'NS-PH-0001';
+  const HD6_CODE = 'Fixed — user guided';
+  // The ticket the student opened from Tickets. A lookup counts for that
+  // ticket only (hdServerPracticeTicket), so step 1 waits until it is open.
+  const hd6Opened = (id) => typeof hdState !== 'undefined' && Boolean(hdState) && hdState.openedTicketId === id;
+  const hd6Seen = (key) => typeof hdState !== 'undefined' && Boolean(hdState) && Array.isArray(hdState.serverSeen) && hdState.serverSeen.includes(key);
+  // A line the console ran (not refused), in any letter case, with extra spaces.
+  const hd6Typed = (computer, test) => (typeof hdState !== 'undefined' && hdState && Array.isArray(hdState.practiceLog) ? hdState.practiceLog : [])
+    .some((e) => e && e.type === 'command_run' && (!computer || e.computer === computer) && !HD5_REFUSED.test(String(e.result || '').trim())
+      && test(String(e.command || '').trim().replace(/\s+/g, ' ')));
+  // The phone and the cloud record an action on the open ticket, so Part B
+  // reads both of its records.
+  const hd6BDid = (action, test) => hd2Did(HD6_B, action, test) || hd2Did(HD6_R, action, test);
+  const hd6Phone = () => {
+    try {
+      const cloud = typeof hdCloud === 'function' ? hdCloud() : null;
+      return cloud && typeof hdPhone === 'function' ? hdPhone(HD6_PHONE, cloud) : null;
+    } catch { return null; }
+  };
+  // The user's own confirmation, after the fix: the ticket's questions that
+  // confirm it (confirms: true), asked while the account was unlocked.
+  const hd6Confirmed = (id) => {
+    const t = hd2Ticket(id);
+    if (!t || typeof hdConsole !== 'function' || typeof hdConsoleState !== 'function') return false;
+    const ids = (((hdConsole(t).caller || {}).questions) || []).filter((q) => q && q.confirms).map((q) => q.id);
+    return !ids.length || hdConsoleState(t).chat.some((e) => e && ids.includes(e.id) && !e.refused && e.whileLocked === false);
+  };
+  const hd6Unlocked = (userId) => {
+    const user = typeof hdFileUser === 'function' ? hdFileUser(userId) : null;
+    return Boolean(user) && user.locked === false;
+  };
+  // Part B's triage: the CI is Sam's account or his new phone.
+  const hd6TriagedB = () => {
+    const t = hd2Ticket(HD6_B);
+    const c = t && typeof hdClassification === 'function' ? hdClassification(t) : null;
+    return Boolean(t && c) && c.category === 'Access' && c.subcategory === 'MFA' && ['srivera', HD6_PHONE].includes(c.ci) && t.priority === 'P4';
+  };
+  // Part B step 6: the newest sign-in row for Sam is a success (the approved test).
+  const hd6LatestSignInOk = () => {
+    try {
+      const cloud = typeof hdCloud === 'function' ? hdCloud() : null;
+      const entra = cloud && typeof hdEntraUser === 'function' ? hdEntraUser('u-1013', cloud) : null;
+      const last = entra && entra.signIns.length ? entra.signIns[entra.signIns.length - 1] : null;
+      return Boolean(last) && last.status === 'Success';
+    } catch { return false; }
+  };
+  // Part B step 12: the request itself is closed (Closed Complete), the state the
+  // instructor sheet reads. Resolving the record alone leaves it Open.
+  const hd6RequestClosed = () => {
+    const t = hd2Ticket(HD6_R);
+    return Boolean(t) && Boolean(t.request) && /^closed/i.test(String(t.request.state || ''));
+  };
+  hd2ForgetStale('hd-m06', 'its-06-guided');
+
+  MODULE_COACHES.push({
+    id: 'hd-m06', module: 8, name: 'Guided Lab: an identity morning', role: 'Tier 1 Help Desk Technician',
+    summary: 'Noah Williams in Sales keeps getting locked out. Find out why and fix the cause, then unlock him once. After that, Sam Rivera walks up with a new work phone: set up his sign-in approvals, enrol the phone, set up Outlook and OneDrive, pair his headset, and give him Send as on the support mailbox. Feedback only, no score.',
+    completionToken: 'hd-m06', home: '#/helpdesk/tickets',
+    resetState: () => {
+      if (typeof hdUseTicketSet === 'function') hdUseTicketSet('its-06-guided');
+      // HD-2196 starts open: the ticket view shows a ticket before one is
+      // opened, and lookups count only for an opened ticket (step 1 waits).
+      if (typeof hdState !== 'undefined' && hdState) { hdState.selectedTicketId = HD6_A; hdState.openedTicketId = HD6_A; }
+    },
+    allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket', '#/helpdesk/windows', '#/helpdesk/powershell', '#/helpdesk/active-directory',
+      '#/helpdesk/directory', '#/helpdesk/credential-manager', '#/helpdesk/file-server', '#/helpdesk/knowledge-base', '#/helpdesk/m365-admin',
+      '#/helpdesk/entra-admin', '#/helpdesk/intune', '#/helpdesk/phone'],
+    steps: [
+      /* ---- Part A: HD-2196, Noah Williams, "Locked out AGAIN" ---- */
+      {
+        route: '#/helpdesk/ticket', target: 'select[data-hd-field="category"], select[data-hd-field="impact"], select[data-hd-field="urgency"]',
+        title: 'Part A: triage Noah’s lockout',
+        instruction: 'Open <strong>Locked out AGAIN</strong> (HD-2196) from <strong>Tickets</strong>. Noah Williams in Sales is on the phone. He was locked out three times since lunch, and you unlocked him at 12:20. Set <strong>Category</strong> Access › Account lockout and <strong>Configuration item</strong> nwilliams (the AD account). Set <strong>Contact type</strong> Phone, <strong>Impact</strong> 3 and <strong>Urgency</strong> 1.',
+        body: 'Why: one person who can’t work at all. The matrix gives P3. Success looks like: the priority shows P3.',
+        waitLabel: 'Next Step: Triaged as P3',
+        check: () => hd6Opened(HD6_A) && hd2Triaged(HD6_A, 'Access', 'Account lockout', 'nwilliams', 'P3'),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '.hd-verify, .hd-chat, [data-hd-choice-card]',
+        title: 'Verify Noah with KB-0024',
+        instruction: 'Open <strong>KB-0024</strong> in the knowledge base. On the ticket, verify Noah: call back on the number in the directory and confirm his employee ID.',
+        body: 'Why: every account action starts with knowing who you’re talking to. Success looks like: the Verify caller card shows Verified.',
+        waitLabel: 'Next Step: Noah verified',
+        check: () => hd2Rule(HD6_A, { verified: true }),
+      },
+      {
+        // Starts on PowerShell: Noah's pane records its keys as it draws once
+        // it is open, so opening the Active Directory screen could pass the
+        // step by itself.
+        route: '#/helpdesk/powershell', target: '#hd-ps-input',
+        title: 'Read every status field on Noah’s account',
+        instruction: 'Read Noah’s account status. Open <strong>PowerShell</strong> from the left menu and ask for it there, or open <strong>Active Directory › Users › Noah Williams</strong> and read his pane. <details><summary>Show me the command</summary><code>Get-ADUser nwilliams -Properties LockedOut, Enabled, AccountExpirationDate, PasswordExpired, PasswordLastSet</code></details>',
+        body: 'Why: read every status field before you touch the account. Success looks like: you can say that the account is locked, enabled, never expires and its password is not expired. His password was set yesterday at 16:10.',
+        waitLabel: 'Next Step: Account status read',
+        // Read on HD-2196 itself, the record "Check my work" reads.
+        check: () => hd2Rule(HD6_A, { serverSeen: 'ad-user:u-1003' }),
+      },
+      {
+        route: '#/helpdesk/active-directory', target: '[data-hd-lockout="u-1003"], [data-hd-ad-user]',
+        title: 'Open Lockout details',
+        instruction: 'In <strong>Active Directory › Users</strong>, open <strong>Noah Williams</strong> and press <strong>Lockout details</strong>. The <strong>Show the Tier 2 view</strong> button is optional. It opens the event 4740 card that Tier 2 reads. If you opened another ticket, open HD-2196 again first: the lookup counts for the ticket that is open.',
+        body: 'Why: a lockout that keeps coming back has a source. Lockout details reads it from the domain controller. Success looks like: Lockouts today 3, and the last lockout source is NS-WS-0277. The Tier 2 view shows the same computer in event 4740.',
+        waitLabel: 'Next Step: Lockout source found',
+        check: () => hd2Rule(HD6_A, { serverSeen: 'ad-lockout:u-1003' }),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '.hd-chat, .hd-caller',
+        title: 'Ask Noah about NS-WS-0277',
+        instruction: 'In the chat on HD-2196, ask Noah: <strong>Is NS-WS-0277 a computer you use?</strong>',
+        body: 'Why: check what changed, which is the method. His password changed yesterday. Success looks like: Noah says it’s his old desk PC, and he left it signed in with the Sales drive mapped. Your theory: a saved password on that PC still has the old one.',
+        waitLabel: 'Next Step: Noah’s old desk PC',
+        // By the question's id: the consent question also names NS-WS-0277.
+        check: () => hd2Rule(HD6_A, { chat: ['device'] }),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '[data-hd-machines], #hd-ps-input',
+        title: 'List the saved credentials on NS-WS-0277',
+        instruction: 'On HD-2196, press <strong>Open NS-WS-0277</strong>. That is the Windows desktop, signed in as Noah. Open <strong>PowerShell</strong> there and list the saved Windows credentials. <details><summary>Show me the command</summary><code>cmdkey /list</code></details>',
+        body: 'Why: this lists saved Windows credentials without showing any password. This step asks for the typed line. Success looks like: <code>Target: Domain:target=NS-FILE01</code>, Type Domain Password, User <code>NORTHSTAR\\nwilliams</code>.',
+        waitLabel: 'Next Step: cmdkey /list run on NS-WS-0277',
+        check: () => hd6Typed(HD6_PC, (cmd) => /^cmdkey(\.exe)?\s+\/list\b/i.test(cmd)),
+      },
+      {
+        route: '#/helpdesk/credential-manager', target: '[data-hd-cred="NS-FILE01"], [data-hd-cred-remove], [data-hd-tools="credential-manager"]',
+        title: 'Remove the stale saved password',
+        instruction: 'Tell Noah what you will do and get his OK. Then, on NS-WS-0277, open <strong>Credential Manager › Windows Credentials</strong>, find <strong>NS-FILE01</strong> and press <strong>Remove</strong>. Confirm with <strong>Yes, remove</strong>. The same fix in a command (optional): <code>cmdkey /delete:NS-FILE01</code>',
+        body: 'Why: removing the stale entry stops the bad attempts. Windows asks for the new password the next time the drive is used. Success looks like: the entry is gone from the list, and the ticket history says you removed it.',
+        waitLabel: 'Next Step: Saved credential removed',
+        check: () => hd2Did(HD6_A, 'credential-removed'),
+      },
+      {
+        route: '#/helpdesk/active-directory', target: '[data-hd-acct="unlock"], [data-hd-ad-user]',
+        title: 'Unlock Noah once',
+        instruction: 'On HD-2196, search the knowledge base for <strong>keeps locking</strong> and open <strong>KB-0103</strong>. Then, in <strong>Active Directory › Users</strong>, open <strong>Noah Williams</strong> and press <strong>Unlock</strong>, once. The same fix in a command (optional): <code>Unlock-ADAccount nwilliams</code>',
+        body: 'Why: unlock only after the source is fixed (KB-0103). Unlocking first would let the old password lock him again. Success looks like: Locked out shows No.',
+        waitLabel: 'Next Step: KB-0103 read, Noah unlocked',
+        check: () => hd2Rule(HD6_A, { kb: 'KB-0103' }) && hd2Rule(HD6_A, { actionsAfter: { after: 'credential-removed', action: 'ad-unlocked' } }) && hd6Unlocked('u-1003'),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '[data-hd-wait-card], [data-hd-wait], .hd-chat',
+        title: 'Make sure it stays fixed',
+        instruction: 'On HD-2196, press <strong>Wait 2 minutes</strong>. Then check again: Noah’s pane, <strong>Lockout details</strong> or <code>Get-ADUser</code> all work. Ask Noah to sign in and open the Sales drive with his new password.',
+        body: 'Why: make sure the fix holds. Success looks like: Noah is still unlocked with no new lockout. He signs in and reopens the Sales drive with his new password.',
+        waitLabel: 'Next Step: Still unlocked, Noah confirms',
+        check: () => hd2Rule(HD6_A, { actionsAfter: { after: 'ad-unlocked', action: 'waited' } }) && hd6Unlocked('u-1003') && hd6Confirmed(HD6_A),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '#hd-note-input, .hd-comments, #hd-resolution-code',
+        title: 'Write the note and comment, then resolve HD-2196',
+        instruction: '<strong>Attach KB-0103</strong> to HD-2196. Write a <strong>work note</strong> with the lines Reported:, Tried: and Result:. Post a <strong>comment</strong> to Noah in plain words. Set the resolution code to <strong>Fixed — user guided</strong> and resolve the ticket.',
+        body: 'Why: the note is how the next technician knows what happened. Success looks like: the note has Reported, Tried and Result, the comment is in plain language, and the ticket is Resolved. A model note:<br><strong>Reported:</strong> locked out 3 times since lunch; unlocked at 12:20 and locked again; password changed yesterday.<br><strong>Tried:</strong> verified per KB-0024 (directory callback and employee ID). Account locked, enabled, never expires, password set yesterday 16:10. Lockout details: 3 lockouts today, source NS-WS-0277 (his old desk PC). <code>cmdkey /list</code> showed a saved credential for NS-FILE01 with the old password. With Noah’s OK, removed it in Credential Manager (KB-0103). Unlocked once.<br><strong>Result:</strong> no new bad attempts after 2 minutes. Noah signed in and reconnected the Sales drive with his new password.<br>A model comment: Hi Noah, you’re unlocked and it should stay that way now. Your old desk PC still had your previous password saved for the Sales drive, and it kept trying it, which locked you out. We’ve removed that saved password. If your desk PC asks for your password for the drive, type your new one. – Riley',
+        waitLabel: 'Next Step: HD-2196 noted and resolved',
+        check: () => hd2Rule(HD6_A, { attached: 'KB-0103' }) && hd2Rule(HD6_A, { note: true }) && hd2Rule(HD6_A, { comment: true })
+          && (hd2Rule(HD6_A, { code: HD6_CODE }) || hd2Rule(HD6_A, { code: 'Solution provided' })) && hd2Rule(HD6_A, { status: 'Resolved' }),
+      },
+      /* ---- Part B: HD-2197 and SR-2207, Sam Rivera, "New work phone" ---- */
+      {
+        route: '#/helpdesk/ticket', target: 'select[data-hd-field="category"], select[data-hd-field="impact"], select[data-hd-field="urgency"], [data-hd-request]',
+        title: 'Part B: triage Sam’s new phone',
+        instruction: 'Sam Rivera in Customer Service walks up to the Service Desk with his badge. Open <strong>New work phone</strong> (HD-2197). Set <strong>Category</strong> Access › MFA and <strong>Configuration item</strong> Sam’s account (srivera) or his phone NS-PH-0001. Set <strong>Contact type</strong> Walk-in, <strong>Impact</strong> 3 and <strong>Urgency</strong> 2. Also open the linked request <strong>SR-2207</strong> (RITM0010162, Shared mailbox access).',
+        body: 'Why: one person, still working on his laptop. Success looks like: HD-2197 shows P4. The request shows no SLA bar, because a request has no priority.',
+        waitLabel: 'Next Step: Triaged as P4',
+        check: hd6TriagedB,
+      },
+      {
+        route: '#/helpdesk/ticket', target: '.hd-verify, [data-hd-evidence], .hd-chat',
+        title: 'Verify Sam in person with KB-0065',
+        instruction: 'On HD-2197, open <strong>KB-0065</strong>. Compare Sam’s badge with his directory photo and confirm his employee ID. Then open the hardware request on his record: <strong>Hardware request (yesterday): phone swap</strong>.',
+        body: 'Why: an MFA change needs the strongest check, and in person with a matching badge is the strongest. Success looks like: Sam is verified in person. The swap is on record: old phone NS-PH-0002 returned and wiped, new phone NS-PH-0001 issued.',
+        waitLabel: 'Next Step: Sam verified, swap on record',
+        check: () => hd2Rule(HD6_B, { verified: true }) && hd2Rule(HD6_B, { evidence: 'sam-hardware-request' }),
+      },
+      {
+        // Starts on the ticket: the Service health tab records its key as it
+        // draws, so opening the admin center on that tab could pass the step
+        // by itself.
+        route: '#/helpdesk/ticket', target: '[data-hd-cloud-open="m365"], [data-hd-cloud-card]',
+        title: 'Check Microsoft’s service health first',
+        instruction: 'On the ticket, open the <strong>Microsoft 365 admin center</strong>. Choose the <strong>Service health</strong> tab. Read the advisories.',
+        body: 'Why: check Microsoft before you change anything locally. Success looks like: one advisory, Teams meeting recordings delayed. Nothing is about sign-in or Exchange, so the problem is not on Microsoft’s side.',
+        waitLabel: 'Next Step: Service health read',
+        check: () => hd2Rule(HD6_B, { serverSeen: 'm365-health' }),
+      },
+      {
+        route: '#/helpdesk/entra-admin', target: '[data-hd-entra-user="u-1013"], [data-hd-reregister], [data-hd-method-device]',
+        title: 'Read Sam’s methods, then require re-registration',
+        instruction: 'Open the <strong>Entra admin center</strong> and choose <strong>Sam Rivera</strong>. On <strong>Authentication methods</strong>, read his methods. Then press <strong>Require re-register multifactor authentication</strong>.',
+        body: 'Why: his Authenticator is on a wiped phone. Re-registration makes him set it up again at his next sign-in. Read before you change. Success looks like: the method shown is Microsoft Authenticator on NS-PH-0002. After the action, the audit log shows the reset by rmorgan.',
+        waitLabel: 'Next Step: Re-registration required',
+        check: () => hd2Rule(HD6_B, { serverSeen: 'entra-methods:u-1013' }) && hd6BDid('entra-mfa-reregister'),
+      },
+      {
+        route: '#/helpdesk/phone', target: '[data-hd-auth-add], [data-hd-phone-open="authenticator"], [data-hd-auth-test], [data-hd-auth-prompt]',
+        title: 'Set up Authenticator on NS-PH-0001',
+        instruction: 'Open the <strong>Phone</strong> screen for <strong>NS-PH-0001</strong>. Open <strong>Authenticator</strong> and press <strong>Add work account</strong>. Then press <strong>Sign in on the laptop (test)</strong> and <strong>Approve</strong> the prompt.',
+        body: 'Why: the new phone becomes his second factor. Success looks like: Authentication methods now shows Microsoft Authenticator on NS-PH-0001.',
+        waitLabel: 'Next Step: Authenticator set up and approved',
+        check: () => hd6BDid('phone-auth-added') && hd6BDid('phone-auth-approved'),
+      },
+      {
+        route: '#/helpdesk/entra-admin', target: '[data-hd-cloud-tab="signins"], [data-hd-entra-signins], [data-hd-signin-reason]',
+        title: 'Read Sam’s sign-in log',
+        instruction: 'In the <strong>Entra admin center</strong>, open <strong>Sam Rivera</strong> and choose <strong>Sign-in logs</strong>.',
+        body: 'Why: learn to read why a sign-in failed, and that it works now. Success looks like: earlier rows say “MFA required — not completed”. The newest row is Success, with MFA by Authenticator.',
+        waitLabel: 'Next Step: Sign-in log read',
+        check: () => hd2Rule(HD6_B, { serverSeen: 'entra-signins:u-1013' }) && hd6BDid('phone-auth-approved') && hd6LatestSignInOk(),
+      },
+      {
+        route: '#/helpdesk/phone', target: '[data-hd-cp-enrol], [data-hd-phone-open="company-portal"], [data-hd-cp-status]',
+        title: 'Enrol the phone, then read it in Intune',
+        instruction: 'On the NS-PH-0001 phone screen, open <strong>Company Portal</strong> and press <strong>Enrol this device</strong>. Then open the <strong>Intune admin center › Devices</strong> and open <strong>NS-PH-0001</strong>.',
+        body: 'Why: Northstar lets only compliant company phones get work mail. Success looks like: NS-PH-0001 is Corporate and Compliant (PIN, encryption and OS current). NS-PH-0002 shows Retired.',
+        waitLabel: 'Next Step: Phone enrolled and compliant',
+        check: () => hd6BDid('phone-cp-enrolled') && hd6Seen('intune-device:' + HD6_PHONE),
+      },
+      {
+        route: '#/helpdesk/phone', target: '[data-hd-outlook-add], [data-hd-phone-open="outlook"], [data-hd-phone-sync-calendar], [data-hd-phone-sync-contacts]',
+        title: 'Add Sam’s work account in Outlook',
+        instruction: 'On the phone screen, open <strong>Outlook</strong> and press <strong>Add work account</strong>. Check that <strong>Mail</strong>, <strong>Calendar</strong> and <strong>Contacts</strong> sync are all on. Turn on any that are off.',
+        body: 'Why: this is mobile sync of business apps (A+ 1.3). Success looks like: his inbox, calendar and contacts all show up to date.',
+        waitLabel: 'Next Step: Outlook synced',
+        check: () => {
+          const phone = hd6Phone();
+          return Boolean(phone) && phone.outlook.account === true && phone.outlook.sync.mail === true && phone.outlook.sync.calendar === true && phone.outlook.sync.contacts === true;
+        },
+      },
+      {
+        route: '#/helpdesk/phone', target: '[data-hd-phone-wifi-only], [data-hd-phone-open="onedrive"], [data-hd-data-used]',
+        title: 'Set OneDrive to upload on Wi-Fi only',
+        instruction: 'Read the status bar. It shows 3.6 GB used of a <strong>5 GB</strong> plan. On the phone screen, open <strong>OneDrive › Settings</strong> and turn on <strong>Upload on Wi-Fi only</strong>.',
+        body: 'Why: a data cap limits cellular data, and big uploads belong on Wi-Fi. Success looks like: the setting is on. One more thing to know: a phone hotspot also uses the same cap.',
+        waitLabel: 'Next Step: OneDrive on Wi-Fi only',
+        check: () => { const phone = hd6Phone(); return Boolean(phone) && phone.onedrive.wifiOnly === true; },
+      },
+      {
+        route: '#/helpdesk/phone', target: '[data-hd-bt-pairing-mode], [data-hd-bt-scan], [data-hd-bt-pin], [data-hd-bt-test], [data-hd-phone-open="bluetooth"]',
+        title: 'Pair Sam’s headset',
+        instruction: 'On the phone screen, open <strong>Settings › Bluetooth</strong> and turn Bluetooth <strong>on</strong>. Put the <strong>HS-200 Headset</strong> in pairing mode, press <strong>Find devices</strong>, choose <strong>HS-200 Headset</strong> and enter the PIN <strong>0000</strong>. Then press <strong>Test call</strong>.',
+        body: 'Why: these are the four pairing steps: on, find, PIN, test (A+ 1.3). Success looks like: the headset shows Connected, and the test call has audio.',
+        waitLabel: 'Next Step: Headset paired and tested',
+        check: () => hd6BDid('phone-bt-on') && hd6BDid('phone-bt-pairing-mode') && hd6BDid('phone-bt-paired') && hd6BDid('phone-bt-tested'),
+      },
+      {
+        route: '#/helpdesk/m365-admin', target: '[data-hd-cloud-tab="mailboxes"], [data-hd-mailbox="support"], [data-hd-mailbox-add], [data-hd-send-as], [data-hd-full-access]',
+        title: 'Add Send as on support@',
+        instruction: 'Open <strong>SR-2207</strong> and read the approval from the mailbox owner, Celia Morales. In the <strong>Microsoft 365 admin center</strong>, open <strong>Shared mailboxes › support</strong>. Read <strong>Read and manage (Full Access)</strong>: Sam is already there. Then add Sam under <strong>Send as</strong>.',
+        body: 'Why: Full Access opens a mailbox. Send as sends from it (KB-0107). The owner’s approval is on the request. Success looks like: Sam is listed under Send as. The screen says it can take up to an hour.',
+        waitLabel: 'Next Step: Send as added',
+        check: () => hd2Rule(HD6_R, { serverSeen: 'm365-mailbox:support' }) && hd6BDid('m365-sendas-added'),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '#hd-note-input, .hd-comments, #hd-resolution-code, [data-hd-request]',
+        title: 'Close both records',
+        instruction: 'On <strong>HD-2197</strong>, <strong>attach KB-0065</strong>, then write a <strong>work note</strong> with Reported:, Tried: and Result:. Post a <strong>comment</strong> to Sam in plain words. Resolve the ticket. On <strong>SR-2207</strong>, write a close note with the same three parts. Then press <strong>Close the request (Closed Complete)</strong>.',
+        body: 'Why: each record says what was done for it. Success looks like: both have Reported, Tried and Result, HD-2197 is Resolved and the request is closed. A model note for HD-2197:<br><strong>Reported:</strong> new company phone yesterday; Authenticator was on the old phone, so he can’t approve sign-ins; Teams prompting on his laptop.<br><strong>Tried:</strong> verified in person per KB-0065 (badge matches directory photo, employee ID). The hardware request shows NS-PH-0002 returned and wiped, NS-PH-0001 issued. Service health: no sign-in or Exchange advisory. Required MFA re-registration. Guided Authenticator setup on NS-PH-0001. Enrolled in Company Portal. Set OneDrive to Wi-Fi only (5 GB plan). Paired the HS-200 headset.<br><strong>Result:</strong> test sign-in approved; sign-in log Success with MFA; NS-PH-0001 Compliant; Outlook mail, calendar and contacts syncing; headset test call OK.<br>A model close note for SR-2207: Send as on support@ added for Sam Rivera per owner approval (C. Morales); Full Access was already in place; may take up to an hour to apply.',
+        waitLabel: 'Next Step: Both records closed',
+        check: () => hd2Rule(HD6_B, { attached: 'KB-0065' }) && hd2Rule(HD6_B, { note: true }) && hd2Rule(HD6_B, { comment: true }) && hd2Rule(HD6_B, { status: 'Resolved' })
+          && hd2Rule(HD6_R, { note: true }) && hd6RequestClosed(),
+      },
+      {
+        title: 'Finish the lab',
+        instruction: 'Check worked. Press <strong>Finish</strong> to send your work to your course page.',
+        body: 'Your triage, screens, commands, tickets, notes and comments count once your course page confirms it saved them. There is no score. The optional extension on your course page is not part of this record.',
+        finish: { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/8', 'hd-m06') },
+      },
+    ],
+  });
+
+  /* hd-m06-ext: the optional extension of Lab 8.1 (coached set
+   * its-06-extension), HD-2101 with its lockout source shown as Tier 2 work.
+   * It has no completion token and is not in HD_COACH_TICKET_IDS, so nothing
+   * is sent and nothing reaches the lab record. Tier 1 reads the source and
+   * hands the ticket on; the fix and the unlock stay with Tier 2. */
+  const HD6E_ID = 'HD-2101';
+  // Extension step 2: Jordan's identity check. HD-2101 keeps it in its scenario; a
+  // verification on the ticket's own console counts too.
+  const hd6eVerified = () => {
+    const scenario = typeof hdM01 === 'function' ? hdM01() : null;
+    return (Boolean(scenario) && scenario.identity === 'callback') || hd2Rule(HD6E_ID, { verified: true });
+  };
+  hd2ForgetStale('hd-m06-ext', 'its-06-extension');
+
+  MODULE_COACHES.push({
+    id: 'hd-m06-ext', module: 8, name: 'Optional extension: a lockout that isn\'t Tier 1\'s', role: 'Tier 1 Help Desk Technician',
+    summary: 'Optional, and not part of your lab record. Jordan Bell in Finance gets unlocked and locked again. This time the saved-password fix from the lab does not apply. Find the source, see why it is Tier 2 work, and hand it on with a note. Nothing from this extension is sent to your course page.',
+    home: '#/helpdesk/tickets',
+    resetState: () => {
+      if (typeof hdUseTicketSet === 'function') hdUseTicketSet('its-06-extension');
+      // HD-2101 starts open, for the same reason as Lab 8.1's HD-2196.
+      if (typeof hdState !== 'undefined' && hdState) { hdState.selectedTicketId = HD6E_ID; hdState.openedTicketId = HD6E_ID; }
+    },
+    allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket', '#/helpdesk/windows', '#/helpdesk/powershell', '#/helpdesk/active-directory',
+      '#/helpdesk/directory', '#/helpdesk/credential-manager', '#/helpdesk/file-server', '#/helpdesk/knowledge-base'],
+    steps: [
+      {
+        route: '#/helpdesk/ticket', target: 'select[data-hd-field="category"], select[data-hd-field="impact"], select[data-hd-field="urgency"]',
+        title: 'Extension: triage Jordan’s lockout',
+        instruction: 'Open <strong>Unlocks, then locks again</strong> (HD-2101) from <strong>Tickets</strong>. Set <strong>Category</strong> Access › Account lockout and <strong>Configuration item</strong> jbell. Set <strong>Impact</strong> 2 and <strong>Urgency</strong> 1.',
+        body: 'Why: a payroll analyst on a payroll day is a critical role. Success looks like: the priority shows P2. P3 is also accepted.',
+        waitLabel: 'Next Step: Triaged',
+        check: () => {
+          const t = hd2Ticket(HD6E_ID);
+          return Boolean(t) && hd6Opened(HD6E_ID) && hd2Triaged(HD6E_ID, 'Access', 'Account lockout', 'jbell', t.priority) && ['P2', 'P3'].includes(t.priority);
+        },
+      },
+      {
+        route: '#/helpdesk/ticket', target: '.hd-identity, .hd-verify, [data-hd-evidence], [data-hd-lockout="u-1005"]',
+        title: 'Verify Jordan and find the lockout source',
+        instruction: 'Verify Jordan with <strong>KB-0024</strong>, the same first moves as in the lab. Then open <strong>Active Directory › Users › Jordan Bell</strong> and press <strong>Lockout details</strong>, then <strong>Show the Tier 2 view</strong>. Back on the ticket, open the evidence card <strong>Tier 2’s view: Task Scheduler on NS-LT-0117</strong>. Then press <strong>Open NS-LT-0117</strong> and open <strong>Credential Manager</strong> there.',
+        body: 'Why: same first moves as Part A. Success looks like: the last lockout source is NS-LT-0117, Jordan’s laptop, and the domain controller’s event 4740 names the same computer. The evidence card shows <strong>FinanceReportSync</strong> running as NORTHSTAR\\jbell every 2 minutes, with a stored password last changed 90 days ago. Credential Manager on NS-LT-0117 has no saved entry, so this is not Part A’s cause. Say so in your note.',
+        waitLabel: 'Next Step: Source found',
+        check: () => hd6eVerified() && hd2Rule(HD6E_ID, { serverSeen: 'ad-lockout:u-1005' }) && hd2Rule(HD6E_ID, { serverSeen: 'lockout-4740:u-1005' })
+          && hd2Rule(HD6E_ID, { evidence: 'task-scheduler-ns-lt-0117' })
+          && hd2Rule(HD6E_ID, { seen: 'credential-manager', computer: 'NS-LT-0117' }),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '#hd-assignment-group, [data-hd-team], .hd-handoff',
+        title: 'Decide who owns the fix',
+        instruction: 'Search the knowledge base for <strong>keeps locking</strong> and open <strong>KB-0103</strong>. Tier 1 doesn’t change a scheduled task (KB-0024 step 6, KB-0103). Set <strong>Assignment group</strong> to <strong>Desktop Support (Tier 2)</strong> and assign the ticket. Don’t unlock Jordan yet.',
+        body: 'Why: a task’s saved password is Tier 2 work. Success looks like: the ticket is with Desktop Support (Tier 2). Unlock stays for Tier 2 to do after the fix, because an unlock now would only be undone in two minutes.',
+        waitLabel: 'Next Step: KB-0103 read, assigned to Tier 2',
+        check: () => hd2Rule(HD6E_ID, { kb: 'KB-0103' }) && hd2Rule(HD6E_ID, { group: 'Desktop Support (Tier 2)' }),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '#hd-note-input, .hd-comments, .hd-handoff, [data-hd-handoff]',
+        title: 'Hand it on with a note and tell Jordan',
+        instruction: '<strong>Attach KB-0103</strong> to HD-2101. Write a <strong>handoff note</strong> with the lines Reported:, Tried:, Result: and Next action:. Then post a <strong>comment</strong> to Jordan in plain words that says who has the ticket and when to expect an update.',
+        body: 'Why: hand it on with the evidence so nobody starts again. Success looks like: the note has Reported, Tried, Result and Next action. Jordan is told who has it and when to expect an update.',
+        waitLabel: 'Next Step: Handed on, Jordan told',
+        check: () => hd2Rule(HD6E_ID, { attached: 'KB-0103' }) && hd2Rule(HD6E_ID, { handoffNote: true }) && hd2Rule(HD6E_ID, { comment: true }),
+      },
+      {
+        title: 'Back to Module 8',
+        instruction: 'Extension done. Press <strong>Back to Module 8</strong> to return to your course page.',
+        body: 'This extension is optional. Nothing from it is sent to your course page, and it is not part of your lab record.',
+        finish: { label: 'Back to Module 8', href: itsPortalUrl('#/program/it-support/module/8') },
+      },
+    ],
+  });
+
   /* ------------------------------------------------------ hd-m04..hd-m11 -
-   * (hd-m03, hd-m07 and hd-m05 have their own steps above.)
+   * (hd-m03, hd-m07, hd-m05 and hd-m06 have their own steps above.)
    * Modules 3-9 each work one or two real tickets through the same generic
    * evidence/path/diagnose/note/resolve flow hd-m01/hd-m02 already proved
    * out — reused here via hdTicketFlowSteps() instead of hand-duplicating
@@ -1470,30 +1830,6 @@
       diagnosisBody: 'Public sites working but an internal hostname failing points at DNS configuration specifically, not a broader outage.',
       noteBody: 'Name the DNS evidence, the VPN/DNS setting you corrected, and that the hostname resolved afterward.',
       resolveBody: 'Resolving is gated on your diagnosis actually being correct, same as every ticket.',
-    }));
-
-  /* hd-m06 — Module 8 (key its-06): Identity, Accounts & Access Management. Two
-   * tickets. SR-2107 is a Service Request (its resolve gate doesn't
-   * actually require diagnosisCorrect in the underlying app) — the coach
-   * still requires a correct diagnosis anyway, for the same reasoning
-   * practice as every other ticket. */
-  hdRegisterSimpleCoach('hd-m06', 8, 'Restoring Access the Right Way', 'Work two real identity tickets end to end — an approved group-membership restore and a missing file-permission group — verifying authorization before you act.', ['SR-2107', 'HD-2118']).steps =
-    hdTicketFlowSteps('SR-2107', {
-      opening: true, isLast: false, finalStatus: 'Resolved',
-      openBody: 'An approved request: restore Grace’s contributor access to the HR onboarding folder. Manager approval is already attached — verify it before acting.',
-      evidenceBody: 'The AD group history showing removal from the contributor group during a role transfer is the clue — read access still works, contributor doesn’t.',
-      pathBody: 'Validating the attached approval comes first — a group grants access to real resources, so confirm before adding anyone.',
-      diagnosisBody: 'Read access working but write access denied, with a group removed during a transfer, points at missing group membership specifically.',
-      noteBody: 'Name the approval reference, the group you restored, and that upload access was verified afterward.',
-      resolveBody: 'Resolving is gated on your diagnosis actually being correct, the same discipline whether or not it’s strictly required for a request.',
-    }).concat(hdTicketFlowSteps('HD-2118', {
-      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/8', 'hd-m06'),
-      openBody: 'Evan can open the payroll workbook but can’t save — read succeeds, modify is denied.',
-      evidenceBody: 'Effective access showing Read & Execute while the share permission allows Change is the clue — the block is on the NTFS side.',
-      pathBody: 'Calculating group-based effective access (not just the share permission) is what actually explains this.',
-      diagnosisBody: 'A share permission that allows more than the effective NTFS result points at a missing NTFS-level group, not a locked file or offline share.',
-      noteBody: 'Name the effective-access evidence, the group you restored, and that Modify was verified without a direct user ACL.',
-      resolveBody: 'Resolving is gated on your diagnosis actually being correct.',
     }));
 
   /* hd-m08 — Module 10 (key its-08): Troubleshooting Methodology & Diagnostics. Two

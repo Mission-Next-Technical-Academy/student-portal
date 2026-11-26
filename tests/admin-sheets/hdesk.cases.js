@@ -317,6 +317,27 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
     row: coachRow('hdesk-m05-worked', 'lab-its-05-server-ad', [savedTicket('HD-2108', { worked: true }), savedTicket('HD-2117', { worked: true, priority: 'P2' })]),
     expect: { html: ['data-sheet-section="scenario-hd-2108"', 'data-sheet-section="scenario-hd-2117"'], notHtml: ['data-sheet-section="scenario-hd-2189"'] },
   },
+  // Module 8 from 2026-11-26: Lab 8.1 grades HD-2196, HD-2197 and the request
+  // SR-2207, which ends Closed Complete on its request.
+  {
+    name: 'Lab 8.1 new attempt grades HD-2196, HD-2197 and the closed request SR-2207',
+    row: coachRow('hdesk-m06-lab81', 'lab-its-06-identity-access', [
+      savedTicket('HD-2196', { worked: true, priority: 'P3' }),
+      savedTicket('HD-2197', { worked: true, priority: 'P4' }),
+      { ...savedTicket('SR-2207', { worked: true, status: 'In Progress' }), console: { kbOpened: ['KB-0107'], chatAsked: [], resolutionCode: '', noteMissing: [], lastCommentJargon: [], request: { item: 'Shared mailbox access', requestedFor: 'Sam Rivera', approval: 'Approved', state: 'Closed Complete', fields: [] } } },
+    ]),
+    expect: {
+      html: ['data-sheet-section="scenario-hd-2196"', 'data-sheet-section="lab-work-hd-2196"', 'data-sheet-section="lab-work-hd-2197"', 'data-sheet-section="lab-work-sr-2207"', 'Closed Complete'],
+      notHtml: ['data-sheet-section="scenario-sr-2107"', 'data-sheet-section="scenario-hd-2118"', 'data-sheet-section="customer-comment-sr-2207"', 'data-sheet-section="context-sr-2207"'],
+    },
+  },
+  // An attempt saved before 2026-11-26 holds SR-2107 and HD-2118 and keeps
+  // the sheet it was worked against.
+  {
+    name: 'Lab 8.1 older attempt keeps SR-2107 and HD-2118',
+    row: coachRow('hdesk-m06-worked', 'lab-its-06-identity-access', [savedTicket('SR-2107', { worked: true }), savedTicket('HD-2118', { worked: true, priority: 'P2' })]),
+    expect: { html: ['data-sheet-section="scenario-sr-2107"', 'data-sheet-section="scenario-hd-2118"'], notHtml: ['data-sheet-section="scenario-hd-2196"'] },
+  },
   {
     name: 'Lab 4.4 practice completion shows the four tickets, no walkthrough sections',
     row: { id: 'hdesk-m04-lab44', lab_key: lab24, track_code: 'HDESK', student_id: 'synthetic-hdesk', completed_at: '2026-11-23T10:00:00Z', result: { source: 'mnt-practice-complete', practiceSet: 'its-02', tickets: ['HD-2169', 'HD-2170', 'HD-2171', 'HD-2172'] } },

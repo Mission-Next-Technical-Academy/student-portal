@@ -338,6 +338,15 @@ function hdFreshState(templates = hdSharedTemplates(), practice = templates.ever
 function hdFreshSetState(set) {
   const state = hdFreshState(HD_TICKET_TEMPLATES, true);
   state.tickets = state.tickets.filter(ticket => set.tickets.includes(ticket.id));
+  // Module 8: a set may work an older ticket its own way (ticketOverrides:
+  // { '<id>': { ...fields, console } }), only in this set. The shared shift
+  // and every other set keep the ticket's template exactly as it is.
+  state.tickets.forEach(ticket => {
+    const over = hdSetTicketOverride(set, ticket.id); if (!over) return;
+    Object.assign(ticket, hdClone(over));
+    if (over.console) ticket.consoleFromSet = true;
+    hdMatrixStart(ticket);
+  });
   // Machine state from this set's tickets only (console.machines).
   state.machines = hdClone(HD_PRACTICE_MACHINES); delete state.vdi;
   hdSeedTicketMachines(state);
@@ -625,7 +634,26 @@ function hdDropStaleTicketSet() {
 // The fixture lists a page shows: Practice sees the shared fixtures only; a
 // Prove shift adds its own computers and KB articles, and its server and
 // event overrides.
-function hdComputers() { return HD_PROVE ? [...HD_COMPUTERS, ...(HD_PROVE.shift.computers || [])] : HD_COMPUTERS; }
+// Module 8: a practice or coached set may add its own people and computers
+// (set.users, set.computers), so a module adds them without changing any
+// older shift. A shift with no such set sees exactly the shared lists.
+// The active set, or null while the first shift is still being built
+// (hdState is declared further down and isn't readable before then).
+function hdActiveSetSafe() {
+  let ready = false;
+  try { ready = !!hdState && Array.isArray(hdState.tickets); } catch (_) { ready = false; }
+  return ready ? hdActiveSet() : null;
+}
+function hdSetExtra(key) {
+  const set = hdActiveSetSafe();
+  return set && Array.isArray(set[key]) ? set[key] : [];
+}
+function hdShiftUsers() { const extra = hdSetExtra('users'); return extra.length ? [...HD_USERS, ...extra] : HD_USERS; }
+function hdComputers() {
+  if (HD_PROVE) return [...HD_COMPUTERS, ...(HD_PROVE.shift.computers || [])];
+  const extra = hdSetExtra('computers');
+  return extra.length ? [...HD_COMPUTERS, ...extra] : HD_COMPUTERS;
+}
 // An article marked practiceOnly (KB-0059, Lab 1.2's printer steps) never
 // shows in a Prove It: it would hand over the Prove It's fix.
 // A practice or coached set may add its own articles (kbArticles, Module 6):
@@ -689,7 +717,7 @@ function hdEsc(value) { return escHtml(String(value == null ? '' : value)); }
 function hdTicketById(id) { return hdState.tickets.find(ticket => ticket.id === id); }
 function hdCurrentTicket() { return hdTicketById(hdState.selectedTicketId) || hdState.tickets[0]; }
 function hdUserById(id) {
-  const base = HD_USERS.find(user => user.id === id);
+  const base = hdShiftUsers().find(user => user.id === id);
   return base ? { ...base, ...(hdState.userOverrides[id] || {}) } : null;
 }
 function hdComputerByName(name) {
@@ -1122,8 +1150,15 @@ function hdConsole(ticket) {
     } : null;
     return { ...(config.kb === true ? { kb:true } : {}), ...(arrivals.length ? { arrivals } : {}), ...(caller && caller.questions.length ? { caller } : {}) };
   }
+  const over = hdSetTicketOverride(hdActiveSetSafe(), ticket.id);
+  if (over && over.console) return over.console;
   const template = HD_TICKET_TEMPLATES.find(item => item.id === ticket.id);
   return (template && template.console) || {};
+}
+// A set's own settings for one of its tickets (Module 8's HD-2101), or null.
+function hdSetTicketOverride(set, id) {
+  const all = set && set.ticketOverrides;
+  return all && typeof all === 'object' && all[id] && typeof all[id] === 'object' ? all[id] : null;
 }
 function hdConsoleState(ticket) {
   const state = ticket.consoleState = ticket.consoleState || {};
@@ -1739,6 +1774,8 @@ function hdConsoleRule(ticket, rule) {
   //     no file was deleted to clear the error (on an undoOneDrive ticket the
   //     file was put back, so the delete doesn't count here; it stays critical)
   if (rule.any) return Array.isArray(rule.any) && rule.any.some(item => item && hdConsoleRule(ticket, item));
+  // Module 8: not: rule   holds while that rule doesn't (8-B: no MFA reset was needed)
+  if (rule.not) return !!rule.not && typeof rule.not === 'object' && !hdConsoleRule(ticket, rule.not);
   if (rule.attached) return (state.kbAttached || []).includes(rule.attached);
   if (rule.requestItem) return !!(ticket.request && ticket.request.item === rule.requestItem);
   if (rule.machine) return hdMachineValueIs(rule.machine);
@@ -3163,6 +3200,8 @@ function hdExplainCheck(id) {
 }
 
 // Read-only evidence cards: each open is recorded.
+// Module 8: an approval gate's `after` may name a card (an HR record).
+function hdEvidenceWasOpened(state, cardId) { return Array.isArray(state && state.evidenceOpened) && state.evidenceOpened.some(entry => entry && entry.id === cardId); }
 function hdEvidenceOpen(id, cardId) {
   const ticket = hdTicketById(id); const cards = ticket && hdConsole(ticket).evidence;
   const card = Array.isArray(cards) && cards.find(item => item.id === cardId); if (!card) return;
@@ -3485,7 +3524,7 @@ function hdAdAction(action) {
   hdState.userOverrides[user.id]=patch; hdSave(); toast(`Active Directory action completed in the simulation: ${action}.`); render();
 }
 // Module 8: with account fixtures, the directory's account state, as the AD pane shows it.
-VIEWS['helpdesk/directory'] = () => `${hdPageHeader('User Directory', 'Search fictional employees, departments, managers, account state, and MFA registration.')}<div class="card">${hdDirectoryTable(HD_USERS.map(user=>hdAcctOn() ? hdFileUser(user.id) : hdUserById(user.id)))}</div>`;
+VIEWS['helpdesk/directory'] = () => `${hdPageHeader('User Directory', 'Search fictional employees, departments, managers, account state, and MFA registration.')}<div class="card">${hdDirectoryTable(hdShiftUsers().map(user=>hdAcctOn() ? hdFileUser(user.id) : hdUserById(user.id)))}</div>`;
 function hdLockoutDetailsHtml(user) {
   // Module 8 (console A): any account a ticket gives a lockout, and HD-2101
   // in a set that makes it Tier 2 work.
@@ -3635,7 +3674,7 @@ VIEWS['helpdesk/event-viewer'] = () => { hdM01Tick(); const logs = hdWinEventCom
 // shared fixture answers.
 function hdMachine(name) { return (hdState.machines || {})[name] || null; }
 function hdSessionUser(computer) {
-  const base = HD_USERS.find(user => user.name === computer.user);
+  const base = hdShiftUsers().find(user => user.name === computer.user);
   // Module 8: with account work on, the directory's account and group changes count.
   return base ? (typeof hdAcctOn === 'function' && hdAcctOn() ? hdFileUser(base.id) : hdUserById(base.id)) : null;
 }
@@ -3755,7 +3794,9 @@ function hdOwn(object, key) { return !!object && typeof object === 'object' && O
 function hdTicketMachineSpecs(ticket) {
   if (HD_PROVE || !ticket) return null;
   const template = HD_TICKET_TEMPLATES.find(item => item.id === ticket.id);
-  const machines = template && template.console && template.console.machines;
+  // A set's ticketOverrides console (Module 8's HD-2101) is on the ticket itself.
+  const config = ticket.consoleFromSet === true ? ticket.console : template && template.console;
+  const machines = config && config.machines;
   return machines && typeof machines === 'object' && !Array.isArray(machines) ? machines : null;
 }
 // The Practice ticket in this shift that names this computer, or null.
@@ -7288,7 +7329,7 @@ const HD_SHARE_ACCESS_NAME = { 0:'No access', 1:'Read', 2:'Change', 3:'Full Cont
 const HD_EVERYONE = ['everyone', 'authenticated users', 'domain users'];
 function hdFileView() { return hdServerObject(hdState.fileView) || {}; }
 function hdFileServersWithShares() { return hdServerNames().filter(name => { const state = hdServerState(name); return hdServerList(state, 'shares').length || hdServerList(state, 'folderSizes').length; }); }
-function hdFileUsers() { return [...HD_USERS, ...(HD_PROVE && Array.isArray(HD_PROVE.shift.users) ? HD_PROVE.shift.users : [])]; }
+function hdFileUsers() { return [...hdShiftUsers(), ...(HD_PROVE && Array.isArray(HD_PROVE.shift.users) ? HD_PROVE.shift.users : [])]; }
 function hdFileUser(id) {
   const base = hdFileUsers().find(user => user && user.id === id);
   if (!base) return null;
@@ -7942,7 +7983,8 @@ const HD_LOCKOUT_THRESHOLD = 5;
 function hdAcctAccounts() { const dir = hdDirectory(); return dir ? dir.accounts : {}; }
 function hdAcctAccount(userId) { const all = hdAcctAccounts(); return hdServerObject(all[userId]); }
 // The account fields a fixture can set on a user (not groups: those stay the directory's).
-const HD_ACCT_FIELDS = ['accountExpires', 'expired', 'passwordExpired', 'passwordLastSet', 'lastBadPassword', 'sponsor', 'history', 'sspr', 'locked', 'enabled'];
+// passwordAge (Module 8 sim): so "Password age" agrees with "Password last set".
+const HD_ACCT_FIELDS = ['accountExpires', 'expired', 'passwordExpired', 'passwordLastSet', 'lastBadPassword', 'sponsor', 'history', 'sspr', 'locked', 'enabled', 'passwordAge'];
 function hdAcctBase(account) { const out = {}; HD_ACCT_FIELDS.forEach(key => { if (hdOwn(account, key)) out[key] = account[key]; }); return out; }
 function hdAcctActions() {
   if (HD_PROVE) return hdServerObject(HD_PROVE.shift.accountActions);
@@ -8004,6 +8046,14 @@ function hdAcctRecord(user, id, label, extra) {
 const HD_ACCT_PROVE_REFUSED = 'Insufficient access rights to perform the operation.';
 function hdAcctRefuse(user, kind, reason) {
   const ticket = hdServerPracticeTicket();
+  // Module 8: a refused try is its own critical action (ad-<kind>-refused).
+  // reason (optional, a regex source): only a refusal for that reason, so a
+  // verified student refused for another reason is never told they didn't verify.
+  if (ticket) {
+    const rules = hdConsole(ticket).criticalActions;
+    const forReason = rule => { if (!rule.reason) return true; try { return new RegExp(rule.reason, 'i').test(String(reason || '')); } catch (_) { return false; } };
+    if (Array.isArray(rules)) rules.filter(rule => rule && rule.action === `ad-${kind}-refused` && forReason(rule)).forEach(rule => hdConsoleCritical(ticket, `account:ad-${kind}-refused`, rule.text || reason));
+  }
   hdPracticeEvent('action_refused', { ticket:ticket ? ticket.id : '', action:`ad-${kind}`, user:user ? user.id : '', reason });
   hdProveEvent('action_taken', { label:`Tried: ${kind} for ${hdAcctLabel(user)} (not done)`, value:`ad-${kind}-refused`, source:user ? user.username || user.id : '' });
   if (typeof toast === 'function') toast(HD_PROVE ? HD_ACCT_PROVE_REFUSED : reason);
@@ -8025,7 +8075,7 @@ function hdAcctBlock(user, kind) {
     // choice's action) or a KB article it opened.
     const after = hdServerObject(rule) && rule.after;
     const state = hdConsoleState(ticket);
-    if (after && !((state.serverSeen || []).includes(after) || state.actions.some(entry => entry && entry.id === after) || state.kbOpened.includes(after))) return rule.afterText || 'Read the approval record first.';
+    if (after && !((state.serverSeen || []).includes(after) || state.actions.some(entry => entry && entry.id === after) || state.kbOpened.includes(after) || hdEvidenceWasOpened(state, after))) return rule.afterText || 'Read the approval record first.';
   }
   // A disabled account is enabled first, and only against its approval.
   if ((kind === 'unlock' || kind === 'reset') && user.enabled === false) return `${user.name}'s account is disabled. Enable it first, and only against the record that approves it.`;
@@ -8450,14 +8500,16 @@ function hdCredCommand(command, normalized, machine, computerName) {
   }
   return null;
 }
-// Sign out and back in: the sign-in picks up the account's current groups.
+// Sign out and back in: the sign-in picks up the account's current security
+// groups. A distribution list gives no access, so it is never in the token.
 function hdWinSignInAgain(computerName) {
   hdMachineChange(computerName, machine => {
     if (!Array.isArray(machine.signedInGroups)) return false;
     const computer = hdComputerByName(computerName);
     const base = computer && hdFileUsers().find(user => user && user.name === computer.user);
     const user = base ? hdFileUser(base.id) : null;
-    machine.signedInGroups = user ? user.groups.slice() : [];
+    const security = name => { const group = hdDirGroup(name); return !group || !/^distribution$/i.test(String(group.type || '')); };
+    machine.signedInGroups = user ? user.groups.filter(security) : [];
     hdMachineAction(computerName, 'signed-out-in', `${computer ? computer.user : 'the user'} signed out and back in`);
   });
 }
@@ -8600,7 +8652,9 @@ function hdCloudRefuse(id, reason, extra) {
   const ticket = hdServerPracticeTicket();
   if (ticket) {
     const rules = hdConsole(ticket).criticalActions;
-    if (Array.isArray(rules)) rules.filter(rule => rule && rule.action === id).forEach(rule => hdConsoleCritical(ticket, `cloud:${id}`, rule.text || reason));
+    // A rule on the plain id marks a refusal too (as before); Module 8's
+    // <id>-refused marks only the refusal, never the change itself.
+    if (Array.isArray(rules)) rules.filter(rule => rule && (rule.action === id || rule.action === `${id}-refused`)).forEach(rule => hdConsoleCritical(ticket, `cloud:${rule.action}`, rule.text || reason));
   }
   hdPracticeEvent('action_refused', { ticket:ticket ? ticket.id : '', action:id, reason, ...(extra || {}) });
   hdProveEvent('action_taken', { label:`Tried: ${id} (not done)`, value:`${id}-refused`, source:extra && (extra.source || extra.user || extra.phone) || '' });
@@ -8615,7 +8669,7 @@ function hdCloudAfterMet(rule) {
   if (!after) return true;
   const ticket = hdServerPracticeTicket(); if (!ticket) return true;
   const state = hdConsoleState(ticket);
-  return (state.serverSeen || []).includes(after) || state.actions.some(entry => entry && entry.id === after) || state.kbOpened.includes(after);
+  return (state.serverSeen || []).includes(after) || state.actions.some(entry => entry && entry.id === after) || state.kbOpened.includes(after) || hdEvidenceWasOpened(state, after);
 }
 function hdCloudFinish() { hdSave(); hdRerender(); }
 

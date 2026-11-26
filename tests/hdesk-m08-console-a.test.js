@@ -108,7 +108,7 @@ const PIN_COMMANDS = [
 ];
 const PIN_COMPUTERS = ['', 'NS-WS-0277', 'NS-LT-0117'];
 // Module 08's own sets and shift, added by later parts, turn these on.
-const MODULE_8_SETS = ['its-06', 'its-06-guided'];
+const MODULE_8_SETS = ['its-06', 'its-06-guided', 'its-06-extension'];
 function shiftsOf(plain) {
   const shifts = [{ name: 'shared', make: () => sim({ withTest: false }) }];
   Object.keys(plain.run('HD_PRACTICE_SETS')).filter((k) => !MODULE_8_SETS.includes(k)).forEach((key) => shifts.push({ name: `practice:${key}`, make: () => sim({ url: `https://academy.test/sim/?practice=${key}&student=stu-1#/helpdesk/tickets`, withTest: false }) }));
@@ -155,7 +155,10 @@ if (process.argv.includes('--print-pins')) {
   process.exit(0);
 }
 const PINNED = {
-  shared: { views: 'dfa0b1363e754fc8dbff7940cdf4abd84f42b7cd68447dd0eea81c20e0c74b17', commands: '3d4576fc8b243b3e8deaf1c897c74a0df28f148a9416b1cb7cde2b06d0438f58', windows: '25eccfc7e4e9ff475759285d5668375961ccb556b1c18a56e6477625f1aedc61' },
+  // shared.views re-pinned by the sim part (2026-11-26): SR-2107 and HD-2118
+  // left the shared queue (ownSet), so its ticket list is two shorter. Every
+  // other hash, and every other shift, is unchanged.
+  shared: { views: 'd4ef4f17fc133bc77d7974da52d00c52c1229eb805159afd9bc5eba912daff01', commands: '3d4576fc8b243b3e8deaf1c897c74a0df28f148a9416b1cb7cde2b06d0438f58', windows: '25eccfc7e4e9ff475759285d5668375961ccb556b1c18a56e6477625f1aedc61' },
   'practice:its-01': { views: '0dbc9c2256774087c447d81ee69477dad4d201131aa6401b3221e7ff2b93f62d', commands: 'a91326a1340ca7389360d56062d784b39f4df8e4ebbcf1928b100292e5c0f636', windows: '25eccfc7e4e9ff475759285d5668375961ccb556b1c18a56e6477625f1aedc61' },
   'practice:its-10': { views: '0ff82e9cef9938a01ce9bb33ec02a979037ed0e3c11d2efcf10c39a6392db322', commands: 'a91326a1340ca7389360d56062d784b39f4df8e4ebbcf1928b100292e5c0f636', windows: '25eccfc7e4e9ff475759285d5668375961ccb556b1c18a56e6477625f1aedc61' },
   'practice:its-11': { views: '7117f29833168d233cbd5ad4aa1252568e3208f3c78bcd741317cd058fcb8235', commands: 'a91326a1340ca7389360d56062d784b39f4df8e4ebbcf1928b100292e5c0f636', windows: '25eccfc7e4e9ff475759285d5668375961ccb556b1c18a56e6477625f1aedc61' },

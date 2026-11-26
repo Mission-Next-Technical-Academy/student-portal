@@ -26,7 +26,10 @@
     // incident the student raises from it, HD-2190 (the student writes its
     // short description, triage and note, so the instructor sees them).
     'lab-its-05-server-ad': ['HD-2189', 'HD-2190'],
-    'lab-its-06-identity-access': ['SR-2107', 'HD-2118'],
+    // Module 8 (key its-06), from 2026-11-26: Lab 8.1 is HD-2196 (Part A),
+    // HD-2197 (Part B) and SR-2207, the linked request RITM0010162 the student
+    // closes in Part B. The optional HD-2101 extension sends nothing.
+    'lab-its-06-identity-access': ['HD-2196', 'HD-2197', 'SR-2207'],
     // Module 6 (key its-07), from 2026-11-24: Lab 6.1 is HD-2176.
     'lab-its-07-app-cert': ['HD-2176'],
     'lab-its-08-unfamiliar-problems': ['HD-2110', 'HD-2111'],
@@ -37,8 +40,9 @@
   // HD-2101 and no HD-2150, and keeps the sheet it was worked against.
   // Lab 4.3 walked HD-2106 until 2026-11-23, and Module 5's lab walked HD-2109
   // and Module 6's lab HD-2119 until 2026-11-24, the same way. Module 7's lab
-  // walked HD-2108 and HD-2117 until 2026-11-25.
-  const EARLIER_TICKETS_BY_LAB = { 'lab-its-01-ticket-triage': ['HD-2101'], 'lab-its-02-device-manager': ['HD-2106'], 'lab-its-03-blank-desktop': ['HD-2109'], 'lab-its-07-app-cert': ['HD-2119'], 'lab-its-05-server-ad': ['HD-2108', 'HD-2117'] };
+  // walked HD-2108 and HD-2117 until 2026-11-25, and Module 8's lab SR-2107
+  // and HD-2118 until 2026-11-26.
+  const EARLIER_TICKETS_BY_LAB = { 'lab-its-01-ticket-triage': ['HD-2101'], 'lab-its-02-device-manager': ['HD-2106'], 'lab-its-03-blank-desktop': ['HD-2109'], 'lab-its-07-app-cert': ['HD-2119'], 'lab-its-05-server-ad': ['HD-2108', 'HD-2117'], 'lab-its-06-identity-access': ['SR-2107', 'HD-2118'] };
   const TITLES = {
     // Retired 2026-11-10; kept so its past attempts still open.
     'lab-its-01-lms-validation': 'Module 01 · LMS & Environment Validation',
@@ -55,7 +59,7 @@
     'lab-its-05-server-ad': 'Module 07 · Lab 7.1 · Guided Lab: the morning server check',
     'lab-its-05-practice-tickets': 'Module 07 · Lab 7.2 · Practice tickets (not graded)',
     'lab-its-05-prove-it': 'Module 07 · Prove It: Independent Ticket',
-    'lab-its-06-identity-access': 'Module 08 · Restoring Access the Right Way',
+    'lab-its-06-identity-access': 'Module 08 · Lab 8.1 · Guided Lab: an identity morning',
     'lab-its-07-app-cert': 'Module 06 · Lab 6.1 · Guided Lab: endpoint check',
     'lab-its-07-practice-tickets': 'Module 06 · Lab 6.2 · Practice tickets (not graded)',
     'lab-its-07-prove-it': 'Module 06 · Prove It: Independent Ticket',
@@ -439,6 +443,15 @@
     // expectedStatus: it ends with Server & Identity, not Resolved.
     'HD-2190': { articles: [], questions: [], comment: false, expectedStatus: 'Escalated',
       prompt: 'The student raised this incident from HD-2189 and wrote it: the short description should name the Guest Wi-Fi scope, 95% and the risk; Impact 2 × Urgency 2 is P3; it goes to Server & Identity; the note says nothing was changed.' },
+    // Module 8 Lab 8.1 (from 2026-11-26). Part A: Noah's repeat lockout on
+    // HD-2196. Part B: Sam's replacement phone on HD-2197, and the approved
+    // request SR-2207 (RITM0010162), which ends Closed Complete on its request.
+    'HD-2196': { articles: ['KB-0103'], questions: ['device'],
+      prompt: 'Lab 8.1 Part A. Look in the ticket history for the order: Noah verified (KB-0024), his account read, Lockout details naming NS-WS-0277, cmdkey /list on NS-WS-0277, the saved NS-FILE01 credential removed with his OK, one unlock, then Wait 2 minutes with no new lockout. The note should name NS-WS-0277 and the saved credential.' },
+    'HD-2197': { articles: ['KB-0065'], questions: [],
+      prompt: 'Lab 8.1 Part B. Look in the ticket history for: Sam verified in person (KB-0065), the hardware request read, Service health read, MFA re-registration required, Authenticator added on NS-PH-0001 and a test sign-in approved, the phone enrolled in Company Portal and Compliant in Intune, Outlook mail, calendar and contacts on, OneDrive on Wi-Fi only, and the HS-200 headset paired and tested.' },
+    'SR-2207': { articles: [], questions: [], comment: false, requestState: 'Closed Complete',
+      prompt: 'Lab 8.1 Part B, the request: Send as on support@ for Sam Rivera, approved by the mailbox owner. Look for Send as added (Full Access was already there), a close note that says it can take up to an hour, and the request closed.' },
   };
   function labConsoleSections(ticket, id) {
     const spec = LAB_CONSOLE[id];
@@ -532,7 +545,10 @@
       const notes = saved ? (ticket.notes || []).filter((note) => note && note.text) : [];
       const history = saved ? (ticket.statusHistory || []).map((entry) => `${entry.time}: ${entry.action}`) : null;
       // A lab ticket may name its own end state (HD-2190 ends Escalated).
-      const expectedStatus = saved ? (LAB_CONSOLE[id] && LAB_CONSOLE[id].expectedStatus) || ticket.expectedStatus : null;
+      // A request record (SR-2207) ends on its request's state, not the ticket's.
+      const requestState = saved && LAB_CONSOLE[id] && LAB_CONSOLE[id].requestState;
+      const expectedStatus = saved ? requestState || (LAB_CONSOLE[id] && LAB_CONSOLE[id].expectedStatus) || ticket.expectedStatus : null;
+      const endState = !saved ? null : requestState ? text(((ticket.console || {}).request || {}).state) || 'Not closed' : ticket.status;
       const worked = id === 'HD-2101' ? investigationSections(saved ? { ...ticket, investigation: result.work && result.work.investigation } : null)
         : id === 'HD-2150' ? consoleSections(saved ? ticket : null)
           : LAB_CONSOLE[id] ? labConsoleSections(saved ? ticket : null, id) : null;
@@ -585,7 +601,7 @@
           id: `resolution-${id.toLowerCase()}`, title: `Resolution and history · ${id}`, recordedSince: '2026-10-17',
           instructorPrompt: 'Check that the recorded action matches the ticket state. Explain what the learner or next team must verify before closing.',
           answer: [['Expected ticket state', saved ? text(expectedStatus) : null], ['Student resolution / escalation', saved ? text(ticket.resolution) : null], ['Closure code', saved ? text(ticket.closureCode) : null], ['Recent ticket history', history]],
-          checks: [{ label: 'Ticket outcome matches the scenario', expected: saved ? expectedStatus : null, test: () => !saved || !expectedStatus ? null : ticket.status === expectedStatus, given: () => saved ? ticket.resolution || ticket.status : null, fix: help.disposition }],
+          checks: [{ label: 'Ticket outcome matches the scenario', expected: saved ? expectedStatus : null, test: () => !saved || !expectedStatus ? null : endState === expectedStatus, given: () => saved ? (requestState ? endState : ticket.resolution || ticket.status) : null, fix: help.disposition }],
         },
       ];
     }).concat(tickets.filter((ticket) => !ids.includes(ticket.id)).map(contextSection));

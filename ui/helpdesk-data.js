@@ -308,6 +308,207 @@ const HD_ITS05_PRACTICE_CHANGES = [
   { number:'CHG-7779', when:'8 days ago 19:45', what:'Add 4 GB of memory to NS-DC02', who:'M. Osei', state:'Completed', ci:'NS-DC02', details:'Memory added out of hours. No change to roles or services.' },
 ];
 
+// Module 8 (key its-06): KB-0065 and KB-0103 to KB-0107. They are practice-only,
+// so a Prove shift never gets them, and they are never in HD_KB_ARTICLES: only
+// Module 8's three sets carry them (kbArticles, ui/helpdesk.js hdKbArticles).
+// KB-0024 stays in HD_KB_ARTICLES, unchanged: the sets find it there.
+const HD_ITS06_KB_ARTICLES = [
+  { id:'KB-0065', title:'MFA: verifying and re-registering', category:'Identity', updated:'2026-08-19', audience:'Service Desk', practiceOnly:true, keywords:'mfa · authenticator · new phone · reset mfa · approve sign-in', summary:'1) An MFA change is high risk: whoever registers a method can sign in as the user. 2) Verify strongly before any change: in person with a photo badge that matches the directory photo, or a callback to the directory number plus the employee ID plus the manager\'s confirmation. 3) Never act on a request from a personal email address or a number that isn\'t in the directory. Open a ticket under the user\'s real account and reply only to their work address. 4) Read the sign-in log first. "User did not respond to notification" means prompts reach the app but aren\'t seen: check the phone\'s notifications before resetting anything. 5) If the method is on a phone the user no longer has, open Entra admin center › Users › the user › Authentication methods › Require re-register multifactor authentication. Stay with the user while they set up Authenticator, and confirm a test sign-in. 6) A caller you can\'t verify, or one who pushes you to skip a step, is reported to Security Operations as KB-0024 step 7 says.' },
+  { id:'KB-0103', title:'Repeat lockouts: finding the source', category:'Identity', updated:'2026-08-19', audience:'Service Desk', practiceOnly:true, keywords:'locked again · keeps locking · lockout · lockout source · 4740', summary:'KB-0024 step 5 sends a lockout that comes back to Tier 2. Before you do, read the source: 1) Verify the user (KB-0024). 2) Open Active Directory › the user › Lockout details. The last lockout source is the computer that sent the wrong passwords (the domain controller logs it as event 4740). 3) If the source is a computer the user signs in to and the cause is a saved password (Credential Manager, a mapped drive, a phone\'s mail app), fix it with the user: tell them what you\'ll remove, remove the saved entry, then unlock once and check it stays unlocked. 4) If the source is a server, a service or a scheduled task, or you can\'t find one, it\'s Tier 2: escalate to Desktop Support with the source and the times, and don\'t keep unlocking. 5) Never unlock before the source is fixed.' },
+  { id:'KB-0104', title:'Password reset when self-service can\'t be used', category:'Identity', updated:'2026-08-19', audience:'Service Desk', practiceOnly:true, keywords:'password reset · forgot password · password expired · sspr · must change', summary:'KB-0024 step 3 still applies whenever self-service password reset (SSPR) works: send the user there. This article is the only exception. 1) Use it only when the user is verified (KB-0024) and Entra › the user › Authentication methods shows they are not registered for SSPR. 2) In Active Directory › the user › Reset password, tick User must change password at next logon. 3) The screen shows a one-time password once. Read it to the user on the verified call. Never type it into the ticket, a chat or an email. 4) Stay on the call while they sign in and choose their own. 5) Then help them register for SSPR so next time they can do it themselves. 6) Record that a reset was done under KB-0104 and that the user set their own password. Never record the password.' },
+  { id:'KB-0105', title:'Work email on phones: Intune compliance', category:'Mobile devices', updated:'2026-08-19', audience:'Service Desk', practiceOnly:true, keywords:'phone mail · email on phone · not compliant · intune · company portal · mobile', summary:'Northstar\'s Conditional Access lets only compliant company phones get work mail and Teams. 1) Verify the user (KB-0024). 2) Check Service health for Exchange or Teams. 3) Open Intune admin center › Devices › the phone: if it says Not compliant, the reason is shown (OS below minimum, no PIN, encryption off). 4) The fix is on the phone: guide the user to fix the reason (install the update on Wi-Fi while charging, set a PIN), then Company Portal › Check status. Mail returns within a few minutes of Compliant. 5) Never remove a user from the policy, delete the device, or suggest a personal mail app. 6) A personal phone (BYOD) isn\'t in Intune: check the Outlook app\'s own protection prompt instead. 7) Escalate to Desktop Support if the phone is compliant and mail still doesn\'t arrive.' },
+  { id:'KB-0106', title:'Movers: group changes and group-based licences', category:'Identity', updated:'2026-08-19', audience:'Service Desk', practiceOnly:true, keywords:'moved · transfer · new department · no license · license · group', summary:'1) Work from the HR transfer record; it lists the new role and has the data owners\' approval. 2) Read Member Of. Add the new role\'s groups and distribution lists; remove the old role\'s. 3) GG-M365-E3-License is not a department group. It gives the Microsoft 365 licence; a mover keeps it. If it was removed, re-add it: the licence returns within about 15 minutes. Don\'t assign E3 directly; licence policy is Messaging & Collaboration\'s. 4) The user signs out and back in; whoami /groups on their PC shows the new groups. 5) Check both directions: the new folder opens, the old one doesn\'t.' },
+  { id:'KB-0107', title:'Shared mailboxes and distribution lists', category:'Messaging', updated:'2026-08-19', audience:'Service Desk', practiceOnly:true, keywords:'shared mailbox · support@ · send as · full access · distribution list · dl', summary:'1) A shared mailbox is one inbox several people use; it needs no licence. Read and manage (Full Access) lets someone open it; Send as lets their replies come from it. 2) A distribution list copies mail to its members; it gives no access to anything. 3) Changes need the mailbox or list owner\'s approval, through the "Shared mailbox access" request. 4) Changes can take up to an hour to show in Outlook. 5) Never give anyone another person\'s password to reach a mailbox.' },
+];
+// Categories for the Module 8 (key its-06) tickets; each ticket adds its own CI
+// list. Placed here, above HD_COACHED_SETS, because the HD-2101 extension's
+// console uses it.
+const HD_ITS06_CATEGORIES = {
+  Access:['Account lockout', 'Account – disabled', 'MFA', 'Group membership / licence', 'Password reset'],
+  'Mobile device':['Email sync', 'Phone hardware'],
+  Request:['Access', 'Hardware', 'Software'],
+  Software:['Email (Outlook)', 'Browser'],
+  Hardware:['Laptop', 'Printer'],
+  Network:['Wi-Fi', 'VPN'],
+  Security:['Suspicious request'],
+};
+// Module 8 (key its-06): the people, computers, servers, directory and tenant of
+// Lab 8.1 and Lab 8.2. The users and computers are set-level only (a set's
+// users and computers), never in HD_USERS or HD_COMPUTERS, so no older shift
+// sees them. u-1035 to u-1037 are the Learn It card sort's snapshots and live
+// here as directory records only. Every function below returns fresh objects,
+// so no set shares or changes another's.
+const HD_ITS06_USERS = [
+  { id:'u-1035', employeeId:'E-64281', phone:'ext. 4401', name:'Kofi Mensah', username:'kmensah', email:'kofi.mensah@northstar.example', department:'Sales', title:'Account Executive', ou:'OU=Sales,OU=Users,DC=northstar,DC=example', enabled:false, locked:false, passwordAge:40, groups:[], manager:'Tara Singh', mfa:'Registered' },
+  { id:'u-1036', employeeId:'E-64282', phone:'ext. 4402', name:'Ruth Adeyemi', username:'radeyemi', email:'ruth.adeyemi@northstar.example', department:'Operations', title:'Inventory Clerk', ou:'OU=Operations,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:91, groups:['GG-Operations-Users'], manager:'Caleb Wright', mfa:'Registered' },
+  { id:'u-1037', employeeId:'E-64283', phone:'ext. 4403', name:'Dev Raman', username:'draman', email:'dev.raman@northstar.example', department:'Marketing', title:'Content Designer (contractor)', ou:'OU=Marketing,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:20, groups:['GG-Marketing-Users'], manager:'Owen Price', mfa:'Registered' },
+  { id:'u-1038', employeeId:'E-64284', phone:'ext. 4404', name:'Alana Kealoha', username:'akealoha', email:'alana.kealoha@northstar.example', department:'Customer Service', title:'Customer Service Representative', ou:'OU=Customer Service,OU=Users,DC=northstar,DC=example', enabled:false, locked:false, passwordAge:92, groups:['GG-CustomerService-Users'], manager:'Celia Morales', mfa:'Registered' },
+  { id:'u-1039', employeeId:'E-64285', phone:'ext. 4405', name:'Celia Morales', username:'cmorales', email:'celia.morales@northstar.example', department:'Customer Service', title:'Customer Service Manager', ou:'OU=Customer Service,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:25, groups:['GG-CustomerService-Users'], manager:'Nadia Flores', mfa:'Registered' },
+];
+const HD_ITS06_COMPUTERS = [
+  { name:'NS-LT-0413', user:'Nina Patel', os:'Windows 11 Enterprise 24H2', ip:'10.20.20.213', ou:'OU=Finance,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'2 minutes ago', health:'Healthy' },
+  { name:'NS-LT-0414', user:'Alana Kealoha', os:'Windows 11 Enterprise 24H2', ip:'10.20.60.214', ou:'OU=Customer Service,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'2 minutes ago', health:'Healthy' },
+];
+// NS-FILE01 as Module 7 has it, plus a Sales share, and GG-Finance-Users on the
+// Finance share's NTFS list, so "Finance opens, Sales is denied" is true on
+// Effective access for Nina once her groups change.
+function hdIts06BaselineServers() {
+  const servers = hdIts05BaselineServers();
+  const file = servers['NS-FILE01'];
+  file.shares = file.shares.map(share => share.name === 'Finance' ? { ...share, ntfs:[...share.ntfs, { who:'GG-Finance-Users', access:'Modify' }] } : share);
+  file.shares.push({ name:'Sales', path:'\\\\NS-FILE01\\Sales', status:'Healthy', share:[{ who:'GG-Sales-Users', access:'Change' }], ntfs:[{ who:'GG-Sales-Users', access:'Modify' }] });
+  return servers;
+}
+const HD_ITS06_SERVERS = hdIts06BaselineServers();
+// Account status of the three card-sort people. No ticket works on them: they
+// are directory records only.
+function hdIts06CardSortAccounts() {
+  return {
+    'u-1035':{ enabled:false, locked:false, accountExpires:'Never', passwordExpired:false, passwordLastSet:'40 days ago', passwordAge:40, lastBadPassword:'None', sspr:'Registered', history:'Disabled by HR — leaver, last week' },
+    'u-1036':{ enabled:true, locked:false, accountExpires:'Never', passwordExpired:true, passwordLastSet:'91 days ago', passwordAge:91, lastBadPassword:'None', sspr:'Registered' },
+    'u-1037':{ enabled:true, locked:false, accountExpires:'In 9 days', passwordExpired:false, passwordLastSet:'20 days ago', passwordAge:20, lastBadPassword:'None', sspr:'Registered', sponsor:'Leah Brooks' },
+  };
+}
+// The groups this module adds. Members are user ids. GG-M365-E3-License is the
+// licence group: Nina Patel is not in it, because the clean-up took her out.
+function hdIts06Groups() {
+  return {
+    'GG-M365-E3-License':{ scope:'Global', type:'Security', resource:'Microsoft 365 E3 licence (group-based licensing)',
+      // Kofi Mensah (u-1035) is a leaver: he lost his groups with his account.
+      members:['u-1003', 'u-1005', 'u-1012', 'u-1013', 'u-1017', 'u-1018', 'u-1024', 'u-1036', 'u-1037', 'u-1038', 'u-1039'] },
+    'DL-Sales-Team':{ scope:'Universal', type:'Distribution', resource:'Sales team mailing list', members:['u-1003', 'u-1018', 'u-1019', 'u-1024'] },
+    'DL-Finance-Team':{ scope:'Universal', type:'Distribution', resource:'Finance team mailing list', members:['u-1005', 'u-1011', 'u-1030', 'u-1031'] },
+  };
+}
+// Module 7's read-only directory, opened up for Module 8's account work (each
+// ticket's accountActions still decides what can change), plus the accounts
+// and groups above. accounts: the people the shift's tickets read.
+function hdIts06Directory(accounts) {
+  const base = hdIts05BaselineDirectory();
+  return { ...base, readOnly:false, accounts:{ ...hdIts06CardSortAccounts(), ...accounts }, groups:{ ...base.groups, ...hdIts06Groups() } };
+}
+const HD_ITS06_LAB_DIRECTORY = hdIts06Directory({
+  'u-1003':{ locked:true, accountExpires:'Never', passwordExpired:false, passwordLastSet:'Yesterday 16:10', passwordAge:1, lastBadPassword:'Today 13:02', sspr:'Registered',
+    lockout:{ badPasswordCount:5, lockoutsToday:3, lastLockout:'Today 13:02', source:'NS-WS-0277', dc:'NS-DC01', credentialTarget:'NS-FILE01',
+      events:[{ time:'Today 11:58', caller:'NS-WS-0277' }, { time:'Today 12:31', caller:'NS-WS-0277' }, { time:'Today 13:02', caller:'NS-WS-0277' }] } },
+  'u-1013':{ locked:false, accountExpires:'Never', passwordExpired:false, passwordLastSet:'21 days ago', passwordAge:21, lastBadPassword:'None', sspr:'Registered' },
+});
+const HD_ITS06_PRACTICE_DIRECTORY = hdIts06Directory({
+  'u-1013':{ locked:false, accountExpires:'Never', passwordExpired:false, passwordLastSet:'21 days ago', passwordAge:21, lastBadPassword:'None', sspr:'Registered' },
+  'u-1018':{ locked:false, accountExpires:'Never', passwordExpired:false, passwordLastSet:'26 days ago', passwordAge:26, lastBadPassword:'None', sspr:'Registered' },
+  'u-1019':{ locked:false, accountExpires:'Never', passwordExpired:false, passwordLastSet:'2 days ago', passwordAge:2, lastBadPassword:'None', sspr:'Registered',
+    history:'Yesterday 16:40: removed from GG-CRM-Users and GG-M365-E3-License by jkeller (Sales groups clean-up)' },
+  'u-1024':{ locked:false, accountExpires:'Never', passwordExpired:false, passwordLastSet:'14 days ago', passwordAge:14, lastBadPassword:'None', sspr:'Registered' },
+  'u-1038':{ enabled:false, locked:false, accountExpires:'Never', passwordExpired:true, passwordLastSet:'92 days ago', passwordAge:92, lastBadPassword:'Today 13:04', sspr:'Not registered',
+    history:'Disabled — leave of absence (HR-8894)' },
+});
+// The HD-2101 extension reads one account. It is read-only: Tier 1 changes nothing.
+const HD_ITS06_EXT_DIRECTORY = { readOnly:true, accounts:{
+  'u-1005':{ accountExpires:'Never', passwordExpired:false, passwordLastSet:'3 days ago', passwordAge:3, lastBadPassword:'Today 08:11', sspr:'Registered' },
+} };
+// The Microsoft 365, Entra and Intune tenant. Service health holds one Teams
+// advisory in the lab only: nothing in it is about sign-in or Exchange.
+function hdIts06LicenseGroup(formerMembers) {
+  return { sku:'Microsoft 365 E3', apps:['Exchange Online', 'Microsoft Teams', 'SharePoint Online', 'OneDrive for Business', 'Microsoft 365 apps'], ...(formerMembers ? { formerMembers } : {}) };
+}
+function hdIts06Lists() {
+  return {
+    'DL-Sales-Team':{ address:'sales-team@northstar.example', owner:'Tara Singh' },
+    'DL-Finance-Team':{ address:'finance-team@northstar.example', owner:'Ava Robinson' },
+  };
+}
+function hdIts06Audit() {
+  return [{ time:'6 days ago 10:12', actor:'Messaging & Collaboration', activity:'Updated the Conditional Access policy "Compliant company phones for work mail"', target:'Conditional Access' }];
+}
+const HD_ITS06_LAB_CLOUD = {
+  m365:{
+    licenseGroups:{ 'GG-M365-E3-License':hdIts06LicenseGroup() },
+    sharedMailboxes:{ support:{ address:'support@northstar.example', owner:'Celia Morales', fullAccess:['u-1013', 'u-1017'], sendAs:[] } },
+    distributionLists:hdIts06Lists(),
+    serviceHealth:[{ id:'TM-ADV-0819', service:'Microsoft Teams', status:'Service degradation', title:'Teams meeting recordings delayed', description:'Some meeting recordings take longer than usual to appear. Meetings, chat and calls are not affected.', updated:'Today 11:20' }],
+  },
+  entra:{
+    users:{
+      'u-1013':{ methods:[{ method:'Microsoft Authenticator', device:'NS-PH-0002', registered:'Last year' }], sspr:'Registered', signIns:[
+        { time:'Today 13:27', app:'Microsoft Teams', device:'Work laptop', location:'Head office', status:'Interrupted', failure:'MFA required — not completed' },
+        { time:'Today 13:12', app:'Microsoft Teams', device:'Work laptop', location:'Head office', status:'Interrupted', failure:'MFA required — not completed' },
+        { time:'Today 12:58', app:'Microsoft Teams', device:'Work laptop', location:'Head office', status:'Interrupted', failure:'MFA required — not completed' },
+      ] },
+    },
+    audit:hdIts06Audit(),
+  },
+  intune:{ minOs:'17.5', devices:{ 'NS-PH-0002':{ user:'u-1013', ownership:'Corporate', model:'Northstar standard phone', os:'16.4', retired:true, lastCheckIn:'Yesterday 15:50' } } },
+  phones:{
+    'NS-PH-0001':{ label:'NS-PH-0001', user:'u-1013', company:true, os:'17.6', pin:true, encrypted:true,
+      status:{ wifi:true, cellular:'5G', dataUsedGb:3.6, capGb:5 }, bluetooth:{ on:false, nearby:[{ name:'HS-200 Headset', pin:'0000' }] } },
+  },
+};
+const HD_ITS06_PRACTICE_CLOUD = {
+  m365:{
+    licenseGroups:{ 'GG-M365-E3-License':hdIts06LicenseGroup(['u-1019']) },
+    distributionLists:hdIts06Lists(),
+    serviceHealth:[],
+  },
+  entra:{
+    users:{
+      'u-1024':{ methods:[{ method:'Microsoft Authenticator', device:'Priya\'s own phone', registered:'Eight months ago' }], sspr:'Registered', signIns:[
+        { time:'Today 09:12', app:'Microsoft 365', device:'NS-LT-0291', location:'Orlando, US', status:'Failure', failure:'MFA: user did not respond to mobile app notification' },
+        { time:'Today 09:03', app:'Microsoft Teams', device:'NS-LT-0291', location:'Orlando, US', status:'Failure', failure:'MFA: user did not respond to mobile app notification' },
+        { time:'Yesterday 16:42', app:'Microsoft Teams', device:'NS-LT-0291', location:'Orlando, US', status:'Success', mfa:'Microsoft Authenticator' },
+      ] },
+      'u-1018':{ methods:[{ method:'Microsoft Authenticator', device:'NS-PH-0003', registered:'Last year' }], sspr:'Registered', signIns:[
+        { time:'Today 07:41', app:'Microsoft Outlook', device:'NS-LT-0183', location:'Orlando, US', status:'Success', mfa:'Microsoft Authenticator' },
+        { time:'Today 06:58', app:'Microsoft Teams', device:'NS-PH-0003', location:'Orlando, US', status:'Failure', failure:'Conditional Access: device not compliant' },
+        { time:'Today 06:52', app:'Outlook Mobile', device:'NS-PH-0003', location:'Orlando, US', status:'Failure', failure:'Conditional Access: device not compliant' },
+      ] },
+      'u-1038':{ methods:[], sspr:'Not registered', signIns:[] },
+      'u-1019':{ methods:[{ method:'Microsoft Authenticator', device:'Nina\'s own phone', registered:'Two months ago' }], sspr:'Registered', signIns:[] },
+    },
+    audit:hdIts06Audit(),
+  },
+  intune:{ minOs:'17.5', devices:{ 'NS-PH-0003':{ user:'u-1018', ownership:'Corporate', model:'Northstar standard phone', os:'17.4', compliance:'Not compliant', failingRule:'OS version below minimum', graceEnded:'Yesterday', lastCheckIn:'Today 06:40' } } },
+  phones:{
+    'NS-PH-0003':{ label:'NS-PH-0003', user:'u-1018', company:true, os:'17.4', update:{ version:'17.6' }, pin:true, encrypted:true,
+      status:{ wifi:true, cellular:'5G' }, companyPortal:{ enrolled:true }, outlook:{ account:true } },
+    'pnair-phone':{ label:'Priya\'s own phone', user:'u-1024', company:false, os:'17.6', status:{ wifi:true, cellular:'5G' }, notifications:{ authenticator:false }, authenticator:{ work:true } },
+  },
+};
+
+// Module 8 (key its-06): the console of the HD-2101 extension. Only the
+// 'its-06-extension' set uses it (ticketOverrides), so HD-2101's template and
+// Module 1's shift stay as they are. The scenario's own identity card is the
+// verification, so there is no verification here. The Tier 2 work is shown on
+// an evidence card and never done.
+const HD_ITS06_HD2101_CONSOLE = {
+  matrix:{}, classify:{ categories:HD_ITS06_CATEGORIES, cis:['jbell', 'NS-LT-0117', 'NS-DC01', 'NS-FILE01'] },
+  priorityCoach:{ impact:'2', urgency:'1', line:'A payroll analyst on a payroll day is a critical role (Impact 2), and nothing can be done until the account works (Urgency 1): P2. P3 is also accepted.' },
+  kb:{ attach:true }, comments:true, handoff:{},
+  evidence:[{ id:'task-scheduler-ns-lt-0117', title:'Tier 2\'s view: Task Scheduler on NS-LT-0117', rows:[
+    { label:'Task', value:'FinanceReportSync' },
+    { label:'Runs as', value:'NORTHSTAR\\jbell' },
+    { label:'Repeats', value:'Every 2 minutes' },
+    { label:'Stored password last changed', value:'90 days ago' },
+    { label:'Last run', value:'08:11:18 · result 0x8007052E (the user name or password is incorrect)' },
+  ] }],
+  machines:{ 'NS-LT-0117':{ savedCredentials:[] } },
+  resolutionCode:{ required:true },
+  notes:{ parts:['reported', 'tried', 'result'], nextAction:true,
+    jargon:['KB-0103', 'KB-0024', 'event 4740', '4740', 'Lockout details', 'Active Directory', 'domain controller', 'Task Scheduler', 'FinanceReportSync', 'Credential Manager', 'NS-LT-0117', 'jbell', 'Tier 2'],
+    needs:[{ label:'Names the source computer (NS-LT-0117)', pattern:'NS-LT-0117' }, { label:'Names the scheduled task (FinanceReportSync)', pattern:'FinanceReportSync|scheduled task' }, { label:'Says Credential Manager has no saved entry', pattern:'Credential Manager|no saved' }, { label:'Says who has it next', pattern:'Desktop Support|Tier 2' }] },
+  feedback:[
+    { area:'Triage', checks:[{ triage:{ category:'Access', subcategory:'Account lockout', ci:'jbell' }, missing:'Set Category Access › Account lockout and CI jbell.' }, { any:[{ priority:'P2' }, { priority:'P3' }], missing:'Set Impact 2 (a payroll analyst on a payroll day is a critical role) and Urgency 1. That makes the ticket P2. P3 is also accepted.' }], good:'Access › Account lockout on jbell, with a priority of P2 or P3: a payroll analyst on a payroll day.', fix:'Set Category Access › Account lockout, CI jbell, Impact 2 and Urgency 1. The ticket is P2. P3 is also accepted.' },
+    { area:'Investigation', checks:[
+      { serverSeen:'ad-lockout:u-1005', missing:'Open Active Directory › Users › Jordan Bell and read Lockout details.' },
+      { serverSeen:'lockout-4740:u-1005', missing:'In Lockout details, choose Show the Tier 2 view and read event 4740.' },
+      { seen:'credential-manager', computer:'NS-LT-0117', missing:'Open Credential Manager on NS-LT-0117 and read the saved credentials. This time there are none.' },
+      { evidence:'task-scheduler-ns-lt-0117', missing:'Open the evidence card for Task Scheduler on NS-LT-0117.' },
+    ], good:'You read the lockout source, the domain controller\'s event, the empty Credential Manager and Tier 2\'s view of the scheduled task.', fix:'Read Jordan\'s Lockout details, open the Tier 2 view, open Credential Manager on NS-LT-0117 and open the Task Scheduler evidence card.' },
+    { area:'Diagnosis', checks:[{ kb:'KB-0103', missing:'Search the knowledge base for "lockout source" and open KB-0103.' }], good:'The source is a scheduled task on NS-LT-0117 that runs as jbell with a stored password that is 90 days old. Credential Manager has no saved entry, so this is not the cause in Part A. KB-0103 says a task is Tier 2 work.', fix:'Open KB-0103. A lockout from a server, a service or a scheduled task is Tier 2 work: the task\'s saved password is not yours to change.' },
+    { area:'Action', checks:[{ group:'Desktop Support (Tier 2)', missing:'Assign the ticket to Desktop Support (Tier 2). Do not keep unlocking the account: it locks again every 2 minutes.' }, { handoffNote:true, missing:'Write a handoff note with Reported, Tried, Result and Next action before you hand it on.' }], good:'You escalated to Desktop Support (Tier 2) with a complete handoff note. Unlock stays for Tier 2 to do after the fix.', fix:'Assign the ticket to Desktop Support (Tier 2) and write a Reported / Tried / Result / Next action note with the source, the task and the times.' },
+    { area:'Documentation', checks:[{ attached:'KB-0103', missing:'Attach KB-0103 to the ticket.' }, { note:true, missing:'Write a Reported / Tried / Result / Next action note.' }, { comment:true, missing:'Write a comment for Jordan in plain words, with no internal terms. Say who has it and when to expect an update.' }], good:'KB-0103 attached, a complete note and a plain-words comment for Jordan.', fix:'Attach KB-0103, write a Reported / Tried / Result / Next action note, and write a plain-words comment that says who has the ticket and when Jordan will hear back.' },
+  ],
+};
+
 /* Practice scenario for HD-2101 (Module 1 Practice It). The evidence lives on
  * the tool screens, not on the ticket: the domain controller's 4740 events,
  * jbell's lockout details in Active Directory and NS-LT-0117's scheduled tasks
@@ -392,6 +593,11 @@ const HD_PRACTICE_SETS = {
     servers:HD_ITS05_PRACTICE_SERVERS, directory:HD_ITS05_PRACTICE_DIRECTORY, changes:HD_ITS05_PRACTICE_CHANGES,
     done:{ 'HD-2191':[{ group:'Server & Identity' }, { note:true }], 'HD-2193':[{ group:'Server & Identity' }, { note:true }],
       'HD-2194':[{ group:'Server & Identity' }, { note:true }], 'HD-2195':[{ converted:true }, { requestItem:'Network device reservation' }, { note:true }] } },
+  // Module 8 Lab 8.2: each ticket runs on its own clock (console.now), so the
+  // set has none. Every ticket counts as done when it is Resolved. The people,
+  // computers, servers, directory and tenant are the set's (HD_ITS06_*).
+  'its-06': { title:'Module 8 practice tickets', tickets:['HD-2198', 'HD-2199', 'HD-2200', 'HD-2201'], complete:['HD-2198', 'HD-2199', 'HD-2200', 'HD-2201'], queue:true, queueList:'all', kbArticles:HD_ITS06_KB_ARTICLES,
+    users:HD_ITS06_USERS, computers:HD_ITS06_COMPUTERS, servers:HD_ITS06_SERVERS, directory:HD_ITS06_PRACTICE_DIRECTORY, cloud:HD_ITS06_PRACTICE_CLOUD },
 };
 
 // Coached ticket sets: Practice It content for a coach's guided lab, opened by
@@ -414,6 +620,14 @@ const HD_COACHED_SETS = {
   // the student raises from HD-2189; it stays out of the shift until then.
   'its-05-guided': { title:'Lab 7.1 · Guided Lab: the morning server check', tickets:['HD-2189', 'HD-2190'], now:'2026-08-19T08:00:00Z', kbArticles:HD_ITS05_KB_ARTICLES,
     servers:HD_ITS05_LAB_SERVERS, directory:HD_ITS05_LAB_DIRECTORY, changes:HD_ITS05_LAB_CHANGES },
+  // Module 8: Lab 8.1 (coach hd-m06) on Wednesday 13:05. Part A is HD-2196, Part B
+  // is HD-2197 and the request RITM0010162 (SR-2207) linked to it.
+  'its-06-guided': { title:'Lab 8.1 · Guided Lab: an identity morning', tickets:['HD-2196', 'HD-2197', 'SR-2207'], now:'2026-08-19T13:05:00Z', kbArticles:HD_ITS06_KB_ARTICLES,
+    users:HD_ITS06_USERS, computers:HD_ITS06_COMPUTERS, servers:HD_ITS06_SERVERS, directory:HD_ITS06_LAB_DIRECTORY, cloud:HD_ITS06_LAB_CLOUD },
+  // Module 8: the optional HD-2101 extension of Lab 8.1 (coach hd-m06-ext). The
+  // lockout source is Tier 2 work here. It is no part of the lab record.
+  'its-06-extension': { title:'Lab 8.1 extension (optional, not part of your lab record): HD-2101', tickets:['HD-2101'], now:'2026-08-19T08:12:00Z', hd2101Tier2:true, kbArticles:HD_ITS06_KB_ARTICLES, directory:HD_ITS06_EXT_DIRECTORY,
+    ticketOverrides:{ 'HD-2101':{ priority:'', businessImpact:'', sla:'', subcategory:'General', console:HD_ITS06_HD2101_CONSOLE } } },
 };
 
 // VM labs (ui/helpdesk.js "VM screen"): the simulated host, its install
@@ -769,7 +983,7 @@ const HD_TICKET_TEMPLATES = [
   hdTicket({ id:'HD-2104', requester:'Priya Shah', department:'Human Resources', category:'Incident', subcategory:'DHCP / connectivity', priority:'P2', businessImpact:'HR employee offline', sla:'8 hours', createdMinutesAgo:63, description:'I am connected to the office network, but nothing opens.', symptoms:['IPv4 address 169.254.44.19','No default gateway'], logs:['ipconfig: DHCP Enabled Yes · Autoconfiguration IPv4 169.254.44.19'], systemState:['Wi-Fi radio enabled','Dock Ethernet adapter reports cable connected','Other floor users online'], plausibleCauses:['DHCP unavailable','VLAN issue','Conflicting adapters'], correctPath:['Recognize APIPA','Isolate network interfaces','Renew lease','Validate IP, gateway, DNS','Test business resource'], hiddenRootCause:'Dock Ethernet adapter is stuck and prevents the active Wi-Fi interface from completing DHCP.', expectedResolution:'Disable the unused dock adapter, renew Wi-Fi, confirm valid lease and resource access.', escalationCriteria:['Multiple clients fail DHCP','Scope exhausted or relay unavailable'] }),
   hdTicket({ id:'HD-2105', requester:'Maya Chen', department:'Operations', category:'Incident', subcategory:'DNS', priority:'P2', businessImpact:'Operations dashboard unavailable', sla:'8 hours', createdMinutesAgo:54, description:'Websites work, but the Operations dashboard says the server cannot be found.', symptoms:['Public internet works','Internal resource opens by IP','Hostname fails'], logs:['Resolve-DnsName opsdash.northstar.example: NXDOMAIN','Client DNS server: 192.0.2.53'], systemState:['VPN connected','Endpoint received public resolver from home router'], plausibleCauses:['Application outage','Routing failure','DNS configuration'], correctPath:['Capture DNS configuration','Query internal name','Compare direct server query','Restore VPN DNS settings','Flush and retest'], hiddenRootCause:'VPN client did not apply the corporate DNS resolver after reconnect.', expectedResolution:'Reconnect/repair the approved VPN profile so corporate DNS is assigned; verify internal hostname resolution.', escalationCriteria:['Internal resolver fails for multiple users','VPN configuration deployment defect'] }),
   hdTicket({ id:'HD-2106', requester:'Elena Ruiz', department:'Logistics', category:'Incident', subcategory:'Printer', priority:'P3', businessImpact:'One warehouse label station delayed', sla:'2 business days', createdMinutesAgo:142, description:'Labels are stuck in the queue and the printer says Ready.', symptoms:['17 jobs remain in Printing','Ping to printer succeeds'], logs:['PrintService 372: driver LabelPro 3.8 terminated unexpectedly'], systemState:['NS-WH-LABEL01 queue Error','NS-PRINT01 spooler degraded'], plausibleCauses:['Out of labels','Network port','Driver crash'], correctPath:['Confirm scope','Preserve jobs','Inspect queue and print-service log','Isolate faulty driver','Apply approved rollback','Test one label'], hiddenRootCause:'LabelPro 3.8 driver crashes the server-side spooler.', expectedResolution:'Roll back to approved driver, restart spooler under change procedure, and verify queued work.', escalationCriteria:['Print-server-wide impact','Driver package unavailable or vendor defect'] }),
-  hdTicket({ id:'SR-2107', requester:'Grace Kim', department:'Human Resources', category:'Service Request', subcategory:'Group membership', priority:'P3', businessImpact:'Recruiter cannot upload forms', sla:'2 business days', createdMinutesAgo:188, description:'Approved request: restore contributor access to the HR onboarding folder.', symptoms:['Read access works','Manager approval attached'], logs:['AD group history: removed from GG-HR-Contributors during transfer'], systemState:['Member of GG-HR-Readers','Not member of GG-HR-Contributors'], plausibleCauses:['NTFS ACL issue','Missing group membership'], correctPath:['Validate approval','Add authorized group','Refresh user token','Verify effective access','Document change'], hiddenRootCause:'User was removed from the contributor group during a role transfer.', expectedResolution:'Add GG-HR-Contributors, refresh sign-in token, verify upload, document approval.', escalationCriteria:['No data-owner approval','Requested permission exceeds role'] }),
+  hdTicket({ id:'SR-2107', ownSet:true, requester:'Grace Kim', department:'Human Resources', category:'Service Request', subcategory:'Group membership', priority:'P3', businessImpact:'Recruiter cannot upload forms', sla:'2 business days', createdMinutesAgo:188, description:'Approved request: restore contributor access to the HR onboarding folder.', symptoms:['Read access works','Manager approval attached'], logs:['AD group history: removed from GG-HR-Contributors during transfer'], systemState:['Member of GG-HR-Readers','Not member of GG-HR-Contributors'], plausibleCauses:['NTFS ACL issue','Missing group membership'], correctPath:['Validate approval','Add authorized group','Refresh user token','Verify effective access','Document change'], hiddenRootCause:'User was removed from the contributor group during a role transfer.', expectedResolution:'Add GG-HR-Contributors, refresh sign-in token, verify upload, document approval.', escalationCriteria:['No data-owner approval','Requested permission exceeds role'] }),
   hdTicket({ id:'HD-2108', ownSet:true, requester:'Amir Patel', department:'Operations', category:'Incident', subcategory:'Group Policy', priority:'P3', businessImpact:'One user lacks mapped drive', sla:'2 business days', createdMinutesAgo:201, description:'My Operations drive disappeared after my laptop was replaced.', symptoms:['Group membership correct','UNC path works manually'], logs:['gpresult: Operations Drive Mapping absent','Computer DN: CN=NS-LT-0145,CN=Computers'], systemState:['User in GG-Operations-Drive','Computer in default Computers container'], plausibleCauses:['Disconnected drive','GPO scope','File server outage'], correctPath:['Verify authorization','Run gpresult','Check computer OU','Move computer through approved admin task','Refresh policy and verify'], hiddenRootCause:'Replacement computer object was never moved into the Operations workstation OU.', expectedResolution:'Move the computer to the correct OU, run policy refresh, verify O: mapping.', escalationCriteria:['GPO link or security filtering change required','Replication/SYSVOL issue'] }),
   hdTicket({ id:'HD-2109', ownSet:true, requester:'Noah Williams', department:'Sales', category:'Incident', subcategory:'Windows profile', priority:'P3', businessImpact:'Sales user cannot access normal desktop', sla:'2 business days', createdMinutesAgo:167, description:'Windows signed me into a blank desktop and my shortcuts are missing.', symptoms:['Temporary profile notification','Another user signs in normally'], logs:['User Profile Service 1511: logged on with temporary profile'], systemState:['C:\\Users\\nwilliams exists','Profile registry entry ends in .bak'], plausibleCauses:['Cloud sync issue','Corrupt profile mapping','Malware'], correctPath:['Protect user data','Confirm temporary-profile evidence','Repair or rebuild per runbook','Restore data','Verify sign-in'], hiddenRootCause:'Corrupt ProfileList registry mapping after interrupted update.', expectedResolution:'Repair/rebuild the profile using the approved runbook and verify data and application access.', escalationCriteria:['Encrypted data inaccessible','Repeated corruption or compromise indicators'] }),
   hdTicket({ id:'HD-2110', requester:'Sofia Martin', department:'Operations', category:'Incident', subcategory:'Domain trust', priority:'P2', businessImpact:'Shift supervisor cannot domain sign in', sla:'8 hours', createdMinutesAgo:74, description:'Windows says the trust relationship between this workstation and the domain failed.', symptoms:['Local support account works','Domain sign-in fails'], logs:['Test-ComputerSecureChannel: False','NETLOGON 3210 secure session failed'], systemState:['Computer object enabled','Restored VM snapshot recorded yesterday'], plausibleCauses:['Bad user password','DNS','Machine-account mismatch'], correctPath:['Confirm recovery access','Validate DNS/time/object state','Test secure channel','Repair through approved Tier 2 procedure','Verify sign-in and policy'], hiddenRootCause:'A restored snapshot rolled back the machine-account password.', expectedResolution:'Repair the secure channel, restart if approved, verify domain authentication and gpresult.', escalationCriteria:['Computer object missing or duplicate','Multiple machines lose trust'] }),
@@ -780,7 +994,7 @@ const HD_TICKET_TEMPLATES = [
   hdTicket({ id:'SEC-2115', requester:'Endpoint Security', department:'Cybersecurity', category:'Security Incident', subcategory:'Malware alert', priority:'P1', businessImpact:'Potential endpoint compromise', sla:'15 minutes', createdMinutesAgo:12, description:'High-confidence malware alert on NS-LT-0162 requires help desk contact and containment coordination.', symptoms:['User reports browser pop-ups','EDR alert high confidence'], logs:['EDR: suspicious powershell child of browser','SHA256 aaa... training fixture'], systemState:['Device online','Isolation pending security approval'], plausibleCauses:['Malicious extension','False positive'], correctPath:['Do not delete evidence','Confirm user/device','Coordinate containment','Record observations','Warm handoff to security'], hiddenRootCause:'Malicious browser extension launched an encoded PowerShell command.', expectedResolution:'Security-led containment and investigation; help desk handles user communication and replacement device.', escalationCriteria:['Always: confirmed or suspected malware'] }),
   hdTicket({ id:'SR-2116', requester:'Dina Foster', department:'Executive Office', category:'Service Request', subcategory:'Software installation', priority:'P2', businessImpact:'Board materials due tomorrow', sla:'8 hours', createdMinutesAgo:126, description:'Install the approved PDF editor before tomorrow morning.', symptoms:['Manager approval attached','License available'], logs:['Software catalog: PDF Studio Enterprise · Approved'], systemState:['Device compliant','Package available in endpoint manager'], plausibleCauses:['Standard request'], correctPath:['Validate approval/license/device','Deploy approved package','Verify launch and license','Document'], hiddenRootCause:'No fault; fulfilled standard request.', expectedResolution:'Install from managed catalog and verify with user.', escalationCriteria:['Unapproved software or elevated exception requested'] }),
   hdTicket({ id:'HD-2117', ownSet:true, requester:'Monitoring', department:'Information Technology', category:'Incident', subcategory:'Disk space', priority:'P2', businessImpact:'File server may stop accepting data', sla:'8 hours', createdMinutesAgo:41, description:'NS-FILE01 data volume has 4% free space.', symptoms:['Growth accelerated this morning','Finance archive share largest'], logs:['Get-Volume D: SizeRemaining 81GB of 2TB','Top path: D:\\Shares\\Finance\\Exports'], systemState:['Nightly export job created duplicate output','Backups healthy'], plausibleCauses:['Normal growth','Log growth','Duplicate export'], correctPath:['Confirm impact and growth','Identify safe cleanup candidates','Preserve business data','Stop duplicate generation through owner','Use approved cleanup/change'], hiddenRootCause:'Finance export job wrote duplicate archives after a retry loop.', expectedResolution:'Stop duplicate job via app owner, remove duplicates after approval, verify free-space threshold and monitoring.', escalationCriteria:['Storage expansion or production job change required'] }),
-  hdTicket({ id:'HD-2118', requester:'Evan Parker', department:'Finance', category:'Incident', subcategory:'File permissions', priority:'P2', businessImpact:'Payroll file cannot be updated', sla:'8 hours', createdMinutesAgo:58, description:'I can open the payroll workbook but cannot save changes.', symptoms:['Read succeeds','Modify denied in Payroll subfolder'], logs:['Effective access: Read & Execute','Share permission: Change'], systemState:['User in GG-Finance-Users','Missing GG-Finance-Contributors'], plausibleCauses:['File locked','NTFS permission','Share offline'], correctPath:['Validate requested access','Calculate group-based effective access','Check share and NTFS','Correct approved membership','Refresh token and verify'], hiddenRootCause:'User is missing the NTFS contributor group.', expectedResolution:'Restore approved contributor group and verify Modify without direct user ACL.', escalationCriteria:['No data-owner approval','Explicit deny or ACL redesign required'] }),
+  hdTicket({ id:'HD-2118', ownSet:true, requester:'Evan Parker', department:'Finance', category:'Incident', subcategory:'File permissions', priority:'P2', businessImpact:'Payroll file cannot be updated', sla:'8 hours', createdMinutesAgo:58, description:'I can open the payroll workbook but cannot save changes.', symptoms:['Read succeeds','Modify denied in Payroll subfolder'], logs:['Effective access: Read & Execute','Share permission: Change'], systemState:['User in GG-Finance-Users','Missing GG-Finance-Contributors'], plausibleCauses:['File locked','NTFS permission','Share offline'], correctPath:['Validate requested access','Calculate group-based effective access','Check share and NTFS','Correct approved membership','Refresh token and verify'], hiddenRootCause:'User is missing the NTFS contributor group.', expectedResolution:'Restore approved contributor group and verify Modify without direct user ACL.', escalationCriteria:['No data-owner approval','Explicit deny or ACL redesign required'] }),
   ...['Maya Chen|Operations','Elena Ruiz|Logistics','Noah Williams|Sales','Priya Shah|Human Resources','Evan Parker|Finance'].map((row, index) => {
     const [requester, department] = row.split('|');
     return hdTicket({ id:`HD-${2119 + index}`, requester, department, category:'Incident', subcategory:'Enterprise application', priority:index === 0 ? 'P2' : 'P3', businessImpact:'Purchasing application unavailable', sla:index === 0 ? '8 hours' : '2 business days', createdMinutesAgo:32 - index * 4, description:'Purchasing opens, but sign-in ends with a secure connection error.', symptoms:['Same application error','Other websites and file shares work'], logs:['Browser: NET::ERR_CERT_DATE_INVALID','TLS NotAfter: 2026-08-16T23:59:59Z'], systemState:['NS-APP01 online','Application service running'], plausibleCauses:['User account','Browser cache','Application certificate'], correctPath:['Confirm shared symptom','Compare timestamps and error','Link related incidents','Validate certificate evidence','Escalate controlled renewal'], hiddenRootCause:'NS-APP01 service certificate expired.', expectedResolution:'Link to the common incident/problem, renew the certificate through change control, verify all user paths.', escalationCriteria:['Always: shared production application and certificate change'], correlationKey:'APP-CERT-EXPIRY-01' });
@@ -2321,6 +2535,358 @@ const HD_TICKET_TEMPLATES = [
           { requestField:{ id:'scope', value:'Warehouse' }, missing:'Set Scope to Warehouse.' },
         ], good:'Payroll has the current address, and the reservation is requested instead of changing DHCP.', fix:'Give payroll the clock\'s current address, then convert the incident to Network device reservation with the device, its hardware address, 10.20.30.61 and the Warehouse scope.' },
         { area:'Documentation', checks:[{ attached:'KB-0102', missing:'Attach KB-0102 to the ticket.' }, { note:true, missing:'Write a Reported / Tried / Result / Next action note.' }, { comment:true, missing:'Write a comment for Monica in plain words, with no internal terms.' }], good:'KB-0102 attached, a complete note and a plain-words comment for Monica.', fix:'Attach KB-0102, write a Reported / Tried / Result / Next action note, and write a plain-words comment, for example: "Hi Monica, badges are being recorded again. Payroll has the clock\'s current address, so nothing is lost from this morning, including the night shift\'s clock-outs. The cause is that the clock is picking up a new address each time it restarts, instead of keeping one of its own. I\'ve put in a request for our server team to reserve its proper address, and once that\'s in place it\'ll stay put after any restart. I\'ll confirm when it\'s done. – Riley"' },
+      ],
+    } }),
+  // Module 8 (key its-06) Practice It. Lab 8.1 (coach hd-m06, HD_COACHED_SETS
+  // 'its-06-guided') is HD-2196 (Part A), HD-2197 and the request SR-2207 /
+  // RITM0010162 linked to it (Part B). The optional HD-2101 extension is in
+  // HD_COACHED_SETS 'its-06-extension' (ticketOverrides). Lab 8.2
+  // (HD_PRACTICE_SETS 'its-06') is tickets 8-A to 8-D (HD-2198 to HD-2201). The
+  // people, computers, servers, directory and tenant are the set's
+  // (HD_ITS06_*). expectedResolution holds the model work note. Practice
+  // feedback only, never points: critical errors are feedback here, never a score.
+  // Part A: a repeat lockout from a saved password on the user's own PC.
+  hdTicket({ id:'HD-2196', ownSet:true, number:'INC0010507', requester:'Noah Williams', department:'Sales', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T13:05:00Z', shortDescription:'Locked out AGAIN',
+    description:'It\'s Noah in Sales. I\'ve been locked out three times since lunch. You unlocked me at 12:20 and it happened again. I changed my password yesterday like the reminder said. I\'ve got client calls all afternoon.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: locked out 3 times since lunch; unlocked at 12:20 and relocked; password changed yesterday. Tried: verified per KB-0024 (directory callback + employee ID); account locked, enabled, never expires, password set yesterday 16:10; Lockout details: 3 lockouts today, source NS-WS-0277 (his old desk PC); cmdkey /list showed a saved credential for NS-FILE01 with the old password; with Noah\'s OK removed it in Credential Manager (KB-0103); unlocked once. Result: no new bad attempts after 2 minutes; Noah signed in and reconnected the Sales drive with his new password.',
+    console: {
+      now:'2026-08-19T13:05:00Z', matrix:{}, classify:{ categories:HD_ITS06_CATEGORIES, cis:['nwilliams', 'NS-WS-0277', 'NS-FILE01', 'NS-DC01'], preset:{ contactType:'Phone' } },
+      priorityCoach:{ impact:'3', urgency:'1', line:'One person who can\'t work at all (Impact 3 and Urgency 1): P3.' },
+      verification:{ prompt:'Noah Williams is on the phone asking you to unlock the account. How do you verify it\'s really Noah? (KB-0024)', options:[
+        { id:'name', text:'Accept it: Noah gives his name and department', feedback:'Not verification. Anyone can learn a name and a department. KB-0024: call Noah back on the number in the User Directory and confirm his employee ID.' },
+        { id:'password', text:'Ask Noah for his new password so you can check it', feedback:'Never ask for a password, for any reason (KB-0024). Call Noah back on the number in the User Directory and confirm his employee ID.' },
+        { id:'callback', text:'Call Noah back on the number in the User Directory and confirm his employee ID', pass:true, feedback:'Verified. You called Noah back on ext. 4318 from the User Directory, and Noah confirmed employee ID E-32655.', history:'Identity verified per KB-0024: called Noah back on the User Directory number (ext. 4318); employee ID E-32655 confirmed.' },
+      ] },
+      kb:{ attach:true }, comments:true,
+      resolutionCode:{ required:true, options:['Fixed — user guided', 'Solution provided', 'Workaround provided', 'Escalated', 'Routed to Security Operations', 'User cancelled', 'Duplicate'] },
+      machines:{ 'NS-WS-0277':{ savedCredentials:[{ target:'NS-FILE01', type:'Domain Password', user:'NORTHSTAR\\nwilliams', stale:true }], signedInGroups:['GG-Sales-Users', 'GG-CRM-Users'] } },
+      wait:{ minutes:2 },
+      accountActions:{ 'u-1003':{ unlock:true } },
+      caller:{ name:'Noah Williams', questions:[
+        { id:'device', text:'Is NS-WS-0277 a computer you use?', reply:'That\'s my old desk PC. I left it signed in. I\'ve got the Sales drive mapped on it.' },
+        { id:'consent', text:'I\'d like to remove the old saved password for the Sales drive on NS-WS-0277. Is that OK with you?', reply:'Yes, go ahead and remove it.' },
+        { id:'reopen', text:'Please sign in with your new password and open the Sales drive again.', reply:'I\'m in, and the Sales drive opened with my new password.', replyBefore:'It still says my account is locked, or it asks me for a password I don\'t have.', afterAction:'waited', confirms:true },
+      ] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0024', 'KB-0103', 'Active Directory', 'domain controller', 'event 4740', '4740', 'Lockout details', 'lockout source', 'cmdkey', 'Credential Manager', 'NS-FILE01', 'NS-WS-0277', 'nwilliams', 'Tier 2'],
+        needs:[{ label:'Names the source computer (NS-WS-0277)', pattern:'NS-WS-0277' }, { label:'Says what was saved and removed', pattern:'saved (credential|password)|Credential Manager|cmdkey' }, { label:'Says Noah agreed', pattern:'\\bOK\\b|agreed|permission|consent' }, { label:'Says it stayed fixed', pattern:'no new|stayed|still unlocked|signed in' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Access', subcategory:'Account lockout', ci:'nwilliams' }, missing:'Set Category Access › Account lockout and CI nwilliams, Noah\'s account.' }, { priority:'P3', missing:'Set Impact 3 (one person) and Urgency 1 (he can\'t work at all). That makes the ticket P3.' }], good:'Access › Account lockout on nwilliams, P3: one person who can\'t work at all.', fix:'Set Category Access › Account lockout, CI nwilliams, Impact 3 and Urgency 1. The ticket is P3.' },
+        { area:'Investigation', checks:[
+          { verified:true, missing:'Verify Noah with KB-0024: call him back on the number in the User Directory and confirm his employee ID.' },
+          { serverSeen:'ad-user:u-1003', missing:'Read every status field first: type the Get-ADUser line, or open Active Directory › Users › Noah Williams.' },
+          { serverSeen:'ad-lockout:u-1003', missing:'In Active Directory › Users › Noah Williams, open Lockout details.' },
+        ], good:'You verified Noah, read every status field and read the lockout source before you changed anything.', fix:'Verify Noah, read his account status, then open Lockout details: 3 lockouts today, and the source is NS-WS-0277.' },
+        { area:'Diagnosis', checks:[
+          { chat:['device'], missing:'Ask Noah whether NS-WS-0277 is a computer he uses.' },
+          { seen:'credential-manager', computer:'NS-WS-0277', missing:'On NS-WS-0277, open Credential Manager or type cmdkey /list, and read the saved credentials.' },
+          { kb:'KB-0103', missing:'Search the knowledge base for "lockout source" and open KB-0103.' },
+        ], good:'The source is his old desk PC. It still holds a saved password for NS-FILE01 from before he changed it, so it keeps sending the old one.', fix:'Ask about NS-WS-0277, read its saved credentials, and open KB-0103. A saved password on a computer the user signs in to is a fix Tier 1 makes with the user.' },
+        { area:'Action', checks:[
+          { chat:['consent'], missing:'Tell Noah what you will remove and get his OK before you remove it.' },
+          { action:'credential-removed', missing:'Remove the NS-FILE01 entry in Credential Manager on NS-WS-0277.' },
+          { actionsAfter:{ after:'credential-removed', action:'ad-unlocked', min:1 }, missing:'Unlock the account once, after the source is fixed. Never unlock before it (KB-0103).' },
+          { action:'waited', missing:'Click Wait 2 minutes, then check that the account is still unlocked.' },
+          { confirmed:'reopen', missing:'After you wait, ask Noah to sign in and reopen the Sales drive.' },
+        ], good:'You got his OK, removed the saved password, unlocked once and checked it stayed fixed.', fix:'Get Noah\'s OK, remove the NS-FILE01 entry in Credential Manager, unlock once, wait 2 minutes and ask him to reopen the Sales drive.' },
+        { area:'Documentation', checks:[{ attached:'KB-0103', missing:'Attach KB-0103 to the ticket.' }, { note:true, missing:'Write a Reported / Tried / Result note.' }, { comment:true, missing:'Write a comment for Noah in plain words, with no internal terms.' }, { code:'Fixed — user guided', missing:'Choose the resolution code Fixed — user guided.' }, { status:'Resolved', missing:'Resolve the ticket.' }], good:'KB-0103 attached, a complete note, a plain-words comment, the right code and the ticket resolved.', fix:'Attach KB-0103, write a Reported / Tried / Result note, choose the code Fixed — user guided and resolve the ticket. A comment could say: "Hi Noah, you\'re unlocked and it should stay that way now. Your old desk PC still had your previous password saved for the Sales drive, and it kept trying it, which locked you out. We\'ve removed that saved password. If your desk PC asks for your password for the drive, type your new one. – Riley"' },
+      ],
+    } }),
+  // Part B: a replacement company phone, verified in person.
+  hdTicket({ id:'HD-2197', ownSet:true, number:'INC0010508', requester:'Sam Rivera', department:'Customer Service', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T13:40:00Z', shortDescription:'New work phone',
+    description:'IT swapped my work phone yesterday. Now I can\'t approve sign-ins because Authenticator was on the old one. I\'m still signed in on my laptop but Teams keeps asking. Also, Celia put me on the support@ inbox from Monday. I can open it, but my replies go out as me.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: new company phone yesterday; Authenticator was on the old phone, can\'t approve sign-ins; Teams prompting on laptop. Tried: verified in person per KB-0065 (badge matches directory photo, employee ID); hardware request shows NS-PH-0002 returned and wiped, NS-PH-0001 issued; Service health: no sign-in or Exchange advisory; required MFA re-registration; guided Authenticator setup on NS-PH-0001; enrolled in Company Portal; set OneDrive to Wi-Fi only (5 GB plan); paired HS-200 headset. Result: test sign-in approved; sign-in log Success with MFA; NS-PH-0001 Compliant; Outlook mail, calendar and contacts syncing; headset test call OK.',
+    console: {
+      now:'2026-08-19T13:40:00Z', matrix:{}, classify:{ categories:HD_ITS06_CATEGORIES, cis:['srivera', 'NS-PH-0001', 'NS-PH-0002', 'NS-LT-0188'], preset:{ contactType:'Walk-in' } },
+      priorityCoach:{ impact:'3', urgency:'2', line:'One person (Impact 3). He is still signed in on his laptop, so he can work (Urgency 2): P4.' },
+      verification:{ prompt:'Sam Rivera is at the Service Desk with his badge. He wants his sign-in approvals moved to a new phone. How do you verify him before an MFA change? (KB-0065)', options:[
+        { id:'name', text:'Accept it: Sam gives his name and department', feedback:'Not verification. Anyone can learn a name and a department. KB-0065: an MFA change needs the person in person with a matching photo badge, or a callback plus the employee ID plus the manager\'s confirmation.' },
+        { id:'callback', text:'Call Sam back on the number in the User Directory and confirm his employee ID', feedback:'Not enough for an MFA change. That is the check for an unlock (KB-0024). Whoever registers a method can sign in as Sam, so KB-0065 asks for more: an in-person photo badge match, or a callback plus the employee ID plus his manager\'s confirmation.' },
+        { id:'manager', text:'Ask Sam\'s manager to confirm by message, and nothing else', feedback:'Not enough on its own. A manager\'s confirmation is one part of the callback check. KB-0065 also asks for the callback and the employee ID, or for the person in front of you with a matching badge.' },
+        { id:'badge', text:'Compare the photo on Sam\'s badge with his directory photo, and confirm his employee ID', pass:true, feedback:'Verified in person. The badge photo matches the directory photo, and Sam confirmed employee ID E-42856.', history:'Identity verified in person per KB-0065: badge photo matches the directory photo; employee ID E-42856 confirmed.' },
+      ] },
+      kb:{ attach:true }, comments:true,
+      resolutionCode:{ required:true, options:['Fixed — user guided', 'Solution provided', 'Workaround provided', 'Escalated', 'Routed to Security Operations', 'User cancelled', 'Duplicate'] },
+      evidence:[{ id:'sam-hardware-request', title:'Hardware request (yesterday): phone swap', rows:[
+        { label:'Requested for', value:'Sam Rivera' },
+        { label:'Old phone', value:'NS-PH-0002 · returned and wiped yesterday' },
+        { label:'New phone', value:'NS-PH-0001 · issued yesterday' },
+        { label:'Status', value:'Completed' },
+      ] }],
+      cloud:{ allow:{ reregister:{ 'u-1013':{ after:'entra-methods:u-1013', afterText:'Read his authentication methods first.' } }, mailbox:[{ mailbox:'support', user:'u-1013', permission:'sendAs', ticket:'SR-2207' }] } },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0065', 'KB-0103', 'Entra', 'Intune', 'Company Portal', 'MFA', 'multifactor', 'Conditional Access', 'NS-PH-0001', 'NS-PH-0002', 'srivera', 'Tier 2'],
+        needs:[{ label:'Says how he was verified (in person, badge, employee ID)', pattern:'in person|badge' }, { label:'Names the hardware request (old phone returned and wiped)', pattern:'wiped|hardware request|NS-PH-0002' }, { label:'Says Service health was checked', pattern:'Service health' }, { label:'Says the sign-in worked after the change', pattern:'test sign-in|Success|approved' }] },
+      feedback:[
+        { area:'Triage', checks:[{ any:[{ triage:{ category:'Access', subcategory:'MFA', ci:'srivera' } }, { triage:{ category:'Access', subcategory:'MFA', ci:'NS-PH-0001' } }], missing:'Set Category Access › MFA and a CI: Sam\'s account (srivera) or his new phone, NS-PH-0001.' }, { priority:'P4', missing:'Set Impact 3 (one person) and Urgency 2 (he is still working on his laptop). That makes the ticket P4.' }], good:'Access › MFA, P4: one person, still signed in on his laptop.', fix:'Set Category Access › MFA, CI srivera or NS-PH-0001, Contact type Walk-in, Impact 3 and Urgency 2. The ticket is P4.' },
+        { area:'Investigation', checks:[
+          { verified:true, missing:'Verify Sam with KB-0065: compare his badge with his directory photo and confirm his employee ID.' },
+          { evidence:'sam-hardware-request', missing:'Open the hardware request on his record: yesterday\'s phone swap.' },
+          { serverSeen:'m365-health', missing:'Open Microsoft 365 admin center › Health › Service health before you change anything.' },
+          { serverSeen:'entra-methods:u-1013', missing:'Open Entra admin center › Users › Sam Rivera › Authentication methods and read his methods.' },
+        ], good:'You verified Sam in person, found the phone swap on record, checked Service health and read his methods before you changed anything.', fix:'Verify Sam with KB-0065, open the hardware request, read Service health (one Teams advisory, nothing about sign-in or Exchange) and read his authentication methods.' },
+        { area:'Diagnosis', checks:[
+          { serverSeen:'entra-signins:u-1013', missing:'Open Entra admin center › Users › Sam Rivera › Sign-in logs and read why his sign-ins fail.' },
+          { kb:'KB-0065', missing:'Search the knowledge base for "new phone" and open KB-0065.' },
+        ], good:'His Authenticator is on a wiped phone, so every sign-in stops at "MFA required — not completed". A new method is the fix.', fix:'Read Sam\'s sign-in log and open KB-0065. The method is on a phone he no longer has, so re-registering is right here.' },
+        { area:'Action', checks:[
+          { action:'entra-mfa-reregister', missing:'In Authentication methods, choose Require re-register multifactor authentication.' },
+          { action:'phone-auth-added', missing:'On NS-PH-0001, add Sam\'s work account in the Authenticator app.' },
+          { action:'phone-auth-approved', missing:'Send a test sign-in and approve it on NS-PH-0001.' },
+          { action:'phone-cp-enrolled', missing:'On NS-PH-0001, open Company Portal and enrol the phone.' },
+          { action:'phone-outlook-added', missing:'On NS-PH-0001, open Outlook and add his work account.' },
+          { action:'phone-onedrive-wifi-only-on', missing:'In OneDrive › Settings, turn on Upload on Wi-Fi only: his plan has a data cap.' },
+          { action:'phone-bt-paired', missing:'Pair the HS-200 Headset: Bluetooth on, pairing mode, choose it, enter the PIN.' },
+          { action:'phone-bt-tested', missing:'Test the headset with a call to the Service Desk line.' },
+        ], good:'MFA re-registered, Authenticator on NS-PH-0001, the phone enrolled, mail set up, OneDrive on Wi-Fi only and the headset paired and tested.', fix:'Require re-registration, add the work account in Authenticator on NS-PH-0001 and approve a test sign-in, enrol in Company Portal, add Outlook, turn on OneDrive Upload on Wi-Fi only, then pair and test the HS-200 Headset.' },
+        { area:'Documentation', checks:[{ attached:'KB-0065', missing:'Attach KB-0065 to the ticket.' }, { note:true, missing:'Write a Reported / Tried / Result note.' }, { comment:true, missing:'Write a comment for Sam in plain words, with no internal terms.' }, { status:'Resolved', missing:'Resolve the ticket.' }], good:'KB-0065 attached, a complete note, a plain-words comment and the ticket resolved.', fix:'Attach KB-0065, write a Reported / Tried / Result note, and resolve the ticket. A comment could say: "Hi Sam, your new phone is all set: sign-in approvals come to it now, your work mail, calendar and contacts are on it, and your headset is paired. OneDrive will only upload over Wi-Fi so you don\'t use up your data plan. – Riley"' },
+      ],
+    } }),
+  // Part B's request: Send as on support@ for Sam, approved by the mailbox
+  // owner. It starts Approved, is its own record and has no SLA bar.
+  hdTicket({ id:'SR-2207', ownSet:true, number:'RITM0010162', requester:'Sam Rivera', department:'Customer Service', category:'Service Request', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-18T15:20:00Z', shortDescription:'Shared mailbox access: Send as on support@',
+    description:'Approved request: give Sam Rivera Send as on support@northstar.example, so his replies come from the shared mailbox. The mailbox owner, Celia Morales, approved it. Linked to HD-2197.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    request:{ number:'RITM0010162', item:'Shared mailbox access', requestedFor:'Sam Rivera', approval:'Approved', approver:'Celia Morales (Customer Service Manager)', approvedAt:'2026-08-18T16:05:00Z', state:'Open', fields:[{ id:'mailbox', label:'Mailbox', value:'support@northstar.example' }, { id:'permission', label:'Permission', value:'Send as' }] },
+    expectedResolution:'Send as on support@ added for Sam Rivera per owner approval (C. Morales); Full Access was already in place; may take up to an hour to apply.',
+    console: {
+      now:'2026-08-19T13:40:00Z', matrix:{}, convert:{ number:'RITM0010162', items:[] },
+      cloud:{ allow:{ mailbox:[{ mailbox:'support', user:'u-1013', permission:'sendAs', ticket:'SR-2207' }] } },
+      notes:{ parts:['reported', 'tried', 'result'], jargon:[],
+        needs:[{ label:'Says Send as was added on support@', pattern:'send as' }, { label:'Names the owner\'s approval', pattern:'Celia|C\\. Morales|owner' }] },
+      feedback:[
+        { area:'Action', checks:[
+          { serverSeen:'m365-mailbox:support', missing:'Open Microsoft 365 admin center › Teams & groups › Shared mailboxes › support and read the mailbox permissions. Sam already has Read and manage (Full Access).' },
+          { action:'m365-sendas-added', missing:'Add Sam under Send as. Do this while SR-2207 is the open ticket, so the change is recorded on the request.' },
+          { not:{ requestOpen:true }, missing:'Close the request (Closed Complete) once the change is made.' },
+        ], good:'Send as on support@ added for Sam, and the request closed.', fix:'Read the mailbox\'s permissions, add Sam under Send as (the owner\'s approval is on the request), then close the request.' },
+        { area:'Documentation', checks:[{ notePattern:'send as', missing:'Write a close note that says Send as was added for Sam on support@.' }, { notePattern:'Celia|C\\. Morales|owner', missing:'Name the owner\'s approval in the close note.' }, { notePattern:'hour', missing:'Say in the close note that the change can take up to an hour to apply.' }], good:'A close note that says what was added, whose approval it had and that it can take up to an hour.', fix:'Write a close note, for example: "Send as on support@ added for Sam Rivera per owner approval (C. Morales); Full Access was already in place; may take up to an hour to apply."' },
+      ],
+    } }),
+  // Ticket 8-A: back from leave. The account was disabled for the leave and the
+  // password has expired: enable it against HR's record, reset it under KB-0104,
+  // then register for self-service password reset.
+  hdTicket({ id:'HD-2198', ownSet:true, number:'INC0010509', requester:'Alana Kealoha', department:'Customer Service', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T13:06:00Z', shortDescription:'It says my account is disabled',
+    description:'Hi, it\'s Alana Kealoha in Customer Service. Today\'s my first day back after six weeks of leave. When I sign in it says "Your account has been disabled." HR told me I\'m all set to come back today. My shift started at 1.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: "account has been disabled" on first day back from six weeks\' leave; HR said she\'s cleared to return. Tried: verified per KB-0024 (directory callback + employee ID); account disabled, not locked, never expires, password expired (set 92 days ago); history and HR-8894 show leave of absence with return to work today approved by HR; enabled the account; old password unknown and not registered for SSPR, so reset per KB-0104 with must-change ticked, one-time password given verbally on the verified call. Result: Alana signed in on NS-LT-0414, set her own password and registered for SSPR.',
+    console: {
+      now:'2026-08-19T13:10:00Z', matrix:{}, classify:{ categories:HD_ITS06_CATEGORIES, cis:['akealoha', 'NS-LT-0414', 'NS-DC01', 'cmorales'], preset:{ contactType:'Phone' } },
+      priorityCoach:{ impact:'3', urgency:'1', line:'One person whose shift has started and who can\'t sign in at all (Impact 3 and Urgency 1): P3.' },
+      verification:{ prompt:'Alana Kealoha is on the phone from the Customer Service front desk. How do you verify it\'s really Alana? (KB-0024)', options:[
+        { id:'name', text:'Accept it: Alana gives her name and department', feedback:'Not verification. Anyone can learn a name and a department. KB-0024: call Alana back on the number in the User Directory and confirm her employee ID.' },
+        { id:'hr-says', text:'Accept it: Alana says HR cleared her to come back today', feedback:'Not verification. What she says HR told her is not a check. KB-0024: call her back on her directory number and confirm her employee ID. HR\'s record comes later, as the approval to enable the account.' },
+        { id:'password', text:'Ask Alana for her old password so you can check it', feedback:'Never ask for a password, for any reason (KB-0024). Call Alana back on the number in the User Directory and confirm her employee ID.' },
+        { id:'callback', text:'Call Alana back on her Customer Service desk number in the User Directory and confirm her employee ID', pass:true, feedback:'Verified. You called Alana back on ext. 4404 from the User Directory, and Alana confirmed employee ID E-64284.', history:'Identity verified per KB-0024: called Alana back on the User Directory number (ext. 4404); employee ID E-64284 confirmed.' },
+      ] },
+      kb:{ attach:true }, comments:true, resolutionCode:{ required:true },
+      evidence:[{ id:'HR-8894', title:'HR-8894 · Leave of absence and return to work', rows:[
+        { label:'Employee', value:'Alana Kealoha (akealoha)' },
+        { label:'Record', value:'Leave of absence and return to work' },
+        { label:'Leave began', value:'Six weeks ago' },
+        { label:'Return to work', value:'Today' },
+        { label:'Approved by', value:'HR' },
+        { label:'Account', value:'Enable on return to work' },
+      ] }],
+      accountActions:{ 'u-1038':{ enable:{ record:'HR-8894', after:'HR-8894', afterText:'Open HR-8894 first. Enable a disabled account only against the record that approves it.' }, reset:true } },
+      cloud:{ allow:{ sspr:{ 'u-1038':true } } },
+      criticalActions:[
+        { action:'ad-enable-refused', reason:'HR-8894', text:'Critical error. You tried to enable the account before you opened HR-8894. Enable a disabled account only against the HR record that approves it.' },
+        { action:'ad-reset-refused', reason:'Verify the caller', text:'Critical error. You tried to reset Alana\'s password before you verified her (KB-0024). Verify first; then use KB-0104 only because she can\'t use self-service password reset.' },
+      ],
+      caller:{ name:'Alana Kealoha', questions:[
+        { id:'try', text:'Please try to sign in again now.', reply:'It says my password has expired and must be changed. It asks for my old password, and I don\'t remember it after six weeks.', replyBefore:'It still says my account has been disabled.', afterAction:'ad-enabled' },
+        { id:'onetime', text:'Please sign in on NS-LT-0414 with the one-time password I just read to you, then choose your own password.', reply:'I\'m in. I chose my own password.', replyBefore:'I don\'t have a new password to try yet.', afterAction:'ad-password-reset', confirms:true },
+        { id:'sspr', text:'Please open aka.ms/ssprsetup and register for password reset.', reply:'Done. I\'m registered, so I can reset it myself next time.', replyBefore:'I tried the link, but it won\'t let me register yet.', afterAction:'entra-sspr-registered' },
+      ] },
+      choice:{ heading:'Choose your response',
+        prompt:'Alana says HR cleared her to come back today. Her account is disabled. What do you do first?',
+        options:[
+          { id:'enable-on-word', text:'Enable the account now: Alana says HR cleared her', critical:true, feedback:'Critical error. Enabling a disabled account needs the HR record that approves it, not the user\'s word. The step stays open: choose again.' },
+          { id:'reset-first', text:'Reset her password straight away, before you check who is calling', critical:true, feedback:'Critical error. Verify the caller before any account action (KB-0024). The step stays open: choose again.' },
+          { id:'verify-then-record', text:'Verify Alana, then read the account\'s history and open HR-8894', right:true, action:{ id:'hr-record-first-chosen', label:'Chose to verify Alana and open HR-8894 before changing the account' }, feedback:'Right. Verify first, read every field, and let HR-8894 be the approval to enable.' },
+        ] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['HR-8894', 'KB-0024', 'KB-0104', 'SSPR', 'Active Directory', 'Entra', 'must-change', 'one-time password', 'akealoha', 'NS-LT-0414', 'Tier 2'],
+        needs:[{ label:'Names HR-8894', pattern:'HR-8894' }, { label:'Names KB-0104', pattern:'KB-0104' }, { label:'Says the password was expired', pattern:'password expired|expired password' }, { label:'Says she set her own password and registered for SSPR', pattern:'her own password|SSPR|self-service' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Access', subcategory:'Account – disabled', ci:'akealoha' }, missing:'Set Category Access › Account – disabled and CI akealoha, Alana\'s account.' }, { priority:'P3', missing:'Set Impact 3 (one person) and Urgency 1 (she can\'t work at all). That makes the ticket P3.' }], good:'Access › Account – disabled on akealoha, P3: one person who can\'t work at all is Impact 3 × Urgency 1.', fix:'Set Category Access › Account – disabled, CI akealoha, Impact 3 and Urgency 1. One person who can\'t work at all is P3.' },
+        { area:'Investigation', checks:[
+          { verified:true, missing:'Verify Alana with KB-0024: call her back on the number in the User Directory and confirm her employee ID.' },
+          { serverSeen:'ad-user:u-1038', missing:'Read every status field first: type the Get-ADUser line, or open Active Directory › Users › Alana Kealoha.' },
+          { evidence:'HR-8894', missing:'Open HR-8894 and read the leave dates and the return to work.' },
+        ], good:'You verified Alana, read every field and opened HR-8894. Two things were wrong, not one.', fix:'Verify Alana, read every field before you act (the Get-ADUser line or the pane), and open HR-8894. Two things were wrong, not one.' },
+        { area:'Diagnosis', checks:[
+          { serverSeen:'entra-methods:u-1038', missing:'Open Entra admin center › Users › Alana Kealoha › Authentication methods and read her self-service password reset status.' },
+          { kb:'KB-0104', missing:'Search the knowledge base for "password reset" and open KB-0104.' },
+        ], good:'Her account was disabled for leave (not a leaver), and her password has expired. She is not registered for self-service password reset, so KB-0104 applies.', fix:'Read her authentication methods and open KB-0104. The account was disabled for leave (not a leaver), and the password has expired.' },
+        { area:'Action', checks:[
+          { action:'hr-record-first-chosen', missing:'Choose the response that verifies Alana and opens HR-8894 before anything changes.' },
+          { action:'ad-enabled', missing:'Enable the account against HR-8894 (Active Directory › Enable).' },
+          { action:'ad-password-reset', missing:'She isn\'t registered for self-service password reset, so reset the password under KB-0104.' },
+          { action:'ad-must-change', missing:'Tick User must change password at next logon when you reset it.' },
+          { confirmed:'onetime', missing:'Read the one-time password to Alana on the call and ask her to sign in and choose her own.' },
+          { action:'entra-sspr-registered', missing:'Help her register for self-service password reset before you hang up.' },
+        ], good:'You enabled the account only against HR-8894, used KB-0104 because she isn\'t registered for self-service password reset (SSPR), ticked must-change, and registered her for SSPR before closing.', fix:'Enable only against HR-8894. Use KB-0104 only because she isn\'t registered for self-service password reset (SSPR): tick User must change password at next logon, read the one-time password to her on the call, and register her for SSPR before you close. Critical (feedback only): enabling without the HR record; resetting before verifying; writing the temporary password in the ticket.' },
+        { area:'Documentation', checks:[{ notePattern:'HR-8894', missing:'Name HR-8894 in your note.' }, { notePattern:'KB-0104', missing:'Name KB-0104 in your note.' }, { note:true, missing:'Write a Reported / Tried / Result note. Never write the password in it.' }, { attached:'KB-0104', missing:'Attach KB-0104 to the ticket.' }, { comment:true, missing:'Write a comment for Alana in plain words, with no internal terms.' }, { status:'Resolved', missing:'Resolve the ticket.' }], good:'The note names HR-8894 and KB-0104 and never contains the password.', fix:'Name HR-8894 and KB-0104 in a Reported / Tried / Result note, and never write the password. Attach KB-0104 and resolve the ticket. A comment could say: "Hi Alana, welcome back! Your account was paused while you were on leave, and HR\'s return-to-work record let us turn it back on. You\'ve set a new password, and you\'re now set up to reset it yourself next time from the link on the sign-in screen. – Riley"' },
+      ],
+    } }),
+  // Ticket 8-B: "reset my MFA" from a personal email address. The sign-in log
+  // shows the prompts were sent and not answered, because a phone update turned
+  // Authenticator's notifications off. No reset is needed.
+  hdTicket({ id:'HD-2199', ownSet:true, number:'INC0010510', requester:'Priya Nair', department:'Sales', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T09:24:00Z', shortDescription:'Reset my MFA ASAP',
+    description:'From: pnair.home@mail.example\nSubject: urgent MFA reset\nHi it\'s Priya from Sales. The Microsoft sign-in approvals stopped coming to my phone since yesterday. Can you reset my MFA ASAP? I\'m stuck. Thanks!',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: MFA reset requested by email from a personal address (pnair.home@mail.example); approvals stopped arriving since yesterday. Tried: did not act on the email; verified per KB-0065 (directory mobile callback, employee ID, manager confirmation in Teams); sign-in log shows prompts sent and not answered, usual location only; Authenticator registered on her same phone; a phone update yesterday had turned off Authenticator notifications; guided her to turn them back on. Result: test sign-in approved; no MFA reset needed; replied to work address only.',
+    console: {
+      now:'2026-08-19T09:30:00Z', matrix:{}, classify:{ categories:HD_ITS06_CATEGORIES, cis:['pnair', 'Priya\'s own phone', 'NS-LT-0291'], preset:{ contactType:'Email' } },
+      priorityCoach:{ impact:'3', urgency:'2', line:'One person (Impact 3). She is still working on her laptop, and only new sign-ins prompt (Urgency 2): P4. P3 is also accepted.' },
+      verification:{ prompt:'The request came from pnair.home@mail.example, a personal address. An MFA change would let whoever sent it register their own phone. How do you verify it\'s really Priya? (KB-0065)', options:[
+        { id:'name', text:'Accept it: the email says it is Priya from Sales', feedback:'Not verification. Anyone can type a name and a department, and the address is not in the directory. KB-0065: never act on a request from a personal address.' },
+        { id:'reply-email', text:'Reply to pnair.home@mail.example and ask her to confirm her employee ID', critical:true, feedback:'Critical error. Never reply to a personal address: whoever reads it could be anyone. KB-0065: open the ticket under her real account and reply only to her work address.' },
+        { id:'callback-id', text:'Call Priya back on her directory mobile and confirm her employee ID', feedback:'Not enough for an MFA change. That is the check for an unlock (KB-0024). KB-0065 also asks for her manager\'s confirmation.' },
+        { id:'callback-id-manager', text:'Call Priya back on her directory mobile, confirm her employee ID, and get her manager\'s confirmation in Teams', pass:true, feedback:'Verified. You called Priya back on her directory mobile and she confirmed employee ID E-53259. Her manager, Tara Singh, confirmed in Teams that the request is hers.', history:'Identity verified per KB-0065: called Priya back on her directory mobile; employee ID E-53259 confirmed; manager (Tara Singh) confirmed in Teams.' },
+      ] },
+      kb:{ attach:true }, comments:true, resolutionCode:{ required:true },
+      cloud:{ allow:{ reregister:{ 'u-1024':true } } },
+      criticalActions:[{ action:'entra-mfa-reregister-refused', text:'Critical error. You tried to reset Priya\'s MFA before she was verified strongly. A request from a personal email address is never acted on (KB-0065).' }],
+      caller:{ name:'Priya Nair', questions:[
+        { id:'changed', text:'What changed on your phone since the approvals stopped?', reply:'My phone installed an update yesterday. I haven\'t changed any settings myself.' },
+        { id:'approve', text:'Please sign in on your laptop again and approve the prompt on your phone.', reply:'The prompt came up and I approved it. I\'m signed in.', replyBefore:'I still don\'t see any prompts on my phone.', afterAction:'phone-notify-authenticator-on', confirms:true },
+      ] },
+      choice:{ heading:'Choose your response',
+        prompt:'An email from pnair.home@mail.example asks you to reset Priya\'s MFA. You haven\'t verified her yet. What do you do?',
+        options:[
+          { id:'reset-now', text:'Reset her MFA now: she says she is stuck', critical:true, feedback:'Critical error. A reset on an email alone would let whoever sent it register their own phone (KB-0065). The step stays open: choose again.' },
+          { id:'reply-personal', text:'Reply to pnair.home@mail.example and ask her to confirm who she is', critical:true, feedback:'Critical error. Never reply to a personal address (KB-0065). Open the ticket under her real account and reply only to her work address. The step stays open: choose again.' },
+          { id:'verify-first', text:'Don\'t act on the email: verify her through the directory, read the sign-in log, and reply only to her work address', right:true, action:{ id:'verify-and-reply-work-chosen', label:'Chose to verify Priya through the directory and reply only to her work address' }, feedback:'Right. The request is unverified, so nothing changes until she is verified strongly (KB-0065), and every reply goes to her work address.' },
+        ] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0065', 'KB-0024', 'MFA', 'Entra', 'sign-in log', 'Conditional Access', 'pnair', 'Tier 2'],
+        needs:[{ label:'Names the personal address and says it was not acted on', pattern:'personal (address|email)|pnair\\.home' }, { label:'Says how she was verified', pattern:'callback|manager' }, { label:'Says the sign-in log showed prompts sent and not answered', pattern:'sign-in log|did not respond|not answered' }, { label:'Says no reset was done', pattern:'no (MFA )?reset|did not reset|not reset|no reset needed' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Access', subcategory:'MFA' }, missing:'Set Category Access › MFA.' }, { any:[{ priority:'P4' }, { priority:'P3' }], missing:'Set Impact 3 (one person) and Urgency 2 (she is still working on her laptop). That makes the ticket P4. P3 is also accepted.' }], good:'Access › MFA, P4: she is still working on her laptop, so Urgency 2. The ticket belongs under her real account.', fix:'Set Category Access › MFA, Impact 3 and Urgency 2. She is still working on her laptop, so Urgency 2. The ticket belongs under her real account.' },
+        { area:'Investigation', checks:[
+          { serverSeen:'entra-signins:u-1024', missing:'Open Entra admin center › Users › Priya Nair › Sign-in logs. The failure reason is the key evidence.' },
+          { serverSeen:'entra-methods:u-1024', missing:'Open Authentication methods and read which phone her Authenticator is on.' },
+          { chat:['changed'], missing:'Ask Priya what changed on her phone.' },
+        ], good:'The sign-in log\'s failure reason is the key evidence: prompts are being sent and not answered.', fix:'Read her sign-in log (this morning\'s sign-ins failed with "MFA: user did not respond to mobile app notification"), read her methods (Authenticator on her own phone, eight months ago) and ask what changed.' },
+        { area:'Diagnosis', checks:[
+          { serverSeen:'phone:pnair-phone', missing:'Open Priya\'s phone and read Settings › Notifications › Authenticator.' },
+          { kb:'KB-0065', missing:'Search the knowledge base for "reset mfa" and open KB-0065.' },
+        ], good:'Notifications are off after her phone\'s update. It is not a lost phone, and the method works.', fix:'Open KB-0065 and read her phone\'s Authenticator notification setting. Notifications off, not a lost phone, is the diagnosis.' },
+        { area:'Action', checks:[
+          { action:'verify-and-reply-work-chosen', missing:'Choose the response that does not act on the email, verifies her through the directory and replies only to her work address.' },
+          { verified:true, missing:'Verify Priya strongly (KB-0065): call her directory mobile, confirm her employee ID and get her manager\'s confirmation.' },
+          { action:'phone-notify-authenticator-on', missing:'Guide her to turn on Settings › Notifications › Authenticator › Allow notifications.' },
+          { confirmed:'approve', missing:'Ask her to sign in on her laptop and approve the prompt.' },
+          { not:{ action:'entra-mfa-reregister' }, missing:'Unnecessary change: you reset Priya\'s MFA after you verified her. The method worked: the sign-in log showed prompts sent and not answered. Check the phone\'s notifications before you reset anything.' },
+        ], good:'You verified through the directory first, did not reset a method that works, and her test sign-in was approved.', fix:'Verify through the directory first. Don\'t reset a method that works: turn her phone\'s Authenticator notifications back on, then confirm a test sign-in. Critical (feedback only): resetting MFA on the email alone; replying to the personal address.' },
+        { area:'Documentation', checks:[{ notePattern:'KB-0065', missing:'Name KB-0065 in your note and say how Priya was verified.' }, { note:true, missing:'Write a Reported / Tried / Result note. Say that no reset was done.' }, { attached:'KB-0065', missing:'Attach KB-0065 to the ticket.' }, { comment:true, missing:'Write a comment for Priya in plain words, with no internal terms, for her work address.' }, { status:'Resolved', missing:'Resolve the ticket.' }], good:'The note records how she was verified and that no reset was done.', fix:'Write a Reported / Tried / Result note that says how she was verified and that no reset was done, attach KB-0065 and resolve the ticket. A comment, to her work address, could say: "Hi Priya, you\'re all set: your phone\'s update had turned off notifications for the Authenticator app, so the approvals were arriving but you never saw them. They\'re back on and your test sign-in worked, so nothing needed resetting. For your security, please send account requests from the portal or your work email, not a personal address. – Riley"' },
+      ],
+    } }),
+  // Ticket 8-C: the mover. Nina Patel moved from Sales to Finance: the groups
+  // and lists change against HR's record, and the licence group comes back.
+  hdTicket({ id:'HD-2200', ownSet:true, number:'INC0010511', requester:'Nina Patel', department:'Finance', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T10:08:00Z', shortDescription:'I moved to Finance and now nothing works',
+    description:'Caller: Nina Patel\nShort description: cant open finance folder + teams broken\nI moved from Sales to Finance on Monday (HR did the paperwork). I can\'t open the Finance folder, and since this morning Teams says I don\'t have a license?? I can still get into the Sales folder for some reason.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: moved Sales → Finance Monday; can\'t open Finance folder; Teams says no licence; still has Sales folder. Tried: groups showed GG-Sales-Users and DL-Sales-Team; no GG-Finance-Users, DL-Finance-Team or GG-M365-E3-License; history shows the licence group removed yesterday with GG-CRM-Users (group-based licensing removed her E3); per HR-8893 and KB-0106 added GG-Finance-Users and DL-Finance-Team, re-added GG-M365-E3-License, removed GG-Sales-Users and DL-Sales-Team. Result: after sign-out/in, whoami /groups shows the Finance groups; Finance share opens, Sales denied; Teams licensed and working. Note for the team: GG-M365-E3-License is the licence, not a department group.',
+    console: {
+      now:'2026-08-19T10:15:00Z', matrix:{}, classify:{ categories:HD_ITS06_CATEGORIES, cis:['npatel', 'Microsoft 365 licence', 'NS-LT-0413', 'NS-FILE01'], preset:{ contactType:'Self-service' } },
+      priorityCoach:{ impact:'3', urgency:'2', line:'One person (Impact 3). She is partly working: Teams and the Sales folder still open (Urgency 2): P4.' },
+      kb:{ attach:true }, comments:true, resolutionCode:{ required:true },
+      evidence:[{ id:'HR-8893', title:'HR-8893 · Transfer: Sales → Finance', rows:[
+        { label:'Employee', value:'Nina Patel (npatel)' },
+        { label:'Role change', value:'Sales Assistant → Accounts Payable Assistant' },
+        { label:'Department', value:'Sales → Finance' },
+        { label:'Effective', value:'Monday' },
+        { label:'Add or keep', value:'GG-Finance-Users · DL-Finance-Team · GG-M365-E3-License (the licence group stays)' },
+        { label:'Remove', value:'GG-Sales-Users · DL-Sales-Team' },
+        { label:'Approval', value:'Finance data owner approval is on the record' },
+      ] }],
+      // A distribution list is never in a Windows sign-in, so whoami lists none.
+      machines:{ 'NS-LT-0413':{ signedInGroups:['GG-Sales-Users'] } },
+      accountActions:{ 'u-1019':{ groups:{ record:'HR-8893', add:['GG-Finance-Users', 'DL-Finance-Team', 'GG-M365-E3-License'], remove:['GG-Sales-Users', 'DL-Sales-Team'], after:'HR-8893', afterText:'Open HR-8893 first: work a mover against the HR record.' } } },
+      criticalActions:[
+        { action:'m365-license-direct', text:'Critical error. Northstar gives Microsoft 365 licences through the group GG-M365-E3-License, and Messaging & Collaboration owns licence policy. Fix the group membership instead of assigning E3 directly (KB-0106).' },
+        { action:'ad-add-refused', reason:'isn\'t on HR-8893', text:'Critical error. You tried to add a group that is not on HR-8893. A mover gets the groups on the HR record and no others (KB-0106).' },
+      ],
+      caller:{ name:'Nina Patel', questions:[
+        { id:'finance', text:'Please sign out and back in on NS-LT-0413, then open \\\\NS-FILE01\\Finance.', reply:'The Finance folder opens now. And the Sales folder says I don\'t have permission.', replyBefore:'The Finance folder still says access denied.', afterAction:'signed-out-in', confirms:true },
+      ] },
+      choice:{ heading:'Choose your response',
+        prompt:'Nina moved to Finance on Monday. She can\'t open Finance, Teams says she has no licence, and she still opens the Sales folder. What do you do?',
+        options:[
+          { id:'keep-sales', text:'Add the Finance groups and leave the Sales groups in place, in case she still needs them', critical:true, feedback:'Critical error. A mover\'s old access is removed (KB-0106). Leaving the Sales access in place gives her access she no longer needs. The step stays open: choose again.' },
+          { id:'assign-license', text:'Assign Nina a Microsoft 365 E3 licence directly in the admin center', critical:true, feedback:'Critical error. Northstar assigns E3 through GG-M365-E3-License, and licence policy belongs to Messaging & Collaboration (KB-0106). The step stays open: choose again.' },
+          { id:'add-extra', text:'Also add her to GG-CRM-Users, so she doesn\'t lose anything else', critical:true, feedback:'Critical error. HR-8893 lists the groups to add and remove. Finance doesn\'t use the CRM, so GG-CRM-Users is not on it (KB-0106). The step stays open: choose again.' },
+          { id:'work-from-hr', text:'Work from HR-8893: add her Finance groups, remove her Sales groups and put the licence group back', right:true, action:{ id:'hr-record-plan-chosen', label:'Chose to work the move from HR-8893: add Finance, remove Sales, re-add the licence group' }, feedback:'Right. A mover is worked against the HR record, in both directions, and the licence group stays.' },
+        ] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['HR-8893', 'KB-0106', 'GG-Finance-Users', 'GG-Sales-Users', 'GG-M365-E3-License', 'GG-CRM-Users', 'DL-Finance-Team', 'DL-Sales-Team', 'whoami', 'Active Directory', 'group-based licensing', 'npatel', 'Tier 2'],
+        needs:[{ label:'Names HR-8893', pattern:'HR-8893' }, { label:'Names the licence group', pattern:'GG-M365-E3-License|licen[cs]e group' }, { label:'Says which groups were added and removed', pattern:'added|removed' }, { label:'Says both folders were checked', pattern:'Sales denied|denied|Finance share opens' }] },
+      feedback:[
+        { area:'Triage', checks:[{ any:[{ triage:{ category:'Access', subcategory:'Group membership / licence', ci:'npatel' } }, { triage:{ category:'Access', subcategory:'Group membership / licence', ci:'Microsoft 365 licence' } }], missing:'Set Category Access › Group membership / licence and a CI: Nina\'s account (npatel) or her Microsoft 365 licence.' }, { priority:'P4', missing:'Set Impact 3 (one person) and Urgency 2 (she is partly working). That makes the ticket P4.' }], good:'Access › Group membership / licence, P4. A mover is worked against the HR record.', fix:'Set Category Access › Group membership / licence, CI npatel or her Microsoft 365 licence, Impact 3 and Urgency 2. A mover is worked against the HR record, HR-8893.' },
+        { area:'Investigation', checks:[
+          { evidence:'HR-8893', missing:'Open HR-8893: it lists the groups to add and remove.' },
+          { serverSeen:['ad-user-groups:u-1019', 'ad-user:u-1019'], missing:'Read Nina\'s Member Of and its history: type the Get-ADUser line, or open Active Directory › Users › Nina Patel.' },
+          { serverSeen:'m365-user:u-1019', missing:'Open Microsoft 365 admin center › Users › Nina Patel › Licenses and apps.' },
+        ], good:'The group list and its history together explain both symptoms.', fix:'Open HR-8893, read Nina\'s Member Of and its history (yesterday the licence group came out with GG-CRM-Users), and read her licence screen.' },
+        { area:'Diagnosis', checks:[{ kb:'KB-0106', missing:'Search the knowledge base for "moved" or "transfer" and open KB-0106.' }, { serverSeen:'effective-access:NS-FILE01:Finance:u-1019', missing:'On the Finance share, read Effective access for Nina Patel.' }], good:'A missing Finance group, plus a licence lost through its group.', fix:'Open KB-0106 and read Nina\'s effective access on the Finance share. The Finance group is missing, and her licence went when its group was removed.' },
+        { area:'Action', checks:[
+          { action:'hr-record-plan-chosen', missing:'Choose the response that works from HR-8893.' },
+          { action:'ad-group-added', missing:'Add GG-Finance-Users, DL-Finance-Team and GG-M365-E3-License, the groups on HR-8893.' },
+          { action:'ad-group-removed', missing:'Critical (feedback only): remove Nina from GG-Sales-Users and DL-Sales-Team. Leaving the Sales access in place is a critical error in a Prove It.' },
+          { action:'signed-out-in', missing:'Sign her out and back in on NS-LT-0413, so her sign-in picks up the new groups.' },
+          { typed:'^\\s*whoami\\s+/groups', computer:'NS-LT-0413', missing:'Type whoami /groups on NS-LT-0413.' },
+          { seen:'whoami-groups', computer:'NS-LT-0413', after:'signed-out-in', missing:'Type whoami /groups after she signs out and back in. GG-Finance-Users should be listed and GG-Sales-Users gone.' },
+          { serverSeen:'effective-access:NS-FILE01:Sales:u-1019', missing:'Check both directions: read Effective access on the Sales share. Sales should now be denied.' },
+          { confirmed:'finance', missing:'Ask Nina to open \\\\NS-FILE01\\Finance and confirm it opens.' },
+        ], good:'You added and removed both, put the licence group back, signed her out and in and checked both directions.', fix:'Add GG-Finance-Users and DL-Finance-Team, re-add GG-M365-E3-License (don\'t assign E3 directly), remove GG-Sales-Users and DL-Sales-Team, sign out and in, and check that Finance opens and Sales is denied. Critical (feedback only): leaving the Sales access in place; assigning the licence directly without noting why; adding groups that aren\'t on HR-8893.' },
+        { area:'Documentation', checks:[{ notePattern:'HR-8893', missing:'Name HR-8893 in your note.' }, { notePattern:'GG-M365-E3-License|licen[cs]e group', missing:'Add a note for the team: GG-M365-E3-License is the licence, not a department group.' }, { note:true, missing:'Write a Reported / Tried / Result note.' }, { attached:'KB-0106', missing:'Attach KB-0106 to the ticket.' }, { comment:true, missing:'Write a comment for Nina in plain words, with no internal terms.' }, { status:'Resolved', missing:'Resolve the ticket.' }], good:'The note names HR-8893 and the team note about the licence group.', fix:'Name HR-8893 and add a team note that GG-M365-E3-License is the licence, not a department group. Attach KB-0106 and resolve the ticket. A comment could say: "Hi Nina, welcome to Finance! You can open the Finance folder now and Teams is working again. When your old Sales access was being removed, your Microsoft licence was removed by mistake as well; sorry about that. As part of your move we\'ve also removed your Sales folder and the Sales email list. If anything else for your new role is missing, just reply here. – Riley"' },
+      ],
+    } }),
+  // Ticket 8-D: a company phone gets no work mail because Intune marks it not
+  // compliant (its OS update is overdue). The fix is on the phone.
+  hdTicket({ id:'HD-2201', ownSet:true, number:'INC0010512', requester:'Omar Haddad', department:'Sales', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T08:58:00Z', shortDescription:'No work email on my phone',
+    description:'Omar Haddad, field sales. My work email stopped coming to my phone this morning, and Teams on the phone won\'t open either. My laptop\'s fine. I\'m on the road all day, so the phone is what I use.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: work mail and Teams stopped on company phone this morning; laptop fine. Tried: verified per KB-0024; Service health clear; Intune shows NS-PH-0003 not compliant (OS below minimum; grace period ended yesterday); sign-in log shows phone sign-ins blocked by Conditional Access as non-compliant; guided Omar to install the update and Check status in Company Portal per KB-0105. Result: NS-PH-0003 Compliant; mail and Teams working on the phone.',
+    console: {
+      now:'2026-08-19T09:05:00Z', matrix:{}, classify:{ categories:HD_ITS06_CATEGORIES, cis:['NS-PH-0003', 'ohaddad', 'NS-LT-0183'], preset:{ contactType:'Phone' } },
+      priorityCoach:{ impact:'3', urgency:'2', line:'One person (Impact 3). His laptop works, so he can still get his mail there (Urgency 2): P4.' },
+      verification:{ prompt:'Omar Haddad is calling from his company mobile. How do you verify it\'s really Omar? (KB-0024)', options:[
+        { id:'name', text:'Accept it: Omar gives his name and department', feedback:'Not verification. Anyone can learn a name and a department. KB-0024: call Omar back on the number in the User Directory and confirm his employee ID.' },
+        { id:'company-mobile', text:'Accept it: the call came from a company mobile', feedback:'Not verification. The number the caller uses proves nothing (KB-0024). Call Omar back on the number in the User Directory and confirm his employee ID.' },
+        { id:'callback', text:'Call Omar back on his directory mobile and confirm his employee ID', pass:true, feedback:'Verified. You called Omar back on his directory mobile, and Omar confirmed employee ID E-47521.', history:'Identity verified per KB-0024: called Omar back on his directory mobile; employee ID E-47521 confirmed.' },
+      ] },
+      kb:{ attach:true }, comments:true, resolutionCode:{ required:true },
+      caller:{ name:'Omar Haddad', questions:[
+        { id:'mail', text:'Please open Outlook on your phone. Is your work mail loading?', reply:'Yes, my mail is loading, and Teams opens too.', replyBefore:'Still nothing in my inbox, and Teams won\'t open.', afterAction:'phone-cp-checked', confirms:true },
+      ] },
+      choice:{ heading:'Choose your response',
+        prompt:'Omar\'s company phone is blocked from work mail, and he is on the road all day. What do you do?',
+        options:[
+          { id:'remove-policy', text:'Remove Omar from the Conditional Access policy so his phone gets mail again', critical:true, feedback:'Critical error. Never remove a user from the policy (KB-0105): it protects company data on the phone. The step stays open: choose again.' },
+          { id:'delete-device', text:'Delete NS-PH-0003 from Intune so it can enrol again', critical:true, feedback:'Critical error. Never delete the device (KB-0105). The fix is on the phone, not in Intune. The step stays open: choose again.' },
+          { id:'personal-app', text:'Tell Omar to read his work mail in a personal mail app for today', critical:true, feedback:'Critical error. Never suggest a personal mail app (KB-0105): work mail belongs in the managed apps. The step stays open: choose again.' },
+          { id:'update-and-check', text:'Guide Omar to install the update on Wi-Fi while charging, then use Check status in Company Portal', right:true, action:{ id:'update-and-check-chosen', label:'Chose to guide Omar to install the update and check status in Company Portal' }, feedback:'Right. The phone failed a rule (its OS is below the minimum), and the fix is on the phone.' },
+        ] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0105', 'KB-0024', 'Intune', 'Conditional Access', 'Company Portal', 'compliant', 'non-compliant', 'NS-PH-0003', 'Service health', 'ohaddad', 'Tier 2'],
+        needs:[{ label:'Names the failing rule (OS below minimum)', pattern:'below minimum|OS version' }, { label:'Says the sign-in log showed a block', pattern:'sign-in log|Conditional Access|blocked' }, { label:'Says Service health was clear', pattern:'Service health' }, { label:'Says the phone is Compliant and mail works', pattern:'Compliant' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Mobile device', subcategory:'Email sync', ci:'NS-PH-0003' }, missing:'Set Category Mobile device › Email sync and CI NS-PH-0003, Omar\'s phone.' }, { priority:'P4', missing:'Set Impact 3 (one person) and Urgency 2 (his laptop works). That makes the ticket P4.' }], good:'Mobile device › Email sync on NS-PH-0003, P4: his laptop works, so Urgency 2.', fix:'Set Category Mobile device › Email sync, CI NS-PH-0003, Impact 3 and Urgency 2. His laptop works, so Urgency 2.' },
+        { area:'Investigation', checks:[
+          { verified:true, missing:'Verify Omar with KB-0024: call him back on his directory mobile and confirm his employee ID.' },
+          { serverSeen:'m365-health', missing:'Open Microsoft 365 admin center › Health › Service health first. There is no Exchange or Teams advisory.' },
+          { serverSeen:'intune-device:NS-PH-0003', missing:'Open Intune admin center › Devices › NS-PH-0003 and read its compliance and the failing rule.' },
+          { serverSeen:'entra-signins:u-1018', missing:'Open Entra admin center › Users › Omar Haddad › Sign-in logs and read this morning\'s sign-ins.' },
+        ], good:'Service health, then the phone\'s compliance, then the sign-in log, in that order.', fix:'Verify Omar, then read Service health, then the phone\'s compliance in Intune, then his sign-in log, in that order.' },
+        { area:'Diagnosis', checks:[{ kb:'KB-0105', missing:'Search the knowledge base for "phone mail" and open KB-0105.' }], good:'A non-compliant phone blocked by Conditional Access, not a password or mailbox problem.', fix:'Open KB-0105. The phone is Not compliant (OS version below minimum), and Conditional Access blocks its sign-ins. It is not a password or mailbox problem.' },
+        { area:'Action', checks:[
+          { action:'update-and-check-chosen', missing:'Choose the response that guides Omar to fix the phone itself.' },
+          { action:'phone-os-updated', missing:'On NS-PH-0003, open Settings › Software update and install the update (on Wi-Fi, while charging).' },
+          { action:'phone-cp-checked', missing:'On NS-PH-0003, open Company Portal and choose Check status.' },
+          { confirmed:'mail', missing:'Ask Omar to open Outlook and confirm his mail and Teams load.' },
+        ], good:'The fix was on the phone: the update is installed, Company Portal shows Compliant and his mail loads.', fix:'The fix is on the phone: install the update on Wi-Fi while charging, then use Check status in Company Portal. Critical (feedback only): removing him from the policy or deleting the device; suggesting a personal mail app.' },
+        { area:'Documentation', checks:[{ notePattern:'below minimum|OS version', missing:'Name the failing rule (OS version below minimum) in your note.' }, { note:true, missing:'Write a Reported / Tried / Result note.' }, { attached:'KB-0105', missing:'Attach KB-0105 to the ticket.' }, { comment:true, missing:'Write a comment for Omar in plain words, with no internal terms.' }, { status:'Resolved', missing:'Resolve the ticket.' }], good:'The note names the failing rule.', fix:'Name the failing rule (OS version below minimum) in a Reported / Tried / Result note, attach KB-0105 and resolve the ticket. A comment could say: "Hi Omar, your phone is getting work email again. It had fallen behind on a required update, so it was blocked from company mail until the update was in. Now that it\'s updated, everything\'s back. Updates like this keep company data safe on your phone, so it\'s worth installing them when they pop up. – Riley"' },
       ],
     } }),
 ];

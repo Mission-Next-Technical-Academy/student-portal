@@ -442,8 +442,18 @@ function testNothingFromTheGradedQueue() {
   MODULE_7.forEach((id) => tab.run(`JSON.stringify(HD_TICKET_TEMPLATES.find((t) => t.id === '${id}'))`).toLowerCase()
     .split(/[^a-z0-9-]+/).filter(Boolean).filter((word) => !['warehouse', 'payroll'].includes(word))
     .forEach((word) => assert.ok(!GRADED_WORDS.has(hash(word)), `no other graded story word in ${id}`)));
+  // Module 8's (key its-06) HD-2197 names the Entra control "Require re-register
+  // multifactor authentication" (Module 8 spec, section 8.2, Part B step 4). That one
+  // word is allowed on that one ticket; every other graded word stays refused.
+  // SR-2107 and HD-2118 left the queue then (ownSet) with their older text
+  // unchanged: they are no later module's content, so they are not read here.
+  const MODULE_8 = { 'HD-2197': ['re-register'] };
+  Object.entries(MODULE_8).forEach(([id, allowed]) => tab.run(`JSON.stringify(HD_TICKET_TEMPLATES.find((t) => t.id === '${id}'))`).toLowerCase()
+    .split(/[^a-z0-9-]+/).filter(Boolean).filter((word) => !allowed.includes(word))
+    .forEach((word) => assert.ok(!GRADED_WORDS.has(hash(word)), `no other graded story word in ${id}`)));
+  const HIDDEN_OLDER = ['SR-2107', 'HD-2118'];
   const content = tab.run(`JSON.stringify({
-    tickets: HD_TICKET_TEMPLATES.filter((t) => t.ownSet && t.id !== 'HD-2186' && !${JSON.stringify(MODULE_7)}.includes(t.id)),
+    tickets: HD_TICKET_TEMPLATES.filter((t) => t.ownSet && t.id !== 'HD-2186' && !${JSON.stringify([...MODULE_7, ...Object.keys(MODULE_8), ...HIDDEN_OLDER])}.includes(t.id)),
     kb: HD_KB_ARTICLES.filter((a) => ['KB-0062', 'KB-0063'].includes(a.id)),
     coach: MODULE_COACHES.find((c) => c.id === 'hd-m10').steps.map((s) => [s.title, s.instruction, s.body]),
   })`).toLowerCase();
@@ -462,7 +472,7 @@ function testNothingFromTheGradedQueue() {
   const REUSED_ON_ONE_TICKET = { 'HD-2189': hash('jordan bell'), 'HD-2195': hash('monica hall') };
   Object.values(REUSED_ON_ONE_TICKET).forEach((h) => assert.ok(GRADED_NAMES.has(h), 'each reused name is a graded name'));
   const pairs = (text) => { const list = text.split(/[^a-z0-9-]+/).filter(Boolean); return list.slice(1).map((w, i) => hash(`${list[i]} ${w}`)); };
-  const own = JSON.parse(tab.run('JSON.stringify(HD_TICKET_TEMPLATES.filter((t) => t.ownSet))'));
+  const own = JSON.parse(tab.run(`JSON.stringify(HD_TICKET_TEMPLATES.filter((t) => t.ownSet && !${JSON.stringify(HIDDEN_OLDER)}.includes(t.id)))`));
   own.forEach((ticket) => pairs(JSON.stringify(ticket).toLowerCase()).forEach((h) => {
     const allowed = !module2.has(ticket.id) && (REUSED_BY_LATER_MODULES.has(h) || REUSED_ON_ONE_TICKET[ticket.id] === h);
     assert.ok(allowed || !GRADED_NAMES.has(h), `no graded requester in ${ticket.id}`);

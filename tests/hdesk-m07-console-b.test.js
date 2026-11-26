@@ -153,8 +153,10 @@ function testOldTicketsTurnNothingOn() {
   const plain = sim({ withTest: false });
   assertOff(sim(), 'shared');
   // Module 7's own sets and tickets turn these on: tests/hdesk-m07-guided-lab.test.js
-  // and tests/hdesk-m07-practice-tickets.test.js cover them.
-  const MODULE_7_SETS = ['its-05', 'its-05-guided'];
+  // and tests/hdesk-m07-practice-tickets.test.js cover them. Module 8's sets
+  // (its-06, its-06-guided, its-06-extension) reuse the directory screens:
+  // tests/hdesk-m08-guided-lab.test.js and tests/hdesk-m08-practice-tickets.test.js.
+  const MODULE_7_SETS = ['its-05', 'its-05-guided', 'its-06', 'its-06-guided', 'its-06-extension'];
   const MODULE_7 = ['HD-2189', 'HD-2190', 'HD-2191', 'HD-2192', 'HD-2193', 'HD-2194', 'HD-2195', 'HD-2202', 'HD-2203', 'HD-2204', 'HD-2205', 'HD-2206'];
   for (const key of Object.keys(plain.run('HD_PRACTICE_SETS')).filter((k) => !MODULE_7_SETS.includes(k))) {
     const set = setSim(key); assertOff(set, key);
