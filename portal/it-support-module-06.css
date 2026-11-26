@@ -1,0 +1,63 @@
+/* Module 8 (IT Help Desk, key its-06). The page reuses Module 1's inner
+ * classes (its01-hero, its01-section, its01-lesson, its01-check, its01-dg),
+ * Module 2's table classes (its10-table) and Module 4's card sort classes
+ * (its02-sort-list, its02-sort-card, its02-sort-boxes, its02-sort-box), so it
+ * looks the same. Only its shell and what those modules have no class for live
+ * here, scoped with its06-: inline commands, the diagram markers, zones,
+ * phones and lock, the small labels, the person icon, the card sort's account
+ * fields and the optional extension. Loaded after it-support-module-01.css,
+ * -02.css and -10.css. */
+
+.its06-shell { min-height: 100vh; color: #172033; background: rgba(248, 250, 252, .76); overflow-x: clip; }
+.its06-shell :focus-visible { outline: 3px solid var(--its-accent-border); outline-offset: 2px; }
+
+/* The shared rail as a left pane beside main, as on Module 1
+   (module-labs.css does this for .its01-shell). */
+@media (min-width: 961px) {
+  .its06-shell > .munified-nav {
+    float: left;
+    margin: 12px 24px 24px max(20px, calc((100vw - 1180px) / 2));
+  }
+  .its06-shell > .munified-nav ~ main {
+    display: flow-root;
+    width: auto;
+    margin-left: 0;
+    margin-right: max(20px, calc((100vw - 1180px) / 2));
+  }
+}
+
+/* A command or path inside reading text and tables. It may wrap anywhere,
+   so a long command never makes the page scroll sideways. */
+.its06-code { padding: 1px 5px; color: var(--mn-theme-text, #172d42); background: var(--mn-theme-surface-raised, #edf3f8); border: 1px solid var(--mn-theme-border, #cfdae5); border-radius: 5px; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+
+/* Diagrams: access taken away (a group removed, an account disabled) gets a
+   dashed outline, so it never relies on colour alone. */
+.its01-dg-box.its06-dg-gone { fill: #fef2f2; stroke: #dc2626; stroke-width: 2; stroke-dasharray: 6 4; }
+/* The small labels beside an arrow or over a branch. */
+.its06-dg-label { fill: var(--its-navy); font: 700 13px Inter, sans-serif; }
+/* The person on the joiner, mover, leaver diagram. */
+.its06-dg-icon { fill: #f8fafc; stroke: #475569; stroke-width: 1.75; }
+/* The marker word under a group's name: added, removed or stays. */
+.its06-dg-tag { font: 700 12px Inter, sans-serif; letter-spacing: .04em; text-transform: uppercase; }
+.its06-dg-tag-added { fill: var(--its-accent-hover); }
+.its06-dg-tag-removed { fill: var(--mn-theme-danger, var(--its-navy)); }
+.its06-dg-tag-stays { fill: var(--its-navy); }
+/* The small padlock beside a group that stays. */
+.its06-dg-lock { fill: var(--its-accent-wash); stroke: var(--its-navy); stroke-width: 1.75; }
+.its06-dg-lock-arc { fill: none; stroke: var(--its-navy); stroke-width: 1.75; }
+/* The phones: the shaded zone that Intune or app protection covers, the phone's outline and an
+   app tile inside the small zone. */
+.its06-dg-zone { fill: var(--its-accent-wash); stroke: var(--its-accent); stroke-width: 2; stroke-dasharray: 6 4; }
+.its06-dg-phone { fill: #fff; stroke: #475569; stroke-width: 2; }
+.its06-dg-app { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.5; }
+
+/* The card sort: each account's fields as small lines, label then value. */
+.its06-sort-fields { margin: 4px 0 10px; display: grid; gap: 2px; font-size: 13px; }
+.its06-sort-fields > div { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.its06-sort-fields dt { margin: 0; font-weight: 700; }
+.its06-sort-fields dt::after { content: ':'; }
+.its06-sort-fields dd { margin: 0; overflow-wrap: anywhere; }
+
+/* The optional extension inside Lab 8.1: set apart from the lab record. */
+.its06-extension { margin-top: 18px; padding: 12px 14px; border-left: 3px solid var(--its-accent-border); background: var(--its-accent-wash); border-radius: 0 10px 10px 0; }
+.its06-extension > p:first-child { margin-top: 0; }

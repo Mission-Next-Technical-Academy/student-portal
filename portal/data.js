@@ -357,18 +357,20 @@ const PROGRAMS = [
             objective: 'Explain how domains, OUs, groups and computer objects relate, read where a computer object lives, and use gpresult /r and gpupdate /force to show which policies reached a machine.' }),
         ],
         skills: ['Windows Server', 'Active Directory', 'File Share Permissions', 'DNS and DHCP', 'Escalation Judgment'] },
-      'its-06': { number: 8, week: 4, title: 'Identity, Accounts & Access Management', hours: '6 Hours', durationMinutes: 360, creditMinutes: 360, lessons: 3, labs: 1,
+      // Lesson 8.3 holds two readings on the page (it-support-module-06.js);
+      // both share its-06-lesson-03's filed minutes.
+      'its-06': { number: 8, week: 4, title: 'Identity, Accounts & Access Management', hours: '6 Hours', durationMinutes: 360, creditMinutes: 360, lessons: 3, labs: 3,
         status: 'authored',
-        summary: 'Put Active Directory structure to work solving the identity tickets you\'ll see more than almost any other type, from password resets to modern cloud-identity scenarios.',
+        summary: 'Read an account’s status before you touch it, fix a lockout at its source, change groups the least-privilege way, and support sign-in, mail and phones in Microsoft 365 and Entra ID.',
         curriculumItems: [
           itsItem({ key: 'its-06-lesson-01', title: 'Password Resets, Account Unlocks & Reading Account Status Correctly', durationMinutes: 75, parentAllocations: [allocation('ITHD-101.6', 75)],
-            objective: 'Correctly distinguish a locked, disabled, and expired account and apply the verify-before-you-act discipline to an identity request.' }),
+            objective: 'Read every status field on an account, verify the person as strongly as the action needs, find a repeat lockout’s source before unlocking, and reset a password only when self-service can’t be used.' }),
           itsItem({ key: 'its-06-lesson-02', title: 'Group Membership & Access Troubleshooting', durationMinutes: 75, parentAllocations: [allocation('ITHD-101.6', 75)],
-            objective: 'Check a user\'s group membership to diagnose an access issue and distinguish a permissions problem from a broader account problem.' }),
+            objective: 'Read a user’s groups, add and remove them against an approval the least-privilege way, and explain why a mover keeps the licence group.' }),
           itsItem({ key: 'its-06-lesson-03', title: 'Introductory Entra ID & M365 Identity Scenarios', durationMinutes: 75, parentAllocations: [allocation('ITHD-101.6', 75)],
-            objective: 'Describe how Entra ID relates to on-premises Active Directory and work an MFA reset or shared-mailbox access request at the L1 level.' }),
+            objective: 'Re-register MFA after strong verification, tell a shared mailbox from a distribution list, read a sign-in log, and get work mail onto a compliant company phone.' }),
         ],
-        skills: ['Identity Management', 'Account Troubleshooting', 'Group Membership', 'Entra ID'] },
+        skills: ['Identity Management', 'Account Troubleshooting', 'Group Membership', 'Entra ID', 'Mobile Devices', 'Shared Mailboxes'] },
       // Lessons 6.2 and 6.3 share its-07-lesson-02 on the page; both share
       // that lesson's filed minutes (it-support-module-07.js).
       'its-07': { number: 6, week: 3, title: 'Software, Applications & Endpoint Management', hours: '2 Hours', durationMinutes: 120, creditMinutes: 120, lessons: 2, labs: 3,
@@ -2358,10 +2360,30 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.5', 25), allocation('ITHD-101.6', 20)], objective: 'Independently work a new server ticket: read the evidence on the server screens, decide who owns the fix, and write for both the next tier and the user.',
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
     skills: ['Escalation Judgment', 'Evidence-Based Diagnosis', 'Documentation'], portalEntry: '#/program/it-support/module/7' }),
-  itsLab({ key: 'lab-its-06-identity-access', module: 'its-06', title: 'Restoring Access the Right Way', difficulty: 'Foundational', minutes: 135,
-    parentAllocations: [allocation('ITHD-101.6', 135)], objective: 'Verify authorization and resolve two real identity/access tickets correctly.',
-    description: 'A coach-guided walkthrough of tickets SR-2107 (approved group-membership restore) and HD-2118 (missing NTFS permission) in the IT Service Desk simulator.',
-    skills: ['Identity Management', 'Group Membership', 'Access Troubleshooting'], portalEntry: '#/program/it-support/module/8' }),
+  // Module 8's guided lab. Students see it as Lab 8.1; the key is older than
+  // that numbering. Until Module 8's Prove It gates completion it stays the
+  // gating lab (course_module_labs), so it has no `phase: 'practice'`: an
+  // instructor still reviews and approves it. Its 135 filed minutes are split
+  // 55 / 50 / 30 across the three labs; ITHD-101.6 keeps all 135.
+  itsLab({ key: 'lab-its-06-identity-access', module: 'its-06', title: 'Lab 8.1 · Guided Lab: an identity morning', difficulty: 'Foundational', minutes: 55,
+    parentAllocations: [allocation('ITHD-101.6', 55)], objective: 'Find and fix the source of a lockout that keeps coming back, then set up a replacement work phone: sign-in approvals, enrolment, mail, OneDrive, a headset and Send as on a shared mailbox.',
+    description: 'Two coach-guided tickets and a request in the IT Service Desk simulator, each step with a why and what success looks like, and an optional extension that is not part of the record. Feedback only, no score.',
+    skills: ['Account Troubleshooting', 'Entra ID', 'Mobile Devices', 'Shared Mailboxes'], portalEntry: '#/program/it-support/module/8' }),
+  // Module 8's four unguided practice tickets: not graded, no score. The
+  // simulator reports when all four are done and the course page saves a
+  // completion record (it-support-module-06.js). No course_module_labs row:
+  // it never gates completion.
+  itsLab({ key: 'lab-its-06-practice-tickets', module: 'its-06', title: 'Lab 8.2 · Practice tickets (not graded)', difficulty: 'Foundational', minutes: 50, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.6', 50)], objective: 'Work four tickets on your own: an account disabled for leave, an MFA reset asked for from a personal email, a mover missing a folder and a licence, and a company phone with no work mail.',
+    description: 'Four unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all four and a completion record is saved to your account.',
+    skills: ['Account Troubleshooting', 'Group Membership', 'Entra ID', 'Mobile Devices'], portalEntry: '#/program/it-support/module/8' }),
+  // Module 8's Prove It. The page shows "Opens soon" and launches nothing
+  // until its simulator shift, scoring and gating row are built. Coaching
+  // time box: 30 minutes.
+  itsLab({ key: 'lab-its-06-prove-it', module: 'its-06', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 30,
+    parentAllocations: [allocation('ITHD-101.6', 30)], objective: 'Independently work a new identity ticket: check who is asking, read the account, decide what Tier 1 may do, and write for both the next team and the user.',
+    description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
+    skills: ['Security Hygiene', 'Evidence-Based Diagnosis', 'Documentation'], portalEntry: '#/program/it-support/module/8' }),
   // Module 6's guided lab. Students see it as Lab 6.1; the key is older than
   // that numbering. Since 2026-11-25 Module 6's Prove It gates completion (the
   // its07 Prove It migration) and Lab 6.1 is Practice It.
