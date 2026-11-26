@@ -1385,7 +1385,7 @@
     const c = t && typeof hdClassification === 'function' ? hdClassification(t) : null;
     return Boolean(t && c) && c.category === 'Access' && c.subcategory === 'MFA' && ['srivera', HD6_PHONE].includes(c.ci) && t.priority === 'P4';
   };
-  // Step B6: the newest sign-in row for Sam is a success (the approved test).
+  // Part B step 6: the newest sign-in row for Sam is a success (the approved test).
   const hd6LatestSignInOk = () => {
     try {
       const cloud = typeof hdCloud === 'function' ? hdCloud() : null;
@@ -1394,7 +1394,7 @@
       return Boolean(last) && last.status === 'Success';
     } catch { return false; }
   };
-  // Step B12: the request itself is closed (Closed Complete), the state the
+  // Part B step 12: the request itself is closed (Closed Complete), the state the
   // instructor sheet reads. Resolving the record alone leaves it Open.
   const hd6RequestClosed = () => {
     const t = hd2Ticket(HD6_R);
@@ -1619,7 +1619,7 @@
    * is sent and nothing reaches the lab record. Tier 1 reads the source and
    * hands the ticket on; the fix and the unlock stay with Tier 2. */
   const HD6E_ID = 'HD-2101';
-  // Step E2: Jordan's identity check. HD-2101 keeps it in its scenario; a
+  // Extension step 2: Jordan's identity check. HD-2101 keeps it in its scenario; a
   // verification on the ticket's own console counts too.
   const hd6eVerified = () => {
     const scenario = typeof hdM01 === 'function' ? hdM01() : null;

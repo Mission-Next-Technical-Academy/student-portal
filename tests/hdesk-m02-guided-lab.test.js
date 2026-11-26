@@ -443,7 +443,7 @@ function testNothingFromTheGradedQueue() {
     .split(/[^a-z0-9-]+/).filter(Boolean).filter((word) => !['warehouse', 'payroll'].includes(word))
     .forEach((word) => assert.ok(!GRADED_WORDS.has(hash(word)), `no other graded story word in ${id}`)));
   // Module 8's (key its-06) HD-2197 names the Entra control "Require re-register
-  // multifactor authentication" (Module 8 spec, section 8.2 step B4). That one
+  // multifactor authentication" (Module 8 spec, section 8.2, Part B step 4). That one
   // word is allowed on that one ticket; every other graded word stays refused.
   // SR-2107 and HD-2118 left the queue then (ownSet) with their older text
   // unchanged: they are no later module's content, so they are not read here.

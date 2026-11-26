@@ -6,7 +6,7 @@
 //     The source is a saved password on his old desk PC, NS-WS-0277.
 //   - Part B on HD-2197 (INC0010508) and its request SR-2207 (RITM0010162):
 //     Sam Rivera's new work phone and Send as on support@.
-//   - The coach walks A1 to A10 and B1 to B12 of spec section 8.2 through
+//   - The coach walks Part A steps 1 to 10 and Part B steps 1 to 12 of spec section 8.2 through
 //     ui/coach.js. Each step waits for real state, never a tick box.
 //   - The typed lines (Get-ADUser on nwilliams, cmdkey /list on NS-WS-0277)
 //     pass from the command history in any letter case. The optional lines
@@ -163,22 +163,22 @@ const LINES = {
   getAdUser: 'Get-ADUser nwilliams -Properties LockedOut, Enabled, AccountExpirationDate, PasswordExpired, PasswordLastSet',
   cmdkey: 'cmdkey /list',
 };
-// A1 to A6: triage, verification, the account's fields, Lockout details,
+// Part A step 1 to Part A step 6: triage, verification, the account's fields, Lockout details,
 // the question about NS-WS-0277 and the typed cmdkey /list.
 function partAToA6(tab, lines = LINES) {
   tab.open(A);
-  at(tab, 0, 'A1 waits');
+  at(tab, 0, 'Part A step 1 waits');
   tab.triage(A, 'Access', 'Account lockout', 'nwilliams', '3', '1');
   assert.equal(tab.ticket(A).priority, 'P3');
-  at(tab, 1, 'A1 done, A2 waits');
+  at(tab, 1, 'Part A step 1 done, Part A step 2 waits');
   tab.run(`hdKbOpen('${A}', 'KB-0024')`);
   tab.run(`hdVerify('${A}', 'callback')`);
-  at(tab, 2, 'A2 done');
-  // A3: the typed line (the pane would pass it too, see testA3FromThePane).
+  at(tab, 2, 'Part A step 2 done');
+  // Part A step 3: the typed line (the pane would pass it too, see testA3FromThePane).
   const out = tab.ps(lines.getAdUser);
   assert.match(out, /LockedOut\s+: True/);
-  at(tab, 3, 'A3 done');
-  // A4: Lockout details and the Tier 2 view.
+  at(tab, 3, 'Part A step 3 done');
+  // Part A step 4: Lockout details and the Tier 2 view.
   tab.run("hdOpenUser('u-1003'); hdAcctLockoutOpen('u-1003')");
   let pane = tab.pane();
   assert.match(pane, /Lockouts today<\/dt><dd>3</);
@@ -186,20 +186,20 @@ function partAToA6(tab, lines = LINES) {
   tab.run("hdAcctTier2('u-1003')");
   pane = tab.pane();
   assert.match(pane, /data-hd-4740-card="u-1003"[\s\S]*<td>nwilliams<\/td><td>NS-WS-0277<\/td>/);
-  at(tab, 4, 'A4 done');
-  // A5: ask Noah about NS-WS-0277.
+  at(tab, 4, 'Part A step 4 done');
+  // Part A step 5: ask Noah about NS-WS-0277.
   tab.run(`hdChatAsk('${A}', 'device')`);
   assert.match(tab.open(A), /my old desk PC/);
-  at(tab, 5, 'A5 done');
-  // A6: cmdkey /list typed on NS-WS-0277.
+  at(tab, 5, 'Part A step 5 done');
+  // Part A step 6: cmdkey /list typed on NS-WS-0277.
   const html = tab.open(A);
   assert.match(html, /data-hd-machines/);
   assert.match(html, /Open NS-WS-0277/);
   tab.run(`hdSelectComputer('${PC}')`);
   assert.match(tab.ps(lines.cmdkey), /Target: Domain:target=NS-FILE01\n\s+Type: Domain Password\n\s+User: NORTHSTAR\\nwilliams/);
-  at(tab, 6, 'A6 done');
+  at(tab, 6, 'Part A step 6 done');
 }
-// A7 to A10: remove the saved password, unlock once, wait, note and resolve.
+// Part A step 7 to Part A step 10: remove the saved password, unlock once, wait, note and resolve.
 function partAFromA7(tab, { typed = false } = {}) {
   tab.open(A);
   tab.run(`hdChatAsk('${A}', 'consent')`);
@@ -212,112 +212,112 @@ function partAFromA7(tab, { typed = false } = {}) {
     tab.run(`hdCredAsk('${PC}', 'NS-FILE01'); hdCredRemove('${PC}', 'NS-FILE01')`);
     assert.match(tab.view('helpdesk/credential-manager'), /No Windows credentials are saved/);
   }
-  at(tab, 7, 'A7 done');
+  at(tab, 7, 'Part A step 7 done');
   if (typed) assert.equal(tab.ps('Unlock-ADAccount nwilliams'), '');
   else { tab.run("hdOpenUser('u-1003')"); tab.pane(); tab.run("hdAcctUnlock('u-1003')"); }
   assert.equal(tab.run("hdFileUser('u-1003').locked"), false);
-  at(tab, 8, 'A8 done');
+  at(tab, 8, 'Part A step 8 done');
   tab.open(A);
   tab.run(`hdAcctWait('${A}')`);
   assert.equal(tab.run("hdFileUser('u-1003').locked"), false, 'still unlocked after 2 minutes');
-  at(tab, 8, 'A9 waits for Noah');
+  at(tab, 8, 'Part A step 9 waits for Noah');
   tab.run(`hdChatAsk('${A}', 'reopen')`);
-  at(tab, 9, 'A9 done');
+  at(tab, 9, 'Part A step 9 done');
   tab.kb(A, 'lockout source', 'KB-0103'); tab.attach(A, 'KB-0103');
   tab.note(A, NOTE_A);
   tab.comment(A, COMMENT_A);
-  at(tab, 9, 'A10 waits for Resolved');
+  at(tab, 9, 'Part A step 10 waits for Resolved');
   tab.resolve(A, 'Fixed — user guided', 'Saved password removed on NS-WS-0277; unlocked once; stayed unlocked.');
   assert.equal(tab.ticket(A).status, 'Resolved');
-  at(tab, 10, 'A10 done');
+  at(tab, 10, 'Part A step 10 done');
 }
 
 /* ------------------------------------------------------------ Part B */
 function partB(tab) {
-  // B1: triage; the request shows no SLA bar.
+  // Part B step 1: triage; the request shows no SLA bar.
   tab.open(B);
   tab.triage(B, 'Access', 'MFA', 'srivera', '3', '2');
   tab.run(`hdSetClassification('${B}', 'contactType', 'Walk-in')`);
   assert.equal(tab.ticket(B).priority, 'P4');
   assert.match(tab.open(R), /RITM0010162/);
-  at(tab, 11, 'B1 done');
-  // B2: verified in person, the swap on record.
+  at(tab, 11, 'Part B step 1 done');
+  // Part B step 2: verified in person, the swap on record.
   tab.open(B);
   tab.run(`hdKbOpen('${B}', 'KB-0065'); hdVerify('${B}', 'badge')`);
-  at(tab, 11, 'B2 waits for the hardware request');
+  at(tab, 11, 'Part B step 2 waits for the hardware request');
   tab.run(`hdEvidenceOpen('${B}', 'sam-hardware-request')`);
   assert.match(tab.open(B), /NS-PH-0002 · returned and wiped yesterday/);
-  at(tab, 12, 'B2 done');
-  // B3: Service health, one Teams advisory.
+  at(tab, 12, 'Part B step 2 done');
+  // Part B step 3: Service health, one Teams advisory.
   tab.run("hdM365Tab('health')");
   const health = tab.view('helpdesk/m365-admin');
   assert.match(health, /data-hd-advisory="TM-ADV-0819"[\s\S]*Teams meeting recordings delayed/);
   assert.doesNotMatch(health, /Exchange Online<\/td>|sign-in/i);
-  at(tab, 13, 'B3 done');
-  // B4: read the methods, then require re-registration.
+  at(tab, 13, 'Part B step 3 done');
+  // Part B step 4: read the methods, then require re-registration.
   tab.run("hdEntraOpenUser('u-1013')");
   assert.match(tab.view('helpdesk/entra-admin'), /data-hd-method-device>NS-PH-0002</);
-  at(tab, 13, 'B4 waits for the re-registration');
+  at(tab, 13, 'Part B step 4 waits for the re-registration');
   tab.run("hdEntraReregister('u-1013')");
   tab.run("hdEntraTab('audit')");
   assert.match(tab.view('helpdesk/entra-admin'), /rmorgan<\/td><td>Admin required re-registration of multifactor authentication<\/td><td>Sam Rivera/);
-  at(tab, 14, 'B4 done');
-  // B5: Authenticator on NS-PH-0001, a test approved.
+  at(tab, 14, 'Part B step 4 done');
+  // Part B step 5: Authenticator on NS-PH-0001, a test approved.
   tab.run(`hdPhoneOpen('${PHONE}', 'authenticator'); hdPhoneAuthAdd('${PHONE}')`);
-  at(tab, 14, 'B5 waits for the test');
+  at(tab, 14, 'Part B step 5 waits for the test');
   tab.run(`hdPhoneAuthTest('${PHONE}'); hdPhoneAuthApprove('${PHONE}')`);
   tab.run("hdEntraOpenUser('u-1013'); hdEntraTab('methods')");
   assert.match(tab.view('helpdesk/entra-admin'), /data-hd-method-device>NS-PH-0001</);
-  at(tab, 15, 'B5 done');
-  // B6: the sign-in log.
+  at(tab, 15, 'Part B step 5 done');
+  // Part B step 6: the sign-in log.
   tab.run("hdEntraOpenUser('u-1013'); hdEntraTab('signins')");
   assert.match(tab.view('helpdesk/entra-admin'), /data-status="Success"[\s\S]*Microsoft Authenticator[\s\S]*MFA required — not completed/);
-  at(tab, 16, 'B6 done');
-  // B7: enrol, then Intune.
+  at(tab, 16, 'Part B step 6 done');
+  // Part B step 7: enrol, then Intune.
   tab.run(`hdPhoneOpen('${PHONE}', 'company-portal'); hdPhoneEnrol('${PHONE}')`);
-  at(tab, 16, 'B7 waits for Intune');
+  at(tab, 16, 'Part B step 7 waits for Intune');
   const list = tab.view('helpdesk/intune');
   assert.match(list, /data-hd-intune-row="NS-PH-0002"[\s\S]*Retired/);
   tab.run(`hdIntuneOpen('${PHONE}')`);
   assert.match(tab.view('helpdesk/intune'), /data-hd-intune-device="NS-PH-0001"[\s\S]*data-hd-ownership>Corporate[\s\S]*data-hd-compliance>Compliant/);
-  at(tab, 17, 'B7 done');
-  // B8: Outlook with mail, calendar and contacts.
+  at(tab, 17, 'Part B step 7 done');
+  // Part B step 8: Outlook with mail, calendar and contacts.
   tab.run(`hdPhoneOpen('${PHONE}', 'outlook'); hdPhoneOutlookAdd('${PHONE}')`);
   ['mail', 'calendar', 'contacts'].forEach((key) => { if (!tab.run(`hdPhone('${PHONE}', hdCloud()).outlook.sync.${key}`)) tab.run(`hdPhoneOutlookSync('${PHONE}', '${key}')`); });
   const outlook = tab.view('helpdesk/phone');
   assert.match(outlook, /data-hd-outlook-inbox>Inbox up to date/);
   assert.match(outlook, /data-hd-phone-sync-calendar[^>]*>On[\s\S]*data-hd-phone-sync-contacts[^>]*>On/);
-  at(tab, 18, 'B8 done');
-  // B9: OneDrive on Wi-Fi only, with the 5 GB plan in the status bar.
+  at(tab, 18, 'Part B step 8 done');
+  // Part B step 9: OneDrive on Wi-Fi only, with the 5 GB plan in the status bar.
   tab.run(`hdPhoneOpen('${PHONE}', 'onedrive')`);
   assert.match(tab.view('helpdesk/phone'), /data-hd-data-used>3.6 GB of 5 GB used/);
   tab.run(`hdPhoneOneDrive('${PHONE}')`);
   assert.match(tab.view('helpdesk/phone'), /data-hd-phone-wifi-only[^>]*>On/);
-  at(tab, 19, 'B9 done');
-  // B10: on, pairing mode, find, PIN, test.
+  at(tab, 19, 'Part B step 9 done');
+  // Part B step 10: on, pairing mode, find, PIN, test.
   tab.run(`hdPhoneOpen('${PHONE}', 'bluetooth'); hdPhoneBtToggle('${PHONE}'); hdPhoneBtPairingMode('${PHONE}', 'HS-200 Headset'); hdPhoneBtScan('${PHONE}'); hdPhoneBtAsk('${PHONE}', 'HS-200 Headset')`);
-  at(tab, 19, 'B10 waits for the pairing');
+  at(tab, 19, 'Part B step 10 waits for the pairing');
   assert.equal(tab.run(`hdPhoneBtPair('${PHONE}', 'HS-200 Headset', '0000')`), true);
   tab.run(`hdPhoneBtTest('${PHONE}')`);
   assert.match(tab.view('helpdesk/phone'), /data-hd-bt-tested>Test call: audio through HS-200 Headset/);
-  at(tab, 20, 'B10 done');
-  // B11: Send as on support@, from the request.
+  at(tab, 20, 'Part B step 10 done');
+  // Part B step 11: Send as on support@, from the request.
   tab.open(R);
   tab.run("hdM365OpenMailbox('support')");
   assert.match(tab.view('helpdesk/m365-admin'), /data-hd-full-access><li>Sam Rivera<\/li>/);
-  at(tab, 20, 'B11 waits for Send as');
+  at(tab, 20, 'Part B step 11 waits for Send as');
   tab.run("hdM365MailboxAdd('support', 'u-1013', 'sendAs')");
   assert.match(tab.toasts.slice(-1)[0], /up to an hour/);
   assert.match(tab.view('helpdesk/m365-admin'), /data-hd-send-as><li>Sam Rivera<\/li>/);
-  at(tab, 21, 'B11 done');
-  // B12: close both records.
+  at(tab, 21, 'Part B step 11 done');
+  // Part B step 12: close both records.
   tab.open(B);
   tab.kb(B, 'new phone', 'KB-0065'); tab.attach(B, 'KB-0065');
   tab.note(B, NOTE_B);
   tab.comment(B, COMMENT_B);
   tab.resolve(B, 'Fixed — user guided', 'New phone set up: MFA, enrolment, Outlook, OneDrive and headset.');
   assert.equal(tab.ticket(B).status, 'Resolved');
-  at(tab, 21, 'B12 waits for the request');
+  at(tab, 21, 'Part B step 12 waits for the request');
   tab.open(R);
   tab.note(R, NOTE_R);
   tab.run(`hdRequestClose('${R}')`);
@@ -332,7 +332,7 @@ function testLabOpensOnItsSet() {
   const coach = tab.coach('hd-m06');
   assert.equal(coach.module, 8);
   assert.equal(coach.completionToken, 'hd-m06');
-  assert.equal(coach.steps.length, 23, 'A1 to A10, B1 to B12, then Finish');
+  assert.equal(coach.steps.length, 23, 'Part A steps 1 to 10, Part B steps 1 to 12, then Finish');
   assert.equal(tab.ticket(A).number, 'INC0010507');
   assert.equal(tab.ticket(B).number, 'INC0010508');
   assert.equal(tab.ticket(R).request.number, 'RITM0010162');
@@ -372,19 +372,19 @@ function testTypedStepsAnyCase() {
   partAToA6(tab, { getAdUser: 'get-aduser   NWILLIAMS -properties lockedout, enabled, accountexpirationdate, passwordexpired, passwordlastset', cmdkey: 'CMDKEY  /LIST' });
 }
 
-// A3 also passes from Noah's pane, as its row says.
+// Part A step 3 also passes from Noah's pane, as its row says.
 function testA3FromThePane() {
   const tab = startLab();
   tab.open(A);
   tab.triage(A, 'Access', 'Account lockout', 'nwilliams', '3', '1');
   tab.run(`hdVerify('${A}', 'callback')`);
-  at(tab, 2, 'A3 waits');
+  at(tab, 2, 'Part A step 3 waits');
   tab.run("hdOpenUser('u-1003')");
   tab.pane();
-  at(tab, 3, 'A3 passes from the pane');
+  at(tab, 3, 'Part A step 3 passes from the pane');
 }
 
-// The Credential Manager screen alone never passes A6, and cmdkey on another
+// The Credential Manager screen alone never passes Part A step 6, and cmdkey on another
 // computer doesn't either.
 function testA6NeedsTheTypedLine() {
   const tab = startLab();
@@ -392,7 +392,7 @@ function testA6NeedsTheTypedLine() {
   const steps = tab.coach('hd-m06').steps;
   tab.run(`hdOpenMachineScreen('${PC}', 'credential-manager')`);
   assert.match(tab.view('helpdesk/credential-manager'), /data-hd-cred="NS-FILE01"/);
-  assert.equal(steps[5].check(), false, 'the screen alone does not pass A6');
+  assert.equal(steps[5].check(), false, 'the screen alone does not pass Part A step 6');
   tab.run("hdSelectComputer('NS-LT-0131')");
   tab.ps('cmdkey /list');
   assert.equal(steps[5].check(), false, 'cmdkey on another computer does not count');
@@ -486,40 +486,40 @@ function testExtension() {
   const coach = tab.coach('hd-m06-ext');
   assert.equal(coach.module, 8);
   assert.equal(coach.completionToken, undefined, 'no completion token');
-  assert.equal(coach.steps.length, 5, 'E1 to E4, then a last step');
+  assert.equal(coach.steps.length, 5, 'extension steps 1 to 4, then a last step');
   const id = 'HD-2101';
   tab.open(id);
   assert.equal(tab.run('hdM01Tier2()'), true);
-  // E1: triage P2.
-  at(tab, 0, 'E1 waits');
+  // extension step 1: triage P2.
+  at(tab, 0, 'extension step 1 waits');
   tab.triage(id, 'Access', 'Account lockout', 'jbell', '2', '1');
   assert.equal(tab.ticket(id).priority, 'P2');
-  at(tab, 1, 'E1 done');
-  // E2: verify, Lockout details, the Tier 2 evidence card.
+  at(tab, 1, 'extension step 1 done');
+  // extension step 2: verify, Lockout details, the Tier 2 evidence card.
   tab.run("hdM01Identity('callback')");
   tab.run("hdOpenUser('u-1005'); hdAcctLockoutOpen('u-1005'); hdAcctTier2('u-1005')");
   assert.match(tab.pane(), /data-hd-lockout-source>NS-LT-0117</);
-  at(tab, 1, 'E2 waits for the evidence card');
+  at(tab, 1, 'extension step 2 waits for the evidence card');
   tab.run(`hdEvidenceOpen('${id}', 'task-scheduler-ns-lt-0117')`);
   assert.match(tab.open(id), /FinanceReportSync[\s\S]*NORTHSTAR\\jbell[\s\S]*Every 2 minutes[\s\S]*90 days ago/);
   // Credential Manager on NS-LT-0117 has no entry.
   tab.run("hdOpenMachineScreen('NS-LT-0117', 'credential-manager')");
   assert.match(tab.view('helpdesk/credential-manager'), /No Windows credentials are saved/);
-  at(tab, 2, 'E2 done');
+  at(tab, 2, 'extension step 2 done');
   // The task's password is Tier 2's: Set-ScheduledTask is refused.
   tab.run("hdSelectComputer('NS-LT-0117')");
   const refused = tab.ps('Set-ScheduledTask -TaskName FinanceReportSync -User NORTHSTAR\\jbell');
   assert.match(refused, /Tier 2 work \(KB-0103\)/);
   assert.doesNotMatch(refused, /Secure credential prompt/);
   assert.equal(tab.run('hdM01Task().credentialCurrent'), false, 'the task keeps its old password');
-  // E3: Desktop Support (Tier 2).
+  // extension step 3: Desktop Support (Tier 2).
   tab.open(id);
   tab.run(`hdMatrixAssignGroup('${id}', 'Desktop Support (Tier 2)')`);
-  at(tab, 3, 'E3 done');
-  // E4: handoff note and a comment to Jordan.
+  at(tab, 3, 'extension step 3 done');
+  // extension step 4: handoff note and a comment to Jordan.
   tab.kb(id, 'lockout source', 'KB-0103'); tab.attach(id, 'KB-0103');
   tab.note(id, NOTE_EXT);
-  at(tab, 3, 'E4 waits for the comment');
+  at(tab, 3, 'extension step 4 waits for the comment');
   tab.comment(id, COMMENT_EXT);
   at(tab, 4, 'at the last step');
   const feedback = tab.feedback(id);
@@ -582,7 +582,7 @@ function testOldCoachRunIsForgotten() {
   const lab = startLab(null, kept);
   lab.open(A);
   lab.triage(A, 'Access', 'Account lockout', 'nwilliams', '3', '1');
-  at(lab, 1, 'on A2');
+  at(lab, 1, 'on Part A step 2');
   const again = sim(launchUrl('hd-m06', false), { local: kept, session: lab.session });
   assert.equal(again.run('hdState.ticketSet'), 'its-06-guided');
   assert.equal(again.coachStep(), 1, 'the new run resumes');
