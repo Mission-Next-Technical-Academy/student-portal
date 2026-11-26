@@ -719,9 +719,10 @@ const ITS05_SOURCES = [
 // "complete" and its time, and whether the walkthrough was started. Never
 // answers or a score.
 const ITS05_STATE_ID = 'its05-page-v1';
-// Until the Prove It opens, Lab 7.1 is the module's gating lab
-// (course_module_labs) and is instructor reviewed. The practice tickets lab
-// has its own lab key, and so has the Prove It.
+// Since 2026-11-25 Module 7's Prove It gates completion (the its05 Prove It
+// migration) and Lab 7.1 is Practice It. It keeps its course_module_labs
+// row, so its walkthrough record still saves. The practice tickets lab has
+// its own lab key, and so has the Prove It.
 const ITS05_LAB1_KEY = 'lab-its-05-server-ad';
 const ITS05_PRACTICE_KEY = 'lab-its-05-practice-tickets';
 const ITS05_PROVE_KEY = 'lab-its-05-prove-it';
@@ -911,14 +912,13 @@ function its05Learn() {
 }
 
 // Lab 7.1: the hd-m05 coach on the morning server check (HD-2189) in the IT
-// Service Desk simulator (ui/helpdesk-coaches.js). Feedback only: no score. It
-// is instructor reviewed, and the module's gating lab until the Prove It opens.
+// Service Desk simulator (ui/helpdesk-coaches.js). Feedback only: no score.
 function its05Lab1() {
   const button = itsWalkthroughButton(its05User, [ITS05_LAB1_KEY]);
   return `<section class="its01-section its01-lab-section" id="its05-lab-7-1" aria-labelledby="its05-lab-7-1-title">
-    <div class="its01-section-heading"><span>1</span><div><p class="its01-kicker">Guided Lab · coached · instructor reviewed</p><h2 id="its05-lab-7-1-title">${esc(itsLabTitle(ITS05_LAB1_KEY))}</h2></div></div>
+    <div class="its01-section-heading"><span>1</span><div><p class="its01-kicker">Practice It · coached</p><h2 id="its05-lab-7-1-title">${esc(itsLabTitle(ITS05_LAB1_KEY))}</h2></div></div>
     <p class="its01-instruction">It is Wednesday, 08:00, and the morning server check (HD-2189) is yours. In the IT Service Desk simulator you triage the check, then read the five servers in Server Manager, a server’s services and System log, the change log, a file share’s two permission layers, Active Directory, Group Policy, DNS and DHCP, and run four typed checks. You change nothing on a server. When you find something another team owns, you raise a ticket for it yourself (HD-2190) and hand it on, then resolve the check with a note. A coach guides you through each step.</p>
-    <p class="its01-instruction">The coach names the goal of each typed step; open Show me the command if you need it. Feedback only, no score. Your instructor reviews your finished lab.</p>
+    <p class="its01-instruction">The coach names the goal of each typed step; open Show me the command if you need it. Practice: not graded. Feedback only, no score.</p>
     <a class="itsw-evidence-button" data-its05-console-launch href="${esc(itsCoachLaunchHref(ITS05_COACH_ID, its05User))}" target="_blank" rel="opener">
       <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: ITS05_LAB1_START }[button.mode]}
     </a>
@@ -948,13 +948,29 @@ function its05PracticeTickets() {
   </section>`;
 }
 
-// The Prove It opens nothing yet: its simulator shift isn't built.
+// Module 7's Prove It, on Module 6's pattern: a new ticket in the simulator
+// (?prove=its-05), reviewed by the instructor. Practice It is recommended
+// first, never required. A submitted attempt has nothing left to open. What
+// it shows comes from the server's attempt (itsLabStatus); the simulator
+// reports back by message (itsProveReceiveMessage).
 function its05Prove() {
+  const user = its05User;
+  const returned = itsLabReturned(user, ITS05_PROVE_KEY);
   return `<section class="its01-section its01-lab-section" id="its05-prove-it" aria-labelledby="its05-prove-it-title">
     <div class="its01-section-heading"><span>3</span><div><p class="its01-kicker">Prove It · Assessment Lab · instructor reviewed</p><h2 id="its05-prove-it-title">${esc(itsLabTitle(ITS05_PROVE_KEY))}</h2></div></div>
-    <p class="its01-instruction">Work a new ticket on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Your instructor reviews your work.</p>
-    <p class="its01-lab-status its01-status-pending" data-its05-prove-soon role="status"><i class="ri-time-line" aria-hidden="true"></i> Opens soon. Nothing to do here yet: work Labs 7.1 and 7.2 first.</p>
+    <p class="its01-instruction">Work a new ticket on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Set the ticket fields, ask the caller the one question you need most, check the evidence you need on the tool screens, decide what happens next, and write a key finding, a work note and a reply to the user. You don’t need to type any command. Plan on about 45 minutes. Your instructor reviews your work.</p>
+    ${itsLabRail(user, [ITS05_LAB1_KEY]).isComplete ? '' : '<p class="its01-instruction">Work Lab 7.1, the guided lab, first: it prepares you for this.</p>'}
+    ${itsLabSubmitted(user, ITS05_PROVE_KEY) ? '' : `<a class="itsw-evidence-button" data-its05-prove-launch href="${esc(itsProveLaunchHref('its-05', user))}" target="_blank" rel="opener">
+      <i class="${returned ? 'ri-restart-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${returned ? 'Reopen the Prove It' : 'Start the Prove It'}
+    </a>`}
+    ${itsLabStatusHtml(user, ITS05_PROVE_KEY, { label: 'Prove It', prefix: 'its01', pendingText: 'Press Submit in the simulator when you finish the ticket.' })}
+    ${itsLabStatus(user, ITS05_PROVE_KEY) === 'passed' && typeof markedLabLinkHtml === 'function' ? `<p>${markedLabLinkHtml(ITS05_PROVE_KEY, 'See your score and feedback')}</p>` : ''}
+    ${itsRedoNoticeHtml(user, [{ key: ITS05_PROVE_KEY, action: 'Reopen the Prove It, make your changes, then press Resubmit in the simulator. You can resubmit once for each return.' }])}
   </section>`;
+}
+// A Prove It message changed the attempt: show it if this page is open.
+function its05ProveChanged() {
+  if (document.querySelector('.its05-shell')) render();
 }
 
 function its05Sources() {
@@ -1282,6 +1298,7 @@ async function its05SavedPracticeAttempt(user) {
 }
 
 function its05OnMessage(event) {
+  itsProveReceiveMessage(event, { moduleKey: 'its-05', labKey: ITS05_PROVE_KEY, onChange: its05ProveChanged });
   return Promise.all([its05ReceivePracticeCompletion(event), its05ReceiveCoachCompletion(event)]);
 }
 

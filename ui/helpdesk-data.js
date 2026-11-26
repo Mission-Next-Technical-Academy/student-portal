@@ -2886,4 +2886,96 @@ const HD_PROVE_SHIFTS = {
     },
     // END Module 6 Prove It shift.
   },
+  // BEGIN Module 7 Prove It shift (tests/hdesk-m07-prove.test.js reads it; no
+  // practice ticket, coach or set names what this block holds).
+  /* Module 7 (key its-05): one ticket on a fixed Wednesday 09:12 shift clock,
+   * on Module 3's one-ticket form (matrix fields and a key-finding note),
+   * worked on the server screens: Server Manager, Services, the server event
+   * logs, the file server's two permission layers and Effective access, the
+   * change log, and read-only Active Directory (users, groups, computers).
+   * servers, directory and changes are this shift's own (Module 7 console A
+   * and B read them, ui/helpdesk.js hdServerLayers and hdDirectoryLayers);
+   * users adds a record the shared directory lacks. Every screen reads; none
+   * changes a permission. console.caller.limit: the user answers one question.
+   * Only what the student sees lives here: no expected values. */
+  'its-05': {
+    title: 'Prove It: Independent Ticket',
+    labKey: 'lab-its-05-prove-it',
+    rubricVersion: 'hdesk-its-05-prove-v1',
+    now: '2026-09-02T09:12:00Z',
+    timeBoxMinutes: 45,
+    selectedComputer: 'NS-WS-0277',
+    // The caller's other laptop has an older Module 5 event in the shared log.
+    hideEventsFrom: ['NS-LT-0081'],
+    servers: (() => {
+      const servers = hdIts05BaselineServers();
+      servers['NS-FILE01'].shares.push({ name:'Sales', path:'\\\\NS-FILE01\\Sales', status:'Healthy',
+        share:[{ who:'GG-Sales-Managers', access:'Change' }, { who:'Administrators', access:'Full Control' }],
+        ntfs:[{ who:'GG-Sales-Users', access:'Modify' }, { who:'GG-Sales-Managers', access:'Modify' }, { who:'Administrators', access:'Full Control' }] });
+      return servers;
+    })(),
+    directory: (() => {
+      const directory = hdIts05BaselineDirectory();
+      directory.groups['GG-Sales-Managers'] = { scope:'Global', type:'Security', resource:'Sales managers · Managers folder' };
+      return directory;
+    })(),
+    users: [
+      { id:'u-1098', employeeId:'E-63110', phone:'ext. 4301', name:'Tara Singh', username:'tsingh', email:'tara.singh@northstar.example', department:'Sales', title:'Sales Manager', ou:'OU=Sales,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:12, groups:['GG-Sales-Managers', 'GG-CRM-Users'], manager:'Dana Whitfield', mfa:'Registered' },
+    ],
+    changes: [
+      { number:'CHG-4519', when:'Yesterday 22:40', what:'Sales share: add Managers subfolder, update share permissions', who:'J. Keller', state:'Completed', ci:'NS-FILE01', details:'Created the Managers subfolder in \\\\NS-FILE01\\Sales for the sales managers and updated the share permissions on Sales. Completed with no errors reported.' },
+      { number:'CHG-4516', when:'Yesterday 21:00', what:'Install monthly Windows updates on NS-PRINT01', who:'M. Osei', state:'Completed', ci:'NS-PRINT01', details:'Monthly updates installed and the server restarted out of hours. Print Spooler checked after the restart.' },
+      { number:'CHG-4511', when:'2 days ago 20:15', what:'Renew the web certificate on NS-APP01', who:'J. Keller', state:'Completed', ci:'NS-APP01', details:'The certificate was renewed before it expired. Purchasing Service checked after the change.' },
+      { number:'CHG-4507', when:'4 days ago 19:30', what:'Extend the D: volume on NS-FILE01 by 100 GB', who:'M. Osei', state:'Completed', ci:'NS-FILE01', details:'The D: volume was extended out of hours. No share or permission was changed.' },
+    ],
+    tickets: [{
+      id: 'HD-2128', number: 'INC0010520', title: 'Nobody on my team can open the Sales folder',
+      requester: 'Noah Williams', requesterTitle: 'Account Executive', department: 'Sales',
+      device: 'NS-WS-0277', cc: '', contactType: 'Phone', createdAt: '2026-09-02T09:05:00Z',
+      status: 'New', assignedTechnician: 'Unassigned',
+      description: 'Nobody on my team can open the Sales folder since this morning. Tara can. We have a pricing deadline at 2.',
+      conversation: [
+        { from: 'Service Desk queue', role: 'Queue note', text: '9 calls from Sales about the Sales folder since 08:00.' },
+      ],
+      matrix: true,
+      categoryOptions: ['Account / access', 'File share access', 'Hardware', 'Network / connectivity', 'Server outage', 'Software'],
+      labels: { resolutionHint: 'Reported / Tried / Result / Next action', userReply: 'Reply to Noah' },
+      writing: {
+        keyFinding: { label: 'Key finding', hint: 'One or two sentences: what you found and how the pieces connect.', rows: 3, max: 600 },
+      },
+      // The knowledge base search and one question to the caller, from a
+      // short list. Every question gets a reply in character.
+      console: {
+        kb: true,
+        caller: { name: 'Noah Williams', style: 'phone', limit: 1, questions: [
+          { id: 'q1', text: 'When did it last work for you?', reply: 'Yesterday afternoon, about five. I saved the price list there before I left.' },
+          { id: 'q2', text: 'Who on your team can open it, and who can\'t?', reply: 'None of us can: me, the other account execs, Nina. Tara opened it fine at half eight.' },
+          { id: 'q3', text: 'Have you restarted your computer?', reply: 'Twice. Same thing.' },
+          { id: 'q4', text: 'What exactly happens when you open it?', reply: 'It says I don\'t have permission to open it. My other drives open fine.' },
+          { id: 'q5', text: 'Have you changed your password recently?', reply: 'No, not for a week or so. Outlook and Teams are fine.' },
+        ] },
+      },
+      diagnosisOptions: ['File server outage', 'Sales accounts locked', 'Last night\'s share-permission change', 'Network outage in Sales'],
+      // Ids are this ticket's own and their order says nothing. Action-level
+      // wording, with checks of the same kind and wrong-direction steps beside
+      // the right ones, so the list isn't a plan of the answer.
+      pathPool: [
+        { id: 'v1', text: 'Check the caller\'s account in Active Directory' },
+        { id: 'v2', text: 'Restart the caller\'s computer' },
+        { id: 'v3', text: 'Read the recent changes in the change log' },
+        { id: 'v4', text: 'Change the share permissions on the server yourself' },
+        { id: 'v5', text: 'Ask the caller who can open it and who can\'t' },
+        { id: 'v6', text: 'Map the drive again on the caller\'s computer' },
+        { id: 'v7', text: 'Check the file server and its services in Server Manager' },
+        { id: 'v8', text: 'Unlock the caller\'s account' },
+        { id: 'v9', text: 'Compare effective access on the share for two users' },
+        { id: 'v10', text: 'Give the caller Full Control on the folder' },
+        { id: 'v11', text: 'Escalate with the evidence to the team that owns the fix' },
+        { id: 'v12', text: 'Run gpupdate /force on the caller\'s computer' },
+        { id: 'v13', text: 'Tell the caller what is happening and when they will hear next' },
+        { id: 'v14', text: 'Test the connection to the file server' },
+      ],
+    }],
+    // END Module 7 Prove It shift.
+  },
 };

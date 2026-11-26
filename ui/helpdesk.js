@@ -1102,10 +1102,12 @@ function hdConsole(ticket) {
     // Module 6: a chat with the user, questions and plain replies only (no
     // feedback, waiting replies or password question). Each one asked is
     // recorded (hdChatAsk); none is marked.
+    // Module 7: limit, how many questions the user answers (none set: all).
     const caller = config.caller && typeof config.caller === 'object' && Array.isArray(config.caller.questions) ? {
       name:String(config.caller.name || ticket.requester || ''), style:config.caller.style === 'phone' ? 'phone' : 'chat',
       questions:config.caller.questions.filter(item => item && typeof item.id === 'string' && typeof item.text === 'string' && typeof item.reply === 'string' && !item.asksPassword)
         .map(item => ({ id:item.id, text:item.text, reply:item.reply })),
+      ...(Number.isInteger(config.caller.limit) && config.caller.limit > 0 ? { limit:config.caller.limit } : {}),
     } : null;
     return { ...(config.kb === true ? { kb:true } : {}), ...(arrivals.length ? { arrivals } : {}), ...(caller && caller.questions.length ? { caller } : {}) };
   }
@@ -1357,7 +1359,13 @@ function hdChatPending(ticket, question) {
   if (question.replyLocked && hdConsoleAccountLocked(ticket)) return true;
   return !!question.afterAction && !hdConsoleState(ticket).actions.some(action => action.id === question.afterAction);
 }
+// A caller with a limit (Module 7's Prove It) answers that many questions, then none.
+function hdChatLimitReached(ticket) {
+  const caller = hdConsole(ticket).caller;
+  return !!(caller && Number.isInteger(caller.limit) && hdConsoleState(ticket).chat.filter(entry => !entry.refused).length >= caller.limit);
+}
 function hdChatQuestionOpen(ticket, question) {
+  if (hdChatLimitReached(ticket)) return false;
   const asked = hdConsoleState(ticket).chat.filter(entry => entry.id === question.id);
   if (!asked.length) return true;
   const last = asked[asked.length - 1];
@@ -1866,7 +1874,9 @@ function hdConsoleChatCard(ticket) {
   // A Prove It shows the questions in a per-attempt order (seeded, so a reload
   // keeps it), so no question has a fixed place.
   const open = hdProveLocked() ? [] : HD_PROVE ? hdSeededOrder(offered, ((hdState && hdState.seed) || 1) ^ 0x2c1b3c6d) : offered;
-  const buttons = open.length ? `<div class="hd-chat-questions" style="display:grid;gap:8px">${open.map(question => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} onclick="hdChatAsk('${ticket.id}','${hdEsc(question.id)}')">${hdEsc(question.text)}</button>`).join('')}</div>` : '';
+  const limit = Number.isInteger(caller.limit) ? caller.limit : 0;
+  const limitLine = limit && open.length ? `<p class="muted" data-hd-chat-limit>${limit === 1 ? 'You can ask one question. Choose the one you need most.' : `You can ask ${limit} questions.`}</p>` : '';
+  const buttons = open.length ? `${limitLine}<div class="hd-chat-questions" style="display:grid;gap:8px">${open.map(question => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} onclick="hdChatAsk('${ticket.id}','${hdEsc(question.id)}')">${hdEsc(question.text)}</button>`).join('')}</div>` : '';
   return `<div class="card hd-chat"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${caller.style === 'phone' ? 'Phone call' : caller.style === 'chat' ? 'Chat' : 'Caller chat'}</strong><span class="muted">${hdEsc(caller.name)} · ${caller.style === 'chat' ? 'in the chat' : 'on the line'}</span></div><div class="card-body"><div class="hd-note-list">${log}</div>${buttons}</div></div>`;
 }
 // An article's text: its numbered steps ("1. … 2. …", in order from 1) as a

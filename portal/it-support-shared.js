@@ -1164,6 +1164,8 @@ function itsProveReviewPanel(row) {
 // (a work note and a reply), and what the student did on the computers: the
 // knowledge base searches, the actions on the screens, every typed command in
 // full and each print queue at submit (machine.printQueues).
+// Module 7 (rubric machineSummary false): the work is on read-only server
+// screens, so there is no computer-at-submit section.
 const ITS_PROVE_MATRIX_WRITING = [['keyFinding', 'Key finding'], ['resolutionNote', 'Handoff note'], ['userReply', 'Customer update'], ['kbDraft', 'KB draft']];
 function itsProvePrinterLines(work) {
   const queues = work.machine && work.machine.printQueues && typeof work.machine.printQueues === 'object' ? work.machine.printQueues : {};
@@ -1237,7 +1239,7 @@ function itsProveMatrixReviewPanel(row, work, { text, writing, fact, items, open
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Commands run</h4>
     ${items(commands, 'None recorded.')}
     ${windowsLines ? `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">The laptop at submit</h4>
-    <div data-its-prove-windows>${items(windowsLines, 'Not recorded.')}</div>` : `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Print queues at submit</h4>
+    <div data-its-prove-windows>${items(windowsLines, 'Not recorded.')}</div>` : rubric.machineSummary === false ? '' : `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Print queues at submit</h4>
     ${items(itsProvePrinterLines(work), 'Not recorded.')}`}
     ${work.passwordTyped === true ? '<p class="mt-1 text-sm font-semibold text-amber-900" data-its-prove-password>The student typed a password into the shell. The command was refused and the password was not saved.</p>' : ''}
     </div>` : `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Warm handoff</h4>
