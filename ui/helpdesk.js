@@ -7035,9 +7035,9 @@ function hdPracticeCommand(command, normalized, computer) {
  *         dhcpServer?, suffix?, obtained?, expires? }   (ISO times or text;
  *         an address in 169.254.x.x is APIPA and has no gateway)
  *       lease?:{ address, mask, gateway, dnsServers:[], dhcpServer, leaseDays? }
- *         what DHCP gives on the network this adapter is plugged into; no
- *         lease means /renew can't reach a DHCP server. An address that
- *         isn't on the lease's network carries no traffic.
+ *         what DHCP gives on this adapter's link; no lease means /renew
+ *         can't reach a DHCP server. With a lease, only an address on the
+ *         lease's network carries traffic.
  *       wifi?:{ ssid, protocol, security, band, channel, signal, linkRate,
  *         bands?:{ '<band>':{ channel, signal, linkRate, ms?, lost? } },
  *         known:[{ ssid, security }], noPreference?:'<band>' }
@@ -7052,12 +7052,10 @@ function hdPracticeCommand(command, normalized, computer) {
  *     routes: { corp | guest | outside | vpn: [{ address, name?, ms?, timeout? }] }
  *       tracert's hops to the internet after the gateway
  *     internet?: false }
- * Networks, from the adapter's address: 10.20.90.x is the guest Wi-Fi (company
- * addresses answer "Destination host unreachable" from its gateway; its DNS
- * knows no company names); other 10.20.x.x is the company network; a VPN
- * adapter carries company traffic only (split tunnel); anything else is
- * outside Northstar. Windows sends other traffic through a wired adapter
- * before Wi-Fi. A Dock USB Ethernet adapter's media is its own field.
+ * Networks, from the adapter's address: 10.20.90.x is the guest Wi-Fi,
+ * other 10.20.x.x the company network, a VPN adapter company traffic only,
+ * anything else outside. Wired adapters are used before Wi-Fi. A Dock USB
+ * Ethernet adapter's media is its own field (the Dock screen doesn't set it).
  * Seen keys (hdWinSeen, the same for a screen and its typed line):
  * settings-network (Get-NetAdapter), net-adapter:<name> (Hardware properties,
  * Get-NetIPConfiguration, Get-DnsClientServerAddress), wifi-properties (netsh
@@ -7072,15 +7070,17 @@ function hdNetMachine(name) { const machine = hdFeatureMachine(name); return hdN
 function hdNetAdapters(net) { return net.adapters.filter(item => item && typeof item === 'object' && item.name); }
 function hdNetIp(adapter) { if (!adapter.ip || typeof adapter.ip !== 'object') adapter.ip = { dhcp:true }; return adapter.ip; }
 function hdNetApipa(address) { return /^169\.254\./.test(String(address || '')); }
-function hdNetIsAddress(value) { return /^\d{1,3}(\.\d{1,3}){3}$/.test(String(value || '')); }
+function hdNetIsAddress(value) { return /^\d{1,3}(\.\d{1,3}){3}$/.test(String(value || '')) && String(value).split('.').every(part => Number(part) <= 255); }
 function hdNetPrefix(address) { return String(address || '').split('.').slice(0, 3).join('.'); }
 function hdNetUp(adapter) { return adapter.media === 'Connected' && adapter.enabled !== false; }
 function hdNetWifiUp(adapter) { return adapter.kind === 'Wi-Fi' && hdNetUp(adapter) && !!(adapter.wifi && adapter.wifi.ssid); }
+// A link: a cable for a wired adapter, a joined network for Wi-Fi.
+function hdNetLinked(adapter) { return adapter.kind === 'Wi-Fi' ? hdNetWifiUp(adapter) : hdNetUp(adapter); }
 // Carries traffic: a link, a real address (and a gateway, but a VPN has
-// none), on the network the link is really on.
+// none), on the link's own network.
 function hdNetUsable(adapter) {
   const ip = hdNetIp(adapter);
-  if (!hdNetUp(adapter) || !ip.address || hdNetApipa(ip.address)) return false;
+  if (!hdNetLinked(adapter) || !ip.address || hdNetApipa(ip.address)) return false;
   if (adapter.kind !== 'VPN' && !ip.gateway) return false;
   return !(adapter.lease && adapter.lease.address) || hdNetPrefix(adapter.lease.address) === hdNetPrefix(ip.address);
 }
@@ -7196,7 +7196,8 @@ function hdNetAsk(net, fqdn, serverOverride) {
   if (!via || !server) return { status:'noserver', server:'127.0.0.1', serverName:'UnKnown' };
   const company = hdNetDcs().some(item => item.ip === server);
   const serverName = hdNetServerName(server);
-  if (company && hdNetReach(net, server).result !== 'reply') return { status:'timeout', server, serverName:'UnKnown' };
+  // A DNS server that doesn't answer (a wrong address, a server offline) times out.
+  if (hdNetReach(net, server).result !== 'reply') return { status:'timeout', server, serverName:'UnKnown' };
   if (hdNetCompanyName(fqdn)) {
     const found = company ? hdNetCompanyLookup(fqdn) : null;
     return found ? { status:'ok', server, serverName, company, ...found, name:found.name || fqdn } : { status:'nxdomain', server, serverName, company };
@@ -7212,7 +7213,13 @@ function hdNetResolve(net, target) {
   const fqdn = hdNetFqdn(typed);
   const cached = hdNetCache(net).find(entry => entry && hdNetFqdn(entry.name) === fqdn && entry.address);
   if (cached) return { address:String(cached.address), shown:fqdn, fqdn, cached:true };
-  const answer = hdNetAsk(net, fqdn);
+  let answer = hdNetAsk(net, fqdn);
+  // The resolver tries the adapter's next DNS server when the first doesn't answer (nslookup doesn't).
+  if (answer.status === 'timeout') {
+    const vpn = hdNetVpn(net); const via = hdNetCompanyName(fqdn) && vpn ? vpn : hdNetActive(net);
+    const next = via ? (hdNetIp(via).dnsServers || []).slice(1).find(hdNetIsAddress) : '';
+    if (next) answer = hdNetAsk(net, fqdn, next);
+  }
   if (answer.status !== 'ok') return { shown:fqdn, fqdn, failed:answer.status };
   const cache = hdNetCache(net);
   cache.push({ name:fqdn, address:answer.addresses[0], ttl:answer.ttl });
@@ -7296,7 +7303,7 @@ function hdNetApipaFor(adapter) {
 // /renew and Edit IP settings › Automatic: DHCP's answer on this link, or none.
 function hdNetTakeLease(adapter, computerName) {
   const ip = hdNetIp(adapter); const lease = adapter.lease;
-  if (!hdNetUp(adapter) || !lease || !lease.address) return false;
+  if (!hdNetLinked(adapter) || !lease || !lease.address) return false;
   const now = hdNetNow(computerName);
   adapter.ip = { dhcp:true, address:lease.address, mask:lease.mask || '255.255.255.0', gateway:lease.gateway || '', dnsServers:Array.isArray(lease.dnsServers) ? lease.dnsServers.slice() : [], dhcpServer:lease.dhcpServer || '', obtained:now.toISOString(), expires:new Date(now.getTime() + (Number(lease.leaseDays) || 8) * 86400000).toISOString(), ...(typeof ip.suffix === 'string' ? { suffix:ip.suffix } : {}) };
   return true;
@@ -7350,6 +7357,8 @@ function hdNetIpconfig(command, machine, computerName) {
         return;
       }
       if (hdNetTakeLease(adapter, computerName)) { hdMachineAction(computerName, 'ip-renew', `renewed ${adapter.name}: ${hdNetIp(adapter).address} from DHCP`, { adapter:adapter.name, to:hdNetIp(adapter).address }); return; }
+      // An unplugged cable on a PC with another live adapter: Windows skips it.
+      if (!hdNetUp(adapter) && adapters.some(other => other !== adapter && hdNetLinked(other))) { notes.push(`No operation can be performed on ${adapter.name} while it has its media disconnected.`); return; }
       notes.push(`An error occurred while renewing interface ${adapter.name} : unable to contact your DHCP server. Request has timed out.`);
       if (hdNetUp(adapter) && !hdNetApipa(ip.address)) adapter.ip = { ...ip, address:hdNetApipaFor(adapter), mask:'255.255.0.0', gateway:'', dnsServers:[], dhcpServer:'' };
       hdMachineAction(computerName, 'ip-renew-failed', `ipconfig /renew on ${adapter.name}: unable to contact the DHCP server`, { adapter:adapter.name });
@@ -7491,7 +7500,7 @@ function hdNetRows(head, rows) {
 function hdNetStatusWord(adapter) { return adapter.enabled === false ? 'Disabled' : hdNetUp(adapter) && (adapter.kind !== 'Wi-Fi' || hdNetWifiUp(adapter)) ? 'Up' : 'Disconnected'; }
 function hdNetProfile(adapter) { if (!hdNetUsable(adapter)) return 'Unidentified network'; if (adapter.kind === 'Wi-Fi') return adapter.wifi.ssid; return ['corp', 'vpn'].includes(hdNetZone(adapter)) ? HD_ORG.domain : 'Network'; }
 function hdNetDcReachable(net) { const found = hdNetAsk(net, HD_ORG.domain); return found.status === 'ok' && found.company ? found.addresses.find(address => hdNetReach(net, address).result === 'reply') || '' : ''; }
-// The optional lines (decision 11) and nltest, gpupdate and Test-NetConnection.
+// The optional PowerShell lines, and nltest, gpupdate and Test-NetConnection.
 function hdNetPowerShell(command, normalized, machine, computerName) {
   const net = hdNetState(machine);
   const trimmed = command.trim();
@@ -7637,7 +7646,7 @@ function hdNetSetAutomatic(machine, computerName, adapter, via) {
 function hdNetPanel(computerName, panel, adapterName) {
   const machine = hdNetMachine(computerName); if (!machine) return;
   hdState.machineView = { computer:computerName, panel, adapter:adapterName || '' };
-  const adapter = hdNetAdapters(hdNetState(machine)).find(item => item.name === adapterName);
+  const adapter = hdProveLocked() ? null : hdNetAdapters(hdNetState(machine)).find(item => item.name === adapterName);
   if (panel === 'hardware' && adapter) { hdWinSeen(machine, `net-adapter:${adapter.name}`); hdProveOpened(`net-adapter:${computerName}:${adapter.name}`, `Settings › Network & internet › ${adapter.name} › Hardware properties · ${computerName}`); }
   if (panel === 'wifi' && adapter && hdNetWifiUp(adapter)) { hdWinSeen(machine, 'wifi-properties'); hdProveOpened(`wifi-properties:${computerName}`, `Settings › Network & internet › Wi-Fi › ${adapter.wifi.ssid} › Properties · ${computerName}`); }
   if (panel === 'known' && adapter) { hdWinSeen(machine, 'known-networks'); hdProveOpened(`known-networks:${computerName}`, `Settings › Wi-Fi › Manage known networks · ${computerName}`); }
@@ -7655,11 +7664,14 @@ function hdNetSaveIp(event, computerName, adapterName) {
     if (mode !== 'manual') return false;
     const values = { address:field('hd-net-ip'), mask:field('hd-net-mask'), gateway:field('hd-net-gw'), dns1:field('hd-net-dns1'), dns2:field('hd-net-dns2') };
     const bad = ['address', 'mask'].filter(key => !hdNetIsAddress(values[key])).concat(['gateway', 'dns1', 'dns2'].filter(key => values[key] && !hdNetIsAddress(values[key])));
-    if (bad.length) { hdState.machineView = { computer:computerName, panel:'edit', adapter:adapterName, error:'Enter each address as four numbers with dots, for example 10.20.10.50.' }; return false; }
-    const before = hdNetIpText(ip);
-    adapter.ip = { dhcp:false, address:values.address, mask:values.mask, gateway:values.gateway, dnsServers:[values.dns1, values.dns2].filter(Boolean), dhcpServer:'' };
+    if (bad.length) { hdState.machineView = { computer:computerName, panel:'edit', adapter:adapterName, error:HD_PROVE ? 'Enter a valid IPv4 address.' : 'Enter each address as four numbers from 0 to 255 with dots between them.', typed:values }; return false; }
+    const dnsServers = [values.dns1, values.dns2].filter(Boolean);
+    const before = { mode:hdNetIpText(ip), address:ip.address || '', mask:ip.mask || '', gateway:ip.gateway || '', dnsServers:(ip.dnsServers || []).slice() };
     hdState.machineView = { computer:computerName, panel:'hardware', adapter:adapterName };
-    hdMachineAction(computerName, 'ip-settings', `changed IP assignment on ${adapter.name} from ${before} to Manual (${values.address})`, { adapter:adapter.name, from:before, to:`Manual (${values.address})` });
+    if (ip.dhcp === false && before.address === values.address && before.mask === values.mask && before.gateway === values.gateway && before.dnsServers.join() === dnsServers.join()) return false;
+    adapter.ip = { dhcp:false, address:values.address, mask:values.mask, gateway:values.gateway, dnsServers, dhcpServer:'' };
+    const after = { mode:hdNetIpText(adapter.ip), address:values.address, mask:values.mask, gateway:values.gateway, dnsServers };
+    hdMachineAction(computerName, 'ip-settings', `changed IP assignment on ${adapter.name} from ${before.mode} to ${after.mode}`, { adapter:adapter.name, from:before.mode, to:after.mode, before, after });
     return undefined;
   });
 }
@@ -7704,9 +7716,11 @@ function hdNetSettingsView(found) {
     const rows2 = [['Link speed (Receive/Transmit)', up ? rate : ''], ['IP assignment', ip.dhcp === false ? 'Manual' : 'Automatic (DHCP)'], ['DNS server assignment', ip.dhcp === false ? 'Manual' : 'Automatic (DHCP)'], ['Link-local IPv6 address', up ? hdNetIpv6(net, adapter) : ''], ['IPv4 address', up ? ip.address || '' : ''], ['IPv4 default gateway', up && !apipa ? ip.gateway || '' : ''], ['IPv4 DNS servers', up && !apipa ? (ip.dnsServers || []).join(', ') : ''], ['Primary DNS suffix', up ? hdNetSuffix(adapter) : ''], ['Description', adapter.description || adapter.name], ['Driver version', adapter.driver || ''], ['Physical address (MAC)', adapter.mac || '']];
     panel = `<div class="card" data-hd-net-panel="hardware"><div class="card-header"><strong>${hdEsc(adapter.name)} · Hardware properties</strong></div><div class="card-body"><dl class="hd-dl">${rows2.map(([k, v]) => `<dt>${hdEsc(k)}</dt><dd data-hd-net-prop="${hdEsc(k)}">${hdEsc(v)}</dd>`).join('')}</dl></div></div>`;
   } else if (adapter && view.panel === 'edit' && adapter.kind !== 'VPN') {
-    const ip = hdNetIp(adapter); const manual = ip.dhcp === false;
+    const ip = hdNetIp(adapter); const typed = view.typed && typeof view.typed === 'object' ? view.typed : null;
+    const manual = typed ? true : ip.dhcp === false;
+    const shown = typed ? { address:typed.address, mask:typed.mask, gateway:typed.gateway, dnsServers:[typed.dns1, typed.dns2] } : ip;
     const input = (id, label, value) => `<label>${label} <input id="${id}" class="ipt" autocomplete="off" inputmode="decimal" maxlength="15" value="${hdEsc(value || '')}"></label>`;
-    panel = `<div class="card" data-hd-net-panel="edit"><div class="card-header"><strong>Edit IP settings · ${hdEsc(adapter.name)}</strong><span class="muted">Now: ${hdEsc(hdNetIpText(ip))}</span></div><form class="card-body" onsubmit="hdNetSaveIp(event,${n},'${hdJsArg(adapter.name)}')"><label>Edit IP settings <select id="hd-net-mode" class="ipt"><option value="dhcp"${manual ? '' : ' selected'}>Automatic (DHCP)</option><option value="manual"${manual ? ' selected' : ''}>Manual</option></select></label><p class="muted">Manual uses only the IPv4 fields below.</p><div style="display:grid;gap:6px;max-width:360px">${input('hd-net-ip', 'IP address', manual ? ip.address : '')}${input('hd-net-mask', 'Subnet mask', manual ? ip.mask : '')}${input('hd-net-gw', 'Gateway', manual ? ip.gateway : '')}${input('hd-net-dns1', 'Preferred DNS', manual ? (ip.dnsServers || [])[0] : '')}${input('hd-net-dns2', 'Alternate DNS', manual ? (ip.dnsServers || [])[1] : '')}</div>${view.error ? `<div class="callout bad" role="alert">${hdEsc(view.error)}</div>` : ''}<div style="display:flex;gap:8px;margin-top:8px"><button type="submit" class="btn btn-primary btn-sm" ${locked}>Save</button><button type="button" class="btn btn-ghost btn-sm" onclick="hdNetPanel(${n},'','')">Cancel</button></div></form></div>`;
+    panel = `<div class="card" data-hd-net-panel="edit"><div class="card-header"><strong>Edit IP settings · ${hdEsc(adapter.name)}</strong><span class="muted">Now: ${hdEsc(hdNetIpText(ip))}</span></div><form class="card-body" onsubmit="hdNetSaveIp(event,${n},'${hdJsArg(adapter.name)}')"><label>Edit IP settings <select id="hd-net-mode" class="ipt"><option value="dhcp"${manual ? '' : ' selected'}>Automatic (DHCP)</option><option value="manual"${manual ? ' selected' : ''}>Manual</option></select></label><p class="muted">Manual uses only the IPv4 fields below.</p><div style="display:grid;gap:6px;max-width:360px">${input('hd-net-ip', 'IP address', manual ? shown.address : '')}${input('hd-net-mask', 'Subnet mask', manual ? shown.mask : '')}${input('hd-net-gw', 'Gateway', manual ? shown.gateway : '')}${input('hd-net-dns1', 'Preferred DNS', manual ? (shown.dnsServers || [])[0] : '')}${input('hd-net-dns2', 'Alternate DNS', manual ? (shown.dnsServers || [])[1] : '')}</div>${view.error ? `<div class="callout bad" role="alert">${hdEsc(view.error)}</div>` : ''}<div style="display:flex;gap:8px;margin-top:8px"><button type="submit" class="btn btn-primary btn-sm" ${locked}>Save</button><button type="button" class="btn btn-ghost btn-sm" onclick="hdNetPanel(${n},'','')">Cancel</button></div></form></div>`;
   } else if (adapter && view.panel === 'wifi' && hdNetWifiUp(adapter)) {
     const w = adapter.wifi; const ip = hdNetIp(adapter);
     const rows2 = [['SSID', w.ssid], ['Protocol', w.protocol || ''], ['Security type', w.security || ''], ['Description', adapter.description || adapter.name], ['Network band', w.band || ''], ['Network channel', w.channel || ''], ['Link speed (Receive/Transmit)', `${w.linkRate || 0}/${w.linkRate || 0} (Mbps)`], ['Signal', `${w.signal || 0}%`], ['IPv4 address', ip.address || ''], ['IPv4 DNS servers', hdNetApipa(ip.address) ? '' : (ip.dnsServers || []).join(', ')], ['Physical address (MAC)', adapter.mac || '']];
