@@ -647,8 +647,10 @@ function testLookupsCountOnTheirTicket() {
 
   const ext = startExtension(fakeOpener());
   const id = 'HD-2101';
-  ext.open(id);
+  // Triage on the ticket the view shows before one is opened: step 1 waits.
   ext.triage(id, 'Access', 'Account lockout', 'jbell', '2', '1');
+  at(ext, 0, 'extension step 1 waits until HD-2101 is opened from Tickets');
+  ext.open(id);
   ext.run("hdM01Identity('callback')");
   ext.run("hdOpenUser('u-1005'); hdAcctLockoutOpen('u-1005')");
   ext.run(`hdEvidenceOpen('${id}', 'task-scheduler-ns-lt-0117')`);

@@ -1353,6 +1353,9 @@
   const HD6_PC = 'NS-WS-0277';
   const HD6_PHONE = 'NS-PH-0001';
   const HD6_CODE = 'Fixed — user guided';
+  // The ticket the student opened from Tickets. A lookup counts for that
+  // ticket only (hdServerPracticeTicket), so step 1 waits until it is open.
+  const hd6Opened = (id) => typeof hdState !== 'undefined' && Boolean(hdState) && hdState.openedTicketId === id;
   const hd6Seen = (key) => typeof hdState !== 'undefined' && Boolean(hdState) && Array.isArray(hdState.serverSeen) && hdState.serverSeen.includes(key);
   // A line the console ran (not refused), in any letter case, with extra spaces.
   const hd6Typed = (computer, test) => (typeof hdState !== 'undefined' && hdState && Array.isArray(hdState.practiceLog) ? hdState.practiceLog : [])
@@ -1421,7 +1424,7 @@
         instruction: 'Open <strong>Locked out AGAIN</strong> (HD-2196) from <strong>Tickets</strong>. Noah Williams in Sales is on the phone. He was locked out three times since lunch, and you unlocked him at 12:20. Set <strong>Category</strong> Access › Account lockout and <strong>Configuration item</strong> nwilliams (the AD account). Set <strong>Contact type</strong> Phone, <strong>Impact</strong> 3 and <strong>Urgency</strong> 1.',
         body: 'Why: one person who can’t work at all. The matrix gives P3. Success looks like: the priority shows P3.',
         waitLabel: 'Next Step: Triaged as P3',
-        check: () => hd2Triaged(HD6_A, 'Access', 'Account lockout', 'nwilliams', 'P3'),
+        check: () => hd6Opened(HD6_A) && hd2Triaged(HD6_A, 'Access', 'Account lockout', 'nwilliams', 'P3'),
       },
       {
         route: '#/helpdesk/ticket', target: '.hd-verify, .hd-chat, [data-hd-choice-card]',
@@ -1647,7 +1650,7 @@
         waitLabel: 'Next Step: Triaged',
         check: () => {
           const t = hd2Ticket(HD6E_ID);
-          return Boolean(t) && hd2Triaged(HD6E_ID, 'Access', 'Account lockout', 'jbell', t.priority) && ['P2', 'P3'].includes(t.priority);
+          return Boolean(t) && hd6Opened(HD6E_ID) && hd2Triaged(HD6E_ID, 'Access', 'Account lockout', 'jbell', t.priority) && ['P2', 'P3'].includes(t.priority);
         },
       },
       {
