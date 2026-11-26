@@ -213,6 +213,8 @@ const ACCOUNTS = {
     lockout: { badPasswordCount: 5, lockoutsToday: 3, lastLockout: 'Today 13:02', source: 'NS-WS-0277', dc: 'NS-DC01', credentialTarget: 'NS-FILE01', events: [{ time: 'Today 11:58', caller: 'NS-WS-0277' }, { time: 'Today 12:31', caller: 'NS-WS-0277' }, { time: 'Today 13:02', caller: 'NS-WS-0277' }] } },
   'u-1004': { accountExpires: 'Never', passwordExpired: true, passwordLastSet: '92 days ago', lastBadPassword: 'None', enabled: false, sspr: 'Not registered', history: 'TEST Disabled — leave of absence (HR-9852)' },
   'u-1009': { accountExpires: 'In 9 days', passwordExpired: false, passwordLastSet: '20 days ago', lastBadPassword: 'None', sponsor: 'Leah Brooks', sspr: 'Registered' },
+  // An older ticket's account card locks Sam in every shift; this fixture starts him unlocked.
+  'u-1013': { accountExpires: 'Never', passwordExpired: false, passwordLastSet: '10 days ago', lastBadPassword: 'None', locked: false },
   'u-1020': { accountExpires: 'Yesterday', expired: true, passwordExpired: false, passwordLastSet: '40 days ago', lastBadPassword: 'Today 09:10', sponsor: 'Monica Hall' },
 };
 const DIRECTORY = { readOnly: false, accounts: ACCOUNTS, groups: { 'TEST-Finance-Users': { resource: 'TEST Finance' }, 'TEST-Listed': { members: ['gkim'] } } };
@@ -391,7 +393,8 @@ function testEnableAndReset() {
   tab.run("hdVerify('HD-9852', 'badge')");
   tab.run("hdAcctOpenDialog('u-1004', 'enable')");
   assert.equal(tab.toasts.pop(), 'TEST open HR-9852 first');
-  tab.run("hdServerSeen('test-hr-record', 'TEST HR record')");
+  // An action on the ticket meets it as well as a screen key does.
+  tab.run("hdConsoleState(hdTicketById('HD-9852')).actions.push({ id: 'test-hr-record', time: 'T' })");
   tab.run("hdAcctOpenDialog('u-1004', 'enable')");
   assert.match(tab.pane(), /data-hd-acct-dialog="enable"[\s\S]*Approval: HR-9852/);
   // A disabled account is enabled first.
@@ -420,7 +423,7 @@ function testEnableAndReset() {
   assert.match(pane, /data-hd-otp-hidden/);
   assert.match(pane, /data-hd-password-expired>No</);
   assert.match(pane, /Must change password<\/dt><dd>At next logon/);
-  assert.deepEqual(actions(tab, 'HD-9852'), ['ad-enabled', 'ad-password-reset', 'ad-must-change']);
+  assert.deepEqual(actions(tab, 'HD-9852'), ['test-hr-record', 'ad-enabled', 'ad-password-reset', 'ad-must-change']);
   // Never saved, logged or written.
   const saved = [...tab.ctx.localStorage.map.values()].join('');
   assert.ok(!saved.includes(otp), 'not in saved state');
@@ -512,6 +515,23 @@ function testWhoamiAfterSignIn() {
   assert.doesNotMatch(out, /GG-Sales-Users/);
   assert.ok(machineSeen(tab, 'NS-WS-0277').includes('whoami-groups'));
   assert.ok(actions(tab, 'HD-9851').includes('signed-out-in'));
+}
+
+// A fixture's locked and enabled are the account's state at the start of the
+// shift, even where an older ticket locked it; a later change still wins.
+function testFixtureStartState() {
+  const tab = acct(); tab.open('HD-9854');
+  assert.equal(sim().run("hdUserById('u-1013').locked"), true, 'an older ticket locks Sam in the shared shift');
+  assert.equal(tab.run("hdFileUser('u-1013').locked"), false);
+  tab.run("hdOpenUser('u-1013')");
+  assert.match(tab.pane(), /<dt>Locked out<\/dt><dd>No<\/dd>/);
+  assert.doesNotMatch(tab.ps('Search-ADAccount -LockedOut'), /srivera/);
+  assert.match(tab.view('helpdesk/directory'), /Sam Rivera[\s\S]*?hd-badge ok">Enabled</);
+  // Noah starts locked from his fixture; an unlock then a relock both hold.
+  tab.open('HD-9851'); tab.run("hdVerify('HD-9851', 'callback'); hdAcctUnlock('u-1003')");
+  assert.equal(tab.run("hdFileUser('u-1003').locked"), false, 'the unlock wins over the fixture');
+  tab.run("hdAcctWait('HD-9851')");
+  assert.equal(tab.run("hdFileUser('u-1003').locked"), true, 'and so does the relock');
 }
 
 // Search-ADAccount and Get-Help, only where account work is on.
@@ -635,7 +655,7 @@ function testReload() {
 }
 
 const tests = [testOldShiftsUnchanged, testStatusFields, testLockoutDetails, testUnlockAfterVerification, testWaitAndCredentialManager,
-  testEnableAndReset, testGroupChanges, testWhoamiAfterSignIn, testSearchAndHelp, testHd2101Tier2, testProveShift, testReload];
+  testEnableAndReset, testGroupChanges, testWhoamiAfterSignIn, testFixtureStartState, testSearchAndHelp, testHd2101Tier2, testProveShift, testReload];
 let failed = 0;
 for (const test of tests) {
   try { test(); console.log(`ok - ${test.name}`); } catch (error) { failed += 1; console.error(`not ok - ${test.name}\n${error.stack}`); }

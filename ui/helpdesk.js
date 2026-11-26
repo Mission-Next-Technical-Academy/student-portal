@@ -1480,12 +1480,15 @@ function hdConsoleUnlock(id, via = 'Account card') {
   // Module 7: a read-only directory unlocks no account from any card.
   if (hdDirectoryReadOnly()) { toast('Read-only: this ticket reads the account and changes nothing.'); return; }
   const ticket = hdTicketById(id); const account = ticket && hdConsole(ticket).account;
-  const user = account && hdUserById(account.userId);
+  // Module 8: a user with an account fixture reads and changes it the directory's way.
+  const fixture = account && typeof hdAcctAccount === 'function' && hdAcctAccount(account.userId);
+  const user = account && (fixture ? hdFileUser(account.userId) : hdUserById(account.userId));
   if (!user) return;
   const blocked = hdConsoleUnlockBlock(user.id);
   if (blocked) { hdPracticeEvent('unlock_blocked', { ticket:ticket.id, via }); toast(blocked); hdRerender(); return; }
   if (!user.locked) { toast(`${user.username} is not locked out.`); return; }
-  hdState.userOverrides[user.id] = { ...(hdState.userOverrides[user.id] || {}), locked:false };
+  if (fixture) hdAcctPatch(user.id, { locked:false });
+  else hdState.userOverrides[user.id] = { ...(hdState.userOverrides[user.id] || {}), locked:false };
   hdConsoleState(ticket).unlocks.push({ via, time:hdConsoleTime(ticket) });
   hdHistory(ticket, `Account ${user.username} unlocked (${via}).`);
   hdPracticeEvent('account_unlocked', { ticket:ticket.id, via });
@@ -7292,7 +7295,11 @@ function hdFileUser(id) {
   const dir = typeof hdDirectory === 'function' ? hdDirectory() : null;
   // Module 8: the directory block's account status fields, under the changes.
   const account = dir && hdServerObject(dir.accounts[id]);
-  const user = { ...base, ...(account ? hdAcctBase(account) : {}), ...((hdState.userOverrides || {})[id] || {}) };
+  const override = (hdState.userOverrides || {})[id] || {};
+  const user = { ...base, ...(account ? hdAcctBase(account) : {}), ...override };
+  // The fixture's locked and enabled are the start of the shift, even where an
+  // older ticket's account card locked the user; a change made since wins.
+  if (account) ['locked', 'enabled'].forEach(key => { if (hdOwn(account, key) && !(Array.isArray(override.acctSet) && override.acctSet.includes(key))) user[key] = account[key]; });
   // Module 7: a group in the shift's directory block that lists this user
   // counts here too, so Effective access agrees with Member Of.
   return dir ? { ...user, groups:hdDirUserGroups(user, dir) } : user;
@@ -7907,7 +7914,8 @@ function hdDirectoryHelp() {
  *       user's sspr is 'Not registered'; must-change is ticked by default
  *     groups?: { record, add:[group], remove:[group], after?, afterText? }
  *     expiry?: true   (a Prove shift's unsafe control; no practice ticket) } }
- *   after: a screen key (hdServerSeen) the change waits for.
+ *   after: what the change waits for: a screen key (hdServerSeen), an action
+ *     id on the ticket (consoleState.actions) or a KB article id it opened.
  *   In Practice a ticket with verification waits for a passing choice first.
  *   Each change is an action on the ticket (consoleState.actions, history,
  *   criticalActions) and an action_taken event (Practice log, Prove record);
@@ -7966,7 +7974,12 @@ function hdAcctLockoutState(userId) {
   if (!hdServerObject(hdState.lockouts[userId])) hdState.lockouts[userId] = { badPasswordCount:Number(fixture.badPasswordCount) || 0, lockoutsToday:Number(fixture.lockoutsToday) || 0, lastLockout:String(fixture.lastLockout || ''), events:hdClone(Array.isArray(fixture.events) ? fixture.events : []) };
   return { ...fixture, ...hdState.lockouts[userId] };
 }
-function hdAcctPatch(userId, patch) { hdState.userOverrides[userId] = { ...(hdState.userOverrides[userId] || {}), ...patch }; }
+// acctSet: the start-state fields (locked, enabled) changed since the shift began.
+function hdAcctPatch(userId, patch) {
+  const before = hdState.userOverrides[userId] || {};
+  const set = [...new Set([...(Array.isArray(before.acctSet) ? before.acctSet : []), ...['locked', 'enabled'].filter(key => hdOwn(patch, key))])];
+  hdState.userOverrides[userId] = { ...before, ...patch, ...(set.length ? { acctSet:set } : {}) };
+}
 function hdAcctTime() { const ticket = hdServerPracticeTicket(); return hdShiftTimeText(hdShiftNow(ticket)) || hdConsoleTime(ticket); }
 function hdAcctLabel(user) { return user ? `${user.name} (${user.username})` : ''; }
 
@@ -8008,8 +8021,11 @@ function hdAcctBlock(user, kind) {
   if (ticket) {
     const config = hdConsole(ticket).verification;
     if (config && !hdConsoleState(ticket).verification.passed) return `Verify the caller on ${ticket.id} first (KB-0024).`;
+    // after: a screen key, an action on this ticket (a chat reply's or a
+    // choice's action) or a KB article it opened.
     const after = hdServerObject(rule) && rule.after;
-    if (after && !((hdConsoleState(ticket).serverSeen || []).includes(after))) return rule.afterText || 'Read the approval record first.';
+    const state = hdConsoleState(ticket);
+    if (after && !((state.serverSeen || []).includes(after) || state.actions.some(entry => entry && entry.id === after) || state.kbOpened.includes(after))) return rule.afterText || 'Read the approval record first.';
   }
   // A disabled account is enabled first, and only against its approval.
   if ((kind === 'unlock' || kind === 'reset') && user.enabled === false) return `${user.name}'s account is disabled. Enable it first, and only against the record that approves it.`;
@@ -8057,7 +8073,7 @@ function hdAcctReset(userId, mustChange, via = 'Active Directory › Reset passw
   // Bound to this shift: a reset or another shift in this page never shows it.
   hdAcctOtp = { userId, value, shown:false, state:hdState };
   hdState.acctDialog = null;
-  hdAcctPatch(userId, { passwordExpired:false, passwordLastSet:`${hdAcctTime()} (reset)`, passwordAge:0, mustChange:mustChange === true, locked:user.locked });
+  hdAcctPatch(userId, { passwordExpired:false, passwordLastSet:`${hdAcctTime()} (reset)`, passwordAge:0, mustChange:mustChange === true });
   hdAcctRecord(user, 'ad-password-reset', `Password reset for ${user.username}, ${mustChange ? 'with' : 'without'} "User must change password at next logon" (${via})`, { via, mustChange:mustChange === true });
   if (mustChange === true) hdAcctRecord(user, 'ad-must-change', `"User must change password at next logon" set for ${user.username}`, { via });
   return { ok:true, value };
