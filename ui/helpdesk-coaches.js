@@ -1394,10 +1394,11 @@
       return Boolean(last) && last.status === 'Success';
     } catch { return false; }
   };
-  // Step B12: the request is closed (Closed Complete) or resolved.
+  // Step B12: the request itself is closed (Closed Complete), the state the
+  // instructor sheet reads. Resolving the record alone leaves it Open.
   const hd6RequestClosed = () => {
     const t = hd2Ticket(HD6_R);
-    return Boolean(t) && ((Boolean(t.request) && /^closed/i.test(String(t.request.state || ''))) || ['Resolved', 'Closed'].includes(t.status));
+    return Boolean(t) && Boolean(t.request) && /^closed/i.test(String(t.request.state || ''));
   };
   hd2ForgetStale('hd-m06', 'its-06-guided');
 
@@ -1597,7 +1598,7 @@
       {
         route: '#/helpdesk/ticket', target: '#hd-note-input, .hd-comments, #hd-resolution-code, [data-hd-request]',
         title: 'Close both records',
-        instruction: 'On <strong>HD-2197</strong>, write a <strong>work note</strong> with Reported:, Tried: and Result:. Post a <strong>comment</strong> to Sam in plain words. Resolve the ticket. On <strong>SR-2207</strong>, write a close note with the same three parts. Then close the request.',
+        instruction: 'On <strong>HD-2197</strong>, write a <strong>work note</strong> with Reported:, Tried: and Result:. Post a <strong>comment</strong> to Sam in plain words. Resolve the ticket. On <strong>SR-2207</strong>, write a close note with the same three parts. Then press <strong>Close the request (Closed Complete)</strong>.',
         body: 'Why: each record says what was done for it. Success looks like: both have Reported, Tried and Result, HD-2197 is Resolved and the request is closed. A model note for HD-2197:<br><strong>Reported:</strong> new company phone yesterday; Authenticator was on the old phone, so he can’t approve sign-ins; Teams prompting on his laptop.<br><strong>Tried:</strong> verified in person per KB-0065 (badge matches directory photo, employee ID). The hardware request shows NS-PH-0002 returned and wiped, NS-PH-0001 issued. Service health: no sign-in or Exchange advisory. Required MFA re-registration. Guided Authenticator setup on NS-PH-0001. Enrolled in Company Portal. Set OneDrive to Wi-Fi only (5 GB plan). Paired the HS-200 headset.<br><strong>Result:</strong> test sign-in approved; sign-in log Success with MFA; NS-PH-0001 Compliant; Outlook mail, calendar and contacts syncing; headset test call OK.<br>A model close note for SR-2207: Send as on support@ added for Sam Rivera per owner approval (C. Morales); Full Access was already in place; may take up to an hour to apply.',
         waitLabel: 'Next Step: Both records closed',
         check: () => hd2Rule(HD6_B, { note: true }) && hd2Rule(HD6_B, { comment: true }) && hd2Rule(HD6_B, { status: 'Resolved' })
