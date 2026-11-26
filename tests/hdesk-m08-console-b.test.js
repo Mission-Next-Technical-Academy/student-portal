@@ -23,9 +23,13 @@ const sha = (text) => crypto.createHash('sha256').update(String(text)).digest('h
 const WED = '2026-08-19';
 const at = (day, time) => `${day}T${time}:00Z`;
 const FIXED = Date.parse('2026-08-19T13:05:00Z');
+// Locale-free times, so the pins are the same on every computer and time zone.
 class FixedDate extends Date {
   constructor(...args) { if (args.length) super(...args); else super(FIXED); }
   static now() { return FIXED; }
+  toLocaleString() { return this.toISOString(); }
+  toLocaleTimeString() { return this.toISOString().slice(11, 16); }
+  toLocaleDateString() { return this.toISOString().slice(0, 10); }
 }
 function seededMath() {
   let seed = 8;
@@ -102,8 +106,8 @@ if (process.argv.includes('--print-pins')) {
   process.exit(0);
 }
 const PINNED = {
-  shared: { tickets: '3fedd9aebfb6480622296d5c75061560d736ff489a745f6fd28fd0d5e31d7d94', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
-  'practice:its-01': { tickets: '95afe70ef7af213d99e9e5a40a7c08bf33c9e967984711b22d610179eb2ab36a', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
+  shared: { tickets: '19a5893d98ae8afa324d79c0284c9486b884164ae361be38871414f63f165de4', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
+  'practice:its-01': { tickets: 'b60b2bc81202fc2843b6d934e1be1e26fbe73ed32ea57676d1781c9381942f33', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
   'practice:its-10': { tickets: '97b12acdee3b22d0eb9a3d3360d1aae99262db8b742ece73cb6ffec26747fd87', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
   'practice:its-11': { tickets: '300e2afc6cc2f22db756f8bee61feb51a29e111adc439d2e96404800d1ee0a04', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
   'practice:its-02': { tickets: '89d579a03def3993a9b27a800510b93840950beb70ef43f76b36097f49e27652', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
@@ -117,7 +121,7 @@ const PINNED = {
   'coached:its-03-guided': { tickets: '34b9d92eb99056692824a05a83b267b67143b1fef06bdab6f70441f16921d471', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
   'coached:its-07-guided': { tickets: '5ac8e1ae952ddf61a7dc76f532d2da9f5b5caf830d04740bbe43a4e810219833', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
   'coached:its-05-guided': { tickets: '13eb2965c8e669a0ab73fd51a9eedd5a4d3b6e8ec3de97ad9a77ad40587d8c08', screens: '9415d5099de1f429786a6cc4fa67e22a2a3e7c5b59a8bd477b0e1dab9a8e3307' },
-  'prove:its-01': { tickets: '27a7e1f769be2baae5538f853d850dc7a99517092afc148a2d4ca4fddfbd6fc1', screens: '278c2d22b0ce58ac8ce43db106bcf90cbbf17f34a90046e700ed14c498747daf' },
+  'prove:its-01': { tickets: '04772342502114dc0ad13acddf0cbc00330158d4063f3f9d2faf9a877cb14091', screens: '278c2d22b0ce58ac8ce43db106bcf90cbbf17f34a90046e700ed14c498747daf' },
   'prove:its-10': { tickets: '1477780e26acf888c3b82e7a27fa843b395b0d665d2c43695164410a60c0af57', screens: '086ecc58da451f54a8631e546826bdfa3046d942a2fb8ead7532361d6dcbe0eb' },
   'prove:its-11': { tickets: '4fb273b799bac6e15f70549e25ecfb8021bc7a5fcc28e5ec29190c542b3c3a4c', screens: 'fe0b2020cd9d124dde0948aadc7b628c9ab1f128f5a61b8cc6733c56d7dc65f4' },
   'prove:its-02': { tickets: '91828edbb893b150da9c684cc2164328f657c61834a8119ea6d25fac0d5f3d88', screens: '8c508b7da651c9e5c0cda08017f3cb269d1ffeccd8023a1246f4e3b14dc281b8' },
