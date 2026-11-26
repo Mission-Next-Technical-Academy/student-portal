@@ -7,8 +7,8 @@
  *     its-05-lesson-02, so the two cards share its minutes), Lesson 7.3 is
  *     Reading 4 and Lesson 7.4 is Reading 5. Each reading has its tables and a
  *     diagram.
- *   - Two knowledge checks: the Learn It check (six program questions, after
- *     Reading 4) and the A+ check (eight questions, after Reading 5). Each has
+ *   - Two knowledge checks, both after Reading 5: the Learn It check (six
+ *     program questions) and the A+ check (eight questions). Each has
  *     a "why" line for a right answer and an "if wrong" line for each wrong
  *     one. The choices are shuffled per student and per attempt.
  *
@@ -16,9 +16,11 @@
  * it), p, ul, ol, note ({ title, text }), table ({ caption, head, rows }) and
  * diagram (a key of ITS05_DIAGRAMS). In p, ul, ol, table and check text,
  * **...** is emphasized and `...` is inline code. bin/its-curriculum-check.js
- * reads each filed lesson's title and minutes from this file: they must match
- * portal/data.js, so a lesson entry keeps its title and minutes on one line
- * and nothing else here may put a minutes value right after a title.
+ * reads each filed lesson's title and minutes from this file: the title must
+ * match portal/data.js, and the minutes are the filed lesson minutes plus that
+ * lesson's share of the lab (180 / 180 / 120 / 240, the checker's mapping). A
+ * lesson entry keeps its title and minutes on one line, and nothing else here
+ * may put a minutes value right after a title.
  */
 
 const ITS05_LESSONS = [
@@ -67,7 +69,7 @@ const ITS05_LESSONS = [
               ['Legacy and embedded systems, SCADA, IoT', 'Old machines, industrial controllers and smart devices that often can’t be patched. You report them, you don’t experiment on them'],
             ],
           } },
-          { p: '**Server Manager** shows which roles are installed and flags a service that isn’t running. As a Tier 1 technician you observe, check and document. You do not reconfigure servers, and you do not add or remove roles. Restarting a service on a shared server affects everyone using it, so you do it only when a runbook (a KB article) allows it, after reading the logs, and with a note saying what you did. Otherwise you escalate, with evidence.' },
+          { p: '**Server Manager** shows which roles are installed and flags a service that isn’t running. As a Tier 1 technician you observe, check and document. You do not reconfigure servers, and you do not add or remove roles. Restarting a service on a shared server affects everyone using it, so you start a stopped one only when a runbook (a KB article) allows it, after reading the logs, and with a note saying what you did. Otherwise you escalate, with evidence.' },
           { diagram: 'servers' },
         ],
         comingUp: 'Read the five servers in Server Manager in the guided lab (Lab 7.1).',
@@ -168,13 +170,14 @@ const ITS05_LESSONS = [
           { p: 'Then read the **change log** before you build a theory. It lists what the company changed and when: a number, a time, what was done, who did it, and whether it finished. A change that lines up with the start of a symptom is the fastest evidence you will ever find — and it is evidence, not proof, so you name it in the ticket and let the change’s owner confirm it. A change window with nothing in it is worth saying too: “no change in the six hours before it started” saves the next tier the same search.' },
           { diagram: 'timeline' },
           { p: 'Finally, the boundary. The Service Desk may **start** one named service, once, when a runbook allows it (KB-0100). It may never stop a service, restart one in place, or reboot a server — those affect everyone using that server, and they destroy the evidence of why it happened. If the same service stops twice, that is not a second restart; that is an escalation with both events attached.' },
+          { p: 'A server volume filling up is the same kind of boundary. Read the volume’s size and free space on the server’s volume list, work out how fast it is growing, and put the numbers and the rate in the ticket. **Delete nothing and move nothing**: the files are not yours, and they may be someone’s only copy. Escalate to Server & Identity with the numbers (KB-0101).' },
           { table: {
             caption: 'What a Tier 1 technician may do on a server, and what to escalate',
             head: ['You may', 'You never'],
             rows: [
               ['Open Server Manager, Services, the event logs, the file server, DNS, DHCP and the change log, and read them', 'Add, remove or reconfigure a role'],
               ['Run a read-only check (`Get-Service`, `Test-NetConnection`)', 'Change a share or NTFS permission'],
-              ['Restart one named service when a runbook (KB) allows it, after reading the logs, and write a note', 'Restart a server, or restart a service a second time'],
+              ['Start one named stopped service, once, when a runbook (KB) allows it, after reading the logs, and write a note', 'Restart a server, or start a service a second time'],
               ['Read a change-log entry and name it in a ticket', 'Delete or move anyone’s files on a server'],
               ['Escalate to Server & Identity with evidence', 'Add a user to a group to “make it work”'],
             ],
@@ -623,13 +626,13 @@ function its05LessonCard(card) {
  * is keyed by the choice's place in the data and has null on the right answer.
  * The choices are shuffled per student, per question and per attempt
  * (its05ChoiceOrder), so no line refers to a choice by its letter.
- *   - learn: six program questions, after Reading 4. Complete at 5 of 6.
+ *   - learn: six program questions, after Reading 5. Complete at 5 of 6.
  *   - aplus: eight questions on A+ Core 1 objectives 2.3 and 2.4, after
  *     Reading 5. Complete at 6 of 8. */
 const ITS05_CHECKS = {
   learn: {
     title: 'Learn It knowledge check',
-    intro: 'Six questions on this module’s readings: Active Directory, permissions, services and change discipline. They are program checks, not A+ questions. It’s complete when 5 of your first answers are right. Retake it as often as you like.',
+    intro: 'Six questions on this module’s readings: Active Directory, permissions, services, change discipline, and DHCP and VLANs. They are program checks, not A+ questions. It’s complete when 5 of your first answers are right. Retake it as often as you like.',
     questions: [
       { q: 'An OU and a security group both hold users. Which one grants access to a shared folder?',
         choices: ['The OU', 'The security group', 'Both', 'Neither'], answer: 1,
@@ -641,7 +644,7 @@ const ITS05_CHECKS = {
         ifWrong: ['Reading only one layer is how a ticket gets escalated with the wrong evidence. Read both and say what each one says.', null, 'Neither layer takes the group’s access away, so the user isn’t locked out.', 'Neither layer gives full control, so the user can’t have it.'] },
       { q: 'A replaced laptop’s computer object sits in `CN=Computers` instead of its department OU. What is the effect?',
         choices: ['The user can’t sign in', 'The company policies linked to that OU don’t apply to it', 'The laptop loses its name', 'Nothing'], answer: 1,
-        why: 'Policies are linked to OUs, and the default Computers container has none of the company’s linked to it.',
+        why: 'Policies are linked to OUs, and the default Computers container has none of the company’s policies linked to it.',
         ifWrong: ['The user can sign in. That is exactly why this is confusing to diagnose: everything works except what a policy was doing.', null, 'The laptop keeps its name. Only its place in the directory is different.', 'Something does change: a policy that should reach the laptop doesn’t.'] },
       { q: 'One user says a shared drive is missing. Which question comes first?',
         choices: ['“Shall I restart your laptop?”', '“Can anyone else on your team open it?”', '“What’s your employee ID?”', '“Have you tried the UNC path?”'], answer: 1,
@@ -689,7 +692,7 @@ const ITS05_CHECKS = {
         choices: ['TXT', 'MX', 'CNAME', 'A'], answer: 1,
         why: 'MX stands for mail exchanger, and it names the host that accepts a domain’s mail.',
         ifWrong: ['TXT records carry the email checks SPF, DKIM and DMARC, which say who may send and what to do when a check fails, not where to deliver.', null, 'A CNAME is an alias for another name.', 'An A record maps a name to an address.'] },
-      { q: 'A scope covers 10.20.30.50 to 10.20.30.220. Three switches already use 10.20.30.60, .61 and .62 as fixed addresses. What stops DHCP from handing those three out to laptops?',
+      { q: 'A scope covers 10.20.30.50 to 10.20.30.220. Three switches already use 10.20.30.70, .71 and .72 as fixed addresses. What stops DHCP from handing those three out to laptops?',
         choices: ['A reservation', 'An exclusion', 'A shorter lease', 'A second VLAN'], answer: 1,
         why: 'An exclusion removes addresses from the pool entirely. Nothing gets them from DHCP.',
         ifWrong: ['A reservation keeps an address for a named device, which isn’t what a switch with a fixed address needs.', null, 'A shorter lease changes how long an address is held, not which addresses are handed out.', 'A VLAN is a separate network, and one scope serves one VLAN, so a second one doesn’t protect these addresses.'] },
@@ -895,14 +898,15 @@ function its05Check(checkId) {
 
 // Each check sits right after the reading card it follows (as on Module 1's
 // page), outside the card, so a rail link to it never lands inside a closed
-// card: the Learn It check after Reading 4 and the A+ check after Reading 5.
-const ITS05_CHECK_AFTER_READING = { 4: 'learn', 5: 'aplus' };
+// card. Both come after Reading 5: two Learn It questions test OUs and
+// computer objects, which Reading 5 teaches.
+const ITS05_CHECK_AFTER_READING = { 5: ['learn', 'aplus'] };
 
 function its05Learn() {
   return `<section class="its01-section" id="its05-lessons" aria-labelledby="its05-lessons-title">
     <div class="its01-section-heading"><span>L</span><div><p class="its01-kicker">Learn It</p><h2 id="its05-lessons-title">Lessons 7.1 to 7.4</h2></div></div>
-    <p class="its01-instruction">Four lessons and five readings. Lesson 7.2 has two readings that share its time. Open each reading for its text, tables and diagram. The Learn It check comes after Reading 4 and the A+ check after Reading 5.</p>
-    ${its05Cards().map((card) => `<div class="its01-lesson-grid">${its05LessonCard(card)}</div>${ITS05_CHECK_AFTER_READING[card.reading] ? its05Check(ITS05_CHECK_AFTER_READING[card.reading]) : ''}`).join('')}
+    <p class="its01-instruction">Four lessons and five readings. Lesson 7.2 has two readings that share its time. Open each reading for its text, tables and diagram. The Learn It check and the A+ check come after Reading 5.</p>
+    ${its05Cards().map((card) => `<div class="its01-lesson-grid">${its05LessonCard(card)}</div>${(ITS05_CHECK_AFTER_READING[card.reading] || []).map(its05Check).join('')}`).join('')}
   </section>`;
 }
 

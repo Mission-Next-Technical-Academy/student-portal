@@ -288,13 +288,16 @@ function testCheckContent() {
       [q.why, ...q.ifWrong].forEach((line) => { if (line) assert.doesNotMatch(line, /\b[A-D]\)|\(\*?[A-D]\*?\)|\*[A-D]\*/, `${id} ${i + 1}: no letter in "${line}"`); });
     });
   }
-  // Each check sits after its reading: Learn It after Reading 4, A+ after Reading 5.
+  // Both checks sit after Reading 5 (the Learn It check asks about OUs and
+  // computer objects, which Reading 5 teaches), then the labs.
   const user = hdUser();
   fresh(user);
   const html = page().view(user, HD);
   const at = (needle) => html.indexOf(needle);
-  assert.ok(at('<h4>Reading 4 · ') < at('id="its05-check-learn"') && at('id="its05-check-learn"') < at('<h4>Reading 5 · '));
-  assert.ok(at('<h4>Reading 5 · ') < at('id="its05-check-aplus"') && at('id="its05-check-aplus"') < at('id="its05-lab-7-1"'));
+  assert.ok(at('<h4>Reading 5 · ') < at('id="its05-check-learn"'), 'Learn It check after Reading 5');
+  assert.ok(at('id="its05-check-learn"') < at('id="its05-check-aplus"') && at('id="its05-check-aplus"') < at('id="its05-lab-7-1"'), 'then the A+ check, then the labs');
+  // The disk-space boundary that ticket 7-C needs is taught.
+  assert.ok(html.includes(esc('Delete nothing and move nothing')), 'Reading 4 teaches the disk-space boundary');
 }
 
 // Spec 8.1: options are shuffled on each attempt. Each student gets their own

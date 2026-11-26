@@ -2356,7 +2356,7 @@ const LABS = [
   // until its simulator shift, scoring and gating row are built. Coaching
   // time box: 45 minutes.
   itsLab({ key: 'lab-its-05-prove-it', module: 'its-05', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 45,
-    parentAllocations: [allocation('ITHD-101.5', 25), allocation('ITHD-101.6', 20)], objective: 'Independently work a new server ticket: read the evidence on the server screens, find what changed, decide who owns the fix, and write for both the next tier and the user.',
+    parentAllocations: [allocation('ITHD-101.5', 25), allocation('ITHD-101.6', 20)], objective: 'Independently work a new server ticket: read the evidence on the server screens, decide who owns the fix, and write for both the next tier and the user.',
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
     skills: ['Escalation Judgment', 'Evidence-Based Diagnosis', 'Documentation'], portalEntry: '#/program/it-support/module/7' }),
   itsLab({ key: 'lab-its-06-identity-access', module: 'its-06', title: 'Restoring Access the Right Way', difficulty: 'Foundational', minutes: 135,
