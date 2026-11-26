@@ -462,9 +462,13 @@ function hdIsPasswordValue(value) {
   // Already masked, or a placeholder: nothing to hide.
   return !/^(\*+|x{3,}|•+|\[[^\]]*\]|<[^>]*>|\.{3,})$/i.test(word);
 }
+// Module 8 (console A): the one-time password from the last reset, in memory
+// only (never saved or sent). Writing it into a ticket field is refused too.
+let hdAcctOtp = null;
 function hdPasswordInText(text) {
   const value = String(text || '');
   if (hdHasPasswordArg(value)) return true;
+  if (hdAcctOtp && hdAcctOtp.value && value.includes(hdAcctOtp.value)) return true;
   const pattern = new RegExp(HD_PASSWORD_LABEL, 'gi');
   let match;
   while ((match = pattern.exec(value))) { if (hdIsPasswordValue(hdPasswordMatchValue(match))) return true; }
@@ -723,7 +727,8 @@ function hdSelectTicket(id) {
   // selected but not opened). Module 7's server state reads it.
   // Module 7: what the student opened in the directory screens belongs to
   // the ticket they were on, so another ticket starts with none open.
-  if (hdState.openedTicketId !== id) ['adUserOpened', 'adGroup', 'gpResultsFor', 'dhcpScope'].forEach(key => { delete hdState[key]; });
+  // Module 8: and the open Lockout details, Tier 2 view and account dialog.
+  if (hdState.openedTicketId !== id) ['adUserOpened', 'adGroup', 'gpResultsFor', 'dhcpScope', 'lockoutOpen', 'lockoutTier2', 'acctDialog'].forEach(key => { delete hdState[key]; });
   hdState.openedTicketId = id;
   hdPendingState = {};
   // A message can wait for a ticket to be opened (arrivals: when.opened).
@@ -823,6 +828,8 @@ function hdResolveTicket(id) {
   const byOutcomes = !scenario && !!hdConsoleOutcomes(ticket);
   if (scenario) {
     hdM01Tick();
+    // Module 8: Tier 2 work in a set with hd2101Tier2: it is escalated, not resolved.
+    if (hdM01Tier2()) { toast('The lockout source is Tier 2 work (KB-0103): escalate to Desktop Support (Tier 2) with a handoff note instead of resolving.'); return; }
     const missing = hdM01Missing();
     if (missing) { toast(missing); return; }
   } else if (byOutcomes) {
@@ -952,7 +959,8 @@ VIEWS['helpdesk/ticket'] = () => {
   // checklist or diagnosis dropdown, and it shows only the facts it has.
   const matrix = hdIsMatrix(ticket);
   const evidenceCard = (byOutcomes || consoleTicket) && !ticket.logs.length ? '' : `<div class="card"><div class="card-header"><strong>Available logs and evidence</strong><span class="muted">Investigate; do not infer beyond the evidence.</span></div><div class="card-body">${evidence}</div></div>`;
-  const pathAndDiagnosis = scenario ? hdM01IdentityCard(scenario) + hdM01InvestigationCard(scenario) : byOutcomes ? hdConsoleOutcomesCard(ticket) : matrix ? '' : `<div class="card"><div class="card-header"><strong>Troubleshooting path</strong><span class="muted">Record what you actually checked.</span></div><div class="card-body"><div class="hd-path">${ticket.correctPath.map((step,index) => `<label><input type="checkbox" onchange="hdTogglePathStep('${ticket.id}',${index},this.checked)" ${(ticket.checkedSteps || []).includes(step)?'checked':''}> <span>${index+1}</span>${hdEsc(step)}</label>`).join('')}</div></div></div>
+  // Module 8: with hd2101Tier2 the coach leads, so Module 1's outcome list (which asks for the Tier 1 fix) is off.
+  const pathAndDiagnosis = scenario ? hdM01IdentityCard(scenario) + (hdM01Tier2() ? '' : hdM01InvestigationCard(scenario)) : byOutcomes ? hdConsoleOutcomesCard(ticket) : matrix ? '' : `<div class="card"><div class="card-header"><strong>Troubleshooting path</strong><span class="muted">Record what you actually checked.</span></div><div class="card-body"><div class="hd-path">${ticket.correctPath.map((step,index) => `<label><input type="checkbox" onchange="hdTogglePathStep('${ticket.id}',${index},this.checked)" ${(ticket.checkedSteps || []).includes(step)?'checked':''}> <span>${index+1}</span>${hdEsc(step)}</label>`).join('')}</div></div></div>
         <div class="card"><div class="card-header"><strong>Diagnosis checkpoint</strong></div><div class="card-body"><div class="hd-diagnosis-row"><select id="hd-diagnosis" class="select"><option value="">Choose the most likely cause…</option>${diagnosisOptions.map(value => `<option ${ticket.diagnosis===value?'selected':''}>${hdEsc(value)}</option>`).join('')}</select><button class="btn btn-primary" onclick="hdSubmitDiagnosis('${ticket.id}')">Check diagnosis</button></div>${ticket.diagnosis ? `<div class="callout ${ticket.diagnosisCorrect?'success':'warning'}">${ticket.diagnosisCorrect ? `<strong>Supported by the evidence.</strong> ${hdEsc(ticket.hiddenRootCause)}` : '<strong>Not sufficiently supported.</strong> Recheck the evidence and test a different hypothesis.'}</div>` : ''}${ticket.diagnosisCorrect ? `<div class="hd-resolution"><strong>Expected resolution</strong><p>${hdEsc(ticket.expectedResolution)}</p></div>` : ''}</div></div>`;
   const fieldGrid = matrix
     ? `<div><span>Caller</span><strong>${hdEsc(hdCallerText(ticket))}</strong></div>${hdCallbackField(ticket)}<div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Short description</span><strong>${hdEsc(hdShortDescription(ticket) || '—')}</strong></div><div><span>SLA target</span><strong>${hdEsc(hdMatrixTargetText(ticket))}</strong></div><div><span>Created</span><strong>${hdEsc(hdShiftTimeText(ticket.createdTimestamp))}</strong></div><div><span>Assignment group</span><strong>${hdEsc(ticket.assignmentGroup || HD_SERVICE_DESK)}</strong></div><div><span>Assigned to</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${hdConsole(ticket).classify ? '' : `${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}`}`
@@ -965,7 +973,7 @@ VIEWS['helpdesk/ticket'] = () => {
     ${related.length > 1 ? `<div class="callout warning hd-related"><strong>${related.length} related reports detected.</strong> Same application, symptom, and time window. ${ticket.linkedProblem ? `Linked to ${hdEsc(ticket.linkedProblem)}.` : `<button class="btn btn-sm btn-secondary" onclick="hdLinkProblem('${ticket.id}')">Link to problem record</button>`}</div>` : ''}
     <div class="hd-ticket-layout">
       <div class="hd-ticket-main">
-        <div class="card"><div class="card-header"><strong>Requester statement</strong>${hdVipBadge(ticket)}${matrix ? `${ticket.priority ? hdBadge(ticket.priority, ticket.priority.toLowerCase()) : '<span class="muted">Priority not set</span>'}${hdStatusBadge(ticket)}${hdSlaBadge(ticket)}` : `${hdBadge(ticket.priority,ticket.priority.toLowerCase())}${hdBadge(ticket.status)}${hdBadge(sla.label,sla.cls)}`}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid">${matrix ? fieldGrid : `<div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Business impact</span><strong>${hdEsc(ticket.businessImpact)}</strong></div><div><span>SLA target</span><strong>${hdEsc(ticket.sla)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}${ticket.callerStatus ? `<div><span>Caller</span><strong>${hdEsc(ticket.callerStatus)}</strong></div>` : ''}`}</div></div></div>${hdConsoleVerifyCard(ticket)}${hdConsoleChoiceCard(ticket)}${hdConsoleChatCard(ticket)}${hdConsoleKbCard(ticket)}${hdConsoleAccountCard(ticket)}${hdConsoleActionsCard(ticket)}${hdConsoleComputerCard(ticket)}${hdConsoleMachinesCard(ticket)}${hdConsoleServersCard(ticket)}${hdConsoleOwnerCard(ticket)}${hdMatrixCards(ticket)}${hdCommsCards(ticket)}
+        <div class="card"><div class="card-header"><strong>Requester statement</strong>${hdVipBadge(ticket)}${matrix ? `${ticket.priority ? hdBadge(ticket.priority, ticket.priority.toLowerCase()) : '<span class="muted">Priority not set</span>'}${hdStatusBadge(ticket)}${hdSlaBadge(ticket)}` : `${hdBadge(ticket.priority,ticket.priority.toLowerCase())}${hdBadge(ticket.status)}${hdBadge(sla.label,sla.cls)}`}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid">${matrix ? fieldGrid : `<div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Business impact</span><strong>${hdEsc(ticket.businessImpact)}</strong></div><div><span>SLA target</span><strong>${hdEsc(ticket.sla)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}${ticket.callerStatus ? `<div><span>Caller</span><strong>${hdEsc(ticket.callerStatus)}</strong></div>` : ''}`}</div></div></div>${hdConsoleVerifyCard(ticket)}${hdConsoleChoiceCard(ticket)}${hdConsoleChatCard(ticket)}${hdConsoleKbCard(ticket)}${hdConsoleAccountCard(ticket)}${hdConsoleActionsCard(ticket)}${hdConsoleComputerCard(ticket)}${hdConsoleMachinesCard(ticket)}${hdConsoleServersCard(ticket)}${hdConsoleWaitCard(ticket)}${hdConsoleOwnerCard(ticket)}${hdMatrixCards(ticket)}${hdCommsCards(ticket)}
         ${factCards}
         ${evidenceCard}
         ${pathAndDiagnosis}
@@ -3447,6 +3455,8 @@ function hdSetAdTab(tab) { hdState.adTab=tab; hdRerender(); }
 function hdAdAction(action) {
   // Module 7: a read-only directory changes no account, whatever calls this.
   if (hdDirectoryReadOnly()) { hdPracticeEvent('action_refused', { action:`ad-${action}`, user:hdState.selectedUserId }); toast('Read-only: this ticket reads the account and changes nothing.'); return; }
+  // Module 8: a ticket with account actions changes accounts only through them.
+  if (hdDirectory() && (hdAcctActions() || Object.keys(hdDirectory().accounts).length)) { hdPracticeEvent('action_refused', { action:`ad-${action}`, user:hdState.selectedUserId }); toast('Use the account controls on the user pane. Each one waits for this ticket\'s verification or approval.'); return; }
   const user = hdUserById(hdState.selectedUserId); if (!user) return;
   // HD-2101 Practice: jbell's lock state is the scenario's.
   if (action === 'unlock' && hdM01() && user.id === hdM01Spec().userId) {
@@ -3470,6 +3480,9 @@ function hdAdAction(action) {
 }
 VIEWS['helpdesk/directory'] = () => `${hdPageHeader('User Directory', 'Search fictional employees, departments, managers, account state, and MFA registration.')}<div class="card">${hdDirectoryTable(HD_USERS.map(user=>hdUserById(user.id)))}</div>`;
 function hdLockoutDetailsHtml(user) {
+  // Module 8 (console A): any account a ticket gives a lockout, and HD-2101
+  // in a set that makes it Tier 2 work.
+  if ((hdM01Tier2() && user.id === hdM01Spec().userId) || (hdAcctAccount(user.id) && hdAcctAccount(user.id).lockout)) return hdAcctLockoutHtml(user);
   const scenario = hdM01();
   if (!scenario || user.id !== hdM01Spec().userId) return '';
   const spec = hdM01Spec();
@@ -3727,7 +3740,9 @@ const HD_MACHINE_SCREENS = ['print-queue', 'printer-properties', 'device-manager
   // Software install screens (Module 6, key its-07).
   'default-apps', 'company-portal',
   // Security, browser and OneDrive screens (Module 6, key its-07, console B).
-  'windows-security', 'browser-extensions', 'onedrive'];
+  'windows-security', 'browser-extensions', 'onedrive',
+  // Saved credentials (Module 8, key its-06, console A).
+  'credential-manager'];
 function hdOwn(object, key) { return !!object && typeof object === 'object' && Object.prototype.hasOwnProperty.call(object, key); }
 function hdTicketMachineSpecs(ticket) {
   if (HD_PROVE || !ticket) return null;
@@ -4450,6 +4465,8 @@ const HD_WIN_SCREENS = {
   'windows-security':{ source:'windows-security', label:'Windows Security', key:'protection', bare:true, tabs:[['home', 'Security at a glance'], ['virus-threat', 'Virus & threat protection'], ['protection-history', 'Protection history'], ['allowed-threats', 'Allowed threats']] },
   'browser-extensions':{ source:'browser-extensions', label:'Browser › Extensions', key:'extensions' },
   onedrive:{ source:'onedrive', label:'OneDrive', key:'oneDrive', bare:true, tabs:[['status', 'OneDrive'], ['sync-problems', 'View sync problems'], ['web', 'OneDrive on the web']] },
+  // Module 8, console A.
+  'credential-manager':{ source:'credential-manager', label:'Credential Manager', key:'savedCredentials' },
 };
 const HD_WIN_TASK_TABS = [['processes', 'Processes'], ['performance', 'Performance'], ['startup', 'Startup apps']];
 function hdWinList(machine, key) { return machine && Array.isArray(machine[key]) ? machine[key].filter(item => item && typeof item === 'object') : []; }
@@ -4481,6 +4498,9 @@ function hdWinHas(machine, screen) {
     if (screen === 'windows-security') return !!hdWinProtection(m);
     if (screen === 'browser-extensions') return !!m && Array.isArray(m.extensions);
     if (screen === 'onedrive') return !!hdWinOneDrive(m);
+    // Module 8, console A.
+    if (screen === 'credential-manager') return !!m && Array.isArray(m.savedCredentials);
+    if (screen === 'sign-in-again') return !!m && Array.isArray(m.signedInGroups);
     return false;
   };
   if (own(machine)) return true;
@@ -4532,6 +4552,9 @@ function hdWinToolButtons(name) {
     open('onedrive', '☁ OneDrive'),
     open('reliability', '📈 Reliability Monitor'),
     open('settings-recovery', '⚙ Settings › System › Recovery'),
+    // Module 8, console A.
+    open('credential-manager', '🔑 Credential Manager'),
+    hdWinHas(machine, 'sign-in-again') ? `<button data-hd-tools="sign-in-again" ${hdProveLocked() ? 'disabled' : ''} onclick="hdWinSignInAgain('${hdJsArg(name)}')">⇄ Sign out and back in</button>` : '',
   ].join('');
 }
 function hdWinRestartBar(name) {
@@ -4907,6 +4930,9 @@ VIEWS['helpdesk/software-catalog'] = () => {
 // today's answers stay as they were.
 function hdWinFirst(normalized, fallback) { const match = /select-object -first (\d+)/.exec(normalized); return match ? Math.max(1, Math.min(50, Number(match[1]))) : fallback; }
 function hdWinCommand(command, normalized, machine, computerName) {
+  // Module 8 (console A): cmdkey and whoami /groups as of the last sign-in.
+  const credentials = hdCredCommand(command, normalized, machine, computerName);
+  if (credentials !== null) return credentials;
   const winget = hdWinWinget(command, machine, computerName);
   if (winget !== null) return winget;
   const defender = hdWinDefenderCommand(command, normalized, machine, computerName);
@@ -5959,6 +5985,8 @@ function hdWinTypedHelp(machine) {
   if (machine && machine.winget === true) lines.push(`Apps: ${HD_WINGET_LINES}`);
   // Module 6, console B: the optional Defender lines (never the unsafe ones).
   if (hdWinProtection(machine)) lines.push(`Defender: ${HD_DEFENDER_LINES}`);
+  // Module 8, console A.
+  if (machine && Array.isArray(machine.savedCredentials)) lines.push('Saved credentials: cmdkey /list, cmdkey /delete:<target>');
   return lines;
 }
 window.hdWinEventPick=hdWinEventPick; window.hdWinEventSet=hdWinEventSet; window.hdWinEventOpen=hdWinEventOpen; window.hdWinReliabilityDay=hdWinReliabilityDay;
@@ -6592,6 +6620,8 @@ function hdM01Fix(via, now = hdNowMs()) {
   const scenario = hdM01(); const task = hdM01Task();
   if (!scenario || !task) return { ok:false, message:'' };
   hdM01Tick(now);
+  // Module 8: Tier 2 work in a set with hd2101Tier2: Tier 1 never makes this fix.
+  if (hdM01Tier2()) return { ok:false, message:'Changing a scheduled task\'s stored password is Tier 2 work (KB-0103): escalate to Desktop Support (Tier 2) with what you found.' };
   if (scenario.identity !== 'callback') return { ok:false, message:`Before Jordan types anything at a prompt, verify Jordan's identity (KB-0024). ${hdM01IdentityMessage()}` };
   const time = hdM01Clock(scenario, now);
   if (!task.credentialCurrent) {
@@ -6803,6 +6833,8 @@ function hdPracticeCommand(command, normalized, computer) {
   if (isSet || isChange) {
     const verb = isSet ? 'Set-ScheduledTask' : 'ERROR:';
     if (hdHasPasswordArg(command)) return refusePassword();
+    // Module 8: in a set that makes HD-2101 Tier 2 work, no task is changed here.
+    if (hdM01Tier2()) { hdLastCommandResult = 'refused: Tier 2 work'; return `${verb} Access is denied. Changing a scheduled task's stored password is Tier 2 work (KB-0103): escalate to Desktop Support (Tier 2) with what you found.`; }
     const name = isSet ? hdCommandArg(command, 'taskname') : hdSchtasksArg(command, 'tn');
     const user = isSet ? hdParam(command, 'user') : hdSchtasksArg(command, 'ru');
     const task = name && findTask(name);
@@ -6853,12 +6885,16 @@ function hdPracticeCommand(command, normalized, computer) {
     return rows.map(([key, value]) => `${key.padEnd(width)} : ${value}`).join('\n');
   }
   if (normalized.startsWith('search-adaccount') && normalized.includes('-lockedout')) {
+    // Module 8: with account work on, the directory lists every locked account (jbell too).
+    if (hdAcctOn()) return null;
     hdM01Observe('search-adaccount');
     hdLastCommandResult = scenario.locked ? 'locked out: jbell' : 'no locked-out accounts';
     return scenario.locked ? `Name         SamAccountName LockedOut\n${hdUserById(spec.userId).name.padEnd(12)} jbell          True` : '(No locked-out accounts.)';
   }
   if (/^unlock-adaccount(\s|$)/.test(normalized)) {
     const name = hdCommandArg(command, 'identity');
+    // Module 8: another account, where a ticket turns account work on.
+    if (name.toLowerCase() !== spec.username && hdAcctOn()) return null;
     if (name.toLowerCase() !== spec.username) { hdLastCommandResult = `no locked account ${name}`; return `Unlock-ADAccount : Cannot find an object with identity: '${name || '(none)'}'.`; }
     const result = hdM01Unlock('Unlock-ADAccount');
     hdLastCommandResult = result.ok ? 'jbell unlocked' : `not unlocked: ${result.message}`;
@@ -6871,7 +6907,7 @@ function hdPowerShellOutput(command) {
   const normalized=command.trim().toLowerCase().replace(/\s+/g, ' '); const computer=hdComputerByName(hdState.selectedComputer)||hdComputers()[0];
   if(normalized==='get-help') return `Supported: Get-ComputerInfo, Get-Service, Get-Process, Get-Volume, Get-Disk, Get-NetIPConfiguration, Get-WinEvent, Get-LocalUser, Get-LocalGroup, Get-LocalGroupMember, Add-LocalGroupMember, Remove-LocalGroupMember, Get-Printer, Add-Printer, Get-ADUser, Get-ADGroup, Get-ADComputer, Resolve-DnsName, Test-NetConnection, whoami /groups, gpupdate /force, gpresult /r, Clear-Host${HD_PROVE ? '' : `
 Sessions: Enter-PSSession -ComputerName <name>, Exit-PSSession
-Scheduled tasks: Get-ScheduledTask [-TaskName <name>], Get-ScheduledTaskInfo -TaskName <name>, Start-ScheduledTask -TaskName <name>, Set-ScheduledTask -TaskName <name> -User <DOMAIN\\user>, schtasks /Query [/TN <name> /V /FO LIST], schtasks /Change /TN <name> /RU <DOMAIN\\user>, schtasks /Run /TN <name>
+Scheduled tasks: Get-ScheduledTask [-TaskName <name>], Get-ScheduledTaskInfo -TaskName <name>, Start-ScheduledTask -TaskName <name>, ${hdM01Tier2() ? '' : 'Set-ScheduledTask -TaskName <name> -User <DOMAIN\\user>, '}schtasks /Query [/TN <name> /V /FO LIST], ${hdM01Tier2() ? '' : 'schtasks /Change /TN <name> /RU <DOMAIN\\user>, '}schtasks /Run /TN <name>
 ${hdDirectoryReadOnly() ? '' : `Accounts: Get-ADUser <user> -Properties *, Search-ADAccount -LockedOut, Unlock-ADAccount -Identity <user>
 `}Events: Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4740}`}${hdFeatureHelp(computer)}${hdDirectoryHelp()}`;
   const practiceOutput = hdPracticeCommand(command, normalized, computer);
@@ -7244,10 +7280,12 @@ function hdFileUsers() { return [...HD_USERS, ...(HD_PROVE && Array.isArray(HD_P
 function hdFileUser(id) {
   const base = hdFileUsers().find(user => user && user.id === id);
   if (!base) return null;
-  const user = { ...base, ...((hdState.userOverrides || {})[id] || {}) };
+  const dir = typeof hdDirectory === 'function' ? hdDirectory() : null;
+  // Module 8: the directory block's account status fields, under the changes.
+  const account = dir && hdServerObject(dir.accounts[id]);
+  const user = { ...base, ...(account ? hdAcctBase(account) : {}), ...((hdState.userOverrides || {})[id] || {}) };
   // Module 7: a group in the shift's directory block that lists this user
   // counts here too, so Effective access agrees with Member Of.
-  const dir = typeof hdDirectory === 'function' ? hdDirectory() : null;
   return dir ? { ...user, groups:hdDirUserGroups(user, dir) } : user;
 }
 // The entries of one permission list that cover this user, and the highest.
@@ -7416,8 +7454,10 @@ function hdDirectoryLayers() {
 function hdDirectory() {
   const layers = hdDirectoryLayers();
   if (!layers.length) return null;
-  const merged = { readOnly:layers.some(layer => layer.readOnly === true) || !layers.some(layer => layer.readOnly === false), groups:{}, dns:[], dhcp:{} };
+  const merged = { readOnly:layers.some(layer => layer.readOnly === true) || !layers.some(layer => layer.readOnly === false), groups:{}, dns:[], dhcp:{}, accounts:{} };
   layers.forEach(layer => {
+    // Module 8 (console A): account status fixtures, by user id.
+    if (hdServerObject(layer.accounts)) Object.entries(layer.accounts).forEach(([id, account]) => { if (hdServerObject(account)) merged.accounts[id] = { ...(merged.accounts[id] || {}), ...hdClone(account) }; });
     if (hdServerObject(layer.groups)) Object.entries(layer.groups).forEach(([name, group]) => {
       if (!hdServerObject(group)) return;
       const before = merged.groups[name] || {};
@@ -7458,12 +7498,14 @@ function hdDirGroups(dir) {
 function hdDirUserGroups(user, dir) {
   const own = Array.isArray(user.groups) ? user.groups : [];
   const listed = Object.entries(dir.groups).filter(([, group]) => (group.members || []).some(ref => hdDirUserMatch(user, ref))).map(([name]) => name);
-  return [...new Set([...own, ...listed])];
+  // Module 8: the student's Add and Remove group changes, over both.
+  return hdAcctApplyGroups(user.id, [...new Set([...own, ...listed])]);
 }
 // A group's members: users (by name) first, then any other listed name.
 function hdDirMembers(group) {
-  const users = hdFileUsers().filter(user => user && user.id && ((Array.isArray(user.groups) && user.groups.includes(group.name)) || group.extra.some(ref => hdDirUserMatch(user, ref))));
-  const others = group.extra.filter(ref => !users.some(user => hdDirUserMatch(user, ref)));
+  const users = hdFileUsers().filter(user => user && user.id && ((((Array.isArray(user.groups) && user.groups.includes(group.name)) || group.extra.some(ref => hdDirUserMatch(user, ref))) && !hdAcctGroupChanges(user.id).removed.includes(group.name)) || hdAcctGroupChanges(user.id).added.includes(group.name)));
+  // A listed user taken out by a Remove group (Module 8) is not an "other" either.
+  const others = group.extra.filter(ref => !hdFileUsers().some(user => user && user.id && hdDirUserMatch(user, ref)));
   return [...users.map(user => ({ name:user.name, username:user.username || '', department:user.department || '', kind:'user' })), ...[...new Set(others)].map(name => ({ name, username:'', department:'', kind:'other' }))];
 }
 function hdDirGroup(name) { const dir = hdDirectory(); return dir ? hdDirGroups(dir).find(group => group.name.toLowerCase() === String(name || '').toLowerCase()) || null : null; }
@@ -7479,10 +7521,9 @@ function hdAdUserPaneDirectory(user, dir) {
   const groups = hdDirUserGroups(user, dir);
   // Only a user the student opened is recorded (the default pane is not).
   if (hdState.adUserOpened === user.id) hdSeenAll([`ad-user:${user.id}`, `ad-user-groups:${user.id}`], (key, index) => `Active Directory › Users › ${user.name}${index ? ' › Member Of' : ''}`);
-  const actions = dir.readOnly
-    ? `<p class="muted" data-hd-ad-read-only>Read-only: this view reads the account and changes nothing.</p>`
-    : `<div class="hd-action-grid"><button class="btn btn-secondary" onclick="hdAdAction('unlock')">Unlock</button><button class="btn btn-secondary" onclick="hdAdAction('reset')">Reset password</button><button class="btn btn-secondary" onclick="hdAdAction('${user.enabled ? 'disable' : 'enable'}')">${user.enabled ? 'Disable' : 'Enable'}</button><button class="btn btn-secondary" onclick="hdAdAction('add-hr')">Add approved group</button></div>`;
-  return `<aside class="card hd-object-pane" data-hd-ad-user="${hdEsc(user.id)}"><div class="card-header"><strong>${hdEsc(user.name)}</strong>${user.locked ? hdBadge('Locked', 'bad') : hdBadge(user.enabled ? 'Enabled' : 'Disabled', user.enabled ? 'ok' : 'bad')}</div><div class="card-body"><dl class="hd-dl"><dt>Username</dt><dd>${hdEsc(`${HD_ORG.netbios}\\${user.username || ''}`)}</dd><dt>OU</dt><dd><code>${hdEsc(user.ou || '')}</code></dd><dt>Manager</dt><dd>${hdEsc(user.manager || '')}</dd><dt>Account</dt><dd>${user.enabled ? 'Enabled' : 'Disabled'}</dd><dt>Locked out</dt><dd>${user.locked ? 'Yes' : 'No'}</dd><dt>Password age</dt><dd>${hdEsc(user.passwordAge)} days</dd><dt>Member Of</dt><dd data-hd-member-of>${groups.map(group => hdBadge(group)).join(' ') || '<span class="muted">No groups</span>'}</dd></dl>${hdLockoutDetailsHtml(user)}${actions}</div></aside>`;
+  // Module 8 (console A): Module 8's controls when the ticket turns them on.
+  const actions = hdAcctPaneActions(user, dir);
+  return `<aside class="card hd-object-pane" data-hd-ad-user="${hdEsc(user.id)}"><div class="card-header"><strong>${hdEsc(user.name)}</strong>${user.locked ? hdBadge('Locked', 'bad') : hdBadge(user.enabled ? 'Enabled' : 'Disabled', user.enabled ? 'ok' : 'bad')}</div><div class="card-body"><dl class="hd-dl"><dt>Username</dt><dd>${hdEsc(`${HD_ORG.netbios}\\${user.username || ''}`)}</dd><dt>OU</dt><dd><code>${hdEsc(user.ou || '')}</code></dd><dt>Manager</dt><dd>${hdEsc(user.manager || '')}</dd><dt>Account</dt><dd>${user.enabled ? 'Enabled' : 'Disabled'}</dd><dt>Locked out</dt><dd>${user.locked ? 'Yes' : 'No'}</dd><dt>Password age</dt><dd>${hdEsc(user.passwordAge)} days</dd>${hdAcctStatusRows(user)}<dt>Member Of</dt><dd data-hd-member-of>${groups.map(group => hdBadge(group)).join(' ') || '<span class="muted">No groups</span>'}</dd></dl>${hdAcctHistoryLine(user)}${hdLockoutDetailsHtml(user)}${actions}${hdAcctTier2Card(user)}</div></aside>`;
 }
 function hdAdGroupsDirectory(dir) {
   const groups = hdDirGroups(dir);
@@ -7720,6 +7761,9 @@ function hdServerCommand(command, normalized, computer) {
 }
 function hdDirectoryCommand(command, normalized, computer) {
   const dir = hdDirectory(); if (!dir) return null;
+  // Module 8 (console A): account status and changes, where a ticket turns them on.
+  const account = hdAcctCommand(command, normalized);
+  if (account !== null) return account;
   const trimmed = command.trim();
   const arg = (verb) => (hdParam(command, 'identity') || (new RegExp(`^${verb}\\s+("[^"]*"|'[^']*'|[^\\s-]\\S*)`, 'i').exec(trimmed) || [])[1] || '').replace(/^["']|["']$/g, '');
   const list = rows => { const width = Math.max(...rows.map(([key]) => key.length)); return rows.map(([key, value]) => `${key.padEnd(width)} : ${value}`).join('\n'); };
@@ -7816,8 +7860,560 @@ function hdDirectoryHelp() {
   const lines = [];
   if (hdServerNames().length) lines.push('Servers: Get-Service -ComputerName <server> -Name <service>, Test-NetConnection <server> -Port <port>, Get-SmbShareAccess -Name <share>, Get-CimInstance Win32_LogicalDisk -ComputerName <server>, Get-WinEvent -ComputerName <server> -LogName System');
   if (hdDirectory()) lines.push(`Directory${hdDirectoryReadOnly() ? ' (read-only)' : ''}: Get-ADUser <username> -Properties MemberOf, Get-ADPrincipalGroupMembership <username>, Get-ADGroupMember <group>, Get-ADComputer <name>, gpresult /r, gpupdate /force`);
+  // Module 8 (console A): only where a ticket turns account work on.
+  if (hdAcctOn()) lines.push(`Account status: Get-ADUser <username> -Properties LockedOut, Enabled, AccountExpirationDate, PasswordExpired, PasswordLastSet, Search-ADAccount -LockedOut, Search-ADAccount -AccountExpired`);
+  if (hdAcctOn() && hdAcctActions()) lines.push('Account changes (each needs this ticket\'s verification or approval): Unlock-ADAccount <username>, Enable-ADAccount <username>, Set-ADAccountPassword <username> -Reset, Set-ADUser <username> -ChangePasswordAtLogon $true, Add-ADGroupMember <group> -Members <username>, Remove-ADGroupMember <group> -Members <username>');
   return lines.length ? `\n${lines.join('\n')}` : '';
 }
+
+/* ---------- Account actions and saved credentials (Module 8, key its-06, console A) ----------
+ * Off unless a shift turns it on. Every older ticket, set and Prove shift
+ * keeps today's panes and command answers (tests/hdesk-m08-console-a.test.js
+ * pins them against master).
+ *
+ * Account status (any directory block, read-only or not):
+ *   directory.accounts: { '<user id>': {
+ *     accountExpires: 'Never' | text,  expired?: true (Search-ADAccount -AccountExpired)
+ *     passwordExpired: bool, passwordLastSet: text, lastBadPassword: text,
+ *     sponsor?: name, history?: text ("Disabled — leave of absence (HR-8894)"),
+ *     sspr?: 'Registered' | 'Not registered'   KB-0104's condition
+ *     locked?, enabled?   the account's state at the start of the shift
+ *     lockout?: { badPasswordCount, lockoutsToday, lastLockout, source,
+ *       dc?, events?:[{ time, caller }], credentialTarget? } } }
+ *   The Active Directory pane shows Account expires, Password expired,
+ *   Password last set, Last bad password attempt, Sponsor and the history
+ *   line for such a user; Get-ADUser -Properties prints the same values.
+ *   Lockout details reads lockout; "Show the Tier 2 view" opens the domain
+ *   controller's event 4740 evidence card (Tier 1 never signs in there).
+ *   With credentialTarget, a stale saved credential (savedCredentials[].stale)
+ *   for that target on the source computer locks the account again on
+ *   "Wait 2 minutes" once it is unlocked; removed, it doesn't.
+ *
+ * Account changes (Practice: the open ticket's console.accountActions; Prove:
+ * the shift's accountActions), and only in a directory that is not read-only:
+ *   accountActions: { '<user id>': {
+ *     unlock?: true | { after? }
+ *     enable?: { record, after?, afterText? }   the HR or manager record
+ *     reset?: true | { after?, afterText? }     KB-0104: refused unless the
+ *       user's sspr is 'Not registered'; must-change is ticked by default
+ *     groups?: { record, add:[group], remove:[group], after?, afterText? }
+ *     expiry?: true   (a Prove shift's unsafe control; no practice ticket) } }
+ *   after: a screen key (hdServerSeen) the change waits for.
+ *   In Practice a ticket with verification waits for a passing choice first.
+ *   Each change is an action on the ticket (consoleState.actions, history,
+ *   criticalActions) and an action_taken event (Practice log, Prove record);
+ *   a refused one is an action_refused event (Prove: action_taken with a
+ *   -refused value), so feedback and the key can read it. A directory block
+ *   with readOnly:false but no accountActions keeps the four old buttons.
+ *   The one-time password from a reset lives in memory only (hdAcctOtp): it is
+ *   shown once and never saved, logged or sent.
+ *
+ * Saved credentials and sign-in groups (a computer's machine state):
+ *   savedCredentials: [{ target, type?, user, stale? }]   Credential Manager
+ *     and cmdkey /list, cmdkey /delete:<target> (same key, same action)
+ *   signedInGroups: [group]   whoami /groups answers from these, not from the
+ *     account's current groups, until "Sign out and back in".
+ * A ticket's console.wait: { minutes? } shows "Wait 2 minutes", which moves
+ * that ticket's clock (or the set's) and checks each lockout again.
+ * A set's hd2101Tier2: true makes HD-2101 Tier 2 work: no Set-ScheduledTask
+ * or schtasks /Change fix and no secure prompt, Module 1's investigation card
+ * and resolve check off, and jbell's Lockout details with its Tier 2 view.
+ * Screen and command keys (hdServerSeen): ad-user:<id>, ad-lockout:<id>,
+ * lockout-4740:<id>; machine keys (hdWinSeen): credential-manager,
+ * whoami-groups. */
+const HD_LOCKOUT_THRESHOLD = 5;
+function hdAcctAccounts() { const dir = hdDirectory(); return dir ? dir.accounts : {}; }
+function hdAcctAccount(userId) { const all = hdAcctAccounts(); return hdServerObject(all[userId]); }
+// The account fields a fixture can set on a user (not groups: those stay the directory's).
+const HD_ACCT_FIELDS = ['accountExpires', 'expired', 'passwordExpired', 'passwordLastSet', 'lastBadPassword', 'sponsor', 'history', 'sspr', 'locked', 'enabled'];
+function hdAcctBase(account) { const out = {}; HD_ACCT_FIELDS.forEach(key => { if (hdOwn(account, key)) out[key] = account[key]; }); return out; }
+function hdAcctActions() {
+  if (HD_PROVE) return hdServerObject(HD_PROVE.shift.accountActions);
+  const ticket = hdServerPracticeTicket();
+  return ticket ? hdServerObject(hdConsole(ticket).accountActions) : null;
+}
+// Account work is on: a directory with account fixtures or this ticket's actions.
+function hdAcctOn() { const dir = hdDirectory(); return !!dir && (Object.keys(dir.accounts).length > 0 || !!hdAcctActions()); }
+// The account changes this ticket turns on for one user, or null.
+function hdAcctFor(userId) {
+  const dir = hdDirectory(); const actions = hdAcctActions();
+  if (!dir || dir.readOnly || !actions) return null;
+  return hdServerObject(actions[userId]);
+}
+// Group changes the student made, applied over the directory's groups.
+function hdAcctGroupChanges(userId) {
+  const override = (hdState && hdState.userOverrides || {})[userId] || {};
+  return { added:Array.isArray(override.groupsAdded) ? override.groupsAdded : [], removed:Array.isArray(override.groupsRemoved) ? override.groupsRemoved : [] };
+}
+function hdAcctApplyGroups(userId, groups) {
+  const change = hdAcctGroupChanges(userId);
+  if (!change.added.length && !change.removed.length) return groups;
+  return [...new Set([...groups, ...change.added])].filter(group => !change.removed.includes(group));
+}
+function hdAcctLockoutState(userId) {
+  const account = hdAcctAccount(userId); const fixture = account && hdServerObject(account.lockout);
+  if (!fixture) return null;
+  if (!hdServerObject(hdState.lockouts)) hdState.lockouts = {};
+  if (!hdServerObject(hdState.lockouts[userId])) hdState.lockouts[userId] = { badPasswordCount:Number(fixture.badPasswordCount) || 0, lockoutsToday:Number(fixture.lockoutsToday) || 0, lastLockout:String(fixture.lastLockout || ''), events:hdClone(Array.isArray(fixture.events) ? fixture.events : []) };
+  return { ...fixture, ...hdState.lockouts[userId] };
+}
+function hdAcctPatch(userId, patch) { hdState.userOverrides[userId] = { ...(hdState.userOverrides[userId] || {}), ...patch }; }
+function hdAcctTime() { const ticket = hdServerPracticeTicket(); return hdShiftTimeText(hdShiftNow(ticket)) || hdConsoleTime(ticket); }
+function hdAcctLabel(user) { return user ? `${user.name} (${user.username})` : ''; }
+
+// One account change, recorded the way a machine change is (hdMachineAction).
+function hdAcctRecord(user, id, label, extra) {
+  const ticket = hdServerPracticeTicket();
+  if (ticket) {
+    const state = hdConsoleState(ticket);
+    state.actions.push({ id, time:hdConsoleTime(ticket), user:user.id, ...(extra || {}) });
+    if (state.actions.length > 200) state.actionsDropped = (Number(state.actionsDropped) || 0) + state.actions.splice(0, state.actions.length - 200).length;
+    hdHistory(ticket, `${label}.`);
+    const rules = hdConsole(ticket).criticalActions;
+    if (Array.isArray(rules)) rules.filter(rule => rule && rule.action === id).forEach(rule => hdConsoleCritical(ticket, `account:${id}`, rule.text || label));
+  }
+  hdPracticeEvent('action_taken', { ticket:ticket ? ticket.id : '', action:id, user:user.id, label, ...(extra || {}) });
+  hdProveEvent('action_taken', { label, value:id });
+  hdProveEdited();
+}
+function hdAcctRefuse(user, kind, reason) {
+  const ticket = hdServerPracticeTicket();
+  hdPracticeEvent('action_refused', { ticket:ticket ? ticket.id : '', action:`ad-${kind}`, user:user ? user.id : '', reason });
+  hdProveEvent('action_taken', { label:`Tried: ${kind} for ${hdAcctLabel(user)} (not allowed)`, value:`ad-${kind}-refused` });
+  if (typeof toast === 'function') toast(HD_PROVE ? 'Not available for this account.' : reason);
+  return reason;
+}
+// Why this change can't happen now, or ''.
+function hdAcctBlock(user, kind) {
+  if (!user) return 'Choose an account first.';
+  const allowed = hdAcctFor(user.id);
+  const rule = allowed && allowed[kind === 'add' || kind === 'remove' ? 'groups' : kind];
+  if (!rule) return `This ticket doesn't allow that change to ${user.name}'s account.`;
+  const ticket = hdServerPracticeTicket();
+  if (ticket) {
+    const config = hdConsole(ticket).verification;
+    if (config && !hdConsoleState(ticket).verification.passed) return `Verify the caller on ${ticket.id} first (KB-0024).`;
+    const after = hdServerObject(rule) && rule.after;
+    if (after && !((hdConsoleState(ticket).serverSeen || []).includes(after))) return rule.afterText || 'Read the approval record first.';
+  }
+  if (kind === 'reset' && user.sspr !== 'Not registered') return `KB-0104: ${user.name} can use self-service password reset. Send them to the reset link on the sign-in screen (KB-0024). Reset only when they aren't registered.`;
+  return '';
+}
+
+// The changes. via: the screen or the typed line, for the history.
+function hdAcctUnlock(userId, via = 'Active Directory') {
+  if (hdProveLocked()) return 'locked';
+  const user = hdFileUser(userId);
+  const block = hdAcctBlock(user, 'unlock'); if (block) return hdAcctRefuse(user, 'unlock', block);
+  if (!user.locked) { if (typeof toast === 'function') toast(`${user.username} is not locked out.`); return `${user.username} is not locked out.`; }
+  // HD-2101: jbell's lock state is the scenario's.
+  if (hdM01() && userId === hdM01Spec().userId) { const result = hdM01Unlock(via); if (!result.ok) return hdAcctRefuse(user, 'unlock', result.message); }
+  else hdAcctPatch(userId, { locked:false });
+  if (hdAcctLockoutState(userId)) hdState.lockouts[userId].badPasswordCount = 0;
+  hdAcctRecord(user, 'ad-unlocked', `Account ${user.username} unlocked (${via})`, { via });
+  if (typeof toast === 'function') toast(`Account ${user.username} unlocked.`);
+  return '';
+}
+function hdAcctEnable(userId, via = 'Active Directory') {
+  if (hdProveLocked()) return 'locked';
+  const user = hdFileUser(userId);
+  const block = hdAcctBlock(user, 'enable'); if (block) return hdAcctRefuse(user, 'enable', block);
+  if (user.enabled !== false) { if (typeof toast === 'function') toast(`${user.username} is already enabled.`); return `${user.username} is already enabled.`; }
+  const record = String((hdAcctFor(userId).enable || {}).record || '');
+  hdAcctPatch(userId, { enabled:true });
+  hdState.acctDialog = null;
+  hdAcctRecord(user, 'ad-enabled', `Account ${user.username} enabled${record ? ` per ${record}` : ''} (${via})`, { via, record });
+  if (typeof toast === 'function') toast(`Account ${user.username} enabled.`);
+  return '';
+}
+// The one-time password: memory only, shown once (hdAcctOtpShown).
+function hdAcctNewOtp() {
+  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz'; const digits = '23456789';
+  const pick = set => set[Math.floor(Math.random() * set.length)];
+  return `${pick(letters)}${pick(letters)}${pick(digits)}-${pick(letters)}${pick(letters)}${pick(letters)}${pick(digits)}-${pick(digits)}${pick(digits)}${pick(letters)}`;
+}
+function hdAcctReset(userId, mustChange, via = 'Active Directory › Reset password') {
+  if (hdProveLocked()) return { ok:false, message:'locked' };
+  const user = hdFileUser(userId);
+  const block = hdAcctBlock(user, 'reset'); if (block) return { ok:false, message:hdAcctRefuse(user, 'reset', block) };
+  const value = hdAcctNewOtp();
+  hdAcctOtp = { userId, value, shown:false };
+  hdState.acctDialog = null;
+  hdAcctPatch(userId, { passwordExpired:false, passwordLastSet:`${hdAcctTime()} (reset)`, passwordAge:0, mustChange:mustChange === true, locked:user.locked });
+  hdAcctRecord(user, 'ad-password-reset', `Password reset for ${user.username} under KB-0104, ${mustChange ? 'with' : 'without'} "User must change password at next logon" (${via}); the one-time password was read to the user, never written down`, { via, mustChange:mustChange === true });
+  if (mustChange === true) hdAcctRecord(user, 'ad-must-change', `"User must change password at next logon" set for ${user.username}`, { via });
+  return { ok:true, value };
+}
+function hdAcctMustChange(userId, via) {
+  if (hdProveLocked()) return 'locked';
+  const user = hdFileUser(userId);
+  if (!user) return 'Choose an account first.';
+  const done = (hdState.userOverrides[userId] || {}).passwordLastSet && /\(reset\)$/.test((hdState.userOverrides[userId] || {}).passwordLastSet);
+  if (!done) return hdAcctRefuse(user, 'reset', 'Reset the password first (KB-0104), then set "must change at next logon".');
+  if (user.mustChange === true) return '';
+  hdAcctPatch(userId, { mustChange:true });
+  hdAcctRecord(user, 'ad-must-change', `"User must change password at next logon" set for ${user.username}`, { via });
+  return '';
+}
+function hdAcctGroup(userId, kind, group, via = 'Active Directory') {
+  if (hdProveLocked()) return 'locked';
+  const user = hdFileUser(userId);
+  const block = hdAcctBlock(user, kind); if (block) return hdAcctRefuse(user, kind, block);
+  const rule = hdAcctFor(userId).groups;
+  const name = String(group || '').trim();
+  const list = (Array.isArray(rule[kind]) ? rule[kind] : []).map(String);
+  const match = list.find(item => item.toLowerCase() === name.toLowerCase());
+  const record = String(rule.record || 'the approval record');
+  if (!match) return hdAcctRefuse(user, kind, `${name || 'That group'} isn't on ${record}: ${kind === 'add' ? 'add' : 'remove'} only what the approval lists.`);
+  const has = user.groups.includes(match);
+  if (kind === 'add' && has) return `${user.username} is already in ${match}.`;
+  if (kind === 'remove' && !has) return `${user.username} isn't in ${match}.`;
+  const change = hdAcctGroupChanges(userId);
+  const added = kind === 'add' ? [...new Set([...change.added, match])] : change.added.filter(item => item !== match);
+  const removed = kind === 'remove' ? [...new Set([...change.removed, match])] : change.removed.filter(item => item !== match);
+  hdAcctPatch(userId, { groupsAdded:added, groupsRemoved:removed });
+  hdAcctRecord(user, kind === 'add' ? 'ad-group-added' : 'ad-group-removed', `${kind === 'add' ? 'Added' : 'Removed'} ${user.username} ${kind === 'add' ? 'to' : 'from'} ${match} per ${record} (${via})`, { via, group:match, record });
+  if (typeof toast === 'function') toast(`${kind === 'add' ? 'Added to' : 'Removed from'} ${match}. ${user.name} signs out and back in to pick it up.`);
+  return '';
+}
+function hdAcctExpiry(userId, days, via = 'Active Directory') {
+  if (hdProveLocked()) return 'locked';
+  const user = hdFileUser(userId);
+  const block = hdAcctBlock(user, 'expiry'); if (block) return hdAcctRefuse(user, 'expiry', block);
+  const count = Number(days);
+  const text = Number.isFinite(count) && count > 0 ? `In ${count} days (changed)` : `${String(days || '').slice(0, 40)} (changed)`;
+  hdAcctPatch(userId, { accountExpires:text, expired:false });
+  hdAcctRecord(user, 'ad-expiry-changed', `Account expiry for ${user.username} changed to ${text.replace(' (changed)', '')} (${via})`, { via });
+  return '';
+}
+
+// "Wait 2 minutes": the ticket's clock (or the set's) moves, then each lockout runs.
+function hdAcctTick(userId) {
+  const lock = hdAcctLockoutState(userId); const user = hdFileUser(userId);
+  if (!lock || !user || user.locked || user.enabled === false || !lock.source || !lock.credentialTarget) return false;
+  const machine = hdMachine(lock.source);
+  const stale = machine && Array.isArray(machine.savedCredentials) && machine.savedCredentials.some(item => item && item.stale && hdCredTarget(item.target) === hdCredTarget(lock.credentialTarget));
+  if (!stale) return false;
+  const time = hdAcctTime();
+  const state = hdState.lockouts[userId];
+  state.badPasswordCount = HD_LOCKOUT_THRESHOLD; state.lockoutsToday += 1; state.lastLockout = time;
+  state.events.push({ time, caller:lock.source });
+  hdAcctPatch(userId, { locked:true, lastBadPassword:time });
+  const ticket = hdServerPracticeTicket();
+  if (ticket) hdHistory(ticket, `Account ${user.username} locked again at ${time} (source ${lock.source}).`);
+  hdPracticeEvent('account_relocked', { ticket:ticket ? ticket.id : '', user:userId, source:lock.source });
+  return true;
+}
+function hdAcctWait(id) {
+  const ticket = hdTicketById(id); const config = ticket && hdConsole(ticket).wait;
+  if (HD_PROVE || !config) return;
+  const minutes = Number(config.minutes) || 2;
+  if (hdTicketClock(ticket)) hdConsoleState(ticket).clockNow = new Date(hdTicketClock(ticket).getTime() + minutes * 60000).toISOString();
+  else if (hdActiveSet() && hdActiveSet().now) hdState.clockNow = new Date(hdShiftNow().getTime() + minutes * 60000).toISOString();
+  const relocked = Object.keys(hdAcctAccounts()).filter(userId => hdAcctTick(userId));
+  const state = hdConsoleState(ticket);
+  state.actions.push({ id:'waited', time:hdConsoleTime(ticket), minutes });
+  hdHistory(ticket, `Waited ${minutes} minutes and checked again.`);
+  hdPracticeEvent('action_taken', { ticket:ticket.id, action:'waited', minutes, relocked });
+  if (typeof toast === 'function') toast(relocked.length ? `${minutes} minutes later: ${relocked.map(userId => hdFileUser(userId).username).join(', ')} locked out again.` : `${minutes} minutes later. Check the account again.`);
+  hdRerender();
+}
+function hdConsoleWaitCard(ticket) {
+  const config = !HD_PROVE && ticket && hdConsole(ticket).wait; if (!config) return '';
+  const minutes = Number(config.minutes) || 2;
+  return `<div class="card" data-hd-wait-card><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Make sure it stays fixed</strong><span class="muted">${hdEsc(hdShiftTimeText(hdShiftNow(ticket)))}</span></div><div class="card-body"><button type="button" class="btn btn-secondary" data-hd-wait onclick="hdAcctWait('${hdJsArg(ticket.id)}')">Wait ${minutes} minutes</button></div></div>`;
+}
+
+// Lockout details and the Tier 2 view. For HD-2101 (with hd2101Tier2) the
+// scenario's own events; for any other account, its fixture.
+function hdM01Tier2() { const set = hdActiveSet(); return !!(set && set.hd2101Tier2 === true && hdM01()); }
+function hdAcctLockoutView(user) {
+  const scenario = hdM01();
+  if (scenario && user.id === hdM01Spec().userId && hdM01Tier2()) {
+    const spec = hdM01Spec();
+    const events = scenario.events.filter(event => event.id === '4740').map(event => ({ time:event.time, caller:event.caller }));
+    return { badPasswordCount:scenario.badPasswordCount, lockoutsToday:scenario.lockoutsToday, lastLockout:scenario.locked ? scenario.lockedAt : '', source:spec.computer, dc:spec.domainController, events };
+  }
+  return hdAcctLockoutState(user.id);
+}
+function hdAcctLockoutOpen(userId) {
+  const user = hdFileUser(userId); if (!user || !hdAcctLockoutView(user)) return;
+  if (hdM01() && userId === hdM01Spec().userId) { hdM01Tick(); hdM01Observe('ad-lockout-details'); }
+  hdState.lockoutOpen = userId;
+  hdServerSeen(`ad-lockout:${userId}`, `Active Directory › ${user.name} › Lockout details`);
+  hdSave(); render();
+}
+function hdAcctTier2(userId) {
+  const user = hdFileUser(userId); if (!user || !hdAcctLockoutView(user)) return;
+  hdState.lockoutTier2 = userId;
+  hdServerSeen(`lockout-4740:${userId}`, `Event 4740 evidence · ${user.name}`);
+  hdSave(); render();
+}
+function hdAcctLockoutHtml(user) {
+  const lock = hdAcctLockoutView(user); if (!lock) return '';
+  const open = hdState.lockoutOpen === user.id;
+  const ticket = hdServerPracticeTicket();
+  const wait = ticket && !HD_PROVE && hdConsole(ticket).wait ? `<button type="button" class="btn btn-ghost btn-sm" data-hd-wait onclick="hdAcctWait('${hdJsArg(ticket.id)}')">Wait ${Number(hdConsole(ticket).wait.minutes) || 2} minutes</button>` : '';
+  const details = open ? `<dl class="hd-dl hd-lockout-details" data-hd-lockout-details="${hdEsc(user.id)}"><dt>Locked out</dt><dd>${user.locked ? 'Yes' : 'No'}</dd><dt>Bad password count</dt><dd>${hdEsc(lock.badPasswordCount)} of ${HD_LOCKOUT_THRESHOLD}</dd><dt>Lockouts today</dt><dd>${hdEsc(lock.lockoutsToday)}</dd><dt>Last lockout</dt><dd>${hdEsc(lock.lastLockout || '—')}</dd><dt>Last lockout source</dt><dd data-hd-lockout-source>${hdEsc(lock.source || '—')}</dd></dl><div style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="btn btn-secondary btn-sm" data-hd-tier2 onclick="hdAcctTier2('${hdJsArg(user.id)}')">Show the Tier 2 view</button>${wait}</div>` : '';
+  return `<div class="hd-lockout" data-hd-lockout="${hdEsc(user.id)}"><button class="btn btn-secondary btn-sm" onclick="hdAcctLockoutOpen('${hdJsArg(user.id)}')">${open ? 'Refresh lockout details' : 'Lockout details'}</button>${details}</div>`;
+}
+function hdAcctTier2Card(user) {
+  if (hdState.lockoutTier2 !== user.id) return '';
+  const lock = hdAcctLockoutView(user); if (!lock) return '';
+  const dc = lock.dc || 'NS-DC01';
+  const rows = (lock.events || []).map(event => `<tr data-hd-4740><td>${hdEsc(event.time)}</td><td>4740</td><td>${hdEsc(user.username)}</td><td>${hdEsc(event.caller)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No lockout events.</td></tr>';
+  const note = HD_PROVE ? '' : '<p class="muted">Tier 2\'s view, shown as evidence: Tier 1 reads Lockout details and never signs in to a domain controller.</p>';
+  return `<div class="card" data-hd-4740-card="${hdEsc(user.id)}"><div class="card-header"><strong>Evidence · ${hdEsc(dc)} · Security log · Event ID 4740</strong><span class="muted">A user account was locked out</span></div><div class="table-wrap"><table><thead><tr><th>Time</th><th>Event ID</th><th>Account name</th><th>Caller computer name</th></tr></thead><tbody>${rows}</tbody></table></div><div class="card-body">${note}</div></div>`;
+}
+
+// The pane's extra rows and controls for one user.
+function hdAcctStatusRows(user) {
+  if (!hdAcctAccount(user.id)) return '';
+  const yesNo = value => value === true ? 'Yes' : 'No';
+  return `<dt>Account expires</dt><dd data-hd-account-expires>${hdEsc(user.accountExpires || 'Never')}</dd><dt>Password expired</dt><dd data-hd-password-expired>${yesNo(user.passwordExpired)}</dd><dt>Password last set</dt><dd data-hd-password-last-set>${hdEsc(user.passwordLastSet || '')}</dd><dt>Last bad password attempt</dt><dd data-hd-last-bad-password>${hdEsc(user.lastBadPassword || 'None')}</dd>${user.sponsor ? `<dt>Sponsor</dt><dd data-hd-sponsor>${hdEsc(user.sponsor)}</dd>` : ''}${user.mustChange === true ? '<dt>Must change password</dt><dd>At next logon</dd>' : ''}`;
+}
+function hdAcctHistoryLine(user) {
+  return hdAcctAccount(user.id) && user.history ? `<p class="muted" data-hd-account-history>History: ${hdEsc(user.history)}</p>` : '';
+}
+function hdAcctOpenDialog(userId, kind) {
+  const user = hdFileUser(userId);
+  const block = hdAcctBlock(user, kind); if (block) { hdAcctRefuse(user, kind, block); hdRerender(); return; }
+  hdState.acctDialog = { userId, kind };
+  hdSave(); render();
+}
+function hdAcctCloseDialog() { hdState.acctDialog = null; hdSave(); render(); }
+function hdAcctResetConfirm(userId) {
+  const box = typeof document !== 'undefined' && document.getElementById ? document.getElementById('hd-reset-must-change') : null;
+  const result = hdAcctReset(userId, box ? box.checked === true : true);
+  if (result.ok && typeof toast === 'function') toast('Password reset. Read the one-time password to the user now.');
+  hdRerender();
+}
+function hdAcctDo(kind, userId) {
+  if (kind === 'unlock') hdAcctUnlock(userId);
+  if (kind === 'enable') hdAcctEnable(userId);
+  hdRerender();
+}
+function hdAcctGroupFrom(userId, kind) {
+  const el = typeof document !== 'undefined' && document.getElementById ? document.getElementById(`hd-group-${kind}`) : null;
+  hdAcctGroup(userId, kind, el ? el.value : '');
+  hdRerender();
+}
+function hdAcctExpiryFrom(userId) {
+  const el = typeof document !== 'undefined' && document.getElementById ? document.getElementById('hd-expiry-days') : null;
+  hdAcctExpiry(userId, el ? el.value : 30);
+  hdRerender();
+}
+function hdAcctOtpHtml(user) {
+  if (!hdAcctOtp || hdAcctOtp.userId !== user.id) return '';
+  if (hdAcctOtp.shown) return '<p class="muted" data-hd-otp-hidden>The one-time password was shown once and is hidden now.</p>';
+  hdAcctOtp.shown = true;
+  return `<div class="callout warn" role="status" data-hd-otp><strong>One-time password: <code>${hdEsc(hdAcctOtp.value)}</code></strong><br>Read this to the user; never type it into the ticket. It shows only once.</div>`;
+}
+function hdAcctControls(user, allowed) {
+  const id = `'${hdJsArg(user.id)}'`;
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const dialog = hdState.acctDialog && hdState.acctDialog.userId === user.id ? hdState.acctDialog.kind : '';
+  const buttons = [];
+  if (allowed.unlock) buttons.push(`<button type="button" class="btn btn-secondary" ${locked} data-hd-acct="unlock" onclick="hdAcctDo('unlock',${id})">Unlock</button>`);
+  if (allowed.enable && user.enabled === false) buttons.push(`<button type="button" class="btn btn-secondary" ${locked} data-hd-acct="enable" onclick="hdAcctOpenDialog(${id},'enable')">Enable</button>`);
+  if (allowed.reset) buttons.push(`<button type="button" class="btn btn-secondary" ${locked} data-hd-acct="reset" onclick="hdAcctOpenDialog(${id},'reset')">Reset password</button>`);
+  let panel = '';
+  if (dialog === 'enable') {
+    const record = String((allowed.enable || {}).record || '');
+    panel = `<div class="card" data-hd-acct-dialog="enable"><div class="card-body"><p><strong>Enable ${hdEsc(user.name)}?</strong>${record ? ` Approval: ${hdEsc(record)}.` : ''}</p><div style="display:flex;gap:8px"><button type="button" class="btn btn-primary btn-sm" ${locked} onclick="hdAcctDo('enable',${id})">Enable</button><button type="button" class="btn btn-ghost btn-sm" onclick="hdAcctCloseDialog()">Cancel</button></div></div></div>`;
+  }
+  if (dialog === 'reset') {
+    panel = `<div class="card" data-hd-acct-dialog="reset"><div class="card-body"><p><strong>Reset password for ${hdEsc(user.name)}</strong></p><p class="muted">A one-time password is made for you and shown once.</p><label><input type="checkbox" id="hd-reset-must-change" checked data-hd-must-change> User must change password at next logon</label><div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="btn btn-primary btn-sm" ${locked} data-hd-reset-confirm onclick="hdAcctResetConfirm(${id})">Reset</button><button type="button" class="btn btn-ghost btn-sm" onclick="hdAcctCloseDialog()">Cancel</button></div></div></div>`;
+  }
+  let groups = '';
+  if (allowed.groups) {
+    const dir = hdDirectory();
+    const record = String(allowed.groups.record || 'the approval record');
+    const all = hdDirGroups(dir).map(group => group.name).filter(name => !user.groups.includes(name));
+    const option = name => `<option>${hdEsc(name)}</option>`;
+    groups = `<div class="hd-acct-groups" data-hd-acct-groups><p class="muted">Group changes follow ${hdEsc(record)}.</p><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><label>Add to <select id="hd-group-add" class="select" ${locked}>${all.map(option).join('')}</select></label><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-acct="add" onclick="hdAcctGroupFrom(${id},'add')">Add group</button><label>Remove from <select id="hd-group-remove" class="select" ${locked}>${user.groups.map(option).join('')}</select></label><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-acct="remove" onclick="hdAcctGroupFrom(${id},'remove')">Remove group</button></div></div>`;
+  }
+  let expiry = '';
+  if (allowed.expiry) expiry = `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-hd-acct-expiry><label>Account expires <select id="hd-expiry-days" class="select" ${locked}><option value="7">In 7 days</option><option value="30">In 30 days</option><option value="90">In 90 days</option></select></label><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-acct="expiry" onclick="hdAcctExpiryFrom(${id})">Change expiry</button></div>`;
+  const note = HD_PROVE ? '' : '<div class="callout info">Each change waits for this ticket\'s verification or approval. Never place passwords in ticket notes.</div>';
+  return `<div data-hd-acct-controls="${hdEsc(user.id)}">${buttons.length ? `<div class="hd-action-grid">${buttons.join('')}</div>` : ''}${panel}${hdAcctOtpHtml(user)}${groups}${expiry}${note}</div>`;
+}
+// The pane's actions part: read-only, Module 8's controls, or the old buttons.
+function hdAcctPaneActions(user, dir) {
+  if (dir.readOnly) return `<p class="muted" data-hd-ad-read-only>Read-only: this view reads the account and changes nothing.</p>`;
+  // A Module 8 directory (account fixtures) never shows the old unchecked buttons.
+  if (!hdAcctActions() && Object.keys(dir.accounts).length) return `<p class="muted" data-hd-acct-none>No account change on this ticket for ${hdEsc(user.name)}.</p>`;
+  if (!hdAcctActions()) return `<div class="hd-action-grid"><button class="btn btn-secondary" onclick="hdAdAction('unlock')">Unlock</button><button class="btn btn-secondary" onclick="hdAdAction('reset')">Reset password</button><button class="btn btn-secondary" onclick="hdAdAction('${user.enabled ? 'disable' : 'enable'}')">${user.enabled ? 'Disable' : 'Enable'}</button><button class="btn btn-secondary" onclick="hdAdAction('add-hr')">Add approved group</button></div>`;
+  const allowed = hdAcctFor(user.id);
+  return allowed ? hdAcctControls(user, allowed) : `<p class="muted" data-hd-acct-none>No account change on this ticket for ${hdEsc(user.name)}.</p>`;
+}
+
+// The typed lines, with a directory block; null for anything else.
+function hdAcctUserArg(command, verb) {
+  const trimmed = command.trim();
+  return (hdParam(command, 'identity') || (new RegExp(`^${verb}\\s+("[^"]*"|'[^']*'|[^\\s-]\\S*)`, 'i').exec(trimmed) || [])[1] || '').replace(/^["']|["']$/g, '');
+}
+function hdAcctGetAdUser(user, props) {
+  const dir = hdDirectory();
+  const all = /\*/.test(props);
+  const want = name => all || props.includes(name.toLowerCase());
+  const rows = [];
+  if (want('AccountExpirationDate')) rows.push(['AccountExpirationDate', !user.accountExpires || user.accountExpires === 'Never' ? '(not set: never expires)' : user.accountExpires]);
+  rows.push(['DistinguishedName', `CN=${user.name},${user.ou}`], ['Enabled', user.enabled === false ? 'False' : 'True']);
+  if (want('LockedOut')) rows.push(['LockedOut', user.locked ? 'True' : 'False']);
+  if (want('MemberOf')) rows.push(['MemberOf', `{${hdDirUserGroups(user, dir).map(name => `CN=${name},CN=Users,DC=northstar,DC=example`).join(', ')}}`]);
+  rows.push(['Name', user.name]);
+  if (want('PasswordExpired')) rows.push(['PasswordExpired', user.passwordExpired === true ? 'True' : 'False']);
+  if (want('PasswordLastSet')) rows.push(['PasswordLastSet', user.passwordLastSet || `${user.passwordAge} days ago`]);
+  rows.push(['SamAccountName', user.username], ['UserPrincipalName', user.email || '']);
+  const keys = [`ad-user:${user.id}`];
+  if (want('MemberOf')) keys.push(`ad-user-groups:${user.id}`);
+  keys.forEach(key => hdServerSeen(key, `Active Directory › Users › ${user.name}`));
+  hdLastCommandResult = `${user.username} Enabled=${user.enabled !== false} LockedOut=${!!user.locked} PasswordExpired=${user.passwordExpired === true}`;
+  const width = Math.max(...rows.map(([key]) => key.length));
+  return rows.map(([key, value]) => `${key.padEnd(width)} : ${value}`).join('\n');
+}
+function hdAcctCommand(command, normalized) {
+  if (!hdAcctOn()) return null;
+  const trimmed = command.trim();
+  const notFound = (verb, name) => `${verb} : Cannot find an object with identity: '${name || '(none)'}'.`;
+  const done = message => message && message !== 'locked' ? message : '';
+  if (/^get-aduser\b/.test(normalized)) {
+    const name = hdAcctUserArg(command, 'get-aduser'); const user = hdDirUser(name);
+    if (!user || !hdAcctAccount(user.id)) return null;
+    const props = ((/-properties\s+(.+?)(?=\s+-[a-z]|$)/i.exec(trimmed) || [])[1] || '').toLowerCase();
+    return hdAcctGetAdUser(user, props);
+  }
+  if (/^search-adaccount\b/.test(normalized)) {
+    const expired = /-accountexpired\b/.test(normalized);
+    if (!expired && !/-lockedout\b/.test(normalized)) return null;
+    if (!expired && hdM01()) hdM01Observe('search-adaccount');
+    const users = hdFileUsers().filter(user => user && user.id).map(user => hdFileUser(user.id)).filter(user => expired ? user.expired === true : user.locked === true);
+    users.forEach(user => hdServerSeen(`ad-user:${user.id}`, `Active Directory › Users › ${user.name}`));
+    hdLastCommandResult = `${expired ? 'expired' : 'locked out'}: ${users.map(user => user.username).join(', ') || 'none'}`;
+    if (!users.length) return expired ? '(No expired accounts.)' : '(No locked-out accounts.)';
+    return [`Name                 SamAccountName ${expired ? 'AccountExpirationDate' : 'LockedOut'}`, ...users.map(user => `${user.name.padEnd(20)} ${user.username.padEnd(14)} ${expired ? user.accountExpires || '' : 'True'}`)].join('\n');
+  }
+  const verbs = [['unlock-adaccount', 'Unlock-ADAccount'], ['enable-adaccount', 'Enable-ADAccount'], ['set-adaccountpassword', 'Set-ADAccountPassword'], ['set-aduser', 'Set-ADUser'], ['set-adaccountexpiration', 'Set-ADAccountExpiration']];
+  const verb = verbs.find(([key]) => new RegExp(`^${key}(\\s|$)`).test(normalized));
+  if (verb) {
+    if (hdHasPasswordArg(command) || /-newpassword\b.*["']/.test(normalized)) return HD_PROVE ? hdProveRefusePassword() : hdRefusePassword();
+    const name = hdAcctUserArg(command, verb[0]); const user = hdDirUser(name);
+    if (!user) return notFound(verb[1], name);
+    if (verb[0] === 'unlock-adaccount') return done(hdAcctUnlock(user.id, 'Unlock-ADAccount'));
+    if (verb[0] === 'enable-adaccount') return done(hdAcctEnable(user.id, 'Enable-ADAccount'));
+    if (verb[0] === 'set-adaccountexpiration') {
+      const value = hdParam(command, 'datetime') || hdParam(command, 'timespan');
+      if (!value) return 'Set-ADAccountExpiration : Add -DateTime <date>.';
+      return done(hdAcctExpiry(user.id, value, 'Set-ADAccountExpiration'));
+    }
+    if (verb[0] === 'set-aduser') {
+      if (!/-changepasswordatlogon\s+\$true\b/.test(normalized)) return null;
+      return done(hdAcctMustChange(user.id, 'Set-ADUser -ChangePasswordAtLogon $true'));
+    }
+    if (!/-reset\b/.test(normalized)) return 'Set-ADAccountPassword : Add -Reset to set a new password for this account.';
+    const result = hdAcctReset(user.id, false, 'Set-ADAccountPassword -Reset');
+    if (!result.ok) return done(result.message);
+    hdAcctOtp.shown = true;
+    hdLastCommandResult = `password reset for ${user.username} (one-time password shown once)`;
+    return [`Secure prompt: a one-time password was set for ${user.username}. It shows only this once:`, '', `    ${result.value}`, '', 'Read it to the user on the verified call; never type it into the ticket.', `Next: Set-ADUser ${user.username} -ChangePasswordAtLogon $true`].join('\n');
+  }
+  const group = /^(add|remove)-adgroupmember\b/.exec(normalized);
+  if (group) {
+    const kind = group[1];
+    const verbName = kind === 'add' ? 'Add-ADGroupMember' : 'Remove-ADGroupMember';
+    const words = trimmed.split(/\s+/).slice(1).filter(word => !word.startsWith('-') && !/^\$(true|false)$/i.test(word));
+    const groupName = hdParam(command, 'identity') || words[0] || '';
+    const member = hdParam(command, 'members') || words.find(word => word !== groupName) || '';
+    const user = hdDirUser(member);
+    if (!hdDirGroup(groupName)) return `${verbName} : Cannot find an object with identity: '${groupName || '(none)'}'.`;
+    if (!user) return `${verbName} : Cannot find an object with identity: '${member || '(none)'}'. Add -Members <username>.`;
+    return done(hdAcctGroup(user.id, kind, hdDirGroup(groupName).name, verbName));
+  }
+  return null;
+}
+
+// Saved credentials on a PC (Credential Manager, cmdkey).
+function hdCredTarget(value) { return String(value || '').replace(/^domain:target=/i, '').replace(/^legacygeneric:target=/i, '').trim().toLowerCase(); }
+function hdCredList(machine) { return machine && Array.isArray(machine.savedCredentials) ? machine.savedCredentials.filter(item => item && item.target) : []; }
+function hdCredRemoveOn(machine, computerName, target, via) {
+  const list = machine.savedCredentials;
+  const at = list.findIndex(item => item && hdCredTarget(item.target) === hdCredTarget(target));
+  if (at < 0) return false;
+  const [removed] = list.splice(at, 1);
+  hdMachineAction(computerName, 'credential-removed', `removed the saved credential for ${removed.target} (${via})`, { target:removed.target });
+  return true;
+}
+function hdCredRemove(computerName, target) {
+  hdMachineChange(computerName, machine => {
+    if (!Array.isArray(machine.savedCredentials)) return false;
+    hdState.machineView = { ...hdMachineView(), confirmRemove:'' };
+    return hdCredRemoveOn(machine, computerName, target, 'Credential Manager') ? undefined : false;
+  });
+}
+function hdCredAsk(computerName, target) { hdState.machineView = { ...hdMachineView(), computer:computerName, confirmRemove:String(target || '') }; hdSave(); render(); }
+function hdCredCancel() { hdState.machineView = { ...hdMachineView(), confirmRemove:'' }; hdSave(); render(); }
+VIEWS['helpdesk/credential-manager'] = () => {
+  const found = hdWinScreen('credential-manager'); if (!found) return hdMachineMissing('Credential Manager');
+  const { computer, machine } = found; const n = `'${hdJsArg(computer.name)}'`;
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const ask = String(hdMachineView().confirmRemove || '');
+  const rows = hdCredList(machine).map(item => {
+    const confirm = ask && hdCredTarget(ask) === hdCredTarget(item.target)
+      ? `<div data-hd-cred-confirm><p>Remove this credential? Windows asks for the password the next time it's needed.</p><button type="button" class="btn btn-primary btn-sm" ${locked} data-hd-cred-yes onclick="hdCredRemove(${n},'${hdJsArg(item.target)}')">Yes, remove</button> <button type="button" class="btn btn-ghost btn-sm" onclick="hdCredCancel()">Cancel</button></div>`
+      : `<button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-cred-remove onclick="hdCredAsk(${n},'${hdJsArg(item.target)}')">Remove</button>`;
+    return `<tr data-hd-cred="${hdEsc(item.target)}"><td><strong>${hdEsc(item.target)}</strong></td><td>${hdEsc(item.type || 'Domain Password')}</td><td>${hdEsc(item.user || '')}</td><td>${confirm}</td></tr>`;
+  }).join('') || '<tr><td colspan="4" class="muted">No Windows credentials are saved.</td></tr>';
+  return `${hdPageHeader('Credential Manager', `Windows Credentials · ${computer.name}`, hdMachineBack(computer))}<div class="card" data-hd-credential-manager><div class="card-header"><strong>Windows Credentials</strong><span class="muted">Saved passwords are never shown</span></div><div class="table-wrap"><table><thead><tr><th>Internet or network address</th><th>Type</th><th>User name</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+};
+// cmdkey and whoami /groups, on a machine with the keys; null otherwise.
+function hdCredCommand(command, normalized, machine, computerName) {
+  if (Array.isArray(machine.savedCredentials) && /^cmdkey(\.exe)?\b/.test(normalized)) {
+    if (/^cmdkey(\.exe)?\s+\/list\b/.test(normalized)) {
+      hdWinSeen(machine, 'credential-manager');
+      hdProveOpened(`credential-manager:${computerName}`, `Credential Manager · ${computerName}`);
+      const list = hdCredList(machine);
+      hdLastCommandResult = `${list.length} saved credential(s): ${list.map(item => item.target).join(', ') || 'none'}`;
+      if (!list.length) return 'Currently stored credentials:\n\n* NONE *';
+      return ['Currently stored credentials:', '', ...list.map(item => [`    Target: Domain:target=${String(item.target).replace(/^domain:target=/i, '')}`, `    Type: ${item.type || 'Domain Password'}`, `    User: ${item.user || ''}`, ''].join('\n'))].join('\n').trimEnd();
+    }
+    const del = /^cmdkey(?:\.exe)?\s+\/delete(?::|\s+)(\S+)/i.exec(command.trim());
+    if (del) {
+      if (hdProveLocked()) return '';
+      const removed = hdCredRemoveOn(machine, computerName, del[1].replace(/^["']|["']$/g, ''), 'cmdkey /delete');
+      hdLastCommandResult = removed ? `deleted ${del[1]}` : `no credential ${del[1]}`;
+      if (removed) hdProveEdited();
+      return removed ? 'CMDKEY: Credential deleted successfully.' : 'CMDKEY: Element not found.';
+    }
+    return HD_PROVE ? 'CMDKEY: The command line parameters are incorrect.' : 'CMDKEY: The command line parameters are incorrect. Try cmdkey /list or cmdkey /delete:<target>.';
+  }
+  if (Array.isArray(machine.signedInGroups) && normalized === 'whoami /groups') {
+    hdWinSeen(machine, 'whoami-groups');
+    hdProveOpened(`whoami-groups:${computerName}`, `whoami /groups · ${computerName}`);
+    const groups = ['Everyone                               Well-known group', 'BUILTIN\\Users                          Alias'];
+    const computer = hdComputerByName(computerName);
+    if (computer && hdIsLocalAdmin(machine, hdSessionUser(computer))) groups.push('BUILTIN\\Administrators                 Alias');
+    machine.signedInGroups.forEach(group => groups.push(`${`${HD_ORG.netbios}\\${group}`.padEnd(38)} Group`));
+    hdLastCommandResult = `groups at sign-in: ${machine.signedInGroups.join(', ')}`;
+    return ['GROUP INFORMATION', '-----------------', 'Group Name                             Type', ...groups].join('\n');
+  }
+  return null;
+}
+// Sign out and back in: the sign-in picks up the account's current groups.
+function hdWinSignInAgain(computerName) {
+  hdMachineChange(computerName, machine => {
+    if (!Array.isArray(machine.signedInGroups)) return false;
+    const computer = hdComputerByName(computerName);
+    const base = computer && hdFileUsers().find(user => user && user.name === computer.user);
+    const user = base ? hdFileUser(base.id) : null;
+    machine.signedInGroups = user ? user.groups.slice() : [];
+    hdMachineAction(computerName, 'signed-out-in', `${computer ? computer.user : 'the user'} signed out and back in`);
+  });
+}
+window.hdAcctUnlock=hdAcctUnlock; window.hdAcctEnable=hdAcctEnable; window.hdAcctReset=hdAcctReset; window.hdAcctGroup=hdAcctGroup; window.hdAcctExpiry=hdAcctExpiry;
+window.hdAcctWait=hdAcctWait; window.hdAcctLockoutOpen=hdAcctLockoutOpen; window.hdAcctTier2=hdAcctTier2; window.hdAcctOpenDialog=hdAcctOpenDialog; window.hdAcctCloseDialog=hdAcctCloseDialog;
+window.hdAcctResetConfirm=hdAcctResetConfirm; window.hdAcctDo=hdAcctDo; window.hdAcctGroupFrom=hdAcctGroupFrom; window.hdAcctExpiryFrom=hdAcctExpiryFrom;
+window.hdCredRemove=hdCredRemove; window.hdCredAsk=hdCredAsk; window.hdCredCancel=hdCredCancel; window.hdWinSignInAgain=hdWinSignInAgain;
 
 // Raise a related incident (console.raise on a Practice ticket).
 function hdRaiseConfig(ticket) {
