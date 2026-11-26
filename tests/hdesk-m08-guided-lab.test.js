@@ -364,6 +364,8 @@ function testLab81() {
   assert.deepEqual(clean.tickets.map((t) => t.id).sort(), [A, B, R]);
   const request = clean.tickets.find((t) => t.id === R);
   assert.match(request.notes.slice(-1)[0].text, /Send as on support@ added/);
+  // The request's end state reaches the record: the instructor sheet reads it.
+  assert.equal(request.console && request.console.request && request.console.request.state, 'Closed Complete', 'the saved work keeps Closed Complete');
 }
 
 // Any letter case and extra spaces pass the typed steps.
