@@ -397,6 +397,18 @@ const HD_ITS07_CATALOG = [
   { name:'Northstar VPN Client', publisher:'Northstar IT' },
   { name:'Northstar CRM', publisher:'Northstar IT' },
 ];
+// Module 7 (key its-05): the "Network device reservation" catalog item, for a
+// device that needs the same DHCP address every time. Off unless a ticket's
+// console.convert.items lists it. The ticket gives the choices for each field;
+// Server & Identity fulfils it, so no approval is needed.
+function hdReservationItem({ devices = [], macs = [], addresses = [] } = {}) {
+  return { name:'Network device reservation', approval:'Not required (fulfilled by Server & Identity)', fields:[
+    { id:'device', label:'Device', options:devices.slice() },
+    { id:'mac', label:'Hardware address', options:macs.slice() },
+    { id:'address', label:'Address to reserve', options:addresses.slice() },
+    { id:'scope', label:'Scope', options:HD_DHCP_SCOPES.map(scope => scope.name) },
+  ] };
+}
 // Module 3: a customer comment must name a time (a clock time or am/pm), and a
 // fix time Tier 1 does not control ("fixed by 3") is flagged. Regex sources.
 // A time the user will hear back: a clock time ("11:30", "3 p.m.") or a
