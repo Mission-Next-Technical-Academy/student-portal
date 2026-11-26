@@ -217,6 +217,14 @@ const MANUAL = { network: {
   adapters: [{ name: 'Ethernet', kind: 'Ethernet', description: 'TEST Ethernet Controller', media: 'Connected', speed: '1 Gbps', mac: '3C-52-82-00-00-04',
     ip: { dhcp: false, address: '10.20.10.150', mask: '255.255.255.0', gateway: '10.20.10.1', dnsServers: ['10.20.0.10', '10.20.0.11'] }, lease: CORP_LEASE('10.20.10.151') }],
   routes: ROUTES, publicDns: PUBLIC } };
+// TEST-LT-06: outside the office on a home router, with a VPN adapter not yet up.
+const HOME = { network: {
+  adapters: [
+    { name: 'Wi-Fi', kind: 'Wi-Fi', description: 'TEST Wi-Fi 6 Adapter', media: 'Connected', mac: '3C-52-82-00-00-06', ip: { dhcp: true, address: '192.168.0.34', mask: '255.255.255.0', gateway: '192.168.0.1', dnsServers: ['192.168.0.1'], dhcpServer: '192.168.0.1' },
+      wifi: { ssid: 'TEST-Home', protocol: 'Wi-Fi 5 (802.11ac)', security: 'WPA2-Personal', band: '5 GHz', channel: 40, signal: 75, linkRate: 433, known: [{ ssid: 'TEST-Home', security: 'WPA2-Personal' }] } },
+    { name: 'TEST VPN', kind: 'VPN', description: 'TEST VPN Adapter', media: 'Disconnected', mac: '00-FF-00-00-00-06', ip: { dhcp: true, address: '', dnsServers: [] } },
+  ],
+  routes: { outside: [{ address: '100.64.0.1', ms: 8 }] }, publicDns: PUBLIC } };
 const PC = (name, user) => ({ name, user, os: 'Windows 11 Enterprise 24H2', ip: '10.20.10.99', ou: 'OU=Operations,OU=Workstations', trust: 'Healthy', bitlocker: 'Protected', lastSeen: '1 minute ago', health: 'Healthy' });
 const at = (time) => `2026-08-20T${time}:00Z`;
 const TICKETS = [
@@ -228,11 +236,12 @@ const TICKETS = [
   base({ id: 'HD-9905', number: 'INC0019905', requester: 'Maya Chen', createdAt: at('08:39'), description: 'TEST no network keys', console: { machines: { 'TEST-LT-05': {
     dock: { name: 'TEST Dock', power: true, docked: true, ethernet: 'TEST Dock Ethernet', peripherals: [], monitors: [] },
     devices: [{ id: 'wifi', category: 'Network adapters', name: 'TEST Wi-Fi 6 Adapter', status: 'OK', driver: { provider: 'TEST', date: '1/1/2026', version: '1.0' } }] } } } }),
+  base({ id: 'HD-9906', number: 'INC0019906', requester: 'Maya Chen', createdAt: at('08:39'), description: 'TEST outside', console: { machines: { 'TEST-LT-06': HOME } } }),
 ];
 const SETS = {
   'test-net': {
-    title: 'Test network state', tickets: ['HD-9901', 'HD-9902', 'HD-9903', 'HD-9904', 'HD-9905'], now: '2026-08-20T08:40:00Z',
-    computers: [PC('TEST-WS-01', 'Maya Chen'), PC('TEST-LT-02', 'Maya Chen'), PC('TEST-LT-03', 'Maya Chen'), PC('TEST-LT-04', 'Maya Chen'), PC('TEST-LT-05', 'Maya Chen')],
+    title: 'Test network state', tickets: ['HD-9901', 'HD-9902', 'HD-9903', 'HD-9904', 'HD-9905', 'HD-9906'], now: '2026-08-20T08:40:00Z',
+    computers: [PC('TEST-WS-01', 'Maya Chen'), PC('TEST-LT-02', 'Maya Chen'), PC('TEST-LT-03', 'Maya Chen'), PC('TEST-LT-04', 'Maya Chen'), PC('TEST-LT-05', 'Maya Chen'), PC('TEST-LT-06', 'Maya Chen')],
     directory: { readOnly: true, dns: [{ name: 'intranet', type: 'A', value: '10.20.0.50', ttl: '3600' }] },
   },
 };
@@ -269,7 +278,8 @@ function testNoLinkAndRenew() {
   // The cable goes into a live jack: a link, but still APIPA until renew.
   tab.run("hdMachine('TEST-WS-01').network.adapters[0].media = 'Connected'");
   assert.match(tab.ps('ipconfig'), /Autoconfiguration IPv4 Address\. \. : 169\.254\.33\.10\n   Subnet Mask \. \. \. \. \. \. \. \. \. \. \. : 255\.255\.0\.0\n   Default Gateway \. \. \. \. \. \. \. \. \. : $/m);
-  assert.match(tab.view('helpdesk/settings-network'), /data-hd-net-status="No internet"/);
+  const linked = tab.view('helpdesk/settings-network');
+  assert.match(linked, /data-hd-net-status="Connected" data-hd-net-internet="none">[\s\S]*?>Connected, 1\.0 Gbps<\/span>[\s\S]*?>No internet<\/span>/, 'a link at 1.0 Gbps, no internet yet');
   assert.match(tab.ps('ping 10.20.10.1'), /General failure/, 'APIPA has no route');
   assert.match(tab.ps('ipconfig /release'), /Ethernet adapter Ethernet:/);
   const renewed = tab.ps('ipconfig /renew');
@@ -281,6 +291,7 @@ function testNoLinkAndRenew() {
   assert.match(after, /DHCP Server \. \. \. \. \. \. \. \. \. \. \. : 10\.20\.0\.20\n   DNS Servers \. \. \. \. \. \. \. \. \. \. \. : 10\.20\.0\.10\n {39}10\.20\.0\.11/);
   assert.deepEqual(actions(tab, 'HD-9901').map((a) => a.id), ['ip-renew-failed', 'ip-release', 'ip-renew']);
   assert.equal(tab.run("hdComputerByName('TEST-WS-01').ip"), '10.20.10.141', 'the computer card shows the new address');
+  assert.match(tab.view('helpdesk/settings-network'), /data-hd-net-status="Connected" data-hd-net-internet="ok">/);
   // Gateway, a company server, the way out, and the services.
   assert.match(tab.ps('ping 10.20.10.1'), /Reply from 10\.20\.10\.1: bytes=32 time=1ms TTL=255[\s\S]*Received = 4, Lost = 0/);
   assert.match(tab.ps('ping files.northstar.example'), /^Pinging files\.northstar\.example \[10\.20\.0\.30\] with 32 bytes of data:\nReply from 10\.20\.0\.30/);
@@ -457,10 +468,10 @@ function testEditIpSettings() {
 function testLinkAndDnsServers() {
   const moved = onPc('HD-9904', 'TEST-LT-04');
   moved.run("hdMachine('TEST-LT-04').network.adapters[0].ip = { dhcp:true, address:'10.20.30.77', mask:'255.255.255.0', gateway:'10.20.30.1', dnsServers:['10.20.0.10'], dhcpServer:'10.20.0.20' }");
-  assert.match(moved.view('helpdesk/settings-network'), /data-hd-net-status="No internet"/);
+  assert.match(moved.view('helpdesk/settings-network'), /data-hd-net-status="Connected" data-hd-net-internet="none"/);
   assert.match(moved.ps('ping 10.20.30.1'), /General failure/);
   assert.match(moved.ps('ipconfig /renew'), /10\.20\.10\.151/);
-  assert.match(moved.view('helpdesk/settings-network'), /data-hd-net-status="Connected"/);
+  assert.match(moved.view('helpdesk/settings-network'), /data-hd-net-status="Connected" data-hd-net-internet="ok"/);
   const wrong = onPc('HD-9904', 'TEST-LT-04');
   wrong.run("hdMachine('TEST-LT-04').network.adapters[0].ip.dnsServers = ['10.20.0.99']");
   assert.match(wrong.ps('nslookup files.northstar.example'), /^DNS request timed out\.[\s\S]*Address:  10\.20\.0\.99[\s\S]*Request to UnKnown timed-out/);
@@ -484,6 +495,24 @@ function testLinkAndDnsServers() {
   off.run("hdMachine('TEST-LT-02').network.adapters[1].ip = { dhcp:true, address:'10.20.10.178', mask:'255.255.255.0', gateway:'10.20.10.1', dnsServers:['10.20.0.10'] }");
   assert.match(off.ps('ping 10.20.10.1'), /General failure/);
   assert.equal(off.ps('ipconfig /renew').includes('10.20.10.178'), false);
+}
+
+// Outside the office: the home router knows no company names; with the VPN
+// adapter up, company traffic and names go through it and the rest doesn't.
+function testOutsideAndVpn() {
+  const tab = onPc('HD-9906', 'TEST-LT-06');
+  assert.match(tab.ps('ipconfig /all'), /Unknown adapter TEST VPN:\n\n   Media State \. \. \. \. \. \. \. \. \. \. \. : Media disconnected/);
+  assert.equal(tab.ps('nslookup intranet.northstar.example'), "Server:  UnKnown\nAddress:  192.168.0.1\n\n*** UnKnown can't find intranet.northstar.example: Non-existent domain");
+  assert.match(tab.ps('ping 10.20.0.30'), /Request timed out\.[\s\S]*Lost = 4/);
+  assert.match(tab.ps('ping www.example.com'), /Reply from 93\.184\.215\.14/);
+  assert.match(tab.ps('tracert www.example.com'), / {2}1 .* 192\.168\.0\.1\n {2}2 .* 100\.64\.0\.1\n {2}3 .* www\.example\.com/);
+  tab.run("Object.assign(hdMachine('TEST-LT-06').network.adapters[1], { media:'Connected', ip:{ dhcp:true, address:'10.20.250.37', mask:'255.255.255.0', gateway:'', dnsServers:['10.20.0.10', '10.20.0.11'], dhcpServer:'10.20.250.1' } })");
+  assert.equal(tab.ps('nslookup intranet.northstar.example'), 'Server:  dc01.northstar.example\nAddress:  10.20.0.10\n\nName:    intranet.northstar.example\nAddress:  10.20.0.50');
+  assert.match(tab.ps('Test-NetConnection files.northstar.example -Port 445'), /InterfaceAlias\s+: TEST VPN[\s\S]*SourceAddress\s+: 10\.20\.250\.37[\s\S]*TcpTestSucceeded : True/);
+  assert.match(tab.ps('Test-NetConnection www.example.com -Port 443'), /InterfaceAlias\s+: Wi-Fi[\s\S]*TcpTestSucceeded : True/, 'split tunnel: the rest stays on Wi-Fi');
+  assert.match(tab.ps('nslookup www.example.com'), /Address:  192\.168\.0\.1[\s\S]*93\.184\.215\.14/);
+  assert.match(tab.ps('nltest /dsgetdc:northstar.example'), /The command completed successfully/);
+  assert.match(tab.view('helpdesk/settings-network'), /data-hd-net-adapter="TEST VPN" data-hd-net-status="Connected" data-hd-net-internet="ok"/);
 }
 
 // Device Manager › Advanced › Preferred band: old and new logged, Wi-Fi reconnects.
@@ -557,13 +586,24 @@ function testProveShift() {
   assert.deepEqual(events, [['command_run', 'ipconfig /flushdns', name], ['action_taken', 'dns-flush', name]]);
   tab.run("hdState.machineView = { computer:hdState.selectedComputer }");
   tab.run("hdNetPanel(hdState.selectedComputer,'hardware','Wi-Fi')");
-  assert.ok(json(tab, 'hdState.prove.opened').includes(`net-adapter:${name}:Wi-Fi`));
+  tab.run("hdNetPanel(hdState.selectedComputer,'wifi','Wi-Fi')");
+  tab.run("hdNetPanel(hdState.selectedComputer,'known','Wi-Fi')");
+  tab.run("hdOpenMachineScreen(hdState.selectedComputer,'settings-network')");
+  const screens = json(tab, 'hdState.prove.opened').filter((source) => source.endsWith(name) || source.includes(`:${name}:`));
+  // The typed lines leave the same Prove sources on a fresh shift.
+  const typed = sim({ url: proveUrl('its-01'), withTest: false, before });
+  typed.ps('Get-NetAdapter'); typed.ps('Get-NetIPConfiguration -InterfaceAlias Wi-Fi'); typed.ps('netsh wlan show interfaces'); typed.ps('netsh wlan show profiles');
+  const lines = json(typed, 'hdState.prove.opened');
+  for (const source of [`net-adapter:${name}:Wi-Fi`, `wifi-properties:${name}`, `known-networks:${name}`, `settings-network:${name}`]) {
+    assert.ok(screens.includes(source), `screen ${source}`);
+    assert.ok(lines.includes(source), `typed ${source}`);
+  }
   tab.run("hdProveServer.status = 'waiting'");
   assert.equal(tab.ps('ipconfig /release'), '');
   assert.match(tab.ps('ipconfig'), /10\.20\.10\.177/, 'nothing released once locked');
 }
 
-const TESTS = [testOldShiftsUnchanged, testNoLinkAndRenew, testStaleCacheAndFlush, testGuestNetwork, testSettingsScreens, testEditIpSettings, testLinkAndDnsServers, testPreferredBand, testNoKeysAsBefore, testTypedHistory, testProveShift];
+const TESTS = [testOldShiftsUnchanged, testNoLinkAndRenew, testStaleCacheAndFlush, testGuestNetwork, testSettingsScreens, testEditIpSettings, testLinkAndDnsServers, testOutsideAndVpn, testPreferredBand, testNoKeysAsBefore, testTypedHistory, testProveShift];
 let passed = 0;
 for (const test of TESTS) {
   test();
