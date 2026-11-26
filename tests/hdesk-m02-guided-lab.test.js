@@ -456,12 +456,15 @@ function testNothingFromTheGradedQueue() {
   // reads Jordan Bell's account) and section 8.4 (ticket 7-E's caller, Monica
   // Hall). Every other graded name stays refused.
   const module2 = new Set([...JSON.parse(tab.run("JSON.stringify(HD_COACHED_SETS['its-10-guided'].tickets)")), ...JSON.parse(tab.run("JSON.stringify(HD_PRACTICE_SETS['its-10'].tickets)"))]);
-  const REUSED_BY_LATER_MODULES = new Set([...GRADED_NAMES].filter((h) => [hash('grace kim'), hash('dina foster'), hash('evan parker'), hash('jordan bell'), hash('monica hall')].includes(h)));
-  assert.equal(REUSED_BY_LATER_MODULES.size, 5, 'each reused name is a graded name');
+  const REUSED_BY_LATER_MODULES = new Set([...GRADED_NAMES].filter((h) => [hash('grace kim'), hash('dina foster'), hash('evan parker')].includes(h)));
+  assert.equal(REUSED_BY_LATER_MODULES.size, 3, 'each reused name is a graded name');
+  // Module 7's two names are allowed on their own ticket only.
+  const REUSED_ON_ONE_TICKET = { 'HD-2189': hash('jordan bell'), 'HD-2195': hash('monica hall') };
+  Object.values(REUSED_ON_ONE_TICKET).forEach((h) => assert.ok(GRADED_NAMES.has(h), 'each reused name is a graded name'));
   const pairs = (text) => { const list = text.split(/[^a-z0-9-]+/).filter(Boolean); return list.slice(1).map((w, i) => hash(`${list[i]} ${w}`)); };
   const own = JSON.parse(tab.run('JSON.stringify(HD_TICKET_TEMPLATES.filter((t) => t.ownSet))'));
   own.forEach((ticket) => pairs(JSON.stringify(ticket).toLowerCase()).forEach((h) => {
-    const allowed = !module2.has(ticket.id) && REUSED_BY_LATER_MODULES.has(h);
+    const allowed = !module2.has(ticket.id) && (REUSED_BY_LATER_MODULES.has(h) || REUSED_ON_ONE_TICKET[ticket.id] === h);
     assert.ok(allowed || !GRADED_NAMES.has(h), `no graded requester in ${ticket.id}`);
   }));
   const rest = tab.run(`JSON.stringify({
