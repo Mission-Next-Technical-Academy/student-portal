@@ -25,7 +25,10 @@ function m360DataStub() {
     loadOwnCourseRecord:async()=>null,
     loadOwnCourseProgress:async()=>({user_id:USER,accepted_artifact_count:0,graded_week_count:0,course_complete:false}),
     saveDraft:async(week,payload)=>put(week,{draft_payload:payload,review_status:'draft'}),
-    submitWeek:async(week,payload)=>put(week,{draft_payload:payload,submitted_payload:payload,review_status:'submitted',revision_number:(rowFor(week)?.revision_number||0)+1,submitted_at:new Date().toISOString()}),
+    submitWeek:async(week,payload)=>{
+      if(window.m360TestBeforeSubmit)await window.m360TestBeforeSubmit();
+      return put(week,{draft_payload:payload,submitted_payload:payload,review_status:'submitted',revision_number:(rowFor(week)?.revision_number||0)+1,submitted_at:new Date().toISOString()});
+    },
     loadLiveSessions:async()=>[]
   });
 })();`;
@@ -69,4 +72,45 @@ test('Week navigation traverses Week 1 through Week 6 without a runtime lock', a
     await expect(page.locator('#page-title')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('#m360WeekNavigation')).toBeVisible({ timeout: 15000 });
   }
+});
+
+
+test('Week 6 waits for confirmation, keeps the draft on rejection, and submits one revision on retry', async ({ page }) => {
+  await page.goto(`${BASE}/m360/week.html?week=6`, { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#m360WeekNavigation')).toBeVisible();
+  const submit = page.locator('#submitReviewBtn');
+  const status = page.locator('#reviewStatusLabel');
+  const message = page.locator('#validationMessage');
+  await submit.click();
+  await expect(message).toContainText('Complete before submitting');
+  const fields = page.locator('[data-m360]');
+  for (const field of await fields.all()) {
+    const id = await field.getAttribute('id');
+    await field.fill(id === 'slidesUrl' ? 'https://example.test/spotlight.pdf' : `Practice for ${id}`);
+  }
+  await page.evaluate(() => {
+    window.m360TestBeforeSubmit = () => new Promise((_, reject) => {
+      window.m360TestRejectSubmit = () => reject(new Error('Simulated connection loss'));
+    });
+  });
+  await submit.click();
+  await expect(submit).toBeDisabled();
+  await expect(message).toContainText('Sending');
+  await expect(status).toHaveText('Draft');
+  await page.evaluate(() => window.m360TestRejectSubmit());
+  await expect(message).toContainText('could not confirm');
+  await expect(status).toHaveText('Draft');
+  await expect(page.locator('#week6ArtifactStatus')).not.toContainText('SUBMITTED');
+  await expect(page.locator('#sidebarWeek6Status')).not.toContainText('Submitted');
+  await expect(page.locator('#slide1Content')).toHaveValue('Practice for slide1Content');
+  await expect(submit).toBeEnabled();
+  await page.evaluate(() => { delete window.m360TestBeforeSubmit; });
+  await submit.click();
+  await expect(status).toHaveText('Submitted for review');
+  await expect(message).toContainText('Submitted for review');
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(status).toHaveText('Submitted for review');
+  const row = await page.evaluate(() => JSON.parse(localStorage.getItem('__m360_browser_test_rows')).find(r => r.week_number === 6));
+  expect(row.revision_number).toBe(1);
+  expect(row.submitted_payload.slide1Content).toBe('Practice for slide1Content');
 });

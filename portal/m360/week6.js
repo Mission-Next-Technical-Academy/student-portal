@@ -62,9 +62,46 @@
 
   function renderProgress(){const s=state();let ready=0;for(let i=1;i<=6;i++){const x=s.weeks&&s.weeks[`week${i}`];if(x&&x.accepted)ready++;if(i<=5&&$(`journeyWeek${i}`)&&x&&x.accepted)$(`journeyWeek${i}`).classList.add('complete');}$('journeyProgress').textContent=`${ready} of 6 artifacts portfolio ready`;$('sidebarPriorStatus').textContent=`${Math.min(ready,5)} ready`;$('sidebarPortfolioCount').textContent=`${ready} / 6`;$('sidebarProgressBar').style.width=`${Math.round(ready/6*100)}%`;const w=week(s);$('sidebarWeek6Status').textContent=w.accepted?'Portfolio Ready':w.status==='submitted'?'Submitted':w.status==='needs_revision'?'Needs Revision':'Draft';}
   function saveDraft(){const s=state(),w=week(s);w.draft=draftFromForm();if(w.status==='accepted')w.status='draft';saveState(s);$('saveState').textContent='Draft saved at '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});renderProof();renderProgress();}
-  function submit(){const miss=missing();if(miss.length){$('validationMessage').textContent='Complete before submitting: '+miss.join(', ')+'.';return;}const s=state(),w=week(s);w.draft=draftFromForm();w.submitted=clone(w.draft);w.submittedAt=now();w.status='submitted';w.revisionNumber=(w.revisionNumber||0)+1;w.reviewerFeedback='';saveState(s);$('validationMessage').textContent='Submitted for review. Your submitted revision is preserved separately from future draft edits. Presentation completion will be recorded by authorized staff.';renderProof();renderProgress();}
-  function demoReview(acceptedDecision){const s=state(),w=week(s);if(!w.submitted){$('validationMessage').textContent='Submit the Week 6 package before demo review.';return;}if(acceptedDecision){w.status='accepted';w.accepted=clone(w.submitted);w.acceptedAt=now();w.numericScore=80;w.rubricScores={clarity:16,relevance:16,evidence:16,application:16,professional_communication:16};w.reviewerFeedback='Meets Standard.';}else{w.status='needs_revision';w.reviewerFeedback='Strengthen the connection between your proof example and your professional direction.';}saveState(s);renderProof();renderProgress();}
-  function resetReview(){const s=state(),w=week(s);w.status='draft';w.submitted=null;w.accepted=null;w.numericScore=null;w.rubricScores=null;w.reviewerFeedback='';saveState(s);renderProof();renderProgress();}
+  async function submit(){
+    const button=$('submitReviewBtn'), message=$('validationMessage');
+    if(button.disabled)return;
+    const miss=missing();
+    if(miss.length){message.textContent='Complete before submitting: '+miss.join(', ')+'.';return;}
+    const s=state(),w=week(s);
+    w.draft=draftFromForm();
+    if(button.dataset.institutional==='true'){
+      saveState(s);
+      if(typeof button.submitToM360!=='function'){
+        message.textContent='M360 submissions are unavailable right now. Your work remains on this page. Try again when the connection is restored.';
+        return;
+      }
+      button.disabled=true;
+      message.textContent='Sending your Career Spotlight to M360…';
+      try{
+        await button.submitToM360(clone(w.draft));
+      }catch(error){
+        console.error('M360 Week 6 submission could not be confirmed',error);
+        message.textContent='M360 could not confirm your submission. Your work is still on this page. Check your Week 6 status before trying again.';
+        return;
+      }finally{
+        button.disabled=false;
+        renderProof();
+        renderProgress();
+      }
+    }else{
+      w.submitted=clone(w.draft);
+      w.submittedAt=now();
+      w.status='submitted';
+      w.revisionNumber=(w.revisionNumber||0)+1;
+      w.reviewerFeedback='';
+      saveState(s);
+      renderProof();
+      renderProgress();
+    }
+    message.textContent='Submitted for review. Your submitted revision is preserved separately from future draft edits. Presentation completion will be recorded by authorized staff.';
+  }
+  function demoReview(acceptedDecision){if($('submitReviewBtn').dataset.institutional==='true')return;const s=state(),w=week(s);if(!w.submitted){$('validationMessage').textContent='Submit the Week 6 package before demo review.';return;}if(acceptedDecision){w.status='accepted';w.accepted=clone(w.submitted);w.acceptedAt=now();w.numericScore=80;w.rubricScores={clarity:16,relevance:16,evidence:16,application:16,professional_communication:16};w.reviewerFeedback='Meets Standard.';}else{w.status='needs_revision';w.reviewerFeedback='Strengthen the connection between your proof example and your professional direction.';}saveState(s);renderProof();renderProgress();}
+  function resetReview(){if($('submitReviewBtn').dataset.institutional==='true')return;const s=state(),w=week(s);w.status='draft';w.submitted=null;w.accepted=null;w.numericScore=null;w.rubricScores=null;w.reviewerFeedback='';saveState(s);renderProof();renderProgress();}
   function init(){carryForward();const s=state(),w=week(s);hydrate(w.draft||blank());renderProof();renderProgress();fieldIds.forEach(id=>{const el=$(id);if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',()=>{const s2=state(),w2=week(s2);w2.draft=draftFromForm();saveState(s2);renderProof();});});$('saveBtn').addEventListener('click',saveDraft);$('submitReviewBtn').addEventListener('click',submit);$('meetsStandardBtn').addEventListener('click',()=>demoReview(true));$('needsRevisionBtn').addEventListener('click',()=>demoReview(false));$('resetReviewBtn').addEventListener('click',resetReview);}
   init();
 })();

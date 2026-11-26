@@ -16,6 +16,9 @@
     return;
   }
 
+  const week6Submit = weekNumber === 6 ? document.getElementById('submitReviewBtn') : null;
+  if (week6Submit) week6Submit.dataset.institutional = 'true';
+
   function safeParse(raw) {
     try { return raw ? JSON.parse(raw) : null; } catch (_) { return null; }
   }
@@ -348,6 +351,21 @@
       }
     }
 
+    if (available && week6Submit) {
+      week6Submit.submitToM360 = async (draft) => {
+        const saved = await M360Data.submitWeek(6, draft, schemaVersion);
+        if (!saved || saved.review_status !== 'submitted' || !saved.submitted_at || !saved.submitted_payload) {
+          throw new Error('M360 submission confirmation was incomplete');
+        }
+        const state = localState();
+        const latestDraft = localWeek(state)?.draft;
+        state.weeks.week6 = remoteToLocalWeek(saved);
+        if (latestDraft) state.weeks.week6.draft = latestDraft;
+        saveLocalState(state);
+        renderInstructorFeedback();
+      };
+    }
+
     await loadOriginalScript();
     hideDemoControls();
     addCourseNavigation();
@@ -402,7 +420,7 @@
     }
 
     const submitButton = document.getElementById('submitReviewBtn');
-    if (submitButton) {
+    if (submitButton && weekNumber !== 6) {
       submitButton.addEventListener('click', () => {
         setTimeout(async () => {
           const week = localWeek(localState());
