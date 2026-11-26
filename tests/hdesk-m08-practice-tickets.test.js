@@ -375,6 +375,7 @@ function work8C(tab) {
   const after = tab.ps('whoami /groups');
   assert.match(after, /GG-Finance-Users/);
   assert.doesNotMatch(after, /GG-Sales-Users/);
+  assert.doesNotMatch(after, /DL-Finance-Team|DL-Sales-Team/, 'a distribution list is not a security group, so it is not in the token');
   tab.open(id);
   assert.match(tab.effective('Finance', 'u-1019'), /data-hd-effective-access="Modify"/);
   assert.doesNotMatch(tab.effective('Sales', 'u-1019'), /data-hd-effective-access="(Modify|Read|Change|Full Control)"/);

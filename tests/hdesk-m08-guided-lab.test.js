@@ -625,7 +625,41 @@ function testEveryArticleCheckIsInTheSteps() {
   [...new Set(rules(ext))].forEach((id) => assert.ok(extText.includes(id), `hd-m06-ext names ${id}`));
 }
 
-const tests = [testLabOpensOnItsSet, testLab81, testTypedStepsAnyCase, testA3FromThePane, testA6NeedsTheTypedLine, testOptionalLinesPassTheirSteps, testGetAdUserMatchesThePane,
+// The coach and "Check my work" read the same record: a lookup counts for the
+// ticket that is open. Staging round 2 (2026-11-26) passed Part A step 4 on a
+// lookup made with another ticket open, and "Check my work" then said it was
+// missing; the extension's step 2 passed without the Tier 2 view its
+// feedback asks for.
+function testLookupsCountOnTheirTicket() {
+  const tab = startLab();
+  tab.open(A);
+  tab.triage(A, 'Access', 'Account lockout', 'nwilliams', '3', '1');
+  tab.run(`hdKbOpen('${A}', 'KB-0024')`);
+  tab.run(`hdVerify('${A}', 'callback')`);
+  tab.ps(LINES.getAdUser);
+  at(tab, 3, 'Part A step 3 done');
+  tab.open(B);
+  tab.run("hdOpenUser('u-1003'); hdAcctLockoutOpen('u-1003')");
+  at(tab, 3, 'Part A step 4 waits: Lockout details was read with HD-2197 open');
+  tab.open(A);
+  tab.run("hdOpenUser('u-1003'); hdAcctLockoutOpen('u-1003')");
+  at(tab, 4, 'Part A step 4 done once HD-2196 is open');
+
+  const ext = startExtension(fakeOpener());
+  const id = 'HD-2101';
+  ext.open(id);
+  ext.triage(id, 'Access', 'Account lockout', 'jbell', '2', '1');
+  ext.run("hdM01Identity('callback')");
+  ext.run("hdOpenUser('u-1005'); hdAcctLockoutOpen('u-1005')");
+  ext.run(`hdEvidenceOpen('${id}', 'task-scheduler-ns-lt-0117')`);
+  ext.run("hdOpenMachineScreen('NS-LT-0117', 'credential-manager')");
+  at(ext, 1, 'extension step 2 waits for the Tier 2 view');
+  ext.open(id);
+  ext.run("hdOpenUser('u-1005'); hdAcctTier2('u-1005')");
+  at(ext, 2, 'extension step 2 done after the Tier 2 view');
+}
+
+const tests = [testLabOpensOnItsSet, testLookupsCountOnTheirTicket, testLab81, testTypedStepsAnyCase, testA3FromThePane, testA6NeedsTheTypedLine, testOptionalLinesPassTheirSteps, testGetAdUserMatchesThePane,
   testEveryStepText, testOpeningAStepsScreenDoesNotPassIt, testExtension, testHd2101Unchanged, testOldTicketsLeaveTheQueue, testOldCoachRunIsForgotten, testSheetMapping,
   testEveryArticleCheckIsInTheSteps, testCiRunsThisFile];
 let failed = 0;

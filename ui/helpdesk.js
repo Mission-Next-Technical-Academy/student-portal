@@ -8500,14 +8500,16 @@ function hdCredCommand(command, normalized, machine, computerName) {
   }
   return null;
 }
-// Sign out and back in: the sign-in picks up the account's current groups.
+// Sign out and back in: the sign-in picks up the account's current security
+// groups. A distribution list gives no access, so it is never in the token.
 function hdWinSignInAgain(computerName) {
   hdMachineChange(computerName, machine => {
     if (!Array.isArray(machine.signedInGroups)) return false;
     const computer = hdComputerByName(computerName);
     const base = computer && hdFileUsers().find(user => user && user.name === computer.user);
     const user = base ? hdFileUser(base.id) : null;
-    machine.signedInGroups = user ? user.groups.slice() : [];
+    const security = name => { const group = hdDirGroup(name); return !group || !/^distribution$/i.test(String(group.type || '')); };
+    machine.signedInGroups = user ? user.groups.filter(security) : [];
     hdMachineAction(computerName, 'signed-out-in', `${computer ? computer.user : 'the user'} signed out and back in`);
   });
 }

@@ -1440,15 +1440,16 @@
         instruction: 'Read Noah’s account status. Open <strong>PowerShell</strong> from the left menu and ask for it there, or open <strong>Active Directory › Users › Noah Williams</strong> and read his pane. <details><summary>Show me the command</summary><code>Get-ADUser nwilliams -Properties LockedOut, Enabled, AccountExpirationDate, PasswordExpired, PasswordLastSet</code></details>',
         body: 'Why: read every status field before you touch the account. Success looks like: you can say that the account is locked, enabled, never expires and its password is not expired. His password was set yesterday at 16:10.',
         waitLabel: 'Next Step: Account status read',
-        check: () => hd6Seen('ad-user:u-1003') || hd6Typed(null, (cmd) => /^get-aduser\b/i.test(cmd) && /\bnwilliams\b/i.test(cmd)),
+        // Read on HD-2196 itself, the record "Check my work" reads.
+        check: () => hd2Rule(HD6_A, { serverSeen: 'ad-user:u-1003' }),
       },
       {
         route: '#/helpdesk/active-directory', target: '[data-hd-lockout="u-1003"], [data-hd-ad-user]',
         title: 'Open Lockout details',
-        instruction: 'In <strong>Active Directory › Users</strong>, open <strong>Noah Williams</strong> and press <strong>Lockout details</strong>. The <strong>Show the Tier 2 view</strong> button is optional. It opens the event 4740 card that Tier 2 reads.',
+        instruction: 'In <strong>Active Directory › Users</strong>, open <strong>Noah Williams</strong> and press <strong>Lockout details</strong>. The <strong>Show the Tier 2 view</strong> button is optional. It opens the event 4740 card that Tier 2 reads. If you opened another ticket, open HD-2196 again first: the lookup counts for the ticket that is open.',
         body: 'Why: a lockout that keeps coming back has a source. Lockout details reads it from the domain controller. Success looks like: Lockouts today 3, and the last lockout source is NS-WS-0277. The Tier 2 view shows the same computer in event 4740.',
         waitLabel: 'Next Step: Lockout source found',
-        check: () => hd6Seen('ad-lockout:u-1003'),
+        check: () => hd2Rule(HD6_A, { serverSeen: 'ad-lockout:u-1003' }),
       },
       {
         route: '#/helpdesk/ticket', target: '.hd-chat, .hd-caller',
@@ -1652,10 +1653,11 @@
       {
         route: '#/helpdesk/ticket', target: '.hd-identity, .hd-verify, [data-hd-evidence], [data-hd-lockout="u-1005"]',
         title: 'Verify Jordan and find the lockout source',
-        instruction: 'Verify Jordan with <strong>KB-0024</strong>, the same first moves as in the lab. Then open <strong>Active Directory › Users › Jordan Bell</strong> and press <strong>Lockout details</strong>. Back on the ticket, open the evidence card <strong>Tier 2’s view: Task Scheduler on NS-LT-0117</strong>. Then press <strong>Open NS-LT-0117</strong> and open <strong>Credential Manager</strong> there.',
-        body: 'Why: same first moves as Part A. Success looks like: the last lockout source is NS-LT-0117, Jordan’s laptop. The evidence card shows <strong>FinanceReportSync</strong> running as NORTHSTAR\\jbell every 2 minutes, with a stored password last changed 90 days ago. Credential Manager on NS-LT-0117 has no saved entry, so this is not Part A’s cause. Say so in your note.',
+        instruction: 'Verify Jordan with <strong>KB-0024</strong>, the same first moves as in the lab. Then open <strong>Active Directory › Users › Jordan Bell</strong> and press <strong>Lockout details</strong>, then <strong>Show the Tier 2 view</strong>. Back on the ticket, open the evidence card <strong>Tier 2’s view: Task Scheduler on NS-LT-0117</strong>. Then press <strong>Open NS-LT-0117</strong> and open <strong>Credential Manager</strong> there.',
+        body: 'Why: same first moves as Part A. Success looks like: the last lockout source is NS-LT-0117, Jordan’s laptop, and the domain controller’s event 4740 names the same computer. The evidence card shows <strong>FinanceReportSync</strong> running as NORTHSTAR\\jbell every 2 minutes, with a stored password last changed 90 days ago. Credential Manager on NS-LT-0117 has no saved entry, so this is not Part A’s cause. Say so in your note.',
         waitLabel: 'Next Step: Source found',
-        check: () => hd6eVerified() && hd6Seen('ad-lockout:u-1005') && hd2Rule(HD6E_ID, { evidence: 'task-scheduler-ns-lt-0117' })
+        check: () => hd6eVerified() && hd2Rule(HD6E_ID, { serverSeen: 'ad-lockout:u-1005' }) && hd2Rule(HD6E_ID, { serverSeen: 'lockout-4740:u-1005' })
+          && hd2Rule(HD6E_ID, { evidence: 'task-scheduler-ns-lt-0117' })
           && hd2Rule(HD6E_ID, { seen: 'credential-manager', computer: 'NS-LT-0117' }),
       },
       {
