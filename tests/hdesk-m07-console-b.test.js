@@ -168,8 +168,9 @@ function testOldTicketsTurnNothingOn() {
     for (const id of set.run('hdState.tickets.map((t) => t.id)')) { assert.doesNotMatch(set.open(id), NEW_MARKERS, `${key} ${id}`); assertOff(set, `${key} ${id}`); }
   }
   // Every older Prove shift. Module 7's own Prove shift turns these screens on
-  // (tests/hdesk-m07-prove.test.js).
-  for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS')).filter((k) => k !== 'its-05')) {
+  // (tests/hdesk-m07-prove.test.js), and so does Module 8's, with its account
+  // controls (tests/hdesk-m08-prove.test.js).
+  for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS')).filter((k) => !['its-05', 'its-06'].includes(k))) {
     const prove = sim({ url: proveUrl(key) });
     assertOff(prove, `prove ${key}`);
     for (const id of prove.run('hdState.tickets.map((t) => t.id)')) assert.doesNotMatch(prove.open(id), NEW_MARKERS, `prove ${key} ${id}`);

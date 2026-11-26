@@ -648,7 +648,13 @@ function hdSetExtra(key) {
   const set = hdActiveSetSafe();
   return set && Array.isArray(set[key]) ? set[key] : [];
 }
-function hdShiftUsers() { const extra = hdSetExtra('users'); return extra.length ? [...HD_USERS, ...extra] : HD_USERS; }
+// Module 8's Prove shift (userDirectory: true): its own users are in the
+// directory everywhere, and the User Directory and the user pane show titles.
+function hdProveUserDirectory() { return !!(HD_PROVE && HD_PROVE.shift.userDirectory === true && Array.isArray(HD_PROVE.shift.users)); }
+function hdShiftUsers() {
+  if (hdProveUserDirectory()) return [...HD_USERS, ...HD_PROVE.shift.users];
+  const extra = hdSetExtra('users'); return extra.length ? [...HD_USERS, ...extra] : HD_USERS;
+}
 function hdComputers() {
   if (HD_PROVE) return [...HD_COMPUTERS, ...(HD_PROVE.shift.computers || [])];
   const extra = hdSetExtra('computers');
@@ -1148,7 +1154,24 @@ function hdConsole(ticket) {
         .map(item => ({ id:item.id, text:item.text, reply:item.reply })),
       ...(Number.isInteger(config.caller.limit) && config.caller.limit > 0 ? { limit:config.caller.limit } : {}),
     } : null;
-    return { ...(config.kb === true ? { kb:true } : {}), ...(arrivals.length ? { arrivals } : {}), ...(caller && caller.questions.length ? { caller } : {}) };
+    // Module 8: a request opened from the ticket (catalog items with an
+    // approver, or approverField: the item field that names the approver)
+    // and plain messages to other teams (no assign). Each is an action the
+    // student takes, recorded as a Prove event; nothing says which is right.
+    // Only a shift that turns them on (ticketActions: true) gets either.
+    const actionsOn = HD_PROVE.shift.ticketActions === true;
+    const convert = actionsOn && config.convert && typeof config.convert === 'object' && Array.isArray(config.convert.items) ? {
+      keepIncident:true, number:String(config.convert.number || 'RITM'),
+      items:config.convert.items.filter(item => item && typeof item.name === 'string').map(item => ({
+        name:item.name, approval:'Requested', approver:String(item.approver || ''), ...(typeof item.approverField === 'string' ? { approverField:item.approverField } : {}),
+        fields:(Array.isArray(item.fields) ? item.fields : []).filter(field => field && typeof field.id === 'string' && Array.isArray(field.options)).map(field => ({ id:field.id, label:String(field.label || field.id), options:field.options.map(String) })),
+      })),
+    } : null;
+    const teamMessages = (actionsOn && Array.isArray(config.teamMessages) ? config.teamMessages : [])
+      .filter(item => item && typeof item.id === 'string' && typeof item.to === 'string' && typeof item.text === 'string')
+      .map(item => ({ id:item.id, to:item.to, text:item.text, from:String(item.from || item.to), reply:String(item.reply || '') }));
+    return { ...(config.kb === true ? { kb:true } : {}), ...(arrivals.length ? { arrivals } : {}), ...(caller && caller.questions.length ? { caller } : {}),
+      ...(convert && convert.items.length ? { convert } : {}), ...(teamMessages.length ? { teamMessages } : {}) };
   }
   const over = hdSetTicketOverride(hdActiveSetSafe(), ticket.id);
   if (over && over.console) return over.console;
@@ -2413,11 +2436,14 @@ function hdConvertDraft(ticket) {
   state.convert = state.convert || { item:'', requestedFor:ticket.requester, fields:{} };
   return state.convert;
 }
+// Who a request can be for: the directory (a Prove shift adds its own users).
+function hdConvertUsers() { return HD_PROVE ? hdFileUsers() : HD_USERS; }
 function hdConvertSet(id, field, value) {
+  if (HD_PROVE && hdProveLocked()) return;
   const ticket = hdTicketById(id); const config = ticket && hdConsole(ticket).convert; if (!config) return;
   const draft = hdConvertDraft(ticket);
   if (field === 'item') { draft.item = (config.items || []).some(item => item.name === value) ? value : ''; draft.fields = {}; }
-  else if (field === 'requestedFor') draft.requestedFor = HD_USERS.some(user => user.name === value) ? value : '';
+  else if (field === 'requestedFor') draft.requestedFor = hdConvertUsers().some(user => user.name === value) ? value : '';
   else {
     const item = (config.items || []).find(entry => entry.name === draft.item);
     const spec = item && (item.fields || []).find(entry => entry.id === field);
@@ -2426,6 +2452,7 @@ function hdConvertSet(id, field, value) {
   hdRerender();
 }
 function hdConvertToRequest(id) {
+  if (HD_PROVE && hdProveLocked()) return;
   const ticket = hdTicketById(id); const config = ticket && hdConsole(ticket).convert; if (!config || ticket.request) return;
   if (['Resolved', 'Closed', 'Canceled'].includes(ticket.status)) { toast('This ticket is closed, so it can\'t be converted.'); return; }
   // needsTriage (Lab 2.1's request): triage it before converting, because
@@ -2445,8 +2472,19 @@ function hdConvertToRequest(id) {
   ticket.request = {
     number:config.number || 'RITM', item:item.name, requestedFor:draft.requestedFor,
     fields:(item.fields || []).map(field => ({ id:field.id, label:field.label, value:draft.fields[field.id] })),
-    approval:approved ? 'Approved' : notRequired ? String(item.approval) : 'Requested', approver:item.approver || '', approvedAt:approved ? hdShiftIso(ticket) : '', state:'Open',
+    approval:approved ? 'Approved' : notRequired ? String(item.approval) : 'Requested',
+    // approverField (Module 8's Prove It): the approver is the one chosen on the form.
+    approver:(item.approverField ? draft.fields[item.approverField] : item.approver) || '', approvedAt:approved ? hdShiftIso(ticket) : '', state:'Open',
   };
+  if (HD_PROVE) {
+    // A Prove It: the request is an action on the ticket, for the instructor
+    // and the key (value: who approves it; source: the catalog item).
+    const request = ticket.request;
+    hdHistory(ticket, `Request ${request.number} (${item.name}) opened from this ticket for ${request.requestedFor}${request.approver ? `; approver ${request.approver}` : ''}.`);
+    hdProveEvent('action_taken', { label:`Opened request: ${item.name} for ${request.requestedFor}${request.approver ? `, approver ${request.approver}` : ''}`, value:`request-opened:${request.approver}`, source:item.name });
+    hdProveEdited();
+    hdSave(); render(); return;
+  }
   hdMatrixRespond(ticket);
   // keepIncident (Module 3 on): the request is opened from the incident, and
   // the incident stays open beside it (something broken and something new).
@@ -2843,15 +2881,18 @@ function hdConvertCard(ticket) {
   const request = ticket.request;
   if (request) {
     const fields = request.fields.map(field => `<dt>${hdEsc(field.label)}</dt><dd>${hdEsc(field.value)}</dd>`).join('');
-    const close = request.state === 'Open' ? `<button type="button" class="btn btn-secondary" ${hdApprovalCleared(request.approval) ? '' : 'disabled style="opacity:.55;cursor:not-allowed"'} onclick="hdRequestClose('${ticket.id}')">Close the request (Closed Complete)</button>` : '';
+    // A Prove It: the request waits for its approver; nothing closes it here.
+    const close = HD_PROVE ? '' : request.state === 'Open' ?`<button type="button" class="btn btn-secondary" ${hdApprovalCleared(request.approval) ? '' : 'disabled style="opacity:.55;cursor:not-allowed"'} onclick="hdRequestClose('${ticket.id}')">Close the request (Closed Complete)</button>` : '';
     return `<div class="card hd-request-item" data-hd-request="${hdEsc(request.number)}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Requested item ${hdEsc(request.number)}</strong>${hdBadge(`Approval: ${request.approval}`, hdApprovalCleared(request.approval) ? 'ok' : 'warn')}${hdBadge(request.state, request.state === 'Open' ? 'in-progress' : 'closed')}</div><div class="card-body"><dl class="hd-dl"><dt>Catalog item</dt><dd>${hdEsc(request.item)}</dd><dt>Requested for</dt><dd>${hdEsc(request.requestedFor)}</dd>${fields}${request.approver ? `<dt>Approver</dt><dd>${hdEsc(request.approver)}</dd>` : ''}<dt>SLA</dt><dd class="muted">None: requests have no SLA bar here</dd></dl>${close}</div></div>`;
   }
   if (['Resolved', 'Closed', 'Canceled'].includes(ticket.status)) return '';
+  // A submitted Prove It opens nothing more.
+  if (HD_PROVE && hdProveLocked()) return '';
   const draft = hdConvertDraft(ticket);
   const item = (config.items || []).find(entry => entry.name === draft.item);
   const fields = item ? (item.fields || []).map(field => `<label>${hdEsc(field.label)}<select class="select" data-hd-convert="${hdEsc(field.id)}" onchange="hdConvertSet('${ticket.id}','${hdEsc(field.id)}',this.value)"><option value="">Choose…</option>${(field.options || []).map(value => `<option ${draft.fields[field.id] === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></label>`).join('') : '';
   const keep = config.keepIncident === true;
-  return `<div class="card hd-convert"${keep ? ' data-hd-keep-incident' : ''}><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${keep ? 'Open a request from this incident' : 'Convert to Request'}</strong><span class="muted">${keep ? 'The incident stays open for what is broken; the request is for what is new.' : 'For something new, not something broken.'}</span></div><div class="card-body" style="display:grid;gap:8px"><label>Catalog item<select class="select" data-hd-convert="item" onchange="hdConvertSet('${ticket.id}','item',this.value)"><option value="">Choose…</option>${(config.items || []).map(entry => `<option ${draft.item === entry.name ? 'selected' : ''}>${hdEsc(entry.name)}</option>`).join('')}</select></label><label>Requested for<select class="select" data-hd-convert="requestedFor" onchange="hdConvertSet('${ticket.id}','requestedFor',this.value)"><option value="">Choose…</option>${HD_USERS.map(user => `<option ${draft.requestedFor === user.name ? 'selected' : ''}>${hdEsc(user.name)}</option>`).join('')}</select></label>${fields}<div><button type="button" class="btn btn-primary" onclick="hdConvertToRequest('${ticket.id}')">${keep ? 'Open request' : 'Convert to Request'}</button></div></div></div>`;
+  return `<div class="card hd-convert"${keep ? ' data-hd-keep-incident' : ''}><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${keep ? 'Open a request from this incident' : 'Convert to Request'}</strong><span class="muted">${keep ? 'The incident stays open for what is broken; the request is for what is new.' : 'For something new, not something broken.'}</span></div><div class="card-body" style="display:grid;gap:8px"><label>Catalog item<select class="select" data-hd-convert="item" onchange="hdConvertSet('${ticket.id}','item',this.value)"><option value="">Choose…</option>${(config.items || []).map(entry => `<option ${draft.item === entry.name ? 'selected' : ''}>${hdEsc(entry.name)}</option>`).join('')}</select></label><label>Requested for<select class="select" data-hd-convert="requestedFor" onchange="hdConvertSet('${ticket.id}','requestedFor',this.value)"><option value="">Choose…</option>${hdConvertUsers().map(user => `<option ${draft.requestedFor === user.name ? 'selected' : ''}>${hdEsc(user.name)}</option>`).join('')}</select></label>${fields}<div><button type="button" class="btn btn-primary" onclick="hdConvertToRequest('${ticket.id}')">${keep ? 'Open request' : 'Convert to Request'}</button></div></div></div>`;
 }
 function hdLinkCard(ticket) {
   if (!hdConsole(ticket).link) return '';
@@ -3305,13 +3346,21 @@ function hdCommentTimeTip(ticket, text) {
 
 // Internal messages to another team, each with its scripted reply.
 function hdTeamMessage(id, messageId) {
+  if (HD_PROVE && hdProveLocked()) return;
   const ticket = hdTicketById(id); const list = ticket && hdConsole(ticket).teamMessages;
   const message = Array.isArray(list) && list.find(item => item.id === messageId); if (!message) return;
   const state = hdConsoleState(ticket);
   state.teamMessages = Array.isArray(state.teamMessages) ? state.teamMessages : [];
   if (state.teamMessages.some(entry => entry.id === message.id)) return;
-  state.teamMessages.push({ id:message.id, time:hdConsoleTime(ticket) });
+  state.teamMessages.push({ id:message.id, time:HD_PROVE && HD_PROVE.shift.now ? hdShiftTimeText(hdShiftNow()) : hdConsoleTime(ticket) });
   hdHistory(ticket, `Internal message to ${message.to} (not customer-visible).`);
+  // Module 8's Prove It: an action on the ticket (value: the team).
+  if (HD_PROVE) {
+    // The course page keeps 120 characters of a label: end a longer one cleanly.
+    const label = `Message to ${message.to}: ${message.text}`;
+    hdProveEvent('action_taken', { label:label.length > 120 ? `${label.slice(0, 119).replace(/\s+\S*$/, '')}…` : label, value:`team-message:${message.to}`, source:message.id });
+    hdProveEdited(); hdSave(); render(); return;
+  }
   if (message.assign) { ticket.assignedTechnician = message.assign; hdHistory(ticket, `Assigned to ${message.assign} by ${message.from || message.to}.`); }
   hdPracticeEvent('team_message', { ticket:ticket.id, message:message.id });
   hdRerender();
@@ -3435,7 +3484,7 @@ function hdTeamMessagesCard(ticket) {
   const list = hdConsole(ticket).teamMessages; if (!Array.isArray(list) || !list.length) return '';
   const sent = hdConsoleState(ticket).teamMessages || [];
   const log = sent.map(entry => { const message = list.find(item => item.id === entry.id); return message ? `<div data-hd-team="${hdEsc(message.id)}"><strong>You to ${hdEsc(message.to)} · ${hdEsc(entry.time)}</strong><p>${hdEsc(message.text)}</p><strong>${hdEsc(message.from || message.to)}</strong><p>${hdEsc(message.reply)}</p></div>` : ''; }).join('');
-  const open = list.filter(message => !sent.some(entry => entry.id === message.id));
+  const open = HD_PROVE && hdProveLocked() ? [] : list.filter(message => !sent.some(entry => entry.id === message.id));
   return `<div class="card hd-team-messages"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Message another team</strong><span class="muted">Internal: the caller doesn't see this.</span></div><div class="card-body"><div class="hd-note-list">${log || '<p class="muted">No internal messages yet.</p>'}</div>${open.length ? `<div style="display:grid;gap:8px">${open.map(message => `<button type="button" class="btn btn-secondary" ${HD_CONSOLE_CHOICE} onclick="hdTeamMessage('${ticket.id}','${hdEsc(message.id)}')">To ${hdEsc(message.to)}: ${hdEsc(message.text)}</button>`).join('')}</div>` : ''}</div></div>`;
 }
 function hdWarmHandoffControl(ticket) {
@@ -3492,7 +3541,9 @@ function hdHoldTimerRefresh(now = hdNowMs()) {
 function hdDirectoryTable(users) {
   // The details KB-0024's caller check uses: the phone number on file and the
   // employee ID. Practice and Prove alike.
-  return `<div class="table-wrap"><table><thead><tr><th>User</th><th>Employee ID</th><th>Department</th><th>Phone</th><th>Account</th><th>MFA</th><th>OU</th><th></th></tr></thead><tbody>${users.map(user=>`<tr><td><strong>${hdEsc(user.name)}</strong><small>${hdEsc(user.email)}</small></td><td>${hdEsc(user.employeeId || '')}</td><td>${hdEsc(user.department)}</td><td>${hdEsc(user.phone || '')}</td><td>${user.enabled?hdBadge(user.locked?'Locked':'Enabled',user.locked?'bad':'ok'):hdBadge('Disabled','bad')}</td><td>${hdBadge(user.mfa,user.mfa==='Registered'?'ok':'warn')}</td><td><code>${hdEsc(user.ou)}</code></td><td><button class="btn btn-sm btn-secondary" onclick="hdOpenUser('${user.id}')">Open</button></td></tr>`).join('')}</tbody></table></div>`;
+  // Module 8's Prove shift: each user's title under the name.
+  const titles = hdProveUserDirectory();
+  return `<div class="table-wrap"><table><thead><tr><th>User</th><th>Employee ID</th><th>Department</th><th>Phone</th><th>Account</th><th>MFA</th><th>OU</th><th></th></tr></thead><tbody>${users.map(user=>`<tr><td><strong>${hdEsc(user.name)}</strong>${titles && user.title ? `<small data-hd-user-title>${hdEsc(user.title)}</small>` : ''}<small>${hdEsc(user.email)}</small></td><td>${hdEsc(user.employeeId || '')}</td><td>${hdEsc(user.department)}</td><td>${hdEsc(user.phone || '')}</td><td>${user.enabled?hdBadge(user.locked?'Locked':'Enabled',user.locked?'bad':'ok'):hdBadge('Disabled','bad')}</td><td>${hdBadge(user.mfa,user.mfa==='Registered'?'ok':'warn')}</td><td><code>${hdEsc(user.ou)}</code></td><td><button class="btn btn-sm btn-secondary" onclick="hdOpenUser('${user.id}')">Open</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 // With a directory block the pane records what it shows (hdAdUserPaneDirectory).
 function hdOpenUser(id) { hdState.selectedUserId=id; hdState.adTab='users'; if (hdDirectory()) { hdState.adUserOpened = id; hdSave(); navigate('#/helpdesk/active-directory'); return; } const user=hdUserById(id); hdProveOpened(`ad-user:${id}`, `Active Directory · ${user ? user.name : id}`); hdSave(); navigate('#/helpdesk/active-directory'); }
@@ -7329,7 +7380,7 @@ const HD_SHARE_ACCESS_NAME = { 0:'No access', 1:'Read', 2:'Change', 3:'Full Cont
 const HD_EVERYONE = ['everyone', 'authenticated users', 'domain users'];
 function hdFileView() { return hdServerObject(hdState.fileView) || {}; }
 function hdFileServersWithShares() { return hdServerNames().filter(name => { const state = hdServerState(name); return hdServerList(state, 'shares').length || hdServerList(state, 'folderSizes').length; }); }
-function hdFileUsers() { return [...hdShiftUsers(), ...(HD_PROVE && Array.isArray(HD_PROVE.shift.users) ? HD_PROVE.shift.users : [])]; }
+function hdFileUsers() { return hdProveUserDirectory() ? hdShiftUsers() : [...hdShiftUsers(), ...(HD_PROVE && Array.isArray(HD_PROVE.shift.users) ? HD_PROVE.shift.users : [])]; }
 function hdFileUser(id) {
   const base = hdFileUsers().find(user => user && user.id === id);
   if (!base) return null;
@@ -7580,7 +7631,7 @@ function hdAdUserPaneDirectory(user, dir) {
   if (hdState.adUserOpened === user.id) hdSeenAll([`ad-user:${user.id}`, `ad-user-groups:${user.id}`], (key, index) => `Active Directory › Users › ${user.name}${index ? ' › Member Of' : ''}`);
   // Module 8 (console A): Module 8's controls when the ticket turns them on.
   const actions = hdAcctPaneActions(user, dir);
-  return `<aside class="card hd-object-pane" data-hd-ad-user="${hdEsc(user.id)}"><div class="card-header"><strong>${hdEsc(user.name)}</strong>${user.locked ? hdBadge('Locked', 'bad') : hdBadge(user.enabled ? 'Enabled' : 'Disabled', user.enabled ? 'ok' : 'bad')}</div><div class="card-body"><dl class="hd-dl"><dt>Username</dt><dd>${hdEsc(`${HD_ORG.netbios}\\${user.username || ''}`)}</dd><dt>OU</dt><dd><code>${hdEsc(user.ou || '')}</code></dd><dt>Manager</dt><dd>${hdEsc(user.manager || '')}</dd><dt>Account</dt><dd>${user.enabled ? 'Enabled' : 'Disabled'}</dd><dt>Locked out</dt><dd>${user.locked ? 'Yes' : 'No'}</dd><dt>Password age</dt><dd>${hdEsc(user.passwordAge)} days</dd>${hdAcctStatusRows(user)}<dt>Member Of</dt><dd data-hd-member-of>${groups.map(group => hdBadge(group)).join(' ') || '<span class="muted">No groups</span>'}</dd></dl>${hdAcctHistoryLine(user)}${hdLockoutDetailsHtml(user)}${actions}${hdAcctTier2Card(user)}</div></aside>`;
+  return `<aside class="card hd-object-pane" data-hd-ad-user="${hdEsc(user.id)}"><div class="card-header"><strong>${hdEsc(user.name)}</strong>${user.locked ? hdBadge('Locked', 'bad') : hdBadge(user.enabled ? 'Enabled' : 'Disabled', user.enabled ? 'ok' : 'bad')}</div><div class="card-body"><dl class="hd-dl"><dt>Username</dt><dd>${hdEsc(`${HD_ORG.netbios}\\${user.username || ''}`)}</dd>${hdProveUserDirectory() ? `<dt>Title</dt><dd data-hd-user-title>${hdEsc(user.title || '')}</dd><dt>Department</dt><dd>${hdEsc(user.department || '')}</dd><dt>Phone</dt><dd>${hdEsc(user.phone || '')}</dd>` : ''}<dt>OU</dt><dd><code>${hdEsc(user.ou || '')}</code></dd><dt>Manager</dt><dd>${hdEsc(user.manager || '')}</dd><dt>Account</dt><dd>${user.enabled ? 'Enabled' : 'Disabled'}</dd><dt>Locked out</dt><dd>${user.locked ? 'Yes' : 'No'}</dd><dt>Password age</dt><dd>${hdEsc(user.passwordAge)} days</dd>${hdAcctStatusRows(user)}<dt>Member Of</dt><dd data-hd-member-of>${groups.map(group => hdBadge(group)).join(' ') || '<span class="muted">No groups</span>'}</dd></dl>${hdAcctHistoryLine(user)}${hdLockoutDetailsHtml(user)}${actions}${hdAcctTier2Card(user)}</div></aside>`;
 }
 function hdAdGroupsDirectory(dir) {
   const groups = hdDirGroups(dir);
@@ -8361,6 +8412,13 @@ function hdAcctGetAdUser(user, props) {
   if (want('AccountExpirationDate')) rows.push(['AccountExpirationDate', !user.accountExpires || user.accountExpires === 'Never' ? '(not set: never expires)' : user.accountExpires]);
   rows.push(['DistinguishedName', `CN=${user.name},${user.ou}`], ['Enabled', user.enabled === false ? 'False' : 'True']);
   if (want('LockedOut')) rows.push(['LockedOut', user.locked ? 'True' : 'False']);
+  // Module 8's Prove shift (userDirectory): what the pane shows, when named.
+  const named = name => props.includes(name.toLowerCase());
+  if (hdProveUserDirectory()) {
+    if (named('Manager')) rows.push(['Manager', user.manager ? `CN=${user.manager},CN=Users,DC=northstar,DC=example` : '']);
+    if (named('OfficePhone')) rows.push(['OfficePhone', user.phone || '']);
+    if (named('Title')) rows.push(['Title', user.title || '']);
+  }
   if (want('MemberOf')) rows.push(['MemberOf', `{${hdDirUserGroups(user, dir).map(name => `CN=${name},CN=Users,DC=northstar,DC=example`).join(', ')}}`]);
   rows.push(['Name', user.name]);
   if (want('PasswordExpired')) rows.push(['PasswordExpired', user.passwordExpired === true ? 'True' : 'False']);
@@ -10111,7 +10169,16 @@ function hdProveFreshLog(returnedAt) {
     const state = ticket && ticket.consoleState;
     if (!state) return;
     state.chat = []; state.kbQuery = ''; state.kbOpen = ''; state.kbSearches = []; state.kbOpened = [];
+    // Module 8: a request and the team messages are actions, earned again.
+    state.teamMessages = []; delete state.convert; delete ticket.request;
   });
+  // Module 8: account and Entra changes are actions on the accounts, not the
+  // laptop, so the accounts start as the shift began, as in another browser.
+  const shift = HD_PROVE && HD_PROVE.shift;
+  if (shift && (shift.accountActions || shift.cloud)) {
+    hdState.userOverrides = {}; delete hdState.cloud; delete hdState.lockouts; hdState.acctDialog = null;
+    if (typeof hdAcctOtp !== 'undefined') hdAcctOtp = null;
+  }
   prove.freshFor = returnedAt;
   hdSave();
   return true;
@@ -10232,7 +10299,7 @@ function hdProveTicketView(ticket) {
         ${hdConsoleChatCard(ticket)}
         ${hdProveOpenList('history', 'Earlier calls on this ticket', 'Open an entry to read it.', ticket.history, locked)}
         ${hdProveOpenList('card', 'Evidence', 'Open a card to see it.', ticket.evidence, locked)}
-        ${hdConsoleKbCard(ticket)}${hdConsoleCloudCard(ticket)}
+        ${hdConsoleKbCard(ticket)}${hdConsoleCloudCard(ticket)}${hdConvertCard(ticket)}${hdTeamMessagesCard(ticket)}
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your diagnosis</strong></div><div class="card-body"><select id="hd-prove-diagnosis" class="select" ${off} onchange="hdProveChoose('diagnosis',this.value)"><option value="">Choose what this ticket is…</option>${prove.order.diagnosis.map(value => `<option ${prove.diagnosis === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></div></div>
         ${hdProveWritingCard('keyFinding', prove, off)}
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Steps you took</strong><span class="muted">Select every step you actually took.</span></div><div class="card-body"><div class="hd-path">${steps.map(step => `<label style="${hdProveChoiceStyle(prove.steps.includes(step.id))}"><input type="checkbox" ${off} onchange="hdProveToggleStep('${step.id}',this.checked);hdProveMark(this)" ${prove.steps.includes(step.id) ? 'checked' : ''}>${hdEsc(step.text)}</label>`).join('')}</div></div></div>

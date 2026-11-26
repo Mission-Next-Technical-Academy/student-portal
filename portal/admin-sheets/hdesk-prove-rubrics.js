@@ -180,6 +180,34 @@
       writingAck: 'I have read the student\'s key finding, work note and reply to the user in full.',
       facultyFinal: true,
     },
+    // Module 8: one ticket on Module 3's form (matrixFields) with a key-finding
+    // note, worked on the Active Directory and Entra screens, the evidence
+    // cards and a one-question call. A request and a message to another team
+    // are actions on the ticket, listed with the other actions. Nothing on a
+    // computer changes, so the panel has no computer-at-submit section.
+    'lab-its-06-prove-it': {
+      version: 'hdesk-its-06-prove-v1',
+      moduleKey: 'its-06',
+      matrixFields: true,
+      writing: { keyFinding: 600 },
+      panelWriting: [['keyFinding', 'Key finding'], ['resolutionNote', 'Work note'], ['userReply', 'Reply']],
+      simulatorWork: true,
+      machineSummary: false,
+      technicalPoints: 100,
+      competencies: [
+        { id: 'triage', label: 'Triage', points: 22 },
+        { id: 'investigation', label: 'Investigation', points: 17 },
+        { id: 'diagnosis', label: 'Diagnosis', points: 17 },
+        { id: 'action', label: 'Action and decision', points: 33 },
+        { id: 'documentation', label: 'Documentation and communication', points: 11 },
+      ],
+      // Feedback only; never adds or removes points.
+      formative: [{ id: 'efficiency', label: 'Efficiency' }],
+      criticalErrorRule: 'A critical error is an automatic zero: the attempt and every competency score 0, and it is returned, never approved. Where the recommendation says "check this", read the student\'s writing and confirm or clear it.',
+      partialCredit: 'Each competency can earn partial credit, justified in the feedback for that competency. Different valid ways of working the ticket earn the same credit: a screen and the same check typed in PowerShell count alike, and no typed command is required. Criteria marked "check this" read the student\'s writing: confirm or change their points.',
+      writingAck: 'I have read the student\'s key finding, work note and reply in full.',
+      facultyFinal: true,
+    },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = { HDESK_PROVE_RUBRICS };
   if (typeof window !== 'undefined') window.HDESK_PROVE_RUBRICS = HDESK_PROVE_RUBRICS;

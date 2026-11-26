@@ -2361,11 +2361,11 @@ const LABS = [
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
     skills: ['Escalation Judgment', 'Evidence-Based Diagnosis', 'Documentation'], portalEntry: '#/program/it-support/module/7' }),
   // Module 8's guided lab. Students see it as Lab 8.1; the key is older than
-  // that numbering. Until Module 8's Prove It gates completion it stays the
-  // gating lab (course_module_labs), so it has no `phase: 'practice'`: an
-  // instructor still reviews and approves it. Its 135 filed minutes are split
-  // 55 / 50 / 30 across the three labs; ITHD-101.6 keeps all 135.
-  itsLab({ key: 'lab-its-06-identity-access', module: 'its-06', title: 'Lab 8.1 · Guided Lab: an identity morning', difficulty: 'Foundational', minutes: 55,
+  // that numbering. Since 2026-11-26 Module 8's Prove It gates completion (the
+  // its06 Prove It migration) and Lab 8.1 is Practice It. Its 135 filed
+  // minutes are split 55 / 50 / 30 across the three labs; ITHD-101.6 keeps
+  // all 135.
+  itsLab({ key: 'lab-its-06-identity-access', module: 'its-06', title: 'Lab 8.1 · Guided Lab: an identity morning', difficulty: 'Foundational', minutes: 55, phase: 'practice',
     parentAllocations: [allocation('ITHD-101.6', 55)], objective: 'Find and fix the source of a lockout that keeps coming back, then set up a replacement work phone: sign-in approvals, enrolment, mail, OneDrive, a headset and Send as on a shared mailbox.',
     description: 'Two coach-guided tickets and a request in the IT Service Desk simulator, each step with a why and what success looks like, and an optional extension that is not part of the record. Feedback only, no score.',
     skills: ['Account Troubleshooting', 'Entra ID', 'Mobile Devices', 'Shared Mailboxes'], portalEntry: '#/program/it-support/module/8' }),
@@ -2377,9 +2377,9 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.6', 50)], objective: 'Work four tickets on your own: an account disabled for leave, an MFA reset asked for from a personal email, a mover missing a folder and a licence, and a company phone with no work mail.',
     description: 'Four unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all four and a completion record is saved to your account.',
     skills: ['Account Troubleshooting', 'Group Membership', 'Entra ID', 'Mobile Devices'], portalEntry: '#/program/it-support/module/8' }),
-  // Module 8's Prove It. The page shows "Opens soon" and launches nothing
-  // until its simulator shift, scoring and gating row are built. Coaching
-  // time box: 30 minutes.
+  // Module 8's Prove It: one ticket (?prove=its-06), scored on the server and
+  // graded by the instructor. It gates Module 8's completion. Coaching time
+  // box: 30 minutes.
   itsLab({ key: 'lab-its-06-prove-it', module: 'its-06', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 30,
     parentAllocations: [allocation('ITHD-101.6', 30)], objective: 'Independently work a new identity ticket: check who is asking, read the account, decide what Tier 1 may do, and write for both the next team and the user.',
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
