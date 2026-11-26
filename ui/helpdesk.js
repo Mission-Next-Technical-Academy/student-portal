@@ -730,7 +730,7 @@ function hdSelectTicket(id) {
   // Module 7: what the student opened in the directory screens belongs to
   // the ticket they were on, so another ticket starts with none open.
   // Module 8: and the open Lockout details, Tier 2 view and account dialog.
-  if (hdState.openedTicketId !== id) ['adUserOpened', 'adGroup', 'gpResultsFor', 'dhcpScope', 'lockoutOpen', 'lockoutTier2', 'acctDialog'].forEach(key => { delete hdState[key]; });
+  if (hdState.openedTicketId !== id) ['adUserOpened', 'adGroup', 'gpResultsFor', 'dhcpScope', 'lockoutOpen', 'lockoutTier2', 'acctDialog', 'cloudView'].forEach(key => { delete hdState[key]; });
   if (hdState.openedTicketId !== id && hdAcctOtp) hdAcctOtp.shown = true;
   hdState.openedTicketId = id;
   hdPendingState = {};
@@ -976,7 +976,7 @@ VIEWS['helpdesk/ticket'] = () => {
     ${related.length > 1 ? `<div class="callout warning hd-related"><strong>${related.length} related reports detected.</strong> Same application, symptom, and time window. ${ticket.linkedProblem ? `Linked to ${hdEsc(ticket.linkedProblem)}.` : `<button class="btn btn-sm btn-secondary" onclick="hdLinkProblem('${ticket.id}')">Link to problem record</button>`}</div>` : ''}
     <div class="hd-ticket-layout">
       <div class="hd-ticket-main">
-        <div class="card"><div class="card-header"><strong>Requester statement</strong>${hdVipBadge(ticket)}${matrix ? `${ticket.priority ? hdBadge(ticket.priority, ticket.priority.toLowerCase()) : '<span class="muted">Priority not set</span>'}${hdStatusBadge(ticket)}${hdSlaBadge(ticket)}` : `${hdBadge(ticket.priority,ticket.priority.toLowerCase())}${hdBadge(ticket.status)}${hdBadge(sla.label,sla.cls)}`}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid">${matrix ? fieldGrid : `<div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Business impact</span><strong>${hdEsc(ticket.businessImpact)}</strong></div><div><span>SLA target</span><strong>${hdEsc(ticket.sla)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}${ticket.callerStatus ? `<div><span>Caller</span><strong>${hdEsc(ticket.callerStatus)}</strong></div>` : ''}`}</div></div></div>${hdConsoleVerifyCard(ticket)}${hdConsoleChoiceCard(ticket)}${hdConsoleChatCard(ticket)}${hdConsoleKbCard(ticket)}${hdConsoleAccountCard(ticket)}${hdConsoleActionsCard(ticket)}${hdConsoleComputerCard(ticket)}${hdConsoleMachinesCard(ticket)}${hdConsoleServersCard(ticket)}${hdConsoleWaitCard(ticket)}${hdConsoleOwnerCard(ticket)}${hdMatrixCards(ticket)}${hdCommsCards(ticket)}
+        <div class="card"><div class="card-header"><strong>Requester statement</strong>${hdVipBadge(ticket)}${matrix ? `${ticket.priority ? hdBadge(ticket.priority, ticket.priority.toLowerCase()) : '<span class="muted">Priority not set</span>'}${hdStatusBadge(ticket)}${hdSlaBadge(ticket)}` : `${hdBadge(ticket.priority,ticket.priority.toLowerCase())}${hdBadge(ticket.status)}${hdBadge(sla.label,sla.cls)}`}</div><div class="card-body"><blockquote class="hd-request">${hdEsc(ticket.description)}</blockquote><div class="hd-field-grid">${matrix ? fieldGrid : `<div><span>Requester</span><strong>${hdEsc(ticket.requester)}</strong></div><div><span>Department</span><strong>${hdEsc(ticket.department)}</strong></div><div><span>Business impact</span><strong>${hdEsc(ticket.businessImpact)}</strong></div><div><span>SLA target</span><strong>${hdEsc(ticket.sla)}</strong></div><div><span>Created</span><strong>${new Date(ticket.createdTimestamp).toLocaleString()}</strong></div><div><span>Assigned technician</span><strong>${hdEsc(ticket.assignedTechnician)}</strong></div>${ticket.contactType ? `<div><span>Contact type</span><strong>${hdEsc(ticket.contactType)}</strong></div>` : ''}${ticket.ci ? `<div><span>Configuration item</span><strong>${hdEsc(ticket.ci)}</strong></div>` : ''}${ticket.callerStatus ? `<div><span>Caller</span><strong>${hdEsc(ticket.callerStatus)}</strong></div>` : ''}`}</div></div></div>${hdConsoleVerifyCard(ticket)}${hdConsoleChoiceCard(ticket)}${hdConsoleChatCard(ticket)}${hdConsoleKbCard(ticket)}${hdConsoleAccountCard(ticket)}${hdConsoleActionsCard(ticket)}${hdConsoleComputerCard(ticket)}${hdConsoleMachinesCard(ticket)}${hdConsoleServersCard(ticket)}${hdConsoleCloudCard(ticket)}${hdConsoleWaitCard(ticket)}${hdConsoleOwnerCard(ticket)}${hdMatrixCards(ticket)}${hdCommsCards(ticket)}
         ${factCards}
         ${evidenceCard}
         ${pathAndDiagnosis}
@@ -8466,6 +8466,719 @@ window.hdAcctWait=hdAcctWait; window.hdAcctLockoutOpen=hdAcctLockoutOpen; window
 window.hdAcctResetConfirm=hdAcctResetConfirm; window.hdAcctDo=hdAcctDo; window.hdAcctGroupFrom=hdAcctGroupFrom; window.hdAcctExpiryFrom=hdAcctExpiryFrom;
 window.hdAcctOtpDone=hdAcctOtpDone; window.hdCredRemove=hdCredRemove; window.hdCredAsk=hdCredAsk; window.hdCredCancel=hdCredCancel; window.hdWinSignInAgain=hdWinSignInAgain;
 
+/* ---------- Microsoft 365, Entra, Intune and a phone (Module 8, key its-06, console B) ----------
+ * Off unless a shift has a cloud block. Every older ticket, set and Prove
+ * shift has none: no card, and each screen says it isn't available
+ * (tests/hdesk-m08-console-b.test.js pins the older views). Original screens
+ * only; nothing connects to a real tenant.
+ *
+ * Where it comes from, later layers adding to earlier ones: a set's cloud,
+ * then the open Practice ticket's console.cloud (Prove: the shift's own cloud).
+ *   cloud: {
+ *     m365: {
+ *       users?: ['<user id>']             Active users (default: every user)
+ *       licenseGroups: { '<group>': { sku, apps?:[text], formerMembers?:['<user id>'] } }
+ *         Licenses and apps reads the user's groups (the directory's, with
+ *         console A's Add and Remove): "Assigned via group" is read-only and
+ *         E3 is never assigned directly.
+ *       sharedMailboxes: { '<name>': { address, owner?, fullAccess:['<user id>'], sendAs:['<user id>'] } }
+ *       distributionLists: { '<name>': { address, owner?, members?:[name] } }
+ *         members come from the directory group of the same name when there
+ *         is one (so a console A change shows), else from members.
+ *       serviceHealth: [{ id, service, status, title, description?, updated? }] }
+ *     entra: {
+ *       users: { '<user id>': { methods:[{ method, device?, registered? }], sspr?,
+ *         signIns:[{ time, app, location?, device?, status, failure?, mfa? }] } }
+ *         sspr: the directory account's sspr (console A's KB-0104 check reads
+ *         the same value) wins over this one.
+ *       audit: [{ time, actor, activity, target }] }
+ *     intune: { minOs?, devices: { '<name>': { user, ownership?, model?, os?,
+ *       enrolled?, retired?, compliance?, failingRule?, graceEnded?, lastCheckIn? } } }
+ *       A device whose phone is in this block takes its OS from the phone.
+ *       Its compliance is the fixture's (or, enrolled without one, the phone's
+ *       rules as the shift began) until Company Portal evaluates it again
+ *       (enrol, Check status). A retired device shows Retired until Company
+ *       Portal enrols it again. A personal phone is never a device here.
+ *     phones: { '<name>': { label, user, company:true|false, os, update?:{ version },
+ *       pin?, encrypted?, status:{ wifi, network?, cellular?, dataUsedGb?, capGb? },
+ *       bluetooth?:{ on, nearby:[{ name, pin }] }   an accessory is found only
+ *         after "Put it in pairing mode"; notifications?:{ authenticator },
+ *       outlook?:{ account, sync?:{ mail, calendar, contacts } }, onedrive?:{ wifiOnly },
+ *       authenticator?:{ work } } }
+ *     allow: (Practice: the open ticket's layer only; Prove: the shift's) {
+ *       reregister?: { '<user id>': true | { after?, afterText? } }
+ *         Practice: refused unless the ticket's verification passed (KB-0065),
+ *         and a ticket with no verification refuses it too (fails closed).
+ *       sspr?: { '<user id>': true | { after?, afterText? } }   guide SSPR registration
+ *       mailbox?: [{ mailbox, user, permission:'sendAs'|'fullAccess', ticket?, after?, afterText? }]
+ *         the Add waits for the request on the ticket (or `ticket`) to be
+ *         approved; any other user or permission is refused. } }
+ * Each change and each refused try is an action on the ticket (consoleState
+ * .actions, history, criticalActions), an action_taken (or action_refused)
+ * Practice event and a Prove action_taken event; a Prove refusal is neutral.
+ * Screen keys (hdServerSeen): m365-user:<id>, m365-mailbox:<name>,
+ * m365-dl:<name>, m365-health, entra-methods:<id>, entra-signins:<id>,
+ * entra-audit, intune-device:<name>, phone:<name>, phone-app:<name>:<app>. */
+const HD_CLOUD_TECH = 'rmorgan';
+function hdCloudLayers() {
+  if (HD_PROVE) { const own = hdServerObject(HD_PROVE.shift.cloud); return own ? [own] : []; }
+  const layers = [];
+  const set = typeof hdActiveSet === 'function' ? hdActiveSet() : null;
+  if (set && hdServerObject(set.cloud)) layers.push(set.cloud);
+  const ticket = hdServerPracticeTicket();
+  const own = ticket && hdServerObject(hdConsole(ticket).cloud);
+  if (own) layers.push(own);
+  return layers;
+}
+// The shift's cloud block, merged, or null (every feature off).
+function hdCloud() {
+  const layers = hdCloudLayers();
+  if (!layers.length) return null;
+  const out = { m365:{ users:null, licenseGroups:{}, sharedMailboxes:{}, distributionLists:{}, serviceHealth:[] }, entra:{ users:{}, audit:[] }, intune:{ minOs:'', devices:{} }, phones:{}, sections:new Set() };
+  const byKey = (target, source) => { if (hdServerObject(source)) Object.entries(source).forEach(([key, value]) => { if (hdServerObject(value)) target[key] = { ...(target[key] || {}), ...hdClone(value) }; }); };
+  layers.forEach(layer => {
+    const m365 = hdServerObject(layer.m365);
+    if (m365) {
+      out.sections.add('m365');
+      if (Array.isArray(m365.users)) out.m365.users = [...new Set([...(out.m365.users || []), ...m365.users])];
+      byKey(out.m365.licenseGroups, m365.licenseGroups); byKey(out.m365.sharedMailboxes, m365.sharedMailboxes); byKey(out.m365.distributionLists, m365.distributionLists);
+      (Array.isArray(m365.serviceHealth) ? m365.serviceHealth : []).forEach(item => { if (item && item.id && !out.m365.serviceHealth.some(have => have.id === item.id)) out.m365.serviceHealth.push(hdClone(item)); });
+    }
+    const entra = hdServerObject(layer.entra);
+    if (entra) { out.sections.add('entra'); byKey(out.entra.users, entra.users); (Array.isArray(entra.audit) ? entra.audit : []).forEach(row => { if (row) out.entra.audit.push(hdClone(row)); }); }
+    const intune = hdServerObject(layer.intune);
+    if (intune) { out.sections.add('intune'); if (intune.minOs) out.intune.minOs = String(intune.minOs); byKey(out.intune.devices, intune.devices); }
+    if (hdServerObject(layer.phones)) { out.sections.add('phone'); byKey(out.phones, layer.phones); }
+  });
+  return out;
+}
+// What the open ticket (Practice) or the shift (Prove) lets the student change.
+function hdCloudAllow() {
+  if (HD_PROVE) { const own = hdServerObject(HD_PROVE.shift.cloud); return (own && hdServerObject(own.allow)) || {}; }
+  const ticket = hdServerPracticeTicket();
+  const own = ticket && hdServerObject(hdConsole(ticket).cloud);
+  return (own && hdServerObject(own.allow)) || {};
+}
+// The student's changes, kept in the shift's saved state.
+function hdCloudState() {
+  const state = hdState.cloud = hdServerObject(hdState.cloud) || {};
+  ['phones', 'devices', 'entraUsers', 'mailboxes'].forEach(key => { if (!hdServerObject(state[key])) state[key] = {}; });
+  if (!Array.isArray(state.audit)) state.audit = [];
+  return state;
+}
+function hdCloudView() { return hdServerObject(hdState.cloudView) || {}; }
+function hdCloudSetView(patch, route) {
+  hdState.cloudView = { ...hdCloudView(), ...patch };
+  hdSave();
+  if (route) navigate(`#/helpdesk/${route}`); else render();
+}
+function hdCloudTime() {
+  const ticket = hdServerPracticeTicket();
+  return hdShiftTimeText(hdShiftNow(ticket)) || hdConsoleTime(ticket);
+}
+function hdCloudUser(id) { return hdFileUser(id); }
+function hdCloudName(id) { const user = hdCloudUser(id); return user ? user.name : String(id || ''); }
+
+// One change, recorded the way an account change is (hdAcctRecord).
+function hdCloudRecord(id, label, extra) {
+  const ticket = hdServerPracticeTicket();
+  if (ticket) {
+    const state = hdConsoleState(ticket);
+    state.actions.push({ id, time:hdConsoleTime(ticket), ...(extra || {}) });
+    if (state.actions.length > 200) state.actionsDropped = (Number(state.actionsDropped) || 0) + state.actions.splice(0, state.actions.length - 200).length;
+    hdHistory(ticket, `${label}.`);
+    const rules = hdConsole(ticket).criticalActions;
+    if (Array.isArray(rules)) rules.filter(rule => rule && rule.action === id).forEach(rule => hdConsoleCritical(ticket, `cloud:${id}`, rule.text || label));
+  }
+  hdPracticeEvent('action_taken', { ticket:ticket ? ticket.id : '', action:id, label, ...(extra || {}) });
+  hdProveEvent('action_taken', { label, value:id, source:extra && (extra.source || extra.user || extra.phone) || '' });
+  hdProveEdited();
+}
+// A refusal: Practice says why; a Prove It says only that it didn't happen.
+const HD_CLOUD_PROVE_REFUSED = 'You don\'t have permission to make this change.';
+function hdCloudRefuse(id, reason, extra) {
+  const ticket = hdServerPracticeTicket();
+  if (ticket) {
+    const rules = hdConsole(ticket).criticalActions;
+    if (Array.isArray(rules)) rules.filter(rule => rule && rule.action === id).forEach(rule => hdConsoleCritical(ticket, `cloud:${id}`, rule.text || reason));
+  }
+  hdPracticeEvent('action_refused', { ticket:ticket ? ticket.id : '', action:id, reason, ...(extra || {}) });
+  hdProveEvent('action_taken', { label:`Tried: ${id} (not done)`, value:`${id}-refused`, source:extra && (extra.source || extra.user || extra.phone) || '' });
+  if (typeof toast === 'function') toast(HD_PROVE ? HD_CLOUD_PROVE_REFUSED : reason);
+  hdSave(); render();
+  return HD_PROVE ? HD_CLOUD_PROVE_REFUSED : reason;
+}
+function hdCloudToast(text) { if (typeof toast === 'function') toast(HD_PROVE ? 'Done.' : text); }
+// A rule's `after`: a screen key, an action on the ticket or a KB article it opened.
+function hdCloudAfterMet(rule) {
+  const after = hdServerObject(rule) && rule.after;
+  if (!after) return true;
+  const ticket = hdServerPracticeTicket(); if (!ticket) return true;
+  const state = hdConsoleState(ticket);
+  return (state.serverSeen || []).includes(after) || state.actions.some(entry => entry && entry.id === after) || state.kbOpened.includes(after);
+}
+function hdCloudFinish() { hdSave(); hdRerender(); }
+
+/* Microsoft 365 admin center. */
+function hdCloudLicenses(userId, cloud) {
+  const user = hdCloudUser(userId); const groups = user && Array.isArray(user.groups) ? user.groups : [];
+  return Object.entries(cloud.m365.licenseGroups).map(([group, spec]) => {
+    const member = groups.includes(group);
+    const former = Array.isArray(spec.formerMembers) && spec.formerMembers.includes(userId);
+    return member || former ? { group, sku:spec.sku || group, apps:Array.isArray(spec.apps) ? spec.apps : [], active:member } : null;
+  }).filter(Boolean);
+}
+function hdCloudMailbox(name, cloud) {
+  const spec = cloud.m365.sharedMailboxes[name]; if (!spec) return null;
+  const own = hdCloudState().mailboxes[name] || {};
+  const list = key => [...new Set([...(Array.isArray(spec[key]) ? spec[key] : []), ...(Array.isArray(own[key]) ? own[key] : [])])];
+  return { name, address:spec.address || name, owner:spec.owner || '', fullAccess:list('fullAccess'), sendAs:list('sendAs') };
+}
+function hdCloudDlMembers(name, cloud) {
+  const group = hdDirectory() ? hdDirGroup(name) : null;
+  if (group) return hdDirMembers(group).map(member => member.name);
+  const spec = cloud.m365.distributionLists[name] || {};
+  return Array.isArray(spec.members) ? spec.members.slice() : [];
+}
+const HD_M365_TABS = [['users', 'Active users'], ['mailboxes', 'Shared mailboxes'], ['lists', 'Distribution lists'], ['health', 'Service health']];
+function hdM365Users(cloud) {
+  const ids = cloud.m365.users || hdFileUsers().filter(user => user && user.id).map(user => user.id);
+  return ids.map(id => hdCloudUser(id)).filter(Boolean);
+}
+function hdM365UsersTab(cloud, view) {
+  const users = hdM365Users(cloud);
+  const rows = users.map(user => {
+    const licenses = hdCloudLicenses(user.id, cloud).filter(item => item.active);
+    return `<tr data-hd-m365-user="${hdEsc(user.id)}"><td><button type="button" class="btn btn-ghost btn-sm" onclick="hdM365OpenUser('${hdJsArg(user.id)}')">${hdEsc(user.name)}</button></td><td>${hdEsc(user.email || '')}</td><td>${licenses.map(item => hdEsc(item.sku)).join(', ') || '<span class="muted">Unlicensed</span>'}</td></tr>`;
+  }).join('');
+  const open = view.m365User && hdCloudUser(view.m365User);
+  let pane = '';
+  if (open) {
+    const licenses = hdCloudLicenses(open.id, cloud);
+    const items = licenses.map(item => item.active
+      ? `<li data-hd-license="${hdEsc(item.sku)}"><strong>${hdEsc(item.sku)}</strong> ${hdBadge('Active', 'ok')}<div data-hd-license-via>Assigned via group: ${hdEsc(item.group)}</div>${item.apps.length ? `<small class="muted">Apps: ${hdEsc(item.apps.join(', '))}</small>` : ''}</li>`
+      : `<li data-hd-license="${hdEsc(item.sku)}"><strong>${hdEsc(item.sku)}</strong> ${hdBadge('Not assigned', 'bad')}<div data-hd-license-via>Was assigned via group: ${hdEsc(item.group)}</div></li>`).join('');
+    pane = `<aside class="card hd-object-pane" data-hd-m365-licenses="${hdEsc(open.id)}"><div class="card-header"><strong>${hdEsc(open.name)}</strong><span class="muted">Licenses and apps</span></div><div class="card-body">${licenses.some(item => item.active) ? '' : '<p data-hd-no-license><strong>No licence.</strong></p>'}<ul class="hd-list">${items || '<li class="muted">No licences.</li>'}</ul>${HD_PROVE ? '<p class="muted" data-hd-license-read-only>Assigned via group (read-only).</p>' : `<p class="muted" data-hd-license-read-only>Licences assigned via a group are read-only here: change the group's membership instead.</p><button type="button" class="btn btn-secondary btn-sm" data-hd-license-assign onclick="hdM365AssignDirect('${hdJsArg(open.id)}')">Assign a licence directly</button>`}</div></aside>`;
+  }
+  return `<div class="hd-ticket-layout"><div class="hd-ticket-main"><div class="card"><div class="card-header"><strong>Active users</strong></div><div class="table-wrap"><table><thead><tr><th>Display name</th><th>Username</th><th>Licences</th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="muted">No users.</td></tr>'}</tbody></table></div></div></div><div class="hd-ticket-side">${pane}</div></div>`;
+}
+function hdM365MailboxesTab(cloud, view) {
+  const names = Object.keys(cloud.m365.sharedMailboxes);
+  const list = names.map(name => { const box = hdCloudMailbox(name, cloud); return `<tr data-hd-mailbox="${hdEsc(name)}"><td><button type="button" class="btn btn-ghost btn-sm" onclick="hdM365OpenMailbox('${hdJsArg(name)}')">${hdEsc(name)}</button></td><td>${hdEsc(box.address)}</td><td>${hdEsc(box.owner)}</td></tr>`; }).join('');
+  const box = view.mailbox && hdCloudMailbox(view.mailbox, cloud);
+  let pane = '';
+  if (box) {
+    const people = ids => ids.map(id => `<li>${hdEsc(hdCloudName(id))}</li>`).join('') || '<li class="muted">Nobody</li>';
+    const users = hdM365Users(cloud);
+    const off = hdProveLocked() ? 'disabled' : '';
+    const add = `<div class="hd-diagnosis-row" data-hd-mailbox-add><select id="hd-mailbox-user" class="select" aria-label="User to add">${users.map(user => `<option value="${hdEsc(user.id)}">${hdEsc(user.name)}</option>`).join('')}</select><select id="hd-mailbox-permission" class="select" aria-label="Permission"><option value="fullAccess">Read and manage (Full Access)</option><option value="sendAs">Send as</option></select><button type="button" class="btn btn-secondary btn-sm" ${off} onclick="hdM365MailboxAddFrom('${hdJsArg(box.name)}')">Add</button></div>`;
+    pane = `<aside class="card hd-object-pane" data-hd-mailbox-pane="${hdEsc(box.name)}"><div class="card-header"><strong>${hdEsc(box.name)}</strong><span class="muted">${hdEsc(box.address)}</span></div><div class="card-body"><dl class="hd-dl"><dt>Owner</dt><dd>${hdEsc(box.owner || '—')}</dd><dt>Licence</dt><dd>Not needed (shared mailbox)</dd></dl><strong>Mailbox permissions</strong><p>Read and manage (Full Access)</p><ul class="hd-list" data-hd-full-access>${people(box.fullAccess)}</ul><p>Send as</p><ul class="hd-list" data-hd-send-as>${people(box.sendAs)}</ul>${add}${HD_PROVE ? '' : '<p class="muted" data-hd-mailbox-note>Each change needs the mailbox owner\'s approval on a request, and can take up to an hour to show in Outlook.</p>'}</div></aside>`;
+  }
+  return `<div class="hd-ticket-layout"><div class="hd-ticket-main"><div class="card"><div class="card-header"><strong>Shared mailboxes</strong></div><div class="table-wrap"><table><thead><tr><th>Name</th><th>Email address</th><th>Owner</th></tr></thead><tbody>${list || '<tr><td colspan="3" class="muted">No shared mailboxes.</td></tr>'}</tbody></table></div></div></div><div class="hd-ticket-side">${pane}</div></div>`;
+}
+function hdM365ListsTab(cloud, view) {
+  const lists = cloud.m365.distributionLists;
+  const rows = Object.entries(lists).map(([name, spec]) => `<tr data-hd-dl="${hdEsc(name)}"><td><button type="button" class="btn btn-ghost btn-sm" onclick="hdM365OpenList('${hdJsArg(name)}')">${hdEsc(name)}</button></td><td>${hdEsc(spec.address || '')}</td><td>${hdEsc(spec.owner || '')}</td></tr>`).join('');
+  const open = view.dl && lists[view.dl] ? view.dl : '';
+  const pane = open ? `<aside class="card hd-object-pane" data-hd-dl-pane="${hdEsc(open)}"><div class="card-header"><strong>${hdEsc(open)}</strong><span class="muted">${hdEsc(lists[open].address || '')}</span></div><div class="card-body"><strong>Members</strong><ul class="hd-list" data-hd-dl-members>${hdCloudDlMembers(open, cloud).map(name => `<li>${hdEsc(name)}</li>`).join('') || '<li class="muted">No members</li>'}</ul></div></aside>` : '';
+  return `<div class="hd-ticket-layout"><div class="hd-ticket-main"><div class="card"><div class="card-header"><strong>Distribution lists</strong></div><div class="table-wrap"><table><thead><tr><th>Name</th><th>Email address</th><th>Owner</th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="muted">No distribution lists.</td></tr>'}</tbody></table></div></div></div><div class="hd-ticket-side">${pane}</div></div>`;
+}
+function hdM365HealthTab(cloud) {
+  hdServerSeen('m365-health', 'Microsoft 365 admin center › Health › Service health');
+  const rows = cloud.m365.serviceHealth.map(item => `<tr data-hd-advisory="${hdEsc(item.id)}"><td>${hdEsc(item.service || '')}</td><td>${hdBadge(item.status || 'Advisory', /restored|healthy/i.test(item.status || '') ? 'ok' : 'warn')}</td><td><strong>${hdEsc(item.title || '')}</strong>${item.description ? `<div class="muted">${hdEsc(item.description)}</div>` : ''}</td><td>${hdEsc(item.updated || '')}</td></tr>`).join('');
+  return `<div class="card" data-hd-service-health><div class="card-header"><strong>Service health</strong><span class="muted">Active issues Microsoft is working on</span></div><div class="table-wrap"><table><thead><tr><th>Service</th><th>Status</th><th>Issue</th><th>Updated</th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="muted">No active advisories. Every service is healthy.</td></tr>'}</tbody></table></div></div>`;
+}
+function hdCloudTabs(tabs, current, onclick) {
+  return `<div class="hd-tabs" role="tablist" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">${tabs.map(([id, label]) => `<button type="button" role="tab" aria-selected="${current === id}" class="btn btn-sm ${current === id ? 'btn-primary' : 'btn-secondary'}" data-hd-cloud-tab="${id}" onclick="${onclick}('${id}')">${hdEsc(label)}</button>`).join('')}</div>`;
+}
+function hdCloudMissing(title) {
+  return `${hdPageHeader(title, 'Not available in this shift.', `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/tickets')">← Queue</button>`)}<div class="card" data-hd-cloud-missing><div class="card-body"><p class="muted">Open a ticket that uses this console.</p></div></div>`;
+}
+function hdCloudBack() {
+  const ticket = HD_PROVE ? null : hdServerPracticeTicket();
+  return ticket ? `<button class="btn btn-secondary" onclick="hdSelectTicket('${hdJsArg(ticket.id)}')">← ${hdEsc(hdTicketLabel(ticket))}</button>` : `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/tickets')">← Queue</button>`;
+}
+VIEWS['helpdesk/m365-admin'] = () => {
+  const cloud = hdCloud(); if (!cloud || !cloud.sections.has('m365')) return hdCloudMissing('Microsoft 365 admin center');
+  const view = hdCloudView(); const tab = HD_M365_TABS.some(([id]) => id === view.m365Tab) ? view.m365Tab : 'users';
+  const body = tab === 'mailboxes' ? hdM365MailboxesTab(cloud, view) : tab === 'lists' ? hdM365ListsTab(cloud, view) : tab === 'health' ? hdM365HealthTab(cloud) : hdM365UsersTab(cloud, view);
+  return `${hdPageHeader('Microsoft 365 admin center', 'Users, licences, shared mailboxes, distribution lists and service health (simulated).', hdCloudBack())}<div data-hd-m365>${hdCloudTabs(HD_M365_TABS, tab, 'hdM365Tab')}${body}</div>`;
+};
+function hdM365Tab(tab) { hdCloudSetView({ m365Tab:tab }); }
+function hdM365OpenUser(id) {
+  const user = hdCloudUser(id); if (!user) return;
+  hdServerSeen(`m365-user:${id}`, `Microsoft 365 admin center › Active users › ${user.name} › Licenses and apps`);
+  hdCloudSetView({ m365Tab:'users', m365User:id });
+}
+function hdM365OpenMailbox(name) {
+  hdServerSeen(`m365-mailbox:${name}`, `Microsoft 365 admin center › Shared mailboxes › ${name}`);
+  hdCloudSetView({ m365Tab:'mailboxes', mailbox:name });
+}
+function hdM365OpenList(name) {
+  hdServerSeen(`m365-dl:${name}`, `Microsoft 365 admin center › Distribution lists › ${name}`);
+  hdCloudSetView({ m365Tab:'lists', dl:name });
+}
+// Licences come from groups at Northstar: a direct assignment is always refused.
+function hdM365AssignDirect(userId) {
+  if (hdProveLocked()) return;
+  hdCloudRefuse('m365-license-direct', 'Northstar assigns Microsoft 365 licences through groups. Licence policy belongs to Messaging & Collaboration (KB-0106): fix the group membership instead.', { user:userId, source:(hdCloudUser(userId) || {}).username || userId });
+}
+function hdM365MailboxAdd(name, userId, permission) {
+  if (hdProveLocked()) return 'locked';
+  const cloud = hdCloud(); const box = cloud && hdCloudMailbox(name, cloud);
+  const user = hdCloudUser(userId);
+  if (!box || !user || !['fullAccess', 'sendAs'].includes(permission)) return '';
+  const label = permission === 'sendAs' ? 'Send as' : 'Read and manage (Full Access)';
+  const extra = { mailbox:name, user:userId, permission, source:user.username || userId };
+  const rules = Array.isArray(hdCloudAllow().mailbox) ? hdCloudAllow().mailbox : [];
+  const rule = rules.find(item => item && item.mailbox === name && item.user === userId && item.permission === permission);
+  if (!rule) return hdCloudRefuse('m365-mailbox-add', `No approved request on this ticket gives ${user.name} ${label} on ${box.name}. Mailbox changes need the owner's approval (KB-0107).`, extra);
+  if (!HD_PROVE) {
+    const ticket = rule.ticket ? hdTicketById(rule.ticket) : hdServerPracticeTicket();
+    if (!ticket || !hdRequestApproved(ticket)) return hdCloudRefuse('m365-mailbox-add', 'Wait for the request to be approved by the mailbox owner first (KB-0107).', extra);
+    if (!hdCloudAfterMet(rule)) return hdCloudRefuse('m365-mailbox-add', rule.afterText || 'Open the request first.', extra);
+  }
+  if (box[permission].includes(userId)) {
+    hdPracticeEvent('action_refused', { action:'m365-mailbox-add', reason:'already has it', ...extra });
+    hdProveEvent('action_taken', { label:`Tried: ${label} on ${box.name} for ${user.name} (already had it)`, value:'m365-mailbox-add-unchanged', source:extra.source });
+    if (typeof toast === 'function') toast(`${user.name} already has ${label}.`);
+    hdSave(); render();
+    return '';
+  }
+  const own = hdCloudState().mailboxes[name] = hdCloudState().mailboxes[name] || {};
+  own[permission] = [...new Set([...(Array.isArray(own[permission]) ? own[permission] : []), userId])];
+  hdCloudRecord(permission === 'sendAs' ? 'm365-sendas-added' : 'm365-fullaccess-added', `${label} on ${box.name} added for ${user.name}`, extra);
+  hdCloudToast(`${label} added for ${user.name}. It can take up to an hour to show in Outlook.`);
+  hdCloudFinish();
+  return '';
+}
+function hdM365MailboxAddFrom(name) {
+  const user = document.getElementById('hd-mailbox-user'); const permission = document.getElementById('hd-mailbox-permission');
+  hdM365MailboxAdd(name, user ? user.value : '', permission ? permission.value : '');
+}
+
+/* Entra admin center. */
+function hdEntraUser(userId, cloud) {
+  const spec = cloud.entra.users[userId]; if (!spec) return null;
+  const own = hdCloudState().entraUsers[userId] || {};
+  const user = hdCloudUser(userId);
+  const methods = Array.isArray(own.methods) ? own.methods : (Array.isArray(spec.methods) ? spec.methods : []);
+  const sspr = (user && user.sspr) || spec.sspr || 'Not registered';
+  return { id:userId, name:user ? user.name : userId, username:user ? user.username : '', methods, reregister:own.reregister === true, sspr, signIns:[...(Array.isArray(spec.signIns) ? spec.signIns : []), ...(Array.isArray(own.signIns) ? own.signIns : [])] };
+}
+function hdEntraSignIn(userId, row) {
+  const own = hdCloudState().entraUsers[userId] = hdCloudState().entraUsers[userId] || {};
+  own.signIns = [...(Array.isArray(own.signIns) ? own.signIns : []), { time:hdCloudTime(), ...row }].slice(-40);
+}
+function hdEntraAudit(activity, target) {
+  const state = hdCloudState();
+  state.audit = [...state.audit, { time:hdCloudTime(), actor:HD_CLOUD_TECH, activity, target }].slice(-60);
+}
+const HD_ENTRA_TABS = [['methods', 'Authentication methods'], ['signins', 'Sign-in logs'], ['audit', 'Audit logs']];
+VIEWS['helpdesk/entra-admin'] = () => {
+  const cloud = hdCloud(); if (!cloud || !cloud.sections.has('entra')) return hdCloudMissing('Entra admin center');
+  const view = hdCloudView(); const tab = HD_ENTRA_TABS.some(([id]) => id === view.entraTab) ? view.entraTab : 'methods';
+  const ids = Object.keys(cloud.entra.users);
+  const userId = ids.includes(view.entraUser) ? view.entraUser : '';
+  const users = `<div class="card"><div class="card-header"><strong>Users</strong></div><div class="card-body" style="display:flex;flex-wrap:wrap;gap:8px">${ids.map(id => `<button type="button" class="btn btn-sm ${id === userId ? 'btn-primary' : 'btn-secondary'}" data-hd-entra-user="${hdEsc(id)}" onclick="hdEntraOpenUser('${hdJsArg(id)}')">${hdEsc(hdCloudName(id))}</button>`).join('') || '<span class="muted">No users.</span>'}</div></div>`;
+  let body = '';
+  if (tab === 'audit') {
+    hdServerSeen('entra-audit', 'Entra admin center › Audit logs');
+    const rows = [...cloud.entra.audit, ...hdCloudState().audit].map(row => `<tr data-hd-audit><td>${hdEsc(row.time || '')}</td><td>${hdEsc(row.actor || '')}</td><td>${hdEsc(row.activity || '')}</td><td>${hdEsc(row.target || '')}</td></tr>`).join('');
+    body = `<div class="card" data-hd-entra-audit><div class="card-header"><strong>Audit logs</strong></div><div class="table-wrap"><table><thead><tr><th>Date</th><th>Initiated by</th><th>Activity</th><th>Target</th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="muted">No entries.</td></tr>'}</tbody></table></div></div>`;
+  } else if (!userId) {
+    body = `<div class="card"><div class="card-body"><p class="muted">Choose a user.</p></div></div>`;
+  } else {
+    const entra = hdEntraUser(userId, cloud);
+    if (tab === 'signins') {
+      hdServerSeen(`entra-signins:${userId}`, `Entra admin center › Users › ${entra.name} › Sign-in logs`);
+      const rows = entra.signIns.slice().reverse().map(row => `<tr data-hd-signin data-status="${hdEsc(row.status || '')}"><td>${hdEsc(row.time || '')}</td><td>${hdEsc(row.app || '')}</td><td>${hdEsc(row.device || '')}</td><td>${hdEsc(row.location || '')}</td><td>${hdBadge(row.status || '', row.status === 'Success' ? 'ok' : 'bad')}</td><td data-hd-signin-reason>${hdEsc(row.failure || '')}</td><td>${hdEsc(row.mfa || '')}</td></tr>`).join('');
+      body = `<div class="card" data-hd-entra-signins="${hdEsc(userId)}"><div class="card-header"><strong>Sign-in logs · ${hdEsc(entra.name)}</strong><span class="muted">Newest first</span></div><div class="table-wrap"><table><thead><tr><th>Date</th><th>Application</th><th>Device</th><th>Location</th><th>Status</th><th>Failure reason</th><th>MFA</th></tr></thead><tbody>${rows || '<tr><td colspan="7" class="muted">No sign-ins.</td></tr>'}</tbody></table></div></div>`;
+    } else {
+      hdServerSeen(`entra-methods:${userId}`, `Entra admin center › Users › ${entra.name} › Authentication methods`);
+      const off = hdProveLocked() ? 'disabled' : '';
+      const methods = entra.methods.map(item => `<tr data-hd-method><td>${hdEsc(item.method || '')}</td><td data-hd-method-device>${hdEsc(item.device || '')}</td><td>${hdEsc(item.registered || '')}</td></tr>`).join('');
+      const sspr = `<dl class="hd-dl"><dt>Self-service password reset</dt><dd data-hd-sspr>${hdEsc(entra.sspr)}</dd>${entra.reregister ? '<dt>Multifactor authentication</dt><dd data-hd-reregister-pending>Re-registration required at next sign-in</dd>' : ''}</dl>`;
+      const ssprButton = entra.sspr === 'Not registered' && (hdCloudAllow().sspr || HD_PROVE) ? `<button type="button" class="btn btn-secondary btn-sm" ${off} data-hd-sspr-register onclick="hdEntraSsprRegister('${hdJsArg(userId)}')">Guide the user through SSPR registration</button>` : '';
+      body = `<div class="card" data-hd-entra-methods="${hdEsc(userId)}"><div class="card-header"><strong>Authentication methods · ${hdEsc(entra.name)}</strong></div><div class="table-wrap"><table><thead><tr><th>Method</th><th>Device</th><th>Registered</th></tr></thead><tbody>${methods || '<tr><td colspan="3" class="muted">No methods registered.</td></tr>'}</tbody></table></div><div class="card-body">${sspr}<div style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="btn btn-secondary btn-sm" ${off} data-hd-reregister onclick="hdEntraReregister('${hdJsArg(userId)}')">Require re-register multifactor authentication</button>${ssprButton}</div>${HD_PROVE ? '' : '<p class="muted">An MFA change needs the strongest check first (KB-0065).</p>'}</div></div>`;
+    }
+  }
+  return `${hdPageHeader('Entra admin center', 'Users, sign-in methods, sign-in logs and audit logs (simulated).', hdCloudBack())}<div data-hd-entra>${hdCloudTabs(HD_ENTRA_TABS, tab, 'hdEntraTab')}${tab === 'audit' ? '' : users}${body}</div>`;
+};
+function hdEntraTab(tab) { hdCloudSetView({ entraTab:tab }); }
+function hdEntraOpenUser(id) { hdCloudSetView({ entraUser:id }); }
+function hdEntraReregister(userId) {
+  if (hdProveLocked()) return 'locked';
+  const cloud = hdCloud(); const entra = cloud && hdEntraUser(userId, cloud);
+  if (!entra) return '';
+  const extra = { user:userId, source:entra.username || userId };
+  const rule = hdServerObject(hdCloudAllow().reregister) && hdCloudAllow().reregister[userId];
+  if (!rule) return hdCloudRefuse('entra-mfa-reregister', `This ticket doesn't allow an MFA change for ${entra.name}.`, extra);
+  if (!HD_PROVE) {
+    const ticket = hdServerPracticeTicket();
+    // Fails closed: no verification on the ticket is no verification at all.
+    if (!ticket || !hdConsole(ticket).verification || !hdConsoleState(ticket).verification.passed) return hdCloudRefuse('entra-mfa-reregister', `Verify ${entra.name} with KB-0065 first: in person with a photo badge, or a directory callback with the employee ID and the manager's confirmation.`, extra);
+    if (!hdCloudAfterMet(rule)) return hdCloudRefuse('entra-mfa-reregister', rule.afterText || 'Read the sign-in log and the methods first.', extra);
+  }
+  const own = hdCloudState().entraUsers[userId] = hdCloudState().entraUsers[userId] || {};
+  own.methods = []; own.reregister = true;
+  hdEntraAudit('Admin required re-registration of multifactor authentication', entra.name);
+  hdCloudRecord('entra-mfa-reregister', `Required MFA re-registration for ${entra.name}`, extra);
+  hdCloudToast(`${entra.name} sets up a method again at the next sign-in.`);
+  hdCloudFinish();
+  return '';
+}
+function hdEntraSsprRegister(userId) {
+  if (hdProveLocked()) return 'locked';
+  const cloud = hdCloud(); const entra = cloud && hdEntraUser(userId, cloud);
+  if (!entra) return '';
+  const extra = { user:userId, source:entra.username || userId };
+  const rule = hdServerObject(hdCloudAllow().sspr) && hdCloudAllow().sspr[userId];
+  if (!rule) return hdCloudRefuse('entra-sspr-register', `This ticket doesn't include SSPR registration for ${entra.name}.`, extra);
+  if (!HD_PROVE && !hdCloudAfterMet(rule)) return hdCloudRefuse('entra-sspr-register', rule.afterText || 'Finish the user\'s sign-in first.', extra);
+  if (entra.sspr === 'Registered') return '';
+  hdAcctPatch(userId, { sspr:'Registered' });
+  const own = hdCloudState().entraUsers[userId] = hdCloudState().entraUsers[userId] || {};
+  own.sspr = 'Registered';
+  hdEntraAudit('User registered for self-service password reset', entra.name);
+  hdCloudRecord('entra-sspr-registered', `${entra.name} registered for self-service password reset`, extra);
+  hdCloudToast(`${entra.name} is registered for self-service password reset.`);
+  hdCloudFinish();
+  return '';
+}
+
+/* Intune admin center. */
+function hdVersionLess(a, b) {
+  const pa = String(a || '').split('.').map(Number); const pb = String(b || '').split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) { const x = pa[i] || 0; const y = pb[i] || 0; if (x !== y) return x < y; }
+  return false;
+}
+function hdPhone(name, cloud) {
+  const spec = cloud.phones[name]; if (!spec) return null;
+  const own = hdCloudState().phones[name] || {};
+  const merge = key => ({ ...(hdServerObject(spec[key]) || {}), ...(hdServerObject(own[key]) || {}) });
+  return { name, ...spec, ...own, status:merge('status'), bluetooth:{ on:false, nearby:[], ...merge('bluetooth'), paired:Array.isArray(own.paired) ? own.paired : [] }, notifications:{ authenticator:true, ...merge('notifications') }, outlook:{ account:false, ...merge('outlook'), sync:{ mail:true, calendar:false, contacts:false, ...((hdServerObject(spec.outlook) || {}).sync || {}), ...((hdServerObject(own.outlook) || {}).sync || {}) } }, onedrive:{ wifiOnly:false, ...merge('onedrive') }, authenticator:{ work:false, ...merge('authenticator') }, companyPortal:{ enrolled:false, ...merge('companyPortal') } };
+}
+function hdPhonePatch(name, patch) {
+  const phones = hdCloudState().phones;
+  const before = phones[name] || {};
+  const next = { ...before };
+  Object.entries(patch).forEach(([key, value]) => { next[key] = hdServerObject(value) && !Array.isArray(value) && hdServerObject(before[key]) ? { ...before[key], ...value } : value; });
+  phones[name] = next;
+}
+// The rules a phone fails now (OS minimum, PIN, encryption).
+function hdPhoneFailing(phone, cloud) {
+  const failing = [];
+  if (cloud.intune.minOs && hdVersionLess(phone.os, cloud.intune.minOs)) failing.push('OS version below minimum');
+  if (phone.pin === false) failing.push('No device PIN');
+  if (phone.encrypted === false) failing.push('Encryption off');
+  return failing;
+}
+function hdIntuneDevice(name, cloud) {
+  const spec = cloud.intune.devices[name];
+  const phone = hdPhone(name, cloud);
+  const own = hdCloudState().devices[name] || {};
+  if (!spec && !(own.enrolled && phone)) return null;
+  const base = spec || { user:phone.user, ownership:'Corporate' };
+  const device = { name, ownership:'Corporate', ...base, ...own };
+  if (phone) { device.os = phone.os; device.user = device.user || phone.user; }
+  // A retired device stays retired until Company Portal enrols it again.
+  device.retired = !!base.retired && own.enrolled !== true;
+  device.enrolled = device.retired ? false : (hdOwn(own, 'enrolled') ? own.enrolled : base.enrolled !== false);
+  if (device.retired) { device.compliance = 'Retired'; device.failing = []; return device; }
+  if (hdOwn(own, 'compliance')) { device.failing = Array.isArray(own.failing) ? own.failing : []; return device; }
+  // Not yet evaluated in this shift: the fixture's state; else, for an
+  // enrolled device, the phone as the shift began (later changes on the
+  // phone count only at the next Company Portal check).
+  if (base.compliance) { device.failing = base.failingRule ? [base.failingRule] : []; return device; }
+  if (!device.enrolled) { device.compliance = 'Not evaluated'; device.failing = []; return device; }
+  const start = cloud.phones[name] ? { ...cloud.phones[name], name } : null;
+  const failing = start ? hdPhoneFailing(start, cloud) : [];
+  device.compliance = failing.length ? 'Not compliant' : 'Compliant'; device.failing = failing;
+  return device;
+}
+// The three rules, passed or failed, for the device pane.
+function hdIntuneChecks(device, cloud) {
+  if (device.compliance === 'Retired' || device.compliance === 'Not evaluated') return '';
+  const rule = (label, failed) => `<li data-hd-check="${hdEsc(label)}">${hdEsc(label)}: ${failed ? hdBadge('Fail', 'bad') : hdBadge('Pass', 'ok')}</li>`;
+  const failing = device.failing.join(' ');
+  return `<ul class="hd-list" data-hd-intune-checks>${rule(`Minimum OS version${cloud.intune.minOs ? ` (${cloud.intune.minOs})` : ''}`, /OS version/.test(failing))}${rule('Device PIN', /PIN/.test(failing))}${rule('Encryption', /Encryption/.test(failing))}</ul>`;
+}
+// Company Portal evaluates the phone again (enrol or Check status).
+function hdIntuneEvaluate(name, cloud) {
+  const phone = hdPhone(name, cloud);
+  const failing = hdPhoneFailing(phone, cloud);
+  const own = hdCloudState().devices[name] = hdCloudState().devices[name] || {};
+  Object.assign(own, { enrolled:true, compliance:failing.length ? 'Not compliant' : 'Compliant', failing, lastCheckIn:hdCloudTime() });
+  return own.compliance;
+}
+function hdIntuneDevices(cloud) {
+  const names = [...new Set([...Object.keys(cloud.intune.devices), ...Object.keys(hdCloudState().devices)])];
+  return names.map(name => hdIntuneDevice(name, cloud)).filter(device => device && !(cloud.phones[device.name] && cloud.phones[device.name].company === false));
+}
+VIEWS['helpdesk/intune'] = () => {
+  const cloud = hdCloud(); if (!cloud || !cloud.sections.has('intune')) return hdCloudMissing('Intune admin center');
+  const devices = hdIntuneDevices(cloud);
+  const open = devices.find(device => device.name === hdCloudView().device);
+  const rows = devices.map(device => `<tr data-hd-intune-row="${hdEsc(device.name)}"><td><button type="button" class="btn btn-ghost btn-sm" onclick="hdIntuneOpen('${hdJsArg(device.name)}')">${hdEsc(device.name)}</button></td><td>${hdEsc(hdCloudName(device.user))}</td><td>${hdEsc(device.os || '')}</td><td>${hdBadge(device.compliance, device.compliance === 'Compliant' ? 'ok' : device.compliance === 'Retired' ? 'muted' : 'bad')}</td></tr>`).join('');
+  const pane = open ? `<aside class="card hd-object-pane" data-hd-intune-device="${hdEsc(open.name)}"><div class="card-header"><strong>${hdEsc(open.name)}</strong>${hdBadge(open.compliance, open.compliance === 'Compliant' ? 'ok' : open.compliance === 'Retired' ? 'muted' : 'bad')}</div><div class="card-body"><dl class="hd-dl"><dt>Primary user</dt><dd>${hdEsc(hdCloudName(open.user))}</dd><dt>Ownership</dt><dd data-hd-ownership>${hdEsc(open.ownership)}</dd>${open.model ? `<dt>Model</dt><dd>${hdEsc(open.model)}</dd>` : ''}<dt>OS version</dt><dd data-hd-os>${hdEsc(open.os || '')}</dd><dt>Compliance</dt><dd data-hd-compliance>${hdEsc(open.compliance)}</dd>${open.failing.length ? `<dt>Failing rule</dt><dd data-hd-failing>${hdEsc(open.failing.join(' · '))}</dd>` : ''}${open.graceEnded && open.compliance === 'Not compliant' ? `<dt>Grace period ended</dt><dd data-hd-grace>${hdEsc(open.graceEnded)}</dd>` : ''}<dt>Enrolled</dt><dd data-hd-enrolled>${open.enrolled ? 'Yes' : 'No'}</dd><dt>Last check-in</dt><dd data-hd-checkin>${hdEsc(open.lastCheckIn || '—')}</dd></dl>${hdIntuneChecks(open, cloud)}</div></aside>` : '';
+  return `${hdPageHeader('Intune admin center', 'Devices › All devices (simulated).', hdCloudBack())}<div class="hd-ticket-layout" data-hd-intune><div class="hd-ticket-main"><div class="card"><div class="card-header"><strong>All devices</strong>${cloud.intune.minOs ? `<span class="muted">Minimum OS: ${hdEsc(cloud.intune.minOs)}</span>` : ''}</div><div class="table-wrap"><table><thead><tr><th>Device name</th><th>Primary user</th><th>OS version</th><th>Compliance</th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="muted">No devices.</td></tr>'}</tbody></table></div></div></div><div class="hd-ticket-side">${pane}</div></div>`;
+};
+function hdIntuneOpen(name) {
+  hdServerSeen(`intune-device:${name}`, `Intune admin center › Devices › ${name}`);
+  hdCloudSetView({ device:name });
+}
+
+/* The phone screen. */
+const HD_PHONE_APPS = [['home', 'Home'], ['wifi', 'Settings › Wi-Fi'], ['bluetooth', 'Settings › Bluetooth'], ['notifications', 'Settings › Notifications'], ['update', 'Settings › General › Software update'], ['company-portal', 'Company Portal'], ['outlook', 'Outlook'], ['teams', 'Teams'], ['onedrive', 'OneDrive'], ['authenticator', 'Authenticator']];
+function hdPhoneOpen(name, app) {
+  const cloud = hdCloud(); if (!cloud || !cloud.phones[name]) return;
+  const which = HD_PHONE_APPS.some(([id]) => id === app) ? app : 'home';
+  hdServerSeen(`phone:${name}`, `Phone · ${cloud.phones[name].label || name}`);
+  if (which !== 'home') hdServerSeen(`phone-app:${name}:${which}`, `Phone · ${cloud.phones[name].label || name} · ${HD_PHONE_APPS.find(([id]) => id === which)[1]}`);
+  hdCloudSetView({ phone:name, phoneApp:which, btPin:'' }, 'phone');
+}
+function hdPhoneAct(name, id, label, patch, extra) {
+  if (hdProveLocked()) return false;
+  if (patch) hdPhonePatch(name, patch);
+  hdCloudRecord(id, `On ${name}: ${label}`, { phone:name, ...(extra || {}) });
+  return true;
+}
+function hdPhoneStatusBar(phone) {
+  const s = phone.status;
+  const cap = Number(s.capGb); const used = Number(s.dataUsedGb);
+  const data = cap ? `<span data-hd-data-used>${hdEsc(used)} GB of ${hdEsc(cap)} GB used</span>` : '';
+  return `<div class="hd-phone-status" data-hd-phone-status style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:4px 8px;border-bottom:1px solid #ccd">${hdEsc(hdCloudTime())}<span>${s.wifi ? 'Wi-Fi' : 'No Wi-Fi'} · ${hdEsc(s.cellular || 'No service')}${phone.bluetooth.on ? ' · BT' : ''}</span>${data}</div>`;
+}
+function hdPhoneApp(phone, cloud, app) {
+  const n = `'${hdJsArg(phone.name)}'`;
+  const off = hdProveLocked() ? 'disabled' : '';
+  const toggle = (attr, on, handler) => `<button type="button" class="btn btn-sm ${on ? 'btn-primary' : 'btn-secondary'}" role="switch" aria-checked="${on}" ${off} data-hd-phone-${attr} onclick="${handler}">${on ? 'On' : 'Off'}</button>`;
+  if (app === 'wifi') return `<div data-hd-phone-app="wifi"><p>Wi-Fi ${toggle('wifi', !!phone.status.wifi, `hdPhoneWifi(${n})`)}</p>${phone.status.wifi ? `<p class="muted">Connected: ${hdEsc(phone.status.network || 'Northstar-Corp')}</p>` : ''}</div>`;
+  if (app === 'teams') {
+    const blocked = hdPhoneMailBlocked(phone, cloud);
+    return `<div data-hd-phone-app="teams">${!phone.outlook.account && phone.company !== false ? '<p>Sign in with your work account first.</p>' : blocked ? `<p data-hd-teams-blocked><strong>Teams can't open on this phone until it meets Northstar's device rules.</strong></p>` : '<p data-hd-teams-ok>Chats and meetings are up to date.</p>'}</div>`;
+  }
+  if (app === 'bluetooth') {
+    const bt = phone.bluetooth; const view = hdCloudView();
+    const ready = Array.isArray(bt.ready) ? bt.ready : [];
+    // An accessory shows up only once it is in pairing mode.
+    const found = bt.on && bt.scanned ? bt.nearby.filter(device => device && (ready.includes(device.name) || bt.paired.includes(device.name))) : [];
+    const modes = bt.nearby.filter(device => device && !ready.includes(device.name) && !bt.paired.includes(device.name)).map(device => `<button type="button" class="btn btn-secondary btn-sm" ${off} data-hd-bt-pairing-mode="${hdEsc(device.name)}" onclick="hdPhoneBtPairingMode(${n},'${hdJsArg(device.name)}')">Put ${hdEsc(device.name)} in pairing mode</button>`).join(' ');
+    const rows = found.map(device => {
+      const paired = bt.paired.includes(device.name);
+      const asking = view.btPin === device.name;
+      return `<li data-hd-bt-device="${hdEsc(device.name)}">${hdEsc(device.name)} ${paired ? hdBadge('Connected', 'ok') : asking ? `<div data-hd-bt-pin><label>PIN for ${hdEsc(device.name)} <input id="hd-bt-pin" class="ipt" inputmode="numeric" maxlength="8" autocomplete="off"></label> <button type="button" class="btn btn-primary btn-sm" ${off} onclick="hdPhoneBtPairFrom(${n},'${hdJsArg(device.name)}')">Pair</button></div>` : `<button type="button" class="btn btn-secondary btn-sm" ${off} onclick="hdPhoneBtAsk(${n},'${hdJsArg(device.name)}')">Pair</button>`}</li>`;
+    }).join('');
+    const test = bt.paired.length ? `<button type="button" class="btn btn-secondary btn-sm" ${off} data-hd-bt-test onclick="hdPhoneBtTest(${n})">Test call</button>${bt.tested ? ` <span data-hd-bt-tested>${hdEsc(bt.tested)}</span>` : ''}` : '';
+    return `<div data-hd-phone-app="bluetooth"><p>Bluetooth ${toggle('bt', bt.on, `hdPhoneBtToggle(${n})`)}</p>${modes ? `<p data-hd-bt-accessories>${modes}</p>` : ''}${bt.on ? `<button type="button" class="btn btn-secondary btn-sm" ${off} data-hd-bt-scan onclick="hdPhoneBtScan(${n})">Find devices</button>` : ''}<ul class="hd-list">${rows || (bt.on && bt.scanned ? '<li class="muted">No devices found.</li>' : '')}</ul>${test}</div>`;
+  }
+  if (app === 'notifications') return `<div data-hd-phone-app="notifications"><p>Authenticator · Allow notifications ${toggle('notify', phone.notifications.authenticator, `hdPhoneNotify(${n})`)}</p></div>`;
+  if (app === 'update') {
+    const update = hdServerObject(phone.update);
+    const available = update && update.version && hdVersionLess(phone.os, update.version);
+    return `<div data-hd-phone-app="update"><p>Current version: <strong data-hd-phone-os>${hdEsc(phone.os || '')}</strong></p>${available ? `<p>Update ${hdEsc(update.version)} is available.</p><button type="button" class="btn btn-primary btn-sm" ${off} data-hd-phone-install onclick="hdPhoneUpdate(${n})">Download and install</button>` : '<p class="muted" data-hd-phone-current>Your software is up to date.</p>'}</div>`;
+  }
+  if (app === 'company-portal') {
+    if (phone.company === false) return `<div data-hd-phone-app="company-portal"><p data-hd-phone-personal>${HD_PROVE ? 'Not enrolled.' : 'This is a personal phone. It isn\'t enrolled; only the work apps are managed (app protection).'}</p></div>`;
+    const device = hdIntuneDevice(phone.name, cloud);
+    const enrolled = device && device.enrolled;
+    return `<div data-hd-phone-app="company-portal">${enrolled ? `<p>Device: <strong>${hdEsc(phone.name)}</strong></p><p>Status: <strong data-hd-cp-status>${hdEsc(device.compliance === 'Compliant' ? 'Can access company resources' : `Can't access company resources: ${device.failing.join(', ') || device.compliance}`)}</strong></p><button type="button" class="btn btn-secondary btn-sm" ${off} data-hd-cp-check onclick="hdPhoneCheckStatus(${n})">Check status</button>` : `<p>Sign in and set up this phone for work.</p><button type="button" class="btn btn-primary btn-sm" ${off} data-hd-cp-enrol onclick="hdPhoneEnrol(${n})">Enrol this device</button>`}</div>`;
+  }
+  if (app === 'outlook') {
+    const o = phone.outlook;
+    if (!o.account) return `<div data-hd-phone-app="outlook"><p>No work account on this phone.</p><button type="button" class="btn btn-primary btn-sm" ${off} data-hd-outlook-add onclick="hdPhoneOutlookAdd(${n})">Add work account</button></div>`;
+    const blocked = hdPhoneMailBlocked(phone, cloud);
+    const names = { mail:'Mail', calendar:'Calendar', contacts:'Contacts' };
+    const sync = ['mail', 'calendar', 'contacts'].map(key => `<p>Sync ${names[key]} ${toggle(`sync-${key}`, o.sync[key], `hdPhoneOutlookSync(${n},'${key}')`)}${!blocked && o.sync[key] && key !== 'mail' ? ` <span class="muted" data-hd-synced="${key}">${names[key]} up to date</span>` : ''}</p>`).join('');
+    return `<div data-hd-phone-app="outlook"><p>Account: <strong>${hdEsc((hdCloudUser(phone.user) || {}).email || '')}</strong></p>${blocked ? `<p data-hd-outlook-blocked><strong>Work email is blocked on this phone until it meets Northstar's device rules.</strong></p>` : `<p data-hd-outlook-inbox>${o.sync.mail ? 'Inbox up to date.' : 'Mail sync is off.'}</p>`}${sync}</div>`;
+  }
+  if (app === 'onedrive') return `<div data-hd-phone-app="onedrive"><p>OneDrive › Settings</p><p>Upload on Wi-Fi only ${toggle('wifi-only', phone.onedrive.wifiOnly, `hdPhoneOneDrive(${n})`)}</p></div>`;
+  if (app === 'authenticator') {
+    const prompt = hdCloudView().authPrompt === phone.name;
+    return `<div data-hd-phone-app="authenticator">${phone.authenticator.work ? `<p data-hd-auth-work>Work account: ${hdEsc((hdCloudUser(phone.user) || {}).email || '')}</p>` : `<p>No work account.</p><button type="button" class="btn btn-primary btn-sm" ${off} data-hd-auth-add onclick="hdPhoneAuthAdd(${n})">Add work account</button>`}${phone.authenticator.work ? `<button type="button" class="btn btn-secondary btn-sm" ${off} data-hd-auth-test onclick="hdPhoneAuthTest(${n})">Sign in on the laptop (test)</button>` : ''}${prompt ? `<div data-hd-auth-prompt><p><strong>Approve sign-in?</strong></p><button type="button" class="btn btn-primary btn-sm" ${off} onclick="hdPhoneAuthApprove(${n})">Approve</button></div>` : ''}</div>`;
+  }
+  return `<div data-hd-phone-app="home" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">${HD_PHONE_APPS.filter(([id]) => id !== 'home').map(([id, label]) => `<button type="button" class="btn btn-secondary btn-sm" data-hd-phone-open="${id}" onclick="hdPhoneOpen(${n},'${id}')">${hdEsc(label)}</button>`).join('')}</div>`;
+}
+VIEWS['helpdesk/phone'] = () => {
+  const cloud = hdCloud(); if (!cloud || !cloud.sections.has('phone')) return hdCloudMissing('Phone');
+  const view = hdCloudView(); const names = Object.keys(cloud.phones);
+  const name = names.includes(view.phone) ? view.phone : names[0];
+  const phone = name && hdPhone(name, cloud); if (!phone) return hdCloudMissing('Phone');
+  const app = HD_PHONE_APPS.some(([id]) => id === view.phoneApp) ? view.phoneApp : 'home';
+  const title = HD_PHONE_APPS.find(([id]) => id === app)[1];
+  return `${hdPageHeader(`Phone · ${phone.label || phone.name}`, `${phone.company === false ? 'Personal phone' : `Company phone ${phone.name}`} · ${hdCloudName(phone.user)} (simulated)`, hdCloudBack())}<div class="card hd-phone" data-hd-phone="${hdEsc(phone.name)}" style="max-width:360px">${hdPhoneStatusBar(phone)}<div class="card-header"><strong>${hdEsc(title)}</strong>${app === 'home' ? '' : `<button type="button" class="btn btn-ghost btn-sm" data-hd-phone-home onclick="hdPhoneOpen('${hdJsArg(phone.name)}','home')">← Home</button>`}</div><div class="card-body">${hdPhoneApp(phone, cloud, app)}</div></div>`;
+};
+function hdPhoneGet(name) { const cloud = hdCloud(); const phone = cloud && hdPhone(name, cloud); return phone ? { cloud, phone } : null; }
+function hdPhoneBtToggle(name) {
+  const found = hdPhoneGet(name); if (!found) return;
+  const on = !found.phone.bluetooth.on;
+  if (hdPhoneAct(name, on ? 'phone-bt-on' : 'phone-bt-off', `turned Bluetooth ${on ? 'on' : 'off'}`, { bluetooth:{ on, ...(on ? {} : { scanned:false }) } })) hdCloudFinish();
+}
+function hdPhoneBtScan(name) {
+  const found = hdPhoneGet(name); if (!found || !found.phone.bluetooth.on) return;
+  if (hdPhoneAct(name, 'phone-bt-scan', 'searched for Bluetooth devices', { bluetooth:{ scanned:true } })) hdCloudFinish();
+}
+function hdPhoneBtAsk(name, device) { hdCloudSetView({ btPin:device }); }
+// The accessory's own button: it can be found once it is in pairing mode.
+function hdPhoneBtPairingMode(name, device) {
+  const found = hdPhoneGet(name); if (!found) return;
+  const bt = found.phone.bluetooth;
+  if (!bt.nearby.some(item => item && item.name === device)) return;
+  const ready = [...new Set([...(Array.isArray(bt.ready) ? bt.ready : []), device])];
+  if (hdPhoneAct(name, 'phone-bt-pairing-mode', `put ${device} in pairing mode`, { bluetooth:{ ready } }, { device })) hdCloudFinish();
+}
+function hdPhoneWifi(name) {
+  const found = hdPhoneGet(name); if (!found) return;
+  const on = !found.phone.status.wifi;
+  if (hdPhoneAct(name, on ? 'phone-wifi-on' : 'phone-wifi-off', `turned Wi-Fi ${on ? 'on' : 'off'}`, { status:{ wifi:on } })) hdCloudFinish();
+}
+function hdPhoneBtPair(name, device, pin) {
+  const found = hdPhoneGet(name); if (!found || hdProveLocked()) return false;
+  const bt = found.phone.bluetooth;
+  const ready = Array.isArray(bt.ready) ? bt.ready : [];
+  const target = bt.on && bt.scanned && ready.includes(device) ? bt.nearby.find(item => item && item.name === device) : null;
+  if (!target) return false;
+  if (String(target.pin || '') !== String(pin || '').trim()) {
+    hdPhoneAct(name, 'phone-bt-pin-wrong', `pairing with ${device} failed: wrong PIN`, null, { device });
+    if (typeof toast === 'function') toast('Pairing failed. Check the PIN and try again.');
+    hdCloudFinish();
+    return false;
+  }
+  hdPhonePatch(name, { paired:[...new Set([...bt.paired, device])] });
+  hdState.cloudView = { ...hdCloudView(), btPin:'' };
+  hdPhoneAct(name, 'phone-bt-paired', `paired ${device}`, null, { device });
+  hdCloudFinish();
+  return true;
+}
+function hdPhoneBtPairFrom(name, device) { const input = document.getElementById('hd-bt-pin'); hdPhoneBtPair(name, device, input ? input.value : ''); }
+function hdPhoneBtTest(name) {
+  const found = hdPhoneGet(name); if (!found) return;
+  const ok = found.phone.bluetooth.on && found.phone.bluetooth.paired.length > 0;
+  const text = ok ? `Test call: audio through ${found.phone.bluetooth.paired[0]}` : 'Test call: audio through the phone speaker';
+  if (hdPhoneAct(name, ok ? 'phone-bt-tested' : 'phone-bt-test-failed', text.toLowerCase(), { bluetooth:{ tested:text } })) hdCloudFinish();
+}
+function hdPhoneNotify(name) {
+  const found = hdPhoneGet(name); if (!found) return;
+  const on = !found.phone.notifications.authenticator;
+  if (hdPhoneAct(name, on ? 'phone-notify-authenticator-on' : 'phone-notify-authenticator-off', `turned Authenticator notifications ${on ? 'on' : 'off'}`, { notifications:{ authenticator:on } })) hdCloudFinish();
+}
+function hdPhoneUpdate(name) {
+  const found = hdPhoneGet(name); if (!found) return;
+  const update = hdServerObject(found.phone.update);
+  if (!update || !hdVersionLess(found.phone.os, update.version)) return;
+  if (!found.phone.status.wifi) {
+    if (hdPhoneAct(name, 'phone-os-update-no-wifi', `tried to install update ${update.version} without Wi-Fi`)) { if (typeof toast === 'function') toast('Connect to Wi-Fi to download this update.'); hdCloudFinish(); }
+    return;
+  }
+  if (hdPhoneAct(name, 'phone-os-updated', `installed update ${update.version}`, { os:String(update.version) }, { version:update.version })) hdCloudFinish();
+}
+function hdPhoneEnrol(name) {
+  const found = hdPhoneGet(name); if (!found || found.phone.company === false || hdProveLocked()) return;
+  const state = hdIntuneEvaluate(name, found.cloud);
+  hdPhonePatch(name, { companyPortal:{ enrolled:true } });
+  hdPhoneAct(name, 'phone-cp-enrolled', `enrolled in Company Portal (${state})`, null, { compliance:state });
+  hdCloudFinish();
+}
+function hdPhoneCheckStatus(name) {
+  const found = hdPhoneGet(name); if (!found || found.phone.company === false || hdProveLocked()) return;
+  const state = hdIntuneEvaluate(name, found.cloud);
+  hdPhoneAct(name, 'phone-cp-checked', `Company Portal › Check status: ${state}`, null, { compliance:state });
+  hdCloudFinish();
+}
+// Conditional Access: a company phone gets work mail only when compliant.
+function hdPhoneMailBlocked(phone, cloud) {
+  if (phone.company === false) return false;
+  const device = hdIntuneDevice(phone.name, cloud);
+  return !device || !device.enrolled || device.compliance !== 'Compliant';
+}
+function hdPhoneOutlookAdd(name) {
+  const found = hdPhoneGet(name); if (!found || hdProveLocked()) return;
+  const blocked = hdPhoneMailBlocked(found.phone, found.cloud);
+  if (found.cloud.entra.users[found.phone.user]) hdEntraSignIn(found.phone.user, blocked
+    ? { app:'Outlook Mobile', device:name, location:'', status:'Failure', failure:'Conditional Access: device not compliant' }
+    : { app:'Outlook Mobile', device:name, location:'', status:'Success', mfa:'' });
+  hdPhoneAct(name, 'phone-outlook-added', `added the work account in Outlook${blocked ? ' (blocked: device not compliant)' : ''}`, { outlook:{ account:true } }, { blocked });
+  hdCloudFinish();
+}
+function hdPhoneOutlookSync(name, key) {
+  const found = hdPhoneGet(name); if (!found || !['mail', 'calendar', 'contacts'].includes(key)) return;
+  const on = !found.phone.outlook.sync[key];
+  if (hdPhoneAct(name, `phone-outlook-sync-${key}-${on ? 'on' : 'off'}`, `turned Outlook ${key} sync ${on ? 'on' : 'off'}`, { outlook:{ sync:{ ...found.phone.outlook.sync, [key]:on } } })) hdCloudFinish();
+}
+function hdPhoneOneDrive(name) {
+  const found = hdPhoneGet(name); if (!found) return;
+  const on = !found.phone.onedrive.wifiOnly;
+  if (hdPhoneAct(name, on ? 'phone-onedrive-wifi-only-on' : 'phone-onedrive-wifi-only-off', `turned OneDrive Upload on Wi-Fi only ${on ? 'on' : 'off'}`, { onedrive:{ wifiOnly:on } })) hdCloudFinish();
+}
+// Adding the work account registers this phone, but only when the user has no
+// method left (a re-registration was required, or none was ever set up).
+function hdPhoneAuthAdd(name) {
+  const found = hdPhoneGet(name); if (!found || hdProveLocked()) return;
+  const entra = hdEntraUser(found.phone.user, found.cloud);
+  if (entra && entra.methods.length && !entra.reregister) {
+    hdPhoneAct(name, 'phone-auth-add-blocked', 'tried to add the work account in Authenticator (a method is already registered)');
+    if (typeof toast === 'function') toast(HD_PROVE ? 'This account already has a sign-in method.' : 'This account already has a sign-in method on another device. It can be added here only after a re-registration is required (KB-0065).');
+    hdCloudFinish();
+    return;
+  }
+  if (entra) {
+    const own = hdCloudState().entraUsers[entra.id] = hdCloudState().entraUsers[entra.id] || {};
+    own.methods = [{ method:'Microsoft Authenticator', device:name, registered:hdCloudTime() }]; own.reregister = false;
+    const state = hdCloudState(); state.audit = [...state.audit, { time:hdCloudTime(), actor:entra.username, activity:'User registered security info (Microsoft Authenticator)', target:entra.name }].slice(-60);
+  }
+  hdPhoneAct(name, 'phone-auth-added', 'added the work account in Authenticator', { authenticator:{ work:true } });
+  hdCloudFinish();
+}
+// A test sign-in: the prompt reaches the phone only with notifications on.
+function hdPhoneAuthTest(name) {
+  const found = hdPhoneGet(name); if (!found || hdProveLocked()) return;
+  const entra = hdEntraUser(found.phone.user, found.cloud);
+  const here = entra && entra.methods.some(item => item && (item.device === name || (found.phone.label && item.device === found.phone.label)));
+  if (!here || !found.phone.notifications.authenticator) {
+    if (entra) hdEntraSignIn(entra.id, { app:'Microsoft 365', device:'Laptop', location:'Office', status:'Failure', failure:'MFA: user did not respond to mobile app notification', mfa:'Microsoft Authenticator' });
+    hdState.cloudView = { ...hdCloudView(), authPrompt:'' };
+    hdPhoneAct(name, 'phone-auth-test-missed', 'sent a test sign-in: no prompt showed on the phone');
+    if (typeof toast === 'function') toast('No sign-in prompt arrived on the phone.');
+    hdCloudFinish();
+    return;
+  }
+  hdState.cloudView = { ...hdCloudView(), authPrompt:name };
+  hdPhoneAct(name, 'phone-auth-test-sent', 'sent a test sign-in');
+  hdCloudFinish();
+}
+function hdPhoneAuthApprove(name) {
+  const found = hdPhoneGet(name); if (!found || hdCloudView().authPrompt !== name || hdProveLocked()) return;
+  const entra = hdEntraUser(found.phone.user, found.cloud);
+  if (entra) hdEntraSignIn(entra.id, { app:'Microsoft 365', device:'Laptop', location:'Office', status:'Success', mfa:'Microsoft Authenticator' });
+  hdState.cloudView = { ...hdCloudView(), authPrompt:'' };
+  hdPhoneAct(name, 'phone-auth-approved', 'approved the test sign-in');
+  hdCloudFinish();
+}
+
+// The ticket's way in (Practice: a ticket or set with a cloud block; Prove:
+// the shift's). Every center and phone in the block, the same for every ticket.
+function hdConsoleCloudCard(ticket) {
+  if (!ticket) return '';
+  if (!HD_PROVE) {
+    const set = typeof hdActiveSet === 'function' ? hdActiveSet() : null;
+    if (!hdServerObject(hdConsole(ticket).cloud) && !(set && hdServerObject(set.cloud))) return '';
+  }
+  const cloud = hdCloud(); if (!cloud) return '';
+  const buttons = [];
+  if (cloud.sections.has('m365')) buttons.push(`<button type="button" class="btn btn-secondary" data-hd-cloud-open="m365" onclick="navigate('#/helpdesk/m365-admin')">Microsoft 365 admin center</button>`);
+  if (cloud.sections.has('entra')) buttons.push(`<button type="button" class="btn btn-secondary" data-hd-cloud-open="entra" onclick="navigate('#/helpdesk/entra-admin')">Entra admin center</button>`);
+  if (cloud.sections.has('intune')) buttons.push(`<button type="button" class="btn btn-secondary" data-hd-cloud-open="intune" onclick="navigate('#/helpdesk/intune')">Intune admin center</button>`);
+  Object.entries(cloud.phones).forEach(([name, phone]) => buttons.push(`<button type="button" class="btn btn-secondary" data-hd-cloud-open="phone:${hdEsc(name)}" onclick="hdPhoneOpen('${hdJsArg(name)}','home')">Phone: ${hdEsc(phone.label || name)}</button>`));
+  if (!buttons.length) return '';
+  return `<div class="card" data-hd-cloud-card><div class="card-header" ${HD_PROVE ? HD_PROVE_HEADER : HD_CONSOLE_HEADER}><strong>Admin centers and devices</strong></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:8px">${buttons.join('')}</div></div></div>`;
+}
+window.hdM365Tab=hdM365Tab; window.hdM365OpenUser=hdM365OpenUser; window.hdM365OpenMailbox=hdM365OpenMailbox; window.hdM365OpenList=hdM365OpenList; window.hdM365AssignDirect=hdM365AssignDirect;
+window.hdM365MailboxAdd=hdM365MailboxAdd; window.hdM365MailboxAddFrom=hdM365MailboxAddFrom; window.hdEntraTab=hdEntraTab; window.hdEntraOpenUser=hdEntraOpenUser; window.hdEntraReregister=hdEntraReregister; window.hdEntraSsprRegister=hdEntraSsprRegister;
+window.hdIntuneOpen=hdIntuneOpen; window.hdPhoneOpen=hdPhoneOpen; window.hdPhoneBtToggle=hdPhoneBtToggle; window.hdPhoneBtScan=hdPhoneBtScan; window.hdPhoneBtAsk=hdPhoneBtAsk; window.hdPhoneBtPair=hdPhoneBtPair; window.hdPhoneBtPairFrom=hdPhoneBtPairFrom; window.hdPhoneBtTest=hdPhoneBtTest;
+window.hdPhoneNotify=hdPhoneNotify; window.hdPhoneUpdate=hdPhoneUpdate; window.hdPhoneEnrol=hdPhoneEnrol; window.hdPhoneCheckStatus=hdPhoneCheckStatus; window.hdPhoneOutlookAdd=hdPhoneOutlookAdd; window.hdPhoneOutlookSync=hdPhoneOutlookSync; window.hdPhoneOneDrive=hdPhoneOneDrive;
+window.hdPhoneAuthAdd=hdPhoneAuthAdd; window.hdPhoneAuthTest=hdPhoneAuthTest; window.hdPhoneAuthApprove=hdPhoneAuthApprove; window.hdPhoneBtPairingMode=hdPhoneBtPairingMode; window.hdPhoneWifi=hdPhoneWifi;
+
 // Raise a related incident (console.raise on a Practice ticket).
 function hdRaiseConfig(ticket) {
   if (HD_PROVE || !ticket) return null;
@@ -9465,7 +10178,7 @@ function hdProveTicketView(ticket) {
         ${hdConsoleChatCard(ticket)}
         ${hdProveOpenList('history', 'Earlier calls on this ticket', 'Open an entry to read it.', ticket.history, locked)}
         ${hdProveOpenList('card', 'Evidence', 'Open a card to see it.', ticket.evidence, locked)}
-        ${hdConsoleKbCard(ticket)}
+        ${hdConsoleKbCard(ticket)}${hdConsoleCloudCard(ticket)}
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Your diagnosis</strong></div><div class="card-body"><select id="hd-prove-diagnosis" class="select" ${off} onchange="hdProveChoose('diagnosis',this.value)"><option value="">Choose what this ticket is…</option>${prove.order.diagnosis.map(value => `<option ${prove.diagnosis === value ? 'selected' : ''}>${hdEsc(value)}</option>`).join('')}</select></div></div>
         ${hdProveWritingCard('keyFinding', prove, off)}
         <div class="card"><div class="card-header" ${HD_PROVE_HEADER}><strong>Steps you took</strong><span class="muted">Select every step you actually took.</span></div><div class="card-body"><div class="hd-path">${steps.map(step => `<label style="${hdProveChoiceStyle(prove.steps.includes(step.id))}"><input type="checkbox" ${off} onchange="hdProveToggleStep('${step.id}',this.checked);hdProveMark(this)" ${prove.steps.includes(step.id) ? 'checked' : ''}>${hdEsc(step.text)}</label>`).join('')}</div></div></div>
