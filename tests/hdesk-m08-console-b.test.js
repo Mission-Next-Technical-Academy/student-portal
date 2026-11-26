@@ -78,7 +78,7 @@ const proveUrl = (key) => `https://academy.test/sim/?prove=${key}&student=studen
  * Every older shift: each of its tickets' views, the Windows Desktop and
  * Company Portal on its computer, and Get-Help. Computed on the tree at
  * cc8b7eb (console A) with `node tests/hdesk-m08-console-b.test.js --print-pins`. */
-const MODULE_8_SETS = ['its-06', 'its-06-guided'];
+const MODULE_8_SETS = ['its-06', 'its-06-guided', 'its-06-extension'];
 function shiftsOf(plain) {
   const shifts = [{ name: 'shared', make: () => sim({ withTest: false }) }];
   Object.keys(plain.run('HD_PRACTICE_SETS')).filter((k) => !MODULE_8_SETS.includes(k)).forEach((key) => shifts.push({ name: `practice:${key}`, make: () => sim({ url: `https://academy.test/sim/?practice=${key}&student=stu-1#/helpdesk/tickets`, withTest: false }) }));
@@ -106,8 +106,13 @@ if (process.argv.includes('--print-pins')) {
   process.exit(0);
 }
 const PINNED = {
-  shared: { tickets: '19a5893d98ae8afa324d79c0284c9486b884164ae361be38871414f63f165de4', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
-  'practice:its-01': { tickets: 'b60b2bc81202fc2843b6d934e1be1e26fbe73ed32ea57676d1781c9381942f33', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
+  // Re-pinned by the sim part (2026-11-26), tickets only: SR-2107 and HD-2118
+  // left the shared queue (ownSet), and Module 8's seven new templates move
+  // HD-2152's created time in Module 1's practice set by one minute (a set's
+  // shift is built from every template in a seeded order, and a ticket with
+  // no createdAt gets its time from its place in it). Screens are unchanged.
+  shared: { tickets: '5fe231b1e2bc2a390a44f1f370d680dce179249b74a3cb8009872ebc136e90a9', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
+  'practice:its-01': { tickets: '497b51aefd76f2c78b703962c976edb91b91556698d4596f6ea5c23e68dd325d', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
   'practice:its-10': { tickets: '97b12acdee3b22d0eb9a3d3360d1aae99262db8b742ece73cb6ffec26747fd87', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
   'practice:its-11': { tickets: '300e2afc6cc2f22db756f8bee61feb51a29e111adc439d2e96404800d1ee0a04', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
   'practice:its-02': { tickets: '89d579a03def3993a9b27a800510b93840950beb70ef43f76b36097f49e27652', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },

@@ -175,7 +175,9 @@ function testOldTicketsTurnNothingOn() {
   // (tests/hdesk-m06-guided-lab.test.js, tests/hdesk-m06-practice-tickets.test.js).
   // Module 7's sets (its-05, its-05-guided) reuse the ticket's laptop and the
   // print tools (tests/hdesk-m07-guided-lab.test.js, tests/hdesk-m07-practice-tickets.test.js).
-  const module6 = (k) => /^its-0[57](-|$)/.test(k);
+  // Module 8's sets (its-06, its-06-guided, its-06-extension) reuse Noah's PC
+  // and the laptops (tests/hdesk-m08-guided-lab.test.js, tests/hdesk-m08-practice-tickets.test.js).
+  const module6 = (k) => /^its-0[567](-|$)/.test(k);
   for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter((k) => !k.startsWith('test-') && !module4(k) && !module5(k) && !module6(k))) {
     const set = sim({ url: `https://academy.test/sim/?practice=${key}&student=stu-1#/helpdesk/tickets` });
     for (const id of set.run('hdState.tickets.map((t) => t.id)')) assert.doesNotMatch(set.open(id), NEW_MARKERS, `${key} ${id}`);

@@ -172,8 +172,9 @@ function testOldTicketsTurnNothingOn() {
   // Module 6's own sets (its-07, its-07-guided) turn these on by design
   // (tests/hdesk-m06-guided-lab.test.js, tests/hdesk-m06-practice-tickets.test.js).
   // Module 7's sets (its-05, its-05-guided) reuse the choice card
-  // (tests/hdesk-m07-practice-tickets.test.js).
-  const module6 = (k) => /^its-0[57](-|$)/.test(k);
+  // (tests/hdesk-m07-practice-tickets.test.js). Module 8's sets (its-06,
+  // its-06-guided, its-06-extension) reuse it too (tests/hdesk-m08-practice-tickets.test.js).
+  const module6 = (k) => /^its-0[567](-|$)/.test(k);
   for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter((k) => !k.startsWith('test-') && !module6(k))) {
     const set = sim({ url: `https://academy.test/sim/?practice=${key}&student=stu-1#/helpdesk/tickets` });
     for (const id of set.run('hdState.tickets.map((t) => t.id)')) assert.doesNotMatch(set.open(id), NEW_MARKERS, `${key} ${id}`);

@@ -126,7 +126,14 @@ function testExistingTicketsTurnNothingOn() {
   // shared shift then (ownSet); their templates still have no console settings.
   const MODULE_7 = ['HD-2189', 'HD-2190', 'HD-2191', 'HD-2192', 'HD-2193', 'HD-2194', 'HD-2195', 'HD-2202', 'HD-2203', 'HD-2204', 'HD-2205', 'HD-2206', 'HD-2108', 'HD-2117'];
   for (const id of ['HD-2108', 'HD-2117']) assert.equal(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === '${id}').console`), undefined, `${id} has no console settings`);
-  for (const id of ids.filter((item) => !MODULE_1.includes(item) && !MODULE_2.includes(item) && !MODULE_3.includes(item) && !MODULE_4.includes(item) && !MODULE_5.includes(item) && !MODULE_6.includes(item) && !MODULE_7.includes(item))) {
+  // Module 8's (key its-06) tickets, the same way (tests/hdesk-m08-guided-lab.test.js
+  // and tests/hdesk-m08-practice-tickets.test.js). SR-2107 and HD-2118 left the
+  // shared shift then (ownSet); their templates still have no console settings.
+  // HD-2101 stays in the shared shift as before: only Module 8's extension set
+  // works it differently (ticketOverrides), so it is still checked below.
+  const MODULE_8 = ['HD-2196', 'HD-2197', 'SR-2207', 'HD-2198', 'HD-2199', 'HD-2200', 'HD-2201', 'SR-2107', 'HD-2118'];
+  for (const id of ['SR-2107', 'HD-2118']) assert.equal(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === '${id}').console`), undefined, `${id} has no console settings`);
+  for (const id of ids.filter((item) => !MODULE_1.includes(item) && !MODULE_2.includes(item) && !MODULE_3.includes(item) && !MODULE_4.includes(item) && !MODULE_5.includes(item) && !MODULE_6.includes(item) && !MODULE_7.includes(item) && !MODULE_8.includes(item))) {
     assert.equal(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === ${JSON.stringify(id)}).console`), undefined, `${id} has no console settings`);
     const html = tab.open(id);
     assert.doesNotMatch(html, NEW_MARKERS, `${id} shows no new feature`);

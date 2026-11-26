@@ -161,8 +161,10 @@ function testOldTicketsTurnNothingOn() {
     assertFixed(tab, `shared ${id}`);
   }
   // Module 7's own sets (its-05, its-05-guided) turn these screens on: tests/hdesk-m07-guided-lab.test.js
-  // and tests/hdesk-m07-practice-tickets.test.js cover them.
-  const MODULE_7_SETS = ['its-05', 'its-05-guided'];
+  // and tests/hdesk-m07-practice-tickets.test.js cover them. Module 8's sets
+  // (its-06, its-06-guided, its-06-extension) reuse them: tests/hdesk-m08-guided-lab.test.js
+  // and tests/hdesk-m08-practice-tickets.test.js.
+  const MODULE_7_SETS = ['its-05', 'its-05-guided', 'its-06', 'its-06-guided', 'its-06-extension'];
   for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter((k) => !k.startsWith('test-') && !MODULE_7_SETS.includes(k))) {
     const set = sim({ url: `https://academy.test/sim/?practice=${key}&student=stu-1#/helpdesk/tickets` });
     assertFixed(set, key);
