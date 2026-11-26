@@ -1279,9 +1279,11 @@
         check: () => hd5Typed(hd5Gpupdate) && hd5Seen('gpupdate:NS-LT-0215'),
       },
       {
-        route: '#/helpdesk/dns', target: '[data-hd-dns-zone]',
+        // Starts on the dashboard: the DNS screen records its records as it
+        // draws, so the coach opening it would pass the step by itself.
+        route: '#/helpdesk/dashboard', target: '[data-hd-dns-zone], a[href="#/helpdesk/dns"]',
         title: 'Read four DNS record types',
-        instruction: 'Open <strong>DNS</strong> and the <code>northstar.example</code> zone. Keep the filter on <strong>All</strong>. Find the <strong>A</strong> record for <code>files</code>, the <strong>CNAME</strong> for <code>purchasing</code>, the <strong>MX</strong> record and the <strong>TXT</strong> record.',
+        instruction: 'Open <strong>DNS</strong> from the left menu, then the <code>northstar.example</code> zone. Keep the filter on <strong>All</strong>. Find the <strong>A</strong> record for <code>files</code>, the <strong>CNAME</strong> for <code>purchasing</code>, the <strong>MX</strong> record and the <strong>TXT</strong> record.',
         body: 'Why: four record types, four jobs. You’ll be asked to read these, never to create them. Success looks like: <code>files</code> → 10.20.0.30. <code>purchasing</code> → <code>ns-app01.northstar.example</code>. MX → <code>mail.northstar.example</code>. The TXT record begins <code>v=spf1</code>. The new <code>timeclock-02</code> A record from CHG-7801 is there too.',
         waitLabel: 'Next Step: Four records read',
         check: () => ['dns-record:files:A', 'dns-record:purchasing:CNAME', 'dns-record:@:MX', 'dns-record:@:TXT'].every(hd5Seen),

@@ -395,6 +395,19 @@ function testEveryStepRouteAndText() {
   assert.match(coach.steps[18].finish.href, /module\/7/);
 }
 
+// The coach opens each step's own route when the step starts. Drawing that
+// screen must never pass the step by itself (a screen records what it shows).
+function testOpeningAStepsScreenDoesNotPassIt() {
+  const steps = startLab().coach('hd-m05').steps;
+  steps.slice(0, 18).forEach((step, index) => {
+    if (!step.route || typeof step.check !== 'function') return;
+    const tab = startLab();
+    tab.open(CHECK);
+    tab.view(step.route.slice(2));
+    assert.equal(tab.coach('hd-m05').steps[index].check(), false, `step ${index + 1} passes when the coach opens ${step.route}`);
+  });
+}
+
 // The lab's tickets never decide a practice set, and the old tickets are gone
 // from every student queue; their templates stay for older attempts.
 function testOldTicketsLeaveTheQueue() {
@@ -440,7 +453,7 @@ function testCiRunsThisFile() {
 }
 
 const tests = [testLab71, testTypedStepsAnyCase, testTypedStepsNeedTheLine, testOptionalLinesPassTheirSteps, testStepDoneEarlyPasses,
-  testEveryStepRouteAndText, testOldTicketsLeaveTheQueue, testOldCoachRunIsForgotten, testSheetMapping, testCiRunsThisFile];
+  testEveryStepRouteAndText, testOpeningAStepsScreenDoesNotPassIt, testOldTicketsLeaveTheQueue, testOldCoachRunIsForgotten, testSheetMapping, testCiRunsThisFile];
 let failed = 0;
 for (const test of tests) {
   try { test(); console.log(`ok   ${test.name}`); } catch (error) { failed += 1; console.error(`FAIL ${test.name}\n${error.stack}`); }
