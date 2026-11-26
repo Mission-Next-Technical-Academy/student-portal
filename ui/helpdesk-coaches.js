@@ -1411,7 +1411,9 @@
     completionToken: 'hd-m06', home: '#/helpdesk/tickets',
     resetState: () => {
       if (typeof hdUseTicketSet === 'function') hdUseTicketSet('its-06-guided');
-      if (typeof hdState !== 'undefined' && hdState) hdState.selectedTicketId = null;
+      // HD-2196 starts open: the ticket view shows a ticket before one is
+      // opened, and lookups count only for an opened ticket (step 1 waits).
+      if (typeof hdState !== 'undefined' && hdState) { hdState.selectedTicketId = HD6_A; hdState.openedTicketId = HD6_A; }
     },
     allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket', '#/helpdesk/windows', '#/helpdesk/powershell', '#/helpdesk/active-directory',
       '#/helpdesk/directory', '#/helpdesk/credential-manager', '#/helpdesk/file-server', '#/helpdesk/knowledge-base', '#/helpdesk/m365-admin',
@@ -1530,7 +1532,7 @@
         instruction: 'On the ticket, open the <strong>Microsoft 365 admin center</strong>. Choose the <strong>Service health</strong> tab. Read the advisories.',
         body: 'Why: check Microsoft before you change anything locally. Success looks like: one advisory, Teams meeting recordings delayed. Nothing is about sign-in or Exchange, so the problem is not on Microsoft’s side.',
         waitLabel: 'Next Step: Service health read',
-        check: () => hd6Seen('m365-health'),
+        check: () => hd2Rule(HD6_B, { serverSeen: 'm365-health' }),
       },
       {
         route: '#/helpdesk/entra-admin', target: '[data-hd-entra-user="u-1013"], [data-hd-reregister], [data-hd-method-device]',
@@ -1538,7 +1540,7 @@
         instruction: 'Open the <strong>Entra admin center</strong> and choose <strong>Sam Rivera</strong>. On <strong>Authentication methods</strong>, read his methods. Then press <strong>Require re-register multifactor authentication</strong>.',
         body: 'Why: his Authenticator is on a wiped phone. Re-registration makes him set it up again at his next sign-in. Read before you change. Success looks like: the method shown is Microsoft Authenticator on NS-PH-0002. After the action, the audit log shows the reset by rmorgan.',
         waitLabel: 'Next Step: Re-registration required',
-        check: () => hd6Seen('entra-methods:u-1013') && hd6BDid('entra-mfa-reregister'),
+        check: () => hd2Rule(HD6_B, { serverSeen: 'entra-methods:u-1013' }) && hd6BDid('entra-mfa-reregister'),
       },
       {
         route: '#/helpdesk/phone', target: '[data-hd-auth-add], [data-hd-phone-open="authenticator"], [data-hd-auth-test], [data-hd-auth-prompt]',
@@ -1554,7 +1556,7 @@
         instruction: 'In the <strong>Entra admin center</strong>, open <strong>Sam Rivera</strong> and choose <strong>Sign-in logs</strong>.',
         body: 'Why: learn to read why a sign-in failed, and that it works now. Success looks like: earlier rows say “MFA required — not completed”. The newest row is Success, with MFA by Authenticator.',
         waitLabel: 'Next Step: Sign-in log read',
-        check: () => hd6Seen('entra-signins:u-1013') && hd6BDid('phone-auth-approved') && hd6LatestSignInOk(),
+        check: () => hd2Rule(HD6_B, { serverSeen: 'entra-signins:u-1013' }) && hd6BDid('phone-auth-approved') && hd6LatestSignInOk(),
       },
       {
         route: '#/helpdesk/phone', target: '[data-hd-cp-enrol], [data-hd-phone-open="company-portal"], [data-hd-cp-status]',
@@ -1597,7 +1599,7 @@
         instruction: 'Open <strong>SR-2207</strong> and read the approval from the mailbox owner, Celia Morales. In the <strong>Microsoft 365 admin center</strong>, open <strong>Shared mailboxes › support</strong>. Read <strong>Read and manage (Full Access)</strong>: Sam is already there. Then add Sam under <strong>Send as</strong>.',
         body: 'Why: Full Access opens a mailbox. Send as sends from it (KB-0107). The owner’s approval is on the request. Success looks like: Sam is listed under Send as. The screen says it can take up to an hour.',
         waitLabel: 'Next Step: Send as added',
-        check: () => hd6Seen('m365-mailbox:support') && hd6BDid('m365-sendas-added'),
+        check: () => hd2Rule(HD6_R, { serverSeen: 'm365-mailbox:support' }) && hd6BDid('m365-sendas-added'),
       },
       {
         route: '#/helpdesk/ticket', target: '#hd-note-input, .hd-comments, #hd-resolution-code, [data-hd-request]',
@@ -1637,7 +1639,8 @@
     home: '#/helpdesk/tickets',
     resetState: () => {
       if (typeof hdUseTicketSet === 'function') hdUseTicketSet('its-06-extension');
-      if (typeof hdState !== 'undefined' && hdState) hdState.selectedTicketId = null;
+      // HD-2101 starts open, for the same reason as Lab 8.1's HD-2196.
+      if (typeof hdState !== 'undefined' && hdState) { hdState.selectedTicketId = HD6E_ID; hdState.openedTicketId = HD6E_ID; }
     },
     allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket', '#/helpdesk/windows', '#/helpdesk/powershell', '#/helpdesk/active-directory',
       '#/helpdesk/directory', '#/helpdesk/credential-manager', '#/helpdesk/file-server', '#/helpdesk/knowledge-base'],

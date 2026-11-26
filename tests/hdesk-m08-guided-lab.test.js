@@ -647,18 +647,34 @@ function testLookupsCountOnTheirTicket() {
 
   const ext = startExtension(fakeOpener());
   const id = 'HD-2101';
-  // Triage on the ticket the view shows before one is opened: step 1 waits.
+  // The extension starts with HD-2101 open, so triage on the ticket the
+  // view shows passes step 1 and the lookups after it count for HD-2101.
+  assert.equal(ext.run('hdState.openedTicketId'), id);
   ext.triage(id, 'Access', 'Account lockout', 'jbell', '2', '1');
-  at(ext, 0, 'extension step 1 waits until HD-2101 is opened from Tickets');
-  ext.open(id);
+  at(ext, 1, 'extension step 1 passes on the ticket the view shows');
   ext.run("hdM01Identity('callback')");
   ext.run("hdOpenUser('u-1005'); hdAcctLockoutOpen('u-1005')");
   ext.run(`hdEvidenceOpen('${id}', 'task-scheduler-ns-lt-0117')`);
   ext.run("hdOpenMachineScreen('NS-LT-0117', 'credential-manager')");
   at(ext, 1, 'extension step 2 waits for the Tier 2 view');
-  ext.open(id);
   ext.run("hdOpenUser('u-1005'); hdAcctTier2('u-1005')");
-  at(ext, 2, 'extension step 2 done after the Tier 2 view');
+  at(ext, 2, 'extension step 2 done after the Tier 2 view, without opening HD-2101 again');
+
+  // Lab 8.1 starts with HD-2196 open, and Part B's lookups count for the
+  // record whose "Check my work" asks for them.
+  const lab = startLab();
+  assert.equal(lab.run('hdState.openedTicketId'), A, 'Lab 8.1 starts with HD-2196 open');
+  const steps = lab.coach('hd-m06').steps;
+  const health = steps.findIndex((step) => step.title === 'Check Microsoft’s service health first');
+  assert.ok(health > 0);
+  lab.open(R);
+  lab.run("hdM365Tab('health')");
+  lab.view('helpdesk/m365-admin');
+  assert.equal(lab.coach('hd-m06').steps[health].check(), false, 'Service health read on the request does not pass the step');
+  lab.open(B);
+  lab.run("hdM365Tab('health')");
+  lab.view('helpdesk/m365-admin');
+  assert.equal(lab.coach('hd-m06').steps[health].check(), true, 'Service health read on HD-2197 passes it');
 }
 
 const tests = [testLabOpensOnItsSet, testLookupsCountOnTheirTicket, testLab81, testTypedStepsAnyCase, testA3FromThePane, testA6NeedsTheTypedLine, testOptionalLinesPassTheirSteps, testGetAdUserMatchesThePane,
