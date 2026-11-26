@@ -2030,7 +2030,7 @@ const HD_TICKET_TEMPLATES = [
   // The incident the student raises from HD-2189: an empty New record. The
   // student writes the short description and the description, sets Impact and
   // Urgency, assigns it and writes its note.
-  hdTicket({ id:'HD-2190', ownSet:true, number:'INC0010501', requester:'Riley Morgan', department:'Information Technology', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T08:00:00Z', shortDescription:'',
+  hdTicket({ id:'HD-2190', ownSet:true, number:'INC0010501', requester:'Riley Morgan', department:'Information Technology', category:'Incident', subcategory:'', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T08:00:00Z', shortDescription:'',
     description:'', status:'New',
     symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
     expectedResolution:'Reported: Found during the scheduled morning check: the Guest Wi-Fi DHCP scope (10.20.90.20–10.20.90.240, VLAN 90) is 95% used. Tried: Read the scope on NS-DHCP01: 209 leased, 12 free of 221. No exclusions or reservations involved. No guest tickets about Wi-Fi so far today. Result: No change made. Scope sizing is Server & Identity\'s. Next action: Server & Identity to review the scope size or the lease time before the next visitor day. Service Desk to watch for "connected, no internet" calls from guests and link them here.',

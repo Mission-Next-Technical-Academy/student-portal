@@ -248,6 +248,7 @@ function raiseStep(tab) {
   assert.equal(raised.raisedFrom, CHECK);
   assert.equal(raised.status, 'New');
   assert.equal(raised.priority, '');
+  assert.equal(tab.run(`hdShortDescription(hdTicketById('${RAISED}'))`), '', 'the raised record has no short description until the student writes one');
   at(tab, 16, '17 waits for the writing');
   tab.input('hd-rewrite-short', 'Guest Wi-Fi DHCP scope at 95%');
   tab.input('hd-rewrite-desc', 'Found in the morning check. Only 12 addresses are free, so guests may soon get no address and no internet.');
