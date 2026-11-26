@@ -465,6 +465,8 @@ function hdIsPasswordValue(value) {
 // Module 8 (console A): the one-time password from the last reset, in memory
 // only (never saved or sent). Writing it into a ticket field is refused too.
 let hdAcctOtp = null;
+// What a saved transcript holds in its place.
+const HD_OTP_HIDDEN = '(one-time password: shown once, not saved)';
 function hdPasswordInText(text) {
   const value = String(text || '');
   if (hdHasPasswordArg(value)) return true;
@@ -729,6 +731,7 @@ function hdSelectTicket(id) {
   // the ticket they were on, so another ticket starts with none open.
   // Module 8: and the open Lockout details, Tier 2 view and account dialog.
   if (hdState.openedTicketId !== id) ['adUserOpened', 'adGroup', 'gpResultsFor', 'dhcpScope', 'lockoutOpen', 'lockoutTier2', 'acctDialog'].forEach(key => { delete hdState[key]; });
+  if (hdState.openedTicketId !== id && hdAcctOtp) hdAcctOtp.shown = true;
   hdState.openedTicketId = id;
   hdPendingState = {};
   // A message can wait for a ticket to be opened (arrivals: when.opened).
@@ -3478,7 +3481,8 @@ function hdAdAction(action) {
   if (action === 'add-hr') patch.groups=[...new Set([...(user.groups||[]),'GG-HR-Contributors'])];
   hdState.userOverrides[user.id]=patch; hdSave(); toast(`Active Directory action completed in the simulation: ${action}.`); render();
 }
-VIEWS['helpdesk/directory'] = () => `${hdPageHeader('User Directory', 'Search fictional employees, departments, managers, account state, and MFA registration.')}<div class="card">${hdDirectoryTable(HD_USERS.map(user=>hdUserById(user.id)))}</div>`;
+// Module 8: with account fixtures, the directory's account state, as the AD pane shows it.
+VIEWS['helpdesk/directory'] = () => `${hdPageHeader('User Directory', 'Search fictional employees, departments, managers, account state, and MFA registration.')}<div class="card">${hdDirectoryTable(HD_USERS.map(user=>hdAcctOn() ? hdFileUser(user.id) : hdUserById(user.id)))}</div>`;
 function hdLockoutDetailsHtml(user) {
   // Module 8 (console A): any account a ticket gives a lockout, and HD-2101
   // in a set that makes it Tier 2 work.
@@ -3629,7 +3633,8 @@ VIEWS['helpdesk/event-viewer'] = () => { hdM01Tick(); const logs = hdWinEventCom
 function hdMachine(name) { return (hdState.machines || {})[name] || null; }
 function hdSessionUser(computer) {
   const base = HD_USERS.find(user => user.name === computer.user);
-  return base ? hdUserById(base.id) : null;
+  // Module 8: with account work on, the directory's account and group changes count.
+  return base ? (typeof hdAcctOn === 'function' && hdAcctOn() ? hdFileUser(base.id) : hdUserById(base.id)) : null;
 }
 function hdAccount(name) {
   const value = String(name || '').replace(/^["']|["']$/g, '');
@@ -6953,14 +6958,18 @@ function hdRunPowerShell(event) {
   if(command.toLowerCase()==='clear-host'){hdState.powershell=[];} else {
     hdLastCommandResult = '';
     const output = passwordTyped ? (HD_PROVE ? hdProveRefusePassword() : hdRefusePassword()) : hdPowerShellOutput(command);
-    hdState.powershell.push({type:'command',text:`PS C:\\Support> ${shown}`},{type:'output',text:output});
+    // Module 8: a reset's one-time password is never saved in the transcript;
+    // the view shows it from memory until it is marked read (hdAcctOtp).
+    const otp = hdAcctOtp && hdAcctOtp.value && output.includes(hdAcctOtp.value) ? hdAcctOtp : null;
+    hdState.powershell.push({type:'command',text:`PS C:\\Support> ${shown}`},{type:'output',text:otp ? output.split(otp.value).join(HD_OTP_HIDDEN) : output});
+    if (otp) otp.psRow = hdState.powershell.length - 1;
     hdPracticeEvent('command_run', { command:shown.slice(0, 200), computer, result:(hdLastCommandResult || hdFirstLine(output)).slice(0, 200) });
   }
   // A command can change a machine a late message waits for (when.machine).
   if (hdHasArrivals()) hdCheckArrivals();
   hdSave(); render();
 }
-VIEWS['helpdesk/powershell'] = () => `${hdPageHeader('PowerShell', `Connected to ${hdEsc(hdState.selectedComputer)} · training commands`)}<div class="hd-terminal"><div class="hd-terminal-title">Northstar Enterprise Support Shell</div><div class="hd-terminal-output">${hdState.powershell.map(row=>`<pre class="${row.type}">${hdEsc(row.text)}</pre>`).join('')}</div><form onsubmit="hdRunPowerShell(event)" class="hd-terminal-input"><span>PS C:\\Support&gt;</span><input id="hd-ps-input" autocomplete="off" spellcheck="false" placeholder="Get-Help" autofocus><button>Run</button></form></div><div class="callout info">Command-line output is simulated and limited to the course fixtures. Use it to collect repeatable evidence for ticket notes.</div>`;
+VIEWS['helpdesk/powershell'] = () => `${hdPageHeader('PowerShell', `Connected to ${hdEsc(hdState.selectedComputer)} · training commands`)}<div class="hd-terminal"><div class="hd-terminal-title">Northstar Enterprise Support Shell</div><div class="hd-terminal-output">${hdState.powershell.map((row, index)=>`<pre class="${row.type}">${hdEsc(hdAcctOtp && !hdAcctOtp.shown && hdAcctOtp.psRow === index ? String(row.text).split(HD_OTP_HIDDEN).join(hdAcctOtp.value) : row.text)}</pre>`).join('')}</div><form onsubmit="hdRunPowerShell(event)" class="hd-terminal-input"><span>PS C:\\Support&gt;</span><input id="hd-ps-input" autocomplete="off" spellcheck="false" placeholder="Get-Help" autofocus><button>Run</button></form></div><div class="callout info">Command-line output is simulated and limited to the course fixtures. Use it to collect repeatable evidence for ticket notes.</div>`;
 
 // The fixed screen every older ticket sees (no server state in the shift).
 const hdServerManagerFixed = () => `${hdPageHeader('Server Manager', 'Inspect Windows Server roles, services, health, and endpoint dependencies.')}<div class="hd-metric-grid">${hdMetric('Servers',hdServers().length,'2 domain controllers')}${hdMetric('Online',hdServers().filter(s=>s.status==='Online').length,'Responding to management')}${hdMetric('Degraded',hdServers().filter(s=>s.status==='Degraded').length,'Service investigation required','warning')}${hdMetric('Critical roles','AD DS · DNS · DHCP','Authentication and connectivity')}</div><div class="card"><div class="table-wrap"><table><thead><tr><th>Server</th><th>Role</th><th>Address</th><th>Status</th><th>CPU</th><th>Memory</th><th>Role / service health</th></tr></thead><tbody>${hdServers().map(s=>`<tr><td><strong>${s.name}</strong><small>${s.os}</small></td><td>${s.role}</td><td><code>${s.ip}</code></td><td>${hdBadge(s.status,s.status==='Online'?'ok':'warn')}</td><td>${s.cpu}</td><td>${s.memory}</td><td>${s.service}</td></tr>`).join('')}</tbody></table></div></div>`;
@@ -7973,16 +7982,22 @@ function hdAcctRecord(user, id, label, extra) {
     if (Array.isArray(rules)) rules.filter(rule => rule && rule.action === id).forEach(rule => hdConsoleCritical(ticket, `account:${id}`, rule.text || label));
   }
   hdPracticeEvent('action_taken', { ticket:ticket ? ticket.id : '', action:id, user:user.id, label, ...(extra || {}) });
-  hdProveEvent('action_taken', { label, value:id });
+  // source: the account, so a key can tell which one was changed.
+  hdProveEvent('action_taken', { label, value:id, source:user.username || user.id });
   hdProveEdited();
 }
+// A refusal. Practice says why; a Prove It says only that it didn't happen
+// (the reason would be a hint), and records the try for the instructor.
+const HD_ACCT_PROVE_REFUSED = 'Insufficient access rights to perform the operation.';
 function hdAcctRefuse(user, kind, reason) {
   const ticket = hdServerPracticeTicket();
   hdPracticeEvent('action_refused', { ticket:ticket ? ticket.id : '', action:`ad-${kind}`, user:user ? user.id : '', reason });
-  hdProveEvent('action_taken', { label:`Tried: ${kind} for ${hdAcctLabel(user)} (not allowed)`, value:`ad-${kind}-refused` });
-  if (typeof toast === 'function') toast(HD_PROVE ? 'Not available for this account.' : reason);
-  return reason;
+  hdProveEvent('action_taken', { label:`Tried: ${kind} for ${hdAcctLabel(user)} (not done)`, value:`ad-${kind}-refused`, source:user ? user.username || user.id : '' });
+  if (typeof toast === 'function') toast(HD_PROVE ? HD_ACCT_PROVE_REFUSED : reason);
+  return HD_PROVE ? HD_ACCT_PROVE_REFUSED : reason;
 }
+// A plain toast in Practice; in a Prove It a neutral one (no next-step hint).
+function hdAcctToast(text) { if (typeof toast === 'function') toast(HD_PROVE ? 'Done.' : text); }
 // Why this change can't happen now, or ''.
 function hdAcctBlock(user, kind) {
   if (!user) return 'Choose an account first.';
@@ -7996,6 +8011,8 @@ function hdAcctBlock(user, kind) {
     const after = hdServerObject(rule) && rule.after;
     if (after && !((hdConsoleState(ticket).serverSeen || []).includes(after))) return rule.afterText || 'Read the approval record first.';
   }
+  // A disabled account is enabled first, and only against its approval.
+  if ((kind === 'unlock' || kind === 'reset') && user.enabled === false) return `${user.name}'s account is disabled. Enable it first, and only against the record that approves it.`;
   if (kind === 'reset' && user.sspr !== 'Not registered') return `KB-0104: ${user.name} can use self-service password reset. Send them to the reset link on the sign-in screen (KB-0024). Reset only when they aren't registered.`;
   return '';
 }
@@ -8011,7 +8028,7 @@ function hdAcctUnlock(userId, via = 'Active Directory') {
   else hdAcctPatch(userId, { locked:false });
   if (hdAcctLockoutState(userId)) hdState.lockouts[userId].badPasswordCount = 0;
   hdAcctRecord(user, 'ad-unlocked', `Account ${user.username} unlocked (${via})`, { via });
-  if (typeof toast === 'function') toast(`Account ${user.username} unlocked.`);
+  hdAcctToast(`Account ${user.username} unlocked.`);
   return '';
 }
 function hdAcctEnable(userId, via = 'Active Directory') {
@@ -8023,7 +8040,7 @@ function hdAcctEnable(userId, via = 'Active Directory') {
   hdAcctPatch(userId, { enabled:true });
   hdState.acctDialog = null;
   hdAcctRecord(user, 'ad-enabled', `Account ${user.username} enabled${record ? ` per ${record}` : ''} (${via})`, { via, record });
-  if (typeof toast === 'function') toast(`Account ${user.username} enabled.`);
+  hdAcctToast(`Account ${user.username} enabled.`);
   return '';
 }
 // The one-time password: memory only, shown once (hdAcctOtpShown).
@@ -8040,7 +8057,7 @@ function hdAcctReset(userId, mustChange, via = 'Active Directory › Reset passw
   hdAcctOtp = { userId, value, shown:false };
   hdState.acctDialog = null;
   hdAcctPatch(userId, { passwordExpired:false, passwordLastSet:`${hdAcctTime()} (reset)`, passwordAge:0, mustChange:mustChange === true, locked:user.locked });
-  hdAcctRecord(user, 'ad-password-reset', `Password reset for ${user.username} under KB-0104, ${mustChange ? 'with' : 'without'} "User must change password at next logon" (${via}); the one-time password was read to the user, never written down`, { via, mustChange:mustChange === true });
+  hdAcctRecord(user, 'ad-password-reset', `Password reset for ${user.username}, ${mustChange ? 'with' : 'without'} "User must change password at next logon" (${via})`, { via, mustChange:mustChange === true });
   if (mustChange === true) hdAcctRecord(user, 'ad-must-change', `"User must change password at next logon" set for ${user.username}`, { via });
   return { ok:true, value };
 }
@@ -8073,7 +8090,7 @@ function hdAcctGroup(userId, kind, group, via = 'Active Directory') {
   const removed = kind === 'remove' ? [...new Set([...change.removed, match])] : change.removed.filter(item => item !== match);
   hdAcctPatch(userId, { groupsAdded:added, groupsRemoved:removed });
   hdAcctRecord(user, kind === 'add' ? 'ad-group-added' : 'ad-group-removed', `${kind === 'add' ? 'Added' : 'Removed'} ${user.username} ${kind === 'add' ? 'to' : 'from'} ${match} per ${record} (${via})`, { via, group:match, record });
-  if (typeof toast === 'function') toast(`${kind === 'add' ? 'Added to' : 'Removed from'} ${match}. ${user.name} signs out and back in to pick it up.`);
+  hdAcctToast(`${kind === 'add' ? 'Added to' : 'Removed from'} ${match}. ${user.name} signs out and back in to pick it up.`);
   return '';
 }
 function hdAcctExpiry(userId, days, via = 'Active Directory') {
@@ -8185,7 +8202,7 @@ function hdAcctCloseDialog() { hdState.acctDialog = null; hdSave(); render(); }
 function hdAcctResetConfirm(userId) {
   const box = typeof document !== 'undefined' && document.getElementById ? document.getElementById('hd-reset-must-change') : null;
   const result = hdAcctReset(userId, box ? box.checked === true : true);
-  if (result.ok && typeof toast === 'function') toast('Password reset. Read the one-time password to the user now.');
+  if (result.ok) hdAcctToast('Password reset. Read the one-time password to the user now.');
   hdRerender();
 }
 function hdAcctDo(kind, userId) {
@@ -8203,11 +8220,25 @@ function hdAcctExpiryFrom(userId) {
   hdAcctExpiry(userId, el ? el.value : 30);
   hdRerender();
 }
+// Shown until the student marks it read (or opens another ticket); never
+// again after that, and never after a reload (it is not saved).
+function hdAcctOtpDone() { if (hdAcctOtp) hdAcctOtp.shown = true; render(); }
 function hdAcctOtpHtml(user) {
   if (!hdAcctOtp || hdAcctOtp.userId !== user.id) return '';
   if (hdAcctOtp.shown) return '<p class="muted" data-hd-otp-hidden>The one-time password was shown once and is hidden now.</p>';
-  hdAcctOtp.shown = true;
-  return `<div class="callout warn" role="status" data-hd-otp><strong>One-time password: <code>${hdEsc(hdAcctOtp.value)}</code></strong><br>Read this to the user; never type it into the ticket. It shows only once.</div>`;
+  const line = HD_PROVE ? 'Shown once.' : 'Read this to the user; never type it into the ticket. It shows only once.';
+  return `<div class="callout warn" role="status" data-hd-otp><strong>One-time password: <code>${hdEsc(hdAcctOtp.value)}</code></strong><br>${line} <button type="button" class="btn btn-ghost btn-sm" data-hd-otp-done onclick="hdAcctOtpDone()">${HD_PROVE ? 'Hide' : 'I\'ve read it to the user'}</button></div>`;
+}
+// The controls a user's pane offers. Practice: what the ticket allows for
+// that user. Prove It: the same controls on every account (refused where the
+// shift doesn't allow them), so which buttons appear never points at the case.
+function hdAcctShown(userId) {
+  if (!HD_PROVE) return hdAcctFor(userId);
+  const dir = hdDirectory(); const actions = hdAcctActions();
+  if (!dir || dir.readOnly || !actions) return null;
+  const shown = {};
+  Object.values(actions).forEach(entry => { if (hdServerObject(entry)) Object.keys(entry).forEach(key => { if (entry[key]) shown[key] = key === 'groups' ? {} : true; }); });
+  return Object.keys(shown).length ? shown : null;
 }
 function hdAcctControls(user, allowed) {
   const id = `'${hdJsArg(user.id)}'`;
@@ -8223,19 +8254,21 @@ function hdAcctControls(user, allowed) {
     panel = `<div class="card" data-hd-acct-dialog="enable"><div class="card-body"><p><strong>Enable ${hdEsc(user.name)}?</strong>${record ? ` Approval: ${hdEsc(record)}.` : ''}</p><div style="display:flex;gap:8px"><button type="button" class="btn btn-primary btn-sm" ${locked} onclick="hdAcctDo('enable',${id})">Enable</button><button type="button" class="btn btn-ghost btn-sm" onclick="hdAcctCloseDialog()">Cancel</button></div></div></div>`;
   }
   if (dialog === 'reset') {
-    panel = `<div class="card" data-hd-acct-dialog="reset"><div class="card-body"><p><strong>Reset password for ${hdEsc(user.name)}</strong></p><p class="muted">A one-time password is made for you and shown once.</p><label><input type="checkbox" id="hd-reset-must-change" checked data-hd-must-change> User must change password at next logon</label><div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="btn btn-primary btn-sm" ${locked} data-hd-reset-confirm onclick="hdAcctResetConfirm(${id})">Reset</button><button type="button" class="btn btn-ghost btn-sm" onclick="hdAcctCloseDialog()">Cancel</button></div></div></div>`;
+    panel = `<div class="card" data-hd-acct-dialog="reset"><div class="card-body"><p><strong>Reset password for ${hdEsc(user.name)}</strong></p>${HD_PROVE ? '' : '<p class="muted">A one-time password is made for you and shown once.</p>'}<label><input type="checkbox" id="hd-reset-must-change" checked data-hd-must-change> User must change password at next logon</label><div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="btn btn-primary btn-sm" ${locked} data-hd-reset-confirm onclick="hdAcctResetConfirm(${id})">Reset</button><button type="button" class="btn btn-ghost btn-sm" onclick="hdAcctCloseDialog()">Cancel</button></div></div></div>`;
   }
   let groups = '';
   if (allowed.groups) {
     const dir = hdDirectory();
-    const record = String(allowed.groups.record || 'the approval record');
+    const record = String(allowed.groups.record || '');
     const all = hdDirGroups(dir).map(group => group.name).filter(name => !user.groups.includes(name));
     const option = name => `<option>${hdEsc(name)}</option>`;
-    groups = `<div class="hd-acct-groups" data-hd-acct-groups><p class="muted">Group changes follow ${hdEsc(record)}.</p><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><label>Add to <select id="hd-group-add" class="select" ${locked}>${all.map(option).join('')}</select></label><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-acct="add" onclick="hdAcctGroupFrom(${id},'add')">Add group</button><label>Remove from <select id="hd-group-remove" class="select" ${locked}>${user.groups.map(option).join('')}</select></label><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-acct="remove" onclick="hdAcctGroupFrom(${id},'remove')">Remove group</button></div></div>`;
+    groups = `<div class="hd-acct-groups" data-hd-acct-groups>${record ? `<p class="muted">Group changes follow ${hdEsc(record)}.</p>` : ''}<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><label>Add to <select id="hd-group-add" class="select" ${locked}>${all.map(option).join('')}</select></label><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-acct="add" onclick="hdAcctGroupFrom(${id},'add')">Add group</button><label>Remove from <select id="hd-group-remove" class="select" ${locked}>${user.groups.map(option).join('')}</select></label><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-acct="remove" onclick="hdAcctGroupFrom(${id},'remove')">Remove group</button></div></div>`;
   }
   let expiry = '';
   if (allowed.expiry) expiry = `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-hd-acct-expiry><label>Account expires <select id="hd-expiry-days" class="select" ${locked}><option value="7">In 7 days</option><option value="30">In 30 days</option><option value="90">In 90 days</option></select></label><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-acct="expiry" onclick="hdAcctExpiryFrom(${id})">Change expiry</button></div>`;
-  const note = HD_PROVE ? '' : '<div class="callout info">Each change waits for this ticket\'s verification or approval. Never place passwords in ticket notes.</div>';
+  const ticket = hdServerPracticeTicket();
+  const waits = !!ticket && (!!hdConsole(ticket).verification || Object.values(allowed).some(rule => hdServerObject(rule) && rule.after));
+  const note = HD_PROVE ? '' : `<div class="callout info">${waits ? 'Each change waits for this ticket\'s verification or approval. ' : ''}Never place passwords in ticket notes.</div>`;
   return `<div data-hd-acct-controls="${hdEsc(user.id)}">${buttons.length ? `<div class="hd-action-grid">${buttons.join('')}</div>` : ''}${panel}${hdAcctOtpHtml(user)}${groups}${expiry}${note}</div>`;
 }
 // The pane's actions part: read-only, Module 8's controls, or the old buttons.
@@ -8244,7 +8277,7 @@ function hdAcctPaneActions(user, dir) {
   // A Module 8 directory (account fixtures) never shows the old unchecked buttons.
   if (!hdAcctActions() && Object.keys(dir.accounts).length) return `<p class="muted" data-hd-acct-none>No account change on this ticket for ${hdEsc(user.name)}.</p>`;
   if (!hdAcctActions()) return `<div class="hd-action-grid"><button class="btn btn-secondary" onclick="hdAdAction('unlock')">Unlock</button><button class="btn btn-secondary" onclick="hdAdAction('reset')">Reset password</button><button class="btn btn-secondary" onclick="hdAdAction('${user.enabled ? 'disable' : 'enable'}')">${user.enabled ? 'Disable' : 'Enable'}</button><button class="btn btn-secondary" onclick="hdAdAction('add-hr')">Add approved group</button></div>`;
-  const allowed = hdAcctFor(user.id);
+  const allowed = hdAcctShown(user.id);
   return allowed ? hdAcctControls(user, allowed) : `<p class="muted" data-hd-acct-none>No account change on this ticket for ${hdEsc(user.name)}.</p>`;
 }
 
@@ -8314,9 +8347,10 @@ function hdAcctCommand(command, normalized) {
     if (!/-reset\b/.test(normalized)) return 'Set-ADAccountPassword : Add -Reset to set a new password for this account.';
     const result = hdAcctReset(user.id, false, 'Set-ADAccountPassword -Reset');
     if (!result.ok) return done(result.message);
-    hdAcctOtp.shown = true;
     hdLastCommandResult = `password reset for ${user.username} (one-time password shown once)`;
-    return [`Secure prompt: a one-time password was set for ${user.username}. It shows only this once:`, '', `    ${result.value}`, '', 'Read it to the user on the verified call; never type it into the ticket.', `Next: Set-ADUser ${user.username} -ChangePasswordAtLogon $true`].join('\n');
+    const lines = [`Secure prompt: a one-time password was set for ${user.username}. It shows only this once:`, '', `    ${result.value}`];
+    if (!HD_PROVE) lines.push('', 'Read it to the user on the verified call; never type it into the ticket.', `Next: Set-ADUser ${user.username} -ChangePasswordAtLogon $true`);
+    return lines.join('\n');
   }
   const group = /^(add|remove)-adgroupmember\b/.exec(normalized);
   if (group) {
@@ -8360,7 +8394,7 @@ VIEWS['helpdesk/credential-manager'] = () => {
   const ask = String(hdMachineView().confirmRemove || '');
   const rows = hdCredList(machine).map(item => {
     const confirm = ask && hdCredTarget(ask) === hdCredTarget(item.target)
-      ? `<div data-hd-cred-confirm><p>Remove this credential? Windows asks for the password the next time it's needed.</p><button type="button" class="btn btn-primary btn-sm" ${locked} data-hd-cred-yes onclick="hdCredRemove(${n},'${hdJsArg(item.target)}')">Yes, remove</button> <button type="button" class="btn btn-ghost btn-sm" onclick="hdCredCancel()">Cancel</button></div>`
+      ? `<div data-hd-cred-confirm><p>Remove this credential?${HD_PROVE ? '' : ' Windows asks for the password the next time it\'s needed.'}</p><button type="button" class="btn btn-primary btn-sm" ${locked} data-hd-cred-yes onclick="hdCredRemove(${n},'${hdJsArg(item.target)}')">Yes, remove</button> <button type="button" class="btn btn-ghost btn-sm" onclick="hdCredCancel()">Cancel</button></div>`
       : `<button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-cred-remove onclick="hdCredAsk(${n},'${hdJsArg(item.target)}')">Remove</button>`;
     return `<tr data-hd-cred="${hdEsc(item.target)}"><td><strong>${hdEsc(item.target)}</strong></td><td>${hdEsc(item.type || 'Domain Password')}</td><td>${hdEsc(item.user || '')}</td><td>${confirm}</td></tr>`;
   }).join('') || '<tr><td colspan="4" class="muted">No Windows credentials are saved.</td></tr>';
@@ -8413,7 +8447,7 @@ function hdWinSignInAgain(computerName) {
 window.hdAcctUnlock=hdAcctUnlock; window.hdAcctEnable=hdAcctEnable; window.hdAcctReset=hdAcctReset; window.hdAcctGroup=hdAcctGroup; window.hdAcctExpiry=hdAcctExpiry;
 window.hdAcctWait=hdAcctWait; window.hdAcctLockoutOpen=hdAcctLockoutOpen; window.hdAcctTier2=hdAcctTier2; window.hdAcctOpenDialog=hdAcctOpenDialog; window.hdAcctCloseDialog=hdAcctCloseDialog;
 window.hdAcctResetConfirm=hdAcctResetConfirm; window.hdAcctDo=hdAcctDo; window.hdAcctGroupFrom=hdAcctGroupFrom; window.hdAcctExpiryFrom=hdAcctExpiryFrom;
-window.hdCredRemove=hdCredRemove; window.hdCredAsk=hdCredAsk; window.hdCredCancel=hdCredCancel; window.hdWinSignInAgain=hdWinSignInAgain;
+window.hdAcctOtpDone=hdAcctOtpDone; window.hdCredRemove=hdCredRemove; window.hdCredAsk=hdCredAsk; window.hdCredCancel=hdCredCancel; window.hdWinSignInAgain=hdWinSignInAgain;
 
 // Raise a related incident (console.raise on a Practice ticket).
 function hdRaiseConfig(ticket) {

@@ -71,6 +71,8 @@ function sim({ url = 'https://academy.test/sim/#/helpdesk/tickets', withTest = t
     // The Users tab's user pane only, so a failure prints what matters.
     pane: () => { run("hdState.adTab = 'users'"); const html = run("VIEWS['helpdesk/active-directory']()"); const at = html.indexOf('<aside class="card hd-object-pane"'); return at < 0 ? html.slice(-3000) : html.slice(at); },
     ps: (command) => run(`hdPowerShellOutput(${j(command)})`),
+    // Through the PowerShell screen, as a student types it (saved transcript).
+    shell: (command) => { const real = ctx.document.getElementById; ctx.document.getElementById = (id) => (id === 'hd-ps-input' ? { value: command } : null); try { run('hdRunPowerShell({ preventDefault() {} })'); } finally { ctx.document.getElementById = real; } return run("VIEWS['helpdesk/powershell']()"); },
     on: (computer) => run(`hdState.selectedComputer = ${j(computer)}`),
     seen: () => [...(run('hdState.serverSeen') || [])],
   };
@@ -392,6 +394,9 @@ function testEnableAndReset() {
   tab.run("hdServerSeen('test-hr-record', 'TEST HR record')");
   tab.run("hdAcctOpenDialog('u-1004', 'enable')");
   assert.match(tab.pane(), /data-hd-acct-dialog="enable"[\s\S]*Approval: HR-9852/);
+  // A disabled account is enabled first.
+  assert.equal(tab.run("hdAcctReset('u-1004', true).ok"), false);
+  assert.match(tab.toasts.pop(), /disabled\. Enable it first/);
   tab.run("hdAcctDo('enable', 'u-1004')");
   assert.equal(tab.run("hdFileUser('u-1004').enabled"), true);
   // Reset: the dialog ticks must-change by default.
@@ -401,10 +406,12 @@ function testEnableAndReset() {
   const otp = tab.run('hdAcctOtp.value');
   assert.match(otp, /^[A-Za-z]{2}\d-[A-Za-z]{3}\d-\d{2}[A-Za-z]$/);
   let pane = tab.pane();
-  assert.ok(pane.includes(otp), 'shown once');
+  assert.ok(pane.includes(otp), 'shown');
   assert.match(pane, /Read this to the user; never type it into the ticket/);
+  assert.ok(tab.pane().includes(otp), 'a redraw before it is read keeps it on screen');
+  tab.run('hdAcctOtpDone()');
   pane = tab.pane();
-  assert.ok(!pane.includes(otp), 'and never again');
+  assert.ok(!pane.includes(otp), 'and never again once read');
   assert.match(pane, /data-hd-otp-hidden/);
   assert.match(pane, /data-hd-password-expired>No</);
   assert.match(pane, /Must change password<\/dt><dd>At next logon/);
@@ -418,15 +425,29 @@ function testEnableAndReset() {
   const cmd = acct(); cmd.open('HD-9852'); cmd.run("hdVerify('HD-9852', 'callback')");
   assert.match(cmd.ps('Set-ADAccountPassword pshah -Reset -NewPassword (ConvertTo-SecureString "Spring2026!" -AsPlainText -Force)'), /Stopped/);
   assert.match(cmd.ps('Set-ADUser pshah -ChangePasswordAtLogon $true'), /Reset the password first/);
+  const local = store();
+  const typedTab = acct(local); typedTab.open('HD-9852'); typedTab.run("hdVerify('HD-9852', 'callback'); hdServerSeen('test-hr-record', 'TEST'); hdAcctEnable('u-1004')");
+  const screen = typedTab.shell('Set-ADAccountPassword pshah -Reset');
+  const shellOtp = typedTab.run('hdAcctOtp.value');
+  assert.ok(screen.includes(shellOtp), 'the shell shows it');
+  assert.match(screen, /never type it into the ticket/);
+  assert.ok(![...local.map.values()].join('').includes(shellOtp), 'the saved transcript never holds it');
+  assert.ok(!JSON.stringify(typedTab.run('hdState')).includes(shellOtp));
+  typedTab.run('hdAcctOtpDone()');
+  assert.ok(!typedTab.view('helpdesk/powershell').includes(shellOtp), 'hidden once read');
+  assert.ok(!acct(local).view('helpdesk/powershell').includes(shellOtp), 'and after a reload');
+  assert.match(acct(local).view('helpdesk/powershell'), /one-time password: shown once, not saved/);
   const out = cmd.ps('Set-ADAccountPassword pshah -Reset');
+  assert.match(out, /disabled\. Enable it first/, 'this shift has not enabled her yet');
+  cmd.run("hdServerSeen('test-hr-record', 'TEST'); hdAcctEnable('u-1004')");
+  const typedOut = cmd.ps('Set-ADAccountPassword pshah -Reset');
   const typedOtp = cmd.run('hdAcctOtp.value');
-  assert.ok(out.includes(typedOtp) && /never type it into the ticket/.test(out));
+  assert.ok(typedOut.includes(typedOtp) && /never type it into the ticket/.test(typedOut));
   cmd.run("hdOpenUser('u-1004')");
-  assert.ok(!cmd.pane().includes(typedOtp), 'the shell showed it; the pane does not');
   assert.equal(cmd.run("hdFileUser('u-1004').mustChange"), false);
   assert.equal(cmd.ps('Set-ADUser pshah -ChangePasswordAtLogon $true'), '');
   assert.equal(cmd.run("hdFileUser('u-1004').mustChange"), true);
-  assert.deepEqual(actions(cmd, 'HD-9852'), ['ad-password-reset', 'ad-must-change'], 'the same actions as the screen');
+  assert.deepEqual(actions(cmd, 'HD-9852'), ['ad-enabled', 'ad-password-reset', 'ad-must-change'], 'the same actions as the screen');
   // KB-0104: no reset for a user who can use self-service.
   const noah = acct(); noah.open('HD-9851'); noah.run("hdVerify('HD-9851', 'callback')");
   assert.equal(noah.run("hdAcctReset('u-1003', true).ok"), false);
@@ -568,9 +589,26 @@ function testProveShift() {
   assert.ok(tab.run("hdState.prove.opened.includes('lockout-4740:u-1020')"));
   // A change this shift doesn't turn on is refused and recorded, without the reason.
   tab.run("hdAcctUnlock('u-1020')");
-  assert.equal(tab.toasts.pop(), 'Not available for this account.');
-  assert.ok(tab.run("hdState.prove.events.some((e) => e.value === 'ad-unlock-refused')"));
-  assert.match(tab.ps('Set-ADAccountExpiration mlee -DateTime 2027-01-01'), /^$/);
+  assert.equal(tab.toasts.pop(), 'Insufficient access rights to perform the operation.');
+  assert.ok(tab.run("hdState.prove.events.some((e) => e.value === 'ad-unlock-refused' && e.source === 'mlee')"));
+  assert.equal(tab.ps('Set-ADAccountExpiration mlee -DateTime 2027-01-01'), '');
+  // Typed refusals say no more than the screen.
+  assert.equal(tab.ps('Unlock-ADAccount mlee'), 'Insufficient access rights to perform the operation.');
+  assert.equal(tab.ps('Set-ADAccountPassword mchen -Reset'), 'Insufficient access rights to perform the operation.');
+  assert.equal(tab.ps('Set-ADUser mchen -ChangePasswordAtLogon $true'), 'Insufficient access rights to perform the operation.');
+  // The typed reset prints the password and nothing that says what to do next.
+  const typed = tab.ps('Set-ADAccountPassword mlee -Reset');
+  assert.doesNotMatch(typed, /Next:|Read it to the user|never type/);
+  // Every account offers the same controls, so none points at the case.
+  tab.run("hdOpenUser('u-1001')");
+  const other = tab.pane();
+  assert.match(other, /data-hd-acct="reset"[\s\S]*data-hd-acct-expiry/);
+  assert.doesNotMatch(other, /data-hd-acct-none/);
+  tab.run("hdAcctReset('u-1001', true)");
+  assert.equal(tab.toasts.pop(), 'Insufficient access rights to perform the operation.');
+  // The one-time password callout has no teaching line in a Prove It.
+  tab.run("hdOpenUser('u-1020')");
+  assert.doesNotMatch(tab.pane(), /never type it into the ticket/);
 }
 
 // A reload keeps what was done and never shows the password again.
