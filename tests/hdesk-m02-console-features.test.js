@@ -169,13 +169,14 @@ function testOldTicketsKeepTheOldClockAndStates() {
   const matrixTickets = JSON.parse(JSON.stringify(plain.run("HD_TICKET_TEMPLATES.filter((t) => (t.console && t.console.matrix) || t.ownSet).map((t) => ({ id:t.id, ownSet:t.ownSet === true }))")));
   // HD-2109 is the one hidden template (ownSet, no set, no console): Module 5
   // retired it from the queue on 2026-11-24, and the capstone and older
-  // instructor sheets still read it.
-  const HIDDEN = ['HD-2109'];
+  // instructor sheets still read it. Module 7 (key its-05) retired HD-2108 and
+  // HD-2117 the same way on 2026-11-25.
+  const HIDDEN = ['HD-2109', 'HD-2108', 'HD-2117'];
   for (const t of matrixTickets.filter((item) => !HIDDEN.includes(item.id))) {
     assert.equal(t.ownSet, true, `${t.id} needs ownSet: true`);
     assert.ok(realSets.includes(t.id), `${t.id} belongs to no set`);
   }
-  assert.equal(plain.run("HD_TICKET_TEMPLATES.find((t) => t.id === 'HD-2109').console"), undefined);
+  for (const id of HIDDEN) assert.equal(plain.run(`HD_TICKET_TEMPLATES.find((t) => t.id === '${id}').console`), undefined);
   assert.ok(!plain.run('hdState.tickets.map((t) => t.id)').some((id) => matrixTickets.some((t) => t.id === id)), 'no matrix ticket on the shared shift');
   assert.equal(plain.run('hdActiveSet()'), null);
 }

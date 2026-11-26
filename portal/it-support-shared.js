@@ -641,6 +641,8 @@ function itsCleanCoachWork(input, coachId) {
     // Module 2: the number the student saw, and their rewrite and knowledge
     // draft, word for word (only when the coach sent them).
     ...(typeof ticket.number === 'string' ? { number: text(ticket.number, 16) } : {}),
+    // Module 7: a ticket the student raised from another (HD-2190 from HD-2189).
+    ...(typeof ticket.raisedFrom === 'string' && /^[A-Z]{2,4}-\d{4}$/.test(ticket.raisedFrom) ? { raisedFrom: ticket.raisedFrom } : {}),
     ...(ticket.writing && typeof ticket.writing === 'object' ? { writing: {
       shortDescription: text(ticket.writing.shortDescription, 160), description: text(ticket.writing.description, 4000),
       kbDraftTitle: text(ticket.writing.kbDraftTitle, 160), kbDraftText: text(ticket.writing.kbDraftText, 4000),

@@ -330,9 +330,11 @@ function testEarlyQuestionsCanBeAskedAgain() {
 }
 
 // The Module 6 rule kinds are off for every older ticket: no older ticket uses them.
+// Module 7's tickets (HD-2189 to HD-2195) are newer and reuse them.
+const MODULE_7 = ['HD-2189', 'HD-2190', 'HD-2191', 'HD-2192', 'HD-2193', 'HD-2194', 'HD-2195', 'HD-2202', 'HD-2203', 'HD-2204', 'HD-2205', 'HD-2206'];
 function testOlderTicketsUseNoNewRule() {
   const tab = sim();
-  const mine = ['HD-2176', ...IDS];
+  const mine = ['HD-2176', ...IDS, ...MODULE_7];
   const kinds = plain(tab.run(`HD_TICKET_TEMPLATES.filter((t) => !${JSON.stringify(mine)}.includes(t.id))
     .flatMap((t) => ((t.console || {}).feedback || []).flatMap((a) => a.checks || [])).filter((r) => r.any || r.attached || r.requestItem || r.machine || r.appInstalled || r.synced)`));
   assert.deepEqual(kinds, []);

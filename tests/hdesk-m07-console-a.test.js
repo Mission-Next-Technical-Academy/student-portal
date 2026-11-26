@@ -160,12 +160,15 @@ function testOldTicketsTurnNothingOn() {
     assert.doesNotMatch(page, NEW_MARKERS, `${id} shows no new feature`);
     assertFixed(tab, `shared ${id}`);
   }
-  for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter((k) => !k.startsWith('test-'))) {
+  // Module 7's own sets (its-05, its-05-guided) turn these screens on: tests/hdesk-m07-guided-lab.test.js
+  // and tests/hdesk-m07-practice-tickets.test.js cover them.
+  const MODULE_7_SETS = ['its-05', 'its-05-guided'];
+  for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter((k) => !k.startsWith('test-') && !MODULE_7_SETS.includes(k))) {
     const set = sim({ url: `https://academy.test/sim/?practice=${key}&student=stu-1#/helpdesk/tickets` });
     assertFixed(set, key);
     for (const id of set.run('hdState.tickets.map((t) => t.id)')) { assert.doesNotMatch(set.open(id), NEW_MARKERS, `${key} ${id}`); assertFixed(set, `${key} ${id}`); }
   }
-  for (const key of Object.keys(tab.run('HD_COACHED_SETS'))) {
+  for (const key of Object.keys(tab.run('HD_COACHED_SETS')).filter((k) => !MODULE_7_SETS.includes(k))) {
     const set = sim(); assert.equal(set.run(`hdUseTicketSet(${JSON.stringify(key)})`), true);
     assertFixed(set, key);
     for (const id of set.run('hdState.tickets.map((t) => t.id)')) { assert.doesNotMatch(set.open(id), NEW_MARKERS, `${key} ${id}`); assertFixed(set, `${key} ${id}`); }

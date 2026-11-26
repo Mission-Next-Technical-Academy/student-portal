@@ -152,11 +152,15 @@ function testOldTicketsTurnNothingOn() {
   for (const key of ['its-01', 'its-03']) assertPinned(() => sim({ url: proveUrl(key), withTest: false }), PINNED[key], `prove ${key}`);
   const plain = sim({ withTest: false });
   assertOff(sim(), 'shared');
-  for (const key of Object.keys(plain.run('HD_PRACTICE_SETS'))) {
+  // Module 7's own sets and tickets turn these on: tests/hdesk-m07-guided-lab.test.js
+  // and tests/hdesk-m07-practice-tickets.test.js cover them.
+  const MODULE_7_SETS = ['its-05', 'its-05-guided'];
+  const MODULE_7 = ['HD-2189', 'HD-2190', 'HD-2191', 'HD-2192', 'HD-2193', 'HD-2194', 'HD-2195', 'HD-2202', 'HD-2203', 'HD-2204', 'HD-2205', 'HD-2206'];
+  for (const key of Object.keys(plain.run('HD_PRACTICE_SETS')).filter((k) => !MODULE_7_SETS.includes(k))) {
     const set = setSim(key); assertOff(set, key);
     for (const id of set.run('hdState.tickets.map((t) => t.id)')) { assert.doesNotMatch(set.open(id), NEW_MARKERS, `${key} ${id}`); assertOff(set, `${key} ${id}`); }
   }
-  for (const key of Object.keys(plain.run('HD_COACHED_SETS'))) {
+  for (const key of Object.keys(plain.run('HD_COACHED_SETS')).filter((k) => !MODULE_7_SETS.includes(k))) {
     const set = sim(); assert.equal(set.run(`hdUseTicketSet(${JSON.stringify(key)})`), true);
     assertOff(set, key);
     for (const id of set.run('hdState.tickets.map((t) => t.id)')) { assert.doesNotMatch(set.open(id), NEW_MARKERS, `${key} ${id}`); assertOff(set, `${key} ${id}`); }
@@ -167,8 +171,9 @@ function testOldTicketsTurnNothingOn() {
     for (const id of prove.run('hdState.tickets.map((t) => t.id)')) assert.doesNotMatch(prove.open(id), NEW_MARKERS, `prove ${key} ${id}`);
   }
   // No older template raises a ticket, lists a directory or the new catalog item.
-  assert.deepEqual(JSON.parse(plain.run("JSON.stringify(HD_TICKET_TEMPLATES.filter((t) => t.console && (t.console.raise || t.console.directory)).map((t) => t.id))")), []);
-  assert.deepEqual(JSON.parse(plain.run("JSON.stringify(HD_TICKET_TEMPLATES.filter((t) => t.console && t.console.convert && (t.console.convert.items || []).some((i) => i.name === 'Network device reservation')).map((t) => t.id))")), []);
+  const older = `HD_TICKET_TEMPLATES.filter((t) => !${JSON.stringify(MODULE_7)}.includes(t.id))`;
+  assert.deepEqual(JSON.parse(plain.run(`JSON.stringify(${older}.filter((t) => t.console && (t.console.raise || t.console.directory)).map((t) => t.id))`)), []);
+  assert.deepEqual(JSON.parse(plain.run(`JSON.stringify(${older}.filter((t) => t.console && t.console.convert && (t.console.convert.items || []).some((i) => i.name === 'Network device reservation')).map((t) => t.id))`)), []);
   // Older Active Directory actions still change an account.
   plain.run("hdState.selectedUserId = 'u-1006'; hdAdAction('disable')");
   assert.equal(plain.run("hdUserById('u-1006').enabled"), false);

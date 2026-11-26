@@ -171,7 +171,9 @@ function testOldTicketsTurnNothingOn() {
   for (const route of NEW_SCREENS) assert.match(tab.view(`helpdesk/${route}`), /Not available on this computer/, route);
   // Module 6's own sets (its-07, its-07-guided) turn these on by design
   // (tests/hdesk-m06-guided-lab.test.js, tests/hdesk-m06-practice-tickets.test.js).
-  const module6 = (k) => /^its-07(-|$)/.test(k);
+  // Module 7's sets (its-05, its-05-guided) reuse the choice card
+  // (tests/hdesk-m07-practice-tickets.test.js).
+  const module6 = (k) => /^its-0[57](-|$)/.test(k);
   for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter((k) => !k.startsWith('test-') && !module6(k))) {
     const set = sim({ url: `https://academy.test/sim/?practice=${key}&student=stu-1#/helpdesk/tickets` });
     for (const id of set.run('hdState.tickets.map((t) => t.id)')) assert.doesNotMatch(set.open(id), NEW_MARKERS, `${key} ${id}`);

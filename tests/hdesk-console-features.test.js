@@ -121,7 +121,12 @@ function testExistingTicketsTurnNothingOn() {
   // Module 6's (key its-07) tickets, the same way (tests/hdesk-m06-guided-lab.test.js
   // and tests/hdesk-m06-practice-tickets.test.js).
   const MODULE_6 = ['HD-2176', 'HD-2177', 'HD-2178', 'HD-2179'];
-  for (const id of ids.filter((item) => !MODULE_1.includes(item) && !MODULE_2.includes(item) && !MODULE_3.includes(item) && !MODULE_4.includes(item) && !MODULE_5.includes(item) && !MODULE_6.includes(item))) {
+  // Module 7's (key its-05) tickets, the same way (tests/hdesk-m07-guided-lab.test.js
+  // and tests/hdesk-m07-practice-tickets.test.js). HD-2108 and HD-2117 left the
+  // shared shift then (ownSet); their templates still have no console settings.
+  const MODULE_7 = ['HD-2189', 'HD-2190', 'HD-2191', 'HD-2192', 'HD-2193', 'HD-2194', 'HD-2195', 'HD-2202', 'HD-2203', 'HD-2204', 'HD-2205', 'HD-2206', 'HD-2108', 'HD-2117'];
+  for (const id of ['HD-2108', 'HD-2117']) assert.equal(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === '${id}').console`), undefined, `${id} has no console settings`);
+  for (const id of ids.filter((item) => !MODULE_1.includes(item) && !MODULE_2.includes(item) && !MODULE_3.includes(item) && !MODULE_4.includes(item) && !MODULE_5.includes(item) && !MODULE_6.includes(item) && !MODULE_7.includes(item))) {
     assert.equal(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === ${JSON.stringify(id)}).console`), undefined, `${id} has no console settings`);
     const html = tab.open(id);
     assert.doesNotMatch(html, NEW_MARKERS, `${id} shows no new feature`);
