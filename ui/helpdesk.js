@@ -3916,7 +3916,9 @@ function hdSeedTicketMachines(state) {
 // A ticket-shown address and health for this computer (machine.computer).
 function hdMachineComputerOverride(name) {
   const machine = hdFeatureMachine(name);
-  const shown = machine && machine.computer && typeof machine.computer === 'object' ? machine.computer : {};
+  const own = machine && machine.computer && typeof machine.computer === 'object' ? machine.computer : {};
+  // Module 09: with network state, the address Windows is using now.
+  const shown = hdNetState(machine) ? { ...own, ip:hdNetShownIp(hdNetState(machine)) } : own;
   // A machine's own uptime (a Restart sets it to 0) wins over the record's.
   return machine && typeof machine.uptimeDays === 'number' ? { ...shown, uptimeDays:machine.uptimeDays } : shown;
 }
@@ -4093,6 +4095,7 @@ function hdFeatureHelp(computer) {
   if (machine.reachable) lines.push('Network: ping <address>, Test-NetConnection <address> -Port <port>');
   if (hdWinHelp(machine)) lines.push(hdWinHelp(machine));
   hdWinTypedHelp(machine).forEach(line => lines.push(line));
+  hdNetHelp(machine).forEach(line => lines.push(line));
   return lines.length ? `\n${lines.join('\n')}` : '';
 }
 
@@ -4142,7 +4145,7 @@ function hdFeatureToolButtons(name) {
     devices ? open('device-manager', '🧩 Device Manager') : '',
     all || (devices && machine.devices.some(device => device && device.camera)) ? open('camera', '📷 Camera') : '',
     all || machine.dock ? open('dock', '🖥 Dock &amp; displays') : '',
-    all || machine.dock ? open('settings-network', '⚙ Settings › Network &amp; internet') : '',
+    all || machine.dock || hdNetState(machine) ? open('settings-network', '⚙ Settings › Network &amp; internet') : '',
   ].join('');
 }
 // A shared printer's machine action: guard, change, settle, record, redraw.
@@ -4349,10 +4352,14 @@ VIEWS['helpdesk/device-manager'] = () => {
   const device = devices.find(item => item.id === view.device);
   let props = '<p class="muted">Choose a device to see its properties.</p>';
   if (device) {
-    const tab = view.tab === 'driver' ? 'driver' : 'general';
-    const tabs = [['general', 'General'], ['driver', 'Driver']].map(([id, label]) => `<button type="button" class="btn ${id === tab ? 'btn-primary' : 'btn-secondary'} btn-sm" role="tab" aria-selected="${id === tab}" onclick="hdDeviceOpen(${name},'${hdJsArg(device.id)}','${id}')">${label}</button>`).join('');
+    // Module 09: an Advanced tab only for a device a fixture gives one.
+    const advanced = hdDeviceHasAdvanced(device);
+    const tab = view.tab === 'driver' ? 'driver' : view.tab === 'advanced' && advanced ? 'advanced' : 'general';
+    const tabs = [['general', 'General'], ['driver', 'Driver'], ...(advanced ? [['advanced', 'Advanced']] : [])].map(([id, label]) => `<button type="button" class="btn ${id === tab ? 'btn-primary' : 'btn-secondary'} btn-sm" role="tab" aria-selected="${id === tab}" onclick="hdDeviceOpen(${name},'${hdJsArg(device.id)}','${id}')">${label}</button>`).join('');
     const driver = device.driver || {};
-    props = `<div style="display:flex;gap:6px" role="tablist">${tabs}</div>${tab === 'general'
+    props = `<div style="display:flex;gap:6px" role="tablist">${tabs}</div>${tab === 'advanced'
+      ? `<div data-hd-device-advanced><p class="muted" style="margin-top:8px">The following properties are available for this network adapter. Click the property you want to change on the left, and then select its value on the right.</p><dl class="hd-dl"><dt>Property</dt><dd>Preferred Band</dd><dt>Value</dt><dd><select id="hd-dev-band" class="ipt" ${locked}>${HD_NET_BANDS.map(option => `<option${option === device.advanced.preferredBand ? ' selected' : ''}>${hdEsc(option)}</option>`).join('')}</select></dd></dl><button type="button" class="btn btn-primary btn-sm" ${locked} data-hd-device-advanced-ok onclick="hdDeviceAdvancedSet(${name},'${hdJsArg(device.id)}')">OK</button></div>`
+      : tab === 'general'
       ? `<dl class="hd-dl"><dt>Device</dt><dd>${hdEsc(device.name)}</dd><dt>Device type</dt><dd>${hdEsc(device.category || 'Other devices')}</dd><dt>Device status</dt><dd data-hd-device-text>${hdEsc(hdDeviceStatusText(device))}</dd></dl>`
       : `<dl class="hd-dl"><dt>Driver Provider</dt><dd>${hdEsc(driver.provider || '')}</dd><dt>Driver Date</dt><dd data-hd-driver-date>${hdEsc(driver.date || '')}</dd><dt>Driver Version</dt><dd>${hdEsc(driver.version || '')}</dd></dl><div style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="btn btn-secondary btn-sm" ${locked || (device.previous ? '' : 'disabled')} onclick="hdDeviceDriver(${name},'${hdJsArg(device.id)}','rollback')">Roll Back Driver</button><button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdDeviceDriver(${name},'${hdJsArg(device.id)}','update')">Update Driver</button></div>${device.updateChecked ? '<p class="muted" data-hd-driver-best>The best drivers for your device are already installed.</p>' : ''}`}`;
   }
@@ -4429,7 +4436,10 @@ VIEWS['helpdesk/dock'] = () => {
     </div>`;
 };
 VIEWS['helpdesk/settings-network'] = () => {
-  const found = hdViewMachine(); if (!found || !found.machine.dock) return hdMachineMissing('Settings › Network & internet');
+  const found = hdViewMachine();
+  // Module 09: a computer with network state; every other one as before.
+  if (found && hdNetState(found.machine)) return hdNetSettingsView(found);
+  if (!found || !found.machine.dock) return hdMachineMissing('Settings › Network & internet');
   const { computer, machine } = found; const live = hdDockLive(machine);
   const ethernet = machine.dock.ethernet ? `<li data-hd-ethernet="${live ? 'connected' : 'unplugged'}">Ethernet (${hdEsc(machine.dock.ethernet)}): ${live ? 'Connected' : 'Network cable unplugged'}</li>` : '';
   return `${hdPageHeader('Settings', `${computer.name} · Network & internet`, hdMachineBack(computer))}<div class="card" data-hd-netset><div class="card-body"><ul class="hd-list">${ethernet}<li>Wi-Fi: Connected</li></ul></div></div>`;
@@ -6080,11 +6090,11 @@ function hdWinTypedCommand(command, normalized, machine) {
 function hdWinNearMiss(command, computer) {
   const machine = !HD_PROVE && computer && hdFeatureMachine(computer.name); if (!machine) return null;
   const head = command.trim().toLowerCase().split(/\s+/)[0].replace(/\.exe$/, '').replace(/\/.*$/, '');
-  const words = [...(hdWinRepairs(machine) ? ['dism', 'sfc', 'chkdsk'] : []), ...(hdWinFiles(machine) ? ['dir', 'get-childitem'] : []), ...(machine.winget === true ? ['winget'] : []), ...(hdWinProtection(machine) ? ['get-mpcomputerstatus', 'start-mpscan', 'get-mpthreatdetection'] : [])];
+  const words = [...(hdWinRepairs(machine) ? ['dism', 'sfc', 'chkdsk'] : []), ...(hdWinFiles(machine) ? ['dir', 'get-childitem'] : []), ...(machine.winget === true ? ['winget'] : []), ...(hdWinProtection(machine) ? ['get-mpcomputerstatus', 'start-mpscan', 'get-mpthreatdetection'] : []), ...(hdNetState(machine) ? ['ipconfig', 'nslookup', 'tracert'] : [])];
   const near = words.find(word => head !== word && Math.abs(head.length - word.length) <= (word.length <= 3 ? 0 : 1) && hdWinDistance(head, word) <= (word.length <= 4 ? 1 : 2));
   if (!near) return null;
   hdLastCommandResult = `misspelled: ${near}`;
-  return `The term '${command.trim().split(/\s+/)[0]}' is not recognized. Did you mean: ${HD_WIN_TYPED[near]}`;
+  return `The term '${command.trim().split(/\s+/)[0]}' is not recognized. Did you mean: ${HD_WIN_TYPED[near] || near}`;
 }
 function hdWinTypedHelp(machine) {
   const lines = [];
@@ -7013,6 +7023,724 @@ function hdPracticeCommand(command, normalized, computer) {
   return null;
 }
 
+/* ---------- Client network state (added for Module 09, key its-04, console A) ----------
+ * Off unless a computer's machine state (a ticket's console.machines, or a
+ * Prove shift's machines) has network: { adapters:[...] }. A computer
+ * without it looks and answers exactly as before. Fields:
+ *   network: {
+ *     adapters: [{ name, kind:'Ethernet' | 'Dock USB Ethernet' | 'Wi-Fi' | 'VPN',
+ *       description?, media:'Connected' | 'Disconnected', enabled?:false,
+ *       speed?:'1 Gbps', mac:'3C-52-82-00-00-01', index?, driver?,
+ *       ip:{ dhcp:true | false, address, mask, gateway, dnsServers:[],
+ *         dhcpServer?, suffix?, obtained?, expires? }   (ISO times or text;
+ *         an address in 169.254.x.x is APIPA and has no gateway)
+ *       lease?:{ address, mask, gateway, dnsServers:[], dhcpServer, leaseDays? }
+ *         what DHCP gives on the network this adapter is plugged into; no
+ *         lease means /renew can't reach a DHCP server. An address that
+ *         isn't on the lease's network carries no traffic.
+ *       wifi?:{ ssid, protocol, security, band, channel, signal, linkRate,
+ *         bands?:{ '<band>':{ channel, signal, linkRate, ms?, lost? } },
+ *         known:[{ ssid, security }], noPreference?:'<band>' }
+ *       ms?:[min, max], lost?   reply times and lost replies per 20 on this
+ *         link (a Wi-Fi band's own ms and lost win) }],
+ *     dnsCache: [{ name, address, ttl }]   ping and Test-NetConnection use it
+ *       first; nslookup and Resolve-DnsName always ask the DNS server
+ *     publicDns: { '<name>':'<address>' }   names outside northstar.example
+ *     reach: { '<address>': [open TCP ports] | { ports, ms?:[min, max], lost? } | null }
+ *       (null: no reply); company servers answer from their role or server
+ *       state, outside addresses on 80 and 443 unless internet is false
+ *     routes: { corp | guest | outside | vpn: [{ address, name?, ms?, timeout? }] }
+ *       tracert's hops to the internet after the gateway
+ *     internet?: false }
+ * Networks, from the adapter's address: 10.20.90.x is the guest Wi-Fi (company
+ * addresses answer "Destination host unreachable" from its gateway; its DNS
+ * knows no company names); other 10.20.x.x is the company network; a VPN
+ * adapter carries company traffic only (split tunnel); anything else is
+ * outside Northstar. Windows sends other traffic through a wired adapter
+ * before Wi-Fi. A Dock USB Ethernet adapter's media is its own field.
+ * Seen keys (hdWinSeen, the same for a screen and its typed line):
+ * settings-network (Get-NetAdapter), net-adapter:<name> (Hardware properties,
+ * Get-NetIPConfiguration, Get-DnsClientServerAddress), wifi-properties (netsh
+ * wlan show interfaces), known-networks, dns-cache, ipconfig, ipconfig-all,
+ * ping:<target>, tracert:<target>, nslookup:<name> (Resolve-DnsName),
+ * port:<target>:<port>, dc-locate, gpupdate. Actions (hdMachineAction):
+ * ip-release, ip-renew, ip-renew-failed, dns-flush (Clear-DnsClientCache),
+ * ip-settings with from and to (Set-NetIPInterface -Dhcp Enabled),
+ * wifi-forget, adapter-property with property, from and to. */
+function hdNetState(machine) { const net = machine && machine.network; return net && typeof net === 'object' && Array.isArray(net.adapters) ? net : null; }
+function hdNetMachine(name) { const machine = hdFeatureMachine(name); return hdNetState(machine) ? machine : null; }
+function hdNetAdapters(net) { return net.adapters.filter(item => item && typeof item === 'object' && item.name); }
+function hdNetIp(adapter) { if (!adapter.ip || typeof adapter.ip !== 'object') adapter.ip = { dhcp:true }; return adapter.ip; }
+function hdNetApipa(address) { return /^169\.254\./.test(String(address || '')); }
+function hdNetIsAddress(value) { return /^\d{1,3}(\.\d{1,3}){3}$/.test(String(value || '')); }
+function hdNetPrefix(address) { return String(address || '').split('.').slice(0, 3).join('.'); }
+function hdNetUp(adapter) { return adapter.media === 'Connected' && adapter.enabled !== false; }
+function hdNetWifiUp(adapter) { return adapter.kind === 'Wi-Fi' && hdNetUp(adapter) && !!(adapter.wifi && adapter.wifi.ssid); }
+// Carries traffic: a link, a real address (and a gateway, but a VPN has
+// none), on the network the link is really on.
+function hdNetUsable(adapter) {
+  const ip = hdNetIp(adapter);
+  if (!hdNetUp(adapter) || !ip.address || hdNetApipa(ip.address)) return false;
+  if (adapter.kind !== 'VPN' && !ip.gateway) return false;
+  return !(adapter.lease && adapter.lease.address) || hdNetPrefix(adapter.lease.address) === hdNetPrefix(ip.address);
+}
+function hdNetZone(adapter) {
+  if (adapter.kind === 'VPN') return 'vpn';
+  const address = hdNetIp(adapter).address || '';
+  if (/^10\.20\.90\./.test(address)) return 'guest';
+  return /^10\.20\./.test(address) ? 'corp' : 'outside';
+}
+const HD_NET_ORDER = { Ethernet:0, 'Dock USB Ethernet':0, 'Wi-Fi':1, VPN:2 };
+function hdNetOrder(adapter) { return hdOwn(HD_NET_ORDER, adapter.kind) ? HD_NET_ORDER[adapter.kind] : 1; }
+function hdNetActive(net) { return hdNetAdapters(net).filter(item => item.kind !== 'VPN' && hdNetUsable(item)).sort((a, b) => hdNetOrder(a) - hdNetOrder(b))[0] || null; }
+function hdNetVpn(net) { return hdNetAdapters(net).find(item => item.kind === 'VPN' && hdNetUsable(item)) || null; }
+function hdNetCompanyAddress(address) { return /^10\.20\./.test(String(address || '')); }
+function hdNetPrivate(address) { return /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.)/.test(String(address || '')); }
+function hdNetRoute(net, address) { const vpn = hdNetVpn(net); return hdNetCompanyAddress(address) && vpn ? vpn : hdNetActive(net); }
+function hdNetIndex(net, adapter) { return Number(adapter.index) || 10 + hdNetAdapters(net).indexOf(adapter) * 4; }
+// A stable link-local IPv6 address from the adapter's MAC.
+function hdNetIpv6(net, adapter) {
+  const hex = String(adapter.mac || '').replace(/[^0-9a-f]/gi, '').toLowerCase().padStart(12, '0');
+  return `fe80::${hex.slice(0, 4).replace(/^0+(?=.)/, '')}:${hex.slice(4, 6)}ff:fe${hex.slice(6, 8)}:${hex.slice(8, 12).replace(/^0+(?=.)/, '')}%${hdNetIndex(net, adapter)}`;
+}
+function hdNetSuffix(adapter) { const ip = hdNetIp(adapter); if (typeof ip.suffix === 'string') return ip.suffix; return ip.dhcp !== false && hdNetUsable(adapter) && ['corp', 'vpn'].includes(hdNetZone(adapter)) ? HD_ORG.domain : ''; }
+function hdNetLinkTimes(adapter) {
+  const wifi = adapter.wifi && adapter.wifi.bands && adapter.wifi.bands[adapter.wifi.band];
+  const pick = wifi && Array.isArray(wifi.ms) ? wifi : adapter;
+  if (Array.isArray(pick.ms) && pick.ms.length === 2) return { ms:pick.ms.map(Number), lost:Number(pick.lost) || 0 };
+  return { ms:adapter.kind === 'Wi-Fi' ? [2, 4] : adapter.kind === 'VPN' ? [20, 28] : [1, 2], lost:0 };
+}
+function hdNetDcs() { return hdServers().filter(server => /domain controller/i.test(server.role || '')); }
+function hdNetServerAt(address) { return hdServers().find(server => server.ip === address) || null; }
+function hdNetServerPorts(server) {
+  if (server.status === 'Offline') return null;
+  const state = hdServerState(server.name);
+  if (state && Array.isArray(state.ports)) return state.ports.map(Number);
+  const role = String(server.role || '');
+  if (/domain controller/i.test(role)) return [53, 88, 135, 389, 445, 636, 3389, 5985];
+  if (/print/i.test(role)) return [135, 445, 515, 3389, 5985];
+  if (/application/i.test(role)) return [80, 443, 3389, 5985];
+  return [135, 445, 3389, 5985];
+}
+function hdNetListed(net, address) {
+  const reach = net.reach && typeof net.reach === 'object' ? net.reach : {};
+  if (!hdOwn(reach, address)) return undefined;
+  const entry = reach[address];
+  if (entry === null) return null;
+  if (Array.isArray(entry)) return { ports:entry.map(Number) };
+  return entry && typeof entry === 'object' ? { ports:Array.isArray(entry.ports) ? entry.ports.map(Number) : [], ms:Array.isArray(entry.ms) ? entry.ms.map(Number) : null, lost:Number(entry.lost) || 0 } : null;
+}
+// Where a packet to this address goes: reply, timeout, unreachable (the
+// guest gateway refuses company addresses) or fail (no network at all).
+function hdNetReach(net, address) {
+  const via = hdNetRoute(net, address);
+  if (!via) return { result:'fail' };
+  const ip = hdNetIp(via); const zone = hdNetZone(via); const link = hdNetLinkTimes(via);
+  const listed = hdNetListed(net, address);
+  const answer = (ports, ttl, extra) => ({ via, result:'reply', ports, ttl, ms:extra && extra.ms ? extra.ms : link.ms, lost:extra && extra.lost ? extra.lost : link.lost });
+  if (address === ip.gateway) return listed === null ? { via, result:'timeout' } : answer(listed ? listed.ports : [], 255, listed);
+  if (listed === null) return { via, result:'timeout' };
+  if (hdNetCompanyAddress(address)) {
+    if (zone === 'guest') return { via, result:'unreachable', from:ip.gateway };
+    if (zone === 'outside') return { via, result:'timeout' };
+    if (listed) return answer(listed.ports, 127, listed);
+    const server = hdNetServerAt(address); const ports = server ? hdNetServerPorts(server) : null;
+    return ports ? answer(ports, 127) : { via, result:'timeout' };
+  }
+  if (listed) return answer(listed.ports, hdNetPrefix(address) === hdNetPrefix(ip.address) ? 128 : 56, listed);
+  if (hdNetPrivate(address) || net.internet === false) return { via, result:'timeout' };
+  return answer([80, 443], 56, { ms:Array.isArray(net.internetMs) ? net.internetMs.map(Number) : [12, 18] });
+}
+// The same "random" reply times every run.
+function hdNetSample(range, index) {
+  const [min, max] = [Math.min(...range), Math.max(...range)];
+  if (index === 0) return min;
+  if (index === 1) return max;
+  return min + ((index * 7919 + 13) % (max - min + 1));
+}
+function hdNetLost(lost, count) {
+  const total = Math.min(count, Math.round(Number(lost || 0) * count / 20));
+  return new Set(Array.from({ length:total }, (_, k) => Math.floor((k + 0.5) * count / total)));
+}
+// Names: a single label gets the company suffix, as Windows does.
+function hdNetFqdn(name) {
+  let value = String(name || '').trim().replace(/^["']|["']$/g, '').toLowerCase().replace(/\.$/, '');
+  if (value && !value.includes('.') && !hdNetIsAddress(value)) value = `${value}.${HD_ORG.domain}`;
+  return value;
+}
+function hdNetCompanyName(fqdn) { return fqdn === HD_ORG.domain || fqdn.endsWith(`.${HD_ORG.domain}`); }
+// The company zone, from the same records the DNS Manager screen shows.
+function hdNetZoneRecords() { const dir = hdDirectory(); return dir ? hdDnsRecords(dir) : HD_DNS_RECORDS; }
+function hdNetCompanyLookup(fqdn, depth) {
+  if (fqdn === HD_ORG.domain) { const dcs = hdNetDcs(); return dcs.length ? { addresses:dcs.map(server => server.ip), ttl:600, records:[] } : null; }
+  const short = fqdn.slice(0, -HD_ORG.domain.length - 1);
+  const records = hdNetZoneRecords();
+  const a = records.filter(record => String(record.name).toLowerCase() === short && record.type === 'A');
+  if (a.length) return { addresses:a.map(record => String(record.value)), ttl:Number(a[0].ttl) || 3600, records:a };
+  const alias = records.find(record => String(record.name).toLowerCase() === short && record.type === 'CNAME');
+  if (alias && (depth || 0) < 3) { const target = hdNetFqdn(alias.value); const next = hdNetCompanyName(target) ? hdNetCompanyLookup(target, (depth || 0) + 1) : null; return next ? { ...next, name:next.name || target, alias:fqdn, records:[alias, ...next.records] } : null; }
+  const server = hdServers().find(item => item.name.toLowerCase() === short);
+  return server ? { addresses:[server.ip], ttl:1200, records:[] } : null;
+}
+function hdNetServerName(address) {
+  if (!hdNetDcs().some(server => server.ip === address)) return 'UnKnown';
+  const record = hdNetZoneRecords().find(item => item.type === 'A' && String(item.value) === address);
+  const server = hdNetServerAt(address);
+  return record ? `${record.name}.${HD_ORG.domain}` : `${server.name.toLowerCase()}.${HD_ORG.domain}`;
+}
+// Asks a DNS server (never the cache): status ok, nxdomain, timeout or noserver.
+function hdNetAsk(net, fqdn, serverOverride) {
+  const vpn = hdNetVpn(net);
+  const via = serverOverride ? hdNetRoute(net, serverOverride) : hdNetCompanyName(fqdn) && vpn ? vpn : hdNetActive(net);
+  const server = serverOverride || (via ? (hdNetIp(via).dnsServers || [])[0] || '' : '');
+  if (!via || !server) return { status:'noserver', server:'127.0.0.1', serverName:'UnKnown' };
+  const company = hdNetDcs().some(item => item.ip === server);
+  const serverName = hdNetServerName(server);
+  if (company && hdNetReach(net, server).result !== 'reply') return { status:'timeout', server, serverName:'UnKnown' };
+  if (hdNetCompanyName(fqdn)) {
+    const found = company ? hdNetCompanyLookup(fqdn) : null;
+    return found ? { status:'ok', server, serverName, company, ...found, name:found.name || fqdn } : { status:'nxdomain', server, serverName, company };
+  }
+  const named = net.publicDns && typeof net.publicDns === 'object' ? net.publicDns[fqdn] : '';
+  return named ? { status:'ok', server, serverName, company, addresses:[String(named)], ttl:300, records:[], name:fqdn, outside:true } : { status:'nxdomain', server, serverName, company };
+}
+function hdNetCache(net) { if (!Array.isArray(net.dnsCache)) net.dnsCache = []; return net.dnsCache; }
+// What ping and Test-NetConnection use: the cache first, then the server.
+function hdNetResolve(net, target) {
+  const typed = String(target || '').replace(/^["']|["']$/g, '');
+  if (hdNetIsAddress(typed)) return { address:typed, shown:typed };
+  const fqdn = hdNetFqdn(typed);
+  const cached = hdNetCache(net).find(entry => entry && hdNetFqdn(entry.name) === fqdn && entry.address);
+  if (cached) return { address:String(cached.address), shown:fqdn, fqdn, cached:true };
+  const answer = hdNetAsk(net, fqdn);
+  if (answer.status !== 'ok') return { shown:fqdn, fqdn, failed:answer.status };
+  const cache = hdNetCache(net);
+  cache.push({ name:fqdn, address:answer.addresses[0], ttl:answer.ttl });
+  if (cache.length > 50) cache.splice(0, cache.length - 50);
+  return { address:answer.addresses[0], shown:fqdn, fqdn };
+}
+// ipconfig's dotted labels, as Windows prints them.
+const HD_NET_LABELS = {
+  suffix:'Connection-specific DNS Suffix  .', media:'Media State . . . . . . . . . . .', description:'Description . . . . . . . . . . .',
+  mac:'Physical Address. . . . . . . . .', dhcp:'DHCP Enabled. . . . . . . . . . .', auto:'Autoconfiguration Enabled . . . .',
+  ipv6:'Link-local IPv6 Address . . . . .', ipv4:'IPv4 Address. . . . . . . . . . .', apipa:'Autoconfiguration IPv4 Address. .',
+  mask:'Subnet Mask . . . . . . . . . . .', obtained:'Lease Obtained. . . . . . . . . .', expires:'Lease Expires . . . . . . . . . .',
+  gateway:'Default Gateway . . . . . . . . .', dhcpServer:'DHCP Server . . . . . . . . . . .', dns:'DNS Servers . . . . . . . . . . .',
+  netbios:'NetBIOS over Tcpip. . . . . . . .', host:'Host Name . . . . . . . . . . . .', primary:'Primary Dns Suffix  . . . . . . .',
+  node:'Node Type . . . . . . . . . . . .', routing:'IP Routing Enabled. . . . . . . .', wins:'WINS Proxy Enabled. . . . . . . .',
+  search:'DNS Suffix Search List. . . . . .',
+};
+function hdNetLine(key, value) { return `   ${HD_NET_LABELS[key]} : ${value == null ? '' : value}`; }
+function hdNetMbps(adapter) {
+  if (adapter.kind === 'Wi-Fi') return Number((adapter.wifi || {}).linkRate) || 0;
+  const match = /(\d+(?:\.\d+)?)\s*(G|M)bps/i.exec(adapter.speed || '1 Gbps');
+  return match ? Math.round(Number(match[1]) * (match[2].toUpperCase() === 'G' ? 1000 : 1)) : 0;
+}
+function hdNetHeading(adapter) { return `${adapter.kind === 'Wi-Fi' ? 'Wireless LAN adapter' : adapter.kind === 'VPN' ? 'Unknown adapter' : 'Ethernet adapter'} ${adapter.name}:`; }
+const HD_NET_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const HD_NET_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+function hdNetLongTime(value) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime()) || !/^\d{4}-\d{2}-\d{2}T/.test(String(value))) return String(value || '');
+  const hours = date.getUTCHours(); const pad = n => String(n).padStart(2, '0');
+  return `${HD_NET_DAYS[date.getUTCDay()]}, ${HD_NET_MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()} ${hours % 12 || 12}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())} ${hours < 12 ? 'AM' : 'PM'}`;
+}
+function hdNetNow(computerName) { return hdShiftNow(hdMachineTicket(computerName) || undefined); }
+function hdNetLeaseTimes(adapter, computerName) {
+  const ip = hdNetIp(adapter);
+  const days = Number((adapter.lease || {}).leaseDays) || 8;
+  const obtained = ip.obtained || new Date(hdNetNow(computerName).getTime() - 2 * 3600000).toISOString();
+  const expires = ip.expires || (/^\d{4}-/.test(obtained) ? new Date(Date.parse(obtained) + days * 86400000).toISOString() : '');
+  return [hdNetLongTime(obtained), hdNetLongTime(expires)];
+}
+function hdNetAdapterBlock(net, adapter, all, computerName) {
+  const ip = hdNetIp(adapter);
+  const lines = [hdNetHeading(adapter), ''];
+  if (!hdNetUp(adapter) || (adapter.kind === 'Wi-Fi' && !hdNetWifiUp(adapter))) {
+    lines.push(hdNetLine('media', 'Media disconnected'), hdNetLine('suffix', ''));
+    if (all) lines.push(hdNetLine('description', adapter.description || adapter.name), hdNetLine('mac', adapter.mac || ''), hdNetLine('dhcp', ip.dhcp === false ? 'No' : 'Yes'), hdNetLine('auto', 'Yes'));
+    return lines;
+  }
+  const apipa = hdNetApipa(ip.address);
+  const dhcp = ip.dhcp !== false;
+  lines.push(hdNetLine('suffix', hdNetSuffix(adapter)));
+  if (all) lines.push(hdNetLine('description', adapter.description || adapter.name), hdNetLine('mac', adapter.mac || ''), hdNetLine('dhcp', dhcp ? 'Yes' : 'No'), hdNetLine('auto', 'Yes'));
+  lines.push(hdNetLine('ipv6', `${hdNetIpv6(net, adapter)}${all ? '(Preferred)' : ''}`));
+  if (ip.address) {
+    lines.push(hdNetLine(apipa ? 'apipa' : 'ipv4', `${ip.address}${all ? '(Preferred)' : ''}`));
+    lines.push(hdNetLine('mask', ip.mask || (apipa ? '255.255.0.0' : '255.255.255.0')));
+  }
+  if (all && dhcp && ip.address && !apipa && ip.dhcpServer) { const [obtained, expires] = hdNetLeaseTimes(adapter, computerName); lines.push(hdNetLine('obtained', obtained), hdNetLine('expires', expires)); }
+  lines.push(hdNetLine('gateway', apipa ? '' : ip.gateway || ''));
+  if (all) {
+    if (dhcp && ip.address && !apipa && ip.dhcpServer) lines.push(hdNetLine('dhcpServer', ip.dhcpServer));
+    const dns = apipa ? [] : (Array.isArray(ip.dnsServers) ? ip.dnsServers : []);
+    if (dns.length) dns.forEach((server, index) => lines.push(index ? `${' '.repeat(39)}${server}` : hdNetLine('dns', server)));
+    lines.push(hdNetLine('netbios', 'Enabled'));
+  }
+  return lines;
+}
+function hdNetIpconfigText(net, all, computerName) {
+  const out = ['Windows IP Configuration', ''];
+  if (all) {
+    const suffix = HD_ORG.domain;
+    out.push(hdNetLine('host', computerName), hdNetLine('primary', suffix), hdNetLine('node', 'Hybrid'), hdNetLine('routing', 'No'), hdNetLine('wins', 'No'), hdNetLine('search', suffix));
+  }
+  hdNetAdapters(net).forEach(adapter => out.push('', ...hdNetAdapterBlock(net, adapter, all, computerName)));
+  return out.join('\n');
+}
+function hdNetApipaFor(adapter) {
+  const hex = String(adapter.mac || '').replace(/[^0-9a-f]/gi, '').padStart(12, '0');
+  return `169.254.${parseInt(hex.slice(8, 10), 16) || 1}.${parseInt(hex.slice(10, 12), 16) || 1}`;
+}
+// /renew and Edit IP settings › Automatic: DHCP's answer on this link, or none.
+function hdNetTakeLease(adapter, computerName) {
+  const ip = hdNetIp(adapter); const lease = adapter.lease;
+  if (!hdNetUp(adapter) || !lease || !lease.address) return false;
+  const now = hdNetNow(computerName);
+  adapter.ip = { dhcp:true, address:lease.address, mask:lease.mask || '255.255.255.0', gateway:lease.gateway || '', dnsServers:Array.isArray(lease.dnsServers) ? lease.dnsServers.slice() : [], dhcpServer:lease.dhcpServer || '', obtained:now.toISOString(), expires:new Date(now.getTime() + (Number(lease.leaseDays) || 8) * 86400000).toISOString(), ...(typeof ip.suffix === 'string' ? { suffix:ip.suffix } : {}) };
+  return true;
+}
+function hdNetPicked(net, name) {
+  const wanted = String(name || '').replace(/^["']|["']$/g, '').toLowerCase();
+  return hdNetAdapters(net).filter(adapter => !wanted || adapter.name.toLowerCase() === wanted);
+}
+function hdNetIpconfig(command, machine, computerName) {
+  const net = hdNetState(machine);
+  const match = /^ipconfig(?:\.exe)?(?:\s+[\/-](\w+)(?:\s+(.+))?)?$/i.exec(command.trim());
+  if (!match) return null;
+  const option = (match[1] || '').toLowerCase();
+  if (!option || option === 'all') {
+    hdWinSeen(machine, option ? 'ipconfig-all' : 'ipconfig');
+    if (option) hdNetAdapters(net).forEach(adapter => hdWinSeen(machine, `net-adapter:${adapter.name}`));
+    const active = hdNetActive(net);
+    hdLastCommandResult = hdNetAdapters(net).map(adapter => `${adapter.name} ${hdNetUp(adapter) ? hdNetIp(adapter).address || 'no address' : 'disconnected'}`).join(', ').slice(0, 200) || (active ? '' : 'no adapters');
+    return hdNetIpconfigText(net, !!option, computerName);
+  }
+  if (option === 'flushdns') {
+    if (hdProveLocked()) return '';
+    const count = hdNetCache(net).length;
+    net.dnsCache = [];
+    hdMachineAction(computerName, 'dns-flush', `cleared the DNS cache (ipconfig /flushdns, ${count} entr${count === 1 ? 'y' : 'ies'})`, { count });
+    hdProveEdited();
+    hdLastCommandResult = 'DNS cache flushed';
+    return 'Windows IP Configuration\n\nSuccessfully flushed the DNS Resolver Cache.';
+  }
+  if (option === 'displaydns') {
+    hdWinSeen(machine, 'dns-cache');
+    const cache = hdNetCache(net).filter(entry => entry && entry.name);
+    hdLastCommandResult = `${cache.length} cached name(s)${cache.length ? `: ${cache.map(entry => `${entry.name} ${entry.address}`).join(', ')}` : ''}`.slice(0, 200);
+    if (!cache.length) return 'Windows IP Configuration\n\nCould not display the DNS Resolver Cache.';
+    return ['Windows IP Configuration', '', ...cache.map(entry => [`    ${entry.name}`, '    ----------------------------------------', `    Record Name . . . . . : ${entry.name}`, '    Record Type . . . . . : 1', `    Time To Live  . . . . : ${Number(entry.ttl) || 0}`, '    Data Length . . . . . : 4', '    Section . . . . . . . : Answer', `    A (Host) Record . . . : ${entry.address}`, ''].join('\n'))].join('\n').trimEnd();
+  }
+  if (option === 'release' || option === 'renew') {
+    if (hdProveLocked()) return '';
+    const adapters = hdNetPicked(net, match[2]).filter(adapter => adapter.kind !== 'VPN');
+    if (match[2] && !adapters.length) return `The operation failed as no adapter is in the state permissible for this operation.`;
+    const notes = [];
+    adapters.forEach(adapter => {
+      const ip = hdNetIp(adapter);
+      if (ip.dhcp === false) return;
+      if (adapter.kind === 'Wi-Fi' && !hdNetWifiUp(adapter)) { notes.push(`No operation can be performed on ${adapter.name} while it has its media disconnected.`); return; }
+      if (option === 'release') {
+        if (!hdNetUp(adapter)) { notes.push(`No operation can be performed on ${adapter.name} while it has its media disconnected.`); return; }
+        const was = ip.address || '';
+        adapter.ip = { dhcp:true, address:'', mask:'', gateway:'', dnsServers:[], dhcpServer:'', ...(typeof ip.suffix === 'string' ? { suffix:ip.suffix } : {}) };
+        hdMachineAction(computerName, 'ip-release', `released ${adapter.name}'s address (${was || 'none'})`, { adapter:adapter.name, from:was });
+        return;
+      }
+      if (hdNetTakeLease(adapter, computerName)) { hdMachineAction(computerName, 'ip-renew', `renewed ${adapter.name}: ${hdNetIp(adapter).address} from DHCP`, { adapter:adapter.name, to:hdNetIp(adapter).address }); return; }
+      notes.push(`An error occurred while renewing interface ${adapter.name} : unable to contact your DHCP server. Request has timed out.`);
+      if (hdNetUp(adapter) && !hdNetApipa(ip.address)) adapter.ip = { ...ip, address:hdNetApipaFor(adapter), mask:'255.255.0.0', gateway:'', dnsServers:[], dhcpServer:'' };
+      hdMachineAction(computerName, 'ip-renew-failed', `ipconfig /renew on ${adapter.name}: unable to contact the DHCP server`, { adapter:adapter.name });
+    });
+    hdProveEdited();
+    hdLastCommandResult = notes.length ? notes.join(' ').slice(0, 200) : `${option} done: ${adapters.map(adapter => `${adapter.name} ${hdNetIp(adapter).address || 'no address'}`).join(', ')}`.slice(0, 200);
+    return [...(notes.length ? [...notes, ''] : []), hdNetIpconfigText(net, false, computerName)].join('\n');
+  }
+  hdLastCommandResult = `ipconfig /${option} not supported`;
+  return HD_PROVE ? 'Error: unrecognized or incomplete command line.' : 'Error: unrecognized or incomplete command line.\n\nTry: ipconfig, ipconfig /all, ipconfig /release, ipconfig /renew, ipconfig /flushdns, ipconfig /displaydns';
+}
+function hdNetArgs(command, valued) {
+  const words = command.trim().split(/\s+/).slice(1); const flags = {}; const rest = [];
+  for (let i = 0; i < words.length; i += 1) {
+    const word = words[i]; const flag = /^[-\/](\w+)$/.exec(word);
+    if (flag && valued.includes(flag[1].toLowerCase())) { flags[flag[1].toLowerCase()] = words[i + 1] || ''; i += 1; } else if (flag) flags[flag[1].toLowerCase()] = true; else rest.push(word);
+  }
+  return { flags, rest };
+}
+function hdNetMs(value) { return value < 1 ? 'time<1ms' : `time=${value}ms`; }
+function hdNetPing(command, machine) {
+  const net = hdNetState(machine);
+  const { flags, rest } = hdNetArgs(command, ['n', 'l', 'w', 'i']);
+  const target = rest[0];
+  if (!target) return HD_PROVE ? 'IP address must be specified.' : 'IP address must be specified. Try ping <name or address>.';
+  const count = Math.max(1, Math.min(50, Number(flags.n) || 4));
+  const resolved = hdNetResolve(net, target);
+  hdWinSeen(machine, `ping:${resolved.shown}`);
+  if (resolved.failed) { hdLastCommandResult = `could not find host ${resolved.shown}`; return `Ping request could not find host ${target}. Please check the name and try again.`; }
+  const address = resolved.address;
+  const reach = hdNetReach(net, address);
+  const head = resolved.fqdn ? `Pinging ${resolved.shown} [${address}] with 32 bytes of data:` : `Pinging ${address} with 32 bytes of data:`;
+  const lines = [head]; const times = [];
+  const lost = reach.result === 'reply' ? hdNetLost(reach.lost, count) : new Set();
+  let received = 0;
+  for (let i = 0; i < count; i += 1) {
+    if (reach.result === 'fail') lines.push('PING: transmit failed. General failure. ');
+    else if (reach.result === 'unreachable') { lines.push(`Reply from ${reach.from}: Destination host unreachable.`); received += 1; }
+    else if (reach.result === 'timeout' || lost.has(i)) lines.push('Request timed out.');
+    else { const time = hdNetSample(reach.ms, i); times.push(time); received += 1; lines.push(`Reply from ${address}: bytes=32 ${hdNetMs(time)} TTL=${reach.ttl}`); }
+  }
+  lines.push('', `Ping statistics for ${address}:`, `    Packets: Sent = ${count}, Received = ${received}, Lost = ${count - received} (${Math.round((count - received) / count * 100)}% loss),`);
+  if (times.length) lines.push('Approximate round trip times in milli-seconds:', `    Minimum = ${Math.min(...times)}ms, Maximum = ${Math.max(...times)}ms, Average = ${Math.round(times.reduce((a, b) => a + b, 0) / times.length)}ms`);
+  hdLastCommandResult = `${resolved.shown}${resolved.fqdn ? ` [${address}]` : ''}: ${reach.result === 'reply' ? `${times.length} of ${count} replies${times.length ? `, ${Math.min(...times)}-${Math.max(...times)} ms` : ''}` : reach.result === 'unreachable' ? 'destination host unreachable' : reach.result === 'fail' ? 'general failure' : 'timed out'}`;
+  return lines.join('\n');
+}
+function hdNetTracert(command, machine) {
+  const net = hdNetState(machine);
+  const { rest } = hdNetArgs(command, ['h', 'w', 'j']);
+  const target = rest[0];
+  if (!target) return HD_PROVE ? 'A target name or address must be specified.' : 'A target name or address must be specified. Try tracert <name or address>.';
+  const resolved = hdNetResolve(net, target);
+  hdWinSeen(machine, `tracert:${resolved.shown}`);
+  if (resolved.failed) { hdLastCommandResult = `unable to resolve ${resolved.shown}`; return `Unable to resolve target system name ${target}.`; }
+  const address = resolved.address;
+  const reach = hdNetReach(net, address);
+  if (reach.result === 'fail') { hdLastCommandResult = 'general failure'; return 'Unable to contact IP driver. General failure.'; }
+  const via = reach.via; const ip = hdNetIp(via); const link = hdNetLinkTimes(via);
+  const out = [resolved.fqdn ? `Tracing route to ${resolved.shown} [${address}]` : `Tracing route to ${address} over a maximum of 30 hops`, ...(resolved.fqdn ? ['over a maximum of 30 hops:'] : []), ''];
+  const col = value => `${value < 1 ? '<1' : value}`.padStart(5) + ' ms';
+  const hop = (n, ms, label) => `${String(n).padStart(3)}  ${ms.map(col).join(' ')}  ${label}`;
+  const name = item => (item.name ? `${item.name} [${item.address}]` : item.address);
+  const hops = [];
+  let base = 0;
+  if (via.kind !== 'VPN' && ip.gateway && address !== ip.gateway) hops.push({ address:ip.gateway, ms:[0, 1, 2].map(i => hdNetSample(link.ms, i)) });
+  const routes = net.routes && typeof net.routes === 'object' ? net.routes : {};
+  const outside = !hdNetCompanyAddress(address) && !(hdNetPrefix(address) === hdNetPrefix(ip.address));
+  if (reach.result === 'unreachable') {
+    out.push(`  1  ${reach.from}  reports: Destination host unreachable.`, '', 'Trace complete.');
+    hdLastCommandResult = `${reach.from} reports destination host unreachable`;
+    return out.join('\n');
+  }
+  if (outside || via.kind === 'VPN') (Array.isArray(routes[hdNetZone(via)]) ? routes[hdNetZone(via)] : []).forEach(item => { if (item && (item.address || item.timeout)) hops.push(item); });
+  const lines = []; let n = 0;
+  hops.forEach(item => {
+    n += 1;
+    if (item.timeout) { lines.push(`${String(n).padStart(3)}     *        *        *     Request timed out.`); return; }
+    const ms = Array.isArray(item.ms) ? item.ms.map(Number) : typeof item.ms === 'number' ? [item.ms, item.ms + 1, item.ms] : [base, base + 1, base];
+    base = Math.max(base, ...ms);
+    lines.push(hop(n, ms, name(item)));
+  });
+  if (reach.result === 'reply') {
+    n += 1;
+    const ms = [0, 1, 2].map(i => hdNetSample(reach.ms, i + 2));
+    lines.push(hop(n, ms, resolved.fqdn ? `${resolved.shown} [${address}]` : address));
+  } else while (n < 30) { n += 1; lines.push(`${String(n).padStart(3)}     *        *        *     Request timed out.`); }
+  out.push(...lines, '', 'Trace complete.');
+  hdLastCommandResult = `${hops.filter(item => !item.timeout).map(item => item.name || item.address).join(' > ')}${reach.result === 'reply' ? ` > ${address}` : ' > timed out'}`.replace(/^ > /, '').slice(0, 200);
+  return out.join('\n');
+}
+function hdNetNslookup(command, machine) {
+  const net = hdNetState(machine);
+  const { rest } = hdNetArgs(command, []);
+  if (!rest[0]) return HD_PROVE ? '*** Can\'t find server name' : 'nslookup : Add the name, for example nslookup intranet.northstar.example.';
+  const fqdn = hdNetFqdn(rest[0]);
+  const override = hdNetIsAddress(rest[1]) ? rest[1] : '';
+  const answer = hdNetAsk(net, fqdn, override);
+  hdWinSeen(machine, `nslookup:${fqdn}`);
+  const head = [`Server:  ${answer.serverName}`, `Address:  ${answer.server}`, ''];
+  if (answer.status === 'noserver') { hdLastCommandResult = 'no DNS server'; return ['*** Default servers are not available', ...head, `*** UnKnown can't find ${fqdn}: No response from server`].join('\n'); }
+  if (answer.status === 'timeout') { hdLastCommandResult = `DNS request to ${answer.server} timed out`; return ['DNS request timed out.', '    timeout was 2 seconds.', ...head, 'DNS request timed out.', '    timeout was 2 seconds.', `*** Request to UnKnown timed-out`].join('\n'); }
+  if (answer.status === 'nxdomain') { hdLastCommandResult = `${fqdn}: non-existent domain (server ${answer.server})`; return [...head, `*** ${answer.serverName} can't find ${fqdn}: Non-existent domain`].join('\n'); }
+  if (answer.company && hdDirectory()) answer.records.forEach(record => hdServerSeen(`dns-record:${String(record.name).toLowerCase()}:${record.type}`, `nslookup ${fqdn}`));
+  const addresses = answer.addresses.length > 1 ? [`Addresses:  ${answer.addresses[0]}`, ...answer.addresses.slice(1).map(item => `          ${item}`)] : [`Address:  ${answer.addresses[0]}`];
+  hdLastCommandResult = `${fqdn} -> ${answer.addresses.join(', ')} (server ${answer.server})`;
+  return [...head, ...(answer.outside || !answer.company ? ['Non-authoritative answer:'] : []), `Name:    ${answer.name}`, ...addresses, ...(answer.alias ? [`Aliases:  ${answer.alias}`] : [])].join('\n');
+}
+function hdNetTestNet(command, machine, computerName) {
+  const net = hdNetState(machine);
+  const trimmed = command.trim();
+  const target = (hdParam(command, 'computername') || (/^test-netconnection\s+("[^"]*"|'[^']*'|[^\s-]\S*)/i.exec(trimmed) || [])[1] || '').replace(/^["']|["']$/g, '');
+  if (!target) return HD_PROVE ? "Test-NetConnection : Cannot validate argument on parameter 'ComputerName'." : 'Test-NetConnection : Add the name or address to test, for example Test-NetConnection files.northstar.example -Port 445.';
+  const common = { http:80, rdp:3389, smb:445, winrm:5985 }[hdParam(command, 'commontcpport').toLowerCase()];
+  const port = common ? String(common) : hdParam(command, 'port');
+  if (port && !/^\d{1,5}$/.test(port)) return `Test-NetConnection : Cannot validate argument on parameter 'Port'.`;
+  const resolved = hdNetResolve(net, target);
+  const active = hdNetActive(net);
+  const alias = active ? active.name : (hdNetAdapters(net)[0] || {}).name || 'Ethernet';
+  const key = `${resolved.shown}`;
+  hdWinSeen(machine, port ? `port:${key}:${Number(port)}` : `ping:${key}`);
+  if (resolved.failed) {
+    hdLastCommandResult = `${key}: name resolution failed`;
+    const rows = [['ComputerName', target], ['RemoteAddress', ''], ...(port ? [['RemotePort', port]] : []), ['InterfaceAlias', ''], ['SourceAddress', ''], ['PingSucceeded', 'False']];
+    return [`WARNING: Name resolution of ${target} failed -- Status: No such host is known`, hdFormatList(rows)].join('\n');
+  }
+  const reach = hdNetReach(net, resolved.address);
+  const via = reach.via || active;
+  const open = reach.result === 'reply' ? reach.ports : null;
+  const server = hdServerByTarget(target) || hdServerByTarget(resolved.address);
+  if (server) hdServerSeen(port ? `port:${server.name}:${Number(port)}` : `ping:${server.name}`, `Test-NetConnection ${server.name}${port ? ` -Port ${port}` : ''}`);
+  hdLastCommandResult = port ? `${key}:${port} TcpTestSucceeded ${!!(open && open.includes(Number(port)))}` : `${key} ping ${open !== null}`;
+  return hdTestNetText(target, port, open, via ? hdNetIp(via).address || '' : '', via ? via.name : alias, resolved.address);
+}
+function hdNetRows(head, rows) {
+  const widths = head.map((title, index) => Math.max(title.length, ...rows.map(row => String(row[index]).length)));
+  const line = row => row.map((cell, index) => (index === row.length - 1 ? String(cell) : String(cell).padEnd(widths[index]))).join(' ');
+  return [line(head), line(head.map(title => '-'.repeat(title.length))), ...rows.map(line)].join('\n');
+}
+function hdNetStatusWord(adapter) { return adapter.enabled === false ? 'Disabled' : hdNetUp(adapter) && (adapter.kind !== 'Wi-Fi' || hdNetWifiUp(adapter)) ? 'Up' : 'Disconnected'; }
+function hdNetProfile(adapter) { if (!hdNetUsable(adapter)) return 'Unidentified network'; if (adapter.kind === 'Wi-Fi') return adapter.wifi.ssid; return ['corp', 'vpn'].includes(hdNetZone(adapter)) ? HD_ORG.domain : 'Network'; }
+function hdNetDcReachable(net) { const found = hdNetAsk(net, HD_ORG.domain); return found.status === 'ok' && found.company ? found.addresses.find(address => hdNetReach(net, address).result === 'reply') || '' : ''; }
+// The optional lines (decision 11) and nltest, gpupdate and Test-NetConnection.
+function hdNetPowerShell(command, normalized, machine, computerName) {
+  const net = hdNetState(machine);
+  const trimmed = command.trim();
+  if (/^get-netadapter\b/.test(normalized)) {
+    hdWinSeen(machine, 'settings-network');
+    hdLastCommandResult = hdNetAdapters(net).map(adapter => `${adapter.name} ${hdNetStatusWord(adapter)}`).join(', ');
+    return hdNetRows(['Name', 'InterfaceDescription', 'ifIndex', 'Status', 'MacAddress', 'LinkSpeed'], hdNetAdapters(net).map(adapter => [adapter.name, adapter.description || adapter.name, hdNetIndex(net, adapter), hdNetStatusWord(adapter), adapter.mac || '', hdNetStatusWord(adapter) === 'Up' ? adapter.speed || (adapter.kind === 'Wi-Fi' ? `${(adapter.wifi || {}).linkRate || 0} Mbps` : '1 Gbps') : '0 bps']));
+  }
+  if (/^get-netipconfiguration\b/.test(normalized) || /^get-dnsclientserveraddress\b/.test(normalized)) {
+    const alias = hdParam(command, 'interfacealias');
+    const adapters = hdNetPicked(net, alias);
+    if (!adapters.length) return `${trimmed.split(/\s+/)[0]} : No MSFT_NetIPInterface objects found with property 'InterfaceAlias' equal to '${alias}'.`;
+    adapters.forEach(adapter => hdWinSeen(machine, `net-adapter:${adapter.name}`));
+    if (/^get-dnsclientserveraddress\b/.test(normalized)) {
+      hdLastCommandResult = adapters.map(adapter => `${adapter.name} DNS ${(hdNetIp(adapter).dnsServers || []).join(', ') || 'none'}`).join('; ').slice(0, 200);
+      return hdNetRows(['InterfaceAlias', 'Interface Index', 'Address Family', 'ServerAddresses'], adapters.map(adapter => [adapter.name, hdNetIndex(net, adapter), 'IPv4', `{${(hdNetUp(adapter) && !hdNetApipa(hdNetIp(adapter).address) ? hdNetIp(adapter).dnsServers || [] : []).join(', ')}}`]));
+    }
+    hdLastCommandResult = adapters.map(adapter => `${adapter.name} ${hdNetIp(adapter).address || 'no address'}`).join(', ').slice(0, 200);
+    return adapters.map(adapter => {
+      const ip = hdNetIp(adapter);
+      const rows = [['InterfaceAlias', adapter.name], ['InterfaceIndex', hdNetIndex(net, adapter)], ['InterfaceDescription', adapter.description || adapter.name]];
+      if (hdNetStatusWord(adapter) !== 'Up') rows.push(['NetAdapter.Status', 'Disconnected']);
+      else {
+        rows.push(['NetProfile.Name', hdNetProfile(adapter)], ['IPv4Address', ip.address || ''], ['IPv4DefaultGateway', hdNetApipa(ip.address) ? '' : ip.gateway || '']);
+        const dns = hdNetApipa(ip.address) ? [] : ip.dnsServers || [];
+        rows.push(['DNSServer', dns[0] || '']);
+        dns.slice(1).forEach(server => rows.push(['', server]));
+      }
+      return rows.map(([key, value]) => `${key.padEnd(20)} ${key ? ':' : ' '} ${value}`).join('\n');
+    }).join('\n\n');
+  }
+  if (/^get-dnsclientcache\b/.test(normalized)) {
+    hdWinSeen(machine, 'dns-cache');
+    const cache = hdNetCache(net).filter(entry => entry && entry.name);
+    hdLastCommandResult = `${cache.length} cached name(s)`;
+    return cache.length ? hdNetRows(['Entry', 'RecordName', 'Record Type', 'Status', 'Section', 'TimeToLive', 'Data'], cache.map(entry => [entry.name, entry.name, 'A', 'Success', 'Answer', Number(entry.ttl) || 0, entry.address])) : '';
+  }
+  if (/^clear-dnsclientcache\b/.test(normalized)) {
+    if (hdProveLocked()) return '';
+    const count = hdNetCache(net).length;
+    net.dnsCache = [];
+    hdMachineAction(computerName, 'dns-flush', `cleared the DNS cache (Clear-DnsClientCache, ${count} entr${count === 1 ? 'y' : 'ies'})`, { count });
+    hdProveEdited();
+    hdLastCommandResult = 'DNS cache cleared';
+    return '';
+  }
+  if (/^netsh\s+wlan\s+show\s+interfaces?\b/.test(normalized)) {
+    const wifi = hdNetAdapters(net).filter(adapter => adapter.kind === 'Wi-Fi');
+    if (!wifi.length) { hdLastCommandResult = 'no wireless interface'; return 'There is no wireless interface on the system.'; }
+    if (wifi.some(hdNetWifiUp)) hdWinSeen(machine, 'wifi-properties');
+    hdLastCommandResult = wifi.map(adapter => (hdNetWifiUp(adapter) ? `${adapter.name} ${adapter.wifi.ssid} ${adapter.wifi.band} ch ${adapter.wifi.channel}` : `${adapter.name} disconnected`)).join(', ');
+    return [`There ${wifi.length === 1 ? 'is 1 interface' : `are ${wifi.length} interfaces`} on the system:`, '', wifi.map(adapter => {
+      const w = adapter.wifi || {}; const up = hdNetWifiUp(adapter);
+      const rows = [['Name', adapter.name], ['Description', adapter.description || adapter.name], ['Physical address', String(adapter.mac || '').replace(/-/g, ':').toLowerCase()], ['Interface type', 'Primary'], ['State', up ? 'connected' : 'disconnected']];
+      if (up) rows.push(['SSID', w.ssid], ['Network type', 'Infrastructure'], ['Radio type', /\((.+)\)/.exec(w.protocol || '') ? /\((.+)\)/.exec(w.protocol)[1] : w.protocol || ''], ['Authentication', w.security || ''], ['Connection mode', 'Auto Connect'], ['Band', w.band || ''], ['Channel', w.channel || ''], ['Receive rate (Mbps)', w.linkRate || ''], ['Transmit rate (Mbps)', w.linkRate || ''], ['Signal', `${w.signal || 0}%`], ['Profile', w.ssid]);
+      return rows.map(([key, value]) => `    ${key.padEnd(23)}: ${value}`).join('\n');
+    }).join('\n\n')].join('\n');
+  }
+  if (/^netsh\s+wlan\s+show\s+profiles?\b/.test(normalized)) {
+    const wifi = hdNetAdapters(net).find(adapter => adapter.kind === 'Wi-Fi');
+    if (!wifi) return 'There is no wireless interface on the system.';
+    hdWinSeen(machine, 'known-networks');
+    const known = hdNetKnown(wifi);
+    hdLastCommandResult = `known networks: ${known.map(item => item.ssid).join(', ') || 'none'}`;
+    return [`Profiles on interface ${wifi.name}:`, '', 'Group policy profiles (read only)', '---------------------------------', '    <None>', '', 'User profiles', '-------------', ...(known.length ? known.map(item => `    All User Profile     : ${item.ssid}`) : ['    <None>'])].join('\n');
+  }
+  if (/^resolve-dnsname\b/.test(normalized)) {
+    const typed = (hdParam(command, 'name') || (/^resolve-dnsname\s+("[^"]*"|'[^']*'|[^\s-]\S*)/i.exec(trimmed) || [])[1] || '').replace(/^["']|["']$/g, '');
+    if (!typed) return HD_PROVE ? "Resolve-DnsName : Cannot process argument because the value of argument 'Name' is null." : 'Resolve-DnsName : Add the name, for example Resolve-DnsName <name>.';
+    const fqdn = hdNetFqdn(typed);
+    const answer = hdNetAsk(net, fqdn, hdNetIsAddress(hdParam(command, 'server')) ? hdParam(command, 'server') : '');
+    hdWinSeen(machine, `nslookup:${fqdn}`);
+    if (answer.status === 'timeout' || answer.status === 'noserver') { hdLastCommandResult = `${fqdn}: timed out`; return `Resolve-DnsName : ${fqdn} : This operation returned because the timeout period expired`; }
+    if (answer.status === 'nxdomain') { hdLastCommandResult = `${fqdn}: does not exist (server ${answer.server})`; return `Resolve-DnsName : ${fqdn} : DNS name does not exist`; }
+    if (answer.company && hdDirectory()) answer.records.forEach(record => hdServerSeen(`dns-record:${String(record.name).toLowerCase()}:${record.type}`, `Resolve-DnsName ${fqdn}`));
+    hdLastCommandResult = `${fqdn} -> ${answer.addresses.join(', ')} (server ${answer.server})`;
+    return ['Name                              Type  TTL   Section Data', ...(answer.alias ? [`${answer.alias.padEnd(33)} CNAME ${String(answer.ttl).padEnd(5)} Answer  ${answer.name}`] : []), ...answer.addresses.map(address => `${answer.name.padEnd(33)} A     ${String(answer.ttl).padEnd(5)} Answer  ${address}`)].join('\n');
+  }
+  if (/^set-netipinterface\b/.test(normalized)) {
+    const alias = hdParam(command, 'interfacealias'); const dhcp = hdParam(command, 'dhcp').toLowerCase();
+    const adapter = alias ? hdNetPicked(net, alias)[0] : null;
+    if (!adapter) return `Set-NetIPInterface : No MSFT_NetIPInterface objects found with property 'InterfaceAlias' equal to '${alias}'.`;
+    if (dhcp !== 'enabled') return HD_PROVE ? "Set-NetIPInterface : Cannot process argument transformation on parameter 'Dhcp'." : 'Set-NetIPInterface : This training shell only turns DHCP on (-Dhcp Enabled). A manual address is set in Settings › Network & internet › Edit IP settings.';
+    if (hdProveLocked()) return '';
+    hdNetSetAutomatic(machine, computerName, adapter, 'Set-NetIPInterface');
+    hdProveEdited();
+    hdLastCommandResult = `${adapter.name}: DHCP enabled (${hdNetIp(adapter).address || 'no address'})`;
+    return '';
+  }
+  if (/^nltest(\.exe)?\s+\/dsgetdc:/.test(normalized)) {
+    const domain = /\/dsgetdc:(\S+)/.exec(normalized)[1].replace(/\.$/, '');
+    hdWinSeen(machine, 'dc-locate');
+    const address = [HD_ORG.domain, HD_ORG.netbios.toLowerCase()].includes(domain) ? hdNetDcReachable(net) : '';
+    if (!address) { hdLastCommandResult = 'no domain controller found'; return 'Getting DC name failed: Status = 1355 0x54b ERROR_NO_SUCH_DOMAIN'; }
+    const server = hdNetServerAt(address);
+    hdLastCommandResult = `domain controller ${server.name} ${address}`;
+    return [`           DC: \\\\${server.name}.${HD_ORG.domain}`, `      Address: \\\\${address}`, `     Dom Name: ${HD_ORG.domain}`, `  Forest Name: ${HD_ORG.domain}`, ' Dc Site Name: Default-First-Site-Name', 'Our Site Name: Default-First-Site-Name', '        Flags: GC DS LDAP KDC TIMESERV WRITABLE DNS_DC DNS_DOMAIN DNS_FOREST CLOSE_SITE', 'The command completed successfully'].join('\n');
+  }
+  if (normalized === 'gpupdate /force' || normalized === 'gpupdate') {
+    // With a domain controller in reach the older answer runs (and Module 7's
+    // record of it); without one, Windows' failure.
+    if (hdNetDcReachable(net)) { hdWinSeen(machine, 'gpupdate'); return null; }
+    hdLastCommandResult = 'policy update failed: no domain controller';
+    return 'Updating policy...\n\nComputer policy could not be updated successfully. The following errors were encountered:\n\nThe processing of Group Policy failed because of lack of network connectivity to a domain controller. This may be a transient condition.\n\nUser Policy could not be updated successfully. The following errors were encountered:\n\nThe processing of Group Policy failed because of lack of network connectivity to a domain controller. This may be a transient condition.';
+  }
+  if (/^test-netconnection\b/.test(normalized)) return hdNetTestNet(command, machine, computerName);
+  return null;
+}
+// Every network line, on a computer with network state; null otherwise.
+function hdNetCommand(command, normalized, computer) {
+  const machine = computer && hdNetMachine(computer.name); if (!machine) return null;
+  const head = normalized.split(' ')[0].replace(/\.exe$/, '');
+  if (head === 'ipconfig') return hdNetIpconfig(command, machine, computer.name);
+  if (head === 'ping') return hdNetPing(command, machine);
+  if (head === 'tracert') return hdNetTracert(command, machine);
+  if (head === 'nslookup') return hdNetNslookup(command, machine);
+  return hdNetPowerShell(command, normalized, machine, computer.name);
+}
+function hdNetHelp(machine) {
+  if (!hdNetState(machine)) return [];
+  return ['Network: ipconfig [/all | /release | /renew | /flushdns | /displaydns], ping <name or address> [-n <count>], tracert <name or address>, nslookup <name>, Test-NetConnection <name> -Port <port>, nltest /dsgetdc:northstar.example',
+    'Network (PowerShell): Get-NetAdapter, Get-NetIPConfiguration, Get-DnsClientServerAddress, Get-DnsClientCache, Clear-DnsClientCache, Resolve-DnsName <name>, Set-NetIPInterface -InterfaceAlias <name> -Dhcp Enabled, netsh wlan show interfaces, netsh wlan show profiles'];
+}
+// The address the computer card shows: the adapter Windows uses, else any.
+function hdNetShownIp(net) {
+  const active = hdNetActive(net); if (active) return hdNetIp(active).address;
+  const up = hdNetAdapters(net).find(adapter => hdNetUp(adapter) && hdNetIp(adapter).address);
+  return up ? hdNetIp(up).address : '';
+}
+
+/* Settings › Network & internet with network state, and its changes. */
+function hdNetKnown(adapter) { const wifi = adapter.wifi && typeof adapter.wifi === 'object' ? adapter.wifi : null; return wifi && Array.isArray(wifi.known) ? wifi.known.filter(item => item && item.ssid) : []; }
+function hdNetIpText(ip) { return ip.dhcp === false ? `Manual (${ip.address || 'no address'})` : 'Automatic (DHCP)'; }
+function hdNetSetAutomatic(machine, computerName, adapter, via) {
+  const ip = hdNetIp(adapter);
+  const before = { mode:hdNetIpText(ip), address:ip.address || '', mask:ip.mask || '', gateway:ip.gateway || '', dnsServers:(ip.dnsServers || []).slice() };
+  if (ip.dhcp !== false) return false;
+  adapter.ip = { dhcp:true, address:'', mask:'', gateway:'', dnsServers:[], dhcpServer:'' };
+  if (!hdNetTakeLease(adapter, computerName) && hdNetUp(adapter)) adapter.ip = { dhcp:true, address:hdNetApipaFor(adapter), mask:'255.255.0.0', gateway:'', dnsServers:[], dhcpServer:'' };
+  hdMachineAction(computerName, 'ip-settings', `changed IP assignment on ${adapter.name} from ${before.mode} to Automatic (DHCP) (${via})`, { adapter:adapter.name, from:before.mode, to:'Automatic (DHCP)', before, after:{ address:hdNetIp(adapter).address || '' } });
+  return true;
+}
+function hdNetPanel(computerName, panel, adapterName) {
+  const machine = hdNetMachine(computerName); if (!machine) return;
+  hdState.machineView = { computer:computerName, panel, adapter:adapterName || '' };
+  const adapter = hdNetAdapters(hdNetState(machine)).find(item => item.name === adapterName);
+  if (panel === 'hardware' && adapter) { hdWinSeen(machine, `net-adapter:${adapter.name}`); hdProveOpened(`net-adapter:${computerName}:${adapter.name}`, `Settings › Network & internet › ${adapter.name} › Hardware properties · ${computerName}`); }
+  if (panel === 'wifi' && adapter && hdNetWifiUp(adapter)) { hdWinSeen(machine, 'wifi-properties'); hdProveOpened(`wifi-properties:${computerName}`, `Settings › Network & internet › Wi-Fi › ${adapter.wifi.ssid} › Properties · ${computerName}`); }
+  if (panel === 'known' && adapter) { hdWinSeen(machine, 'known-networks'); hdProveOpened(`known-networks:${computerName}`, `Settings › Wi-Fi › Manage known networks · ${computerName}`); }
+  hdSave(); render();
+}
+function hdNetSaveIp(event, computerName, adapterName) {
+  if (event && event.preventDefault) event.preventDefault();
+  const field = id => { const el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; };
+  const mode = field('hd-net-mode');
+  hdMachineChange(computerName, machine => {
+    const adapter = hdNetAdapters(hdNetState(machine) || { adapters:[] }).find(item => item.name === adapterName);
+    if (!adapter || adapter.kind === 'VPN') return false;
+    const ip = hdNetIp(adapter);
+    if (mode === 'dhcp') { hdState.machineView = { computer:computerName, panel:'hardware', adapter:adapterName }; if (!hdNetSetAutomatic(machine, computerName, adapter, 'Edit IP settings')) return false; return undefined; }
+    if (mode !== 'manual') return false;
+    const values = { address:field('hd-net-ip'), mask:field('hd-net-mask'), gateway:field('hd-net-gw'), dns1:field('hd-net-dns1'), dns2:field('hd-net-dns2') };
+    const bad = ['address', 'mask'].filter(key => !hdNetIsAddress(values[key])).concat(['gateway', 'dns1', 'dns2'].filter(key => values[key] && !hdNetIsAddress(values[key])));
+    if (bad.length) { hdState.machineView = { computer:computerName, panel:'edit', adapter:adapterName, error:'Enter each address as four numbers with dots, for example 10.20.10.50.' }; return false; }
+    const before = hdNetIpText(ip);
+    adapter.ip = { dhcp:false, address:values.address, mask:values.mask, gateway:values.gateway, dnsServers:[values.dns1, values.dns2].filter(Boolean), dhcpServer:'' };
+    hdState.machineView = { computer:computerName, panel:'hardware', adapter:adapterName };
+    hdMachineAction(computerName, 'ip-settings', `changed IP assignment on ${adapter.name} from ${before} to Manual (${values.address})`, { adapter:adapter.name, from:before, to:`Manual (${values.address})` });
+    return undefined;
+  });
+}
+function hdNetForget(computerName, adapterName, ssid) {
+  hdMachineChange(computerName, machine => {
+    const adapter = hdNetAdapters(hdNetState(machine) || { adapters:[] }).find(item => item.name === adapterName);
+    const known = adapter ? hdNetKnown(adapter) : [];
+    const at = known.findIndex(item => item.ssid === ssid); if (at < 0) return false;
+    adapter.wifi.known = known.filter(item => item.ssid !== ssid);
+    const connected = adapter.wifi.ssid === ssid;
+    if (connected) { adapter.wifi.ssid = ''; adapter.ip = { dhcp:hdNetIp(adapter).dhcp !== false, address:'', mask:'', gateway:'', dnsServers:[], dhcpServer:'' }; }
+    hdMachineAction(computerName, 'wifi-forget', `forgot the Wi-Fi network ${ssid}${connected ? ' (Wi-Fi disconnected)' : ''}`, { adapter:adapterName, ssid, connected });
+    return undefined;
+  });
+}
+function hdNetStatusText(adapter) {
+  if (adapter.enabled === false) return 'Disabled';
+  if (adapter.kind === 'Wi-Fi') return hdNetWifiUp(adapter) ? (hdNetUsable(adapter) ? (adapter.wifi.security && !/open/i.test(adapter.wifi.security) ? 'Connected, secured' : 'Connected') : 'No internet, secured') : 'Not connected';
+  if (!hdNetUp(adapter)) return adapter.kind === 'VPN' ? 'Disconnected' : 'Network cable unplugged';
+  return hdNetUsable(adapter) ? 'Connected' : 'No internet';
+}
+function hdNetSettingsView(found) {
+  const { computer, machine } = found; const net = hdNetState(machine);
+  const view = hdMachineView(); const n = `'${hdJsArg(computer.name)}'`;
+  const locked = hdProveLocked() ? 'disabled' : '';
+  if (hdWinSeen(machine, 'settings-network')) hdSave();
+  const adapters = hdNetAdapters(net);
+  const rows = adapters.map(adapter => {
+    const a = `'${hdJsArg(adapter.name)}'`; const status = hdNetStatusText(adapter);
+    const speed = hdNetStatusWord(adapter) === 'Up' ? (adapter.kind === 'Wi-Fi' ? `${adapter.wifi.ssid} · ${adapter.wifi.linkRate || ''} Mbps` : adapter.speed || '1 Gbps') : '';
+    const buttons = [`<button type="button" class="btn btn-secondary btn-sm" data-hd-net-hardware onclick="hdNetPanel(${n},'hardware',${a})">Hardware properties</button>`];
+    if (adapter.kind !== 'VPN') buttons.push(`<button type="button" class="btn btn-secondary btn-sm" data-hd-net-edit ${locked} onclick="hdNetPanel(${n},'edit',${a})">Edit IP settings</button>`);
+    if (hdNetWifiUp(adapter)) buttons.push(`<button type="button" class="btn btn-secondary btn-sm" data-hd-net-wifi onclick="hdNetPanel(${n},'wifi',${a})">${hdEsc(adapter.wifi.ssid)} properties</button>`);
+    if (adapter.kind === 'Wi-Fi') buttons.push(`<button type="button" class="btn btn-secondary btn-sm" data-hd-net-known onclick="hdNetPanel(${n},'known',${a})">Manage known networks</button>`);
+    return `<li data-hd-net-adapter="${hdEsc(adapter.name)}" data-hd-net-status="${hdEsc(status)}"><strong>${hdEsc(adapter.name)}</strong> <span class="muted">${hdEsc(adapter.description || adapter.kind || '')}</span><br>${hdBadge(status, /^Connected/.test(status) ? 'ok' : status === 'Disabled' || status === 'Not connected' ? 'neutral' : 'bad')}${speed ? ` <span class="muted">${hdEsc(speed)}</span>` : ''}<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${buttons.join('')}</div></li>`;
+  }).join('');
+  const adapter = adapters.find(item => item.name === view.adapter);
+  let panel = '';
+  if (adapter && view.panel === 'hardware') {
+    const ip = hdNetIp(adapter); const up = hdNetStatusWord(adapter) === 'Up'; const apipa = hdNetApipa(ip.address);
+    const rate = `${hdNetMbps(adapter)}/${hdNetMbps(adapter)} (Mbps)`;
+    const rows2 = [['Link speed (Receive/Transmit)', up ? rate : ''], ['IP assignment', ip.dhcp === false ? 'Manual' : 'Automatic (DHCP)'], ['DNS server assignment', ip.dhcp === false ? 'Manual' : 'Automatic (DHCP)'], ['Link-local IPv6 address', up ? hdNetIpv6(net, adapter) : ''], ['IPv4 address', up ? ip.address || '' : ''], ['IPv4 default gateway', up && !apipa ? ip.gateway || '' : ''], ['IPv4 DNS servers', up && !apipa ? (ip.dnsServers || []).join(', ') : ''], ['Primary DNS suffix', up ? hdNetSuffix(adapter) : ''], ['Description', adapter.description || adapter.name], ['Driver version', adapter.driver || ''], ['Physical address (MAC)', adapter.mac || '']];
+    panel = `<div class="card" data-hd-net-panel="hardware"><div class="card-header"><strong>${hdEsc(adapter.name)} · Hardware properties</strong></div><div class="card-body"><dl class="hd-dl">${rows2.map(([k, v]) => `<dt>${hdEsc(k)}</dt><dd data-hd-net-prop="${hdEsc(k)}">${hdEsc(v)}</dd>`).join('')}</dl></div></div>`;
+  } else if (adapter && view.panel === 'edit' && adapter.kind !== 'VPN') {
+    const ip = hdNetIp(adapter); const manual = ip.dhcp === false;
+    const input = (id, label, value) => `<label>${label} <input id="${id}" class="ipt" autocomplete="off" inputmode="decimal" maxlength="15" value="${hdEsc(value || '')}"></label>`;
+    panel = `<div class="card" data-hd-net-panel="edit"><div class="card-header"><strong>Edit IP settings · ${hdEsc(adapter.name)}</strong><span class="muted">Now: ${hdEsc(hdNetIpText(ip))}</span></div><form class="card-body" onsubmit="hdNetSaveIp(event,${n},'${hdJsArg(adapter.name)}')"><label>Edit IP settings <select id="hd-net-mode" class="ipt"><option value="dhcp"${manual ? '' : ' selected'}>Automatic (DHCP)</option><option value="manual"${manual ? ' selected' : ''}>Manual</option></select></label><p class="muted">Manual uses only the IPv4 fields below.</p><div style="display:grid;gap:6px;max-width:360px">${input('hd-net-ip', 'IP address', manual ? ip.address : '')}${input('hd-net-mask', 'Subnet mask', manual ? ip.mask : '')}${input('hd-net-gw', 'Gateway', manual ? ip.gateway : '')}${input('hd-net-dns1', 'Preferred DNS', manual ? (ip.dnsServers || [])[0] : '')}${input('hd-net-dns2', 'Alternate DNS', manual ? (ip.dnsServers || [])[1] : '')}</div>${view.error ? `<div class="callout bad" role="alert">${hdEsc(view.error)}</div>` : ''}<div style="display:flex;gap:8px;margin-top:8px"><button type="submit" class="btn btn-primary btn-sm" ${locked}>Save</button><button type="button" class="btn btn-ghost btn-sm" onclick="hdNetPanel(${n},'','')">Cancel</button></div></form></div>`;
+  } else if (adapter && view.panel === 'wifi' && hdNetWifiUp(adapter)) {
+    const w = adapter.wifi; const ip = hdNetIp(adapter);
+    const rows2 = [['SSID', w.ssid], ['Protocol', w.protocol || ''], ['Security type', w.security || ''], ['Description', adapter.description || adapter.name], ['Network band', w.band || ''], ['Network channel', w.channel || ''], ['Link speed (Receive/Transmit)', `${w.linkRate || 0}/${w.linkRate || 0} (Mbps)`], ['Signal', `${w.signal || 0}%`], ['IPv4 address', ip.address || ''], ['IPv4 DNS servers', hdNetApipa(ip.address) ? '' : (ip.dnsServers || []).join(', ')], ['Physical address (MAC)', adapter.mac || '']];
+    panel = `<div class="card" data-hd-net-panel="wifi"><div class="card-header"><strong>Wi-Fi · ${hdEsc(w.ssid)} · Properties</strong></div><div class="card-body"><dl class="hd-dl">${rows2.map(([k, v]) => `<dt>${hdEsc(k)}</dt><dd data-hd-net-prop="${hdEsc(k)}">${hdEsc(v)}</dd>`).join('')}</dl></div></div>`;
+  } else if (adapter && view.panel === 'known' && adapter.kind === 'Wi-Fi') {
+    const list = hdNetKnown(adapter).map(item => `<tr data-hd-known="${hdEsc(item.ssid)}"><td><strong>${hdEsc(item.ssid)}</strong>${adapter.wifi && adapter.wifi.ssid === item.ssid ? ' <span class="muted">Connected</span>' : ''}</td><td>${hdEsc(item.security || '')}</td><td><button type="button" class="btn btn-secondary btn-sm" ${locked} data-hd-forget onclick="hdNetForget(${n},'${hdJsArg(adapter.name)}','${hdJsArg(item.ssid)}')">Forget</button></td></tr>`).join('') || '<tr><td colspan="3" class="muted">No known networks.</td></tr>';
+    panel = `<div class="card" data-hd-net-panel="known"><div class="card-header"><strong>Wi-Fi › Manage known networks</strong></div><div class="table-wrap"><table><thead><tr><th>Network</th><th>Security</th><th></th></tr></thead><tbody>${list}</tbody></table></div></div>`;
+  }
+  return `${hdPageHeader('Settings', `${computer.name} · Network & internet`, hdMachineBack(computer))}<div class="card" data-hd-netset data-hd-netstate><div class="card-body"><ul class="hd-list">${rows || '<li class="muted">No network adapters.</li>'}</ul></div></div>${panel}`;
+}
+window.hdNetPanel = hdNetPanel; window.hdNetSaveIp = hdNetSaveIp; window.hdNetForget = hdNetForget;
+
+// Device Manager › a network adapter › Advanced › Preferred band (device.advanced).
+const HD_NET_BANDS = ['No preference', 'Prefer 2.4GHz band', 'Prefer 5GHz band'];
+function hdDeviceHasAdvanced(device) { return !!(device && device.advanced && typeof device.advanced === 'object' && typeof device.advanced.preferredBand === 'string'); }
+function hdDeviceAdvancedSet(computerName, deviceId) {
+  const field = document.getElementById('hd-dev-band'); const value = field ? String(field.value || '') : '';
+  hdMachineChange(computerName, machine => {
+    const device = (machine.devices || []).find(item => item && item.id === deviceId);
+    if (!hdDeviceHasAdvanced(device) || !HD_NET_BANDS.includes(value) || device.advanced.preferredBand === value) return false;
+    const from = device.advanced.preferredBand;
+    device.advanced.preferredBand = value;
+    // The Wi-Fi reconnects on the band the new value prefers, when it can see it.
+    const net = hdNetState(machine);
+    const adapter = net && hdNetAdapters(net).find(item => item.name === device.adapter && item.kind === 'Wi-Fi');
+    const wifi = adapter && adapter.wifi && adapter.wifi.bands ? adapter.wifi : null;
+    const band = value === 'Prefer 5GHz band' ? '5 GHz' : value === 'Prefer 2.4GHz band' ? '2.4 GHz' : wifi && wifi.noPreference;
+    if (wifi && band && wifi.bands[band] && hdNetWifiUp(adapter)) Object.assign(wifi, { band, channel:wifi.bands[band].channel, signal:wifi.bands[band].signal, linkRate:wifi.bands[band].linkRate });
+    hdMachineAction(computerName, 'adapter-property', `changed Preferred band on ${device.name} from ${from} to ${value}`, { device:deviceId, property:'Preferred band', from, to:value });
+    return undefined;
+  });
+}
+window.hdDeviceAdvancedSet = hdDeviceAdvancedSet;
+
 function hdPowerShellOutput(command) {
   const normalized=command.trim().toLowerCase().replace(/\s+/g, ' '); const computer=hdComputerByName(hdState.selectedComputer)||hdComputers()[0];
   if(normalized==='get-help') return `Supported: Get-ComputerInfo, Get-Service, Get-Process, Get-Volume, Get-Disk, Get-NetIPConfiguration, Get-WinEvent, Get-LocalUser, Get-LocalGroup, Get-LocalGroupMember, Add-LocalGroupMember, Remove-LocalGroupMember, Get-Printer, Add-Printer, Get-ADUser, Get-ADGroup, Get-ADComputer, Resolve-DnsName, Test-NetConnection, whoami /groups, gpupdate /force, gpresult /r, Clear-Host${HD_PROVE ? '' : `
@@ -7022,6 +7750,10 @@ ${hdDirectoryReadOnly() ? '' : `Accounts: Get-ADUser <user> -Properties *, Searc
 `}Events: Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4740}`}${hdFeatureHelp(computer)}${hdDirectoryHelp()}`;
   const practiceOutput = hdPracticeCommand(command, normalized, computer);
   if(practiceOutput !== null) return practiceOutput;
+  // Module 09: a PC with network state answers its own network lines first,
+  // so a PC with no link never gets a server's healthy answer.
+  const networkOutput = hdNetCommand(command, normalized, computer);
+  if(networkOutput !== null) return networkOutput;
   // Module 7: a server with state, or a shift with a directory block.
   const serverOutput = hdServerCommand(command, normalized, computer);
   if(serverOutput !== null) return serverOutput;
