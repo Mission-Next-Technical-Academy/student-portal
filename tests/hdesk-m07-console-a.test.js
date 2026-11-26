@@ -173,7 +173,9 @@ function testOldTicketsTurnNothingOn() {
     assertFixed(set, key);
     for (const id of set.run('hdState.tickets.map((t) => t.id)')) { assert.doesNotMatch(set.open(id), NEW_MARKERS, `${key} ${id}`); assertFixed(set, `${key} ${id}`); }
   }
-  for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS'))) {
+  // Every older Prove shift. Module 7's own Prove shift turns these screens on
+  // (tests/hdesk-m07-prove.test.js).
+  for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS')).filter((k) => k !== 'its-05')) {
     const prove = sim({ url: `https://academy.test/sim/?prove=${key}&student=student-m07#/helpdesk/tickets` });
     assertFixed(prove, `prove ${key}`);
     // A screen that shows nothing is never recorded as evidence.

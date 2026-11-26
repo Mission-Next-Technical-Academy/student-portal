@@ -2335,12 +2335,11 @@ const LABS = [
     description: 'A coach-guided walkthrough of tickets HD-2104 (APIPA/DHCP) and HD-2105 (DNS) in the IT Service Desk simulator; HD-2113 (VPN gateway certificate) remains reachable for free practice.',
     skills: ['Networking Fundamentals', 'DHCP', 'DNS'], portalEntry: '#/program/it-support/module/9' }),
   // Module 7's guided lab. Students see it as Lab 7.1; the key is older than
-  // that numbering. Until Module 7's Prove It gates completion it stays the
-  // gating lab (course_module_labs), so it has no `phase: 'practice'`: an
-  // instructor still reviews and approves it. Its 255 filed minutes are split
-  // 120 / 90 / 45 across the three labs; the parents keep ITHD-101.5 165 and
-  // ITHD-101.6 90 (90 + 50 + 25 and 30 + 40 + 20).
-  itsLab({ key: 'lab-its-05-server-ad', module: 'its-05', title: 'Lab 7.1 · Guided Lab: the morning server check', difficulty: 'Foundational', minutes: 120,
+  // that numbering. Since 2026-11-25 Module 7's Prove It gates completion (the
+  // its05 Prove It migration) and Lab 7.1 is Practice It. Its 255 filed
+  // minutes are split 120 / 90 / 45 across the three labs; the parents keep
+  // ITHD-101.5 165 and ITHD-101.6 90 (90 + 50 + 25 and 30 + 40 + 20).
+  itsLab({ key: 'lab-its-05-server-ad', module: 'its-05', title: 'Lab 7.1 · Guided Lab: the morning server check', difficulty: 'Foundational', minutes: 120, phase: 'practice',
     parentAllocations: [allocation('ITHD-101.5', 90), allocation('ITHD-101.6', 30)], objective: 'Work a scheduled server check read-only: servers, services, logs, the change log, a share’s permissions, Active Directory, Group Policy, DNS and DHCP, and raise a ticket for what another team owns.',
     description: 'A coach-guided ticket in the IT Service Desk simulator, each step with a why and what success looks like, and a second ticket you raise yourself. Feedback only, no score.',
     skills: ['Server Manager', 'Active Directory', 'Group Policy', 'DNS and DHCP'], portalEntry: '#/program/it-support/module/7' }),
@@ -2352,9 +2351,9 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.5', 50), allocation('ITHD-101.6', 40)], objective: 'Work five tickets on your own: a computer object in the wrong place, a stopped print service, a server volume filling fast, a file server offline for a department and a device with no DHCP reservation.',
     description: 'Five unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all five and a completion record is saved to your account.',
     skills: ['Group Policy', 'Windows Services', 'Escalation Judgment', 'DHCP'], portalEntry: '#/program/it-support/module/7' }),
-  // Module 7's Prove It. The page shows "Opens soon" and launches nothing
-  // until its simulator shift, scoring and gating row are built. Coaching
-  // time box: 45 minutes.
+  // Module 7's Prove It: one ticket (?prove=its-05), scored on the server and
+  // graded by the instructor. It gates Module 7's completion. Coaching time
+  // box: 45 minutes.
   itsLab({ key: 'lab-its-05-prove-it', module: 'its-05', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 45,
     parentAllocations: [allocation('ITHD-101.5', 25), allocation('ITHD-101.6', 20)], objective: 'Independently work a new server ticket: read the evidence on the server screens, decide who owns the fix, and write for both the next tier and the user.',
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
