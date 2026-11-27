@@ -9,7 +9,7 @@
  * w32tm /resync, Test-ComputerSecureChannel, Get-Date, Get-WinEvent -LogName
  * System and the refused domain-membership commands.
  *
- * Every feature is tried on test-only tickets and sets defined here (HD-98xx,
+ * Every feature is tried on test-only tickets and sets defined here (HD-99xx,
  * TEST- names), never in ui/helpdesk-data.js. No Module 10 content. Every
  * older ticket, set and Prove shift must look and behave as before: the
  * Remote Support screen, the Windows Desktop and the command answers are
@@ -547,6 +547,10 @@ function testProveShift() {
   tab.run("hdRemoteRequest('TEST-WS-53', false)");
   tab.run("hdRemoteTab('sysinfo')");
   tab.run("hdRemoteTab('console')");
+  // Get-Help names no scenario line in a Prove It.
+  const help = cmd(tab, 'Get-Help');
+  assert.match(help, /^Command console on TEST-WS-53 \(PowerShell on the remote PC\)\.\nSupported: /);
+  assert.doesNotMatch(help, /w32tm|SecureChannel|Get-Date|Time and trust/);
   assert.match(cmd(tab, 'w32tm /query /status'), /Local CMOS Clock/);
   assert.match(cmd(tab, 'w32tm /resync'), /completed successfully/);
   assert.equal(cmd(tab, 'Test-ComputerSecureChannel'), 'True');
@@ -558,7 +562,7 @@ function testProveShift() {
   const types = events.map((e) => e.type);
   for (const type of ['remote_say', 'remote_session', 'remote_ask', 'remote_session_end', 'command_run', 'action_taken', 'evidence_opened']) assert.ok(types.includes(type), type);
   assert.deepEqual(events.filter((e) => e.type === 'command_run').map((e) => [e.command, e.computer, e.via]), [
-    ['w32tm /query /status', 'TEST-WS-53', 'remote-console'], ['w32tm /resync', 'TEST-WS-53', 'remote-console'], ['Test-ComputerSecureChannel', 'TEST-WS-53', 'remote-console'], ['Remove-Computer', 'TEST-WS-53', 'remote-console']]);
+    ['Get-Help', 'TEST-WS-53', 'remote-console'], ['w32tm /query /status', 'TEST-WS-53', 'remote-console'], ['w32tm /resync', 'TEST-WS-53', 'remote-console'], ['Test-ComputerSecureChannel', 'TEST-WS-53', 'remote-console'], ['Remove-Computer', 'TEST-WS-53', 'remote-console']]);
   assert.deepEqual(events.filter((e) => e.type === 'action_taken').map((e) => e.value), ['remote-request', 'remote-connected', 'clock-resync', 'domain-membership-refused', 'remote-end']);
   const opened = json(tab, 'hdState.prove.opened');
   for (const source of ['clock:TEST-WS-53', 'w32tm-status:TEST-WS-53', 'w32tm-resync:TEST-WS-53', 'secure-channel:TEST-WS-53']) assert.ok(opened.includes(source), source);

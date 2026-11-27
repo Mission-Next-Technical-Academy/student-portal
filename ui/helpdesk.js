@@ -10928,6 +10928,8 @@ function hdRemoteConsoleOutput(command, name) {
   const head = normalized.split(' ')[0];
   if (head === 'get-help') {
     const computer = hdComputerByName(name);
+    // A Prove It lists only the generic lines, as the PowerShell screen does.
+    if (HD_PROVE) return `Command console on ${name} (PowerShell on the remote PC).\nSupported: Get-ComputerInfo, Get-Service, Get-Process, Get-WinEvent, ping <name>, nslookup <name>, Test-NetConnection <name> -Port <port>`;
     return `Command console on ${name} (PowerShell on the remote PC).\nSupported: Get-ComputerInfo, Get-Service, Get-Process, Get-WinEvent, Get-Date, ping <name>, nslookup <name>, Test-NetConnection <name> -Port <port>, w32tm /query /status, w32tm /resync, Test-ComputerSecureChannel${hdFeatureHelp(computer)}`;
   }
   if (/^(get|set|new|remove|unlock|search|enable|disable)-ad[a-z]/.test(head) || ['enter-pssession', 'exit-pssession'].includes(head)) {
