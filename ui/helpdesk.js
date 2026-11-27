@@ -11077,8 +11077,8 @@ function hdProvePackage() {
   };
 }
 // Module 9 (shift networkSummary): each adapter of the selected computer at
-// submit, by name: its IP assignment (dhcp), address, the Wi-Fi network it is
-// on and the Wi-Fi networks it knows. Small enough for the course page's 4 KB
+// submit, by name: its IP assignment (dhcp), address, manual IPv4 settings,
+// and any connected or known Wi-Fi networks. Small enough for the course page's 4 KB
 // machine limit. Nothing says which values are right.
 function hdProveNetworkSummary(name) {
   const net = hdNetState(hdMachine(name) || {});
@@ -11087,18 +11087,22 @@ function hdProveNetworkSummary(name) {
     const ip = hdNetIp(adapter);
     return [String(adapter.name).slice(0, 40), {
       dhcp:ip.dhcp !== false, address:String(ip.address || '').slice(0, 40),
+      ...(ip.dhcp === false ? {
+        mask:String(ip.mask || '').slice(0, 15), gateway:String(ip.gateway || '').slice(0, 15),
+        dnsServers:Array.isArray(ip.dnsServers) ? ip.dnsServers.slice(0, 2).map(server => String(server).slice(0, 15)) : [],
+      } : {}),
       ...(adapter.kind === 'Wi-Fi' ? { ssid:String((adapter.wifi && adapter.wifi.ssid) || '').slice(0, 60), known:hdNetKnown(adapter).slice(0, 10).map(item => String(item.ssid).slice(0, 60)) } : {}),
     }];
   })) };
 }
 // A returned attempt's network summary back onto the laptop, as the student
-// left it: an adapter set to Automatic (DHCP) takes its lease again, and a
-// forgotten or left Wi-Fi network stays forgotten or left. Only changes the
-// screens can make; nothing else is copied.
+// left it: restore manual IP settings, retake DHCP leases, and keep forgotten
+// or left Wi-Fi networks forgotten or left. Only restore changes the screens can make.
 function hdProvePrefillNetwork(summary, machine, name) {
   const saved = summary && summary.adapters && typeof summary.adapters === 'object' ? summary.adapters : null;
   const net = hdNetState(machine);
   if (!saved || !net) return;
+  const validAddress = value => typeof value === 'string' && hdNetIsAddress(value);
   hdNetAdapters(net).forEach(adapter => {
     const was = saved[adapter.name];
     if (!was || typeof was !== 'object') return;
@@ -11109,6 +11113,13 @@ function hdProvePrefillNetwork(summary, machine, name) {
     if (adapter.kind === 'Wi-Fi' && adapter.wifi && Array.isArray(was.known)) {
       adapter.wifi.known = hdNetKnown(adapter).filter(item => was.known.includes(item.ssid));
       if (adapter.wifi.ssid && was.ssid === '') { adapter.wifi.ssid = ''; adapter.ip = { dhcp:hdNetIp(adapter).dhcp !== false, address:'', mask:'', gateway:'', dnsServers:[], dhcpServer:'' }; }
+    }
+    if (was.dhcp === false && adapter.kind !== 'VPN') {
+      const { address, mask, gateway, dnsServers } = was;
+      if (validAddress(address) && validAddress(mask) && (gateway === '' || validAddress(gateway))
+        && Array.isArray(dnsServers) && dnsServers.length <= 2 && dnsServers.every(validAddress)) {
+        adapter.ip = { dhcp:false, address, mask, gateway, dnsServers:dnsServers.slice(), dhcpServer:'' };
+      }
     }
   });
 }

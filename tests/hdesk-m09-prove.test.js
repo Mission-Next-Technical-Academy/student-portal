@@ -274,6 +274,41 @@ function testReturnedAttemptKeepsTheLaptop() {
   same(plain(tab.run('hdProvePackage()')).machine, laptop, 'the laptop is as the student left it (Megan, 2026-11-25)');
 }
 
+function testReturnedAttemptRestoresManualIp() {
+  const tab = sim('its-04', 'stu-manual-ip');
+  const settings = {
+    [WIRED.name]: { address:'192.0.2.23', mask:'255.255.255.128', gateway:'192.0.2.1', dnsServers:['198.51.100.1', '198.51.100.2'] },
+    [WIFI.name]: { address:'203.0.113.23', mask:'255.255.255.0', gateway:'', dnsServers:[] },
+  };
+  for (const [name, ip] of Object.entries(settings)) {
+    const fields = { mode:'manual', ip:ip.address, mask:ip.mask, gw:ip.gateway, dns1:ip.dnsServers[0] || '', dns2:ip.dnsServers[1] || '' };
+    for (const [field, value] of Object.entries(fields)) tab.byId.set(`hd-net-${field}`, { value });
+    tab.run(`hdNetSaveIp({ preventDefault() {} }, ${j(PC)}, ${j(name)})`);
+  }
+  const work = plain(tab.run('hdProvePackage()'));
+  work.completedAt = new Date().toISOString();
+  work.machine = plain(prun('itsProveCleanMachine')(work.machine));
+  const reopen = (machine) => {
+    const other = sim('its-04', 'stu-manual-ip-other');
+    assert.equal(other.run(`hdProvePrefill(${j({ ...work, machine })})`), true);
+    return plain(other.run(`hdMachine(${j(PC)}).network.adapters`));
+  };
+  for (const adapter of reopen(work.machine)) {
+    same(adapter.ip, { dhcp:false, ...settings[adapter.name], dhcpServer:'' }, `restores ${adapter.name} in another browser`);
+  }
+  for (const invalid of [
+    { address:'192.0.2.256' },
+    { mask:'255.255.255.256' },
+    { gateway:'not an address' },
+    { dnsServers:['198.51.100.1', '198.51.100.256'] },
+  ]) {
+    const machine = { adapters:{ [WIRED.name]:{ ...work.machine.adapters[WIRED.name], ...invalid } } };
+    same(reopen(machine).find(a => a.name === WIRED.name).ip, WIRED.ip, 'invalid IPv4 settings leave the fixture intact');
+  }
+  const legacy = { adapters:{ [WIRED.name]:{ dhcp:false, address:settings[WIRED.name].address } } };
+  same(reopen(legacy).find(a => a.name === WIRED.name).ip, WIRED.ip, 'an older summary has no mask to restore');
+}
+
 function testOlderShiftsUnchanged() {
   ['its-01', 'its-10', 'its-11', 'its-02', 'its-03', 'its-07', 'its-05', 'its-06'].forEach((moduleKey) => {
     const shift = sim(moduleKey, `probe-old-${moduleKey}`).run(`JSON.parse(JSON.stringify(HD_PROVE_SHIFTS[${j(moduleKey)}]))`);
@@ -455,7 +490,7 @@ function testCiRunsThisFile() {
     if (error) { failed += 1; console.error(`FAIL ${name}\n${error.stack}`); } else { passed += 1; console.log(`ok   ${name}`); }
   };
   for (const test of [testFreshShift, testChat, testTypedCommands, testNetworkSummaryAndPrefill, testReturnedAttemptKeepsTheLaptop,
-    testOlderShiftsUnchanged, testPackage, testCiRunsThisFile]) {
+    testReturnedAttemptRestoresManualIp, testOlderShiftsUnchanged, testPackage, testCiRunsThisFile]) {
     try { test(); report(test.name); } catch (error) { report(test.name, error); }
   }
   let work = null;
