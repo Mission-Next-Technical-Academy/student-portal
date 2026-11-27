@@ -8,8 +8,8 @@
 //   - The page: shown as Module 09 in week 5, four filed lessons (9.1 to 9.4)
 //     as five reading cards (Lesson 9.1 holds Readings 1 and 2), Tables 1 to 11
 //     (no Table 12), five numbered diagrams; none of the banned words.
-//   - HD-2127's cause (a static address left from another network) is taught
-//     in Reading 2 and never rehearsed: it stays out of the checks, the card
+//   - Reading 2's taught-only topic (a static address left from another
+//     network) is taught there and never rehearsed: it stays out of the checks, the card
 //     sort, the lab cards, the "What You'll Learn" lists, the Coming-up lines,
 //     the objective and the catalogue text.
 //   - The "Name it" card sort: twelve cards, three boxes, a wrong box says
@@ -60,7 +60,7 @@ const DAY = new Date().toLocaleDateString(undefined, { month: 'short', day: 'num
 const PAGE_FILE = path.join(ROOT, 'portal/it-support-module-04.js');
 // What a student must never see (and the catalogue must never say).
 const BANNED = /Module 0?4\b|lab VM|CompTIA|220-1201|HD-2104|HD-2105|HD-2113|Connected But Nothing Works|\?prove=/i;
-// HD-2127's cause. Reading 2 teaches it; nothing else practises it.
+// Reading 2's taught-only topic. Reading 2 teaches it; nothing else practises it.
 const CAUSE = /static address|from another network|DHCP Enabled: No|192\.168\.0\.20|guest Wi-Fi/i;
 // The practice tickets' causes, which a Coming-up line must not name.
 const PRACTICE_CAUSES = /2\.4|microwave|fiber|backup|cellular|guest|VPN|personal phone|static|another network|Enabled: No/i;
@@ -159,7 +159,7 @@ function testCatalogue() {
   const text = JSON.stringify({ labs, summary: m.summary, objectives: m.curriculumItems.map((i) => i.objective), skills: m.skills });
   assert.doesNotMatch(text, BANNED, 'no catalogue text names a banned word');
   assert.doesNotMatch(text, /comptia\.org|RFC|Windows Server 20\d\d/i);
-  assert.doesNotMatch(text, CAUSE, 'no catalogue text names HD-2127’s cause');
+  assert.doesNotMatch(text, CAUSE, 'no catalogue text names the Reading 2 topic');
 }
 
 /* ----------------------------------------------------------------- page */
@@ -249,13 +249,13 @@ function testPageContent() {
   assert.equal((sources.match(/learn\.microsoft\.com/g) || []).length, 4);
 }
 
-// HD-2127's cause is taught in Reading 2 and nowhere else it could be
-// rehearsed (spec decision 10).
-function testCauseTaughtNeverRehearsed() {
+// Reading 2's taught-only topic is taught there and nowhere else it could
+// be rehearsed.
+function testReadingTwoTopicStaysInReadingTwo() {
   const user = hdUser();
   fresh(user);
   const html = page().view(user, HD);
-  // It is in Reading 2: the cause, how it shows, why Windows falls back, the fix.
+  // It is in Reading 2: what it is, how it shows, why Windows falls back, the fix.
   const two = words(readingCard(html, 2));
   assert.match(two, /a static address left from another network/i);
   assert.match(two, /DHCP Enabled: No/);
@@ -268,38 +268,37 @@ function testCauseTaughtNeverRehearsed() {
   const [first, address, ...others] = figures(html);
   assert.match(words(address), /192\.168\.0\.20/);
   assert.match(words(address), /A static address from another network: write it down, tell the user, set it back to Automatic \(DHCP\)/);
-  [first, ...others].forEach((figure) => assert.doesNotMatch(words(figure), CAUSE, 'no other diagram shows the cause'));
+  [first, ...others].forEach((figure) => assert.doesNotMatch(words(figure), CAUSE, 'no other diagram shows the Reading 2 topic'));
 
   // The learn lists and the Coming-up lines.
   const lists = [...html.matchAll(/<h4>What You'll Learn<\/h4>\s*<ul>([\s\S]*?)<\/ul>/g)].map((m) => [...m[1].matchAll(/<li>([\s\S]*?)<\/li>/g)].map((li) => words(li[1]).trim()));
   assert.deepEqual(lists.map((l) => l.length), [4, 3, 4, 4, 3], 'three or four items for each reading');
-  lists.flat().forEach((item) => assert.doesNotMatch(item, CAUSE, `"${item}" never names the cause`));
+  lists.flat().forEach((item) => assert.doesNotMatch(item, CAUSE, `"${item}" never names the Reading 2 topic`));
   const comingUp = [...html.matchAll(/<strong>Coming up in your lab:<\/strong> ([^<]*)<\/span>/g)].map((m) => m[1]);
   assert.equal(comingUp.length, 5, 'a Coming-up line for each reading');
   comingUp.forEach((line) => {
-    assert.doesNotMatch(line, CAUSE, `"${line}" never names the cause`);
+    assert.doesNotMatch(line, CAUSE, `"${line}" never names the Reading 2 topic`);
     assert.doesNotMatch(line, PRACTICE_CAUSES, `"${line}" never names a practice ticket’s cause`);
   });
   // The objective, the card sort, the checks and the lab cards.
   assert.doesNotMatch(run('ITS04_OBJECTIVE'), CAUSE);
   assert.doesNotMatch(JSON.stringify(copy(run('ITS04_CARD_SORT'))), CAUSE);
-  ['its04-lab-9-1', 'its04-lab-9-2', 'its04-prove-it'].forEach((id) => assert.doesNotMatch(words(section(html, id)), CAUSE, `${id} never names the cause`));
+  ['its04-lab-9-1', 'its04-lab-9-2', 'its04-prove-it'].forEach((id) => assert.doesNotMatch(words(section(html, id)), CAUSE, `${id} never names the Reading 2 topic`));
   const labCards = words(html.slice(html.indexOf('id="its04-lab-9-1"'), html.indexOf('id="its04-sources"')));
   assert.doesNotMatch(labCards, /microwave|2\.4 GHz|fiber|cellular|guest|VPN|personal phone/i, 'the lab cards name no practice cause');
   const all = checks();
-  all.learn.questions.forEach((q, i) => assert.doesNotMatch(JSON.stringify(q), CAUSE, `Learn It question ${i + 1} never names the cause`));
+  all.learn.questions.forEach((q, i) => assert.doesNotMatch(JSON.stringify(q), CAUSE, `Learn It question ${i + 1} never names the Reading 2 topic`));
   all.aplus.questions.forEach((q, i) => {
     // A+ question 1 is spec wording and stays: its choice "Someone set a
     // static address" and its If wrong line are a distractor about APIPA, not
-    // a step that has the student meet the cause. Question 10’s home DNS
-    // server 192.168.0.1 is not the cause either (the cause is 192.168.0.20
-    // on a PC at the office).
+    // a step that has the student work the topic. Question 10’s home DNS
+    // server 192.168.0.1 is a home network's normal DNS, not the topic.
     if (i === 0) {
       assert.equal(q.choices[0], 'Someone set a static address');
       assert.match(q.ifWrong[0], /static address/);
       return;
     }
-    assert.doesNotMatch(JSON.stringify(q), CAUSE, `A+ question ${i + 1} never names the cause`);
+    assert.doesNotMatch(JSON.stringify(q), CAUSE, `A+ question ${i + 1} never names the Reading 2 topic`);
   });
 }
 
@@ -419,6 +418,9 @@ function testCardSort() {
   assert.ok(one.lastIndexOf('<caption>Table 4') < one.indexOf('data-its04-diagram="path"') && one.indexOf('data-its04-diagram="path"') < one.indexOf('id="its04-cardsort"'), 'after Table 4 and diagram 1');
   assert.ok(!readingCard(html, 2).includes('its04-cardsort'));
   assert.equal((html.match(/class="its02-sort-card"/g) || []).length, 12);
+  // Every card has a decorative drawing and a line for a wrong box.
+  assert.equal((html.match(/<svg class="its04-sort-art"[^>]*aria-hidden="true"/g) || []).length, 12, 'a drawing on each card');
+  sort.cards.forEach((c) => assert.ok(sort.really[c.id], `${c.name}: what it really is`));
   const pick = run('its04Sort');
   const dev = sort.cards.find((c) => c.id === 'usbc');
   // A wrong box: its line, nothing settles, nothing saved.
@@ -426,6 +428,7 @@ function testCardSort() {
   html = page().view(user, HD);
   let block = checkBlock(html, 'sort');
   assert.ok(block.includes(esc(sort.whyNot[TOOL])));
+  assert.ok(block.includes(esc(sort.really.usbc)), 'a wrong box also says what the card really is');
   assert.ok(!block.includes(esc(dev.why)));
   assert.notEqual(LabRuntime.load(STATE_ID, user, {}).cardSortCompleted, true);
   // The right box shows the card's line and settles it.
@@ -820,7 +823,7 @@ function testCiRunsThisFile() {
 /* -------------------------------------------------------------------- run */
 
 (async () => {
-  const tests = [testCatalogue, testPageContent, testCauseTaughtNeverRehearsed, testDiagramsFit, testLabCardsAndRail, testCardSort, testCheckContent, testChoicesShuffled, testChecksCompleteAtSeventyPercent, testCheckSaveThatFails, testGuidedLabSave, testCoachSendsWhatThePageNeeds, testPracticeSave, testProveMessagesIgnored, testInstructorSheets, testCiRunsThisFile];
+  const tests = [testCatalogue, testPageContent, testReadingTwoTopicStaysInReadingTwo, testDiagramsFit, testLabCardsAndRail, testCardSort, testCheckContent, testChoicesShuffled, testChecksCompleteAtSeventyPercent, testCheckSaveThatFails, testGuidedLabSave, testCoachSendsWhatThePageNeeds, testPracticeSave, testProveMessagesIgnored, testInstructorSheets, testCiRunsThisFile];
   for (const test of tests) await test();
   console.log(`hdesk-m09-page: ${tests.length} tests passed`);
 })().catch((error) => { console.error(error); process.exit(1); });

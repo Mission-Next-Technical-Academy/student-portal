@@ -70,5 +70,7 @@
 .its04-dg-band-3 { fill: var(--its-accent-wash); fill-opacity: 1; }
 .its04-dg-ap { fill: var(--its-navy); }
 
-/* The card sort: a card's one-line description. */
+/* The card sort: a card's drawing (text colour, so it follows the theme) and
+   its one-line description. */
+.its04-sort-art { display: block; width: 64px; height: 40px; margin: 0 0 4px; color: var(--its-navy); fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .its04-sort-desc { margin: 2px 0 10px; font-size: 13px; overflow-wrap: anywhere; }

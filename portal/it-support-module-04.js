@@ -932,6 +932,39 @@ const ITS04_CARD_SORT = {
       desc: 'Shows nearby networks, their channels and their signal.',
       why: 'Network Operations use it. The Wi-Fi details screen shows you the same facts for one laptop (Table 3).' },
   ],
+  // What each card really is, shown under a wrong box (spec 8.5: a wrong
+  // drop explains, in one line, what the card really is).
+  really: {
+    rj45: 'It’s the plug on office network cable, from the PC to the wall jack.',
+    usbc: 'It’s a plug for laptops, phones and docks at the desk.',
+    toner: 'It’s what Network Operations use to trace a cable from a wall jack to the closet.',
+    lc: 'It’s a fiber connector: network cable that carries light.',
+    hdmi: 'It’s a video cable from a PC or dock to a screen.',
+    tester: 'It’s what Network Operations use to check a network cable’s wires.',
+    ftype: 'It’s the connector on coax, the cable that brings cable internet in.',
+    displayport: 'It’s a video cable from a PC or dock to a monitor.',
+    punchdown: 'It’s what Network Operations use to press wires into a patch panel or jack.',
+    rj11: 'It’s the phone-line plug, which DSL internet uses.',
+    lightning: 'It’s the charging and data plug on Apple phones.',
+    analyzer: 'It’s what Network Operations use to see the Wi-Fi networks around them.',
+  },
+};
+
+// A small line drawing on each card, in the text colour (currentColor), so it
+// follows the page's theme. Decorative: the card's name and line say it all.
+const ITS04_SORT_ART = {
+  rj45: '<rect x="14" y="8" width="30" height="24" rx="2"/><path d="M44 14h8v12h-8M18 8v-4h22v4"/><path d="M19 8v8M23 8v8M27 8v8M31 8v8M35 8v8M39 8v8"/>',
+  usbc: '<rect x="12" y="13" width="40" height="14" rx="7"/><path d="M20 20h24"/>',
+  toner: '<path d="M10 30l34-20"/><rect x="40" y="4" width="14" height="10" rx="3" transform="rotate(-30 47 9)"/><path d="M8 34l4-6"/>',
+  lc: '<rect x="10" y="12" width="16" height="16" rx="2"/><rect x="38" y="12" width="16" height="16" rx="2"/><path d="M26 20h12M18 28v6M46 28v6"/>',
+  hdmi: '<path d="M10 12h44l-5 16H15z"/><path d="M18 19h28"/>',
+  tester: '<rect x="12" y="6" width="40" height="28" rx="3"/><circle cx="22" cy="16" r="2"/><circle cx="32" cy="16" r="2"/><circle cx="42" cy="16" r="2"/><path d="M18 28h10M36 28h10"/>',
+  ftype: '<path d="M22 10h20l6 10-6 10H22l-6-10z"/><circle cx="32" cy="20" r="4"/><path d="M48 20h10"/>',
+  displayport: '<path d="M12 12h40v16H18l-6-6z"/><path d="M20 20h24"/>',
+  punchdown: '<rect x="8" y="14" width="30" height="12" rx="5"/><path d="M38 20h14l4 -3M52 20l4 3"/>',
+  rj11: '<rect x="20" y="10" width="22" height="20" rx="2"/><path d="M42 15h6v10h-6"/><path d="M26 10v6M30 10v6M34 10v6M38 10v6"/>',
+  lightning: '<rect x="8" y="14" width="22" height="12" rx="3"/><rect x="30" y="16" width="24" height="8" rx="4"/>',
+  analyzer: '<rect x="16" y="6" width="32" height="28" rx="3"/><path d="M24 22a10 10 0 0 1 16 0M27 25a6 6 0 0 1 10 0"/><circle cx="32" cy="28" r="1.5"/>',
 };
 
 /* ------------------------------------------------------- Knowledge checks */
@@ -1253,8 +1286,10 @@ function its04SortCard(card) {
   const feedback = last === undefined ? ''
     : settled
       ? `<p class="its01-check-result is-right"><i class="ri-check-line" aria-hidden="true"></i> <strong>Right box: ${esc(card.answer)}.</strong></p><p class="its01-check-why">${esc(card.why)}</p>`
-      : `<p class="its01-check-result is-wrong"><i class="ri-close-line" aria-hidden="true"></i> <strong>Not this box.</strong> Try another.</p><p class="its01-check-why">${esc(ITS04_CARD_SORT.whyNot[last] || '')}</p>`;
+      : `<p class="its01-check-result is-wrong"><i class="ri-close-line" aria-hidden="true"></i> <strong>Not this box.</strong> Try another.</p><p class="its01-check-why">${esc(ITS04_CARD_SORT.whyNot[last] || '')} ${esc(ITS04_CARD_SORT.really[card.id] || '')}</p>`;
+  const art = ITS04_SORT_ART[card.id];
   return `<li class="its02-sort-card">
+    ${art ? `<svg class="its04-sort-art" viewBox="0 0 64 40" aria-hidden="true" focusable="false">${art}</svg>` : ''}
     <p class="its01-check-prompt" id="${lid}">${esc(card.name)}</p>
     <p class="its04-sort-desc">${esc(card.desc)}</p>
     <div class="its02-sort-boxes" role="group" aria-labelledby="${lid}">${buttons}</div>
