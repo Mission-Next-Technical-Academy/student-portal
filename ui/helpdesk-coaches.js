@@ -1740,7 +1740,7 @@
 
   MODULE_COACHES.push({
     id: 'hd-m04', module: 9, name: 'Guided Lab: the connectivity checklist', role: 'Tier 1 Help Desk Technician',
-    summary: 'Work through the connectivity checklist on three real calls. A new starter has no internet at his desk: find out whether it is one person or many, check the link, then the address, the path and the services. A docked laptop cannot open the intranet because the PC remembers an old address. Then join a new starter’s laptop to the domain, in the right place. Feedback only, no score.',
+    summary: 'Work through the connectivity checklist on two calls and a request. A new starter has no internet at his desk: find out whether it is one person or many, check the link, then the address, the path and the services. A docked laptop can’t open the intranet: find out why. Then join a new starter’s laptop to the domain, in the right place. Feedback only, no score.',
     completionToken: 'hd-m04', home: '#/helpdesk/tickets',
     resetState: () => {
       if (typeof hdUseTicketSet === 'function') hdUseTicketSet('its-04-guided');
@@ -1806,7 +1806,7 @@
         title: 'Read everything about the adapter',
         instruction: 'On NS-WS-0319, read everything about the adapter, including its hardware ID. <details><summary>Show me the command</summary><code>ipconfig /all</code></details>',
         body: 'Why: Read everything about the adapter, including its hardware ID. Success looks like: DHCP Enabled <strong>Yes</strong> · Physical Address <strong>3C-52-82-4A-19-07</strong> · no DHCP server listed.',
-        waitLabel: 'Next Step: ipconfig /all run on NS-WS-0319',
+        waitLabel: 'Next Step: Every adapter detail read on NS-WS-0319',
         check: () => hd2Rule(HD4_A, { typed: '^ipconfig(\\.exe)?\\s+/all(\\s|$)', computer: HD4_PC_A }),
       },
       {
@@ -1860,7 +1860,7 @@
         title: 'Read every adapter on the laptop',
         instruction: 'On HD-2213, press <strong>Open NS-LT-0415</strong>, open <strong>PowerShell</strong> there and read every adapter on the laptop. <details><summary>Show me the command</summary><code>ipconfig /all</code></details>',
         body: 'Why: Read <strong>every</strong> adapter. A docked laptop has two, and Windows uses the wired one first. Success looks like: <strong>Ethernet 2 (Dock USB Ethernet):</strong> DHCP Yes, 10.20.10.177, gateway 10.20.10.1, DNS 10.20.0.10/11. <strong>Wi-Fi:</strong> Northstar-Corp, DHCP Yes, 10.20.10.178, same gateway and DNS. Both healthy.',
-        waitLabel: 'Next Step: ipconfig /all run on NS-LT-0415',
+        waitLabel: 'Next Step: Both adapters read on NS-LT-0415',
         check: () => hd2Rule(HD4_B, { typed: '^ipconfig(\\.exe)?\\s+/all(\\s|$)', computer: HD4_PC_B }),
       },
       {
@@ -1876,7 +1876,7 @@
         title: 'Does the name reach a server?',
         instruction: 'On NS-LT-0415, test whether the intranet’s name reaches a server. <details><summary>Show me the command</summary><code>ping intranet.northstar.example</code></details>',
         body: 'Why: Does the name reach a server? Success looks like: <code>Pinging intranet.northstar.example [10.20.0.45]</code> … <strong>Request timed out</strong> four times.',
-        waitLabel: 'Next Step: ping run on NS-LT-0415',
+        waitLabel: 'Next Step: The name tested on NS-LT-0415',
         check: () => hd4Run(HD4_B, HD4_PC_B, hd4Ping('intranet(\\.northstar\\.example)?'), 'ping:intranet.northstar.example'),
       },
       {
@@ -1884,7 +1884,7 @@
         title: 'Ask the DNS server directly',
         instruction: 'On NS-LT-0415, ask the DNS server for the intranet’s address, instead of using what the PC remembers. <details><summary>Show me the command</summary><code>nslookup intranet.northstar.example</code> (or <code>Resolve-DnsName intranet.northstar.example</code>)</details>',
         body: 'Why: <code>nslookup</code> asks the DNS server directly; <code>ping</code> used what the PC remembered. Success looks like: Server <code>dc01.northstar.example</code> (10.20.0.10). Name <code>intranet.northstar.example</code>, Address <strong>10.20.0.50</strong>. <strong>Two different addresses</strong> for one name.',
-        waitLabel: 'Next Step: nslookup run on NS-LT-0415',
+        waitLabel: 'Next Step: The DNS server asked directly',
         check: () => hd4Run(HD4_B, HD4_PC_B, hd4Lookup('intranet(\\.northstar\\.example)?'), 'nslookup:intranet.northstar.example'),
       },
       {
@@ -1938,7 +1938,7 @@
       {
         route: '#/helpdesk/settings-about', target: '[data-hd-tools="settings-about"], [data-hd-join], [data-hd-join-start]',
         title: 'Join the laptop to the domain',
-        instruction: 'On NS-LT-0416, open <strong>Settings › System › About › Domain or workgroup › Change</strong>. Join the domain <code>northstar.example</code>, choose <strong>Use the provisioning account (KB-0097)</strong>, pick the OU <strong>OU=Logistics,OU=Workstations</strong>, then restart. Pick the OU with care: a laptop joins once. <details><summary>Show me the command</summary>Optional, in PowerShell on NS-LT-0416: <code>Add-Computer -DomainName northstar.example -OUPath "OU=Logistics,OU=Workstations" -Restart</code></details>',
+        instruction: 'On NS-LT-0416, open <strong>Settings › System › About › Domain or workgroup › Change</strong>. Join the domain <code>northstar.example</code>, choose <strong>Use the provisioning account (KB-0097)</strong>, pick the OU <strong>OU=Logistics,OU=Workstations</strong>, then restart. Pick the OU with care: a laptop joins once. If you chose the wrong OU, use <strong>Reset shift</strong> and start the lab again. <details><summary>Show me the command</summary>Optional, in PowerShell on NS-LT-0416: <code>Add-Computer -DomainName northstar.example -OUPath "OU=Logistics,OU=Workstations" -Restart</code></details>',
         body: 'Why: The right account and the right place. A computer in the wrong OU gets the wrong policies (Module 07). Success looks like: “Welcome to the northstar.example domain.” The laptop restarts.',
         waitLabel: 'Next Step: Joined into Logistics, restarted',
         check: () => hd2Did(HD4_R, 'domain-join', (a) => a.ou === HD4_OU) && hd2Rule(HD4_R, { actionsAfter: { after: 'domain-join', action: 'restart' } }),
@@ -1949,7 +1949,7 @@
         instruction: 'On NS-LT-0416, bring in the company’s policies. <details><summary>Show me the command</summary><code>gpupdate /force</code></details> Then open <strong>Active Directory › Computers</strong>, find <strong>NS-LT-0416</strong> and press <strong>Open</strong> on its row. Then, on SR-2222, write the <strong>work note</strong> with the lines Reported:, Tried: and Result:, and close the request (<strong>Closed Complete</strong>). If you opened another record, open SR-2222 again first: the lookup counts for the ticket that is open.',
         body: 'Why: Prove the policies arrived and the object is where it should be. Success looks like: <code>Computer Policy update has completed successfully.</code> · NS-LT-0416 in <strong>OU=Logistics,OU=Workstations</strong> · RITM <strong>Closed Complete</strong>. A model note: Reported: approved new starter laptop setup for K. Watanabe (Logistics), starts tomorrow. Tried: NS-LT-0416 wired on the build bench, DHCP, company DNS; nslookup northstar.example returned both domain controllers; joined northstar.example with the provisioning account per KB-0097 into OU=Logistics,OU=Workstations; restarted; gpupdate /force completed. Result: NS-LT-0416 in OU=Logistics,OU=Workstations; ready for Kenji tomorrow.',
         waitLabel: 'Next Step: Policies applied, object found, request closed',
-        check: () => hd4Run(HD4_R, HD4_PC_R, '^gpupdate(\\.exe)?\\s+/force$', 'gpupdate', 'restart')
+        check: () => hd4Run(HD4_R, HD4_PC_R, '^gpupdate(\\.exe)?\\s+/force(\\s|$)', 'gpupdate', 'restart')
           && hd2Rule(HD4_R, { serverSeen: 'ad-computer:' + HD4_PC_R }) && hd2Rule(HD4_R, { note: true }) && hd4RequestClosed(),
       },
       {

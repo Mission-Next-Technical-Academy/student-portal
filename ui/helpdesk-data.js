@@ -3043,8 +3043,8 @@ const HD_TICKET_TEMPLATES = [
           { seen:'ping:10.20.10.1', computer:'NS-WS-0319', after:'ip-renew', missing:'After the renew, ping the gateway: ping 10.20.10.1.' },
           { seen:'ping:files.northstar.example', computer:'NS-WS-0319', after:'ip-renew', missing:'After the renew, ping a company server: ping files.northstar.example.' },
           { seen:'tracert:www.example.com', computer:'NS-WS-0319', after:'ip-renew', missing:'After the renew, trace the way out: tracert www.example.com.' },
-          { seen:'port:files.northstar.example:445', computer:'NS-WS-0319', missing:'Check the file service: Test-NetConnection files.northstar.example -Port 445.' },
-          { seen:'port:dc01.northstar.example:53', computer:'NS-WS-0319', missing:'Check the name service: Test-NetConnection dc01.northstar.example -Port 53.' },
+          { seen:'port:files.northstar.example:445', computer:'NS-WS-0319', after:'ip-renew', missing:'After the renew, check the file service: Test-NetConnection files.northstar.example -Port 445.' },
+          { seen:'port:dc01.northstar.example:53', computer:'NS-WS-0319', after:'ip-renew', missing:'After the renew, check the name service: Test-NetConnection dc01.northstar.example -Port 53.' },
         ], good:'You moved the cable to a live jack, released and renewed the address, then proved the gateway, a company server, the way out and both services.', fix:'Move the cable to jack 2F-15, then ipconfig /release and ipconfig /renew. Then ping 10.20.10.1, ping files.northstar.example, tracert www.example.com, and Test-NetConnection files.northstar.example -Port 445 and dc01.northstar.example -Port 53. Never restart a switch or patch the jack yourself: both are Network Operations\'.' },
         { area:'Documentation', checks:[
           { teamMessage:'netops-2f14', missing:'Message Network Operations about jack 2F-14: name the jack, the panel port 2-14 and that Jonah is on 2F-15.' },
@@ -3089,6 +3089,7 @@ const HD_TICKET_TEMPLATES = [
         { area:'Diagnosis', checks:[
           { seen:'nslookup:intranet.northstar.example', computer:'NS-LT-0415', missing:'Ask the DNS server directly: nslookup intranet.northstar.example. Compare its answer with what ping used.' },
           { serverSeen:'change:CHG-7802', missing:'Open the Change log and open CHG-7802.' },
+          { serverSeen:'dns-zone', missing:'Open the DNS screen.' },
           { serverSeen:'dns-record:intranet:A', missing:'Open the DNS screen and read the intranet record.' },
         ], good:'ping used the address the PC remembered (10.20.0.45). nslookup asked the DNS server and got 10.20.0.50. CHG-7802 moved the intranet at 08:30.', fix:'Run nslookup intranet.northstar.example (10.20.0.50), open CHG-7802 in the Change log (08:30 today) and read the intranet record on the DNS screen (10.20.0.50). Farah opened the intranet at 08:10, before the move, so her PC kept the old answer.' },
         { area:'Action', checks:[
@@ -3121,7 +3122,7 @@ const HD_TICKET_TEMPLATES = [
         { area:'Investigation', checks:[
           { kb:'KB-0097', missing:'Open KB-0097: it says what a join needs.' },
           { typed:'^\\s*ipconfig\\s+/all\\b', computer:'NS-LT-0416', missing:'On NS-LT-0416, type ipconfig /all. A join needs company DNS first: DNS 10.20.0.10.' },
-          { typed:'^\\s*nslookup\\s+northstar\\.example\\b', computer:'NS-LT-0416', missing:'Type nslookup northstar.example. It should return both domain controllers.' },
+          { typed:'^\\s*(nslookup|resolve-dnsname)\\s+northstar\\.example\\b', computer:'NS-LT-0416', missing:'Type nslookup northstar.example. It should return both domain controllers.' },
         ], good:'The laptop is wired on the corporate network with company DNS, and northstar.example returns both domain controllers.', fix:'Open KB-0097, then on NS-LT-0416 type ipconfig /all and nslookup northstar.example. The laptop needs company DNS (10.20.0.10) to find a domain controller.' },
         { area:'Action', checks:[
           { action:'domain-join', missing:'Settings › System › About › Domain or workgroup › Change. Choose the domain northstar.example and Use the provisioning account (KB-0097).' },
@@ -3167,7 +3168,7 @@ const HD_TICKET_TEMPLATES = [
           { seen:'wifi-properties', computer:'NS-LT-0417', missing:'Open Settings › Network & internet › Wi-Fi › Northstar-Corp › Properties and read the band, channel and link speed.' },
           { typed:'^\\s*ping\\b(?=.*10\\.20\\.10\\.1\\b)(?=.*-n\\s*(1\\d|[2-9]\\d)\\b)', computer:'NS-LT-0417', missing:'Run a long ping to the gateway to see the jitter: ping 10.20.10.1 -n 20.' },
         ], good:'One person or many first; then the band, then a long ping to see the jitter.', fix:'Ask whether her team is affected, read the Wi-Fi Properties (Band 2.4 GHz, Channel 6, signal 70%, 86 Mbps), then ping 10.20.10.1 -n 20. Replies run from 2 ms to 180 ms with 2 lost: jitter and loss on the Wi-Fi.' },
-        { area:'Diagnosis', checks:[{ kb:'KB-0108', missing:'Search the knowledge base for "slow" or "no internet" and open KB-0108. Step 7 says what to do before you change a setting.' }], good:'The adapter\'s band preference on a crowded, interfered band (not the access point, which serves her team fine).', fix:'Open KB-0108. The cause is the adapter\'s band preference: Device Manager › Network adapters › the Wi-Fi adapter › Properties › Advanced › Preferred band says Prefer 2.4GHz band, on a crowded band the kitchen microwave interferes with. It is not the access point, which serves her team fine.' },
+        { area:'Diagnosis', checks:[{ kb:'KB-0108', missing:'Search the knowledge base for "slow" or "no internet" and open KB-0108. Step 7 says what to do before you change a setting.' }], good:'The adapter\'s band preference on a crowded, interfered band (not the access point, which serves her team fine).', fix:'Read the band in the Wi-Fi network\'s Properties, then the adapter\'s setting in Device Manager. KB-0108 step 7 says to write the old value down and tell the user before you change it. The cause is the adapter\'s band preference: Device Manager › Network adapters › the Wi-Fi adapter › Properties › Advanced › Preferred band says Prefer 2.4GHz band, on a crowded band the kitchen microwave interferes with. It is not the access point, which serves her team fine.' },
         { area:'Action', checks:[
           { chat:['tell'], missing:'Tell Bianca you will change one Wi-Fi setting and that her Wi-Fi will drop for a few seconds, before you change it.' },
           { action:'adapter-property', missing:'In Device Manager, open the Wi-Fi adapter › Properties › Advanced and change Preferred band to Prefer 5GHz band.' },
@@ -3282,7 +3283,7 @@ const HD_TICKET_TEMPLATES = [
         { area:'Triage', checks:[{ triage:{ category:'Hardware', subcategory:'New device setup', ci:'NS-LT-0418' }, missing:'Set Category Hardware › New device setup and CI NS-LT-0418, the new laptop.' }, { priority:'P3', missing:'Set Impact 3 (one person) and Urgency 1 (a fixed 11:00 start). That makes the ticket P3.' }], good:'One person, a fixed 11:00 start: Impact 3 × Urgency 1, P3.', fix:'Set Category Hardware › New device setup, CI NS-LT-0418, Impact 3 and Urgency 1. One person with a fixed 11:00 start is P3.' },
         { area:'Investigation', checks:[
           { typed:'^\\s*ipconfig\\s+/all\\b', computer:'NS-LT-0418', missing:'On NS-LT-0418, type ipconfig /all and read which network and which DNS server the laptop is using.' },
-          { typed:'^\\s*nslookup\\s+northstar\\.example\\b', computer:'NS-LT-0418', missing:'Type nslookup northstar.example and read the answer.' },
+          { typed:'^\\s*(nslookup|resolve-dnsname)\\s+northstar\\.example\\b', computer:'NS-LT-0418', missing:'Type nslookup northstar.example and read the answer.' },
         ], good:'Read the error first, then the DNS server.', fix:'Read the error ("could not be contacted" is almost always DNS), then on NS-LT-0418 type ipconfig /all (Northstar-Guest, 10.20.90.61, DNS 10.20.90.1) and nslookup northstar.example (Non-existent domain).' },
         { area:'Diagnosis', checks:[{ kb:'KB-0097', missing:'Search the knowledge base for "join" and open KB-0097. Step 1 says what the computer must be on first.' }], good:'Guest Wi-Fi means no company DNS, so no domain controller (not a broken laptop, not the account).', fix:'Open KB-0097. The guest network can\'t find the domain, so no domain controller answers. The laptop and the account are fine.' },
         { area:'Action', checks:[
@@ -3344,7 +3345,7 @@ const HD_TICKET_TEMPLATES = [
   // Ticket 9-E: a remote worker hasn't connected the VPN. At home the laptop uses
   // the home router's DNS, which doesn't know company names.
   hdTicket({ id:'HD-2221', ownSet:true, number:'INC0010532', requester:'Gabriel Moss', department:'Sales', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T10:10:00Z', shortDescription:'I can\'t open the Sales drive from home',
-    description:'Hi, it\'s Gabriel in Sales. I\'m working from home today, my first time doing it. Email and websites are fine, but the Sales drive and the intranet won\'t open. It just says it can\'t find them. It all worked yesterday in the office.',
+    description:'Hi, it\'s Gabriel in Sales. I\'m working from home today, my first time doing it. Email and websites are fine, but the Sales drive and the intranet won\'t open. It just says it can\'t find them. It all worked yesterday in the office.\n\nCall note: Gabriel is at home on the phone with his laptop. He reads you his screen and types what you ask.',
     symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
     expectedResolution:'Reported: working from home for the first time; email and web fine, Sales share and intranet "can\'t be found"; fine yesterday in the office. Tried: home Wi-Fi with DHCP (192.168.0.34), DNS is the home router; VPN adapter disconnected; nslookup intranet failed via 192.168.0.1. Connected Northstar VPN Client: VPN adapter 10.20.250.37, company DNS; nslookup intranet → 10.20.0.50; files:445 answers. Result: Gabriel opened the Sales share and the intranet; KB-0109 sent.',
     console: {
@@ -3369,7 +3370,7 @@ const HD_TICKET_TEMPLATES = [
         { area:'Triage', checks:[{ triage:{ category:'Network', subcategory:'VPN / remote access', ci:'NS-LT-0419' }, missing:'Set Category Network › VPN / remote access and CI NS-LT-0419, Gabriel\'s laptop.' }, { priority:'P4', missing:'Set Impact 3 (one person) and Urgency 2 (email and web still work). That makes the ticket P4.' }], good:'One person, email and web still work: Impact 3 × Urgency 2, P4.', fix:'Set Category Network › VPN / remote access, CI NS-LT-0419, Impact 3 and Urgency 2. One person with email and web still working is P4.' },
         { area:'Investigation', checks:[
           { typed:'^\\s*ipconfig\\s+/all\\b', computer:'NS-LT-0419', missing:'Gabriel reads you his screen and types what you ask. Have him type ipconfig /all and read where he is, which DNS server he is using and whether the VPN adapter is up.' },
-          { typed:'^\\s*nslookup\\s+intranet\\b', computer:'NS-LT-0419', missing:'Have him type nslookup intranet.northstar.example.' },
+          { typed:'^\\s*(nslookup|resolve-dnsname)\\s+intranet\\b', computer:'NS-LT-0419', missing:'Have him type nslookup intranet.northstar.example.' },
           { seen:'vpn-client', computer:'NS-LT-0419', missing:'Open Northstar VPN Client on his laptop and read its status.' },
         ], good:'Where is he, which DNS server is he using, is the VPN adapter up?', fix:'Ask him to type ipconfig /all (HomeNet-5G, DNS 192.168.0.1, Northstar VPN: Media disconnected) and nslookup intranet.northstar.example (Non-existent domain: his home router doesn\'t know company names), then open Northstar VPN Client (Disconnected, never connected on this laptop).' },
         { area:'Diagnosis', checks:[{ kb:'KB-0109', missing:'Search the knowledge base for "vpn" and open KB-0109.' }], good:'Off-site without the VPN (not DNS on the company side, not his account).', fix:'Open KB-0109. Company names, file shares and the intranet work only inside Northstar\'s network, so from home the VPN has to be connected first.' },

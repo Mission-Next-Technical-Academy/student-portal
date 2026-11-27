@@ -285,7 +285,7 @@ function partB(tab, lines = LINES_B) {
 }
 
 /* ------------------------------------------------------------ Part C */
-function partC(tab, { typedJoin = false } = {}) {
+function partC(tab, { typedJoin = false, lookup = 'nslookup northstar.example' } = {}) {
   tab.open(R);
   assert.match(tab.open(R), /RITM0010164/);
   tab.kb(R, 'domain join', 'KB-0097');
@@ -293,7 +293,7 @@ function partC(tab, { typedJoin = false } = {}) {
   at(tab, 20, 'Part C step 1 done');
   tab.on(PC_C);
   assert.match(tab.ps('ipconfig /all'), /DNS Servers \. \. \. \. \. \. \. \. \. \. \. : 10\.20\.0\.10/);
-  assert.match(tab.ps('nslookup northstar.example'), /10\.20\.0\.10[\s\S]*10\.20\.0\.11/);
+  assert.match(tab.ps(lookup), /10\.20\.0\.10[\s\S]*10\.20\.0\.11/);
   at(tab, 21, 'Part C step 2 done');
   tab.open(R);
   if (typedJoin) {
@@ -388,7 +388,9 @@ function testTypedStepsAnyCaseAndOptionalLines() {
     port445: 'test-netconnection files.northstar.example -port 445', port53: 'TEST-NETCONNECTION dc01.northstar.example -PORT 53',
   });
   partB(tab, { all: 'IPCONFIG /ALL', ping: 'PING intranet.northstar.example', lookup: 'Resolve-DnsName intranet.northstar.example', flush: 'Clear-DnsClientCache', port: 'test-netconnection intranet.northstar.example -port 443' });
-  partC(tab, { typedJoin: true });
+  partC(tab, { typedJoin: true, lookup: 'Resolve-DnsName northstar.example' });
+  // "Check my work" agrees with the coach on the optional lines too.
+  for (const id of [A, B, R]) tab.feedback(id).areas.forEach((area) => assert.ok(area.ok, `${id} ${area.area}: ${area.text}`));
 }
 
 // A typed step on another computer, or before the cable is moved, does not count.
