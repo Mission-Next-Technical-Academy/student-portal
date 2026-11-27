@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit settings for the student portal. Added 2026-11-27.
+# Review rules live in CLAUDE.md, AGENTS.md and .claude/rules/*.md.
+# CodeRabbit reads those files on its own, so keep rules there, not here.
+language: "en-US"
+tone_instructions: "Explain each finding in plain language for a junior developer: what is wrong, why it matters for students or staff, and the smallest fix. Skip style nitpicks."
+reviews:
+  profile: "chill"
+  high_level_summary: true
+  review_status: true
+  collapse_walkthrough: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT MERGE"
+    ignore_usernames: ["cyberdude88", "randy608"]
+  path_filters:
+    - "!Mission_Next_Brand_Kit_v1/**"
+    - "!archive/**"
+    - "!portal/vendor/**"
+    - "!**/*.zip"
+    - "!**/*.min.js"
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        This is a live production LMS with real students. Follow CLAUDE.md
+        and the matching .claude/rules file. Treat these as critical:
+        - Secrets, keys, .env files, rosters, real student data or answer
+          keys in the diff. The repo is public.
+        - A renamed module key, lab key or runtime ID. It orphans student
+          progress.
+        - A permission check done only in browser code, not in RLS or SQL.
+        - A score or completion trusted from the browser, or an automated
+          score shown to students.
+        - A shared file changed (portal/app.js, index.html, data.js,
+          module-labs.*, ui/coach.js, portal/theme.js, shared CSS,
+          supabase/, bin/, tests/) without a call-out in the PR description.
+chat:
+  auto_reply: true
