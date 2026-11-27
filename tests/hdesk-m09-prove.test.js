@@ -182,10 +182,22 @@ function testChat() {
   assert.ok(!card.includes(`'${SEEN_Q.id}'`), 'the afterSeen message is not offered at the start');
   ask(tab, SEEN_Q.id);
   same(tab.events('caller_question'), [], 'and cannot be sent before');
-  // Another screen on the laptop doesn't offer it; the one it names does.
-  tab.run(`hdNetPanel(${j(PC)}, 'hardware', ${j(WIRED.name)})`);
-  assert.ok(!chatCard(tab).includes(`'${SEEN_Q.id}'`), 'not after another screen');
-  const [, adapter] = SEEN_Q.afterSeen.key.split(':');
+  // Another screen on the laptop doesn't offer it; each one it names does.
+  tab.run(`hdNetPanel(${j(PC)}, 'hardware', ${j(WIFI.name)})`);
+  assert.ok(!chatCard(tab).includes(`'${SEEN_Q.id}'`), 'not after another adapter\'s screen');
+  assert.ok(SEEN_Q.afterSeen.keys.length >= 2, 'more than one screen opens it');
+  SEEN_Q.afterSeen.keys.forEach((key, index) => {
+    const each = sim('its-04', `stu-chat-key-${index}`);
+    const [kind, name] = key.split(':');
+    each.run(`hdNetPanel(${j(SEEN_Q.afterSeen.computer)}, ${j(kind === 'net-edit' ? 'edit' : 'hardware')}, ${j(name)})`);
+    assert.ok(chatCard(each).includes(`hdChatAsk('${TID}','${SEEN_Q.id}')`), `offered once ${key} was seen`);
+  });
+  // A typed read of every adapter records the same key, so a student who
+  // works by command gets the message too, before any typed change.
+  const typed = sim('its-04', 'stu-chat-typed');
+  typed.ps('ipconfig /all');
+  assert.ok(chatCard(typed).includes(`hdChatAsk('${TID}','${SEEN_Q.id}')`), 'offered after a typed read of the adapters');
+  const [, adapter] = SEEN_Q.afterSeen.keys[SEEN_Q.afterSeen.keys.length - 1].split(':');
   tab.run(`hdNetPanel(${j(SEEN_Q.afterSeen.computer)}, 'edit', ${j(adapter)})`);
   assert.ok(chatCard(tab).includes(`hdChatAsk('${TID}','${SEEN_Q.id}')`), 'offered once the screen it names was opened');
   ask(tab, SEEN_Q.id);

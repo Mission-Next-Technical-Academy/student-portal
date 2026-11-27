@@ -1156,7 +1156,8 @@ function hdConsole(ticket) {
           // offered once a screen on a computer has been opened.
           const replyWhen = (Array.isArray(item.replyWhen) ? item.replyWhen : []).filter(entry => entry && typeof entry.reply === 'string' && machineOnly(entry.when))
             .map(entry => ({ when:machineOnly(entry.when), reply:entry.reply }));
-          const seen = item.afterSeen && typeof item.afterSeen.computer === 'string' && typeof item.afterSeen.key === 'string' ? { computer:item.afterSeen.computer, key:item.afterSeen.key } : null;
+          const keys = item.afterSeen && Array.isArray(item.afterSeen.keys) ? item.afterSeen.keys.filter(key => typeof key === 'string') : [];
+          const seen = item.afterSeen && typeof item.afterSeen.computer === 'string' && keys.length ? { computer:item.afterSeen.computer, keys } : null;
           return { id:item.id, text:item.text, reply:item.reply, ...(replyWhen.length ? { replyWhen } : {}), ...(seen ? { afterSeen:seen } : {}) };
         }),
       ...(Number.isInteger(config.caller.limit) && config.caller.limit > 0 ? { limit:config.caller.limit } : {}),
@@ -1437,10 +1438,11 @@ function hdConsoleAccountLocked(ticket) {
 function hdChatReplyWhen(ticket, question) {
   return Array.isArray(question.replyWhen) ? question.replyWhen.find(entry => entry && typeof entry.reply === 'string' && hdArrivalMet(ticket, entry.when)) || null : null;
 }
-// afterSeen { computer, key }: offered once that machine has shown that screen.
+// afterSeen { computer, keys }: offered once that machine has shown any of
+// those screens (a screen and its typed line record the same key).
 function hdChatSeen(rule) {
   const machine = rule && hdState && hdState.machines ? hdState.machines[rule.computer] : null;
-  return !!(machine && Array.isArray(machine.seen) && machine.seen.includes(rule.key));
+  return !!(machine && Array.isArray(machine.seen) && Array.isArray(rule.keys) && rule.keys.some(key => machine.seen.includes(key)));
 }
 function hdChatPending(ticket, question) {
   if (Array.isArray(question.replyWhen) && question.replyWhen.length) return !hdChatReplyWhen(ticket, question);

@@ -4235,7 +4235,9 @@ const HD_PROVE_SHIFTS = {
               { machine: { computer: 'NS-LT-0156', path: ['network', 'adapters', '0', 'ip', 'address'], value: '10.20.30.88' } },
             ] }, reply: 'It opens now. I can see the Logistics folder, and the intranet loads too.' }] },
           { id: 'q4', text: 'Before I change it: your dock\'s network connection has a fixed setting from home. I\'m writing those values down for you and setting it back to automatic. OK?', reply: 'Sure, go ahead.',
-            afterSeen: { computer: 'NS-LT-0156', key: 'net-edit:Ethernet 2' } },
+            // Offered once the dock adapter was read (ipconfig /all, Hardware
+            // properties or Get-NetIPConfiguration) or its Edit IP settings opened.
+            afterSeen: { computer: 'NS-LT-0156', keys: ['net-adapter:Ethernet 2', 'net-edit:Ethernet 2'] } },
         ] },
       },
       diagnosisOptions: ['DNS server outage', 'File server down', 'Connected to the guest Wi-Fi', 'Static IP left from home on the dock adapter'],
@@ -4258,6 +4260,8 @@ const HD_PROVE_SHIFTS = {
         { id: 'p12', text: 'Ask Server & Identity to restart the file server' },
         { id: 'p13', text: 'Turn off Windows Firewall to test' },
         { id: 'p14', text: 'Reinstall the network adapter driver' },
+        { id: 'p15', text: 'Reset Carlos\'s password' },
+        { id: 'p16', text: 'Rejoin the laptop to the domain' },
       ],
     }],
     computers: [
