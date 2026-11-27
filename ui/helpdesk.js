@@ -4161,6 +4161,8 @@ function hdMachineBack(computer) {
 // A Prove shift with machineTools: true shows every tool on every one of
 // its computers, so which buttons appear never points at the case.
 function hdProveAllTools() { return !!(HD_PROVE && HD_PROVE.shift.machineTools === true); }
+// Module 09 (console B): any of the Prove shift's machines passes the test.
+function hdProveShiftHas(test) { return !!HD_PROVE && Object.keys(HD_PROVE.shift.machines || {}).some(name => !!test(hdMachine(name))); }
 function hdMachineMissing(title) {
   if (hdProveAllTools()) return `${hdPageHeader(title, 'Nothing to show on this computer.', `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/windows')">← Windows Desktop</button>`)}`;
   return `${hdPageHeader(title, 'Not available on this computer in this shift.', `<button class="btn btn-secondary" onclick="navigate('#/helpdesk/windows')">← Windows Desktop</button>`)}<div class="card"><div class="card-body"><p class="muted">Open a computer from a ticket to use this screen.</p></div></div>`;
@@ -4182,10 +4184,11 @@ function hdFeatureToolButtons(name) {
     all || (devices && machine.devices.some(device => device && device.camera)) ? open('camera', '📷 Camera') : '',
     all || machine.dock ? open('dock', '🖥 Dock &amp; displays') : '',
     all || machine.dock || hdNetState(machine) ? open('settings-network', '⚙ Settings › Network &amp; internet') : '',
-    // Module 09 (console B): only on a computer whose machine has them, in a
-    // Prove shift too, so an older shift's buttons never change.
-    hdJoinState(machine) ? open('settings-about', '⚙ Settings › System › About') : '',
-    hdVpnClient(machine) ? open('vpn-client', '🔒 Northstar VPN Client') : '',
+    // Module 09 (console B): on a computer whose machine has them; in a
+    // machineTools Prove shift, on every computer once any of its machines
+    // has one. No older shift has either key, so its buttons never change.
+    hdJoinState(machine) || (all && hdProveShiftHas(hdJoinState)) ? open('settings-about', '⚙ Settings › System › About') : '',
+    hdVpnClient(machine) || (all && hdProveShiftHas(hdVpnClient)) ? open('vpn-client', '🔒 Northstar VPN Client') : '',
   ].join('');
 }
 // A shared printer's machine action: guard, change, settle, record, redraw.
@@ -4883,6 +4886,9 @@ function hdWinRestart(computerName) {
     if (hdState.eventLog && typeof hdState.eventLog === 'object') hdState.eventLog = { ...hdState.eventLog, open:null };
     const profile = hdWinProfile(machine);
     if (profile && profile.temporary && profile.restartClears === true) profile.temporary = false;
+    // Module 09 (console B): a restart finishes a domain join.
+    const joining = hdJoinState(machine);
+    if (joining && joining.pendingRestart) joining.pendingRestart = false;
     hdMachineAction(computerName, 'restart', finished ? 'restarted the computer to finish the update' : fromSafeMode ? 'restarted the computer out of Safe Mode' : 'restarted the computer', { finishedUpdate:finished, ...(fromSafeMode ? { fromSafeMode:true } : {}) });
     if (typeof toast === 'function' && !HD_PROVE) toast(`${computerName} restarted.`);
   });
@@ -7133,7 +7139,9 @@ function hdNetZone(adapter) {
 const HD_NET_ORDER = { Ethernet:0, 'Dock USB Ethernet':0, 'Wi-Fi':1, VPN:2 };
 function hdNetOrder(adapter) { return hdOwn(HD_NET_ORDER, adapter.kind) ? HD_NET_ORDER[adapter.kind] : 1; }
 function hdNetActive(net) { return hdNetAdapters(net).filter(item => item.kind !== 'VPN' && hdNetUsable(item)).sort((a, b) => hdNetOrder(a) - hdNetOrder(b))[0] || null; }
-function hdNetVpn(net) { return hdNetAdapters(net).find(item => item.kind === 'VPN' && hdNetUsable(item)) || null; }
+// A VPN carries traffic only over a link that works (console B: the Wi-Fi
+// or cable going away takes the tunnel with it).
+function hdNetVpn(net) { return (hdNetActive(net) && hdNetAdapters(net).find(item => item.kind === 'VPN' && hdNetUsable(item))) || null; }
 function hdNetCompanyAddress(address) { return /^10\.20\./.test(String(address || '')); }
 function hdNetPrivate(address) { return /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.)/.test(String(address || '')); }
 function hdNetRoute(net, address) { const vpn = hdNetVpn(net); return hdNetCompanyAddress(address) && vpn ? vpn : hdNetActive(net); }
@@ -7806,7 +7814,9 @@ window.hdDeviceAdvancedSet = hdDeviceAdvancedSet;
 /* ---------- Network closet, VPN client and domain join (added for Module 09, key its-04, console B) ----------
  * Each is off unless a ticket's console block or a computer's machine state
  * turns it on; an older ticket or computer without the key looks and answers
- * exactly as before. Practice only unless a Prove shift's machine has the key.
+ * exactly as before. The closet, the evidence kinds and link are Practice
+ * only (a Prove ticket's console never carries them); the VPN client and the
+ * domain join also work in a Prove shift whose machine has the key.
  *   console.closet: { id, floor, room?, jacks:[{ jack, location?, panelPort,
  *     switch?, switchPort?, link?:'green'|'amber'|'off', vlan? }] }
  *     the Network closet card on the ticket and its read-only screen: each
@@ -7920,7 +7930,7 @@ function hdVpnConnect(computerName) {
     const net = hdNetState(machine);
     client.error = '';
     if (net && !hdNetActive(net)) {
-      client.error = `Can't reach ${client.gateway || 'vpn.northstar.example'}. Check the internet connection, then try again.`;
+      client.error = `Can't reach ${client.gateway || 'vpn.northstar.example'}.${HD_PROVE ? '' : ' Check the internet connection, then try again.'}`;
       hdMachineAction(computerName, 'vpn-connect-failed', 'tried to connect Northstar VPN Client with no internet connection', { reason:'no-internet' });
       return undefined;
     }
@@ -8028,7 +8038,8 @@ function hdJoinOu(event, computerName) {
   hdMachineChange(computerName, machine => {
     const domain = hdJoinState(machine); const view = hdMachineView().join;
     if (!domain || domain.joined || !view || view.step !== 'ou') return false;
-    const ou = hdJoinOuMatch(machine, typed); if (!ou) return false;
+    const ou = hdJoinOuMatch(machine, typed);
+    if (!ou) { hdJoinView({ step:'ou', error:'Choose an OU.' }); return false; }
     hdJoinDo(machine, computerName, ou, 'settings');
     hdJoinView({ step:'welcome' });
     return undefined;
@@ -8059,10 +8070,11 @@ VIEWS['helpdesk/settings-about'] = () => {
     panel = `<div class="card" data-hd-join="error"><div class="card-header"><strong>Computer Name/Domain Changes</strong></div><div class="card-body"><div class="callout bad" role="alert" data-hd-join-error><p>${hdEsc(hdJoinNoDc(view.domain))}</p><p>Ensure that the domain name is typed correctly.</p></div><button type="button" class="btn btn-secondary btn-sm" onclick="hdJoinStart(${n})">OK</button></div></div>`;
   } else if (view && view.step === 'account') {
     // The only way to sign in: the Service Desk vault. No password field.
-    panel = `<div class="card" data-hd-join="account"><div class="card-header"><strong>Windows Security · Computer Name/Domain Changes</strong></div><div class="card-body" style="display:grid;gap:8px;max-width:420px"><p>Sign in with an account that may join computers to ${hdEsc(view.domain || HD_ORG.domain)}.</p><button type="button" class="btn btn-primary btn-sm" data-hd-join-provisioning ${locked} onclick="hdJoinAccount(${n})">Use the provisioning account (KB-0097)</button><p class="muted">The Service Desk vault signs in as ${hdEsc(HD_JOIN_ACCOUNT)}. You never type a password.</p><button type="button" class="btn btn-ghost btn-sm" onclick="hdJoinCancel()">Cancel</button></div></div>`;
+    panel = `<div class="card" data-hd-join="account"><div class="card-header"><strong>Windows Security · Computer Name/Domain Changes</strong></div><div class="card-body" style="display:grid;gap:8px;max-width:420px"><p>Sign in with an account that may join computers to ${hdEsc(view.domain || HD_ORG.domain)}.</p><button type="button" class="btn btn-primary btn-sm" data-hd-join-provisioning ${locked} onclick="hdJoinAccount(${n})">Use the provisioning account (KB-0097)</button>${HD_PROVE ? '' : `<p class="muted">The Service Desk vault signs in as ${hdEsc(HD_JOIN_ACCOUNT)}. You never type a password.</p>`}<button type="button" class="btn btn-ghost btn-sm" onclick="hdJoinCancel()">Cancel</button></div></div>`;
   } else if (view && view.step === 'ou') {
-    const options = hdJoinOus(machine).map(ou => `<option value="${hdEsc(ou)}">${hdEsc(ou)}</option>`).join('');
-    panel = `<form class="card" data-hd-join="ou" onsubmit="hdJoinOu(event,${n})"><div class="card-header"><strong>Computer Name/Domain Changes · Organizational unit</strong></div><div class="card-body" style="display:grid;gap:8px;max-width:420px"><label>Put the computer object in <select id="hd-join-ou" class="ipt">${options}</select></label><div style="display:flex;gap:8px"><button type="submit" class="btn btn-primary btn-sm" ${locked}>Join</button><button type="button" class="btn btn-ghost btn-sm" onclick="hdJoinCancel()">Cancel</button></div></div></form>`;
+    // No OU is chosen for the student: the first option is a prompt.
+    const options = `<option value="" selected disabled>Choose an OU</option>${hdJoinOus(machine).map(ou => `<option value="${hdEsc(ou)}">${hdEsc(ou)}</option>`).join('')}`;
+    panel = `<form class="card" data-hd-join="ou" onsubmit="hdJoinOu(event,${n})"><div class="card-header"><strong>Computer Name/Domain Changes · Organizational unit</strong></div><div class="card-body" style="display:grid;gap:8px;max-width:420px"><label>Put the computer object in <select id="hd-join-ou" class="ipt">${options}</select></label>${view.error ? `<div class="callout bad" role="alert">${hdEsc(view.error)}</div>` : ''}<div style="display:flex;gap:8px"><button type="submit" class="btn btn-primary btn-sm" ${locked}>Join</button><button type="button" class="btn btn-ghost btn-sm" onclick="hdJoinCancel()">Cancel</button></div></div></form>`;
   } else if (view && view.step === 'welcome') {
     panel = `<div class="card" data-hd-join="welcome"><div class="card-header"><strong>Computer Name/Domain Changes</strong></div><div class="card-body"><p data-hd-join-welcome>Welcome to the ${hdEsc(HD_ORG.domain)} domain.</p><button type="button" class="btn btn-secondary btn-sm" onclick="hdJoinCancel()">OK</button></div></div>`;
   }
@@ -8079,13 +8091,19 @@ function hdJoinCommand(command, normalized, computer) {
   if (hdProveLocked()) return '';
   const value = name => { const match = new RegExp(`(?:^|\\s)-${name}(?::|\\s+)("[^"]*"|'[^']*'|\\S+)`, 'i').exec(command); return match ? match[1].replace(/^["']|["']$/g, '') : ''; };
   const typedDomain = value('domainname') || value('domain');
-  const credential = value('credential');
+  // PowerShell takes any unique start of a parameter name (-Cre to -Credential).
+  const credName = '-cre(?:d(?:e(?:n(?:t(?:i(?:a(?:l)?)?)?)?)?)?)?';
+  const credMatch = new RegExp(`(?:^|\\s)${credName}(?::|\\s+)("[^"]*"|'[^']*'|\\S+)`, 'i').exec(command);
+  const credGiven = new RegExp(`(?:^|\\s)${credName}(?=$|[\\s:])`, 'i').test(command);
+  const credential = credMatch ? credMatch[1].replace(/^["']|["']$/g, '') : '';
   const restart = /(?:^|\s)-restart\b/i.test(command);
   const name = computer.name;
   if (!typedDomain) { hdLastCommandResult = 'refused: no domain'; return 'Add-Computer : Cannot process command because of one or more missing mandatory parameters: DomainName.'; }
   if (domain.joined) { hdLastCommandResult = 'refused: already joined'; return `Add-Computer : Cannot add computer '${name}' to domain '${typedDomain}' because it is already in that domain.`; }
-  if (/(?:^|\s)-credential\b/i.test(command) && credential.toLowerCase() !== HD_JOIN_ACCOUNT.toLowerCase()) {
+  if (credGiven && credential.toLowerCase() !== HD_JOIN_ACCOUNT.toLowerCase()) {
     hdLastCommandResult = 'refused: credential';
+    // A Prove It refuses without saying which account works.
+    if (HD_PROVE) return "Add-Computer didn't run: this console never asks for a password.";
     return `Add-Computer didn't run: this console never asks for a password. Leave out -Credential and the Service Desk vault signs in with the provisioning account, ${HD_JOIN_ACCOUNT} (KB-0097).`;
   }
   const failed = reason => `Add-Computer : Computer '${name}' failed to join domain '${typedDomain}' from its current workgroup '${domain.workgroup || 'WORKGROUP'}' with following error message: ${reason}`;
@@ -10278,9 +10296,9 @@ function hdPhoneWifiList(phone) {
   const network = networks.find(item => item.ssid === asking);
   let prompt = '';
   if (network && hdPhoneNetKind(network) === 'enterprise') {
-    prompt = `<div class="card" data-hd-phone-prompt="enterprise"><div class="card-body" style="display:grid;gap:6px"><p><strong>Enter the password for "${hdEsc(network.ssid)}"</strong></p><label>Username <input class="ipt" disabled autocomplete="off" value=""></label><label>Password <input class="ipt" type="password" disabled autocomplete="off" value=""></label><label>Certificate <select class="ipt" disabled data-hd-phone-cert><option>Select</option><option>No certificate installed</option></select></label><p class="muted">The help desk never types anyone's sign-in into a device.</p><div style="display:flex;gap:6px"><button type="button" class="btn btn-primary btn-sm" disabled>Join</button><button type="button" class="btn btn-ghost btn-sm" onclick="hdPhoneWifiCancel()">Cancel</button></div></div></div>`;
+    prompt = `<div class="card" data-hd-phone-prompt="enterprise"><div class="card-body" style="display:grid;gap:6px"><p><strong>Enter the password for "${hdEsc(network.ssid)}"</strong></p><label>Username <input class="ipt" disabled autocomplete="off" value=""></label><label>Password <input class="ipt" type="password" disabled autocomplete="off" value=""></label><label>Certificate <select class="ipt" disabled data-hd-phone-cert><option>Select</option><option>No certificate installed</option></select></label>${HD_PROVE ? '' : '<p class="muted">The help desk never types anyone\'s sign-in into a device.</p>'}<div style="display:flex;gap:6px"><button type="button" class="btn btn-primary btn-sm" disabled>Join</button><button type="button" class="btn btn-ghost btn-sm" onclick="hdPhoneWifiCancel()">Cancel</button></div></div></div>`;
   } else if (network && hdPhoneNetKind(network) === 'passphrase') {
-    prompt = `<div class="card" data-hd-phone-prompt="passphrase"><div class="card-body" style="display:grid;gap:6px"><p><strong>Enter the password for "${hdEsc(network.ssid)}"</strong></p><button type="button" class="btn btn-primary btn-sm" ${off} data-hd-phone-passphrase onclick="hdPhoneWifiPassphrase(${n},'${hdJsArg(network.ssid)}')">The user types today's passphrase from the reception screen</button><button type="button" class="btn btn-ghost btn-sm" onclick="hdPhoneWifiCancel()">Cancel</button></div></div>`;
+    prompt = `<div class="card" data-hd-phone-prompt="passphrase"><div class="card-body" style="display:grid;gap:6px"><p><strong>Enter the password for "${hdEsc(network.ssid)}"</strong></p><button type="button" class="btn btn-primary btn-sm" ${off} data-hd-phone-passphrase onclick="hdPhoneWifiPassphrase(${n},'${hdJsArg(network.ssid)}')">${HD_PROVE ? 'The user enters the passphrase' : 'The user types today\'s passphrase from the reception screen'}</button><button type="button" class="btn btn-ghost btn-sm" onclick="hdPhoneWifiCancel()">Cancel</button></div></div>`;
   }
   return `<p>Networks</p><ul class="hd-list" data-hd-phone-networks>${rows}</ul>${prompt}`;
 }

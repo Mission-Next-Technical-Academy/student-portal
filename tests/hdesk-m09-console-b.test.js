@@ -579,13 +579,65 @@ function testProveShift() {
   tab.shell('Add-Computer -DomainName northstar.example -OUPath "OU=Sales,OU=Workstations"');
   const events = json(tab, "hdState.prove.events.filter((e) => e.type === 'command_run' || e.type === 'action_taken').map((e) => [e.type, e.command || e.value])");
   assert.deepEqual(events, [['command_run', 'Add-Computer -DomainName northstar.example -OUPath "OU=Sales,OU=Workstations"'], ['action_taken', 'domain-join']]);
+  // A Prove It refuses another account without naming the one that works,
+  // and the dialog has no help sentence.
+  const other = sim({ url: proveUrl('its-01'), withTest: false, before });
+  assert.equal(other.ps('Add-Computer -DomainName northstar.example -Credential NORTHSTAR\\rmorgan'), "Add-Computer didn't run: this console never asks for a password.");
+  other.run(`hdState.machineView = { computer:hdState.selectedComputer }`);
+  other.run(`hdJoinStart(${JSON.stringify(name)})`);
+  other.withFields({ 'hd-join-domain': 'northstar.example' }, `hdJoinDomain({ preventDefault() {} }, ${JSON.stringify(name)})`);
+  const account = other.view('helpdesk/settings-about');
+  assert.match(account, /Use the provisioning account \(KB-0097\)/);
+  assert.doesNotMatch(account, /vault|never type/i);
   tab.run("hdProveServer.status = 'waiting'");
   tab.run(`hdVpnConnect(${JSON.stringify(name)})`);
   assert.equal(json(tab, `hdMachine(${JSON.stringify(name)}).vpnClient`).status, undefined, 'nothing changes once locked');
   assert.equal(tab.ps('Add-Computer -DomainName northstar.example'), '');
+  // machineTools: every computer shows the button once one machine has the key.
+  // The machine names are read from the shift, never written here (Module 4's
+  // guard keeps its graded computers out of every other committed file).
+  const tools = `{ const shift = HD_PROVE_SHIFTS['its-02']; Object.assign(shift.machines[Object.keys(shift.machines)[0]], { domain: { joined: true }, vpnClient: {} }); }`;
+  const all = sim({ url: proveUrl('its-02'), withTest: false, before: tools });
+  const second = all.run("Object.keys(HD_PROVE_SHIFTS['its-02'].machines)[1]");
+  assert.ok(second, 'the shift has a second computer');
+  all.run(`hdState.selectedComputer = ${JSON.stringify(second)}`);
+  assert.match(all.view('helpdesk/windows'), /data-hd-tools="settings-about"[\s\S]*data-hd-tools="vpn-client"/);
+  all.on(second);
+  assert.match(all.view('helpdesk/settings-about'), /Nothing to show on this computer/);
+  assert.match(all.view('helpdesk/vpn-client'), /Nothing to show on this computer/);
 }
 
-const TESTS = [testOldShiftsUnchanged, testCloset, testEvidenceKinds, testCableMove, testVpnClient, testDomainJoin, testJoinFailsWithoutDc, testAddComputer, testPhoneWifi, testNoKeysAsBefore, testProveShift];
+// Review fixes: an OU must be chosen, -Cred is a -Credential, the VPN needs
+// a working link under it, and the Windows Restart finishes a join.
+function testJoinAndVpnEdges() {
+  const tab = onPc('HD-9914', 'TEST-LT-14');
+  tab.run("hdJoinStart('TEST-LT-14')");
+  tab.withFields({ 'hd-join-domain': 'northstar.example' }, "hdJoinDomain({ preventDefault() {} }, 'TEST-LT-14')");
+  tab.run("hdJoinAccount('TEST-LT-14')");
+  assert.match(tab.view('helpdesk/settings-about'), /<select id="hd-join-ou" class="ipt"><option value="" selected disabled>Choose an OU<\/option>/);
+  tab.withFields({ 'hd-join-ou': '' }, "hdJoinOu({ preventDefault() {} }, 'TEST-LT-14')");
+  assert.match(tab.view('helpdesk/settings-about'), /data-hd-join="ou"[\s\S]*role="alert">Choose an OU\./);
+  assert.deepEqual(ids(tab, 'HD-9914'), []);
+  const short = onPc('HD-9914', 'TEST-LT-16');
+  for (const line of ['Add-Computer -DomainName northstar.example -Cred NORTHSTAR\\rmorgan', 'Add-Computer -DomainName northstar.example -cre:NORTHSTAR\\rmorgan', 'Add-Computer -DomainName northstar.example -Credential']) assert.match(short.ps(line), /never asks for a password/, line);
+  assert.deepEqual(ids(short, 'HD-9914'), []);
+  // The tunnel goes when the home Wi-Fi goes.
+  const vpn = onPc('HD-9912', 'TEST-LT-12');
+  vpn.run("hdVpnConnect('TEST-LT-12')"); vpn.run("hdVpnApprove('TEST-LT-12')");
+  assert.match(vpn.ps('Test-NetConnection files.northstar.example -Port 445'), /TcpTestSucceeded : True/);
+  vpn.run("hdNetForget('TEST-LT-12','Wi-Fi','TEST-Home')");
+  assert.doesNotMatch(vpn.ps('Test-NetConnection files.northstar.example -Port 445'), /TcpTestSucceeded : True/);
+  // The ordinary Restart (a machine with the restart feature) finishes a join.
+  const restart = onPc('HD-9914', 'TEST-LT-14');
+  restart.run("hdMachine('TEST-LT-14').uptimeDays = 3");
+  restart.ps('Add-Computer -DomainName northstar.example -OUPath "OU=Sales,OU=Workstations"');
+  restart.run("hdOpenMachineScreen('TEST-LT-14','settings-about')");
+  assert.match(restart.view('helpdesk/settings-about'), /data-hd-join-restart/);
+  restart.run("hdWinRestart('TEST-LT-14')");
+  assert.doesNotMatch(restart.view('helpdesk/settings-about'), /data-hd-join-restart/);
+}
+
+const TESTS = [testOldShiftsUnchanged, testCloset, testEvidenceKinds, testCableMove, testVpnClient, testDomainJoin, testJoinFailsWithoutDc, testAddComputer, testPhoneWifi, testNoKeysAsBefore, testProveShift, testJoinAndVpnEdges];
 let passed = 0;
 // `node tests/hdesk-m09-console-b.test.js testCloset` runs one test (CI runs all).
 const only = process.argv.slice(2).filter((arg) => !arg.startsWith('--'));
