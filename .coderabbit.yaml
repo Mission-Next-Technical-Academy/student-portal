@@ -2,6 +2,7 @@
 # CodeRabbit settings for the student portal. Added 2026-11-27.
 # Review rules live in CLAUDE.md, AGENTS.md and .claude/rules/*.md.
 # CodeRabbit reads those files on its own, so keep rules there, not here.
+# Review-only rules that Claude doesn't need: .coderabbit/review-guidelines.md (2026-11-27).
 language: "en-US"
 tone_instructions: "Explain each finding in plain language for a junior developer: what is wrong, why it matters for students or staff, and the smallest fix. Skip style nitpicks."
 reviews:
@@ -39,5 +40,13 @@ reviews:
         - A shared file changed (portal/app.js, index.html, data.js,
           module-labs.*, ui/coach.js, portal/theme.js, shared CSS,
           supabase/, bin/, tests/) without a call-out in the PR description.
+knowledge_base:
+  code_guidelines:
+    # Added 2026-11-27: CodeRabbit-only review rules. These patterns add to
+    # CodeRabbit's defaults (CLAUDE.md, AGENTS.md, .claude/rules/**).
+    # applyTo "**" makes them apply to the whole repo, not just .coderabbit/.
+    filePatterns:
+      - files: ".coderabbit/review-guidelines.md"
+        applyTo: "**"
 chat:
   auto_reply: true
