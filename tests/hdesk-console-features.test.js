@@ -133,7 +133,12 @@ function testExistingTicketsTurnNothingOn() {
   // works it differently (ticketOverrides), so it is still checked below.
   const MODULE_8 = ['HD-2196', 'HD-2197', 'SR-2207', 'HD-2198', 'HD-2199', 'HD-2200', 'HD-2201', 'SR-2107', 'HD-2118'];
   for (const id of ['SR-2107', 'HD-2118']) assert.equal(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === '${id}').console`), undefined, `${id} has no console settings`);
-  for (const id of ids.filter((item) => !MODULE_1.includes(item) && !MODULE_2.includes(item) && !MODULE_3.includes(item) && !MODULE_4.includes(item) && !MODULE_5.includes(item) && !MODULE_6.includes(item) && !MODULE_7.includes(item) && !MODULE_8.includes(item))) {
+  // Module 9's (key its-04) tickets, the same way (tests/hdesk-m09-guided-lab.test.js
+  // and tests/hdesk-m09-practice-tickets.test.js). HD-2104, HD-2105 and HD-2113
+  // left the shared shift then (ownSet); their templates still have no console settings.
+  const MODULE_9 = ['HD-2212', 'HD-2213', 'SR-2222', 'HD-2214', 'HD-2215', 'HD-2216', 'HD-2217', 'HD-2218', 'HD-2219', 'HD-2220', 'HD-2221', 'HD-2104', 'HD-2105', 'HD-2113'];
+  for (const id of ['HD-2104', 'HD-2105', 'HD-2113']) assert.equal(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === '${id}').console`), undefined, `${id} has no console settings`);
+  for (const id of ids.filter((item) => !MODULE_1.includes(item) && !MODULE_2.includes(item) && !MODULE_3.includes(item) && !MODULE_4.includes(item) && !MODULE_5.includes(item) && !MODULE_6.includes(item) && !MODULE_7.includes(item) && !MODULE_8.includes(item) && !MODULE_9.includes(item))) {
     assert.equal(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === ${JSON.stringify(id)}).console`), undefined, `${id} has no console settings`);
     const html = tab.open(id);
     assert.doesNotMatch(html, NEW_MARKERS, `${id} shows no new feature`);
@@ -147,17 +152,19 @@ function testExistingTicketsTurnNothingOn() {
   }
   // Every other module keeps Assigned and every state: Assign to me sets
   // Assigned, and the Next state list offers the full set of next states.
-  tab.run("hdAssignTicket('HD-2104')");
-  assert.equal(tab.ticket('HD-2104').status, 'Assigned');
-  assert.match(tab.open('HD-2104'), /<label>Next state<select[^>]*><option value="">Choose…<\/option><option>In Progress<\/option><option>Escalated<\/option><\/select>/);
-  tab.run("hdTransitionTicket('HD-2104', 'In Progress')");
-  assert.equal(tab.ticket('HD-2104').status, 'In Progress');
-  assert.match(tab.open('HD-2104'), /<option>Pending User<\/option><option>Pending Vendor<\/option><option>Escalated<\/option><option>Resolved<\/option>/);
-  assert.match(tab.open('HD-2104'), />Resolve \/ escalate<\/button>/);
+  // HD-2106 and HD-2112 stand in for HD-2104 and HD-2105, which left the
+  // shared shift with Module 9 (ownSet): both are older incidents still on it.
+  tab.run("hdAssignTicket('HD-2106')");
+  assert.equal(tab.ticket('HD-2106').status, 'Assigned');
+  assert.match(tab.open('HD-2106'), /<label>Next state<select[^>]*><option value="">Choose…<\/option><option>In Progress<\/option><option>Escalated<\/option><\/select>/);
+  tab.run("hdTransitionTicket('HD-2106', 'In Progress')");
+  assert.equal(tab.ticket('HD-2106').status, 'In Progress');
+  assert.match(tab.open('HD-2106'), /<option>Pending User<\/option><option>Pending Vendor<\/option><option>Escalated<\/option><option>Resolved<\/option>/);
+  assert.match(tab.open('HD-2106'), />Resolve \/ escalate<\/button>/);
   // Behaviour too: a priority change and a resolve work as before.
-  tab.run("hdSetTicketPriority('HD-2105', 'P1')");
-  assert.equal(tab.ticket('HD-2105').priority, 'P1');
-  tab.run("hdSetTicketPriority('HD-2105', 'P2')");
+  tab.run("hdSetTicketPriority('HD-2112', 'P1')");
+  assert.equal(tab.ticket('HD-2112').priority, 'P1');
+  tab.run("hdSetTicketPriority('HD-2112', 'P2')");
   tab.run("hdState.selectedTicketId = 'SR-2116'; hdResolveTicket('SR-2116')");
   assert.equal(tab.ticket('SR-2116').status, 'Resolved');
   assert.equal(tab.ticket('SR-2116').closureCode, 'Request fulfilled', 'the automatic closure code, as before');

@@ -42,7 +42,9 @@
     // Module 5 (key its-03) Lab 5.1. Older attempts keep HD-2109 on their
     // sheet (portal/admin-sheets/hdesk.js).
     'hd-m03': ['HD-2180'],
-    'hd-m04': ['HD-2104', 'HD-2105', 'HD-2113'],
+    // Module 9 (key its-04) Lab 9.1. Older attempts keep HD-2104 and HD-2105
+    // (the instructor sheet's EARLIER_TICKETS_BY_LAB).
+    'hd-m04': ['HD-2212', 'HD-2213', 'SR-2222'],
     // Module 7 (key its-05) Lab 7.1. Older attempts keep HD-2108 and HD-2117
     // on their sheet (portal/admin-sheets/hdesk.js).
     'hd-m05': ['HD-2189', 'HD-2190'],
@@ -1691,8 +1693,276 @@
     ],
   });
 
-  /* ------------------------------------------------------ hd-m04..hd-m11 -
-   * (hd-m03, hd-m07, hd-m05 and hd-m06 have their own steps above.)
+  /* ---------------------------------------------------------- hd-m04 ---- */
+  /* Module 9 (key its-04) Lab 9.1, the connectivity checklist (coached set
+   * its-04-guided): Part A on HD-2212 (Jonah Pryce, a dead wall jack), Part B
+   * on HD-2213 (Farah Qureshi, an intranet whose address moved), Part C on
+   * the request SR-2222 (a new starter's laptop joined to the domain).
+   * Feedback only, no points. Every check reads saved state (the ticket's
+   * console state, the computer's list of screens and lines it has run, the
+   * command history), never a tick box, so a step done early passes when it
+   * comes up. A typed step passes from the command history on the named
+   * computer, in any letter case, with extra valid options; the only other
+   * line accepted is Resolve-DnsName for nslookup and Clear-DnsClientCache for
+   * ipconfig /flushdns (both earn the same key or action). A step where the
+   * order gives the result its meaning also asks for the computer's key after
+   * the action it follows. Steps A3, B3 and C3 are screens; their optional
+   * PowerShell line earns the same key. The old HD-2104 and HD-2105 coach is
+   * gone; a saved run of it starts fresh. */
+  const HD4_A = 'HD-2212';
+  const HD4_B = 'HD-2213';
+  const HD4_R = 'SR-2222';
+  const HD4_PC_A = 'NS-WS-0319';
+  const HD4_PC_B = 'NS-LT-0415';
+  const HD4_PC_R = 'NS-LT-0416';
+  const HD4_OU = 'OU=Logistics,OU=Workstations';
+  // The ticket the student opened from Tickets. A lookup counts for that
+  // ticket only (hdServerPracticeTicket), so the first step of a part waits
+  // until its record is open.
+  const hd4Opened = (id) => typeof hdState !== 'undefined' && Boolean(hdState) && hdState.openedTicketId === id;
+  // Regex sources for hdConsoleRule { typed }: the line, then any options, then the target.
+  const hd4Line = (command, target) => `^${command}\\s+(?:\\S+\\s+)*["']?${target}["']?(\\s|$)`;
+  const hd4Ping = (target) => hd4Line('ping(\\.exe)?', target);
+  const hd4Tracert = (target) => hd4Line('tracert(\\.exe)?', target);
+  const hd4Lookup = (target) => hd4Line('(?:nslookup(\\.exe)?|resolve-dnsname)', target);
+  const HD4_TESTNET = '^test-netconnection(\\s|$)';
+  // A typed line on that computer, and the key it earns on that computer
+  // (after an action, when the order matters).
+  const hd4Run = (id, computer, typed, key, after) => hd2Rule(id, { typed, computer })
+    && hd2Rule(id, after ? { seen: key, computer, after } : { seen: key, computer });
+  // The request itself is closed (Closed Complete), the state the instructor
+  // sheet reads. Resolving the record alone leaves it Open.
+  const hd4RequestClosed = () => {
+    const t = hd2Ticket(HD4_R);
+    return Boolean(t) && Boolean(t.request) && /^closed/i.test(String(t.request.state || ''));
+  };
+  hd2ForgetStale('hd-m04', 'its-04-guided');
+
+  MODULE_COACHES.push({
+    id: 'hd-m04', module: 9, name: 'Guided Lab: the connectivity checklist', role: 'Tier 1 Help Desk Technician',
+    summary: 'Work through the connectivity checklist on three real calls. A new starter has no internet at his desk: find out whether it is one person or many, check the link, then the address, the path and the services. A docked laptop cannot open the intranet because the PC remembers an old address. Then join a new starter’s laptop to the domain, in the right place. Feedback only, no score.',
+    completionToken: 'hd-m04', home: '#/helpdesk/tickets',
+    resetState: () => {
+      if (typeof hdUseTicketSet === 'function') hdUseTicketSet('its-04-guided');
+      // HD-2212 starts open: the ticket view shows a ticket before one is
+      // opened, and lookups count only for an opened ticket.
+      if (typeof hdState !== 'undefined' && hdState) { hdState.selectedTicketId = HD4_A; hdState.openedTicketId = HD4_A; }
+    },
+    allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket', '#/helpdesk/windows', '#/helpdesk/powershell', '#/helpdesk/settings-network',
+      '#/helpdesk/network-closet', '#/helpdesk/change-log', '#/helpdesk/dns', '#/helpdesk/active-directory', '#/helpdesk/settings-about',
+      '#/helpdesk/knowledge-base', '#/helpdesk/directory'],
+    steps: [
+      /* ---- Part A: HD-2212, Jonah Pryce, "No internet at my new desk" ---- */
+      {
+        route: '#/helpdesk/ticket', target: 'select[data-hd-field="category"], select[data-hd-field="impact"], select[data-hd-field="urgency"]',
+        title: 'Part A: triage Jonah’s call',
+        instruction: 'Phone call, 08:40. Jonah Pryce says: “Hi, it’s Jonah. I started today in Purchasing. My computer says there’s no internet, it’s got a little globe with a line through it. Facilities set the desk up yesterday. Hannah next to me is fine.” Triage <strong>No internet at my new desk</strong> (HD-2212): <strong>Category</strong> Network › Wired connectivity, <strong>Configuration item</strong> NS-WS-0319, <strong>Contact type</strong> Phone, <strong>Impact</strong> 3 and <strong>Urgency</strong> 1.',
+        body: 'Why: One person who can’t work at all: the matrix gives P3. Success looks like: Priority shows <strong>P3</strong>.',
+        waitLabel: 'Next Step: Triaged as P3',
+        check: () => hd4Opened(HD4_A) && hd2Triaged(HD4_A, 'Network', 'Wired connectivity', HD4_PC_A, 'P3'),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '.hd-chat, .hd-caller',
+        title: 'Checklist question 1: one person or many?',
+        instruction: 'Find out whether this is one person or many. In the chat on HD-2212, ask Jonah about Hannah, and search the queue for floor 2 tickets.',
+        body: 'Why: One-or-many decides everything that follows. Success looks like: Hannah Cole (NS-WS-0318) is working; no other floor 2 tickets. <strong>One person</strong>.',
+        waitLabel: 'Next Step: One person, not many',
+        check: () => hd2Rule(HD4_A, { chat: ['others'] }),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '[data-hd-machines], [data-hd-tools="settings-network"], .hd-chat',
+        title: 'Look at the link first',
+        instruction: 'Look at the network link on Jonah’s PC. On HD-2212, press <strong>Open NS-WS-0319</strong>, then open <strong>Settings › Network &amp; internet</strong>. Then ask Jonah whether the light next to the network port is on. <details><summary>Show me the command</summary>Optional, in PowerShell on NS-WS-0319: <code>Get-NetAdapter</code></details>',
+        body: 'Why: Physical first. No link means a cable, jack or switch-port problem, not an address problem. Success looks like: <strong>Ethernet: Network cable unplugged.</strong> Jonah: “There’s no light at all”.',
+        waitLabel: 'Next Step: No link, no light',
+        check: () => hd2Rule(HD4_A, { seen: 'settings-network', computer: HD4_PC_A }) && hd2Rule(HD4_A, { chat: ['light'] }),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '[data-hd-closet-card], [data-hd-closet-open], [data-hd-evidence="jack-2f14"]',
+        title: 'Read the network closet',
+        instruction: 'Open the <strong>Network closet</strong> card for floor 2 on HD-2212. Find jack <strong>2F-14</strong> and jack <strong>2F-15</strong> (the empty desk beside him). Then go back to the ticket and open Network Operations’ evidence card for 2F-14.',
+        body: 'Why: The closet is Network Operations’ room. You read it to know where the fault is and who fixes it. Success looks like: 2F-14 → patch-panel port 2-14 → <strong>Not patched</strong>. 2F-15 → port 2-15 → NS-SW-2F Gi1/0/15, <strong>link light green</strong>, VLAN 10. The evidence card: “Toner probe: 2F-14 is panel port 2-14. Cable tester: pass, wires 1–8. Not patched to the switch”.',
+        waitLabel: 'Next Step: Closet and evidence card read',
+        check: () => hd2Rule(HD4_A, { serverSeen: 'closet:floor-2' }) && hd2Rule(HD4_A, { evidence: 'jack-2f14' }),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '.hd-chat, .hd-caller',
+        title: 'Move Jonah to a known-good jack',
+        instruction: 'In the chat on HD-2212, ask Jonah to move his cable from 2F-14 to <strong>2F-15</strong>.',
+        body: 'Why: A known-good jack proves the PC and its cable are fine. Success looks like: Settings: <strong>Ethernet: Connected, 1.0 Gbps</strong>.',
+        waitLabel: 'Next Step: Cable moved to 2F-15',
+        check: () => hd2Rule(HD4_A, { action: 'cable-connected' }),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '[data-hd-machines], #hd-ps-input',
+        title: 'Read the address on the PC',
+        instruction: 'On NS-WS-0319, open <strong>PowerShell</strong> and show the PC’s address, now that it has a link. <details><summary>Show me the command</summary><code>ipconfig</code></details>',
+        body: 'Why: Link first, then the address. Success looks like: <code>Autoconfiguration IPv4 Address . . : 169.254.33.10</code>, no default gateway. <strong>APIPA</strong>: it gave itself an address while it was unplugged.',
+        waitLabel: 'Next Step: APIPA address read',
+        check: () => hd4Run(HD4_A, HD4_PC_A, '^ipconfig(\\.exe)?$', 'ipconfig', 'cable-connected'),
+      },
+      {
+        route: '#/helpdesk/powershell', target: '#hd-ps-input',
+        title: 'Read everything about the adapter',
+        instruction: 'On NS-WS-0319, read everything about the adapter, including its hardware ID. <details><summary>Show me the command</summary><code>ipconfig /all</code></details>',
+        body: 'Why: Read everything about the adapter, including its hardware ID. Success looks like: DHCP Enabled <strong>Yes</strong> · Physical Address <strong>3C-52-82-4A-19-07</strong> · no DHCP server listed.',
+        waitLabel: 'Next Step: ipconfig /all run on NS-WS-0319',
+        check: () => hd2Rule(HD4_A, { typed: '^ipconfig(\\.exe)?\\s+/all(\\s|$)', computer: HD4_PC_A }),
+      },
+      {
+        route: '#/helpdesk/powershell', target: '#hd-ps-input',
+        title: 'Ask DHCP for a fresh address',
+        instruction: 'On NS-WS-0319, let go of the PC’s old address, then ask DHCP for a new one now that there is a link. Then open <strong>Settings › Network &amp; internet › Ethernet › Hardware properties</strong>. <details><summary>Show me the command</summary><code>ipconfig /release</code> then <code>ipconfig /renew</code></details>',
+        body: 'Why: The client-side fix: ask DHCP for a fresh address now there’s a link. Then see what a healthy Northstar PC looks like. Success looks like: IPv4 <strong>10.20.10.141</strong>, mask 255.255.255.0, gateway <strong>10.20.10.1</strong>, DHCP server 10.20.0.20, DNS 10.20.0.10 and 10.20.0.11, lease expires in 8 days. Hardware properties: <strong>IP assignment: Automatic (DHCP) · DNS server assignment: Automatic (DHCP)</strong>.',
+        waitLabel: 'Next Step: Address renewed, Hardware properties read',
+        check: () => hd2Rule(HD4_A, { actionsAfter: { after: 'ip-release', action: 'ip-renew' } })
+          && hd2Rule(HD4_A, { seen: 'net-adapter:Ethernet', computer: HD4_PC_A, after: 'ip-renew' }),
+      },
+      {
+        route: '#/helpdesk/powershell', target: '#hd-ps-input',
+        title: 'Test the path: gateway, a company server, the way out',
+        instruction: 'On NS-WS-0319, test the path in three steps: the gateway, then a company server, then the way out to the internet. <details><summary>Show me the command</summary><code>ping 10.20.10.1</code>, then <code>ping files.northstar.example</code>, then <code>tracert www.example.com</code></details>',
+        body: 'Why: Checklist question 4: the gateway, then a company server, then the way out. Success looks like: Replies in 1–2 ms; <code>files</code> is <strong>10.20.0.30</strong> and replies; tracert lists 10.20.10.1, then 10.20.255.1 (<code>nsfw01</code>, the firewall), then 10.20.255.2 (<code>nsrtr-fiber</code>), then the provider’s hops.',
+        waitLabel: 'Next Step: Gateway, files and the way out tested',
+        check: () => hd4Run(HD4_A, HD4_PC_A, hd4Ping('10\\.20\\.10\\.1'), 'ping:10.20.10.1', 'ip-renew')
+          && hd4Run(HD4_A, HD4_PC_A, hd4Ping('files(\\.northstar\\.example)?'), 'ping:files.northstar.example', 'ip-renew')
+          && hd4Run(HD4_A, HD4_PC_A, hd4Tracert('www\\.example\\.com'), 'tracert:www.example.com', 'ip-renew'),
+      },
+      {
+        route: '#/helpdesk/powershell', target: '#hd-ps-input',
+        title: 'Check the services: file shares and DNS',
+        instruction: 'On NS-WS-0319, check that the file share service and the DNS service answer. The port number says which service. <details><summary>Show me the command</summary><code>Test-NetConnection files.northstar.example -Port 445</code>, then <code>Test-NetConnection dc01.northstar.example -Port 53</code></details>',
+        body: 'Why: Checklist question 6: are the services there? The port number says which service (Table 8). Success looks like: Both <strong>TcpTestSucceeded : True</strong>. File shares (445) and DNS (53) answer.',
+        waitLabel: 'Next Step: Ports 445 and 53 tested',
+        check: () => hd4Run(HD4_A, HD4_PC_A, HD4_TESTNET, 'port:files.northstar.example:445', 'ip-renew')
+          && hd4Run(HD4_A, HD4_PC_A, HD4_TESTNET, 'port:dc01.northstar.example:53', 'ip-renew'),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '.hd-team-messages, #hd-note-input, .hd-comments, #hd-resolution-code',
+        title: 'Hand 2F-14 to Network Operations, then close the ticket',
+        instruction: 'On HD-2212, use <strong>Message another team</strong> to tell <strong>Network Operations</strong> about 2F-14. Then write the <strong>work note</strong> with the lines Reported:, Tried:, Result: and Next action:, post a <strong>comment</strong> to Jonah in plain words, set the resolution code to <strong>Workaround provided</strong> and resolve the ticket.',
+        body: 'Why: You fixed Jonah; the jack is theirs to patch. The note is how the next person knows. Success looks like: The message names the jack, the panel port and that Jonah is on 2F-15. Note has Reported / Tried / Result / Next action; comment is plain language; ticket <strong>Resolved</strong>. A model note:<br><strong>Reported:</strong> New starter, first day; desk PC NS-WS-0319 shows no internet; the colleague beside him is fine.<br><strong>Tried:</strong> One user only (H. Cole working; no other floor 2 tickets). Ethernet “Network cable unplugged”, no link light. Closet: jack 2F-14 → panel port 2-14 not patched (Network Operations’ toner and cable test: cable passes). Moved the cable to jack 2F-15: link up at 1 Gbps. Still APIPA (169.254.33.10); ipconfig /release and /renew: 10.20.10.141, gateway 10.20.10.1, DNS 10.20.0.10/11, DHCP. Gateway and files reply; tracert out through nsfw01 and the fiber router; files:445 and dc01:53 answer.<br><strong>Result:</strong> Jonah working from jack 2F-15.<br><strong>Next action:</strong> Network Operations to patch jack 2F-14 (port 2-14 to NS-SW-2F); Service Desk to tell Jonah when he can move back.<br>A model comment: Hi Jonah, welcome! Your computer and its cable are fine. The network socket at your desk hasn’t been connected in our network room yet, so we’ve moved you to the socket at the desk beside you, and everything’s working. Our network team will connect yours, and we’ll let you know when you can plug back in. – Riley',
+        waitLabel: 'Next Step: HD-2212 messaged, noted and resolved',
+        check: () => hd2Rule(HD4_A, { teamMessage: 'netops-2f14' }) && hd2Rule(HD4_A, { note: true }) && hd2Rule(HD4_A, { comment: true })
+          && hd2Rule(HD4_A, { code: 'Workaround provided' }) && hd2Rule(HD4_A, { status: 'Resolved' }),
+      },
+      /* ---- Part B: HD-2213, Farah Qureshi, "The intranet won't open" ---- */
+      {
+        route: '#/helpdesk/ticket', target: 'select[data-hd-field="category"], select[data-hd-field="impact"], select[data-hd-field="urgency"]',
+        title: 'Part B: triage Farah’s chat',
+        instruction: 'Open <strong>The intranet won’t open</strong> (HD-2213) from <strong>Tickets</strong>. Chat, 09:05. Farah Qureshi in Marketing says: “Hi, the intranet won’t open for me. It says ‘This site can’t be reached’. Leah next to me can open it fine. I had it open first thing this morning, around 8:10, then it just stopped.” Triage it: <strong>Category</strong> Network › Website or intranet access, <strong>Configuration item</strong> NS-LT-0415, <strong>Contact type</strong> Chat, <strong>Impact</strong> 3 and <strong>Urgency</strong> 2.',
+        body: 'Why: One person; everything except the intranet works. Success looks like: Priority shows <strong>P4</strong>.',
+        waitLabel: 'Next Step: HD-2213 opened, triaged as P4',
+        check: () => hd4Opened(HD4_B) && hd2Triaged(HD4_B, 'Network', 'Website or intranet access', HD4_PC_B, 'P4'),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '[data-hd-machines], #hd-ps-input',
+        title: 'Read every adapter on the laptop',
+        instruction: 'On HD-2213, press <strong>Open NS-LT-0415</strong>, open <strong>PowerShell</strong> there and read every adapter on the laptop. <details><summary>Show me the command</summary><code>ipconfig /all</code></details>',
+        body: 'Why: Read <strong>every</strong> adapter. A docked laptop has two, and Windows uses the wired one first. Success looks like: <strong>Ethernet 2 (Dock USB Ethernet):</strong> DHCP Yes, 10.20.10.177, gateway 10.20.10.1, DNS 10.20.0.10/11. <strong>Wi-Fi:</strong> Northstar-Corp, DHCP Yes, 10.20.10.178, same gateway and DNS. Both healthy.',
+        waitLabel: 'Next Step: ipconfig /all run on NS-LT-0415',
+        check: () => hd2Rule(HD4_B, { typed: '^ipconfig(\\.exe)?\\s+/all(\\s|$)', computer: HD4_PC_B }),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '[data-hd-machines], [data-hd-tools="settings-network"], [data-hd-net-wifi]',
+        title: 'Learn what good Wi-Fi looks like',
+        instruction: 'On NS-LT-0415, open <strong>Settings › Network &amp; internet</strong>, then the Wi-Fi network <strong>Northstar-Corp › Properties</strong>. <details><summary>Show me the command</summary>Optional, in PowerShell on NS-LT-0415: <code>netsh wlan show interfaces</code></details>',
+        body: 'Why: Learn what good Wi-Fi looks like before you meet bad Wi-Fi. Success looks like: Protocol Wi-Fi 6 (802.11ax) · Security <strong>WPA3-Enterprise</strong> · Band <strong>5 GHz</strong> · Channel 44 · Link speed 600 Mbps.',
+        waitLabel: 'Next Step: Wi-Fi properties read',
+        check: () => hd2Rule(HD4_B, { seen: 'wifi-properties', computer: HD4_PC_B }),
+      },
+      {
+        route: '#/helpdesk/powershell', target: '#hd-ps-input',
+        title: 'Does the name reach a server?',
+        instruction: 'On NS-LT-0415, test whether the intranet’s name reaches a server. <details><summary>Show me the command</summary><code>ping intranet.northstar.example</code></details>',
+        body: 'Why: Does the name reach a server? Success looks like: <code>Pinging intranet.northstar.example [10.20.0.45]</code> … <strong>Request timed out</strong> four times.',
+        waitLabel: 'Next Step: ping run on NS-LT-0415',
+        check: () => hd4Run(HD4_B, HD4_PC_B, hd4Ping('intranet(\\.northstar\\.example)?'), 'ping:intranet.northstar.example'),
+      },
+      {
+        route: '#/helpdesk/powershell', target: '#hd-ps-input',
+        title: 'Ask the DNS server directly',
+        instruction: 'On NS-LT-0415, ask the DNS server for the intranet’s address, instead of using what the PC remembers. <details><summary>Show me the command</summary><code>nslookup intranet.northstar.example</code> (or <code>Resolve-DnsName intranet.northstar.example</code>)</details>',
+        body: 'Why: <code>nslookup</code> asks the DNS server directly; <code>ping</code> used what the PC remembered. Success looks like: Server <code>dc01.northstar.example</code> (10.20.0.10). Name <code>intranet.northstar.example</code>, Address <strong>10.20.0.50</strong>. <strong>Two different addresses</strong> for one name.',
+        waitLabel: 'Next Step: nslookup run on NS-LT-0415',
+        check: () => hd4Run(HD4_B, HD4_PC_B, hd4Lookup('intranet(\\.northstar\\.example)?'), 'nslookup:intranet.northstar.example'),
+      },
+      {
+        route: '#/helpdesk/change-log', target: '[data-hd-change-log], [data-hd-change-detail], [data-hd-dns]',
+        title: 'Find the change that lines up',
+        instruction: 'Open the <strong>Change log</strong> and open <strong>CHG-7802</strong>. Then open the <strong>DNS</strong> screen and read the <code>intranet</code> record. If you opened another record, open HD-2213 again first: the lookup counts for the ticket that is open.',
+        body: 'Why: A change that lines up with the symptom is the fastest evidence there is (Module 07). Success looks like: CHG-7802, today <strong>08:30</strong>: “Move the intranet to NS-APP01; DNS A record intranet → 10.20.0.50 (was 10.20.0.45)”, J. Keller, Completed. DNS: <code>intranet</code> A 10.20.0.50, TTL 3600. Farah opened it at 08:10, before the move, so her PC kept the old answer for up to an hour.',
+        waitLabel: 'Next Step: CHG-7802 and the intranet record read',
+        // The DNS screen's own key (dns-zone) keeps the nslookup step from
+        // passing the read of the screen.
+        check: () => hd2Rule(HD4_B, { serverSeen: 'change:CHG-7802' }) && hd2Rule(HD4_B, { serverSeen: 'dns-zone' })
+          && hd2Rule(HD4_B, { serverSeen: 'dns-record:intranet:A' }),
+      },
+      {
+        route: '#/helpdesk/powershell', target: '#hd-ps-input, .hd-chat',
+        title: 'Clear the old answer, then prove it works',
+        instruction: 'On NS-LT-0415, clear the PC’s remembered answer, then prove the name and the web service both work. Then, in the chat on HD-2213, ask Farah to reload the page. <details><summary>Show me the command</summary><code>ipconfig /flushdns</code>, then <code>ping intranet.northstar.example</code>, then <code>Test-NetConnection intranet.northstar.example -Port 443</code> (<code>Clear-DnsClientCache</code> clears the same answer)</details>',
+        body: 'Why: Clear the old answer, then prove the name and the web service both work. Success looks like: <code>Successfully flushed the DNS Resolver Cache.</code> · ping <code>[10.20.0.50]</code> replies · <strong>TcpTestSucceeded : True</strong> · Farah: “It’s back”.',
+        waitLabel: 'Next Step: Cache cleared, intranet answers, Farah confirms',
+        check: () => hd2Rule(HD4_B, { action: 'dns-flush' })
+          && hd4Run(HD4_B, HD4_PC_B, hd4Ping('intranet(\\.northstar\\.example)?'), 'ping:intranet.northstar.example', 'dns-flush')
+          && hd4Run(HD4_B, HD4_PC_B, HD4_TESTNET, 'port:intranet.northstar.example:443', 'dns-flush')
+          && hd2Rule(HD4_B, { confirmed: 'reload' }),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '#hd-note-input, .hd-comments, #hd-resolution-code',
+        title: 'Write the note and the plain-language reply, then resolve',
+        instruction: 'On HD-2213, write the <strong>work note</strong> with the lines Reported:, Tried: and Result:. Post a <strong>comment</strong> to Farah in plain words, with no technical terms in it. Then resolve the ticket.',
+        body: 'Why: The customer comment is checked for jargon. Success looks like: No “DNS”, “cache”, “flush”, “IP”, “10.20” or “CHG” in the comment. Ticket <strong>Resolved</strong>. A model note:<br><strong>Reported:</strong> Intranet “This site can’t be reached” since about 08:10 visit; colleague can open it.<br><strong>Tried:</strong> Dock Ethernet and Wi-Fi both DHCP, company DNS, healthy; Wi-Fi 5 GHz WPA3-Enterprise. ping intranet → 10.20.0.45, timed out; nslookup intranet → 10.20.0.50. CHG-7802 (08:30 today) moved the intranet to 10.20.0.50; the PC had cached the old address. ipconfig /flushdns: ping intranet → 10.20.0.50 replies; intranet:443 answers.<br><strong>Result:</strong> Farah confirmed the intranet opens.<br>A model comment: Hi Farah, the intranet is working for you again. It moved to a new server at 8:30 this morning, and your computer was still trying the old one because you’d opened it just before the move. We’ve cleared that, so it goes to the new server now. Anyone else who sees this can simply wait an hour or call us. – Riley',
+        waitLabel: 'Next Step: HD-2213 noted and resolved',
+        check: () => hd2Rule(HD4_B, { note: true }) && hd2Rule(HD4_B, { comment: true }) && hd2Rule(HD4_B, { status: 'Resolved' }),
+      },
+      /* ---- Part C: SR-2222, a new starter's laptop for Kenji Watanabe ---- */
+      {
+        route: '#/helpdesk/ticket', target: '[data-hd-request], .hd-kb-search, .hd-related-knowledge, [data-hd-kb-attach]',
+        title: 'Part C: read the request and KB-0097',
+        instruction: 'Open <strong>RITM0010164</strong> (SR-2222) from <strong>Tickets</strong>. Monica Hall (Logistics Manager) asked yesterday: “New starter laptop setup. Kenji Watanabe, Logistics Planner, starts tomorrow. Laptop NS-LT-0416 is on the Service Desk build bench.” Read who requested it, who approved it and who it is for. Then open <strong>KB-0097</strong> in the knowledge base and attach it to the request.',
+        body: 'Why: A request is planned work, and its approval is what lets you do it (Module 2). Success looks like: Requested by Monica Hall · Approved · Requested for Kenji Watanabe · <strong>no SLA bar</strong>.',
+        waitLabel: 'Next Step: SR-2222 opened, KB-0097 read and attached',
+        check: () => hd4Opened(HD4_R) && hd2Rule(HD4_R, { kb: 'KB-0097' }) && hd2Rule(HD4_R, { attached: 'KB-0097' }),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '[data-hd-machines], #hd-ps-input',
+        title: 'Check the bench laptop can find the domain',
+        instruction: 'On SR-2222, press <strong>Open NS-LT-0416</strong> (wired, at the bench) and open <strong>PowerShell</strong> there. Read the laptop’s network settings, then ask the DNS server where the domain’s controllers are. <details><summary>Show me the command</summary><code>ipconfig /all</code>, then <code>nslookup northstar.example</code> (or <code>Resolve-DnsName northstar.example</code>)</details>',
+        body: 'Why: A join needs company DNS first: it’s how the laptop finds a domain controller. Success looks like: Ethernet: DHCP Yes, 10.20.10.203, DNS <strong>10.20.0.10</strong> and 10.20.0.11. <code>northstar.example</code> → <strong>10.20.0.10, 10.20.0.11</strong> (the domain controllers).',
+        waitLabel: 'Next Step: Settings and domain controllers read',
+        check: () => hd2Rule(HD4_R, { typed: '^ipconfig(\\.exe)?\\s+/all(\\s|$)', computer: HD4_PC_R })
+          && hd4Run(HD4_R, HD4_PC_R, hd4Lookup('northstar\\.example'), 'nslookup:northstar.example'),
+      },
+      {
+        route: '#/helpdesk/settings-about', target: '[data-hd-tools="settings-about"], [data-hd-join], [data-hd-join-start]',
+        title: 'Join the laptop to the domain',
+        instruction: 'On NS-LT-0416, open <strong>Settings › System › About › Domain or workgroup › Change</strong>. Join the domain <code>northstar.example</code>, choose <strong>Use the provisioning account (KB-0097)</strong>, pick the OU <strong>OU=Logistics,OU=Workstations</strong>, then restart. Pick the OU with care: a laptop joins once. <details><summary>Show me the command</summary>Optional, in PowerShell on NS-LT-0416: <code>Add-Computer -DomainName northstar.example -OUPath "OU=Logistics,OU=Workstations" -Restart</code></details>',
+        body: 'Why: The right account and the right place. A computer in the wrong OU gets the wrong policies (Module 07). Success looks like: “Welcome to the northstar.example domain.” The laptop restarts.',
+        waitLabel: 'Next Step: Joined into Logistics, restarted',
+        check: () => hd2Did(HD4_R, 'domain-join', (a) => a.ou === HD4_OU) && hd2Rule(HD4_R, { actionsAfter: { after: 'domain-join', action: 'restart' } }),
+      },
+      {
+        route: '#/helpdesk/powershell', target: '#hd-ps-input, [data-hd-ad-computer], #hd-note-input',
+        title: 'Check the policies arrived and the object is in the right place, then close the request',
+        instruction: 'On NS-LT-0416, bring in the company’s policies. <details><summary>Show me the command</summary><code>gpupdate /force</code></details> Then open <strong>Active Directory › Computers</strong>, find <strong>NS-LT-0416</strong> and press <strong>Open</strong> on its row. Then, on SR-2222, write the <strong>work note</strong> with the lines Reported:, Tried: and Result:, and close the request (<strong>Closed Complete</strong>). If you opened another record, open SR-2222 again first: the lookup counts for the ticket that is open.',
+        body: 'Why: Prove the policies arrived and the object is where it should be. Success looks like: <code>Computer Policy update has completed successfully.</code> · NS-LT-0416 in <strong>OU=Logistics,OU=Workstations</strong> · RITM <strong>Closed Complete</strong>. A model note: Reported: approved new starter laptop setup for K. Watanabe (Logistics), starts tomorrow. Tried: NS-LT-0416 wired on the build bench, DHCP, company DNS; nslookup northstar.example returned both domain controllers; joined northstar.example with the provisioning account per KB-0097 into OU=Logistics,OU=Workstations; restarted; gpupdate /force completed. Result: NS-LT-0416 in OU=Logistics,OU=Workstations; ready for Kenji tomorrow.',
+        waitLabel: 'Next Step: Policies applied, object found, request closed',
+        check: () => hd4Run(HD4_R, HD4_PC_R, '^gpupdate(\\.exe)?\\s+/force$', 'gpupdate', 'restart')
+          && hd2Rule(HD4_R, { serverSeen: 'ad-computer:' + HD4_PC_R }) && hd2Rule(HD4_R, { note: true }) && hd4RequestClosed(),
+      },
+      {
+        title: 'Finish the lab',
+        instruction: 'Check worked. Press <strong>Finish</strong> to send your work to your course page.',
+        body: 'Your triage, screens, commands, tickets, notes and comments count once your course page confirms it saved them. There is no score.',
+        finish: { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/9', 'hd-m04') },
+      },
+    ],
+  });
+
+  /* ------------------------------------------------------ hd-m08..hd-m11 -
+   * (hd-m03, hd-m04, hd-m07, hd-m05 and hd-m06 have their own steps above.)
    * Modules 3-9 each work one or two real tickets through the same generic
    * evidence/path/diagnose/note/resolve flow hd-m01/hd-m02 already proved
    * out — reused here via hdTicketFlowSteps() instead of hand-duplicating
@@ -1808,29 +2078,6 @@
     });
     return MODULE_COACHES[MODULE_COACHES.length - 1];
   }
-
-  /* hd-m04 — Module 9 (key its-04): Networking Fundamentals. Three tickets scoped;
-   * guides HD-2104 (DHCP/APIPA) then HD-2105 (DNS), leaves HD-2113 (VPN
-   * gateway certificate, an 'Always' escalation) for free practice — it
-   * gets its own dedicated treatment in hd-m11 instead. */
-  hdRegisterSimpleCoach('hd-m04', 9, 'Connected But Nothing Works', 'Work two real connectivity tickets end to end — an APIPA/DHCP failure and a DNS failure — using ipconfig, ping, and nslookup-style evidence rather than guessing.', ['HD-2104', 'HD-2105', 'HD-2113']).steps =
-    hdTicketFlowSteps('HD-2104', {
-      opening: true, isLast: false, finalStatus: 'Resolved',
-      openBody: 'Priya is connected to the office network but nothing opens — that gap between “connected” and “working” is exactly what this module is about.',
-      evidenceBody: 'A 169.254.x.x address is APIPA — Windows self-assigned it because DHCP never answered. That’s the clue, not proof of which interface is at fault yet.',
-      pathBody: 'Isolating which network interface is actually carrying the connection comes before touching anything.',
-      diagnosisBody: 'Two working interfaces claiming the same connection is the pattern here — one of them is interfering with the other.',
-      noteBody: 'Name the APIPA evidence, which interface you disabled, and that a valid lease and resource access were confirmed afterward.',
-      resolveBody: 'Resolving is gated on your diagnosis actually being correct — recheck the evidence if it isn’t.',
-    }).concat(hdTicketFlowSteps('HD-2105', {
-      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/9', 'hd-m04'),
-      openBody: 'Maya can reach the public internet and internal resources by IP, but a hostname fails — a classic DNS-shaped symptom.',
-      evidenceBody: 'NXDOMAIN on an internal hostname, plus a client DNS server that isn’t the corporate resolver — that combination is the clue.',
-      pathBody: 'Capturing the current DNS configuration before changing anything is what makes this fixable and documentable.',
-      diagnosisBody: 'Public sites working but an internal hostname failing points at DNS configuration specifically, not a broader outage.',
-      noteBody: 'Name the DNS evidence, the VPN/DNS setting you corrected, and that the hostname resolved afterward.',
-      resolveBody: 'Resolving is gated on your diagnosis actually being correct, same as every ticket.',
-    }));
 
   /* hd-m08 — Module 10 (key its-08): Troubleshooting Methodology & Diagnostics. Two
    * tickets, both genuinely unfamiliar-shaped problems worked with the

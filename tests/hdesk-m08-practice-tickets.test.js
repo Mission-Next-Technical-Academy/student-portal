@@ -489,7 +489,8 @@ function testNothingFromTheGradedTicket() {
   // The coaches' text, read from the source block of hd-m06 and hd-m06-ext.
   const coaches = fs.readFileSync(path.join(UI, 'helpdesk-coaches.js'), 'utf8');
   const start = coaches.indexOf('/* ---------------------------------------------------------- hd-m06 ---- */');
-  const end = coaches.indexOf('/* ------------------------------------------------------ hd-m04..hd-m11');
+  // Module 09's hd-m04 coach comes right after hd-m06-ext (since 2026-11-26).
+  const end = coaches.indexOf('/* ---------------------------------------------------------- hd-m04 ---- */');
   assert.ok(start > 0 && end > start, 'the hd-m06 block');
   assertNothingRefused(coaches.slice(start, end), 'coach text');
   // The guard finds a refused phrase (so a hash typo can't make it pass).

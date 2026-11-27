@@ -150,12 +150,13 @@ function testOldTicketsKeepTheOldClockAndStates() {
   assert.doesNotMatch(tab.view('helpdesk/dashboard'), /data-hd-next-day/);
   // Module 1's work snapshot gets no new keys.
   assert.deepEqual(Object.keys(tab.run("hdConsoleProgress('HD-2150')")).sort(), ['accountUnlocked', 'actions', 'chatAsked', 'commentRepeatLine', 'comments', 'critical', 'kbOpened', 'kbSearches', 'lastCommentJargon', 'noteMissing', 'outcomes', 'owner', 'ownerTries', 'passwordAsked', 'passwordWritten', 'resolutionCode', 'unlocks', 'unverified', 'verification']);
-  // A state the old list doesn't know never throws.
-  tab.run("hdTicketById('HD-2104').status = 'On Hold'; hdTransitionTicket('HD-2104', 'Resolved')");
+  // A state the old list doesn't know never throws. (HD-2106 stands in for
+  // HD-2104, which left the shared shift with Module 9: ownSet.)
+  tab.run("hdTicketById('HD-2106').status = 'On Hold'; hdTransitionTicket('HD-2106', 'Resolved')");
   assert.match(tab.lastToast(), /not valid/);
   // Old badges: an old P2 ticket still uses 120 minutes.
-  tab.run("Object.assign(hdTicketById('HD-2104'), { status:'New', priority:'P2', createdTimestamp:new Date(HD_SHIFT_NOW - 60 * 60000).toISOString() })");
-  assert.equal(tab.sla('HD-2104').label, '60m left');
+  tab.run("Object.assign(hdTicketById('HD-2106'), { status:'New', priority:'P2', createdTimestamp:new Date(HD_SHIFT_NOW - 60 * 60000).toISOString() })");
+  assert.equal(tab.sla('HD-2106').label, '60m left');
   // The Enterprise Map shows the Module 2 table (P1 to P5).
   const map = tab.view('helpdesk/environment');
   assert.match(map, /<th>Respond within<\/th><th>Resolve within<\/th><th>Who must be told<\/th>/);
@@ -170,9 +171,10 @@ function testOldTicketsKeepTheOldClockAndStates() {
   // HD-2109 is the one hidden template (ownSet, no set, no console): Module 5
   // retired it from the queue on 2026-11-24, and the capstone and older
   // instructor sheets still read it. Module 7 (key its-05) retired HD-2108 and
-  // HD-2117 the same way on 2026-11-25, and Module 8 (key its-06) SR-2107 and
-  // HD-2118 on 2026-11-26.
-  const HIDDEN = ['HD-2109', 'HD-2108', 'HD-2117', 'SR-2107', 'HD-2118'];
+  // HD-2117 the same way on 2026-11-25, Module 8 (key its-06) SR-2107 and
+  // HD-2118 on 2026-11-26, and Module 9 (key its-04) HD-2104, HD-2105 and
+  // HD-2113 on 2026-11-26.
+  const HIDDEN = ['HD-2109', 'HD-2108', 'HD-2117', 'SR-2107', 'HD-2118', 'HD-2104', 'HD-2105', 'HD-2113'];
   for (const t of matrixTickets.filter((item) => !HIDDEN.includes(item.id))) {
     assert.equal(t.ownSet, true, `${t.id} needs ownSet: true`);
     assert.ok(realSets.includes(t.id), `${t.id} belongs to no set`);

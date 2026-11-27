@@ -161,8 +161,9 @@ function testOldTicketsTurnNothingOn() {
   // Module 4's sets (its-02 and its two coached sets) do the same, and so do
   // Module 5's (its-03, its-03-guided: tickets on their own clocks), and
   // Module 6's (its-07, its-07-guided), Module 7's (its-05, its-05-guided) and
-  // Module 8's (its-06, its-06-guided, its-06-extension).
-  const MODULE3_SETS = ['its-11', 'its-11-guided', 'its-02', 'its-02-guided', 'its-02-server', 'its-03', 'its-03-guided', 'its-07', 'its-07-guided', 'its-05', 'its-05-guided', 'its-06', 'its-06-guided', 'its-06-extension'];
+  // Module 8's (its-06, its-06-guided, its-06-extension) and Module 9's
+  // (its-04, its-04-guided).
+  const MODULE3_SETS = ['its-11', 'its-11-guided', 'its-02', 'its-02-guided', 'its-02-server', 'its-03', 'its-03-guided', 'its-07', 'its-07-guided', 'its-05', 'its-05-guided', 'its-06', 'its-06-guided', 'its-06-extension', 'its-04', 'its-04-guided'];
   const older = (k) => !k.startsWith('test-') && !MODULE3_SETS.includes(k);
   for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter(older)) {
     const set = practice(key);

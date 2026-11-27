@@ -552,6 +552,89 @@ function hdTicket(spec) {
   };
 }
 
+// Module 9 (key its-04): KB-0093, KB-0097, KB-0108 and KB-0109. They are
+// practice-only, so a Prove shift never gets them, and they are never in
+// HD_KB_ARTICLES: only Module 9's two sets carry them (kbArticles,
+// ui/helpdesk.js hdKbArticles). KB-0012 stays in HD_KB_ARTICLES, unchanged.
+const HD_ITS04_KB_ARTICLES = [
+  { id:'KB-0108', title:'The connectivity checklist', category:'Networking', updated:'2026-08-20', audience:'Service Desk', practiceOnly:true, keywords:'no internet · can\'t connect · network · slow · ipconfig · apipa · 169.254 · intranet · can\'t be reached', summary:'Work the questions in order, and write down what each one showed. 1) One person or many? Ask, and search the queue for the same place or service. Many: link the tickets to one parent and escalate the parent to Network Operations with the area, the start time and your evidence (KB-0063 for Wi-Fi). 2) A link? The light by the network port; Settings › Network & internet; for Wi-Fi, the network\'s Properties. No link: try a known-good cable and the next jack. A dead jack is Network Operations\': message them with the jack number. 3) A valid address? ipconfig /all, every adapter. 169.254.x.x: ipconfig /release then /renew; if renew can\'t reach a DHCP server, go back to step 2. An address from another network with DHCP Enabled: No: write down every value, tell the user, set it back to Automatic (DHCP), then renew. 4) Reach the gateway and beyond? ping the gateway, a company server, then tracert a public site. 5) Names? nslookup the name, and compare with ping. Different addresses: ipconfig /flushdns. "Non-existent domain": check which DNS server you\'re asking. 6) The service? Test-NetConnection <host> -Port <n>. 7) Before you change any setting on a user\'s PC, write down what it is now and tell them. 8) Never restart a switch, router, access point or server, and never change DHCP or DNS on a server: that\'s Network Operations\' and Server & Identity\'s.' },
+  { id:'KB-0093', title:'Personal phones and Northstar Wi-Fi', category:'Mobile devices', updated:'2026-08-20', audience:'Service Desk', practiceOnly:true, keywords:'phone wifi · iphone · android · personal phone · byod · certificate · northstar-corp · guest wifi', summary:'1) Northstar-Corp is for company laptops and company phones only. It checks a certificate that Intune installs, so there is no password to give anyone, and a personal phone can\'t join it. 2) Personal phones use Northstar-Guest: the day\'s passphrase is on the reception screen. It reaches the internet only. 3) For work mail and chat on a personal phone, install Outlook and Teams from the phone\'s app store and sign in with the work account; app protection asks for a work PIN (KB-0105 covers company phones). 4) Never share a certificate, a network key or anyone\'s sign-in, and never enrol a personal phone in Intune to get it onto Northstar-Corp. 5) Check that mail arrives and Teams opens before you close the ticket.' },
+  { id:'KB-0097', title:'Joining a computer to the domain', category:'Windows', updated:'2026-08-20', audience:'Service Desk', practiceOnly:true, keywords:'join · domain join · new laptop · new starter · could not be contacted · provisioning · add to domain', summary:'Tier 1 may join a company computer to northstar.example for an approved request or a Desktop Support handoff. 1) Put the computer on the corporate network (a wired port, or Northstar-Corp). ipconfig /all must show DNS 10.20.0.10, and nslookup northstar.example must return the domain controllers. 2) Settings › System › About › Domain or workgroup › Change › Domain northstar.example. 3) Choose Use the provisioning account. The Service Desk vault signs in as NORTHSTAR\\svc-provision; never type a password, and never use your own account or the user\'s. 4) Choose the user\'s department OU under Workstations (OU=<Department>,OU=Workstations), never the default Computers container. 5) Restart, then gpupdate /force, and check the computer object in Active Directory › Computers. 6) "Could not be contacted": it\'s DNS; go back to step 1. "Access is denied" or "maximum number of computer accounts": the wrong account; go back to step 3. "The account already exists": stop and send it to Desktop Support.' },
+  { id:'KB-0109', title:'VPN: working from outside the office', category:'Networking', updated:'2026-08-20', audience:'Service Desk', practiceOnly:true, keywords:'vpn · working from home · remote · can\'t find · intranet from home · file share from home · sales drive', summary:'1) Company names, file shares and the intranet work only inside Northstar\'s network. From home, a hotel or a café, connect Northstar VPN Client first. 2) Open Northstar VPN Client › Connect. It uses the company sign-in already on the laptop; approve the sign-in on the phone if asked. 3) Connected: ipconfig /all shows the Northstar VPN adapter with a 10.20.250.x address and DNS 10.20.0.10. Only company traffic goes through it, so the home internet still works as before. 4) Check: nslookup intranet.northstar.example returns 10.20.0.50, and Test-NetConnection files.northstar.example -Port 445 succeeds. 5) If Connect fails with a sign-in error, it\'s an account problem (KB-0024); if it fails with a gateway or certificate error, escalate to Network Operations with the exact message. 6) Disconnect when work is done.' },
+];
+// Categories for the Module 9 (key its-04) tickets; each ticket adds its own CI list.
+const HD_ITS04_CATEGORIES = {
+  Network:['Wired connectivity', 'Website or intranet access', 'Wireless', 'Internet connectivity', 'Wireless – mobile', 'VPN / remote access'],
+  Hardware:['New device setup', 'Laptop'],
+  Request:['Hardware', 'Software', 'Access'],
+  Access:['Account lockout', 'MFA'],
+};
+// Module 9 (key its-04): the people, computers, servers, directory, changes and
+// phone of Lab 9.1 and Lab 9.2. The users and computers are set-level only
+// (a set's users and computers), never in HD_USERS or HD_COMPUTERS, so no older
+// shift sees them. NS-WS-0318 (Hannah Cole) and NS-WS-0233 (Leah Brooks) are
+// reused from HD_COMPUTERS. NS-LT-0416 and NS-LT-0418 have no OU and a trust of
+// "Not joined" until the student joins them. Every function below returns fresh
+// objects, so no set shares or changes another's. Every adapter takes its
+// address from DHCP: no adapter here has a typed address.
+const HD_ITS04_USERS = [
+  { id:'u-1040', employeeId:'E-71040', phone:'ext. 4561', name:'Jonah Pryce', username:'jpryce', email:'jonah.pryce@northstar.example', department:'Operations', title:'Purchasing Assistant', ou:'OU=Operations,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:0, groups:['GG-Operations-Users'], manager:'Caleb Wright', mfa:'Registered' },
+  { id:'u-1041', employeeId:'E-71041', phone:'ext. 4562', name:'Farah Qureshi', username:'fqureshi', email:'farah.qureshi@northstar.example', department:'Marketing', title:'Marketing Analyst', ou:'OU=Marketing,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:19, groups:['GG-Marketing-Users'], manager:'Rosa Delgado', mfa:'Registered' },
+  { id:'u-1042', employeeId:'E-71042', phone:'ext. 4563', name:'Kenji Watanabe', username:'kwatanabe', email:'kenji.watanabe@northstar.example', department:'Logistics', title:'Logistics Planner', ou:'OU=Logistics,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:0, groups:['GG-Logistics-Users'], manager:'Monica Hall', mfa:'Registered' },
+  { id:'u-1043', employeeId:'E-71043', phone:'ext. 4564', name:'Bianca Ferreira', username:'bferreira', email:'bianca.ferreira@northstar.example', department:'Customer Service', title:'Customer Service Team Lead', ou:'OU=Customer Service,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:27, groups:['GG-CustomerService-Users'], manager:'Nadia Flores', mfa:'Registered' },
+  { id:'u-1044', employeeId:'E-71044', phone:'ext. 4565', name:'Rosa Delgado', username:'rdelgado', email:'rosa.delgado@northstar.example', department:'Marketing', title:'Marketing Manager', ou:'OU=Marketing,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:33, groups:['GG-Marketing-Users'], manager:'Evelyn Reed', mfa:'Registered' },
+  { id:'u-1045', employeeId:'E-71045', phone:'ext. 4566', name:'Ethan Clarke', username:'eclarke', email:'ethan.clarke@northstar.example', department:'Marketing', title:'Marketing Coordinator', ou:'OU=Marketing,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:0, groups:['GG-Marketing-Users'], manager:'Rosa Delgado', mfa:'Registered' },
+  { id:'u-1046', employeeId:'E-71046', phone:'ext. 4567', name:'Zoe Lin', username:'zlin', email:'zlin@northstar.example', department:'Sales', title:'Account Executive', ou:'OU=Sales,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:22, groups:['GG-Sales-Users', 'GG-CRM-Users'], manager:'Tara Singh', mfa:'Registered' },
+  { id:'u-1047', employeeId:'E-71047', phone:'ext. 4568 · works from home Tuesdays and Thursdays', name:'Gabriel Moss', username:'gmoss', email:'gabriel.moss@northstar.example', department:'Sales', title:'Inside Sales Representative', ou:'OU=Sales,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:16, groups:['GG-Sales-Users', 'GG-CRM-Users'], manager:'Tara Singh', mfa:'Registered' },
+];
+const HD_ITS04_COMPUTERS = [
+  { name:'NS-WS-0319', user:'Jonah Pryce', os:'Windows 11 Enterprise 24H2', ip:'10.20.10.141', ou:'OU=Operations,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'2 minutes ago', health:'Healthy' },
+  { name:'NS-LT-0415', user:'Farah Qureshi', os:'Windows 11 Enterprise 24H2', ip:'10.20.10.177', ou:'OU=Marketing,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy' },
+  { name:'NS-LT-0416', user:'Kenji Watanabe', os:'Windows 11 Enterprise 24H2', ip:'10.20.10.203', ou:'', trust:'Not joined', bitlocker:'Protected', lastSeen:'Now', health:'New build' },
+  { name:'NS-LT-0417', user:'Bianca Ferreira', os:'Windows 11 Enterprise 24H2', ip:'10.20.10.179', ou:'OU=Customer Service,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy' },
+  { name:'NS-LT-0418', user:'Ethan Clarke', os:'Windows 11 Enterprise 24H2', ip:'10.20.90.61', ou:'', trust:'Not joined', bitlocker:'Protected', lastSeen:'Now', health:'New build' },
+  { name:'NS-LT-0419', user:'Gabriel Moss', os:'Windows 11 Enterprise 24H2', ip:'10.20.40.219', ou:'OU=Sales,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'Yesterday 17:40', health:'Healthy' },
+];
+// What DHCP gives a Northstar PC on the corporate network, and the settings a
+// PC holds once it has that lease (always DHCP).
+function hdIts04Lease(address, gateway) {
+  return { address, mask:'255.255.255.0', gateway:gateway || '10.20.10.1', dnsServers:['10.20.0.10', '10.20.0.11'], dhcpServer:'10.20.0.20', leaseDays:8 };
+}
+function hdIts04Ip(address, gateway) {
+  return { dhcp:true, ...hdIts04Lease(address, gateway), obtained:'2026-08-20T07:00:00Z', expires:'2026-08-28T07:00:00Z' };
+}
+// Module 7's healthy servers and directory, plus the intranet's DNS record
+// (10.20.0.50 after CHG-7802). Only Module 9's two sets carry the record.
+function hdIts04Directory() {
+  const base = hdIts05BaselineDirectory();
+  return { ...base, dns:[...base.dns, { name:'intranet', type:'A', value:'10.20.0.50', ttl:'3600' }] };
+}
+// CHG-7802 is the change that lines up with Part B. CHG-7801 and CHG-7794 are
+// older completed changes that don't.
+function hdIts04LabChanges() {
+  return [
+    { number:'CHG-7802', when:'Today 08:30', what:'Move the intranet to NS-APP01; DNS A record intranet → 10.20.0.50 (was 10.20.0.45)', who:'J. Keller', state:'Completed', ci:'NS-APP01', details:'The intranet site now runs on NS-APP01. The DNS A record for intranet was changed from 10.20.0.45 to 10.20.0.50 (TTL 3600). Completed with no errors.' },
+    ...HD_ITS05_LAB_CHANGES.filter(change => ['CHG-7801', 'CHG-7794'].includes(change.number)).map(change => ({ ...change })),
+  ];
+}
+const HD_ITS04_LAB_SERVERS = hdIts05BaselineServers();
+const HD_ITS04_LAB_DIRECTORY = hdIts04Directory();
+const HD_ITS04_LAB_CHANGES = hdIts04LabChanges();
+const HD_ITS04_PRACTICE_SERVERS = hdIts05BaselineServers();
+const HD_ITS04_PRACTICE_DIRECTORY = hdIts04Directory();
+// Ticket 9-D's phone: Zoe Lin's own phone. It is not in Intune, and its Wi-Fi is
+// on but joined to nothing.
+function hdIts04PracticeCloud() {
+  return {
+    intune:{ minOs:'17.5', devices:{} },
+    phones:{
+      'zlin-phone':{ label:'Zoe\'s own phone', user:'u-1046', company:false, os:'17.6', status:{ wifi:true, cellular:'5G' },
+        wifiNetworks:[{ ssid:'Northstar-Corp', security:'WPA3-Enterprise' }, { ssid:'Northstar-Guest', security:'WPA2-Personal' }] },
+    },
+  };
+}
+const HD_ITS04_PRACTICE_CLOUD = hdIts04PracticeCloud();
+
 // Practice sets: a module's unguided practice tickets (not graded), opened
 // from its course page with ?practice=<key>&student=<id> (ui/helpdesk.js).
 // Only these tickets, no coach, saved apart from the coached lab's shift.
@@ -598,6 +681,15 @@ const HD_PRACTICE_SETS = {
   // computers, servers, directory and tenant are the set's (HD_ITS06_*).
   'its-06': { title:'Module 8 practice tickets', tickets:['HD-2198', 'HD-2199', 'HD-2200', 'HD-2201'], complete:['HD-2198', 'HD-2199', 'HD-2200', 'HD-2201'], queue:true, queueList:'all', kbArticles:HD_ITS06_KB_ARTICLES,
     users:HD_ITS06_USERS, computers:HD_ITS06_COMPUTERS, servers:HD_ITS06_SERVERS, directory:HD_ITS06_PRACTICE_DIRECTORY, cloud:HD_ITS06_PRACTICE_CLOUD },
+  // Module 9 Lab 9.2: each ticket runs on its own clock (console.now), so the set
+  // has none. 9-A, 9-C, 9-D and 9-E (HD-2214, HD-2219, HD-2220, HD-2221) count as
+  // done when Resolved. 9-B (HD-2215) counts as done when it is with Network
+  // Operations and has a complete work note. HD-2216 to HD-2218 are the related
+  // records the student links; they are not worked. The people, computers,
+  // servers, directory and phone are the set's (HD_ITS04_*).
+  'its-04': { title:'Module 9 practice tickets', tickets:['HD-2214', 'HD-2215', 'HD-2216', 'HD-2217', 'HD-2218', 'HD-2219', 'HD-2220', 'HD-2221'], complete:['HD-2214', 'HD-2215', 'HD-2219', 'HD-2220', 'HD-2221'], queue:true, queueList:'all', kbArticles:HD_ITS04_KB_ARTICLES,
+    users:HD_ITS04_USERS, computers:HD_ITS04_COMPUTERS, servers:HD_ITS04_PRACTICE_SERVERS, directory:HD_ITS04_PRACTICE_DIRECTORY, cloud:HD_ITS04_PRACTICE_CLOUD,
+    done:{ 'HD-2215':[{ group:'Network Operations' }, { note:true }] } },
 };
 
 // Coached ticket sets: Practice It content for a coach's guided lab, opened by
@@ -628,6 +720,12 @@ const HD_COACHED_SETS = {
   // lockout source is Tier 2 work here. It is no part of the lab record.
   'its-06-extension': { title:'Lab 8.1 extension (optional, not part of your lab record): HD-2101', tickets:['HD-2101'], now:'2026-08-19T08:12:00Z', hd2101Tier2:true, kbArticles:HD_ITS06_KB_ARTICLES, directory:HD_ITS06_EXT_DIRECTORY,
     ticketOverrides:{ 'HD-2101':{ priority:'', businessImpact:'', sla:'', subcategory:'General', console:HD_ITS06_HD2101_CONSOLE } } },
+  // Module 9: Lab 9.1 (coach hd-m04) on Thursday 08:40. Part A is HD-2212, Part B
+  // is HD-2213 (its own clock, 09:05) and Part C is the request RITM0010164
+  // (SR-2222). NS-APP01 is healthy and CHG-7802 and the intranet record are in
+  // this set only.
+  'its-04-guided': { title:'Lab 9.1 · Guided Lab: the connectivity checklist', tickets:['HD-2212', 'HD-2213', 'SR-2222'], now:'2026-08-20T08:40:00Z', kbArticles:HD_ITS04_KB_ARTICLES,
+    users:HD_ITS04_USERS, computers:HD_ITS04_COMPUTERS, servers:HD_ITS04_LAB_SERVERS, directory:HD_ITS04_LAB_DIRECTORY, changes:HD_ITS04_LAB_CHANGES },
 };
 
 // VM labs (ui/helpdesk.js "VM screen"): the simulated host, its install
@@ -980,8 +1078,8 @@ const HD_TICKET_TEMPLATES = [
     } }),
   hdTicket({ id:'SR-2102', requester:'New Hire · Theo Grant', department:'Logistics', category:'Service Request', subcategory:'Onboarding', priority:'P2', businessImpact:'New employee cannot begin work', sla:'4 hours', createdMinutesAgo:112, description:'Create the approved account, access groups, laptop assignment, and warehouse printer.', symptoms:['Manager approval attached','Start date is today'], logs:['HRIS export: employee 8841 active'], systemState:['No AD user exists','Laptop NS-LT-0177 is staged'], plausibleCauses:['Missing approval','Provisioning delay'], correctPath:['Validate approval and identity attributes','Create user in Logistics OU','Apply role groups','Assign endpoint','Verify sign-in and resources'], hiddenRootCause:'Standard approved onboarding request; no technical fault.', expectedResolution:'Complete least-privilege provisioning and document each asset and group assignment.', escalationCriteria:['Requested access exceeds role template','Missing manager or data-owner approval'] }),
   hdTicket({ id:'SR-2103', requester:'HR Operations', department:'Human Resources', category:'Service Request', subcategory:'Offboarding', priority:'P1', businessImpact:'Terminated employee access must end', sla:'15 minutes', createdMinutesAgo:9, description:'Disable Casey Novak immediately per attached termination notice.', symptoms:['Effective time has passed','Laptop return pending'], logs:['HR termination approval HR-8892 attached'], systemState:['Account cnovak enabled','Two active VPN sessions'], plausibleCauses:['Standard request'], correctPath:['Validate authorized notice','Disable account','Revoke sessions','Remove privileged access per runbook','Record asset recovery handoff'], hiddenRootCause:'Authorized urgent offboarding request.', expectedResolution:'Disable access, revoke sessions, preserve mailbox/data per policy, and document asset ownership.', escalationCriteria:['Litigation hold uncertainty','Privileged or service-account dependency'] }),
-  hdTicket({ id:'HD-2104', requester:'Priya Shah', department:'Human Resources', category:'Incident', subcategory:'DHCP / connectivity', priority:'P2', businessImpact:'HR employee offline', sla:'8 hours', createdMinutesAgo:63, description:'I am connected to the office network, but nothing opens.', symptoms:['IPv4 address 169.254.44.19','No default gateway'], logs:['ipconfig: DHCP Enabled Yes · Autoconfiguration IPv4 169.254.44.19'], systemState:['Wi-Fi radio enabled','Dock Ethernet adapter reports cable connected','Other floor users online'], plausibleCauses:['DHCP unavailable','VLAN issue','Conflicting adapters'], correctPath:['Recognize APIPA','Isolate network interfaces','Renew lease','Validate IP, gateway, DNS','Test business resource'], hiddenRootCause:'Dock Ethernet adapter is stuck and prevents the active Wi-Fi interface from completing DHCP.', expectedResolution:'Disable the unused dock adapter, renew Wi-Fi, confirm valid lease and resource access.', escalationCriteria:['Multiple clients fail DHCP','Scope exhausted or relay unavailable'] }),
-  hdTicket({ id:'HD-2105', requester:'Maya Chen', department:'Operations', category:'Incident', subcategory:'DNS', priority:'P2', businessImpact:'Operations dashboard unavailable', sla:'8 hours', createdMinutesAgo:54, description:'Websites work, but the Operations dashboard says the server cannot be found.', symptoms:['Public internet works','Internal resource opens by IP','Hostname fails'], logs:['Resolve-DnsName opsdash.northstar.example: NXDOMAIN','Client DNS server: 192.0.2.53'], systemState:['VPN connected','Endpoint received public resolver from home router'], plausibleCauses:['Application outage','Routing failure','DNS configuration'], correctPath:['Capture DNS configuration','Query internal name','Compare direct server query','Restore VPN DNS settings','Flush and retest'], hiddenRootCause:'VPN client did not apply the corporate DNS resolver after reconnect.', expectedResolution:'Reconnect/repair the approved VPN profile so corporate DNS is assigned; verify internal hostname resolution.', escalationCriteria:['Internal resolver fails for multiple users','VPN configuration deployment defect'] }),
+  hdTicket({ id:'HD-2104', ownSet:true, requester:'Priya Shah', department:'Human Resources', category:'Incident', subcategory:'DHCP / connectivity', priority:'P2', businessImpact:'HR employee offline', sla:'8 hours', createdMinutesAgo:63, description:'I am connected to the office network, but nothing opens.', symptoms:['IPv4 address 169.254.44.19','No default gateway'], logs:['ipconfig: DHCP Enabled Yes · Autoconfiguration IPv4 169.254.44.19'], systemState:['Wi-Fi radio enabled','Dock Ethernet adapter reports cable connected','Other floor users online'], plausibleCauses:['DHCP unavailable','VLAN issue','Conflicting adapters'], correctPath:['Recognize APIPA','Isolate network interfaces','Renew lease','Validate IP, gateway, DNS','Test business resource'], hiddenRootCause:'Dock Ethernet adapter is stuck and prevents the active Wi-Fi interface from completing DHCP.', expectedResolution:'Disable the unused dock adapter, renew Wi-Fi, confirm valid lease and resource access.', escalationCriteria:['Multiple clients fail DHCP','Scope exhausted or relay unavailable'] }),
+  hdTicket({ id:'HD-2105', ownSet:true, requester:'Maya Chen', department:'Operations', category:'Incident', subcategory:'DNS', priority:'P2', businessImpact:'Operations dashboard unavailable', sla:'8 hours', createdMinutesAgo:54, description:'Websites work, but the Operations dashboard says the server cannot be found.', symptoms:['Public internet works','Internal resource opens by IP','Hostname fails'], logs:['Resolve-DnsName opsdash.northstar.example: NXDOMAIN','Client DNS server: 192.0.2.53'], systemState:['VPN connected','Endpoint received public resolver from home router'], plausibleCauses:['Application outage','Routing failure','DNS configuration'], correctPath:['Capture DNS configuration','Query internal name','Compare direct server query','Restore VPN DNS settings','Flush and retest'], hiddenRootCause:'VPN client did not apply the corporate DNS resolver after reconnect.', expectedResolution:'Reconnect/repair the approved VPN profile so corporate DNS is assigned; verify internal hostname resolution.', escalationCriteria:['Internal resolver fails for multiple users','VPN configuration deployment defect'] }),
   hdTicket({ id:'HD-2106', requester:'Elena Ruiz', department:'Logistics', category:'Incident', subcategory:'Printer', priority:'P3', businessImpact:'One warehouse label station delayed', sla:'2 business days', createdMinutesAgo:142, description:'Labels are stuck in the queue and the printer says Ready.', symptoms:['17 jobs remain in Printing','Ping to printer succeeds'], logs:['PrintService 372: driver LabelPro 3.8 terminated unexpectedly'], systemState:['NS-WH-LABEL01 queue Error','NS-PRINT01 spooler degraded'], plausibleCauses:['Out of labels','Network port','Driver crash'], correctPath:['Confirm scope','Preserve jobs','Inspect queue and print-service log','Isolate faulty driver','Apply approved rollback','Test one label'], hiddenRootCause:'LabelPro 3.8 driver crashes the server-side spooler.', expectedResolution:'Roll back to approved driver, restart spooler under change procedure, and verify queued work.', escalationCriteria:['Print-server-wide impact','Driver package unavailable or vendor defect'] }),
   hdTicket({ id:'SR-2107', ownSet:true, requester:'Grace Kim', department:'Human Resources', category:'Service Request', subcategory:'Group membership', priority:'P3', businessImpact:'Recruiter cannot upload forms', sla:'2 business days', createdMinutesAgo:188, description:'Approved request: restore contributor access to the HR onboarding folder.', symptoms:['Read access works','Manager approval attached'], logs:['AD group history: removed from GG-HR-Contributors during transfer'], systemState:['Member of GG-HR-Readers','Not member of GG-HR-Contributors'], plausibleCauses:['NTFS ACL issue','Missing group membership'], correctPath:['Validate approval','Add authorized group','Refresh user token','Verify effective access','Document change'], hiddenRootCause:'User was removed from the contributor group during a role transfer.', expectedResolution:'Add GG-HR-Contributors, refresh sign-in token, verify upload, document approval.', escalationCriteria:['No data-owner approval','Requested permission exceeds role'] }),
   hdTicket({ id:'HD-2108', ownSet:true, requester:'Amir Patel', department:'Operations', category:'Incident', subcategory:'Group Policy', priority:'P3', businessImpact:'One user lacks mapped drive', sla:'2 business days', createdMinutesAgo:201, description:'My Operations drive disappeared after my laptop was replaced.', symptoms:['Group membership correct','UNC path works manually'], logs:['gpresult: Operations Drive Mapping absent','Computer DN: CN=NS-LT-0145,CN=Computers'], systemState:['User in GG-Operations-Drive','Computer in default Computers container'], plausibleCauses:['Disconnected drive','GPO scope','File server outage'], correctPath:['Verify authorization','Run gpresult','Check computer OU','Move computer through approved admin task','Refresh policy and verify'], hiddenRootCause:'Replacement computer object was never moved into the Operations workstation OU.', expectedResolution:'Move the computer to the correct OU, run policy refresh, verify O: mapping.', escalationCriteria:['GPO link or security filtering change required','Replication/SYSVOL issue'] }),
@@ -989,7 +1087,7 @@ const HD_TICKET_TEMPLATES = [
   hdTicket({ id:'HD-2110', requester:'Sofia Martin', department:'Operations', category:'Incident', subcategory:'Domain trust', priority:'P2', businessImpact:'Shift supervisor cannot domain sign in', sla:'8 hours', createdMinutesAgo:74, description:'Windows says the trust relationship between this workstation and the domain failed.', symptoms:['Local support account works','Domain sign-in fails'], logs:['Test-ComputerSecureChannel: False','NETLOGON 3210 secure session failed'], systemState:['Computer object enabled','Restored VM snapshot recorded yesterday'], plausibleCauses:['Bad user password','DNS','Machine-account mismatch'], correctPath:['Confirm recovery access','Validate DNS/time/object state','Test secure channel','Repair through approved Tier 2 procedure','Verify sign-in and policy'], hiddenRootCause:'A restored snapshot rolled back the machine-account password.', expectedResolution:'Repair the secure channel, restart if approved, verify domain authentication and gpresult.', escalationCriteria:['Computer object missing or duplicate','Multiple machines lose trust'] }),
   hdTicket({ id:'HD-2111', requester:'Dina Foster', department:'Executive Office', category:'Incident', subcategory:'BitLocker', priority:'P2', businessImpact:'Executive assistant cannot start laptop', sla:'8 hours', createdMinutesAgo:37, description:'The laptop is asking for a BitLocker recovery key after a firmware update.', symptoms:['Recovery screen shows key ID','Device asset tag verified'], logs:['Firmware change CHG-4471 completed overnight'], systemState:['Recovery key escrowed','User identity not yet verified'], plausibleCauses:['Unauthorized tamper','Expected firmware measurement change'], correctPath:['Verify user and device','Match recovery key ID','Provide key through approved secure channel','Boot and validate protection','Document disclosure'], hiddenRootCause:'Approved firmware update changed TPM measurements.', expectedResolution:'Use escrowed recovery key after identity verification, confirm BitLocker returns to Protected.', escalationCriteria:['Key unavailable or mismatch','Unapproved firmware change or tamper concern'] }),
   hdTicket({ id:'HD-2112', requester:'IT Monitoring', department:'Information Technology', category:'Incident', subcategory:'Windows service', priority:'P2', businessImpact:'Department print service degraded', sla:'8 hours', createdMinutesAgo:48, description:'Print Spooler stops immediately after it starts on NS-PRINT01.', symptoms:['Service exit code 1067','Issue began after driver package'], logs:['System 7031: Print Spooler terminated unexpectedly','PrintService 808: LabelPro provider fault'], systemState:['Server reachable','Other services healthy'], plausibleCauses:['Service account','Dependency','Faulty driver'], correctPath:['Preserve logs','Check dependency and recent change','Quarantine faulty driver','Use approved rollback','Restart and validate queues'], hiddenRootCause:'Third-party label driver crashes the spooler.', expectedResolution:'Rollback the driver under change control and verify all queues.', escalationCriteria:['Production reboot required','Vendor package or server-wide outage'] }),
-  hdTicket({ id:'HD-2113', requester:'Remote Employee · Kai Ross', department:'Sales', category:'Incident', subcategory:'VPN', priority:'P2', businessImpact:'Remote seller cannot reach internal apps', sla:'8 hours', createdMinutesAgo:95, description:'VPN accepts MFA, connects for a few seconds, then disconnects.', symptoms:['Internet access stable','MFA succeeds'], logs:['VPN client: certificate validation failed · NotAfter 2026-08-16'], systemState:['User certificate valid','Gateway certificate expired'], plausibleCauses:['Password','Home firewall','Gateway certificate'], correctPath:['Capture client log and time','Validate certificate chain and expiry','Correlate other users','Escalate gateway certificate renewal','Communicate workaround only if approved'], hiddenRootCause:'VPN gateway certificate expired.', expectedResolution:'Escalate as shared service incident for approved certificate renewal; validate new chain.', escalationCriteria:['Always: production gateway certificate change required'] }),
+  hdTicket({ id:'HD-2113', ownSet:true, requester:'Remote Employee · Kai Ross', department:'Sales', category:'Incident', subcategory:'VPN', priority:'P2', businessImpact:'Remote seller cannot reach internal apps', sla:'8 hours', createdMinutesAgo:95, description:'VPN accepts MFA, connects for a few seconds, then disconnects.', symptoms:['Internet access stable','MFA succeeds'], logs:['VPN client: certificate validation failed · NotAfter 2026-08-16'], systemState:['User certificate valid','Gateway certificate expired'], plausibleCauses:['Password','Home firewall','Gateway certificate'], correctPath:['Capture client log and time','Validate certificate chain and expiry','Correlate other users','Escalate gateway certificate renewal','Communicate workaround only if approved'], hiddenRootCause:'VPN gateway certificate expired.', expectedResolution:'Escalate as shared service incident for approved certificate renewal; validate new chain.', escalationCriteria:['Always: production gateway certificate change required'] }),
   hdTicket({ id:'SEC-2114', requester:'Luis Ortega', department:'Sales', category:'Security Incident', subcategory:'Phishing', priority:'P1', businessImpact:'Possible credential compromise', sla:'15 minutes', createdMinutesAgo:7, description:'I clicked a shipping link and signed in again. Was that real?', symptoms:['Lookalike domain','Unexpected sign-in page'], logs:['Browser history: northstar-shipping.example-login.test','Identity log: unfamiliar sign-in pending review'], systemState:['Email preserved','Endpoint protection has no malware verdict'], plausibleCauses:['Benign vendor portal','Credential phishing'], correctPath:['Verify reporter','Preserve email/URL/time','Protect account within procedure','Escalate immediately','Do not declare endpoint safe'], hiddenRootCause:'Credential-phishing page captured the password.', expectedResolution:'Escalate to cybersecurity, revoke sessions/reset credential per response runbook, preserve evidence.', escalationCriteria:['Always: potential credential compromise'] }),
   hdTicket({ id:'SEC-2115', requester:'Endpoint Security', department:'Cybersecurity', category:'Security Incident', subcategory:'Malware alert', priority:'P1', businessImpact:'Potential endpoint compromise', sla:'15 minutes', createdMinutesAgo:12, description:'High-confidence malware alert on NS-LT-0162 requires help desk contact and containment coordination.', symptoms:['User reports browser pop-ups','EDR alert high confidence'], logs:['EDR: suspicious powershell child of browser','SHA256 aaa... training fixture'], systemState:['Device online','Isolation pending security approval'], plausibleCauses:['Malicious extension','False positive'], correctPath:['Do not delete evidence','Confirm user/device','Coordinate containment','Record observations','Warm handoff to security'], hiddenRootCause:'Malicious browser extension launched an encoded PowerShell command.', expectedResolution:'Security-led containment and investigation; help desk handles user communication and replacement device.', escalationCriteria:['Always: confirmed or suspected malware'] }),
   hdTicket({ id:'SR-2116', requester:'Dina Foster', department:'Executive Office', category:'Service Request', subcategory:'Software installation', priority:'P2', businessImpact:'Board materials due tomorrow', sla:'8 hours', createdMinutesAgo:126, description:'Install the approved PDF editor before tomorrow morning.', symptoms:['Manager approval attached','License available'], logs:['Software catalog: PDF Studio Enterprise · Approved'], systemState:['Device compliant','Package available in endpoint manager'], plausibleCauses:['Standard request'], correctPath:['Validate approval/license/device','Deploy approved package','Verify launch and license','Document'], hiddenRootCause:'No fault; fulfilled standard request.', expectedResolution:'Install from managed catalog and verify with user.', escalationCriteria:['Unapproved software or elevated exception requested'] }),
@@ -2887,6 +2985,407 @@ const HD_TICKET_TEMPLATES = [
           { confirmed:'mail', missing:'Ask Omar to open Outlook and confirm his mail and Teams load.' },
         ], good:'The fix was on the phone: the update is installed, Company Portal shows Compliant and his mail loads.', fix:'The fix is on the phone: install the update on Wi-Fi while charging, then use Check status in Company Portal. Critical (feedback only): removing him from the policy or deleting the device; suggesting a personal mail app.' },
         { area:'Documentation', checks:[{ notePattern:'below minimum|OS version', missing:'Name the failing rule (OS version below minimum) in your note.' }, { note:true, missing:'Write a Reported / Tried / Result note.' }, { attached:'KB-0105', missing:'Attach KB-0105 to the ticket.' }, { comment:true, missing:'Write a comment for Omar in plain words, with no internal terms.' }, { status:'Resolved', missing:'Resolve the ticket.' }], good:'The note names the failing rule.', fix:'Name the failing rule (OS version below minimum) in a Reported / Tried / Result note, attach KB-0105 and resolve the ticket. A comment could say: "Hi Omar, your phone is getting work email again. It had fallen behind on a required update, so it was blocked from company mail until the update was in. Now that it\'s updated, everything\'s back. Updates like this keep company data safe on your phone, so it\'s worth installing them when they pop up. – Riley"' },
+      ],
+    } }),
+  // Module 9 (key its-04) Practice It. Lab 9.1 (coach hd-m04, HD_COACHED_SETS
+  // 'its-04-guided') is HD-2212 (Part A), HD-2213 (Part B) and the request
+  // RITM0010164 (SR-2222, Part C). Lab 9.2 (HD_PRACTICE_SETS 'its-04') is tickets
+  // 9-A to 9-E (HD-2214 to HD-2221; HD-2216 to HD-2218 are 9-B's linked
+  // children). The people, computers, servers, directory and phone are the
+  // set's (HD_ITS04_*). expectedResolution holds the model work note. Practice
+  // feedback only, never points: critical errors are feedback here, never a score.
+  // Part A: a new starter's wall jack is not patched. One person, no link.
+  hdTicket({ id:'HD-2212', ownSet:true, number:'INC0010523', requester:'Jonah Pryce', department:'Operations', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T08:40:00Z', shortDescription:'No internet at my new desk',
+    description:'Hi, it\'s Jonah. I started today in Purchasing. My computer says there\'s no internet, it\'s got a little globe with a line through it. Facilities set the desk up yesterday. Hannah next to me is fine.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: New starter, first day; desk PC NS-WS-0319 shows no internet; the colleague beside him is fine. Tried: One user only (H. Cole working; no other floor 2 tickets). Ethernet "Network cable unplugged", no link light. Closet: jack 2F-14 → panel port 2-14 not patched (Network Operations\' toner and cable test: cable passes). Moved the cable to jack 2F-15: link up at 1 Gbps. Still APIPA (169.254.33.10); ipconfig /release and /renew: 10.20.10.141, gateway 10.20.10.1, DNS 10.20.0.10/11, DHCP. Gateway and files reply; tracert out through nsfw01 and the fiber router; files:445 and dc01:53 answer. Result: Jonah working from jack 2F-15. Next action: Network Operations to patch jack 2F-14 (port 2-14 to NS-SW-2F); Service Desk to tell Jonah when he can move back.',
+    console: {
+      matrix:{}, classify:{ categories:HD_ITS04_CATEGORIES, cis:['NS-WS-0319', 'NS-WS-0318', 'NS-SW-2F', 'Floor 2 network jacks'], preset:{ contactType:'Phone' } },
+      priorityCoach:{ impact:'3', urgency:'1', line:'One person who can\'t work at all (Impact 3 and Urgency 1): P3.' },
+      kb:{ attach:true }, comments:true, resolutionCode:{ required:true },
+      closet:{ id:'floor-2', floor:'Floor 2', room:'Floor 2 network closet', jacks:[
+        { jack:'2F-13', location:'Hannah Cole\'s desk', panelPort:'2-13', switch:'NS-SW-2F', switchPort:'Gi1/0/13', link:'green', vlan:10 },
+        { jack:'2F-14', location:'Jonah Pryce\'s desk', panelPort:'2-14', switch:'NS-SW-2F' },
+        { jack:'2F-15', location:'Empty desk beside Jonah', panelPort:'2-15', switch:'NS-SW-2F', switchPort:'Gi1/0/15', link:'green', vlan:10 },
+      ] },
+      evidence:[{ id:'jack-2f14', kind:'cable-test', jack:'2F-14', panelPort:'2-14', tester:'Pass, wires 1–8', switch:'NS-SW-2F' }],
+      machines:{ 'NS-WS-0319':{ network:{
+        adapters:[{ name:'Ethernet', kind:'Ethernet', description:'Intel(R) Ethernet Connection I219-V', media:'Disconnected', speed:'1 Gbps', mac:'3C-52-82-4A-19-07',
+          ip:{ dhcp:true, address:'169.254.33.10', mask:'255.255.0.0', gateway:'', dnsServers:[] }, lease:hdIts04Lease('10.20.10.141') }],
+        routes:{ corp:[{ name:'nsfw01', address:'10.20.255.1' }, { name:'nsrtr-fiber', address:'10.20.255.2' }, { address:'203.0.113.1', ms:9 }, { address:'203.0.113.9', ms:11 }] },
+        publicDns:{ 'www.example.com':'93.184.215.14' } } } },
+      caller:{ name:'Jonah Pryce', questions:[
+        { id:'others', text:'Is Hannah next to you working? Is anyone else near you affected?', reply:'Hannah next to me is fine, and nobody else has said anything.' },
+        { id:'light', text:'Is the light next to the network port on your computer on?', reply:'There\'s no light at all.' },
+        { id:'move', text:'Please unplug your cable and plug it into the wall socket at the empty desk beside you, jack 2F-15.', reply:'Done. It\'s plugged in at 2F-15.', link:{ computer:'NS-WS-0319', adapter:'Ethernet', jack:'2F-15' } },
+      ] },
+      teamMessages:[{ id:'netops-2f14', to:'Network Operations', from:'Network Operations', text:'Jack 2F-14 (patch-panel port 2-14, Floor 2) is not patched to NS-SW-2F. The cable tests fine. Jonah Pryce is working from jack 2F-15 for now. Please patch 2F-14 and tell the Service Desk when it is done.', reply:'Got it: jack 2F-14, panel port 2-14. We will patch it to NS-SW-2F and message you when it is live.' }],
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['APIPA', 'DHCP', 'ipconfig', 'jack', 'patch panel', 'patched', 'NS-SW-2F', '2F-14', '2F-15', 'gateway', 'Network Operations', 'NS-WS-0319', '10.20', '169.254', 'Tier 2'],
+        needs:[{ label:'Names the dead jack and its panel port (2F-14, 2-14)', pattern:'2F-14' }, { label:'Says Jonah works from jack 2F-15', pattern:'2F-15' }, { label:'Says the address was renewed', pattern:'APIPA|169\\.254|release|renew' }, { label:'Says Network Operations patches the jack next', pattern:'Network Operations' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Network', subcategory:'Wired connectivity', ci:'NS-WS-0319' }, missing:'Set Category Network › Wired connectivity and CI NS-WS-0319, Jonah\'s desk PC.' }, { priority:'P3', missing:'Set Impact 3 (one person) and Urgency 1 (he can\'t work at all). That makes the ticket P3.' }], good:'Network › Wired connectivity on NS-WS-0319, P3: one person who can\'t work at all.', fix:'Set Category Network › Wired connectivity, CI NS-WS-0319, Impact 3 and Urgency 1. One person who can\'t work at all is P3.' },
+        { area:'Investigation', checks:[
+          { chat:['others'], missing:'Ask Jonah whether Hannah, or anyone else near him, is affected. One person or many decides everything that follows.' },
+          { seen:'settings-network', computer:'NS-WS-0319', missing:'Open Settings › Network & internet on NS-WS-0319 and read the Ethernet adapter. Check the link before the address.' },
+          { chat:['light'], missing:'Ask Jonah whether the light next to the network port is on.' },
+          { serverSeen:'closet:floor-2', missing:'Open the network closet for Floor 2 and find jack 2F-14 and jack 2F-15.' },
+          { evidence:'jack-2f14', missing:'Open Network Operations\' evidence card for jack 2F-14.' },
+        ], good:'One person only, no link on the Ethernet adapter, and the closet shows jack 2F-14 is not patched while 2F-15 is live.', fix:'Ask whether others are affected, read Settings › Network & internet (Ethernet: Network cable unplugged), ask about the link light, then open the Floor 2 network closet and the evidence card for 2F-14. The jack is not patched to the switch.' },
+        { area:'Diagnosis', checks:[
+          { seen:'ipconfig', computer:'NS-WS-0319', after:'cable-connected', missing:'After Jonah moves to jack 2F-15, read the address: ipconfig. It should show an APIPA address (169.254.x.x) and no gateway.' },
+          { typed:'^\\s*ipconfig\\s+/all\\b', computer:'NS-WS-0319', missing:'Read everything about the adapter: ipconfig /all. Note the Physical Address and that no DHCP server is listed.' },
+        ], good:'The APIPA address is a leftover from when the cable had no link. It is not a fault in the PC or its cable.', fix:'After the cable move, read ipconfig and ipconfig /all. The 169.254.x.x address is APIPA: Windows gave itself an address while it was unplugged.' },
+        { area:'Action', checks:[
+          { action:'cable-connected', missing:'Ask Jonah to move his cable from jack 2F-14 to the known-good jack 2F-15.' },
+          { action:'ip-release', missing:'Release the old address: ipconfig /release.' },
+          { action:'ip-renew', missing:'Ask DHCP for a new address: ipconfig /renew.' },
+          { seen:'net-adapter:Ethernet', computer:'NS-WS-0319', missing:'Open Hardware properties for Ethernet and read the healthy settings. IP assignment and DNS server assignment are both Automatic (DHCP).' },
+          { seen:'ping:10.20.10.1', computer:'NS-WS-0319', after:'ip-renew', missing:'After the renew, ping the gateway: ping 10.20.10.1.' },
+          { seen:'ping:files.northstar.example', computer:'NS-WS-0319', after:'ip-renew', missing:'After the renew, ping a company server: ping files.northstar.example.' },
+          { seen:'tracert:www.example.com', computer:'NS-WS-0319', after:'ip-renew', missing:'After the renew, trace the way out: tracert www.example.com.' },
+          { seen:'port:files.northstar.example:445', computer:'NS-WS-0319', missing:'Check the file service: Test-NetConnection files.northstar.example -Port 445.' },
+          { seen:'port:dc01.northstar.example:53', computer:'NS-WS-0319', missing:'Check the name service: Test-NetConnection dc01.northstar.example -Port 53.' },
+        ], good:'You moved the cable to a live jack, released and renewed the address, then proved the gateway, a company server, the way out and both services.', fix:'Move the cable to jack 2F-15, then ipconfig /release and ipconfig /renew. Then ping 10.20.10.1, ping files.northstar.example, tracert www.example.com, and Test-NetConnection files.northstar.example -Port 445 and dc01.northstar.example -Port 53. Never restart a switch or patch the jack yourself: both are Network Operations\'.' },
+        { area:'Documentation', checks:[
+          { teamMessage:'netops-2f14', missing:'Message Network Operations about jack 2F-14: name the jack, the panel port 2-14 and that Jonah is on 2F-15.' },
+          { note:true, missing:'Write a Reported / Tried / Result / Next action note.' },
+          { comment:true, missing:'Write a comment for Jonah in plain words, with no internal terms.' },
+          { code:'Workaround provided', missing:'Choose the resolution code Workaround provided: the jack is still to be patched.' },
+          { status:'Resolved', missing:'Resolve the ticket.' },
+        ], good:'Network Operations has the jack, the panel port and where Jonah is working. The note is complete and the comment is in plain words.', fix:'Message Network Operations about 2F-14, write a Reported / Tried / Result / Next action note, choose the code Workaround provided and resolve the ticket. A comment could say: "Hi Jonah, welcome! Your computer and its cable are fine. The network socket at your desk hasn\'t been connected in our network room yet, so we\'ve moved you to the socket at the desk beside you, and everything\'s working. Our network team will connect yours, and we\'ll let you know when you can plug back in. – Riley"' },
+      ],
+    } }),
+  // Part B: the intranet moved at 08:30. Farah's PC still holds the old address.
+  hdTicket({ id:'HD-2213', ownSet:true, number:'INC0010524', requester:'Farah Qureshi', department:'Marketing', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T09:05:00Z', shortDescription:'The intranet won\'t open',
+    description:'Hi, the intranet won\'t open for me. It says \'This site can\'t be reached\'. Leah next to me can open it fine. I had it open first thing this morning, around 8:10, then it just stopped.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: Intranet "This site can\'t be reached" since about 08:10 visit; colleague can open it. Tried: Dock Ethernet and Wi-Fi both DHCP, company DNS, healthy; Wi-Fi 5 GHz WPA3-Enterprise. ping intranet → 10.20.0.45, timed out; nslookup intranet → 10.20.0.50. CHG-7802 (08:30 today) moved the intranet to 10.20.0.50; the PC had cached the old address. ipconfig /flushdns: ping intranet → 10.20.0.50 replies; intranet:443 answers. Result: Farah confirmed the intranet opens.',
+    console: {
+      now:'2026-08-20T09:05:00Z', matrix:{}, classify:{ categories:HD_ITS04_CATEGORIES, cis:['NS-LT-0415', 'Intranet', 'NS-APP01', 'NS-DC01'], preset:{ contactType:'Chat' } },
+      priorityCoach:{ impact:'3', urgency:'2', line:'One person (Impact 3). Everything except the intranet works, so she can still work (Urgency 2): P4.' },
+      kb:{ attach:true }, comments:true, resolutionCode:{ required:true },
+      machines:{ 'NS-LT-0415':{ network:{
+        adapters:[
+          { name:'Ethernet 2', kind:'Dock USB Ethernet', description:'Dock USB GbE Adapter', media:'Connected', speed:'1 Gbps', mac:'3C-52-82-4B-04-15', ip:hdIts04Ip('10.20.10.177'), lease:hdIts04Lease('10.20.10.177') },
+          { name:'Wi-Fi', kind:'Wi-Fi', description:'Intel(R) Wi-Fi 6 AX201 160MHz', media:'Connected', mac:'3C-52-82-4B-04-16', ip:hdIts04Ip('10.20.10.178'), lease:hdIts04Lease('10.20.10.178'),
+            wifi:{ ssid:'Northstar-Corp', protocol:'Wi-Fi 6 (802.11ax)', security:'WPA3-Enterprise', band:'5 GHz', channel:44, signal:90, linkRate:600, known:[{ ssid:'Northstar-Corp', security:'WPA3-Enterprise' }, { ssid:'Northstar-Guest', security:'WPA2-Personal' }] } },
+        ],
+        dnsCache:[{ name:'intranet.northstar.example', address:'10.20.0.45', ttl:300 }],
+        routes:{ corp:[{ name:'nsfw01', address:'10.20.255.1' }, { name:'nsrtr-fiber', address:'10.20.255.2' }, { address:'203.0.113.1', ms:9 }] },
+        publicDns:{ 'www.example.com':'93.184.215.14' } } } },
+      caller:{ name:'Farah Qureshi', style:'chat', questions:[
+        { id:'when', text:'When did you last open the intranet successfully?', reply:'First thing this morning, around 8:10. Then it just stopped.' },
+        { id:'reload', text:'Please reload the intranet page. Does it open now?', reply:'It\'s back.', replyBefore:'It still says "This site can\'t be reached".', afterAction:'dns-flush', confirms:true },
+      ] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['DNS', 'cache', 'cached', 'flush', 'IP', '10.20', 'CHG', 'CHG-7802', 'nslookup', 'ipconfig', 'NS-LT-0415', 'NS-APP01', 'TTL', 'Tier 2'],
+        needs:[{ label:'Names the change (CHG-7802)', pattern:'CHG-7802' }, { label:'Says the new address (10.20.0.50)', pattern:'10\\.20\\.0\\.50' }, { label:'Says the old answer was cached and cleared', pattern:'flush|cache' }, { label:'Says Farah confirmed it opens', pattern:'confirmed|opens' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Network', subcategory:'Website or intranet access', ci:'NS-LT-0415' }, missing:'Set Category Network › Website or intranet access and CI NS-LT-0415, Farah\'s laptop.' }, { priority:'P4', missing:'Set Impact 3 (one person) and Urgency 2 (everything except the intranet works). That makes the ticket P4.' }], good:'Network › Website or intranet access on NS-LT-0415, P4: one person, and everything except the intranet works.', fix:'Set Category Network › Website or intranet access, CI NS-LT-0415, Impact 3 and Urgency 2. One person who can still work is P4.' },
+        { area:'Investigation', checks:[
+          { typed:'^\\s*ipconfig\\s+/all\\b', computer:'NS-LT-0415', missing:'Read every adapter: ipconfig /all. A docked laptop has two, and Windows uses the wired one first.' },
+          { seen:'wifi-properties', computer:'NS-LT-0415', missing:'Open Settings › Network & internet › Wi-Fi › Northstar-Corp › Properties and read the band, channel and link speed.' },
+          { typed:'^\\s*ping\\s+intranet\\b', computer:'NS-LT-0415', missing:'Ping the name: ping intranet.northstar.example.' },
+        ], good:'Both adapters are healthy and use company DNS. Ping to the intranet times out at 10.20.0.45.', fix:'Type ipconfig /all and read both adapters, open the Wi-Fi network\'s Properties, then ping intranet.northstar.example. Everything is healthy except the intranet\'s address.' },
+        { area:'Diagnosis', checks:[
+          { seen:'nslookup:intranet.northstar.example', computer:'NS-LT-0415', missing:'Ask the DNS server directly: nslookup intranet.northstar.example. Compare its answer with what ping used.' },
+          { serverSeen:'change:CHG-7802', missing:'Open the Change log and open CHG-7802.' },
+          { serverSeen:'dns-record:intranet:A', missing:'Open the DNS screen and read the intranet record.' },
+        ], good:'ping used the address the PC remembered (10.20.0.45). nslookup asked the DNS server and got 10.20.0.50. CHG-7802 moved the intranet at 08:30.', fix:'Run nslookup intranet.northstar.example (10.20.0.50), open CHG-7802 in the Change log (08:30 today) and read the intranet record on the DNS screen (10.20.0.50). Farah opened the intranet at 08:10, before the move, so her PC kept the old answer.' },
+        { area:'Action', checks:[
+          { action:'dns-flush', missing:'Clear the old answer: ipconfig /flushdns.' },
+          { seen:'ping:intranet.northstar.example', computer:'NS-LT-0415', after:'dns-flush', missing:'After the flush, ping the name again: ping intranet.northstar.example.' },
+          { seen:'port:intranet.northstar.example:443', computer:'NS-LT-0415', after:'dns-flush', missing:'Check the web service: Test-NetConnection intranet.northstar.example -Port 443.' },
+          { confirmed:'reload', missing:'After the flush, ask Farah to reload the page and confirm it opens.' },
+        ], good:'You cleared the old answer, proved the name and the web service work, and Farah confirmed the intranet opens.', fix:'Type ipconfig /flushdns, ping intranet.northstar.example, Test-NetConnection intranet.northstar.example -Port 443, then ask Farah to reload the page. Never change DNS or restart anything on a server.' },
+        { area:'Documentation', checks:[{ note:true, missing:'Write a Reported / Tried / Result note.' }, { comment:true, missing:'Write a comment for Farah in plain words. Leave out DNS, cache, flush, IP addresses and the change number.' }, { status:'Resolved', missing:'Resolve the ticket.' }], good:'A complete note, a plain-words comment and the ticket resolved.', fix:'Write a Reported / Tried / Result note and resolve the ticket. A comment could say: "Hi Farah, the intranet is working for you again. It moved to a new server at 8:30 this morning, and your computer was still trying the old one because you\'d opened it just before the move. We\'ve cleared that, so it goes to the new server now. Anyone else who sees this can simply wait an hour or call us. – Riley"' },
+      ],
+    } }),
+  // Part C: the approved request for a new starter's laptop. A clean domain join
+  // into the department OU. It starts Approved, is its own record and has no SLA
+  // bar, so it has no triage or priority.
+  hdTicket({ id:'SR-2222', ownSet:true, number:'RITM0010164', requester:'Monica Hall', department:'Logistics', category:'Service Request', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-19T15:00:00Z', shortDescription:'New starter laptop setup',
+    description:'New starter laptop setup. Kenji Watanabe, Logistics Planner, starts tomorrow. Laptop NS-LT-0416 is on the Service Desk build bench.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    request:{ number:'RITM0010164', item:'New starter laptop setup', requestedFor:'Kenji Watanabe', approval:'Approved', approver:'Monica Hall (Logistics Manager)', approvedAt:'2026-08-19T15:30:00Z', state:'Open', fields:[{ id:'laptop', label:'Laptop', value:'NS-LT-0416' }, { id:'ou', label:'OU', value:'OU=Logistics,OU=Workstations' }] },
+    expectedResolution:'Reported: approved new starter laptop setup for K. Watanabe (Logistics), starts tomorrow. Tried: NS-LT-0416 wired on the build bench, DHCP, company DNS; nslookup northstar.example returned both domain controllers; joined northstar.example with the provisioning account per KB-0097 into OU=Logistics,OU=Workstations; restarted; gpupdate /force completed. Result: NS-LT-0416 in OU=Logistics,OU=Workstations; ready for Kenji tomorrow.',
+    console: {
+      now:'2026-08-20T09:30:00Z', matrix:{}, convert:{ number:'RITM0010164', items:[] }, kb:{ attach:true },
+      machines:{ 'NS-LT-0416':{ network:{
+        adapters:[{ name:'Ethernet', kind:'Ethernet', description:'Intel(R) Ethernet Connection I219-LM', media:'Connected', speed:'1 Gbps', mac:'3C-52-82-4B-04-17', ip:hdIts04Ip('10.20.10.203'), lease:hdIts04Lease('10.20.10.203') }],
+        routes:{ corp:[{ name:'nsfw01', address:'10.20.255.1' }, { name:'nsrtr-fiber', address:'10.20.255.2' }, { address:'203.0.113.1', ms:9 }] },
+        publicDns:{ 'www.example.com':'93.184.215.14' } },
+        domain:{ joined:false, workgroup:'WORKGROUP' }, computer:{ ou:'', trust:'Not joined' } } },
+      notes:{ parts:['reported', 'tried', 'result'], jargon:[],
+        needs:[{ label:'Names the OU (OU=Logistics,OU=Workstations)', pattern:'OU=Logistics,OU=Workstations' }, { label:'Names KB-0097 or the provisioning account', pattern:'KB-0097|provisioning' }, { label:'Says gpupdate /force completed', pattern:'gpupdate' }, { label:'Says the DNS check returned the domain controllers', pattern:'nslookup|domain controller' }] },
+      feedback:[
+        { area:'Investigation', checks:[
+          { kb:'KB-0097', missing:'Open KB-0097: it says what a join needs.' },
+          { typed:'^\\s*ipconfig\\s+/all\\b', computer:'NS-LT-0416', missing:'On NS-LT-0416, type ipconfig /all. A join needs company DNS first: DNS 10.20.0.10.' },
+          { typed:'^\\s*nslookup\\s+northstar\\.example\\b', computer:'NS-LT-0416', missing:'Type nslookup northstar.example. It should return both domain controllers.' },
+        ], good:'The laptop is wired on the corporate network with company DNS, and northstar.example returns both domain controllers.', fix:'Open KB-0097, then on NS-LT-0416 type ipconfig /all and nslookup northstar.example. The laptop needs company DNS (10.20.0.10) to find a domain controller.' },
+        { area:'Action', checks:[
+          { action:'domain-join', missing:'Settings › System › About › Domain or workgroup › Change. Choose the domain northstar.example and Use the provisioning account (KB-0097).' },
+          { machine:{ computer:'NS-LT-0416', path:['computer', 'ou'], value:'OU=Logistics,OU=Workstations' }, missing:'Choose the OU OU=Logistics,OU=Workstations: Kenji works in Logistics. A computer in the wrong place gets the wrong policies.' },
+          { actionsAfter:{ after:'domain-join', action:'restart', min:1 }, missing:'Restart the laptop to finish the join.' },
+          { typed:'^\\s*gpupdate\\s+/force\\b', computer:'NS-LT-0416', missing:'After the restart, type gpupdate /force.' },
+          { serverSeen:'ad-computer:NS-LT-0416', missing:'Open Active Directory › Computers, find NS-LT-0416 and press Open on its row. It should be in OU=Logistics,OU=Workstations.' },
+          { not:{ requestOpen:true }, missing:'Close the request (Closed Complete) once the laptop is ready.' },
+        ], good:'The laptop joined with the provisioning account into the Logistics OU, restarted, took its policies and shows in Active Directory. The request is closed.', fix:'Join NS-LT-0416 to northstar.example with the provisioning account, choose OU=Logistics,OU=Workstations, restart, type gpupdate /force, check Active Directory › Computers, then close the request. Never type a password.' },
+        { area:'Documentation', checks:[{ attached:'KB-0097', missing:'Attach KB-0097 to the request.' }, { note:true, missing:'Write a Reported / Tried / Result note before you close the request.' }], good:'KB-0097 attached and a complete close note.', fix:'Attach KB-0097 and write a close note, for example: "Reported: approved new starter laptop setup for K. Watanabe (Logistics), starts tomorrow. Tried: NS-LT-0416 wired on the build bench, DHCP, company DNS; nslookup northstar.example returned both domain controllers; joined northstar.example with the provisioning account per KB-0097 into OU=Logistics,OU=Workstations; restarted; gpupdate /force completed. Result: NS-LT-0416 in OU=Logistics,OU=Workstations; ready for Kenji tomorrow."' },
+      ],
+    } }),
+  // Ticket 9-A: the adapter is told to prefer the crowded 2.4 GHz band, and the
+  // kitchen microwave interferes with it at lunchtime. Record the old value, tell
+  // the user, then change one setting.
+  hdTicket({ id:'HD-2214', ownSet:true, number:'INC0010525', requester:'Bianca Ferreira', department:'Customer Service', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T10:30:00Z', shortDescription:'My Teams calls keep breaking up',
+    description:'Hi, it\'s Bianca in Customer Service. My Teams calls keep breaking up, and the Wi-Fi drops for a second or two, mostly around lunchtime. I sit by the kitchen. Everyone else on my team seems fine.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: Teams calls break up and Wi-Fi drops briefly, mostly at lunchtime; sits by the kitchen; team fine. Tried: one user; NS-LT-0417 on Northstar-Corp 2.4 GHz channel 6 (teammates on 5 GHz); ping to gateway ×20 varied 2–180 ms with 2 lost; Wi-Fi adapter\'s Preferred band was "Prefer 2.4GHz band" (recorded); told Bianca, changed it to "Prefer 5GHz band". Result: reconnected on 5 GHz channel 44; ping ×20 steady 2–4 ms; test call clear.',
+    console: {
+      now:'2026-08-20T10:34:00Z', matrix:{}, classify:{ categories:HD_ITS04_CATEGORIES, cis:['NS-LT-0417', 'Floor 2 Wi-Fi', 'Teams', 'NS-DHCP01'], preset:{ contactType:'Chat' } },
+      priorityCoach:{ impact:'3', urgency:'2', line:'One person (Impact 3). Her work goes on, with breaks in her calls (Urgency 2): P4.' },
+      kb:{ attach:true }, comments:true, resolutionCode:{ required:true },
+      machines:{ 'NS-LT-0417':{ network:{
+        adapters:[{ name:'Wi-Fi', kind:'Wi-Fi', description:'Intel(R) Wi-Fi 6 AX201 160MHz', media:'Connected', mac:'3C-52-82-4B-03-17', ip:hdIts04Ip('10.20.10.179'), lease:hdIts04Lease('10.20.10.179'),
+          wifi:{ ssid:'Northstar-Corp', protocol:'Wi-Fi 6 (802.11ax)', security:'WPA3-Enterprise', band:'2.4 GHz', channel:6, signal:70, linkRate:86,
+            bands:{ '2.4 GHz':{ channel:6, signal:70, linkRate:86, ms:[2, 180], lost:2 }, '5 GHz':{ channel:44, signal:88, linkRate:573, ms:[2, 4] } },
+            known:[{ ssid:'Northstar-Corp', security:'WPA3-Enterprise' }, { ssid:'Northstar-Guest', security:'WPA2-Personal' }] } }],
+        routes:{ corp:[{ name:'nsfw01', address:'10.20.255.1' }, { name:'nsrtr-fiber', address:'10.20.255.2' }, { address:'203.0.113.1', ms:9 }] },
+        publicDns:{ 'www.example.com':'93.184.215.14' } },
+        devices:[{ id:'wifi', category:'Network adapters', name:'Intel(R) Wi-Fi 6 AX201 160MHz', status:'OK', driver:{ provider:'Intel Corporation', date:'3/14/2025', version:'22.250.1.2' }, adapter:'Wi-Fi', advanced:{ preferredBand:'Prefer 2.4GHz band' } }] } },
+      caller:{ name:'Bianca Ferreira', style:'chat', questions:[
+        { id:'team', text:'Is anyone else on your team having the same problem?', reply:'No, everyone else seems fine. One of my teammates looked and said her Wi-Fi says 5 GHz.' },
+        { id:'tell', text:'I\'m going to change one Wi-Fi setting on your laptop. Your Wi-Fi will drop for a few seconds. Is that OK?', reply:'Yes, go ahead. I\'m not on a call right now.' },
+        { id:'call', text:'Please start a test call in Teams. How does it sound?', reply:'It sounds clear now.', replyBefore:'It\'s still choppy.', afterAction:'adapter-property', confirms:true },
+      ] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0108', 'Preferred band', '2.4 GHz', '2.4GHz', '5 GHz', '5GHz', 'channel', 'jitter', 'latency', 'ping', 'gateway', 'Device Manager', 'Advanced tab', 'access point', 'SSID', 'NS-LT-0417', 'Network Operations', 'Tier 2'],
+        needs:[{ label:'Says one user only (the team is fine)', pattern:'one user|team fine|team is fine' }, { label:'Records the old value (Prefer 2.4GHz band)', pattern:'2\\.4' }, { label:'Records the new value (Prefer 5GHz band)', pattern:'5 ?GHz' }, { label:'Says the ping or the test call was checked afterwards', pattern:'ping|test call' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Network', subcategory:'Wireless', ci:'NS-LT-0417' }, missing:'Set Category Network › Wireless and CI NS-LT-0417, Bianca\'s laptop.' }, { priority:'P4', missing:'Set Impact 3 (one person) and Urgency 2 (her work goes on, with breaks). That makes the ticket P4.' }], good:'One person, work goes on with breaks: Impact 3 × Urgency 2, P4.', fix:'Set Category Network › Wireless, CI NS-LT-0417, Impact 3 and Urgency 2. One person, work goes on with breaks: P4.' },
+        { area:'Investigation', checks:[
+          { chat:['team'], missing:'Ask Bianca whether her team is affected. One person or many comes first.' },
+          { seen:'wifi-properties', computer:'NS-LT-0417', missing:'Open Settings › Network & internet › Wi-Fi › Northstar-Corp › Properties and read the band, channel and link speed.' },
+          { typed:'^\\s*ping\\b(?=.*10\\.20\\.10\\.1\\b)(?=.*-n\\s*(1\\d|[2-9]\\d)\\b)', computer:'NS-LT-0417', missing:'Run a long ping to the gateway to see the jitter: ping 10.20.10.1 -n 20.' },
+        ], good:'One person or many first; then the band, then a long ping to see the jitter.', fix:'Ask whether her team is affected, read the Wi-Fi Properties (Band 2.4 GHz, Channel 6, signal 70%, 86 Mbps), then ping 10.20.10.1 -n 20. Replies run from 2 ms to 180 ms with 2 lost: jitter and loss on the Wi-Fi.' },
+        { area:'Diagnosis', checks:[{ kb:'KB-0108', missing:'Search the knowledge base for "slow" or "no internet" and open KB-0108. Step 7 says what to do before you change a setting.' }], good:'The adapter\'s band preference on a crowded, interfered band (not the access point, which serves her team fine).', fix:'Open KB-0108. The cause is the adapter\'s band preference: Device Manager › Network adapters › the Wi-Fi adapter › Properties › Advanced › Preferred band says Prefer 2.4GHz band, on a crowded band the kitchen microwave interferes with. It is not the access point, which serves her team fine.' },
+        { area:'Action', checks:[
+          { chat:['tell'], missing:'Tell Bianca you will change one Wi-Fi setting and that her Wi-Fi will drop for a few seconds, before you change it.' },
+          { action:'adapter-property', missing:'In Device Manager, open the Wi-Fi adapter › Properties › Advanced and change Preferred band to Prefer 5GHz band.' },
+          { machine:{ computer:'NS-LT-0417', path:['devices', 0, 'advanced', 'preferredBand'], value:'Prefer 5GHz band' }, missing:'Set Preferred band to Prefer 5GHz band.' },
+          { seen:'ping:10.20.10.1', computer:'NS-LT-0417', after:'adapter-property', missing:'After the change, run the long ping again: ping 10.20.10.1 -n 20. It should be steady 2–4 ms with none lost.' },
+          { confirmed:'call', missing:'Ask Bianca to make a test call and tell you how it sounds.' },
+        ], good:'The old value written down and Bianca told before the change; verified with a long ping and a call.', fix:'Write down the current Preferred band and tell Bianca before you change it. Set Prefer 5GHz band, then run ping 10.20.10.1 -n 20 again and ask for a test call. If it still drops on 5 GHz, send it to Network Operations with the times. Critical (feedback only): changing the setting without recording it or telling the user; restarting the access point.' },
+        { area:'Documentation', checks:[
+          { notePattern:'2\\.4', missing:'Record the old value in your note: the Preferred band was Prefer 2.4GHz band.' },
+          { notePattern:'5 ?GHz', missing:'Record the new value in your note: Prefer 5GHz band.' },
+          { note:true, missing:'Write a Reported / Tried / Result note.' },
+          { attached:'KB-0108', missing:'Attach KB-0108 to the ticket.' },
+          { comment:true, missing:'Write a comment for Bianca in plain words, with no internal terms.' },
+          { status:'Resolved', missing:'Resolve the ticket once the test call is clear.' },
+        ], good:'The note records the old and new value.', fix:'Record the old and new value in a Reported / Tried / Result note, attach KB-0108 and resolve the ticket. A comment could say: "Hi Bianca, your calls should be clear now. Your laptop was set to use the slower, more crowded kind of Wi-Fi, which the kitchen microwave interferes with around lunchtime. We\'ve set it to use the faster kind instead, and the test call sounded good. If it happens again, tell us the time and we\'ll look further. – Riley"' },
+      ],
+    } }),
+  // Ticket 9-B: the site's internet is crawling because the primary fiber circuit
+  // is down and Northstar is on its cellular backup. HD-2216 to HD-2218 are the
+  // related records the student links to this parent.
+  hdTicket({ id:'HD-2215', ownSet:true, number:'INC0010526', requester:'Sofia Martin', department:'Operations', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T09:20:00Z', shortDescription:'The internet is crawling',
+    description:'Hi, it\'s Sofia, Operations shift supervisor. The internet\'s crawling for everyone up here. Web pages take forever and our Teams call with the carrier keeps freezing. The warehouse system and the shared drive are fine.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: internet very slow for many users since about 09:15 (Operations, Customer Service, Marketing); internal systems fine; 4 tickets (HD-2216 to HD-2218 linked). Tried: from NS-WS-0233, gateway and files reply in 1 ms; www.example.com 190–240 ms; tracert leaves through nsrtr-backup-5g, not nsrtr-fiber; files:445 answers. Network Operations status: primary fiber down since 09:12, on the cellular backup (40 Mbps, 62% of the data cap used). Result: escalated to Network Operations at P2 with the evidence; users told to pause large uploads and video. Next action: Network Operations with the provider; Service Desk sends the next update to all four by 10:00.',
+    console: {
+      now:'2026-08-20T09:30:00Z', matrix:{}, classify:{ categories:HD_ITS04_CATEGORIES, cis:['Internet – primary circuit', 'Internet – cellular backup', 'NS-WS-0233', 'NS-DHCP01'], preset:{ contactType:'Phone' } },
+      priorityCoach:{ impact:'1', urgency:'2', line:'Several departments are slow at once (Impact 1). Work goes on, slowly, so Urgency 2: P2.' },
+      link:true, kb:{ attach:true }, comments:{ timeCheck:{ time:HD_M03_TIME, promise:HD_M03_PROMISE, promiseLine:'A fix time is not yours to promise: Network Operations and the provider give it. Say when you will send the next update.', noTimeLine:'Tell everyone when they will hear from you next, for example "by 10:00".' } },
+      resolutionCode:{ required:true }, handoff:{},
+      evidence:[{ id:'circuit', kind:'circuit', primary:{ name:'Primary fiber circuit (ISP-A)', status:'Down', since:'09:12' }, backup:{ name:'Cellular backup (5G)', status:'Active', speed:'about 40 Mbps', dataUsedPercent:62 }, provider:'Open' }],
+      machines:{ 'NS-WS-0233':{ network:{
+        adapters:[{ name:'Ethernet', kind:'Ethernet', description:'Intel(R) Ethernet Connection I219-V', media:'Connected', speed:'1 Gbps', mac:'3C-52-82-4B-02-33', ip:hdIts04Ip('10.20.70.233', '10.20.70.1'), lease:hdIts04Lease('10.20.70.233', '10.20.70.1') }],
+        routes:{ corp:[{ name:'nsfw01', address:'10.20.255.1', ms:2 }, { name:'nsrtr-backup-5g', address:'10.20.255.6', ms:14 }, { address:'203.0.113.41', ms:182 }, { address:'203.0.113.49', ms:196 }] },
+        publicDns:{ 'www.example.com':'93.184.215.14' }, internetMs:[190, 240] } } },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['P1', 'P2', 'SLA', 'Impact', 'Urgency', 'Tier 1', 'Tier 2', 'CI', 'KB-0108', 'Network Operations', 'fiber', 'circuit', 'cellular', '5G', 'data cap', 'nsrtr-backup-5g', 'nsrtr-fiber', 'tracert', 'ISP-A', 'HD-2215', 'DNS'],
+        needs:[{ label:'Says the backup circuit is carrying traffic', pattern:'backup|nsrtr-backup-5g|cellular' }, { label:'Says the primary fiber has been down since 09:12', pattern:'09:12|fiber' }, { label:'Gives the ping or tracert evidence', pattern:'tracert|190|240' }, { label:'Says who has it next and when the next update is', pattern:'10:00|Network Operations' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Network', subcategory:'Internet connectivity', ci:'Internet – primary circuit' }, missing:'Set Category Network › Internet connectivity and CI Internet – primary circuit.' }, { priority:'P2', missing:'Set Impact 1 (several departments) and Urgency 2 (work goes on, slowly). That makes the ticket P2.' }], good:'A whole site degraded, not stopped: Impact 1 × Urgency 2, P2; the children linked, not worked one by one.', fix:'Set Category Network › Internet connectivity, CI Internet – primary circuit, Impact 1 and Urgency 2. A whole site degraded, not stopped, is P2. Link the other tickets to this one as children; do not work them one by one.' },
+        { area:'Investigation', checks:[
+          { child:'HD-2216', missing:'Link INC0010527 to this ticket as related, so one ticket carries the escalation.' },
+          { child:'HD-2217', missing:'Link INC0010528 to this ticket as related.' },
+          { child:'HD-2218', missing:'Link INC0010529 to this ticket as related.' },
+          { seen:'ping:10.20.70.1', computer:'NS-WS-0233', missing:'On NS-WS-0233, ping the gateway: ping 10.20.70.1.' },
+          { seen:'ping:files.northstar.example', computer:'NS-WS-0233', missing:'Ping a company server: ping files.northstar.example.' },
+          { seen:'ping:www.example.com', computer:'NS-WS-0233', missing:'Ping a public site: ping www.example.com.' },
+        ], good:'Inside vs outside first, then where the path changes.', fix:'Link the three tickets as children of this one, then on NS-WS-0233 ping 10.20.70.1 (1 ms), ping files.northstar.example (1 ms) and ping www.example.com (190–240 ms). Inside is fast; outside is slow.' },
+        { area:'Diagnosis', checks:[
+          { seen:'tracert:www.example.com', computer:'NS-WS-0233', missing:'Trace the way out: tracert www.example.com.' },
+          { seen:'port:files.northstar.example:445', computer:'NS-WS-0233', missing:'Check the company network: Test-NetConnection files.northstar.example -Port 445.' },
+          { evidence:'circuit', missing:'Open Network Operations\' evidence card for the internet circuit.' },
+        ], good:'The primary circuit is down and traffic is on the backup (not one PC, not DNS).', fix:'Run tracert www.example.com (it leaves through nsrtr-backup-5g instead of nsrtr-fiber), Test-NetConnection files.northstar.example -Port 445 (True), and open the circuit card: the primary fiber has been down since 09:12 and the cellular backup is active.' },
+        { area:'Action', checks:[
+          { group:'Network Operations', missing:'Assign the parent ticket to Network Operations.' },
+          { handoffNote:true, missing:'Write a handoff note with Reported, Tried, Result and Next action: the start time, the departments, the ping times and the tracert.' },
+          { commentPattern:'upload|video', missing:'Ask people to hold off on large uploads and video until the main line is back.' },
+          { commentTime:true, missing:'Say when you will send the next update, for example "by 10:00".' },
+        ], good:'Escalated within the P2 respond target, with evidence; nothing restarted.', fix:'Assign the parent to Network Operations with a Reported / Tried / Result / Next action note, send the users one update that asks them to pause large uploads and video, and say when the next update comes. Critical (feedback only): treating it as four separate single-user tickets; restarting a router or the firewall.' },
+        { area:'Documentation', checks:[
+          { note:true, missing:'Write a Reported / Tried / Result / Next action note.' },
+          { attached:'KB-0108', missing:'Attach KB-0108 to the ticket.' },
+          { comment:true, missing:'Write one update in plain words, with no internal terms, and a clear ask.' },
+        ], good:'One update with a time for the next, plain words, a clear ask.', fix:'Attach KB-0108 and write the note. An update could say: "Hi, we know the internet is slow for everyone at the moment. Our main internet line is down, and we\'re running on our backup connection, which is slower and has a monthly limit. Our network team is working with the provider. Everything inside Northstar, including the warehouse system and shared drives, is working normally. Please hold off on large uploads and video until it\'s fixed. We\'ll update you by 10:00. – Riley"' },
+      ],
+    } }),
+  // Related records for 9-B: three callers from other departments, no feedback of
+  // their own.
+  hdTicket({ id:'HD-2216', ownSet:true, number:'INC0010527', requester:'Hana Okafor', department:'Customer Service', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T09:24:00Z', shortDescription:'Web is super slow today',
+    description:'web is super slow today??',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      now:'2026-08-20T09:30:00Z', matrix:{ impact:'3', urgency:'2' }, link:true, comments:true,
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['fiber', 'circuit', 'cellular', 'nsrtr-backup-5g', 'tracert', 'Network Operations', 'Tier 1', 'P2', 'SLA', 'parent ticket'] },
+    } }),
+  hdTicket({ id:'HD-2217', ownSet:true, number:'INC0010528', requester:'Leah Brooks', department:'Marketing', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T09:26:00Z', shortDescription:'Can\'t upload the campaign video',
+    description:'Can\'t upload the campaign video, it\'s been at 3% for 15 minutes.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      now:'2026-08-20T09:30:00Z', matrix:{ impact:'3', urgency:'2' }, link:true, comments:true,
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['fiber', 'circuit', 'cellular', 'nsrtr-backup-5g', 'tracert', 'Network Operations', 'Tier 1', 'P2', 'SLA', 'parent ticket'] },
+    } }),
+  hdTicket({ id:'HD-2218', ownSet:true, number:'INC0010529', requester:'Amir Patel', department:'Operations', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T09:28:00Z', shortDescription:'Teams keeps freezing',
+    description:'Teams keeps freezing with a supplier.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    console: {
+      now:'2026-08-20T09:30:00Z', matrix:{ impact:'3', urgency:'2' }, link:true, comments:true,
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['fiber', 'circuit', 'cellular', 'nsrtr-backup-5g', 'tracert', 'Network Operations', 'Tier 1', 'P2', 'SLA', 'parent ticket'] },
+    } }),
+  // Ticket 9-C: a new starter's laptop failed to join because it was on guest
+  // Wi-Fi. Read the error, find the DNS server, move to the corporate network and
+  // join it cleanly into the department OU.
+  hdTicket({ id:'HD-2219', ownSet:true, number:'INC0010530', requester:'Rosa Delgado', department:'Marketing', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T09:55:00Z', shortDescription:'The new hire\'s laptop won\'t join',
+    description:'Hi, it\'s Rosa Delgado, Marketing Manager. The new laptop for my new hire, who starts at 11, won\'t \'join\'? Your desktop guy left a note saying it failed, and he\'s out at another site. What does that even mean, and will it be ready??\n\nAttached note: Join failed — \'An Active Directory Domain Controller (AD DC) for the domain "northstar.example" could not be contacted.\' Laptop on Northstar-Guest Wi-Fi. — D. Okoye, Desktop Support',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: new starter laptop NS-LT-0418 failed to join ("AD DC … could not be contacted") per Desktop Support\'s note; it was on Northstar-Guest; new starter at 11:00. Tried: ipconfig /all showed guest Wi-Fi with DNS 10.20.90.1; nslookup northstar.example failed. Forgot Northstar-Guest; wired at the bench: DNS 10.20.0.10, nslookup returned both domain controllers. Joined with the provisioning account per KB-0097 into OU=Marketing,OU=Workstations; restarted; gpupdate /force completed. Result: NS-LT-0418 in the Marketing OU; ready at 10:35 for the 11:00 start.',
+    console: {
+      now:'2026-08-20T10:00:00Z', matrix:{}, classify:{ categories:HD_ITS04_CATEGORIES, cis:['NS-LT-0418', 'Northstar-Guest (Wi-Fi)', 'NS-DC01', 'NS-LT-0417'], preset:{ contactType:'Chat' } },
+      priorityCoach:{ impact:'3', urgency:'1', line:'One person (Impact 3). The new starter begins at 11:00 and needs the laptop, so Urgency 1: P3.' },
+      kb:{ attach:true }, comments:true, resolutionCode:{ required:true },
+      machines:{ 'NS-LT-0418':{ network:{
+        adapters:[
+          { name:'Ethernet', kind:'Ethernet', description:'Intel(R) Ethernet Connection I219-LM', media:'Disconnected', speed:'1 Gbps', mac:'3C-52-82-4B-05-18', ip:{ dhcp:true, address:'', dnsServers:[] }, lease:hdIts04Lease('10.20.10.209') },
+          { name:'Wi-Fi', kind:'Wi-Fi', description:'Intel(R) Wi-Fi 6 AX201 160MHz', media:'Connected', mac:'3C-52-82-4B-05-19', ip:{ dhcp:true, address:'10.20.90.61', mask:'255.255.255.0', gateway:'10.20.90.1', dnsServers:['10.20.90.1'], dhcpServer:'10.20.90.1' },
+            wifi:{ ssid:'Northstar-Guest', protocol:'Wi-Fi 5 (802.11ac)', security:'WPA2-Personal', band:'5 GHz', channel:36, signal:80, linkRate:400, known:[{ ssid:'Northstar-Guest', security:'WPA2-Personal' }] } },
+        ],
+        routes:{ guest:[{ address:'198.51.100.1', ms:6 }], corp:[{ name:'nsfw01', address:'10.20.255.1' }, { name:'nsrtr-fiber', address:'10.20.255.2' }, { address:'203.0.113.1', ms:9 }] },
+        publicDns:{ 'www.example.com':'93.184.215.14' } },
+        domain:{ joined:false }, computer:{ ou:'', trust:'Not joined' } } },
+      actions:[{ id:'bench-cable', text:'Plug the laptop into a wired port at the Service Desk bench', feedback:'The laptop is plugged into the bench port and has taken an address from the company network.', link:{ computer:'NS-LT-0418', adapter:'Ethernet', renew:true } }],
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0097', 'domain', 'domain controller', 'AD DC', 'OU', 'DNS', 'nslookup', 'ipconfig', 'gpupdate', 'Active Directory', 'provisioning account', 'Northstar-Guest', 'NS-LT-0418', 'D. Okoye', 'Desktop Support', 'Tier 2'],
+        needs:[{ label:'Says it was on guest Wi-Fi with guest DNS', pattern:'Northstar-Guest|guest' }, { label:'Names the OU (OU=Marketing,OU=Workstations)', pattern:'OU=Marketing,OU=Workstations' }, { label:'Names KB-0097 or the provisioning account', pattern:'KB-0097|provisioning' }, { label:'Says gpupdate /force completed', pattern:'gpupdate' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Hardware', subcategory:'New device setup', ci:'NS-LT-0418' }, missing:'Set Category Hardware › New device setup and CI NS-LT-0418, the new laptop.' }, { priority:'P3', missing:'Set Impact 3 (one person) and Urgency 1 (a fixed 11:00 start). That makes the ticket P3.' }], good:'One person, a fixed 11:00 start: Impact 3 × Urgency 1, P3.', fix:'Set Category Hardware › New device setup, CI NS-LT-0418, Impact 3 and Urgency 1. One person with a fixed 11:00 start is P3.' },
+        { area:'Investigation', checks:[
+          { typed:'^\\s*ipconfig\\s+/all\\b', computer:'NS-LT-0418', missing:'On NS-LT-0418, type ipconfig /all and read which network and which DNS server the laptop is using.' },
+          { typed:'^\\s*nslookup\\s+northstar\\.example\\b', computer:'NS-LT-0418', missing:'Type nslookup northstar.example and read the answer.' },
+        ], good:'Read the error first, then the DNS server.', fix:'Read the error ("could not be contacted" is almost always DNS), then on NS-LT-0418 type ipconfig /all (Northstar-Guest, 10.20.90.61, DNS 10.20.90.1) and nslookup northstar.example (Non-existent domain).' },
+        { area:'Diagnosis', checks:[{ kb:'KB-0097', missing:'Search the knowledge base for "join" and open KB-0097. Step 1 says what the computer must be on first.' }], good:'Guest Wi-Fi means no company DNS, so no domain controller (not a broken laptop, not the account).', fix:'Open KB-0097. The guest network can\'t find the domain, so no domain controller answers. The laptop and the account are fine.' },
+        { area:'Action', checks:[
+          { action:'wifi-forget', missing:'Settings › Network & internet › Wi-Fi › Manage known networks › Forget Northstar-Guest.' },
+          { action:'cable-connected', missing:'Plug the laptop into a wired port at the Service Desk bench.' },
+          { seen:'ipconfig-all', computer:'NS-LT-0418', after:'cable-connected', missing:'After you plug in, type ipconfig /all again. It should show Ethernet with DNS 10.20.0.10.' },
+          { seen:'nslookup:northstar.example', computer:'NS-LT-0418', after:'cable-connected', missing:'Type nslookup northstar.example again. It should return both domain controllers.' },
+          { action:'domain-join', missing:'Settings › System › About › Domain or workgroup › Change. Choose the domain northstar.example and Use the provisioning account (KB-0097).' },
+          { machine:{ computer:'NS-LT-0418', path:['computer', 'ou'], value:'OU=Marketing,OU=Workstations' }, missing:'Choose the OU OU=Marketing,OU=Workstations: the new starter works in Marketing.' },
+          { actionsAfter:{ after:'domain-join', action:'restart', min:1 }, missing:'Restart the laptop to finish the join.' },
+          { typed:'^\\s*gpupdate\\s+/force\\b', computer:'NS-LT-0418', missing:'After the restart, type gpupdate /force.' },
+          { serverSeen:'ad-computer:NS-LT-0418', missing:'Open Active Directory › Computers, find NS-LT-0418 and press Open on its row. It should be in OU=Marketing,OU=Workstations.' },
+        ], good:'Corporate network, the provisioning account, the department OU, verified in Active Directory.', fix:'Forget Northstar-Guest, plug into a wired port, check ipconfig /all and nslookup northstar.example again, join with the provisioning account into OU=Marketing,OU=Workstations, restart, type gpupdate /force and check Active Directory › Computers. Never type a password. Critical (feedback only): joining into the default Computers container; using your own or the user\'s account.' },
+        { area:'Documentation', checks:[
+          { note:true, missing:'Write a Reported / Tried / Result note.' },
+          { attached:'KB-0097', missing:'Attach KB-0097 to the ticket.' },
+          { comment:true, missing:'Write a comment for Rosa in plain words. Explain "join" without jargon.' },
+          { status:'Resolved', missing:'Resolve the ticket once the laptop is ready.' },
+        ], good:'A manager-friendly reply that explains "join" without jargon.', fix:'Write a Reported / Tried / Result note, attach KB-0097 and resolve the ticket. A comment could say: "Hi Rosa, the laptop is ready for your new starter at 11. \'Joining\' means registering the laptop with Northstar\'s company network, so your new starter can sign in with their work account and get all the usual settings. It had been set up on the guest Wi-Fi, which can\'t reach that system. We connected it to the company network and finished the setup. – Riley"' },
+      ],
+    } }),
+  // Ticket 9-D: a personal phone can't join Northstar-Corp. It has no certificate
+  // and there is no password to give. It uses Northstar-Guest and the work apps.
+  hdTicket({ id:'HD-2220', ownSet:true, number:'INC0010531', requester:'Zoe Lin', department:'Sales', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T10:20:00Z', shortDescription:'phone wont connect',
+    description:'From: zlin@northstar.example\nSubject: phone wont connect\nMy personal iPhone won\'t connect to Northstar-Corp. It keeps asking for a username and some \'certificate\' thing. My old phone was a company one and it just worked. What\'s the password?',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: personal iPhone can\'t join Northstar-Corp (asks for username and certificate); asked for the password. Tried: personal device, not in Intune; Northstar-Corp is certificate-based for company devices only (KB-0093); guided Zoe to Northstar-Guest and to Outlook and Teams with app protection. Result: Zoe confirmed mail and Teams work on her phone.',
+    console: {
+      now:'2026-08-20T10:25:00Z', matrix:{}, classify:{ categories:HD_ITS04_CATEGORIES, cis:['Northstar-Corp (Wi-Fi)', 'Northstar-Guest (Wi-Fi)', 'zlin', 'Outlook'], preset:{ contactType:'Email' } },
+      priorityCoach:{ impact:'3', urgency:'3', line:'One person (Impact 3). Her work email works on her laptop, so the phone is a convenience (Urgency 3): P5.' },
+      kb:{ attach:true }, comments:true, resolutionCode:{ required:true },
+      caller:{ name:'Zoe Lin', questions:[
+        { id:'phone', text:'Is this your own phone or a company phone?', reply:'It\'s my personal iPhone. My old phone was a company one.' },
+        { id:'mail', text:'Please open Outlook on your phone. Is your work mail loading?', reply:'Yes, my mail is loading.', replyBefore:'I don\'t have my work mail on the phone yet.', afterAction:'phone-outlook-added', confirms:true },
+      ] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0093', 'Intune', 'BYOD', 'WPA3-Enterprise', 'WPA2', 'app protection', 'Company Portal', 'MDM', 'SSID', 'Entra', 'zlin', 'Tier 2'],
+        needs:[{ label:'Says it is a personal phone and not in Intune', pattern:'personal|Intune|BYOD' }, { label:'Names KB-0093', pattern:'KB-0093' }, { label:'Says she joined Northstar-Guest', pattern:'Northstar-Guest|guest' }, { label:'Says mail and Teams were confirmed', pattern:'confirmed|mail' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Network', subcategory:'Wireless – mobile', ci:'Northstar-Corp (Wi-Fi)' }, missing:'Set Category Network › Wireless – mobile and CI Northstar-Corp (Wi-Fi).' }, { priority:'P5', missing:'Set Impact 3 (one person) and Urgency 3 (her work email works on her laptop). That makes the ticket P5.' }], good:'One person, a convenience (email works on her laptop): Impact 3 × Urgency 3, P5.', fix:'Set Category Network › Wireless – mobile, CI Northstar-Corp (Wi-Fi), Impact 3 and Urgency 3. One person, a convenience: P5.' },
+        { area:'Investigation', checks:[
+          { chat:['phone'], missing:'Ask Zoe whether this is her own phone or a company phone.' },
+          { serverSeen:'phone:zlin-phone', missing:'Open Zoe\'s phone and read its Wi-Fi networks.' },
+        ], good:'Company phone or personal?', fix:'Ask whether it is her own phone, and open her phone. It is a personal phone, and Intune shows no device for Zoe. Her old phone was a company phone, which got its Wi-Fi certificate from Intune.' },
+        { area:'Diagnosis', checks:[{ kb:'KB-0093', missing:'Search the knowledge base for "personal phone" and open KB-0093.' }], good:'Enterprise Wi-Fi needs a certificate a personal phone doesn\'t have (not a wrong password).', fix:'Open KB-0093. Northstar-Corp checks a certificate, so there is no password, and a personal phone can\'t join it.' },
+        { area:'Action', checks:[
+          { action:'phone-wifi-join', missing:'On Zoe\'s phone, join Northstar-Guest with today\'s passphrase from the reception screen.' },
+          { action:'phone-outlook-added', missing:'On Zoe\'s phone, open Outlook and add her work account.' },
+          { confirmed:'mail', missing:'Ask Zoe to open Outlook and confirm her work mail loads.' },
+        ], good:'Policy followed, a working result checked.', fix:'Join Northstar-Guest with today\'s passphrase from the reception screen, install Outlook and Teams and sign in with the work account, set the work PIN when app protection asks, and check that mail arrives and Teams opens. Critical (feedback only): sharing any network credential, key or certificate; putting a personal phone on Northstar-Corp.' },
+        { area:'Documentation', checks:[
+          { notePattern:'KB-0093', missing:'Name KB-0093 in your note.' },
+          { note:true, missing:'Write a Reported / Tried / Result note.' },
+          { attached:'KB-0093', missing:'Attach KB-0093 to the ticket.' },
+          { comment:true, missing:'Write a comment for Zoe in plain words, with no internal terms.' },
+          { status:'Resolved', missing:'Resolve the ticket once Zoe confirms.' },
+        ], good:'A friendly "no" with what she can do instead.', fix:'Name KB-0093 in a Reported / Tried / Result note, attach it and resolve the ticket. A comment could say: "Hi Zoe, the Northstar-Corp Wi-Fi only works on company-managed phones, which get a security certificate automatically, so there isn\'t a password we can share. Your personal phone uses Northstar-Guest instead (today\'s code is on the reception screen), and Outlook and Teams now have your work email and chat. The work PIN keeps company data separate from your personal things. – Riley"' },
+      ],
+    } }),
+  // Ticket 9-E: a remote worker hasn't connected the VPN. At home the laptop uses
+  // the home router's DNS, which doesn't know company names.
+  hdTicket({ id:'HD-2221', ownSet:true, number:'INC0010532', requester:'Gabriel Moss', department:'Sales', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-20T10:10:00Z', shortDescription:'I can\'t open the Sales drive from home',
+    description:'Hi, it\'s Gabriel in Sales. I\'m working from home today, my first time doing it. Email and websites are fine, but the Sales drive and the intranet won\'t open. It just says it can\'t find them. It all worked yesterday in the office.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: working from home for the first time; email and web fine, Sales share and intranet "can\'t be found"; fine yesterday in the office. Tried: home Wi-Fi with DHCP (192.168.0.34), DNS is the home router; VPN adapter disconnected; nslookup intranet failed via 192.168.0.1. Connected Northstar VPN Client: VPN adapter 10.20.250.37, company DNS; nslookup intranet → 10.20.0.50; files:445 answers. Result: Gabriel opened the Sales share and the intranet; KB-0109 sent.',
+    console: {
+      now:'2026-08-20T10:15:00Z', matrix:{}, classify:{ categories:HD_ITS04_CATEGORIES, cis:['NS-LT-0419', 'Northstar VPN Client', 'vpn.northstar.example', 'gmoss'], preset:{ contactType:'Phone' } },
+      priorityCoach:{ impact:'3', urgency:'2', line:'One person (Impact 3). Email and websites still work, so he can still work (Urgency 2): P4.' },
+      kb:{ attach:true }, comments:true, resolutionCode:{ required:true },
+      machines:{ 'NS-LT-0419':{ network:{
+        adapters:[
+          { name:'Wi-Fi', kind:'Wi-Fi', description:'Intel(R) Wi-Fi 6 AX201 160MHz', media:'Connected', mac:'3C-52-82-4B-06-19', ip:{ dhcp:true, address:'192.168.0.34', mask:'255.255.255.0', gateway:'192.168.0.1', dnsServers:['192.168.0.1'], dhcpServer:'192.168.0.1' },
+            wifi:{ ssid:'HomeNet-5G', protocol:'Wi-Fi 5 (802.11ac)', security:'WPA2-Personal', band:'5 GHz', channel:40, signal:75, linkRate:433, known:[{ ssid:'HomeNet-5G', security:'WPA2-Personal' }] } },
+          { name:'Northstar VPN', kind:'VPN', description:'Northstar VPN Adapter', media:'Disconnected', mac:'00-FF-00-4B-06-19', ip:{ dhcp:true, address:'', dnsServers:[] } },
+        ],
+        routes:{ outside:[{ address:'100.64.0.1', ms:8 }, { address:'198.51.100.5', ms:11 }] },
+        publicDns:{ 'www.example.com':'93.184.215.14' } },
+        vpnClient:{ gateway:'vpn.northstar.example', adapter:'Northstar VPN', address:'10.20.250.37', lastConnected:'Never' } } },
+      caller:{ name:'Gabriel Moss', questions:[
+        { id:'open', text:'Please open the Sales drive and the intranet. Do they open now?', reply:'Yes, both open now.', replyBefore:'It still says it can\'t find them.', afterAction:'vpn-connect', confirms:true },
+      ] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['KB-0109', 'VPN adapter', 'DNS', 'nslookup', 'ipconfig', 'Test-NetConnection', '445', 'port', 'gateway', 'NS-LT-0419', '10.20.250.37', '192.168.0.1', 'Tier 2'],
+        needs:[{ label:'Says he is at home and DNS was the home router', pattern:'home' }, { label:'Says the VPN was not connected', pattern:'VPN' }, { label:'Says the check after connecting (intranet or files)', pattern:'intranet|files|445' }, { label:'Names KB-0109', pattern:'KB-0109' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Network', subcategory:'VPN / remote access', ci:'NS-LT-0419' }, missing:'Set Category Network › VPN / remote access and CI NS-LT-0419, Gabriel\'s laptop.' }, { priority:'P4', missing:'Set Impact 3 (one person) and Urgency 2 (email and web still work). That makes the ticket P4.' }], good:'One person, email and web still work: Impact 3 × Urgency 2, P4.', fix:'Set Category Network › VPN / remote access, CI NS-LT-0419, Impact 3 and Urgency 2. One person with email and web still working is P4.' },
+        { area:'Investigation', checks:[
+          { typed:'^\\s*ipconfig\\s+/all\\b', computer:'NS-LT-0419', missing:'Gabriel reads you his screen and types what you ask. Have him type ipconfig /all and read where he is, which DNS server he is using and whether the VPN adapter is up.' },
+          { typed:'^\\s*nslookup\\s+intranet\\b', computer:'NS-LT-0419', missing:'Have him type nslookup intranet.northstar.example.' },
+          { seen:'vpn-client', computer:'NS-LT-0419', missing:'Open Northstar VPN Client on his laptop and read its status.' },
+        ], good:'Where is he, which DNS server is he using, is the VPN adapter up?', fix:'Ask him to type ipconfig /all (HomeNet-5G, DNS 192.168.0.1, Northstar VPN: Media disconnected) and nslookup intranet.northstar.example (Non-existent domain: his home router doesn\'t know company names), then open Northstar VPN Client (Disconnected, never connected on this laptop).' },
+        { area:'Diagnosis', checks:[{ kb:'KB-0109', missing:'Search the knowledge base for "vpn" and open KB-0109.' }], good:'Off-site without the VPN (not DNS on the company side, not his account).', fix:'Open KB-0109. Company names, file shares and the intranet work only inside Northstar\'s network, so from home the VPN has to be connected first.' },
+        { area:'Action', checks:[
+          { action:'vpn-connect', missing:'Open Northstar VPN Client › Connect, then confirm that Gabriel approved the sign-in on his phone.' },
+          { seen:'ipconfig-all', computer:'NS-LT-0419', after:'vpn-connect', missing:'After it connects, have him type ipconfig /all again. The Northstar VPN adapter should show 10.20.250.37 and DNS 10.20.0.10.' },
+          { seen:'nslookup:intranet.northstar.example', computer:'NS-LT-0419', after:'vpn-connect', missing:'Type nslookup intranet.northstar.example again. It should return 10.20.0.50.' },
+          { seen:'port:files.northstar.example:445', computer:'NS-LT-0419', after:'vpn-connect', missing:'Type Test-NetConnection files.northstar.example -Port 445. It should say True.' },
+          { confirmed:'open', missing:'Ask Gabriel to open the Sales drive and the intranet and confirm they open.' },
+        ], good:'Connected, then proved with nslookup and port 445.', fix:'Connect Northstar VPN Client, then check ipconfig /all, nslookup intranet.northstar.example and Test-NetConnection files.northstar.example -Port 445, and ask Gabriel to open the Sales drive and the intranet. Critical (feedback only): changing his home router or his laptop\'s address settings.' },
+        { area:'Documentation', checks:[
+          { note:true, missing:'Write a Reported / Tried / Result note.' },
+          { attached:'KB-0109', missing:'Attach KB-0109 so Gabriel gets it for next time.' },
+          { comment:true, missing:'Write a comment for Gabriel in plain words, with a short "next time" line.' },
+          { status:'Resolved', missing:'Resolve the ticket once Gabriel confirms.' },
+        ], good:'A short "next time" line.', fix:'Write a Reported / Tried / Result note, attach KB-0109 and resolve the ticket. A comment could say: "Hi Gabriel, you\'re all set. Company drives and the intranet only open inside Northstar\'s network, so from home the laptop needs the Northstar VPN app connected first. We\'ve connected it, and your drive and the intranet are open. I\'ve sent you a short guide for next time: connect the VPN first, then open your files. – Riley"' },
       ],
     } }),
 ];
