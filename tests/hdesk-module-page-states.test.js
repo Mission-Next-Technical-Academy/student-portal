@@ -269,12 +269,13 @@ async function testModuleOneHasNoEvidenceLab() {
 async function testSharedWalkthroughModules() {
   for (let n = 3; n <= 11; n += 1) {
     const key = `its-${String(n).padStart(2, '0')}`;
-    // Modules 2 (its-10), 3 (its-11), 5 (its-03), 6 (its-07), 7 (its-05) and
-    // 8 (its-06) have their own pages now: tests/hdesk-m02-page.test.js,
-    // tests/hdesk-m03-page.test.js, tests/hdesk-m05-page.test.js,
-    // tests/hdesk-m06-page.test.js, tests/hdesk-m07-page.test.js and
-    // tests/hdesk-m08-page.test.js.
-    if (key === 'its-10' || key === 'its-11' || key === 'its-03' || key === 'its-07' || key === 'its-05' || key === 'its-06') continue;
+    // Modules 2 (its-10), 3 (its-11), 5 (its-03), 6 (its-07), 7 (its-05),
+    // 8 (its-06) and 9 (its-04) have their own pages now:
+    // tests/hdesk-m02-page.test.js, tests/hdesk-m03-page.test.js,
+    // tests/hdesk-m05-page.test.js, tests/hdesk-m06-page.test.js,
+    // tests/hdesk-m07-page.test.js, tests/hdesk-m08-page.test.js and
+    // tests/hdesk-m09-page.test.js.
+    if (key === 'its-10' || key === 'its-11' || key === 'its-03' || key === 'its-07' || key === 'its-05' || key === 'its-06' || key === 'its-04') continue;
     // The page anchor follows the module's display number, not its key.
     const rail = `itss-lab-${String(HD.modules[key].number).padStart(2, '0')}`;
     const [lab] = run('LABS').filter((l) => l.module === key).map((l) => l.key);

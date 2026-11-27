@@ -59,6 +59,8 @@
     'lab-its-03-practice-tickets': 'Module 05 · Lab 5.2 · Practice tickets (not graded)',
     'lab-its-03-prove-it': 'Module 05 · Prove It: Independent Ticket',
     'lab-its-04-connectivity': 'Module 09 · Lab 9.1 · Guided Lab: the connectivity checklist',
+    'lab-its-04-practice-tickets': 'Module 09 · Lab 9.2 · Practice tickets (not graded)',
+    'lab-its-04-prove-it': 'Module 09 · Prove It: Independent Ticket',
     'lab-its-05-server-ad': 'Module 07 · Lab 7.1 · Guided Lab: the morning server check',
     'lab-its-05-practice-tickets': 'Module 07 · Lab 7.2 · Practice tickets (not graded)',
     'lab-its-05-prove-it': 'Module 07 · Prove It: Independent Ticket',
@@ -748,8 +750,8 @@
     });
   });
 
-  // Modules 1, 2, 3, 5, 6, 7 and 8's practice tickets: a completion record only.
-  ['lab-its-01-practice-tickets', 'lab-its-10-practice-tickets', 'lab-its-11-practice-tickets', 'lab-its-03-practice-tickets', 'lab-its-07-practice-tickets', 'lab-its-05-practice-tickets', 'lab-its-06-practice-tickets'].forEach((key) => {
+  // Modules 1, 2, 3, 5, 6, 7, 8 and 9's practice tickets: a completion record only.
+  ['lab-its-01-practice-tickets', 'lab-its-10-practice-tickets', 'lab-its-11-practice-tickets', 'lab-its-03-practice-tickets', 'lab-its-07-practice-tickets', 'lab-its-05-practice-tickets', 'lab-its-06-practice-tickets', 'lab-its-04-practice-tickets'].forEach((key) => {
     AdminSubmissionSheet.register(key, {
       title: TITLES[key],
       caseId: (result) => (Array.isArray(result.tickets) ? result.tickets.filter((id) => typeof id === 'string').join(', ') : '') || null,
