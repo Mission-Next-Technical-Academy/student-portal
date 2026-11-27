@@ -405,7 +405,7 @@ function testUnattended() {
   const session = remote(tab, 'HD-9957').sessions[0];
   assert.equal(session.mode, 'unattended');
   assert.equal(session.allowedBy, '');
-  assert.match(tab.view('helpdesk/remote-support'), /data-hd-remote-mode="unattended"[\s\S]*Connected \(unattended\)/);
+  assert.match(tab.view('helpdesk/remote-support'), /data-hd-remote-mode="unattended"[\s\S]*hd-badge warn">Connected \(unattended\)/);
   assert.deepEqual(actions(tab, 'HD-9957'), ['remote-unattended']);
   assert.ok(json(tab, 'hdTicketById("HD-9957").consoleState.critical').length > 0, 'the ticket\'s critical rule fires');
   tab.run('hdRemoteEnd()');
@@ -444,7 +444,7 @@ function testWrongClockAndResync() {
   tab.on('TEST-WS-53');
   assert.equal(tab.ps('w32tm /query /status'), ['Leap Indicator: 3(not synchronized)', 'Stratum: 0 (unspecified)', 'Precision: -23 (119.209ns per tick)', 'Root Delay: 0.0000000s', 'Root Dispersion: 0.0000000s', 'ReferenceId: 0x00000000 (unspecified)', 'Last Successful Sync Time: unspecified', 'Source: Local CMOS Clock', 'Poll Interval: 10 (1024s)'].join('\n'));
   assert.equal(tab.ps('Get-Date'), '\nTuesday, March 5, 2024 7:30:00 AM\n');
-  assert.equal(tab.ps('Test-ComputerSecureChannel'), 'True', 'the trust is not time-sensitive');
+  assert.equal(tab.ps('Test-ComputerSecureChannel'), 'True', 'this test PC\'s secureChannel');
   assert.equal(tab.run('hdRemoteClockCorrect("TEST-WS-53", hdMachine("TEST-WS-53"))'), false);
   tab.run("hdRemoteAsk('try')");
   assert.equal(remote(tab, 'HD-9953').asks[0].answer, 'Same message.');
@@ -478,6 +478,46 @@ function testSayRefusesPassword() {
   assert.equal(tab.run('hdRemoteState(hdTicketById("HD-9951")).say.length'), 0);
   assert.match(tab.toasts[tab.toasts.length - 1], /Stopped: never type a user's password/);
   assert.equal(tab.run('hdTicketById("HD-9951").passwordWritten'), true);
+  // The Find box too.
+  tab.run("hdRemoteSetTool('remote-support')");
+  find(tab, 'password: Winter2026!');
+  assert.equal(tab.run('hdRemoteState(hdTicketById("HD-9951")).find'), '');
+  assert.equal(tab.run('JSON.stringify(hdState)').includes('Winter2026'), false, 'the search is not saved');
+}
+
+// An older ticket in the same shift as a remote one keeps the placeholder.
+function testPlaceholderPerTicket() {
+  const tab = onTicket('HD-9956');
+  assert.equal(tab.run('hdRemoteOn()'), false);
+  assert.equal(tab.view('helpdesk/remote-support'), tab.run('hdRemotePlaceholder()'));
+  tab.open('HD-9951');
+  assert.match(tab.view('helpdesk/remote-support'), /data-hd-remote-tools/);
+}
+
+// The command console runs on the remote PC: no directory tools, no
+// sessions to other computers, and nothing secret saved.
+function testConsoleLimitsAndSecrets() {
+  const tab = onTicket('HD-9952');
+  tab.run("hdRemoteSetTool('remote-support')");
+  tab.run("hdRemoteRequest('TEST-LT-52', false)");
+  assert.match(cmd(tab, 'Get-Help'), /^Command console on TEST-LT-52 \(PowerShell on the remote PC\)\.[\s\S]*Time and trust: w32tm/);
+  assert.doesNotMatch(cmd(tab, 'Get-Help'), /Get-ADUser|Enter-PSSession/);
+  for (const line of ['Get-ADUser mchen -Properties LockedOut', 'Unlock-ADAccount -Identity mchen', 'Enter-PSSession -ComputerName NS-FILE01']) {
+    const word = line.split(' ')[0];
+    assert.equal(cmd(tab, line), `${word} : The term '${word}' is not recognized as the name of a cmdlet, function, script file, or operable program.\nThe command console runs on TEST-LT-52. Directory lookups and sessions to other computers are in the Service Desk PowerShell.`, line);
+  }
+  assert.equal(tab.run('hdState.selectedComputer'), 'TEST-LT-52');
+  // A password given as plain text is masked before the activity line.
+  cmd(tab, "Set-ADAccountPassword mchen -Reset -NewPassword 'Winter2026!'");
+  assert.doesNotMatch(JSON.stringify(history(tab, 'HD-9952')), /Winter2026/);
+  assert.doesNotMatch(JSON.stringify(remote(tab, 'HD-9952')), /Winter2026/);
+  // A one-time password in an answer is never saved (Module 8's rule).
+  tab.run("hdAcctOtp = { value:'10.20.0.10', shown:false, state:hdState }");
+  cmd(tab, 'ping NS-DC01');
+  const last = remote(tab, 'HD-9952').sessions[0].commands.slice(-1)[0].output;
+  assert.doesNotMatch(last, /10\.20\.0\.10/);
+  assert.ok(last.includes(tab.run('HD_OTP_HIDDEN')));
+  tab.run('hdAcctOtp = null');
 }
 
 // A Prove shift: the same flow recorded as Prove events, no opening ticks.
@@ -495,7 +535,8 @@ function testProveShift() {
   assert.match(cmd(tab, 'w32tm /query /status'), /Local CMOS Clock/);
   assert.match(cmd(tab, 'w32tm /resync'), /completed successfully/);
   assert.equal(cmd(tab, 'Test-ComputerSecureChannel'), 'True');
-  assert.equal(cmd(tab, 'Remove-Computer'), "Access is denied. Joining or repairing a computer's domain membership needs a Desktop Support account.");
+  assert.equal(cmd(tab, 'Remove-Computer'), 'Access is denied.', 'a Prove It answers as Windows does');
+  assert.match(tab.view('helpdesk/remote-support'), /hd-badge ok">Connected \(full control\)/);
   tab.run("hdRemoteAsk('try')");
   tab.run('hdRemoteEnd()');
   const events = json(tab, 'hdState.prove.events');
@@ -524,6 +565,8 @@ else {
   testOfflineAndDeny();
   testWrongClockAndResync();
   testSayRefusesPassword();
+  testPlaceholderPerTicket();
+  testConsoleLimitsAndSecrets();
   testProveShift();
   console.log('hdesk-m10-console-a: ok');
 }

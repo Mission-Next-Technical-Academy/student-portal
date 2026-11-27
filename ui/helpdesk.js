@@ -10591,8 +10591,9 @@ VIEWS['helpdesk/knowledge-base'] = () => `${hdPageHeader('Knowledge Base', 'Use 
  *     PC's clock is correct and synced with NS-DC01
  *   secureChannel: true | false   (else the computer's trust: Broken is False)
  *   signInMessage: the sign-in screen's message while nobody is signed in
- * The Remote Support screen shows the two tools only when a PC in the shift
- * has remote:{}; otherwise it is the placeholder, as before.
+ * The Remote Support screen shows the two tools only when the ticket being
+ * worked (the selected one; a Prove shift's ticket) has a PC with remote:{};
+ * otherwise it is the placeholder, as before.
  *
  * Quick Assist: Help someone makes a 6-character code (valid 10 minutes);
  * the user types it when the code is read out in Say to the user (Code sent
@@ -10641,10 +10642,9 @@ function hdRemoteTicketPcs(ticket) {
   const names = HD_PROVE ? Object.keys(HD_PROVE.shift.machines || {}) : Object.keys(hdTicketMachineSpecs(ticket) || {});
   return names.filter(name => hdRemoteSpec(hdFeatureMachine(name)) && (HD_PROVE || hdMachineTicket(name) === ticket));
 }
-function hdRemoteOn() {
-  if (HD_PROVE) return Object.keys(HD_PROVE.shift.machines || {}).some(name => hdRemoteSpec(hdFeatureMachine(name)));
-  return hdState.tickets.some(ticket => hdRemoteTicketPcs(ticket).length > 0);
-}
+// On for the ticket being worked, so an older ticket in the same shift keeps
+// the placeholder.
+function hdRemoteOn() { return hdRemoteTicketPcs(hdRemoteWorkTicket()).length > 0; }
 function hdRemoteState(ticket) {
   const consoleState = hdConsoleState(ticket);
   const state = consoleState.remote = consoleState.remote && typeof consoleState.remote === 'object' ? consoleState.remote : {};
@@ -10728,7 +10728,8 @@ function hdRemoteCommand(command, normalized, computer) {
     hdLastCommandResult = `refused: ${head}`;
     hdMachineAction(name, 'domain-membership-refused', `${command.trim().split(/\s+/)[0]} was refused: it needs a Desktop Support account`, { command:head });
     hdSave();
-    return HD_REMOTE_DENIED;
+    // A Prove It answers as Windows does, without saying who owns the repair.
+    return HD_PROVE ? 'Access is denied.' : HD_REMOTE_DENIED;
   };
   if (head === 'w32tm') {
     if (hdProveLocked()) return '';
@@ -10808,7 +10809,9 @@ function hdRemoteFind(event) {
   if (event && event.preventDefault) event.preventDefault();
   const ticket = hdRemoteWorkTicket(); if (!hdRemoteGuard(ticket)) return;
   const input = document.getElementById('hd-remote-find');
-  const state = hdRemoteState(ticket); state.find = String(input ? input.value : '').trim().slice(0, 40);
+  const typed = String(input ? input.value : '').trim().slice(0, 40);
+  if (hdPasswordInText(typed)) { toast(hdRefusePasswordText(ticket, 'search')); render(); return; }
+  const state = hdRemoteState(ticket); state.find = typed;
   state.pending = null;
   hdSave(); render();
 }
@@ -10915,6 +10918,22 @@ function hdRemoteEventLog() {
   hdWinLogOpened(session.computer, machine, 'system');
   hdSave(); navigate('#/helpdesk/event-viewer');
 }
+// The command console is PowerShell on the remote PC: no directory tools and
+// no sessions to another computer (those are the Service Desk PowerShell's).
+function hdRemoteConsoleOutput(command, name) {
+  const normalized = command.trim().toLowerCase().replace(/\s+/g, ' ');
+  const head = normalized.split(' ')[0];
+  if (head === 'get-help') {
+    const computer = hdComputerByName(name);
+    return `Command console on ${name} (PowerShell on the remote PC).\nSupported: Get-ComputerInfo, Get-Service, Get-Process, Get-WinEvent, Get-Date, ping <name>, nslookup <name>, Test-NetConnection <name> -Port <port>, w32tm /query /status, w32tm /resync, Test-ComputerSecureChannel${hdFeatureHelp(computer)}`;
+  }
+  if (/^(get|set|new|remove|unlock|search|enable|disable)-ad[a-z]/.test(head) || ['enter-pssession', 'exit-pssession'].includes(head)) {
+    hdLastCommandResult = `not on ${name}: ${head}`;
+    const word = command.trim().split(/\s+/)[0];
+    return `${word} : The term '${word}' is not recognized as the name of a cmdlet, function, script file, or operable program.${HD_PROVE ? '' : `\nThe command console runs on ${name}. Directory lookups and sessions to other computers are in the Service Desk PowerShell.`}`;
+  }
+  return hdPowerShellOutput(command, name);
+}
 function hdRemoteRun(event) {
   if (event && event.preventDefault) event.preventDefault();
   const ticket = hdRemoteWorkTicket(); if (!hdRemoteGuard(ticket)) return;
@@ -10925,12 +10944,18 @@ function hdRemoteRun(event) {
   const name = session.computer;
   // The PowerShell screen's rules: a typed password never runs or shows.
   const passwordTyped = hdHasPasswordArg(command);
-  const shown = hdRedactCommand(command);
+  // Also masks a password given as plain text (-NewPassword '...'), since
+  // this line goes on the ticket's activity too.
+  const shown = hdMaskPasswordText(hdRedactCommand(command))
+    .replace(/(^|\s)(-newpassword)(\s*:\s*|\s+)[\s\S]*$/i, '$1$2 ********')
+    .replace(/(convertto-securestring\s+)("[^"]*"|'[^']*'|\S+)/ig, '$1********');
   hdProveEvent('command_run', { command:shown.slice(0, 200), computer:name, via:'remote-console' });
   hdLastCommandResult = '';
-  const output = passwordTyped ? (HD_PROVE ? hdProveRefusePassword() : hdRefusePassword()) : hdPowerShellOutput(command, name);
+  const output = passwordTyped ? (HD_PROVE ? hdProveRefusePassword() : hdRefusePassword()) : hdRemoteConsoleOutput(command, name);
+  // Module 8's one-time password is never saved (the PowerShell screen's rule).
+  const saved = hdAcctOtp && hdAcctOtp.value && String(output).includes(hdAcctOtp.value) ? String(output).split(hdAcctOtp.value).join(HD_OTP_HIDDEN) : String(output);
   const time = hdRemoteTick(ticket);
-  session.commands.push({ time, computer:name, command:shown.slice(0, 200), output:String(output).slice(0, 4000) });
+  session.commands.push({ time, computer:name, command:shown.slice(0, 200), output:saved.slice(0, 4000) });
   if (session.commands.length > 100) session.commands.splice(0, session.commands.length - 100);
   hdHistory(ticket, `Remote Support command console on ${name}: ${shown.slice(0, 200)}`);
   hdPracticeEvent('command_run', { command:shown.slice(0, 200), computer:name, via:'remote-console', result:(hdLastCommandResult || hdFirstLine(output)).slice(0, 200) });
@@ -10985,7 +11010,7 @@ function hdRemoteSessionCard(ticket, state, session) {
   if (state.tab === 'sysinfo') body = hdRemoteSysInfo(name, machine);
   if (state.tab === 'console') body = `<div class="hd-terminal" data-hd-remote-console><div class="hd-terminal-title">Remote Support command console · ${hdEsc(name)} · runs as SYSTEM</div><div class="hd-terminal-output">${session.commands.map(row => `<pre class="command">${hdEsc(`PS C:\\Windows\\system32> ${row.command}`)}</pre><pre class="output">${hdEsc(row.output)}</pre>`).join('')}</div><form onsubmit="hdRemoteRun(event)" class="hd-terminal-input"><span>PS C:\\Windows\\system32&gt;</span><input id="hd-remote-cmd" autocomplete="off" spellcheck="false" placeholder="Get-Help"${locked}><button${locked}>Run</button></form></div>`;
   const status = session.mode === 'unattended' ? 'Connected (unattended)' : `Connected (${session.control === 'view' ? 'view only' : 'full control'})`;
-  return `<div class="card" data-hd-remote-session="${hdEsc(name)}" data-hd-remote-mode="${hdEsc(session.mode)}"><div class="card-header"><strong>${hdEsc(hdRemoteToolLabel(session))} · ${hdEsc(name)}</strong><span>${hdBadge(status, session.mode === 'unattended' ? 'warn' : 'ok')} <span data-hd-remote-timer>Session time ${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}</span></span></div><div class="card-body"><p class="muted">Connected ${hdEsc(session.start)}${session.allowedBy ? ` · allowed by ${hdEsc(session.allowedBy)} ${hdEsc(session.allowedAt)}` : ''}${session.screen === 'sign-in' ? ' · at the sign-in screen' : ''}</p><div style="display:flex;flex-wrap:wrap;gap:6px" role="tablist">${buttons}</div>${body}<button type="button" class="btn btn-primary" data-hd-remote-end onclick="hdRemoteEnd()"${locked}>End session</button></div></div>`;
+  return `<div class="card" data-hd-remote-session="${hdEsc(name)}" data-hd-remote-mode="${hdEsc(session.mode)}"><div class="card-header"><strong>${hdEsc(hdRemoteToolLabel(session))} · ${hdEsc(name)}</strong><span>${hdBadge(status, session.mode === 'unattended' && !HD_PROVE ? 'warn' : 'ok')} <span data-hd-remote-timer>Session time ${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}</span></span></div><div class="card-body"><p class="muted">Connected ${hdEsc(session.start)}${session.allowedBy ? ` · allowed by ${hdEsc(session.allowedBy)} ${hdEsc(session.allowedAt)}` : ''}${session.screen === 'sign-in' ? ' · at the sign-in screen' : ''}</p><div style="display:flex;flex-wrap:wrap;gap:6px" role="tablist">${buttons}</div>${body}<button type="button" class="btn btn-primary" data-hd-remote-end onclick="hdRemoteEnd()"${locked}>End session</button></div></div>`;
 }
 function hdRemoteQuickAssistBody(ticket, state, name) {
   const pending = state.pending && state.pending.tool === 'quick-assist' ? state.pending : null;
@@ -11014,7 +11039,7 @@ function hdRemoteSupportBody(ticket, state) {
 function hdRemoteView() {
   const header = hdPageHeader('Remote Support', 'Quick Assist for a user who is signed in; Remote Support for any company PC whose agent is online.');
   const ticket = hdRemoteWorkTicket(); const pcs = hdRemoteTicketPcs(ticket);
-  if (!ticket || !pcs.length) return `${header}<div class="callout info" data-hd-remote-pick>Open the ticket of the person you're helping, then come back here to start a session.</div>`;
+  if (!ticket || !pcs.length) return hdRemotePlaceholder();
   const state = hdRemoteState(ticket); const session = hdRemoteActive(state);
   const name = session ? session.computer : pcs[0];
   if (session) return `${header}<div class="two-col">${hdRemoteSessionCard(ticket, state, session)}${hdRemoteSayCard(ticket, state, name)}</div>`;
