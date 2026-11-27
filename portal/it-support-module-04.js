@@ -206,7 +206,7 @@ const ITS04_LESSONS = [
           } },
           { note: {
             title: 'Why calls break up but email works',
-            text: 'A Teams call sends audio in a steady stream of small packets and can\'t wait for late ones. If packets arrive at uneven times (jitter) or never arrive (packet loss), the voice stutters, freezes or cuts out. Email and web pages just retry, so the user notices nothing there. That\'s why "my calls break up, everything else is fine" points you to the Wi-Fi link: run `ping` to the gateway with `-n 20` and look at how the times change and whether any replies are lost, not just whether it replies.',
+            text: 'A Teams call sends audio in a steady stream of small packets and can\'t wait for late ones. If packets arrive at uneven times (jitter) or never arrive (packet loss), the voice stutters, freezes or cuts out. Email and web pages just retry, so the user notices nothing there. That\'s why "my calls break up, everything else is fine" points you first to the Wi-Fi link: run `ping` to the gateway with `-n 20` and look at how the times change and whether any replies are lost, not just whether it replies.',
           } },
           { table: {
             caption: 'Table 8 · Ports you’ll meet (TCP unless marked)',
