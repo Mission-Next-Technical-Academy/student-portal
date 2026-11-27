@@ -627,6 +627,13 @@ function testJoinAndVpnEdges() {
   assert.match(vpn.ps('Test-NetConnection files.northstar.example -Port 445'), /TcpTestSucceeded : True/);
   vpn.run("hdNetForget('TEST-LT-12','Wi-Fi','TEST-Home')");
   assert.doesNotMatch(vpn.ps('Test-NetConnection files.northstar.example -Port 445'), /TcpTestSucceeded : True/);
+  // A VPN client on a machine with no network state never connects.
+  const bare = onPc('HD-9914', 'TEST-LT-16');
+  bare.run("hdMachine('TEST-LT-16').vpnClient = { approval: false }");
+  bare.run("hdVpnConnect('TEST-LT-16')");
+  bare.run("hdOpenMachineScreen('TEST-LT-16','vpn-client')");
+  assert.match(bare.view('helpdesk/vpn-client'), /data-hd-vpn="Disconnected"[\s\S]*data-hd-vpn-error/);
+  assert.ok(!ids(bare, 'HD-9914').includes('vpn-connect'));
   // The ordinary Restart (a machine with the restart feature) finishes a join.
   const restart = onPc('HD-9914', 'TEST-LT-14');
   restart.run("hdMachine('TEST-LT-14').uptimeDays = 3");

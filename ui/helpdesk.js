@@ -7929,7 +7929,7 @@ function hdVpnConnect(computerName) {
     const client = hdVpnClient(machine); if (!client || hdVpnStatus(client) !== 'Disconnected') return false;
     const net = hdNetState(machine);
     client.error = '';
-    if (net && !hdNetActive(net)) {
+    if (!net || !hdNetActive(net)) {
       client.error = `Can't reach ${client.gateway || 'vpn.northstar.example'}.${HD_PROVE ? '' : ' Check the internet connection, then try again.'}`;
       hdMachineAction(computerName, 'vpn-connect-failed', 'tried to connect Northstar VPN Client with no internet connection', { reason:'no-internet' });
       return undefined;
