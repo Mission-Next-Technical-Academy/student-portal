@@ -3909,7 +3909,9 @@ const HD_MACHINE_SCREENS = ['print-queue', 'printer-properties', 'device-manager
   // Saved credentials (Module 8, key its-06, console A).
   'credential-manager',
   // Domain join and the VPN client (Module 09, key its-04, console B).
-  'settings-about', 'vpn-client'];
+  'settings-about', 'vpn-client',
+  // Sound, Services, search status and Outlook on the web (Module 10, key its-08, console B).
+  'settings-sound', 'pc-services', 'outlook-search', 'settings-search', 'outlook-web'];
 function hdOwn(object, key) { return !!object && typeof object === 'object' && Object.prototype.hasOwnProperty.call(object, key); }
 function hdTicketMachineSpecs(ticket) {
   if (HD_PROVE || !ticket) return null;
@@ -4085,6 +4087,9 @@ function hdFeatureCommand(command, normalized, computer) {
   const machine = hdFeatureMachine(computer.name); if (!machine) return null;
   const windows = hdWinCommand(command, normalized, machine, computer.name);
   if (windows !== null) return windows;
+  // Module 10 (console B): a workstation's own services list.
+  const services = hdPcServiceCommand(command, normalized, machine, computer.name);
+  if (services !== null) return services;
   const queues = hdPrintQueues(machine);
   const trimmed = command.trim();
   if (queues && /^get-service (-name )?["']?spooler["']?$/.test(normalized)) {
@@ -4156,6 +4161,7 @@ function hdFeatureHelp(computer) {
   hdWinTypedHelp(machine).forEach(line => lines.push(line));
   hdNetHelp(machine).forEach(line => lines.push(line));
   if (hdJoinState(machine)) lines.push(`Domain: Add-Computer -DomainName ${HD_ORG.domain} -OUPath "<OU>" [-Restart] (signs in with the provisioning account, KB-0097)`);
+  if (hdPcServices(machine).length) lines.push('Services: Get-Service [-Name <name>], Start-Service -Name <name>');
   if (hdRemoteHasState(machine)) lines.push('Time and trust: w32tm /query /status, w32tm /resync, Test-ComputerSecureChannel, Get-Date, Get-WinEvent -LogName System -MaxEvents 20');
   return lines.length ? `\n${lines.join('\n')}` : '';
 }
@@ -4171,6 +4177,8 @@ function hdOpenMachineScreen(computerName, screen, extra) {
   const item = extra && (extra.printer || extra.device) ? `:${extra.printer || extra.device}` : '';
   if (hdOwn(HD_WIN_SCREENS, screen)) hdWinOpened(computerName, screen, hdState.machineView.tab);
   else hdProveOpened(`${screen}:${computerName}${item}`, `${({ 'print-queue':'Print queue', 'printer-properties':'Printer properties', 'device-manager':'Device Manager', camera:'Camera', dock:'Dock and displays', 'settings-network':'Settings › Network & internet', 'settings-about':'Settings › System › About', 'vpn-client':'Northstar VPN Client' })[screen]} · ${computerName}${item ? ` · ${item.slice(1)}` : ''}`);
+  // Module 10 (console B): each look at the indexer while it runs moves its count.
+  if (screen === 'outlook-search' || screen === 'settings-search') hdSearchLook(hdFeatureMachine(computerName));
   if (screen === 'camera') {
     const machine = hdFeatureMachine(computerName);
     const camera = (machine.devices || []).find(device => device && device.camera);
@@ -4481,6 +4489,60 @@ function hdDockDo(computerName, what, value, extra) {
     } else return false;
   });
 }
+/* Module 10 (console B): a display's resolution and a room projector.
+ * Off unless a monitor in machine.dock.monitors carries one of these keys;
+ * a monitor without them (Module 4's) looks and works exactly as before:
+ *   resolution: { native:'1920 × 1080', current?, choices:['…'] }   the
+ *     choices, the native one marked "(Recommended)"; a pick shows at once
+ *     and waits for Keep changes or Revert (Windows' "Keep these display
+ *     settings?"); Keep changes records display-resolution { from, to }
+ *   projector: { lampHours?, filter? }   a room projector: its native
+ *     resolution, input, lamp hours and filter; its picture is Sharp at its
+ *     native resolution, Fuzzy and cut off at any other, No signal without
+ *     a picture
+ * machine.dock.cable: true   a cable, not a dock (a room's table HDMI): the
+ *   dock's power and connect buttons are not shown. */
+function hdDisplayRes(monitor) {
+  const res = monitor && monitor.resolution;
+  return res && typeof res === 'object' && !Array.isArray(res) && Array.isArray(res.choices) && res.choices.length ? res : null;
+}
+function hdDisplayCurrent(res) { return String(res.current || res.native || res.choices[0]); }
+function hdDisplayProjector(monitor) { return monitor && monitor.projector && typeof monitor.projector === 'object' && !Array.isArray(monitor.projector) ? monitor.projector : null; }
+function hdDisplayPicture(machine, monitor) {
+  if (!hdMonitorShows(machine, monitor)) return 'No signal';
+  const res = hdDisplayRes(monitor);
+  return !res || !res.native || hdDisplayCurrent(res) === String(res.native) ? 'Sharp' : 'Fuzzy and cut off';
+}
+function hdDisplayResolution(computerName, monitorId, value) {
+  hdMachineChange(computerName, machine => {
+    const monitor = hdDockMonitors(machine).find(item => item && item.id === monitorId); const res = hdDisplayRes(monitor);
+    if (!res || res.pending || !res.choices.map(String).includes(String(value)) || hdDisplayCurrent(res) === String(value)) return false;
+    res.pending = { from:hdDisplayCurrent(res), to:String(value) };
+    res.current = String(value);
+    return false;
+  });
+}
+function hdDisplayKeep(computerName, monitorId, keep) {
+  hdMachineChange(computerName, machine => {
+    const monitor = hdDockMonitors(machine).find(item => item && item.id === monitorId); const res = hdDisplayRes(monitor);
+    if (!res || !res.pending) return false;
+    const { from, to } = res.pending; delete res.pending;
+    if (!keep) { res.current = from; return false; }
+    hdMachineAction(computerName, 'display-resolution', `changed ${monitor.name || monitor.id}'s resolution from ${from} to ${to}`, { monitor:monitor.id, from, to, picture:hdDisplayPicture(machine, monitor) });
+    return undefined;
+  });
+}
+function hdDisplayExtra(machine, monitor, name, locked) {
+  const res = hdDisplayRes(monitor); const projector = hdDisplayProjector(monitor);
+  if (!res && !projector) return '';
+  const id = `'${hdJsArg(monitor.id)}'`;
+  const info = projector ? `<dl class="hd-dl" data-hd-projector="${hdEsc(monitor.id)}"><dt>Native resolution</dt><dd>${hdEsc((res && res.native) || '')}</dd><dt>Input</dt><dd>${hdEsc(monitor.input || '')}</dd><dt>Lamp hours</dt><dd>${hdEsc(projector.lampHours == null ? '' : projector.lampHours)}</dd><dt>Filter</dt><dd>${hdEsc(projector.filter || 'Clean')}</dd><dt>Picture</dt><dd data-hd-picture>${hdEsc(hdDisplayPicture(machine, monitor))}</dd></dl>` : '';
+  if (!res) return info;
+  const current = hdDisplayCurrent(res);
+  const options = res.choices.map(choice => `<option value="${hdEsc(choice)}" ${String(choice) === current ? 'selected' : ''}>${hdEsc(choice)}${String(choice) === String(res.native) ? ' (Recommended)' : ''}</option>`).join('');
+  const keep = res.pending ? `<div class="callout info" role="alertdialog" data-hd-resolution-keep><p><strong>Keep these display settings?</strong></p><div style="display:flex;gap:6px"><button type="button" class="btn btn-primary btn-sm" ${locked} onclick="hdDisplayKeep(${name},${id},true)">Keep changes</button><button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdDisplayKeep(${name},${id},false)">Revert</button></div></div>` : '';
+  return `${info}<label data-hd-resolution="${hdEsc(monitor.id)}">Display resolution <select class="select" ${locked || (res.pending ? 'disabled' : '')} onchange="hdDisplayResolution(${name},${id},this.value)">${options}</select></label>${keep}`;
+}
 VIEWS['helpdesk/dock'] = () => {
   const found = hdViewMachine(); if (!found || !found.machine.dock) return hdMachineMissing('Dock and displays');
   const { computer, machine } = found; const dock = machine.dock;
@@ -4489,7 +4551,10 @@ VIEWS['helpdesk/dock'] = () => {
   const live = hdDockLive(machine);
   const monitors = hdDockMonitors(machine).map(monitor => {
     const shows = hdMonitorShows(machine, monitor);
-    return `<div class="card" data-hd-monitor="${hdEsc(monitor.id)}" data-hd-monitor-state="${shows ? 'picture' : 'no-signal'}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(monitor.name || monitor.id)}</strong><span class="muted">${shows ? 'Showing the desktop' : live ? 'No signal' : 'Dark'}</span></div><div class="card-body"><p class="muted" style="margin-top:0">Input/Source: ${hdEsc(monitor.input || '')}</p><div style="display:flex;flex-wrap:wrap;gap:6px">${(monitor.inputs || []).map(input => `<button type="button" class="btn ${input === monitor.input ? 'btn-primary' : 'btn-secondary'} btn-sm" aria-pressed="${input === monitor.input}" ${locked} onclick="hdDockDo(${name},'input','${hdJsArg(monitor.id)}','${hdJsArg(input)}')">${hdEsc(input)}</button>`).join('')}</div></div></div>`;
+    // Module 10 (console B): a projector says what its picture looks like.
+    const projector = hdDisplayProjector(monitor);
+    const status = projector ? hdDisplayPicture(machine, monitor) : shows ? 'Showing the desktop' : live ? 'No signal' : 'Dark';
+    return `<div class="card" data-hd-monitor="${hdEsc(monitor.id)}" data-hd-monitor-state="${shows ? 'picture' : 'no-signal'}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(monitor.name || monitor.id)}</strong><span class="muted">${hdEsc(status)}</span></div><div class="card-body"><p class="muted" style="margin-top:0">Input/Source: ${hdEsc(monitor.input || '')}</p><div style="display:flex;flex-wrap:wrap;gap:6px">${(monitor.inputs || []).map(input => `<button type="button" class="btn ${input === monitor.input ? 'btn-primary' : 'btn-secondary'} btn-sm" aria-pressed="${input === monitor.input}" ${locked} onclick="hdDockDo(${name},'input','${hdJsArg(monitor.id)}','${hdJsArg(input)}')">${hdEsc(input)}</button>`).join('')}</div>${hdDisplayExtra(machine, monitor, name, locked)}</div></div>`;
   }).join('');
   const modes = ['PC screen only', 'Duplicate', 'Extend', 'Second screen only'].map(mode => `<button type="button" class="btn ${machine.projection === mode ? 'btn-primary' : 'btn-secondary'} btn-sm" aria-pressed="${machine.projection === mode}" ${locked} onclick="hdDockDo(${name},'project','${mode}')">${mode}</button>`).join('');
   const active = hdActiveMonitors(machine);
@@ -4497,11 +4562,216 @@ VIEWS['helpdesk/dock'] = () => {
   const peripherals = (Array.isArray(dock.peripherals) ? dock.peripherals : []).map(item => `<li>${hdEsc(item)}: ${live ? 'working' : 'not responding'}</li>`).join('');
   return `${hdPageHeader('Dock and displays', `${computer.name} · ${dock.name || 'Dock'}`, hdMachineBack(computer))}
     <div data-hd-dock="${live ? 'live' : 'dark'}" class="hd-settings-view">${hdWinBlueScreenLine(machine)}
-    <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(dock.name || 'Dock')}</strong><span class="muted">Dock light: ${dock.power ? 'on' : 'off'} · ${dock.docked ? 'laptop connected' : 'laptop not connected'}</span></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="btn btn-secondary btn-sm" ${locked || (dock.power ? 'disabled' : '')} onclick="hdDockDo(${name},'power')">${dock.power ? 'Dock power connected' : "Plug in the dock's power"}</button><button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdDockDo(${name},'dock')">${dock.docked ? 'Disconnect the laptop' : 'Connect the laptop to the dock'}</button></div>${peripherals ? `<ul class="hd-list">${peripherals}</ul>` : ''}</div></div>
+    ${dock.cable === true ? `<div class="card" data-hd-dock-cable><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(dock.name || 'Cable')}</strong><span class="muted">${dock.docked ? 'Cable connected' : 'Cable not connected'}</span></div></div>` : `<div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(dock.name || 'Dock')}</strong><span class="muted">Dock light: ${dock.power ? 'on' : 'off'} · ${dock.docked ? 'laptop connected' : 'laptop not connected'}</span></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="btn btn-secondary btn-sm" ${locked || (dock.power ? 'disabled' : '')} onclick="hdDockDo(${name},'power')">${dock.power ? 'Dock power connected' : "Plug in the dock's power"}</button><button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdDockDo(${name},'dock')">${dock.docked ? 'Disconnect the laptop' : 'Connect the laptop to the dock'}</button></div>${peripherals ? `<ul class="hd-list">${peripherals}</ul>` : ''}</div></div>`}
     ${monitors}
     <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Win + P</strong><span class="muted">Project</span></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:6px" data-hd-projection="${hdEsc(machine.projection || '')}">${modes}</div></div></div>
     <div class="card"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Settings › System › Display</strong><span class="muted">Multiple displays · Detect other display</span><button type="button" class="btn btn-secondary btn-sm" ${locked} onclick="hdDockDo(${name},'detect')">Detect</button></div><div class="card-body"><ul class="hd-list" data-hd-displays>${displays}</ul></div></div>
     </div>`;
+};
+
+/* Module 10 (console B): sound, a workstation's services, Windows Search's
+ * indexer and Outlook on the web. Each is off unless the computer's machine
+ * fixture (a ticket's console.machines, or a Prove shift's machines) has its
+ * key; no older machine has any of them, so every older screen, button and
+ * typed answer stays as before:
+ *   sound: { outputs:[{ id, name }], output:'<id>', inputs?:[{ id, name }],
+ *     input?:'<id>', hears:['<output id>'] (where the user hears the test
+ *     tone), heard?, notHeard? (the user's words) }   Settings › System ›
+ *     Sound. Choosing an output records sound-output { from, to }; Test
+ *     records sound-test { output, heard }; an input, sound-input
+ *   services: [{ name, displayName, status:'Running' | 'Stopped', startup }]
+ *     Services on the workstation: Start a stopped service that isn't
+ *     Disabled (service-start { service, via }). Typed Get-Service [-Name]
+ *     <name> and Start-Service [-Name] <name> answer from the same list and
+ *     earn the same seen keys and action
+ *   search: { service?:'WSearch', remaining, indexed?, step? }   Windows
+ *     Search's indexer, running while that service is Running (or
+ *     search.running without a services list). Outlook › Search › Search
+ *     Tools › Indexing Status and Settings › Privacy & security › Searching
+ *     Windows read it; each look while it runs takes step (default 1,200)
+ *     items off the count; while it is stopped the count stays
+ *   outlookWeb: { messages:[{ from, subject, received, keywords? }] }
+ *     Outlook on the web, signed in as the computer's user: a search lists
+ *     the matching messages (sender, subject, date; never a message body)
+ *     and records owa-search { query, found }
+ * Seen keys (machine.seen; Prove sources with the computer): sound,
+ * pc-services, service:<name>, outlook-indexing, searching-windows,
+ * outlook-web, owa-search. */
+function hdSoundState(machine) { const sound = machine && machine.sound; return sound && typeof sound === 'object' && !Array.isArray(sound) && Array.isArray(sound.outputs) ? sound : null; }
+function hdSoundName(list, id) { const item = (Array.isArray(list) ? list : []).find(entry => entry && entry.id === id); return item ? String(item.name || item.id) : String(id || 'None'); }
+function hdUserFirstName(computerName) { return String((hdComputerByName(computerName) || {}).user || 'The user').split(' ')[0]; }
+function hdSoundSet(computerName, kind, id) {
+  hdMachineChange(computerName, machine => {
+    const sound = hdSoundState(machine); if (!sound) return false;
+    const list = kind === 'input' ? sound.inputs : sound.outputs;
+    if (!(Array.isArray(list) ? list : []).some(item => item && item.id === id) || sound[kind] === id) return false;
+    const from = hdSoundName(list, sound[kind]); const to = hdSoundName(list, id);
+    sound[kind] = id; sound.test = null;
+    hdMachineAction(computerName, `sound-${kind}`, `changed the sound ${kind} from ${from} to ${to}`, { from, to });
+    return undefined;
+  });
+}
+function hdSoundTest(computerName) {
+  hdMachineChange(computerName, machine => {
+    const sound = hdSoundState(machine); if (!sound) return false;
+    const heard = Array.isArray(sound.hears) && sound.hears.includes(sound.output);
+    const output = hdSoundName(sound.outputs, sound.output);
+    sound.test = { output, heard };
+    hdMachineAction(computerName, 'sound-test', `played the test tone on ${output} (${hdUserFirstName(computerName)} ${heard ? 'heard it' : "didn't hear it"})`, { output, heard });
+    return undefined;
+  });
+}
+VIEWS['helpdesk/settings-sound'] = () => {
+  const found = hdWinScreen('settings-sound'); const sound = found && hdSoundState(found.machine);
+  if (!sound) return hdMachineMissing('Settings › System › Sound');
+  const { computer } = found; const n = `'${hdJsArg(computer.name)}'`;
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const choose = (kind, list, current) => (Array.isArray(list) ? list : []).filter(item => item && item.id).map(item => `<button type="button" class="btn ${item.id === current ? 'btn-primary' : 'btn-secondary'} btn-sm" aria-pressed="${item.id === current}" data-hd-sound-${kind}="${hdEsc(item.id)}" ${locked} onclick="hdSoundSet(${n},'${kind}','${hdJsArg(item.id)}')">${hdEsc(item.name || item.id)}</button>`).join('');
+  const test = sound.test && typeof sound.test === 'object' ? sound.test : null;
+  const said = test ? `<div class="callout ${test.heard ? 'ok' : 'warn'}" role="status" data-hd-sound-heard="${test.heard}"><strong>${hdEsc(hdUserFirstName(computer.name))}:</strong> “${hdEsc(test.heard ? sound.heard || 'I can hear the beep.' : sound.notHeard || "I can't hear anything.")}”</div>` : '';
+  const inputs = Array.isArray(sound.inputs) && sound.inputs.length ? `<div class="card" data-hd-sound-inputs><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Input</strong><span class="muted">Choose a device for speaking or recording · ${hdEsc(hdSoundName(sound.inputs, sound.input))}</span></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:6px">${choose('input', sound.inputs, sound.input)}</div></div></div>` : '';
+  return `${hdPageHeader('Settings › System › Sound', computer.name, hdMachineBack(computer))}<div class="hd-settings-view" data-hd-sound="${hdEsc(computer.name)}"><div class="card" data-hd-sound-outputs><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Output</strong><span class="muted">Choose where to play sound · ${hdEsc(hdSoundName(sound.outputs, sound.output))}</span><button type="button" class="btn btn-secondary btn-sm" data-hd-sound-test ${locked} onclick="hdSoundTest(${n})">Test</button></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:6px">${choose('output', sound.outputs, sound.output)}</div>${said}</div></div>${inputs}</div>`;
+};
+
+// Services on a workstation (Module 07's server Services, on a PC).
+function hdPcServices(machine) { return hdWinList(machine, 'services').filter(service => service.name); }
+function hdPcService(machine, typed) {
+  const wanted = String(typed || '').replace(/^["']|["']$/g, '').toLowerCase();
+  return wanted ? hdPcServices(machine).find(service => [service.name, service.displayName].some(item => String(item || '').toLowerCase() === wanted)) || null : null;
+}
+function hdPcServicesSeen(computerName, machine, rows, all) {
+  const keys = [...(all ? ['pc-services'] : []), ...rows.map(service => `service:${service.name}`)];
+  hdWinSeenSave(machine, keys);
+  keys.forEach(key => hdProveOpened(`${key}:${computerName}`, `Services${key === 'pc-services' ? '' : ` › ${key.slice(8)}`} · ${computerName}`));
+}
+// Starts a service; '' or an error line, as Start-Service prints.
+function hdPcServiceStartNow(computerName, machine, service, via) {
+  if (service.status === 'Running') return '';
+  if (/disabled/i.test(String(service.startup || ''))) return `Start-Service : Service '${service.displayName || service.name} (${service.name})' cannot be started due to the following error: Cannot start service ${service.name} on computer '.'.`;
+  service.status = 'Running';
+  hdMachineAction(computerName, 'service-start', `started ${service.displayName || service.name} (${service.name}) from ${via === 'powershell' ? 'PowerShell' : 'Services'}`, { service:service.name, via });
+  return '';
+}
+function hdPcServiceStart(computerName, serviceName) {
+  hdMachineChange(computerName, machine => {
+    const service = hdPcServices(machine).find(item => item.name === serviceName);
+    if (!service || service.status === 'Running') return false;
+    hdPcServiceStartNow(computerName, machine, service, 'services');
+    return undefined;
+  });
+}
+function hdPcServiceTable(rows) {
+  return ['Status   Name               DisplayName', '------   ----               -----------', ...rows.map(service => `${String(service.status || 'Stopped').padEnd(8)} ${String(service.name).padEnd(18)} ${service.displayName || service.name}`)].join('\n');
+}
+// Get-Service and Start-Service on a PC with a services list; null when the
+// line names a service not in the list (the Print Spooler answers as before).
+function hdPcServiceCommand(command, normalized, machine, computerName) {
+  if (!hdPcServices(machine).length || !/^(get|start)-service\b/.test(normalized) || /-computername\b/.test(normalized)) return null;
+  const trimmed = command.trim();
+  const typed = hdParam(command, 'name') || (/^(?:get|start)-service\s+("[^"]*"|'[^']*'|[^\s-]\S*)/i.exec(trimmed) || [])[1] || '';
+  const service = hdPcService(machine, typed);
+  if (/^get-service\b/.test(normalized)) {
+    if (!typed) { const rows = hdPcServices(machine); hdPcServicesSeen(computerName, machine, rows, true); hdLastCommandResult = rows.map(item => `${item.name} ${item.status || 'Stopped'}`).join(', '); return hdPcServiceTable(rows); }
+    if (!service) return null;
+    hdPcServicesSeen(computerName, machine, [service], false);
+    hdLastCommandResult = `${service.name} ${service.status || 'Stopped'}`;
+    return hdPcServiceTable([service]);
+  }
+  if (!service) return null;
+  if (hdProveLocked()) return '';
+  const out = hdPcServiceStartNow(computerName, machine, service, 'powershell');
+  hdLastCommandResult = out ? `could not start ${service.name}` : `${service.name} Running`;
+  hdSave();
+  return out;
+}
+VIEWS['helpdesk/pc-services'] = () => {
+  const found = hdWinScreen('pc-services'); const services = found ? hdPcServices(found.machine) : [];
+  if (!services.length) return hdMachineMissing('Services');
+  const { computer, machine } = found; const n = `'${hdJsArg(computer.name)}'`;
+  hdPcServicesSeen(computer.name, machine, services, true);
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const rows = services.map(service => {
+    const startable = service.status !== 'Running' && !/disabled/i.test(String(service.startup || ''));
+    return `<tr data-hd-pc-service="${hdEsc(service.name)}" data-hd-service-status="${hdEsc(service.status || 'Stopped')}"><td><strong>${hdEsc(service.displayName || service.name)}</strong><small>${hdEsc(service.name)}</small></td><td>${hdBadge(service.status || 'Stopped', service.status === 'Running' ? 'ok' : 'warn')}</td><td>${hdEsc(service.startup || '')}</td><td>${startable ? `<button type="button" class="btn btn-primary btn-sm" data-hd-pc-service-start="${hdEsc(service.name)}" ${locked} onclick="hdPcServiceStart(${n},'${hdJsArg(service.name)}')">Start</button>` : ''}</td></tr>`;
+  }).join('');
+  return `${hdPageHeader('Services', `${computer.name} · read each service's status and startup type`, hdMachineBack(computer))}<div class="card" data-hd-pc-services="${hdEsc(computer.name)}"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Status</th><th>Startup type</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+};
+
+// Windows Search's indexer, read from Outlook and from Settings.
+function hdSearchState(machine) { const search = machine && machine.search; return search && typeof search === 'object' && !Array.isArray(search) ? search : null; }
+function hdSearchRunning(machine) {
+  const search = hdSearchState(machine); if (!search) return false;
+  const services = hdPcServices(machine);
+  if (!services.length) return search.running === true;
+  const service = hdPcService(machine, search.service || 'WSearch');
+  return !!service && service.status === 'Running';
+}
+function hdSearchRemaining(search) { return Math.max(0, Math.round(Number(search.remaining) || 0)); }
+// One look at the indexer: while it runs, the count goes down.
+function hdSearchLook(machine) {
+  const search = hdSearchState(machine); if (!search || !hdSearchRunning(machine) || hdProveLocked()) return;
+  const left = hdSearchRemaining(search); if (!left) return;
+  const step = Math.min(left, Math.max(1, Math.round(Number(search.step) || 1200)));
+  search.remaining = left - step; search.indexed = Math.max(0, Math.round(Number(search.indexed) || 0)) + step;
+}
+function hdSearchRefresh(computerName, screen) {
+  const machine = hdFeatureMachine(computerName); if (!hdSearchState(machine) || !['outlook-search', 'settings-search'].includes(screen)) return;
+  hdSearchLook(machine);
+  hdWinOpened(computerName, screen);
+  hdSave(); render();
+}
+function hdSearchNumber(value) { return Math.round(Number(value) || 0).toLocaleString('en-US'); }
+function hdSearchView(screen) {
+  const title = screen === 'outlook-search' ? 'Outlook › Search › Search Tools › Indexing Status' : 'Settings › Privacy & security › Searching Windows';
+  const found = hdWinScreen(screen); const search = found && hdSearchState(found.machine);
+  if (!search) return hdMachineMissing(title);
+  const { computer, machine } = found;
+  const running = hdSearchRunning(machine); const left = hdSearchRemaining(search);
+  const refresh = `<button type="button" class="btn btn-secondary btn-sm" data-hd-search-refresh ${hdProveLocked() ? 'disabled' : ''} onclick="hdSearchRefresh('${hdJsArg(computer.name)}','${screen}')">Refresh</button>`;
+  const body = screen === 'outlook-search'
+    ? `<p data-hd-indexing-status>${left ? `Outlook is currently indexing your items. ${hdSearchNumber(left)} items remaining` : 'Outlook has finished indexing all of your items. 0 items remaining'}</p>`
+    : running
+      ? `<p data-hd-indexer="running"><strong>Indexer status:</strong> ${left ? 'Indexing in progress. Search results might not be complete during this time.' : 'Indexing complete.'}</p><p class="muted">Indexed: ${hdSearchNumber(search.indexed)} items · Pending: ${hdSearchNumber(left)}</p>`
+      : `<p data-hd-indexer="stopped"><strong>Indexer status:</strong> The search service is not running</p>`;
+  return `${hdPageHeader(title, computer.name, hdMachineBack(computer))}<div class="card" data-hd-search="${screen}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${screen === 'outlook-search' ? 'Indexing Status' : 'Searching Windows'}</strong>${refresh}</div><div class="card-body">${body}</div></div>`;
+}
+VIEWS['helpdesk/outlook-search'] = () => hdSearchView('outlook-search');
+VIEWS['helpdesk/settings-search'] = () => hdSearchView('settings-search');
+
+// Outlook on the web: searches the signed-in user's mailbox on the server.
+function hdOwaState(machine) { const owa = machine && machine.outlookWeb; return owa && typeof owa === 'object' && !Array.isArray(owa) ? owa : null; }
+function hdOwaMatches(owa, query) {
+  const words = String(query || '').toLowerCase().split(/\s+/).filter(Boolean); if (!words.length) return [];
+  return hdWinList(owa, 'messages').filter(message => {
+    const text = [message.from, message.subject, ...(Array.isArray(message.keywords) ? message.keywords : [])].join(' ').toLowerCase();
+    return words.every(word => text.includes(word));
+  });
+}
+function hdOwaSearch(event, computerName) {
+  if (event && event.preventDefault) event.preventDefault();
+  const input = document.getElementById('hd-owa-search');
+  const query = String(input ? input.value : '').trim().slice(0, 80);
+  if (!query) return;
+  if (hdPasswordInText(query)) { const ticket = hdMachineTicket(computerName); toast(hdRefusePasswordText(ticket, 'search')); render(); return; }
+  hdMachineChange(computerName, machine => {
+    const owa = hdOwaState(machine); if (!owa) return false;
+    const found = hdOwaMatches(owa, query).length;
+    owa.query = query;
+    hdWinSeen(machine, 'owa-search');
+    hdProveOpened(`owa-search:${computerName}`, `Outlook on the web › Search · ${computerName}`);
+    hdMachineAction(computerName, 'owa-search', `searched the mailbox in Outlook on the web for "${query}" (${found} found)`, { query, found });
+    return undefined;
+  });
+}
+VIEWS['helpdesk/outlook-web'] = () => {
+  const found = hdWinScreen('outlook-web'); const owa = found && hdOwaState(found.machine);
+  if (!owa) return hdMachineMissing('Outlook on the web');
+  const { computer } = found; const n = `'${hdJsArg(computer.name)}'`;
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const query = typeof owa.query === 'string' ? owa.query : '';
+  const rows = hdOwaMatches(owa, query);
+  const results = query ? (rows.length ? `<div class="table-wrap"><table><thead><tr><th>From</th><th>Subject</th><th>Received</th></tr></thead><tbody>${rows.map(message => `<tr data-hd-owa-result><td>${hdEsc(message.from || '')}</td><td>${hdEsc(message.subject || '')}</td><td>${hdEsc(message.received || '')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted" data-hd-owa-none>We didn\'t find anything. Check your spelling or try searching for something else.</p>') : '';
+  return `${hdPageHeader('Outlook on the web', `${computer.user || ''} · the mailbox on the server`, hdMachineBack(computer))}<div class="card" data-hd-owa="${hdEsc(computer.name)}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Mail</strong><span class="muted">Signed in as ${hdEsc(computer.user || '')}</span></div><div class="card-body"><form class="filterbar" onsubmit="hdOwaSearch(event,${n})"><label style="flex:1">Search <input id="hd-owa-search" class="ipt" maxlength="80" autocomplete="off" value="${hdEsc(query)}" ${locked}></label><button class="btn btn-primary btn-sm" type="submit" ${locked}>Search</button></form>${query ? `<p class="muted" data-hd-owa-count>${rows.length} result${rows.length === 1 ? '' : 's'} for "${hdEsc(query)}"</p>` : ''}${results}</div></div>`;
 };
 VIEWS['helpdesk/settings-network'] = () => {
   const found = hdViewMachine();
@@ -4655,6 +4925,12 @@ const HD_WIN_SCREENS = {
   onedrive:{ source:'onedrive', label:'OneDrive', key:'oneDrive', bare:true, tabs:[['status', 'OneDrive'], ['sync-problems', 'View sync problems'], ['web', 'OneDrive on the web']] },
   // Module 8, console A.
   'credential-manager':{ source:'credential-manager', label:'Credential Manager', key:'savedCredentials' },
+  // Module 10, console B.
+  'settings-sound':{ source:'sound', label:'Settings › System › Sound', key:'sound' },
+  'pc-services':{ source:'pc-services', label:'Services', key:'services' },
+  'outlook-search':{ source:'outlook-indexing', label:'Outlook › Search Tools › Indexing Status', key:'search' },
+  'settings-search':{ source:'searching-windows', label:'Settings › Privacy & security › Searching Windows', key:'search' },
+  'outlook-web':{ source:'outlook-web', label:'Outlook on the web', key:'outlookWeb' },
 };
 const HD_WIN_TASK_TABS = [['processes', 'Processes'], ['performance', 'Performance'], ['startup', 'Startup apps']];
 function hdWinList(machine, key) { return machine && Array.isArray(machine[key]) ? machine[key].filter(item => item && typeof item === 'object') : []; }
@@ -4689,6 +4965,11 @@ function hdWinHas(machine, screen) {
     // Module 8, console A.
     if (screen === 'credential-manager') return !!m && Array.isArray(m.savedCredentials);
     if (screen === 'sign-in-again') return !!m && Array.isArray(m.signedInGroups);
+    // Module 10, console B.
+    if (screen === 'settings-sound') return !!hdSoundState(m);
+    if (screen === 'pc-services') return hdPcServices(m).length > 0;
+    if (screen === 'outlook-search' || screen === 'settings-search') return !!hdSearchState(m);
+    if (screen === 'outlook-web') return !!hdOwaState(m);
     return false;
   };
   if (own(machine)) return true;
@@ -4742,6 +5023,12 @@ function hdWinToolButtons(name) {
     open('settings-recovery', '⚙ Settings › System › Recovery'),
     // Module 8, console A.
     open('credential-manager', '🔑 Credential Manager'),
+    // Module 10, console B.
+    open('settings-sound', '🔊 Settings › System › Sound'),
+    open('pc-services', '⚙ Services'),
+    open('outlook-search', '📧 Outlook › Search Tools › Indexing Status'),
+    open('settings-search', '⚙ Settings › Privacy &amp; security › Searching Windows'),
+    open('outlook-web', '🌐 Outlook on the web'),
     hdWinHas(machine, 'sign-in-again') ? `<button data-hd-tools="sign-in-again" ${hdProveLocked() ? 'disabled' : ''} onclick="hdWinSignInAgain('${hdJsArg(name)}')">⇄ Sign out and back in</button>` : '',
   ].join('');
 }
@@ -10999,7 +11286,13 @@ function hdRemoteSayCard(ticket, state, name) {
 function hdRemoteScreenHtml(ticket, name, machine) {
   const spec = hdRemoteSpec(machine) || {}; const computer = hdComputerByName(name) || { user:'' };
   if (spec.signedIn === false) return `<div class="hd-windows-screen" data-hd-remote-screen="sign-in"><div class="hd-window-bar"><span>${hdEsc(name)} · Sign-in screen</span><span>${hdEsc(hdRemoteHhmm(hdRemotePcNow(name, machine)))}</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows sign-in</strong><span>Other user</span></div>${machine.signInMessage ? `<div class="callout warn" data-hd-sign-in-message>${hdEsc(machine.signInMessage)}</div>` : ''}<p class="muted">The user signs in here themselves. Nobody types a password in a session.</p></div></div>`;
-  return `<div class="hd-windows-screen" data-hd-remote-screen="desktop"><div class="hd-window-bar"><span>${hdEsc(name)} · ${hdEsc(computer.user || ticket.requester || '')}'s desktop</span><span>${hdEsc(hdRemoteHhmm(hdRemotePcNow(name, machine)))}</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows 11 Enterprise</strong><span>${hdEsc(spec.desktop || 'The user\'s desktop')}</span></div></div></div>`;
+  return `<div class="hd-windows-screen" data-hd-remote-screen="desktop"><div class="hd-window-bar"><span>${hdEsc(name)} · ${hdEsc(computer.user || ticket.requester || '')}'s desktop</span><span>${hdEsc(hdRemoteHhmm(hdRemotePcNow(name, machine)))}</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows 11 Enterprise</strong><span>${hdEsc(spec.desktop || 'The user\'s desktop')}</span></div>${hdRemoteToolsHtml(name)}</div></div>`;
+}
+// Module 10 (console B): the PC's own screens (Sound, Dock and displays,
+// Services, search status, Outlook on the web), opened through the session.
+function hdRemoteToolsHtml(name) {
+  const tools = `${hdFeatureToolButtons(name)}${hdWinToolButtons(name)}`;
+  return tools ? `<div class="hd-tool-grid" data-hd-remote-pc-tools>${tools}</div>` : '';
 }
 function hdRemoteSysInfo(name, machine) {
   const spec = hdRemoteSpec(machine) || {}; const computer = hdComputerByName(name) || {};
