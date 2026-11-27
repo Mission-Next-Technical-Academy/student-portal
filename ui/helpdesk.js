@@ -10193,7 +10193,8 @@ function hdPhoneApp(phone, cloud, app) {
   const n = `'${hdJsArg(phone.name)}'`;
   const off = hdProveLocked() ? 'disabled' : '';
   const toggle = (attr, on, handler) => `<button type="button" class="btn btn-sm ${on ? 'btn-primary' : 'btn-secondary'}" role="switch" aria-checked="${on}" ${off} data-hd-phone-${attr} onclick="${handler}">${on ? 'On' : 'Off'}</button>`;
-  if (app === 'wifi') return `<div data-hd-phone-app="wifi"><p>Wi-Fi ${toggle('wifi', !!phone.status.wifi, `hdPhoneWifi(${n})`)}</p>${phone.status.wifi ? `<p class="muted">Connected: ${hdEsc(phone.status.network || 'Northstar-Corp')}</p>` : ''}${hdPhoneWifiList(phone)}</div>`;
+  // Module 09: a phone with a Wi-Fi list may be on Wi-Fi with no network joined.
+  if (app === 'wifi') return `<div data-hd-phone-app="wifi"><p>Wi-Fi ${toggle('wifi', !!phone.status.wifi, `hdPhoneWifi(${n})`)}</p>${phone.status.wifi && hdPhoneJoined(phone) ? `<p class="muted">Connected: ${hdEsc(hdPhoneJoined(phone))}</p>` : ''}${hdPhoneWifiList(phone)}</div>`;
   if (app === 'teams') {
     const blocked = hdPhoneMailBlocked(phone, cloud);
     return `<div data-hd-phone-app="teams">${!phone.outlook.account && phone.company !== false ? '<p>Sign in with your work account first.</p>' : blocked ? `<p data-hd-teams-blocked><strong>Teams can't open on this phone until it meets Northstar's device rules.</strong></p>` : '<p data-hd-teams-ok>Chats and meetings are up to date.</p>'}</div>`;
@@ -10283,13 +10284,16 @@ function hdPhoneWifi(name) {
  * reception screen (the simulator never takes the value). Open joins.
  * Actions: phone-wifi-prompt (ssid, kind), phone-wifi-join (ssid). */
 function hdPhoneNetworks(phone) { return Array.isArray(phone.wifiNetworks) ? phone.wifiNetworks.filter(item => item && item.ssid) : null; }
+// The network the phone is on. Without a list, Module 08's default; with one,
+// only the network the fixture or the student joined (none: not joined).
+function hdPhoneJoined(phone) { return hdPhoneNetworks(phone) ? String(phone.status.network || '') : phone.status.network || 'Northstar-Corp'; }
 function hdPhoneNetKind(network) { return /enterprise/i.test(network.security || '') ? 'enterprise' : /open|none/i.test(network.security || '') || !network.security ? 'open' : 'passphrase'; }
 function hdPhoneWifiList(phone) {
   const networks = hdPhoneNetworks(phone); if (!networks || !phone.status.wifi) return '';
   const n = `'${hdJsArg(phone.name)}'`; const off = hdProveLocked() ? 'disabled' : '';
   const asking = hdCloudView().wifiPrompt;
   const rows = networks.map(network => {
-    const connected = (phone.status.network || 'Northstar-Corp') === network.ssid;
+    const connected = hdPhoneJoined(phone) === network.ssid;
     const s = `'${hdJsArg(network.ssid)}'`;
     return `<li data-hd-phone-network="${hdEsc(network.ssid)}"><strong>${hdEsc(network.ssid)}</strong> <span class="muted">${hdEsc(network.security || 'Open')}</span> ${connected ? hdBadge('Connected', 'ok') : `<button type="button" class="btn btn-secondary btn-sm" ${off} data-hd-phone-join onclick="hdPhoneWifiJoin(${n},${s})">Join</button>`}</li>`;
   }).join('');

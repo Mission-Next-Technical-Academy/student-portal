@@ -233,6 +233,9 @@ const PHONES = { phones: {
   'TEST-PH-C': { label: 'TEST company phone', user: 'u-1003', company: true, os: '17.6', pin: true, encrypted: true, status: { wifi: true, cellular: '5G', network: 'TEST-Guest' },
     wifiNetworks: [{ ssid: 'TEST-Corp', security: 'WPA3-Enterprise' }, { ssid: 'TEST-Guest', security: 'WPA2-Personal' }] },
   'TEST-PH-OLD': { label: 'TEST older phone', user: 'u-1003', company: false, os: '17.6', status: { wifi: true, cellular: '5G' } },
+  // Wi-Fi on, joined to nothing yet (the personal phone that can't join).
+  'TEST-PH-NONE': { label: 'TEST unjoined phone', user: 'u-1003', company: false, os: '17.6', status: { wifi: true, cellular: '5G' },
+    wifiNetworks: [{ ssid: 'TEST-Corp', security: 'WPA3-Enterprise' }, { ssid: 'TEST-Guest', security: 'WPA2-Personal' }] },
 } };
 const SETS = {
   'test-net-b': {
@@ -549,6 +552,12 @@ function testPhoneWifi() {
   assert.doesNotMatch(tab.view('helpdesk/phone'), /data-hd-phone-networks/);
   tab.run("hdPhoneOpen('TEST-PH-OLD','wifi')");
   assert.match(tab.view('helpdesk/phone'), /<div data-hd-phone-app="wifi"><p>Wi-Fi <button type="button" class="btn btn-sm btn-primary" role="switch" aria-checked="true"  data-hd-phone-wifi onclick="hdPhoneWifi\('TEST-PH-OLD'\)">On<\/button><\/p><p class="muted">Connected: Northstar-Corp<\/p><\/div>/);
+  // Wi-Fi on and no network joined: no "Connected:" line, Join on every network.
+  tab.run("hdPhoneOpen('TEST-PH-NONE','wifi')");
+  const none = tab.view('helpdesk/phone');
+  assert.doesNotMatch(none, /Connected: /);
+  assert.equal((none.match(/data-hd-phone-join /g) || []).length, 2);
+  assert.doesNotMatch(none, /data-hd-phone-networks>[\s\S]*Connected/);
 }
 
 // An older ticket's shape with network state and none of console B's keys.
