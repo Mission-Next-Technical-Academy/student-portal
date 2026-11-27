@@ -429,7 +429,9 @@ function testProveShift() {
   tab.screen('TEST-LT-63', 'outlook-search');
   tab.screen('TEST-LT-63', 'settings-search');
   tab.screen('TEST-LT-63', 'pc-services');
-  assert.doesNotMatch(tab.view('helpdesk/pc-services'), /callout/, 'no tip in a Prove It');
+  assert.doesNotMatch(tab.view('helpdesk/pc-services'), /callout|status and startup/, 'no tip in a Prove It');
+  tab.screen('TEST-LT-63', 'outlook-web');
+  assert.doesNotMatch(tab.view('helpdesk/outlook-web'), /on the server/, 'no tip in a Prove It');
   tab.shell('Start-Service WSearch');
   tab.screen('TEST-LT-63', 'outlook-search');
   assert.match(tab.view('helpdesk/outlook-search'), /32,912 items remaining/);
