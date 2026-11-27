@@ -73,6 +73,7 @@ node tests/hdesk-m07-prove.test.js
 node tests/hdesk-m08-prove.test.js
 node tests/hdesk-m09-prove.test.js
 node tests/hdesk-m10-console-a.test.js
+node tests/hdesk-m10-console-b.test.js
 node tests/hdesk-m05-guided-lab.test.js
 node tests/hdesk-m05-practice-tickets.test.js
 node tests/hdesk-m05-page.test.js
