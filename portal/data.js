@@ -327,20 +327,22 @@ const PROGRAMS = [
             objective: 'Check a slow computer in the right order, choose the lightest repair that fits the evidence, and release a BitLocker recovery key only after verifying the caller and matching the Key ID.' }),
         ],
         skills: ['Windows Support', 'Task Manager', 'Event Viewer', 'System Repair', 'BitLocker Recovery'] },
-      'its-04': { number: 9, week: 5, title: 'Networking Fundamentals for Support', hours: '8 Hours', durationMinutes: 480, creditMinutes: 480, lessons: 4, labs: 1,
+      // Lesson 9.1 holds two readings on the page (it-support-module-04.js);
+      // both share its-04-lesson-01's filed minutes.
+      'its-04': { number: 9, week: 5, title: 'Networking Fundamentals for Support', hours: '8 Hours', durationMinutes: 480, creditMinutes: 480, lessons: 4, labs: 3,
         status: 'authored',
-        summary: 'Figure out why something won\'t connect, and explain it in plain language.',
+        summary: 'Trace a connection from the desk to the internet, work every “can’t connect” ticket with the same six-question checklist, join a laptop to the domain, and explain it all in plain language.',
         curriculumItems: [
           itsItem({ key: 'its-04-lesson-01', title: 'IP Addressing, Subnets & How Networks Talk', durationMinutes: 75, parentAllocations: [allocation('ITHD-101.7', 75)],
-            objective: 'Explain what an IP address, subnet, gateway, and DNS server each do, and identify which network adapter carries an affected connection.' }),
+            objective: 'Name the hardware, cables, connectors, tools and connection types between a PC and the internet, and read a device’s address, mask, gateway and DNS servers.' }),
           itsItem({ key: 'its-04-lesson-02', title: 'Diagnostic Commands: ipconfig, ping, tracert & nslookup', durationMinutes: 75, parentAllocations: [allocation('ITHD-101.7', 75)],
-            objective: 'Use ipconfig, ping, tracert, and nslookup together to isolate where a connectivity problem is occurring.' }),
+            objective: 'Work the six-question connectivity checklist in order, read ipconfig, ping, tracert, nslookup and Test-NetConnection output, and say which service a port belongs to.' }),
           itsItem({ key: 'its-04-lesson-03', title: 'DHCP, DNS & Recognizing APIPA', durationMinutes: 75, parentAllocations: [allocation('ITHD-101.7', 75)],
-            objective: 'Recognize an APIPA address on sight and distinguish a local, internet, and DNS failure from each other.' }),
+            objective: 'Read a laptop’s Wi-Fi band and security, recognize an APIPA address, renew an address, and tell a stale DNS answer from a wrong DNS server.' }),
           itsItem({ key: 'its-04-lesson-04', title: 'Domain Joining & Explaining Network Issues in Plain Language', durationMinutes: 75, parentAllocations: [allocation('ITHD-101.7', 75)],
-            objective: 'Identify the common causes of a failed domain join and translate a technical network diagnosis into a plain-language explanation.' }),
+            objective: 'Explain what a VPN does for a remote worker, join a computer to the domain in the right OU with the provisioning account, and turn a network diagnosis into a plain-language comment.' }),
         ],
-        skills: ['Networking Fundamentals', 'IP Addressing', 'DNS', 'DHCP', 'Domain Join'] },
+        skills: ['Networking Fundamentals', 'IP Addressing', 'DNS', 'DHCP', 'Wi-Fi', 'VPN', 'Domain Join'] },
       // Lesson 7.2 holds two readings on the page (it-support-module-05.js);
       // both share its-05-lesson-02's filed minutes.
       'its-05': { number: 7, week: 4, title: 'Windows Server & Active Directory Administration', hours: '12 Hours', durationMinutes: 720, creditMinutes: 720, lessons: 4, labs: 3,
@@ -2332,10 +2334,30 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.4', 20)], objective: 'Independently work a new Windows ticket: find what is wrong from the tool screens, fix it, verify it, and write for both the next technician and the user.',
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
     skills: ['Windows Support', 'Evidence-Based Diagnosis', 'Documentation'], portalEntry: '#/program/it-support/module/5' }),
-  itsLab({ key: 'lab-its-04-connectivity', module: 'its-04', title: 'Connected But Nothing Works', difficulty: 'Foundational', minutes: 180,
-    parentAllocations: [allocation('ITHD-101.7', 180)], objective: 'Diagnose and resolve two real connectivity tickets using ipconfig/ping/nslookup-style evidence.',
-    description: 'A coach-guided walkthrough of tickets HD-2104 (APIPA/DHCP) and HD-2105 (DNS) in the IT Service Desk simulator; HD-2113 (VPN gateway certificate) remains reachable for free practice.',
-    skills: ['Networking Fundamentals', 'DHCP', 'DNS'], portalEntry: '#/program/it-support/module/9' }),
+  // Module 9's guided lab. Students see it as Lab 9.1; the key is older than
+  // that numbering. Until Module 9's Prove It gates completion it stays the
+  // gating lab (course_module_labs), so it has no `phase: 'practice'`: an
+  // instructor still reviews and approves it. Its 180 filed minutes are split
+  // 75 / 70 / 35 across the three labs; ITHD-101.7 keeps all 180.
+  itsLab({ key: 'lab-its-04-connectivity', module: 'its-04', title: 'Lab 9.1 · Guided Lab: the connectivity checklist', difficulty: 'Foundational', minutes: 75,
+    parentAllocations: [allocation('ITHD-101.7', 75)], objective: 'Work the connectivity checklist on two calls and a request: find a dead wall jack and renew the address it left, clear a stale name lookup after a change, and join a new starter’s laptop to the domain in the right OU.',
+    description: 'Two coach-guided tickets and a request in the IT Service Desk simulator, each step with a why and what success looks like. Feedback only, no score.',
+    skills: ['Networking Fundamentals', 'DHCP', 'DNS', 'Domain Join'], portalEntry: '#/program/it-support/module/9' }),
+  // Module 9's five unguided practice tickets: not graded, no score. The
+  // simulator reports when all five are done and the course page saves a
+  // completion record (it-support-module-04.js). No course_module_labs row:
+  // it never gates completion.
+  itsLab({ key: 'lab-its-04-practice-tickets', module: 'its-04', title: 'Lab 9.2 · Practice tickets (not graded)', difficulty: 'Foundational', minutes: 70, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.7', 70)], objective: 'Work five tickets on your own: Teams calls that keep breaking up, a whole site on slow internet, a new laptop that won’t join the domain, a phone that won’t connect to the work Wi-Fi, and a remote worker who can’t reach company files.',
+    description: 'Five unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all five and a completion record is saved to your account.',
+    skills: ['Networking Fundamentals', 'Wi-Fi', 'VPN', 'Escalation Judgment'], portalEntry: '#/program/it-support/module/9' }),
+  // Module 9's Prove It. The page shows "Opens soon" and launches nothing
+  // until its simulator shift, scoring and gating row are built. Coaching
+  // time box: 35 minutes.
+  itsLab({ key: 'lab-its-04-prove-it', module: 'its-04', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 35,
+    parentAllocations: [allocation('ITHD-101.7', 35)], objective: 'Independently work a new connectivity ticket: run the checklist, find the cause from the evidence, fix what is Tier 1’s, verify it, and write for both the next technician and the user.',
+    description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
+    skills: ['Networking Fundamentals', 'Evidence-Based Diagnosis', 'Documentation'], portalEntry: '#/program/it-support/module/9' }),
   // Module 7's guided lab. Students see it as Lab 7.1; the key is older than
   // that numbering. Since 2026-11-25 Module 7's Prove It gates completion (the
   // its05 Prove It migration) and Lab 7.1 is Practice It. Its 255 filed

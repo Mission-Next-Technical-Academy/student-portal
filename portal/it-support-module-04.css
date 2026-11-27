@@ -1,0 +1,74 @@
+/* Module 9 (IT Help Desk, key its-04). The page reuses Module 1's inner
+ * classes (its01-hero, its01-section, its01-lesson, its01-check, its01-dg),
+ * Module 2's table classes (its10-table) and Module 4's card sort classes
+ * (its02-sort-list, its02-sort-card, its02-sort-boxes, its02-sort-box), so it
+ * looks the same. Only its shell and what those modules have no class for live
+ * here, scoped with its04-: inline commands, the diagram markers (tick, cross,
+ * bolt, broom, tunnel, cloud, bands), the small labels, the mock ipconfig
+ * blocks and the card sort's one-line description. Loaded after
+ * it-support-module-01.css, -02.css and -10.css. */
+
+.its04-shell { min-height: 100vh; color: #172033; background: rgba(248, 250, 252, .76); overflow-x: clip; }
+.its04-shell :focus-visible { outline: 3px solid var(--its-accent-border); outline-offset: 2px; }
+
+/* The shared rail as a left pane beside main, as on Module 1
+   (module-labs.css does this for .its01-shell). */
+@media (min-width: 961px) {
+  .its04-shell > .munified-nav {
+    float: left;
+    margin: 12px 24px 24px max(20px, calc((100vw - 1180px) / 2));
+  }
+  .its04-shell > .munified-nav ~ main {
+    display: flow-root;
+    width: auto;
+    margin-left: 0;
+    margin-right: max(20px, calc((100vw - 1180px) / 2));
+  }
+}
+
+/* A command or path inside reading text and tables. It may wrap anywhere,
+   so a long command never makes the page scroll sideways. */
+.its04-code { padding: 1px 5px; color: var(--mn-theme-text, #172d42); background: var(--mn-theme-surface-raised, #edf3f8); border: 1px solid var(--mn-theme-border, #cfdae5); border-radius: 5px; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+
+/* Diagrams: a failure branch gets a dashed red outline, so it never relies on
+   colour alone. */
+.its01-dg-box.its04-dg-gone { fill: #fef2f2; stroke: #dc2626; stroke-width: 2; stroke-dasharray: 6 4; }
+.its01-dg-line.its04-dg-redline { stroke: #dc2626; }
+/* The small labels beside an arrow or over a branch. */
+.its04-dg-label { fill: var(--its-navy); font: 700 13px Inter, sans-serif; }
+/* The path to the internet: a thick line for the primary circuit, a thin dashed one for the backup. */
+.its01-dg-line.its04-dg-fiber { stroke: var(--its-accent-hover); stroke-width: 5; }
+.its01-dg-line.its04-dg-cell { stroke-width: 1.5; stroke-dasharray: 6 5; }
+.its04-dg-bolt { fill: #facc15; stroke: #a16207; stroke-width: 1.25; stroke-linejoin: round; }
+/* A tick (the check passed) and a cross (the answer is old). */
+.its04-dg-tick { fill: none; stroke: var(--its-accent-hover); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.its04-dg-cross { fill: none; stroke: #dc2626; stroke-width: 3; stroke-linecap: round; }
+/* The broom that sweeps the DNS cache. */
+.its04-dg-broom-handle { fill: none; stroke: #475569; stroke-width: 3; stroke-linecap: round; }
+.its04-dg-broom { fill: #fde68a; stroke: #a16207; stroke-width: 1.5; stroke-linejoin: round; }
+/* The mock ipconfig output: a block, its monospace lines and the callouts. The
+   greyed block is the other network's address. */
+.its04-dg-mock { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.5; }
+.its04-dg-mock.its04-dg-mock-grey { fill: #e2e8f0; stroke: #94a3b8; stroke-dasharray: 6 4; }
+.its04-dg-mono { fill: #334155; font: 12.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.its04-dg-mono-grey { fill: #64748b; }
+.its04-dg-grey-title { fill: #64748b; font: 700 15px Inter, sans-serif; }
+.its04-dg-callout { fill: var(--its-accent-hover); font: 700 13px Inter, sans-serif; }
+/* The Edit IP settings toggle: Automatic (DHCP) is on. */
+.its04-dg-toggle-on { fill: var(--its-accent-wash); stroke: var(--its-accent); stroke-width: 2.5; }
+.its04-dg-toggle-off { fill: #e2e8f0; stroke: #94a3b8; stroke-width: 1.5; }
+.its04-dg-toggle-text { fill: #172033; font: 700 13px Inter, sans-serif; }
+.its04-dg-toggle-text-off { fill: #64748b; }
+/* The VPN picture: the tunnel, the internet cloud and the tick boxes. */
+.its04-dg-tunnel { fill: var(--its-accent); fill-opacity: .55; stroke: var(--its-accent); stroke-width: 1.5; }
+.its04-dg-cloud { fill: #e2e8f0; stroke: #94a3b8; stroke-width: 1.5; }
+.its04-dg-check { fill: #fff; stroke: #475569; stroke-width: 1.75; }
+/* The Wi-Fi reach figure: three arcs from one access point, widest first. */
+.its04-dg-band { stroke: var(--its-accent); stroke-width: 1.5; }
+.its04-dg-band-1 { fill: var(--its-accent-wash); fill-opacity: .45; }
+.its04-dg-band-2 { fill: var(--its-accent-wash); fill-opacity: .7; }
+.its04-dg-band-3 { fill: var(--its-accent-wash); fill-opacity: 1; }
+.its04-dg-ap { fill: var(--its-navy); }
+
+/* The card sort: a card's one-line description. */
+.its04-sort-desc { margin: 2px 0 10px; font-size: 13px; overflow-wrap: anywhere; }
