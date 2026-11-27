@@ -6,8 +6,9 @@ Read by CodeRabbit only, through `knowledge_base.code_guidelines` in
 
 1. When you suggest an evidence check, accept at least the required amount.
    Never require an exact count.
-2. Student-facing content (KB articles, tickets, messages) never mentions the
-   simulator, practice or the course. Fix the check, not the story.
+2. Student-facing content (KB articles, tickets, in-story chat messages) never
+   mentions the simulator, practice or the course. Fix the check, not the
+   story.
 3. In Practice It, never suggest a gate that a normal step done early can't
    undo. Accept equal evidence from other valid paths.
 4. The shared save code in `portal/app.js` and `portal/lab-runtime.js` belongs
@@ -16,4 +17,5 @@ Read by CodeRabbit only, through `knowledge_base.code_guidelines` in
 5. Never suggest editing a migration that is already applied. Suggest a new
    migration.
 6. Readings teach Tier 1 depth. Flag a statement only if it is wrong at that
-   level; don't ask for caveats beyond what the module teaches.
+   level; don't ask for caveats beyond what the module teaches, except safety
+   warnings.
