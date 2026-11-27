@@ -17,6 +17,7 @@ reviews:
     ignore_title_keywords:
       - "WIP"
       - "DO NOT MERGE"
+    ignore_usernames: ["cyberdude88", "randy608"]
   path_filters:
     - "!Mission_Next_Brand_Kit_v1/**"
     - "!archive/**"
