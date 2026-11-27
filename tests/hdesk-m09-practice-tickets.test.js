@@ -102,8 +102,8 @@ function j(value) { return JSON.stringify(value); }
 function testCriticalLines() {
   const tab = sim();
   const critical = {
-    'HD-2214': ['changing the setting without recording it or telling the user', 'restarting the access point'],
-    'HD-2215': ['treating it as four separate single-user tickets', 'restarting a router or the firewall'],
+    'HD-2214': ['changing the setting without recording it or telling the user', 'Never restart the access point'],
+    'HD-2215': ['treating it as four separate single-user tickets', 'Never restart a router or the firewall'],
     'HD-2219': ['joining into the default Computers container', 'using your own or the user\'s account'],
     'HD-2220': ['sharing any network credential, key or certificate', 'putting a personal phone on Northstar-Corp'],
     'HD-2221': ['changing his home router or his laptop\'s address settings'],
@@ -157,10 +157,14 @@ function test9A(tab = sim()) {
   tab.input('hd-dev-band', 'Prefer 5GHz band');
   tab.run(`hdDeviceAdvancedSet('${pc}', 'wifi')`);
   tab.on(pc);
+  tab.run(`hdChatAsk('${id}', 'call')`);
+  tab.ps('ping 10.20.10.1');
+  tab.ps('ping files.northstar.example -n 20');
+  assert.equal(tab.feedback(id).areas.find((area) => area.area === 'Action').ok, false, 'a short gateway ping and a long ping elsewhere do not count');
   const after = tab.ps('ping 10.20.10.1 -n 20');
+  assert.match(after, /Sent = 20/);
   assert.match(after, /Lost = 0/);
   assert.match(tab.ps('netsh wlan show interfaces'), /5 GHz|5GHz/);
-  tab.run(`hdChatAsk('${id}', 'call')`);
   tab.open(id);
   tab.note(id, 'Reported: Teams calls break up and Wi-Fi drops briefly, mostly at lunchtime; sits by the kitchen; team fine.\nTried: one user; NS-LT-0417 on Northstar-Corp 2.4 GHz channel 6 (teammates on 5 GHz); ping to gateway ×20 varied 2–180 ms with 2 lost; Wi-Fi adapter\'s Preferred band was "Prefer 2.4GHz band" (recorded); told Bianca, changed it to "Prefer 5GHz band".\nResult: reconnected on 5 GHz channel 44; ping ×20 steady 2–4 ms; test call clear.');
   tab.comment(id, 'Hi Bianca, your calls should be clear now. Your laptop was set to use the slower, more crowded kind of Wi-Fi, which the kitchen microwave interferes with around lunchtime. We\'ve set it to use the faster kind instead, and the test call sounded good. If it happens again, tell us the time and we\'ll look further. – Riley');
@@ -264,8 +268,8 @@ function test9D(tab = sim()) {
   tab.run(`hdPhoneOutlookAdd('${phone}')`);
   tab.run(`hdChatAsk('${id}', 'mail')`);
   tab.open(id);
-  tab.note(id, 'Reported: personal iPhone can\'t join Northstar-Corp (asks for username and certificate); asked for the password.\nTried: personal device, not in Intune; Northstar-Corp is certificate-based for company devices only (KB-0093); guided Zoe to Northstar-Guest and to Outlook and Teams with app protection.\nResult: Zoe confirmed mail and Teams work on her phone.');
-  tab.comment(id, 'Hi Zoe, the Northstar-Corp Wi-Fi only works on company-managed phones, which get a security certificate automatically, so there isn\'t a password we can share. Your personal phone uses Northstar-Guest instead (today\'s code is on the reception screen), and Outlook and Teams now have your work email and chat. The work PIN keeps company data separate from your personal things. – Riley');
+  tab.note(id, 'Reported: personal iPhone can\'t join Northstar-Corp (asks for username and certificate); asked for the password.\nTried: personal device, not in Intune; Northstar-Corp is certificate-based for company devices only (KB-0093); guided Zoe to Northstar-Guest and to Outlook with app protection.\nResult: Zoe confirmed that her work mail loads in Outlook on her phone.');
+  tab.comment(id, 'Hi Zoe, the Northstar-Corp Wi-Fi only works on company-managed phones, which get a security certificate automatically, so there isn\'t a password we can share. Your personal phone uses Northstar-Guest instead (today\'s code is on the reception screen), and you confirmed that your work email loads in Outlook. – Riley');
   tab.resolve(id, 'Solution provided');
   assertAllAreasOk(tab, id);
 }
@@ -326,8 +330,9 @@ function testJargonFlagsEachList() {
 // restart of network equipment or a server, or a DHCP or DNS change on a server.
 function testNothingShared() {
   const tab = sim();
-  const text = tab.run(`JSON.stringify(HD_TICKET_TEMPLATES.filter((t) => ${j([...IDS, 'HD-2212', 'HD-2213', 'SR-2222'])}.includes(t.id)).map((t) => (t.console.feedback || []).map((a) => [a.good, ...(a.checks || []).map((c) => c.missing)])))`);
-  assert.doesNotMatch(text, /(restart|reboot) (the |a )?(switch|router|access point|firewall|server)(?![^"]*(never|not))/i);
+  const fields = plain(tab.run(`HD_TICKET_TEMPLATES.filter((t) => ${j([...IDS, 'HD-2212', 'HD-2213', 'SR-2222'])}.includes(t.id)).flatMap((t) => (t.console.feedback || []).flatMap((a) => [a.good, a.fix, ...(a.checks || []).flatMap((c) => [c.missing, c.fix])]))`));
+  const text = fields.filter(Boolean).join('\n');
+  assert.doesNotMatch(text, /(?<!\bnever )(?<!\bdo not )\b(?:restart(?:ing)?|reboot(?:ing)?) (?:anything on )?(?:(?:the|a|any) )?(?:switch|router|access point|firewall|server)s?\b/i);
   assert.doesNotMatch(text, /Set-DnsServer|Add-DhcpServer|Set-DhcpServer/);
 }
 

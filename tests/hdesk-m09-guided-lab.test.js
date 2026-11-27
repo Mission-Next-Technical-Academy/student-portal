@@ -409,6 +409,36 @@ function testTypedStepsNeedTheRightComputerAndOrder() {
   assert.equal(steps[6].check(), true);
 }
 
+function testEarlyRenewalNeedsAFreshApipaRead() {
+  const tab = startLab();
+  const addressStep = tab.coach('hd-m04').steps[5];
+  tab.open(A);
+  tab.on(PC_A);
+  tab.ps('ipconfig');
+  tab.run("hdChatAsk('HD-2212', 'move')");
+  assert.equal(addressStep.check(), false, 'a read before the link is up does not count');
+  tab.ps('ipconfig /renew');
+  assert.match(tab.ps('ipconfig'), /10\.20\.10\.141/);
+  assert.equal(addressStep.check(), false, 'a read of the renewed lease does not count');
+  tab.input('hd-net-mode', 'manual');
+  tab.input('hd-net-ip', '169.254.33.10');
+  tab.input('hd-net-mask', '255.255.0.0');
+  tab.run(`hdNetSaveIp(null, '${PC_A}', 'Ethernet')`);
+  assert.match(tab.ps('ipconfig'), /169\.254\.33\.10/);
+  assert.equal(addressStep.check(), false, 'manually assigning a link-local address does not count');
+  assert.match(addressStep.instruction, /Reset shift/);
+  tab.run('hdResetShift()');
+  tab.open(A);
+  tab.run("hdChatAsk('HD-2212', 'move')");
+  tab.on(PC_A);
+  assert.match(tab.ps('ipconfig'), /169\.254\.33\.10/);
+  assert.equal(addressStep.check(), true, 'a fresh APIPA read after the move counts');
+  tab.ps('ipconfig /release');
+  tab.ps('ipconfig /renew');
+  tab.ps('ipconfig');
+  assert.equal(addressStep.check(), true, 'a later lease read preserves the APIPA evidence');
+}
+
 // Every step: a route the coach allows and the simulator draws, "Why:" and
 // "Success looks like", and none of the words the spec rules out. Every
 // command a step asks for sits only behind "Show me the command".
@@ -456,19 +486,19 @@ function testOpeningAStepsScreenDoesNotPassIt() {
   });
 }
 
-// A lookup counts for the ticket that is open: the closet read with HD-2213
-// open does not pass Part A step 4.
+// The DNS read counts only for the ticket that is open.
 function testLookupsCountOnTheirTicket() {
   const tab = startLab();
   const steps = tab.coach('hd-m04').steps;
-  tab.open(B);
-  tab.run(`hdClosetOpen('${A}')`);
   tab.open(B);
   tab.run("hdChangeLogOpen('CHG-7802')");
   tab.view('helpdesk/change-log');
   tab.open(A);
   tab.view('helpdesk/dns');
-  assert.equal(steps[17].check(), false, 'Part B step 6 needs both reads on HD-2213');
+  assert.equal(steps[16].check(), false, 'Part B step 6 does not count DNS read on HD-2212');
+  tab.open(B);
+  tab.view('helpdesk/dns');
+  assert.equal(steps[16].check(), true, 'Part B step 6 counts DNS read on HD-2213');
 }
 
 // A wrong OU keeps Part C step 3 open (a laptop joins once). The step's way
@@ -485,7 +515,9 @@ function testWrongOuThenResetStartsFresh() {
   tab.ps('Add-Computer -DomainName northstar.example -OUPath "CN=Computers"');
   assert.equal(steps[21].check(), false, 'a join into CN=Computers does not pass Part C step 3');
   assert.match(tab.ps('Add-Computer -DomainName northstar.example -OUPath "OU=Logistics,OU=Workstations"'), /already in that domain/, 'a laptop joins once');
+  assert.equal(tab.run(`hdMachine('${PC_C}').domain.joined`), true, 'NS-LT-0416 is joined before reset');
   tab.run('hdResetShift()');
+  assert.equal(tab.run(`hdMachine('${PC_C}').domain.joined`), false, 'reset immediately clears the join');
   const again = sim(launchUrl(), { local, session });
   assert.equal(again.run('hdState.ticketSet'), 'its-04-guided');
   assert.equal(again.coachStep(), 0, 'the lab starts at Part A step 1');
@@ -610,7 +642,7 @@ function testEveryArticleCheckIsInTheSteps() {
 }
 
 const tests = [testLabOpensOnItsSet, testLab91, testTypedStepsAnyCaseAndOptionalLines, testTypedStepsNeedTheRightComputerAndOrder, testEveryStepText,
-  testOpeningAStepsScreenDoesNotPassIt, testLookupsCountOnTheirTicket, testWrongOuThenResetStartsFresh, testOptionalScreenLines, testEveryModule9AdapterIsDhcp, testSharedListsUnchanged, testOldTicketsLeaveTheQueue,
+  testOpeningAStepsScreenDoesNotPassIt, testLookupsCountOnTheirTicket, testEarlyRenewalNeedsAFreshApipaRead, testWrongOuThenResetStartsFresh, testOptionalScreenLines, testEveryModule9AdapterIsDhcp, testSharedListsUnchanged, testOldTicketsLeaveTheQueue,
   testOldCoachRunIsForgotten, testSheetMapping, testCiRunsThisFile, testEveryArticleCheckIsInTheSteps];
 let failed = 0;
 for (const test of tests) {
