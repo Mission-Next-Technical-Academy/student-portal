@@ -4228,6 +4228,8 @@ function hdFeatureToolButtons(name) {
 function hdMachineChange(computerName, change) {
   if (hdProveLocked()) return;
   const machine = hdFeatureMachine(computerName); if (!machine) return;
+  // Module 10 (console B): a PC in a view-only remote session can't be changed.
+  if (hdRemoteViewOnly(computerName, machine)) { if (typeof toast === 'function') toast(`View only: ask for full control to change ${computerName}.`); render(); return; }
   const result = change(machine);
   if (result === false) { hdSave(); render(); return; }
   const printed = hdMachineSettle(machine);
@@ -11287,6 +11289,15 @@ function hdRemoteScreenHtml(ticket, name, machine, control) {
   const spec = hdRemoteSpec(machine) || {}; const computer = hdComputerByName(name) || { user:'' };
   if (spec.signedIn === false) return `<div class="hd-windows-screen" data-hd-remote-screen="sign-in"><div class="hd-window-bar"><span>${hdEsc(name)} · Sign-in screen</span><span>${hdEsc(hdRemoteHhmm(hdRemotePcNow(name, machine)))}</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows sign-in</strong><span>Other user</span></div>${machine.signInMessage ? `<div class="callout warn" data-hd-sign-in-message>${hdEsc(machine.signInMessage)}</div>` : ''}<p class="muted">The user signs in here themselves. Nobody types a password in a session.</p></div></div>`;
   return `<div class="hd-windows-screen" data-hd-remote-screen="desktop"><div class="hd-window-bar"><span>${hdEsc(name)} · ${hdEsc(computer.user || ticket.requester || '')}'s desktop</span><span>${hdEsc(hdRemoteHhmm(hdRemotePcNow(name, machine)))}</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows 11 Enterprise</strong><span>${hdEsc(spec.desktop || 'The user\'s desktop')}</span></div>${control === 'view' ? '' : hdRemoteToolsHtml(name)}</div></div>`;
+}
+// Module 10 (console B): true while this PC's active remote session is view
+// only. Reads the saved state without creating it, so a PC with no remote
+// key (every older one) is never affected.
+function hdRemoteViewOnly(name, machine) {
+  if (!hdRemoteSpec(machine)) return false;
+  const ticket = hdRemoteTicket(name); const remote = ticket && ticket.consoleState && ticket.consoleState.remote;
+  const session = remote && Array.isArray(remote.sessions) && Number.isInteger(remote.active) ? remote.sessions[remote.active] : null;
+  return !!session && session.computer === name && session.control === 'view';
 }
 // Module 10 (console B): the PC's own screens (Sound, Dock and displays,
 // Services, search status, Outlook on the web), opened through the session.

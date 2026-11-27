@@ -415,6 +415,14 @@ function testRemoteDesktopTools() {
   const viewed = view.view('helpdesk/remote-support');
   assert.match(viewed, /Connected \(view only\)/);
   assert.doesNotMatch(viewed, /data-hd-remote-pc-tools/);
+  // Opened another way, the PC still can't be changed while it is view only.
+  view.run("hdSoundSet('TEST-LT-66', 'output', 'headset')");
+  assert.equal(json(view, 'hdMachine("TEST-LT-66").sound').output, 'monitor');
+  assert.match(view.toasts[view.toasts.length - 1], /^View only: ask for full control to change TEST-LT-66\.$/);
+  assert.equal(actions(view, 'HD-9966').some((a) => a.id === 'sound-output'), false);
+  view.run('hdRemoteEnd()');
+  view.run("hdSoundSet('TEST-LT-66', 'output', 'headset')");
+  assert.equal(json(view, 'hdMachine("TEST-LT-66").sound').output, 'headset', 'after the session, as before');
   // Console A's machines with no console B key show no tool grid.
   const other = onTicket('HD-9965');
   assert.equal(other.run("hdRemoteToolsHtml('TEST-LT-65')").includes('settings-sound'), false);
