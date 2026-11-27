@@ -406,6 +406,15 @@ function testRemoteDesktopTools() {
   tab.run("hdRemoteRequest('TEST-LT-66', false)");
   const screen = tab.view('helpdesk/remote-support');
   assert.match(screen, /data-hd-remote-pc-tools><button data-hd-tools="settings-sound" onclick="hdOpenMachineScreen\('TEST-LT-66','settings-sound'\)">/);
+  // View only: the desktop, but none of its settings.
+  const view = onTicket('HD-9966');
+  view.run('hdRemoteQuickAssist()');
+  const code = json(view, 'hdRemoteState(hdTicketById("HD-9966")).pending').code;
+  view.type('hd-remote-say', `Your code is ${code}.`, 'hdRemoteSay({ preventDefault() {} })');
+  view.run("hdRemoteAskControl('view')");
+  const viewed = view.view('helpdesk/remote-support');
+  assert.match(viewed, /Connected \(view only\)/);
+  assert.doesNotMatch(viewed, /data-hd-remote-pc-tools/);
   // Console A's machines with no console B key show no tool grid.
   const other = onTicket('HD-9965');
   assert.equal(other.run("hdRemoteToolsHtml('TEST-LT-65')").includes('settings-sound'), false);
@@ -426,6 +435,9 @@ function testProveShift() {
   assert.match(tab.view('helpdesk/outlook-search'), /32,912 items remaining/);
   tab.screen('TEST-LT-63', 'outlook-web');
   tab.type('hd-owa-search', 'auditor', "hdOwaSearch({ preventDefault() {} }, 'TEST-LT-63')");
+  tab.type('hd-owa-search', 'password: Winter2026!', "hdOwaSearch({ preventDefault() {} }, 'TEST-LT-63')");
+  assert.equal(tab.run('JSON.stringify(hdState)').includes('Winter2026'), false, 'never saved in a Prove It');
+  assert.equal(tab.run('hdState.prove.passwordWritten'), true);
   const opened = json(tab, 'hdState.prove.opened');
   for (const source of ['outlook-indexing:TEST-LT-63', 'searching-windows:TEST-LT-63', 'pc-services:TEST-LT-63', 'service:WSearch:TEST-LT-63', 'outlook-web:TEST-LT-63', 'owa-search:TEST-LT-63']) assert.ok(opened.includes(source), source);
   const events = json(tab, 'hdState.prove.events');
