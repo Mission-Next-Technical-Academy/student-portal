@@ -10800,7 +10800,7 @@ function hdRemoteQuickAssist() {
     hdMachineAction(name, 'quick-assist-refused', `Quick Assist could not reach ${name}: nobody is signed in`, { tool:'quick-assist' });
   } else {
     const expires = hdRemoteHhmm(new Date(hdRemoteNow(ticket).getTime() + 10 * 60000));
-    state.pending = { tool:'quick-assist', computer:name, status:'code-sent', code:hdRemoteCode(), time, expires };
+    state.pending = { tool:'quick-assist', computer:name, status:'code-sent', code:hdRemoteCode(), time, expires, expiresMinutes:state.minutes + 10 };
     hdMachineAction(name, 'remote-code', `made a Quick Assist code at ${time} (expires ${expires})`, { tool:'quick-assist' });
   }
   hdSave(); render();
@@ -10874,7 +10874,10 @@ function hdRemoteSay(event) {
   hdProveEvent('remote_say', { time, text, computer:session ? session.computer : '' });
   // Quick Assist: the user types the code once it is read out.
   const pending = state.pending; const squash = value => String(value).replace(/[\s-]/g, '').toUpperCase();
-  if (pending && pending.tool === 'quick-assist' && pending.status === 'code-sent' && squash(text).includes(pending.code)) {
+  // A code lasts 10 minutes on the session clock; then the user can't use it.
+  if (pending && pending.tool === 'quick-assist' && pending.status === 'code-sent' && state.minutes > Number(pending.expiresMinutes)) {
+    state.pending = { ...pending, status:'expired' };
+  } else if (pending && pending.tool === 'quick-assist' && pending.status === 'code-sent' && squash(text).includes(pending.code)) {
     state.pending = { ...pending, status:'waiting', typedAt:hdRemoteTick(ticket) };
     hdMachineAction(pending.computer, 'remote-code-entered', `${ticket.requester} entered the Quick Assist code at ${state.pending.typedAt}`, { tool:'quick-assist' });
   }
@@ -11020,6 +11023,7 @@ function hdRemoteQuickAssistBody(ticket, state, name) {
   if (pending.status === 'refused') return `<div class="callout warn" role="status" data-hd-qa-status="refused">Nobody is signed in to ${hdEsc(name)}: Quick Assist needs the user's desktop.</div>${start}`;
   if (pending.status === 'code-sent') return `<div class="callout info" role="status" data-hd-qa-status="code-sent"><strong>Code sent</strong><p>Security code: <code data-hd-qa-code>${hdEsc(pending.code)}</code> · expires at ${hdEsc(pending.expires)}. Read it to the user in Say to the user.</p></div>`;
   if (pending.status === 'waiting') return `<div class="callout info" role="status" data-hd-qa-status="waiting"><strong>Waiting for permission</strong><p>${hdEsc(hdRemoteFirstName(ticket))} entered the code at ${hdEsc(pending.typedAt)}. Choose how you'll help; the user chooses Allow.</p></div><div style="display:flex;gap:6px"><button type="button" class="btn btn-primary btn-sm" onclick="hdRemoteAskControl('full')"${locked}>Take full control</button><button type="button" class="btn btn-secondary btn-sm" onclick="hdRemoteAskControl('view')"${locked}>View only</button></div>`;
+  if (pending.status === 'expired') return `<div class="callout warn" role="status" data-hd-qa-status="expired">The code ${hdEsc(pending.code)} expired at ${hdEsc(pending.expires)}. Make a new code.</div>${start}`;
   return `<div class="callout warn" role="status" data-hd-qa-status="denied">${hdEsc(ticket.requester)} chose Deny at ${hdEsc(pending.time)}.</div>${start}`;
 }
 function hdRemoteSupportBody(ticket, state) {

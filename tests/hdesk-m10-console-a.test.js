@@ -318,6 +318,21 @@ function testQuickAssist() {
   assert.match(tab.view('helpdesk/remote-support'), /data-hd-qa-start/, 'back to the tools');
 }
 
+// A Quick Assist code lasts 10 minutes on the session clock.
+function testQuickAssistCodeExpires() {
+  const tab = onTicket('HD-9951');
+  tab.run('hdRemoteQuickAssist()');
+  const code = remote(tab, 'HD-9951').pending.code;
+  for (let i = 0; i < 10; i += 1) say(tab, 'Still with you.');
+  say(tab, `Your code is ${code}.`);
+  assert.equal(remote(tab, 'HD-9951').pending.status, 'expired');
+  assert.match(tab.view('helpdesk/remote-support'), new RegExp(`data-hd-qa-status="expired">The code ${code} expired at 09:11\\. Make a new code\\.`));
+  tab.run('hdRemoteQuickAssist()');
+  const fresh = remote(tab, 'HD-9951').pending.code;
+  say(tab, `Your new code is ${fresh}.`);
+  assert.equal(remote(tab, 'HD-9951').pending.status, 'waiting');
+}
+
 // Quick Assist can't reach a PC at the sign-in screen.
 function testQuickAssistNeedsSignedInUser() {
   const tab = onTicket('HD-9952');
@@ -559,6 +574,7 @@ else {
   testOldShiftsUnchanged();
   testOlderTicketUnchanged();
   testQuickAssist();
+  testQuickAssistCodeExpires();
   testQuickAssistNeedsSignedInUser();
   testRemoteSupportAttended();
   testUnattended();
