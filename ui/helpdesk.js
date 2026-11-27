@@ -1455,6 +1455,8 @@ function hdChatAsk(id, questionId) {
   const whileLocked = hdChatPending(ticket, question);
   const reply = whileLocked ? (question.replyLocked && hdConsoleAccountLocked(ticket) ? question.replyLocked : question.replyBefore || question.replyLocked) : question.reply;
   state.chat.push({ id:question.id, question:question.text, reply, whileLocked, time:hdConsoleTime(ticket) });
+  // Module 09 (console B): the user moves a cable (link), as asked.
+  if (!whileLocked) hdNetLinkChange(question.link);
   hdPracticeEvent('caller_question', { ticket:ticket.id, question:question.id });
   // Module 6 (Prove It): the question asked, by its neutral id and its text.
   hdProveEvent('caller_question', { value:question.id, label:question.text });
@@ -1645,6 +1647,8 @@ function hdConsoleAction(id, actionId) {
   state.lastAction = action.id;
   hdHistory(ticket, action.history || `Action: ${action.text}.`);
   hdPracticeEvent('action_taken', { ticket:ticket.id, action:action.id, critical:action.critical === true });
+  // Module 09 (console B): a cable moved or plugged in (link).
+  hdNetLinkChange(action.link);
   toast(action.feedback || 'Done.');
   hdRerender();
 }
@@ -3475,13 +3479,42 @@ function hdExplainCard(ticket) {
   const value = hdDraft(ticket, 'explain') || (explain && !explain.passed ? explain.text : '');
   return `<div class="card hd-explain"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Explain it in plain words</strong><span class="muted">What you say to the caller</span></div><div class="card-body" style="display:grid;gap:8px">${config.prompt ? `<p>${hdEsc(config.prompt)}</p>` : ''}${explain && explain.passed ? `<p><strong>You said:</strong> ${hdEsc(explain.text)}</p>` : `<textarea id="hd-explain-input" class="ipt" rows="4" maxlength="2000" oninput="hdKeepDraft('${ticket.id}','explain',this.value)">${hdEsc(value)}</textarea><div><button type="button" class="btn btn-secondary" onclick="hdExplainCheck('${ticket.id}')">Say it</button></div>`}${feedback}</div></div>`;
 }
+/* Module 09 (console B): two Network Operations card kinds. A card with a
+ * kind builds its own title and rows from its fields (its own title wins);
+ * a card without one is shown exactly as before.
+ *   kind:'cable-test', jack, panelPort, tester, switch?, switchPort?
+ *     the toner probe traces the jack to its patch-panel port, the cable
+ *     tester's result, and whether the port is patched to a switch port
+ *   kind:'circuit', primary:{ name, status, since? },
+ *     backup:{ name, status, speed?, dataUsedPercent? }, provider?
+ *     the site's internet circuits, as Network Operations sees them */
+function hdEvidenceShape(card) {
+  if (card.kind === 'cable-test') {
+    const patched = card.switchPort ? `Patched to ${[card.switch, card.switchPort].filter(Boolean).join(' ')}` : 'Not patched to the switch';
+    return { title:card.title || `Network Operations · Jack ${card.jack} test`, from:'Network Operations', rows:[
+      { label:'Wall jack', value:card.jack }, { label:'Toner probe', value:`${card.jack} is patch-panel port ${card.panelPort}` },
+      { label:'Cable tester', value:card.tester || '' }, { label:'Switch', value:patched }] };
+  }
+  if (card.kind === 'circuit') {
+    const primary = hdServerObject(card.primary) || {}; const backup = hdServerObject(card.backup) || {};
+    const rows = [
+      { label:primary.name || 'Primary circuit', value:`${primary.status || ''}${primary.since ? ` since ${primary.since}` : ''}` },
+      { label:backup.name || 'Backup circuit', value:[backup.status, backup.speed].filter(Boolean).join(', ') },
+    ];
+    if (backup.dataUsedPercent != null) rows.push({ label:'Backup data used', value:`${backup.dataUsedPercent}% of the monthly data cap` });
+    if (card.provider) rows.push({ label:'Provider ticket', value:card.provider });
+    return { title:card.title || 'Network Operations · Internet circuit status', from:'Network Operations', rows };
+  }
+  return { title:card.title, from:'', rows:card.rows || [] };
+}
 function hdEvidenceCards(ticket) {
   const cards = hdConsole(ticket).evidence; if (!Array.isArray(cards) || !cards.length) return '';
   const state = hdConsoleState(ticket);
   return cards.map(card => {
     const open = state.evidenceShown === card.id;
-    const rows = open ? `<dl class="hd-dl">${(card.rows || []).map(row => `<dt>${hdEsc(row.label)}</dt><dd>${hdEsc(row.value)}</dd>`).join('')}</dl>` : '';
-    return `<div class="card hd-evidence-card" data-hd-evidence="${hdEsc(card.id)}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(card.title)}</strong><span class="muted">Read-only</span><button type="button" class="btn btn-ghost btn-sm" aria-expanded="${open}" onclick="hdEvidenceOpen('${ticket.id}','${hdEsc(card.id)}')">${open ? 'Close' : 'Open'}</button></div>${open ? `<div class="card-body">${rows}</div>` : ''}</div>`;
+    const shape = hdEvidenceShape(card);
+    const rows = open ? `<dl class="hd-dl">${shape.rows.map(row => `<dt>${hdEsc(row.label)}</dt><dd>${hdEsc(row.value)}</dd>`).join('')}</dl>` : '';
+    return `<div class="card hd-evidence-card" data-hd-evidence="${hdEsc(card.id)}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>${hdEsc(shape.title)}</strong><span class="muted">${shape.from ? `From ${hdEsc(shape.from)} · ` : ''}Read-only</span><button type="button" class="btn btn-ghost btn-sm" aria-expanded="${open}" onclick="hdEvidenceOpen('${ticket.id}','${hdEsc(card.id)}')">${open ? 'Close' : 'Open'}</button></div>${open ? `<div class="card-body">${rows}</div>` : ''}</div>`;
   }).join('');
 }
 function hdHandoffCard(ticket) {
@@ -3521,7 +3554,7 @@ function hdDuplicateControl(ticket) {
   return `<div data-hd-duplicate="${tried ? 'tried' : 'no'}"><button type="button" class="btn btn-secondary" onclick="hdDuplicateMove('${ticket.id}')">${hdEsc(config.text || 'Create new incident')}</button>${tried && config.feedback ? `<div class="callout bad" role="alert" style="margin-top:6px">${hdEsc(config.feedback)}</div>` : ''}</div>`;
 }
 function hdCommsCards(ticket) {
-  return `${hdCallCard(ticket)}${hdIntakeCard(ticket)}${hdHoldCard(ticket)}${hdEvidenceCards(ticket)}${hdExplainCard(ticket)}${hdHandoffCard(ticket)}${hdTeamMessagesCard(ticket)}`;
+  return `${hdCallCard(ticket)}${hdIntakeCard(ticket)}${hdHoldCard(ticket)}${hdClosetCard(ticket)}${hdEvidenceCards(ticket)}${hdExplainCard(ticket)}${hdHandoffCard(ticket)}${hdTeamMessagesCard(ticket)}`;
 }
 // The tick (every second): a caller message that arrived, or a hold that ran
 // past its time, asks for a redraw. The first look only notes what is shown.
@@ -3607,7 +3640,7 @@ VIEWS['helpdesk/active-directory'] = () => {
     ${hdState.adTab==='users'?`<div class="hd-admin-layout"><div class="card">${hdDirectoryTable(HD_USERS.map(user=>hdUserById(user.id)))}</div><aside class="card hd-object-pane"><div class="card-header"><strong>${hdEsc(selected.name)}</strong>${selected.locked?hdBadge('Locked','bad'):hdBadge(selected.enabled?'Enabled':'Disabled',selected.enabled?'ok':'bad')}</div><div class="card-body"><dl class="hd-dl"><dt>Username</dt><dd>${hdEsc(HD_ORG.netbios+'\\'+selected.username)}</dd><dt>OU</dt><dd>${hdEsc(selected.ou)}</dd><dt>Manager</dt><dd>${hdEsc(selected.manager)}</dd><dt>Password age</dt><dd>${selected.passwordAge} days</dd><dt>Groups</dt><dd>${selected.groups.map(group=>hdBadge(group)).join(' ')}</dd></dl>${hdLockoutDetailsHtml(selected)}<div class="hd-action-grid"><button class="btn btn-secondary" onclick="hdAdAction('unlock')">Unlock</button><button class="btn btn-secondary" onclick="hdAdAction('reset')">Reset password</button><button class="btn btn-secondary" onclick="hdAdAction('${selected.enabled?'disable':'enable'}')">${selected.enabled?'Disable':'Enable'}</button><button class="btn btn-secondary" onclick="hdAdAction('add-hr')">Add approved group</button></div><div class="callout info">Verify identity and approval before any account or access action. Never place passwords in ticket notes.</div></div></aside></div>`:''}
     ${hdState.adTab==='groups'?`<div class="card"><div class="table-wrap"><table><thead><tr><th>Group</th><th>Scope</th><th>Type</th><th>Members</th><th>Resource / purpose</th></tr></thead><tbody>${HD_GROUPS.map(g=>`<tr><td><strong>${hdEsc(g.name)}</strong></td><td>${hdEsc(g.scope)}</td><td>${hdEsc(g.type)}</td><td>${g.members}</td><td>${hdEsc(g.resource)}</td></tr>`).join('')}</tbody></table></div></div>`:''}
     ${hdState.adTab==='computers' && hdAdComputerLookup() ? hdAdComputersWithPane() : ''}
-    ${hdState.adTab==='computers' && !hdAdComputerLookup()?`<div class="card"><div class="table-wrap"><table><thead><tr><th>Computer</th><th>User</th><th>OU</th><th>Trust</th><th>BitLocker</th><th>Health</th></tr></thead><tbody>${hdComputers().map(c=>{const x=hdComputerByName(c.name);return `<tr><td><strong>${hdEsc(x.name)}</strong><small>${hdEsc(x.ip)}</small></td><td>${hdEsc(x.user)}</td><td><code>${hdEsc(x.ou)}</code></td><td>${hdBadge(x.trust,x.trust==='Healthy'?'ok':'bad')}</td><td>${hdBadge(x.bitlocker,x.bitlocker==='Protected'?'ok':'warn')}</td><td>${hdEsc(x.health)}</td></tr>`}).join('')}</tbody></table></div></div>`:''}`;
+    ${hdState.adTab==='computers' && !hdAdComputerLookup()?`<div class="card"><div class="table-wrap"><table><thead><tr><th>Computer</th><th>User</th><th>OU</th><th>Trust</th><th>BitLocker</th><th>Health</th></tr></thead><tbody>${hdAdComputers().map(c=>{const x=hdComputerByName(c.name);return `<tr><td><strong>${hdEsc(x.name)}</strong><small>${hdEsc(x.ip)}</small></td><td>${hdEsc(x.user)}</td><td><code>${hdEsc(x.ou)}</code></td><td>${hdBadge(x.trust,x.trust==='Healthy'?'ok':'bad')}</td><td>${hdBadge(x.bitlocker,x.bitlocker==='Protected'?'ok':'warn')}</td><td>${hdEsc(x.health)}</td></tr>`}).join('')}</tbody></table></div></div>`:''}`;
 };
 
 function hdSelectComputer(name, route) { hdState.selectedComputer=name; hdProveOpened(`computer:${name}`, `Endpoint · ${name}`); hdSave(); if(route) navigate(route); else render(); }
@@ -3850,7 +3883,9 @@ const HD_MACHINE_SCREENS = ['print-queue', 'printer-properties', 'device-manager
   // Security, browser and OneDrive screens (Module 6, key its-07, console B).
   'windows-security', 'browser-extensions', 'onedrive',
   // Saved credentials (Module 8, key its-06, console A).
-  'credential-manager'];
+  'credential-manager',
+  // Domain join and the VPN client (Module 09, key its-04, console B).
+  'settings-about', 'vpn-client'];
 function hdOwn(object, key) { return !!object && typeof object === 'object' && Object.prototype.hasOwnProperty.call(object, key); }
 function hdTicketMachineSpecs(ticket) {
   if (HD_PROVE || !ticket) return null;
@@ -4096,6 +4131,7 @@ function hdFeatureHelp(computer) {
   if (hdWinHelp(machine)) lines.push(hdWinHelp(machine));
   hdWinTypedHelp(machine).forEach(line => lines.push(line));
   hdNetHelp(machine).forEach(line => lines.push(line));
+  if (hdJoinState(machine)) lines.push(`Domain: Add-Computer -DomainName ${HD_ORG.domain} -OUPath "<OU>" [-Restart] (signs in with the provisioning account, KB-0097)`);
   return lines.length ? `\n${lines.join('\n')}` : '';
 }
 
@@ -4109,7 +4145,7 @@ function hdOpenMachineScreen(computerName, screen, extra) {
   hdState.machineView = { computer:computerName, ...(extra || {}) };
   const item = extra && (extra.printer || extra.device) ? `:${extra.printer || extra.device}` : '';
   if (hdOwn(HD_WIN_SCREENS, screen)) hdWinOpened(computerName, screen, hdState.machineView.tab);
-  else hdProveOpened(`${screen}:${computerName}${item}`, `${({ 'print-queue':'Print queue', 'printer-properties':'Printer properties', 'device-manager':'Device Manager', camera:'Camera', dock:'Dock and displays', 'settings-network':'Settings › Network & internet' })[screen]} · ${computerName}${item ? ` · ${item.slice(1)}` : ''}`);
+  else hdProveOpened(`${screen}:${computerName}${item}`, `${({ 'print-queue':'Print queue', 'printer-properties':'Printer properties', 'device-manager':'Device Manager', camera:'Camera', dock:'Dock and displays', 'settings-network':'Settings › Network & internet', 'settings-about':'Settings › System › About', 'vpn-client':'Northstar VPN Client' })[screen]} · ${computerName}${item ? ` · ${item.slice(1)}` : ''}`);
   if (screen === 'camera') {
     const machine = hdFeatureMachine(computerName);
     const camera = (machine.devices || []).find(device => device && device.camera);
@@ -4146,6 +4182,10 @@ function hdFeatureToolButtons(name) {
     all || (devices && machine.devices.some(device => device && device.camera)) ? open('camera', '📷 Camera') : '',
     all || machine.dock ? open('dock', '🖥 Dock &amp; displays') : '',
     all || machine.dock || hdNetState(machine) ? open('settings-network', '⚙ Settings › Network &amp; internet') : '',
+    // Module 09 (console B): only on a computer whose machine has them, in a
+    // Prove shift too, so an older shift's buttons never change.
+    hdJoinState(machine) ? open('settings-about', '⚙ Settings › System › About') : '',
+    hdVpnClient(machine) ? open('vpn-client', '🔒 Northstar VPN Client') : '',
   ].join('');
 }
 // A shared printer's machine action: guard, change, settle, record, redraw.
@@ -5920,7 +5960,7 @@ function hdAdComputerTabs(name) {
 }
 // A row opens when a tab beyond General shows for it (then every row does).
 // Module 7: with a directory block every computer opens on General (its OU).
-function hdAdComputerOpens(name) { return hdAdComputerTabs(name).length > 1 || (!!hdDirectory() && !!hdComputerByName(name)); }
+function hdAdComputerOpens(name) { return hdAdListed(name) && (hdAdComputerTabs(name).length > 1 || (!!hdDirectory() && !!hdComputerByName(name))); }
 function hdAdComputerLookup() { return hdAdKeysAnywhere() || !!hdDirectory(); }
 function hdAdComputerFind(event) {
   if (event && event.preventDefault) event.preventDefault();
@@ -5994,7 +6034,7 @@ function hdAdComputerPane(name) {
 }
 function hdAdComputersWithPane() {
   const state = hdAdComputerState(); const q = String(state.q || '').toLowerCase();
-  const rows = hdComputers().map(item => hdComputerByName(item.name)).filter(x => x && (!q || x.name.toLowerCase().includes(q)));
+  const rows = hdAdComputers().map(item => hdComputerByName(item.name)).filter(x => x && (!q || x.name.toLowerCase().includes(q)));
   const table = rows.map(x => `<tr data-hd-ad-computer="${hdEsc(x.name)}"><td><strong>${hdEsc(x.name)}</strong><small>${hdEsc(x.ip)}</small></td><td>${hdEsc(x.user)}</td><td><code>${hdEsc(x.ou)}</code></td><td>${hdBadge(x.trust, x.trust === 'Healthy' ? 'ok' : 'bad')}</td><td>${hdBadge(x.bitlocker, x.bitlocker === 'Protected' ? 'ok' : 'warn')}</td><td>${hdEsc(x.health)}</td><td>${hdAdComputerOpens(x.name) ? `<button class="btn btn-sm btn-secondary" onclick="hdAdOpenComputer('${hdJsArg(x.name)}')">Open</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No computer matches this name.</td></tr>';
   const pane = state.name && hdAdComputerOpens(state.name) ? hdAdComputerPane(state.name) : '<aside class="card hd-object-pane"><div class="card-body"><p class="muted">Open a computer to see its properties.</p></div></aside>';
   return `<div class="hd-admin-layout"><div><form class="filterbar" onsubmit="hdAdComputerFind(event)"><label>Find a computer by name <input id="hd-ad-computer-q" class="ipt" maxlength="40" value="${hdEsc(state.q || '')}" placeholder="Computer name"></label><button class="btn btn-primary btn-sm" type="submit">Find</button><span class="muted">${rows.length} shown</span></form><div class="card"><div class="table-wrap"><table data-hd-ad-computers><thead><tr><th>Computer</th><th>User</th><th>OU</th><th>Trust</th><th>BitLocker</th><th>Health</th><th></th></tr></thead><tbody>${table}</tbody></table></div></div></div>${pane}</div>`;
@@ -7763,6 +7803,308 @@ function hdDeviceAdvancedSet(computerName, deviceId) {
 }
 window.hdDeviceAdvancedSet = hdDeviceAdvancedSet;
 
+/* ---------- Network closet, VPN client and domain join (added for Module 09, key its-04, console B) ----------
+ * Each is off unless a ticket's console block or a computer's machine state
+ * turns it on; an older ticket or computer without the key looks and answers
+ * exactly as before. Practice only unless a Prove shift's machine has the key.
+ *   console.closet: { id, floor, room?, jacks:[{ jack, location?, panelPort,
+ *     switch?, switchPort?, link?:'green'|'amber'|'off', vlan? }] }
+ *     the Network closet card on the ticket and its read-only screen: each
+ *     wall jack, its patch-panel port and its switch port, with the port's
+ *     link light and VLAN. A jack with no switchPort is "Not patched" (its
+ *     light is off). Opening it records serverSeen 'closet:<id>' on the
+ *     ticket (the serverSeen rule). Network Operations' room: nothing on it
+ *     can be changed.
+ *   caller question or ticket action link: { computer, adapter, media?,
+ *     renew?:true, jack? }   the user (or the technician) moves a cable: the
+ *     wired adapter's link goes up (or down, media 'Disconnected'). With
+ *     renew, the adapter takes its lease at once (a laptop plugged in at the
+ *     bench); without it, an APIPA address stays until /release and /renew.
+ *     Action cable-connected or cable-unplugged.
+ *   machine.vpnClient: { status?:'Disconnected'|'Connected', gateway?,
+ *     adapter?:'Northstar VPN', address, mask?, dnsServers?, approval?:false,
+ *     lastConnected? }   the Northstar VPN Client screen. Connect waits for
+ *     the user to approve the sign-in on their phone (approval:false skips
+ *     it), then brings the VPN adapter up in the machine's network state
+ *     (added if absent) with the company DNS; Disconnect takes it down (the
+ *     adapter stays, media disconnected). No internet: Connect fails.
+ *     Seen key vpn-client; actions vpn-connect-failed, vpn-connect,
+ *     vpn-disconnect.
+ *   machine.domain: { joined:false|true, domain?, workgroup?, ou?, ous?:[...],
+ *     dcReachable?:false }   Settings › System › About › Domain or
+ *     workgroup › Change. A join asks for the domain, then offers only "Use
+ *     the provisioning account (KB-0097)" (the Service Desk vault: no
+ *     password field anywhere), then an OU (the department OUs under
+ *     Workstations and CN=Computers, or ous), then a restart. No domain
+ *     controller in reach (from the network state, or dcReachable:false):
+ *     Windows' "could not be contacted" message. A computer with joined:false
+ *     has no object on Active Directory › Computers or Get-ADComputer until
+ *     it joins; then it shows in the chosen OU. Add-Computer -DomainName
+ *     <domain> [-OUPath <ou>] [-Restart] does the same with the vault
+ *     account; -Credential with any other account is refused (no -OUPath:
+ *     CN=Computers, as Windows does). Seen key settings-about; actions
+ *     domain-join-failed, domain-join (domain, ou, account, via),
+ *     domain-join-default-container (the OU was CN=Computers) and restart
+ *     (afterJoin). */
+function hdNetLinkChange(link) {
+  if (!link || typeof link !== 'object' || HD_PROVE || hdProveLocked()) return;
+  const machine = hdNetMachine(link.computer); if (!machine) return;
+  const adapter = hdNetAdapters(hdNetState(machine)).find(item => item.name === link.adapter && !['Wi-Fi', 'VPN'].includes(item.kind));
+  const media = link.media === 'Disconnected' ? 'Disconnected' : 'Connected';
+  if (!adapter || adapter.media === media) return;
+  adapter.media = media;
+  const address = media === 'Connected' && link.renew === true && hdNetIp(adapter).dhcp !== false && hdNetTakeLease(adapter, link.computer) ? hdNetIp(adapter).address : '';
+  const where = link.jack ? ` (jack ${link.jack})` : '';
+  hdMachineAction(link.computer, media === 'Connected' ? 'cable-connected' : 'cable-unplugged', `${media === 'Connected' ? 'network cable plugged in' : 'network cable unplugged'} on ${adapter.name}${where}${address ? `; DHCP gave ${address}` : ''}`, { adapter:adapter.name, ...(link.jack ? { jack:link.jack } : {}), ...(address ? { address } : {}) });
+}
+
+// The network closet (console.closet).
+const HD_LINK_LIGHTS = { green:['Green: link', 'ok'], amber:['Amber: link with errors', 'warn'], off:['Off: no link', 'neutral'] };
+function hdCloset(ticket) { const closet = hdConsole(ticket).closet; return hdServerObject(closet) && Array.isArray(closet.jacks) ? closet : null; }
+function hdClosetKey(closet) { return `closet:${closet.id || closet.floor || 'closet'}`; }
+function hdClosetCard(ticket) {
+  const closet = hdCloset(ticket); if (!closet) return '';
+  const opened = (hdConsoleState(ticket).serverSeen || []).includes(hdClosetKey(closet));
+  return `<div class="card hd-closet-card" data-hd-closet-card="${hdEsc(closet.id || '')}"><div class="card-header" ${HD_CONSOLE_HEADER}><strong>Network closet · ${hdEsc(closet.floor || '')}</strong><span class="muted">Network Operations · Read-only${opened ? ' · Opened' : ''}</span><button type="button" class="btn btn-ghost btn-sm" data-hd-closet-open onclick="hdClosetOpen('${hdJsArg(ticket.id)}')">Open</button></div></div>`;
+}
+function hdClosetOpen(id) {
+  const ticket = hdTicketById(id); const closet = ticket && hdCloset(ticket); if (!closet) return;
+  const key = hdClosetKey(closet);
+  hdState.closetTicket = ticket.id;
+  hdServerSeen(key, `Network closet · ${closet.floor || ''}`);
+  // Recorded on this ticket even when another one is the open ticket.
+  const state = hdConsoleState(ticket);
+  if (!Array.isArray(state.serverSeen)) state.serverSeen = [];
+  if (!state.serverSeen.includes(key)) state.serverSeen.push(key);
+  hdSave();
+  navigate('#/helpdesk/network-closet');
+}
+VIEWS['helpdesk/network-closet'] = () => {
+  const ticket = hdTicketById(hdState.closetTicket); const closet = ticket && hdCloset(ticket);
+  if (!closet) return `${hdPageHeader('Network closet', 'Open the network closet from a ticket that provides it.')}`;
+  const rows = closet.jacks.filter(item => item && item.jack).map(item => {
+    const patched = !!item.switchPort;
+    const link = patched && hdOwn(HD_LINK_LIGHTS, item.link) ? item.link : 'off';
+    const [text, tone] = HD_LINK_LIGHTS[link];
+    return `<tr data-hd-jack="${hdEsc(item.jack)}" data-hd-link="${link}"><td><strong>${hdEsc(item.jack)}</strong>${item.location ? `<small>${hdEsc(item.location)}</small>` : ''}</td><td>${hdEsc(item.panelPort || '')}</td><td data-hd-switch-port>${patched ? hdEsc([item.switch, item.switchPort].filter(Boolean).join(' ')) : '<strong>Not patched</strong>'}</td><td>${hdBadge(text, tone)}</td><td>${patched && item.vlan != null && item.vlan !== '' ? `VLAN ${hdEsc(item.vlan)}` : '—'}</td></tr>`;
+  }).join('');
+  const back = `<button class="btn btn-secondary" onclick="hdSelectTicket('${hdJsArg(ticket.id)}')">← ${hdEsc(hdTicketLabel(ticket))}</button>`;
+  const note = HD_PROVE ? '' : '<div class="callout info">Network Operations\' room. Read it to see where a fault is and who fixes it: patching a cable or restarting a switch is theirs.</div>';
+  return `${hdPageHeader('Network closet', `${closet.floor || ''}${closet.room ? ` · ${closet.room}` : ''} · read-only`, back)}<div class="card" data-hd-closet="${hdEsc(closet.id || '')}"><div class="table-wrap"><table><thead><tr><th>Wall jack</th><th>Patch-panel port</th><th>Switch port</th><th>Link light</th><th>VLAN</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="muted">No jacks.</td></tr>'}</tbody></table></div></div>${note}`;
+};
+
+// The Northstar VPN Client (machine.vpnClient).
+function hdVpnClient(machine) { return machine && hdServerObject(machine.vpnClient) ? machine.vpnClient : null; }
+function hdVpnStatus(client) { return ['Connecting', 'Connected'].includes(client.status) ? client.status : 'Disconnected'; }
+function hdVpnAdapter(machine, create) {
+  const net = hdNetState(machine); if (!net) return null;
+  const client = hdVpnClient(machine); const name = client.adapter || 'Northstar VPN';
+  let adapter = hdNetAdapters(net).find(item => item.kind === 'VPN' && item.name === name) || hdNetAdapters(net).find(item => item.kind === 'VPN');
+  if (!adapter && create) { adapter = { name, kind:'VPN', description:'Northstar VPN Virtual Adapter', media:'Disconnected', mac:'00-FF-4E-53-56-50', ip:{ dhcp:true, address:'', dnsServers:[] } }; net.adapters.push(adapter); }
+  return adapter;
+}
+function hdVpnUp(machine, computerName) {
+  const client = hdVpnClient(machine);
+  client.status = 'Connected';
+  client.connectedAt = hdNetNow(computerName).toISOString();
+  const adapter = hdVpnAdapter(machine, true);
+  if (adapter) {
+    adapter.media = 'Connected';
+    adapter.ip = { dhcp:true, address:client.address || '10.20.250.10', mask:client.mask || '255.255.255.0', gateway:'', dnsServers:Array.isArray(client.dnsServers) ? client.dnsServers.slice() : ['10.20.0.10', '10.20.0.11'], dhcpServer:'10.20.250.1', suffix:HD_ORG.domain };
+  }
+  hdMachineAction(computerName, 'vpn-connect', `connected Northstar VPN Client to ${client.gateway || 'vpn.northstar.example'}${adapter ? ` (${adapter.name} ${adapter.ip.address})` : ''}`, { gateway:client.gateway || 'vpn.northstar.example', address:adapter ? adapter.ip.address : '' });
+}
+function hdVpnConnect(computerName) {
+  hdMachineChange(computerName, machine => {
+    const client = hdVpnClient(machine); if (!client || hdVpnStatus(client) !== 'Disconnected') return false;
+    const net = hdNetState(machine);
+    client.error = '';
+    if (net && !hdNetActive(net)) {
+      client.error = `Can't reach ${client.gateway || 'vpn.northstar.example'}. Check the internet connection, then try again.`;
+      hdMachineAction(computerName, 'vpn-connect-failed', 'tried to connect Northstar VPN Client with no internet connection', { reason:'no-internet' });
+      return undefined;
+    }
+    if (client.approval === false) { hdVpnUp(machine, computerName); return undefined; }
+    client.status = 'Connecting';
+    return undefined;
+  });
+}
+function hdVpnApprove(computerName) {
+  hdMachineChange(computerName, machine => {
+    const client = hdVpnClient(machine); if (!client || hdVpnStatus(client) !== 'Connecting') return false;
+    hdVpnUp(machine, computerName);
+    return undefined;
+  });
+}
+function hdVpnDisconnect(computerName) {
+  hdMachineChange(computerName, machine => {
+    const client = hdVpnClient(machine); if (!client || hdVpnStatus(client) === 'Disconnected') return false;
+    const was = hdVpnStatus(client);
+    client.status = 'Disconnected'; client.connectedAt = ''; client.lastConnected = was === 'Connected' ? 'Today' : client.lastConnected;
+    const adapter = hdVpnAdapter(machine, false);
+    if (adapter) { adapter.media = 'Disconnected'; adapter.ip = { dhcp:true, address:'', dnsServers:[] }; }
+    if (was === 'Connected') hdMachineAction(computerName, 'vpn-disconnect', 'disconnected Northstar VPN Client', {});
+    return undefined;
+  });
+}
+VIEWS['helpdesk/vpn-client'] = () => {
+  const found = hdViewMachine(); const client = found && hdVpnClient(found.machine);
+  if (!client) return hdMachineMissing('Northstar VPN Client');
+  const { computer, machine } = found; const n = `'${hdJsArg(computer.name)}'`;
+  if (hdWinSeen(machine, 'vpn-client')) hdSave();
+  const status = hdVpnStatus(client); const locked = hdProveLocked() ? 'disabled' : '';
+  const adapter = status === 'Connected' ? hdVpnAdapter(machine, false) : null;
+  const since = status === 'Connected' && client.connectedAt ? hdShiftTimeText(client.connectedAt) : '';
+  const rows = [['Status', status], ['Gateway', client.gateway || 'vpn.northstar.example'], ['Signed in as', computer.user || ''],
+    ...(status === 'Connected' ? [['Connected since', since], ['VPN address', adapter ? hdNetIp(adapter).address : client.address || '']] : [['Last connected', client.lastConnected || 'Never']])];
+  const buttons = status === 'Disconnected'
+    ? `<button type="button" class="btn btn-primary btn-sm" data-hd-vpn-connect ${locked} onclick="hdVpnConnect(${n})">Connect</button>`
+    : `${status === 'Connecting' ? `<button type="button" class="btn btn-primary btn-sm" data-hd-vpn-approve ${locked} onclick="hdVpnApprove(${n})">${hdEsc(computer.user || 'The user')} approved the sign-in on their phone</button>` : ''}<button type="button" class="btn btn-secondary btn-sm" data-hd-vpn-disconnect ${locked} onclick="hdVpnDisconnect(${n})">${status === 'Connecting' ? 'Cancel' : 'Disconnect'}</button>`;
+  const waiting = status === 'Connecting' ? '<p data-hd-vpn-waiting>Connecting… Waiting for the sign-in to be approved.</p>' : '';
+  const error = client.error && status === 'Disconnected' ? `<div class="callout bad" role="alert" data-hd-vpn-error>${hdEsc(client.error)}</div>` : '';
+  return `${hdPageHeader('Northstar VPN Client', `${computer.name} · company sign-in`, hdMachineBack(computer))}<div class="card" data-hd-vpn="${hdEsc(status)}" style="max-width:520px"><div class="card-header"><strong>Northstar VPN</strong>${hdBadge(status, status === 'Connected' ? 'ok' : status === 'Connecting' ? 'warn' : 'neutral')}</div><div class="card-body"><dl class="hd-dl">${rows.map(([k, v]) => `<dt>${hdEsc(k)}</dt><dd data-hd-vpn-prop="${hdEsc(k)}">${hdEsc(v)}</dd>`).join('')}</dl>${waiting}${error}<div style="display:flex;flex-wrap:wrap;gap:8px">${buttons}</div></div></div>`;
+};
+window.hdVpnConnect = hdVpnConnect; window.hdVpnApprove = hdVpnApprove; window.hdVpnDisconnect = hdVpnDisconnect;
+
+// The domain join (machine.domain).
+const HD_JOIN_ACCOUNT = 'NORTHSTAR\\svc-provision';
+function hdJoinState(machine) { return machine && hdServerObject(machine.domain) ? machine.domain : null; }
+// A computer that hasn't joined yet has no computer object in Active Directory.
+function hdAdListed(name) { const domain = hdJoinState(hdFeatureMachine(name)); return !(domain && domain.joined === false); }
+function hdAdComputers() { return hdComputers().filter(computer => hdAdListed(computer.name)); }
+function hdJoinOus(machine) {
+  const own = hdJoinState(machine).ous;
+  if (Array.isArray(own) && own.length) return own.map(String);
+  const departments = [...new Set(hdComputers().map(computer => computer.ou).filter(ou => /^OU=[^,]+,OU=Workstations$/.test(String(ou || ''))))].sort();
+  return [...departments, 'CN=Computers'];
+}
+function hdJoinOuMatch(machine, typed) { const wanted = String(typed || '').replace(/^["']|["']$/g, '').trim().toLowerCase(); return hdJoinOus(machine).find(ou => ou.toLowerCase() === wanted) || ''; }
+function hdJoinDcFound(machine, domain) {
+  if (String(domain || '').toLowerCase() !== String(HD_ORG.domain).toLowerCase()) return false;
+  const net = hdNetState(machine);
+  return net ? !!hdNetDcReachable(net) : hdJoinState(machine).dcReachable !== false;
+}
+function hdJoinNoDc(domain) { return `An Active Directory Domain Controller (AD DC) for the domain "${domain}" could not be contacted.`; }
+function hdJoinDo(machine, computerName, ou, via) {
+  const domain = hdJoinState(machine);
+  Object.assign(domain, { joined:true, domain:HD_ORG.domain, ou, pendingRestart:true });
+  machine.computer = { ...(hdServerObject(machine.computer) || {}), ou, trust:'Healthy' };
+  hdMachineAction(computerName, 'domain-join', `joined ${HD_ORG.domain} with the provisioning account (KB-0097) into ${ou}${via === 'add-computer' ? ' (Add-Computer)' : ''}`, { domain:HD_ORG.domain, ou, account:HD_JOIN_ACCOUNT, via });
+  if (ou === 'CN=Computers') hdMachineAction(computerName, 'domain-join-default-container', `joined into the default Computers container`, { ou });
+}
+function hdJoinRestartNow(machine, computerName) {
+  hdJoinState(machine).pendingRestart = false;
+  hdMachineAction(computerName, 'restart', 'restarted the computer to finish joining the domain', { afterJoin:true });
+}
+function hdJoinView(patch) { hdState.machineView = { ...hdMachineView(), join:patch }; }
+function hdJoinStart(computerName) {
+  const machine = hdFeatureMachine(computerName); const domain = hdJoinState(machine);
+  if (!domain || domain.joined || hdProveLocked()) return;
+  hdJoinView({ step:'change' }); hdSave(); render();
+}
+function hdJoinCancel() { hdJoinView(null); hdSave(); render(); }
+function hdJoinDomain(event, computerName) {
+  if (event && event.preventDefault) event.preventDefault();
+  const field = document.getElementById('hd-join-domain'); const typed = field ? String(field.value || '').trim() : '';
+  hdMachineChange(computerName, machine => {
+    const domain = hdJoinState(machine); if (!domain || domain.joined) return false;
+    if (!typed) { hdJoinView({ step:'change', error:'Type the domain name.' }); return false; }
+    if (!hdJoinDcFound(machine, typed)) {
+      hdJoinView({ step:'error', domain:typed });
+      hdMachineAction(computerName, 'domain-join-failed', `tried to join ${typed}: no domain controller could be contacted`, { domain:typed, reason:'no-dc', via:'settings' });
+      return undefined;
+    }
+    hdJoinView({ step:'account', domain:HD_ORG.domain });
+    return false;
+  });
+}
+function hdJoinAccount(computerName) {
+  const view = hdMachineView().join; if (!view || view.step !== 'account' || hdProveLocked()) return;
+  hdJoinView({ step:'ou', domain:view.domain }); hdSave(); render();
+}
+function hdJoinOu(event, computerName) {
+  if (event && event.preventDefault) event.preventDefault();
+  const field = document.getElementById('hd-join-ou'); const typed = field ? String(field.value || '') : '';
+  hdMachineChange(computerName, machine => {
+    const domain = hdJoinState(machine); const view = hdMachineView().join;
+    if (!domain || domain.joined || !view || view.step !== 'ou') return false;
+    const ou = hdJoinOuMatch(machine, typed); if (!ou) return false;
+    hdJoinDo(machine, computerName, ou, 'settings');
+    hdJoinView({ step:'welcome' });
+    return undefined;
+  });
+}
+function hdJoinRestart(computerName) {
+  hdMachineChange(computerName, machine => {
+    const domain = hdJoinState(machine); if (!domain || !domain.pendingRestart) return false;
+    hdJoinRestartNow(machine, computerName);
+    hdJoinView(null);
+    if (typeof toast === 'function' && !HD_PROVE) toast(`${computerName} restarted.`);
+    return undefined;
+  });
+}
+VIEWS['helpdesk/settings-about'] = () => {
+  const found = hdViewMachine(); const domain = found && hdJoinState(found.machine);
+  if (!domain) return hdMachineMissing('Settings › System › About');
+  const { computer, machine } = found; const n = `'${hdJsArg(computer.name)}'`;
+  if (hdWinSeen(machine, 'settings-about')) hdSave();
+  const locked = hdProveLocked() ? 'disabled' : '';
+  const joinedTo = domain.joined ? domain.domain || HD_ORG.domain : '';
+  const rows = [['Device name', computer.name], ['Full device name', joinedTo ? `${computer.name}.${joinedTo}` : computer.name], [joinedTo ? 'Domain' : 'Workgroup', joinedTo || domain.workgroup || 'WORKGROUP'], ['Edition', computer.os || 'Windows 11 Enterprise']];
+  const view = hdMachineView().join || null;
+  let panel = '';
+  if (view && view.step === 'change') {
+    panel = `<form class="card" data-hd-join="change" onsubmit="hdJoinDomain(event,${n})"><div class="card-header"><strong>Computer Name/Domain Changes</strong></div><div class="card-body" style="display:grid;gap:8px;max-width:420px"><p>Computer name: <strong>${hdEsc(computer.name)}</strong></p><p>Member of: <strong>Domain</strong></p><label>Domain <input id="hd-join-domain" class="ipt" autocomplete="off" spellcheck="false" maxlength="60"></label>${view.error ? `<div class="callout bad" role="alert">${hdEsc(view.error)}</div>` : ''}<div style="display:flex;gap:8px"><button type="submit" class="btn btn-primary btn-sm" ${locked}>OK</button><button type="button" class="btn btn-ghost btn-sm" onclick="hdJoinCancel()">Cancel</button></div></div></form>`;
+  } else if (view && view.step === 'error') {
+    panel = `<div class="card" data-hd-join="error"><div class="card-header"><strong>Computer Name/Domain Changes</strong></div><div class="card-body"><div class="callout bad" role="alert" data-hd-join-error><p>${hdEsc(hdJoinNoDc(view.domain))}</p><p>Ensure that the domain name is typed correctly.</p></div><button type="button" class="btn btn-secondary btn-sm" onclick="hdJoinStart(${n})">OK</button></div></div>`;
+  } else if (view && view.step === 'account') {
+    // The only way to sign in: the Service Desk vault. No password field.
+    panel = `<div class="card" data-hd-join="account"><div class="card-header"><strong>Windows Security · Computer Name/Domain Changes</strong></div><div class="card-body" style="display:grid;gap:8px;max-width:420px"><p>Sign in with an account that may join computers to ${hdEsc(view.domain || HD_ORG.domain)}.</p><button type="button" class="btn btn-primary btn-sm" data-hd-join-provisioning ${locked} onclick="hdJoinAccount(${n})">Use the provisioning account (KB-0097)</button><p class="muted">The Service Desk vault signs in as ${hdEsc(HD_JOIN_ACCOUNT)}. You never type a password.</p><button type="button" class="btn btn-ghost btn-sm" onclick="hdJoinCancel()">Cancel</button></div></div>`;
+  } else if (view && view.step === 'ou') {
+    const options = hdJoinOus(machine).map(ou => `<option value="${hdEsc(ou)}">${hdEsc(ou)}</option>`).join('');
+    panel = `<form class="card" data-hd-join="ou" onsubmit="hdJoinOu(event,${n})"><div class="card-header"><strong>Computer Name/Domain Changes · Organizational unit</strong></div><div class="card-body" style="display:grid;gap:8px;max-width:420px"><label>Put the computer object in <select id="hd-join-ou" class="ipt">${options}</select></label><div style="display:flex;gap:8px"><button type="submit" class="btn btn-primary btn-sm" ${locked}>Join</button><button type="button" class="btn btn-ghost btn-sm" onclick="hdJoinCancel()">Cancel</button></div></div></form>`;
+  } else if (view && view.step === 'welcome') {
+    panel = `<div class="card" data-hd-join="welcome"><div class="card-header"><strong>Computer Name/Domain Changes</strong></div><div class="card-body"><p data-hd-join-welcome>Welcome to the ${hdEsc(HD_ORG.domain)} domain.</p><button type="button" class="btn btn-secondary btn-sm" onclick="hdJoinCancel()">OK</button></div></div>`;
+  }
+  const restart = domain.pendingRestart ? `<div class="callout warning" data-hd-join-restart><p>You must restart your computer to apply these changes.</p><button type="button" class="btn btn-primary btn-sm" ${locked} onclick="hdJoinRestart(${n})">Restart now</button></div>` : '';
+  const change = domain.joined ? '' : `<button type="button" class="btn btn-secondary btn-sm" data-hd-join-change ${locked} onclick="hdJoinStart(${n})">Domain or workgroup › Change</button>`;
+  return `${hdPageHeader('Settings', `${computer.name} · System › About`, hdMachineBack(computer))}<div class="card" data-hd-about data-hd-joined="${domain.joined ? 'yes' : 'no'}"><div class="card-header"><strong>Device specifications</strong></div><div class="card-body"><dl class="hd-dl">${rows.map(([k, v]) => `<dt>${hdEsc(k)}</dt><dd data-hd-about-prop="${hdEsc(k)}">${hdEsc(v)}</dd>`).join('')}</dl>${change}</div></div>${panel}${restart}`;
+};
+window.hdJoinStart = hdJoinStart; window.hdJoinCancel = hdJoinCancel; window.hdJoinDomain = hdJoinDomain; window.hdJoinAccount = hdJoinAccount; window.hdJoinOu = hdJoinOu; window.hdJoinRestart = hdJoinRestart;
+window.hdClosetOpen = hdClosetOpen;
+// Add-Computer, on a computer with a domain block; null otherwise.
+function hdJoinCommand(command, normalized, computer) {
+  if (!/^add-computer\b/.test(normalized)) return null;
+  const machine = computer && hdFeatureMachine(computer.name); const domain = hdJoinState(machine); if (!domain) return null;
+  if (hdProveLocked()) return '';
+  const value = name => { const match = new RegExp(`(?:^|\\s)-${name}(?::|\\s+)("[^"]*"|'[^']*'|\\S+)`, 'i').exec(command); return match ? match[1].replace(/^["']|["']$/g, '') : ''; };
+  const typedDomain = value('domainname') || value('domain');
+  const credential = value('credential');
+  const restart = /(?:^|\s)-restart\b/i.test(command);
+  const name = computer.name;
+  if (!typedDomain) { hdLastCommandResult = 'refused: no domain'; return 'Add-Computer : Cannot process command because of one or more missing mandatory parameters: DomainName.'; }
+  if (domain.joined) { hdLastCommandResult = 'refused: already joined'; return `Add-Computer : Cannot add computer '${name}' to domain '${typedDomain}' because it is already in that domain.`; }
+  if (/(?:^|\s)-credential\b/i.test(command) && credential.toLowerCase() !== HD_JOIN_ACCOUNT.toLowerCase()) {
+    hdLastCommandResult = 'refused: credential';
+    return `Add-Computer didn't run: this console never asks for a password. Leave out -Credential and the Service Desk vault signs in with the provisioning account, ${HD_JOIN_ACCOUNT} (KB-0097).`;
+  }
+  const failed = reason => `Add-Computer : Computer '${name}' failed to join domain '${typedDomain}' from its current workgroup '${domain.workgroup || 'WORKGROUP'}' with following error message: ${reason}`;
+  if (!hdJoinDcFound(machine, typedDomain)) {
+    hdLastCommandResult = 'join failed: no domain controller';
+    hdMachineAction(name, 'domain-join-failed', `tried to join ${typedDomain}: no domain controller could be contacted (Add-Computer)`, { domain:typedDomain, reason:'no-dc', via:'add-computer' });
+    hdSave();
+    return failed('The specified domain either does not exist or could not be contacted.');
+  }
+  const typedOu = value('oupath');
+  const ou = typedOu ? hdJoinOuMatch(machine, typedOu) : 'CN=Computers';
+  if (!ou) { hdLastCommandResult = 'join failed: no such OU'; return failed('There is no such object on the server.'); }
+  hdJoinDo(machine, name, ou, 'add-computer');
+  if (restart) hdJoinRestartNow(machine, name);
+  hdLastCommandResult = `joined ${HD_ORG.domain} in ${ou}`;
+  hdProveEdited(); hdSave();
+  return restart ? '' : `WARNING: The changes will take effect after you restart the computer ${name}.`;
+}
+
 function hdPowerShellOutput(command) {
   const normalized=command.trim().toLowerCase().replace(/\s+/g, ' '); const computer=hdComputerByName(hdState.selectedComputer)||hdComputers()[0];
   if(normalized==='get-help') return `Supported: Get-ComputerInfo, Get-Service, Get-Process, Get-Volume, Get-Disk, Get-NetIPConfiguration, Get-WinEvent, Get-LocalUser, Get-LocalGroup, Get-LocalGroupMember, Add-LocalGroupMember, Remove-LocalGroupMember, Get-Printer, Add-Printer, Get-ADUser, Get-ADGroup, Get-ADComputer, Resolve-DnsName, Test-NetConnection, whoami /groups, gpupdate /force, gpresult /r, Clear-Host${HD_PROVE ? '' : `
@@ -7772,6 +8114,9 @@ ${hdDirectoryReadOnly() ? '' : `Accounts: Get-ADUser <user> -Properties *, Searc
 `}Events: Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4740}`}${hdFeatureHelp(computer)}${hdDirectoryHelp()}`;
   const practiceOutput = hdPracticeCommand(command, normalized, computer);
   if(practiceOutput !== null) return practiceOutput;
+  // Module 09 (console B): Add-Computer on a computer with a domain block.
+  const joinOutput = hdJoinCommand(command, normalized, computer);
+  if(joinOutput !== null) return joinOutput;
   // Module 09: a PC with network state answers its own network lines first,
   // so a PC with no link never gets a server's healthy answer.
   const networkOutput = hdNetCommand(command, normalized, computer);
@@ -7796,7 +8141,7 @@ ${hdDirectoryReadOnly() ? '' : `Accounts: Get-ADUser <user> -Properties *, Searc
   if(normalized==='get-localgroup') return 'Administrators\nRemote Desktop Users\nUsers';
   if(normalized.startsWith('get-aduser')) return HD_USERS.slice(0,8).map(u=>`${u.username.padEnd(12)} ${u.name.padEnd(20)} Enabled=${hdUserById(u.id).enabled}`).join('\n');
   if(normalized.startsWith('get-adgroup')) return HD_GROUPS.map(g=>`${g.name.padEnd(26)} ${g.scope} ${g.type}`).join('\n');
-  if(normalized.startsWith('get-adcomputer')) return hdComputers().map(c=>`${c.name.padEnd(14)} ${c.trust}`).join('\n');
+  if(normalized.startsWith('get-adcomputer')) return hdAdComputers().map(c=>`${c.name.padEnd(14)} ${c.trust}`).join('\n');
   if(normalized.startsWith('resolve-dnsname')) return 'Name                              Type TTL Section IPAddress\npurchasing.northstar.example      A    300 Answer  10.20.0.50';
   if(normalized.startsWith('test-netconnection')) return 'ComputerName: purchasing.northstar.example\nRemotePort: 443\nInterfaceAlias: Wi-Fi\nTcpTestSucceeded: True';
   if(normalized==='gpresult /r') return `COMPUTER SETTINGS\nCN=${computer.name},${computer.ou}\nApplied Group Policy Objects: Workstation Security Baseline\n${computer.ou==='CN=Computers'?'The following GPOs were not applied: Operations Drive Mapping (link out of scope)':'Operations Drive Mapping: Applied'}`;
@@ -8681,8 +9026,8 @@ function hdDirectoryCommand(command, normalized, computer) {
   }
   if (/^get-adcomputer\b/.test(normalized)) {
     const name = arg('get-adcomputer');
-    if (!name) return hdComputers().map(item => `${item.name.padEnd(14)} ${hdComputerByName(item.name).ou}`).join('\n');
-    const found = hdComputers().find(item => item.name.toLowerCase() === name.toLowerCase());
+    if (!name) return hdAdComputers().map(item => `${item.name.padEnd(14)} ${hdComputerByName(item.name).ou}`).join('\n');
+    const found = hdAdComputers().find(item => item.name.toLowerCase() === name.toLowerCase());
     if (!found) return `Get-ADComputer : Cannot find an object with identity: '${name}'.`;
     const item = hdComputerByName(found.name);
     hdServerSeen(`ad-computer:${item.name}`, `Active Directory › Computers › ${item.name}`);
@@ -9812,7 +10157,7 @@ function hdPhoneOpen(name, app) {
   const which = HD_PHONE_APPS.some(([id]) => id === app) ? app : 'home';
   hdServerSeen(`phone:${name}`, `Phone · ${cloud.phones[name].label || name}`);
   if (which !== 'home') hdServerSeen(`phone-app:${name}:${which}`, `Phone · ${cloud.phones[name].label || name} · ${HD_PHONE_APPS.find(([id]) => id === which)[1]}`);
-  hdCloudSetView({ phone:name, phoneApp:which, btPin:'' }, 'phone');
+  hdCloudSetView({ phone:name, phoneApp:which, btPin:'', wifiPrompt:'' }, 'phone');
 }
 function hdPhoneAct(name, id, label, patch, extra) {
   if (hdProveLocked()) return false;
@@ -9830,7 +10175,7 @@ function hdPhoneApp(phone, cloud, app) {
   const n = `'${hdJsArg(phone.name)}'`;
   const off = hdProveLocked() ? 'disabled' : '';
   const toggle = (attr, on, handler) => `<button type="button" class="btn btn-sm ${on ? 'btn-primary' : 'btn-secondary'}" role="switch" aria-checked="${on}" ${off} data-hd-phone-${attr} onclick="${handler}">${on ? 'On' : 'Off'}</button>`;
-  if (app === 'wifi') return `<div data-hd-phone-app="wifi"><p>Wi-Fi ${toggle('wifi', !!phone.status.wifi, `hdPhoneWifi(${n})`)}</p>${phone.status.wifi ? `<p class="muted">Connected: ${hdEsc(phone.status.network || 'Northstar-Corp')}</p>` : ''}</div>`;
+  if (app === 'wifi') return `<div data-hd-phone-app="wifi"><p>Wi-Fi ${toggle('wifi', !!phone.status.wifi, `hdPhoneWifi(${n})`)}</p>${phone.status.wifi ? `<p class="muted">Connected: ${hdEsc(phone.status.network || 'Northstar-Corp')}</p>` : ''}${hdPhoneWifiList(phone)}</div>`;
   if (app === 'teams') {
     const blocked = hdPhoneMailBlocked(phone, cloud);
     return `<div data-hd-phone-app="teams">${!phone.outlook.account && phone.company !== false ? '<p>Sign in with your work account first.</p>' : blocked ? `<p data-hd-teams-blocked><strong>Teams can't open on this phone until it meets Northstar's device rules.</strong></p>` : '<p data-hd-teams-ok>Chats and meetings are up to date.</p>'}</div>`;
@@ -9909,6 +10254,55 @@ function hdPhoneWifi(name) {
   const on = !found.phone.status.wifi;
   if (hdPhoneAct(name, on ? 'phone-wifi-on' : 'phone-wifi-off', `turned Wi-Fi ${on ? 'on' : 'off'}`, { status:{ wifi:on } })) hdCloudFinish();
 }
+/* Module 09 (console B): the phone's Wi-Fi list (phone.wifiNetworks:
+ * [{ ssid, security }]). Off unless the phone fixture has the list; then,
+ * with Wi-Fi on, each network shows with its security and a Join button.
+ * An Enterprise network (security says Enterprise) joins a company phone
+ * with its Intune certificate; on a personal phone (company:false) it asks
+ * for a username, a password and a certificate, every field read-only, so
+ * nothing is typed or kept, and it never joins. A Personal network (WPA2 or
+ * WPA3-Personal) asks for the day's passphrase; the user types it from the
+ * reception screen (the simulator never takes the value). Open joins.
+ * Actions: phone-wifi-prompt (ssid, kind), phone-wifi-join (ssid). */
+function hdPhoneNetworks(phone) { return Array.isArray(phone.wifiNetworks) ? phone.wifiNetworks.filter(item => item && item.ssid) : null; }
+function hdPhoneNetKind(network) { return /enterprise/i.test(network.security || '') ? 'enterprise' : /open|none/i.test(network.security || '') || !network.security ? 'open' : 'passphrase'; }
+function hdPhoneWifiList(phone) {
+  const networks = hdPhoneNetworks(phone); if (!networks || !phone.status.wifi) return '';
+  const n = `'${hdJsArg(phone.name)}'`; const off = hdProveLocked() ? 'disabled' : '';
+  const asking = hdCloudView().wifiPrompt;
+  const rows = networks.map(network => {
+    const connected = (phone.status.network || 'Northstar-Corp') === network.ssid;
+    const s = `'${hdJsArg(network.ssid)}'`;
+    return `<li data-hd-phone-network="${hdEsc(network.ssid)}"><strong>${hdEsc(network.ssid)}</strong> <span class="muted">${hdEsc(network.security || 'Open')}</span> ${connected ? hdBadge('Connected', 'ok') : `<button type="button" class="btn btn-secondary btn-sm" ${off} data-hd-phone-join onclick="hdPhoneWifiJoin(${n},${s})">Join</button>`}</li>`;
+  }).join('');
+  const network = networks.find(item => item.ssid === asking);
+  let prompt = '';
+  if (network && hdPhoneNetKind(network) === 'enterprise') {
+    prompt = `<div class="card" data-hd-phone-prompt="enterprise"><div class="card-body" style="display:grid;gap:6px"><p><strong>Enter the password for "${hdEsc(network.ssid)}"</strong></p><label>Username <input class="ipt" disabled autocomplete="off" value=""></label><label>Password <input class="ipt" type="password" disabled autocomplete="off" value=""></label><label>Certificate <select class="ipt" disabled data-hd-phone-cert><option>Select</option><option>No certificate installed</option></select></label><p class="muted">The help desk never types anyone's sign-in into a device.</p><div style="display:flex;gap:6px"><button type="button" class="btn btn-primary btn-sm" disabled>Join</button><button type="button" class="btn btn-ghost btn-sm" onclick="hdPhoneWifiCancel()">Cancel</button></div></div></div>`;
+  } else if (network && hdPhoneNetKind(network) === 'passphrase') {
+    prompt = `<div class="card" data-hd-phone-prompt="passphrase"><div class="card-body" style="display:grid;gap:6px"><p><strong>Enter the password for "${hdEsc(network.ssid)}"</strong></p><button type="button" class="btn btn-primary btn-sm" ${off} data-hd-phone-passphrase onclick="hdPhoneWifiPassphrase(${n},'${hdJsArg(network.ssid)}')">The user types today's passphrase from the reception screen</button><button type="button" class="btn btn-ghost btn-sm" onclick="hdPhoneWifiCancel()">Cancel</button></div></div>`;
+  }
+  return `<p>Networks</p><ul class="hd-list" data-hd-phone-networks>${rows}</ul>${prompt}`;
+}
+function hdPhoneWifiConnect(name, ssid) {
+  if (hdPhoneAct(name, 'phone-wifi-join', `joined the Wi-Fi network ${ssid}`, { status:{ wifi:true, network:ssid } }, { ssid })) { hdState.cloudView = { ...hdCloudView(), wifiPrompt:'' }; hdCloudFinish(); }
+}
+function hdPhoneWifiJoin(name, ssid) {
+  const found = hdPhoneGet(name); if (!found || hdProveLocked()) return;
+  const network = (hdPhoneNetworks(found.phone) || []).find(item => item.ssid === ssid); if (!network) return;
+  const kind = hdPhoneNetKind(network);
+  if (kind === 'open' || (kind === 'enterprise' && found.phone.company !== false)) { hdPhoneWifiConnect(name, ssid); return; }
+  hdPhoneAct(name, 'phone-wifi-prompt', `tried to join ${ssid}; the phone asked for ${kind === 'enterprise' ? 'a username, a password and a certificate' : 'the network passphrase'}`, null, { ssid, kind });
+  hdCloudSetView({ wifiPrompt:ssid });
+}
+function hdPhoneWifiPassphrase(name, ssid) {
+  const found = hdPhoneGet(name); if (!found) return;
+  const network = (hdPhoneNetworks(found.phone) || []).find(item => item.ssid === ssid);
+  if (!network || hdPhoneNetKind(network) !== 'passphrase' || hdCloudView().wifiPrompt !== ssid) return;
+  hdPhoneWifiConnect(name, ssid);
+}
+function hdPhoneWifiCancel() { hdCloudSetView({ wifiPrompt:'' }); }
+window.hdPhoneWifiJoin = hdPhoneWifiJoin; window.hdPhoneWifiPassphrase = hdPhoneWifiPassphrase; window.hdPhoneWifiCancel = hdPhoneWifiCancel;
 function hdPhoneBtPair(name, device, pin) {
   const found = hdPhoneGet(name); if (!found || hdProveLocked()) return false;
   const bt = found.phone.bluetooth;
