@@ -3208,13 +3208,13 @@ const HD_TICKET_TEMPLATES = [
       feedback:[
         { area:'Triage', checks:[{ triage:{ category:'Network', subcategory:'Internet connectivity', ci:'Internet – primary circuit' }, missing:'Set Category Network › Internet connectivity and CI Internet – primary circuit.' }, { priority:'P2', missing:'Set Impact 1 (several departments) and Urgency 2 (work goes on, slowly). That makes the ticket P2.' }], good:'A whole site degraded, not stopped: Impact 1 × Urgency 2, P2; the children linked, not worked one by one.', fix:'Set Category Network › Internet connectivity, CI Internet – primary circuit, Impact 1 and Urgency 2. A whole site degraded, not stopped, is P2. Link the other tickets to this one as children; do not work them one by one.' },
         { area:'Investigation', checks:[
-          { child:'HD-2216', missing:'Link INC0010527 to this ticket as related, so one ticket carries the escalation.' },
-          { child:'HD-2217', missing:'Link INC0010528 to this ticket as related.' },
-          { child:'HD-2218', missing:'Link INC0010529 to this ticket as related.' },
+          { child:'HD-2216', missing:'Open INC0010527 and, under Link as related: child of, choose INC0010526, so this ticket carries the escalation.' },
+          { child:'HD-2217', missing:'Open INC0010528 and, under Link as related: child of, choose INC0010526.' },
+          { child:'HD-2218', missing:'Open INC0010529 and, under Link as related: child of, choose INC0010526.' },
           { seen:'ping:10.20.70.1', computer:'NS-WS-0233', missing:'On NS-WS-0233, ping the gateway: ping 10.20.70.1.' },
           { seen:'ping:files.northstar.example', computer:'NS-WS-0233', missing:'Ping a company server: ping files.northstar.example.' },
           { seen:'ping:www.example.com', computer:'NS-WS-0233', missing:'Ping a public site: ping www.example.com.' },
-        ], good:'Inside vs outside first, then where the path changes.', fix:'Link the three tickets as children of this one, then on NS-WS-0233 ping 10.20.70.1 (1 ms), ping files.northstar.example (1 ms) and ping www.example.com (190–240 ms). Inside is fast; outside is slow.' },
+        ], good:'Inside vs outside first, then where the path changes.', fix:'Open each of the three other tickets and link it as a child of this one (Link as related: child of INC0010526), then on NS-WS-0233 ping 10.20.70.1 (1 ms), ping files.northstar.example (1 ms) and ping www.example.com (190–240 ms). Inside is fast; outside is slow.' },
         { area:'Diagnosis', checks:[
           { seen:'tracert:www.example.com', computer:'NS-WS-0233', missing:'Trace the way out: tracert www.example.com.' },
           { seen:'port:files.northstar.example:445', computer:'NS-WS-0233', missing:'Check the company network: Test-NetConnection files.northstar.example -Port 445.' },

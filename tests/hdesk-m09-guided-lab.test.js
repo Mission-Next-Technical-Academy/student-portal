@@ -471,6 +471,48 @@ function testLookupsCountOnTheirTicket() {
   assert.equal(steps[17].check(), false, 'Part B step 6 needs both reads on HD-2213');
 }
 
+// A wrong OU keeps Part C step 3 open (a laptop joins once). The step's way
+// out works: Reset shift on the Dashboard ends the run, and launching the lab
+// again starts it fresh, with NS-LT-0416 not joined.
+function testWrongOuThenResetStartsFresh() {
+  const local = store(); const session = store();
+  const tab = startLab(null, local, session);
+  const steps = tab.coach('hd-m04').steps;
+  assert.match(steps[21].instruction, /<strong>Dashboard<\/strong>, press <strong>Reset shift<\/strong>/);
+  assert.match(tab.view('helpdesk/dashboard'), /onclick="hdResetShift\(\)">Reset shift</);
+  tab.open(R);
+  tab.on(PC_C);
+  tab.ps('Add-Computer -DomainName northstar.example -OUPath "CN=Computers"');
+  assert.equal(steps[21].check(), false, 'a join into CN=Computers does not pass Part C step 3');
+  assert.match(tab.ps('Add-Computer -DomainName northstar.example -OUPath "OU=Logistics,OU=Workstations"'), /already in that domain/, 'a laptop joins once');
+  tab.run('hdResetShift()');
+  const again = sim(launchUrl(), { local, session });
+  assert.equal(again.run('hdState.ticketSet'), 'its-04-guided');
+  assert.equal(again.coachStep(), 0, 'the lab starts at Part A step 1');
+  assert.equal(again.run(`hdMachine('${PC_C}').domain.joined`), false, 'NS-LT-0416 is not joined');
+}
+
+// The optional PowerShell lines pass their screen steps, as the screens do.
+function testOptionalScreenLines() {
+  const tab = startLab();
+  const steps = tab.coach('hd-m04').steps;
+  tab.open(A);
+  tab.run(`hdChatAsk('${A}', 'light')`);
+  tab.on(PC_A);
+  tab.ps('Get-NetAdapter');
+  assert.equal(steps[2].check(), true, 'Part A step 3 passes from Get-NetAdapter');
+  tab.run(`hdChatAsk('${A}', 'move')`);
+  tab.on(PC_A);
+  tab.ps('ipconfig /release');
+  tab.ps('ipconfig /renew');
+  tab.ps('Get-NetIPConfiguration');
+  assert.equal(steps[7].check(), true, 'Part A step 8 passes from Get-NetIPConfiguration');
+  tab.open(B);
+  tab.on(PC_B);
+  tab.ps('netsh wlan show interfaces');
+  assert.equal(steps[13].check(), true, 'Part B step 3 passes from netsh wlan show interfaces');
+}
+
 /* ------------------------------------------------------------ fixtures */
 
 // Every adapter in the lab and the practice set is DHCP, written as true
@@ -568,7 +610,7 @@ function testEveryArticleCheckIsInTheSteps() {
 }
 
 const tests = [testLabOpensOnItsSet, testLab91, testTypedStepsAnyCaseAndOptionalLines, testTypedStepsNeedTheRightComputerAndOrder, testEveryStepText,
-  testOpeningAStepsScreenDoesNotPassIt, testLookupsCountOnTheirTicket, testEveryModule9AdapterIsDhcp, testSharedListsUnchanged, testOldTicketsLeaveTheQueue,
+  testOpeningAStepsScreenDoesNotPassIt, testLookupsCountOnTheirTicket, testWrongOuThenResetStartsFresh, testOptionalScreenLines, testEveryModule9AdapterIsDhcp, testSharedListsUnchanged, testOldTicketsLeaveTheQueue,
   testOldCoachRunIsForgotten, testSheetMapping, testCiRunsThisFile, testEveryArticleCheckIsInTheSteps];
 let failed = 0;
 for (const test of tests) {
