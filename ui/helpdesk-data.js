@@ -4168,4 +4168,127 @@ const HD_PROVE_SHIFTS = {
     }],
     // END Module 8 Prove It shift.
   },
+  // BEGIN Module 9 Prove It shift (tests/hdesk-m09-prove.test.js reads it; no
+  // practice ticket, coach or set names what this block holds).
+  /* Module 9 (key its-04): one ticket on a fixed Monday 10:17 shift clock, on
+   * Module 3's one-ticket form (matrix fields and a key-finding note), worked
+   * on one docked laptop with Module 9's network screens and typed commands
+   * (ui/helpdesk.js "PC network state"), the knowledge base and a chat with
+   * the user. servers and directory are this shift's own (Module 7's healthy
+   * baseline, the intranet record and a Logistics share); users adds the
+   * caller, who is in no other set. networkSummary: the package carries each
+   * adapter's IP assignment, address and Wi-Fi networks at submit
+   * (ui/helpdesk.js hdProveNetworkSummary), not the whole laptop.
+   * console.caller: afterSeen keeps a message hidden until the student has
+   * opened that screen; replyWhen gives a reply that depends on the laptop.
+   * Only what the student sees lives here: no expected values. */
+  'its-04': {
+    title: 'Prove It: Independent Ticket',
+    labKey: 'lab-its-04-prove-it',
+    rubricVersion: 'hdesk-its-04-prove-v1',
+    now: '2026-09-07T10:17:00Z',
+    timeBoxMinutes: 35,
+    selectedComputer: 'NS-LT-0156',
+    machineTools: true,
+    networkSummary: true,
+    servers: (() => {
+      const servers = hdIts05BaselineServers();
+      servers['NS-FILE01'].shares.push({ name:'Logistics', path:'\\\\NS-FILE01\\Logistics', status:'Healthy',
+        share:[{ who:'GG-Logistics-Users', access:'Change' }, { who:'Administrators', access:'Full Control' }],
+        ntfs:[{ who:'GG-Logistics-Users', access:'Modify' }, { who:'Administrators', access:'Full Control' }] });
+      return servers;
+    })(),
+    directory: (() => {
+      const directory = hdIts04Directory();
+      directory.groups['GG-Logistics-Users'] = { scope:'Global', type:'Security', resource:'Logistics staff · shared folder and application access' };
+      return directory;
+    })(),
+    users: [
+      { id:'u-1099', employeeId:'E-63127', phone:'ext. 4237', name:'Carlos Diaz', username:'cdiaz', email:'carlos.diaz@northstar.example', department:'Logistics', title:'Logistics Planner', ou:'OU=Logistics,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:21, groups:['GG-Logistics-Users'], manager:'Monica Hall', mfa:'Registered' },
+    ],
+    // No kbArticles: Module 9's practice articles stay in Practice
+    // (tests/hdesk-m09-practice-tickets.test.js); the search reads the
+    // shared knowledge base.
+    tickets: [{
+      id: 'HD-2127', number: 'INC0012127', title: 'Internet works, the file share and intranet don\'t',
+      requester: 'Carlos Diaz', requesterTitle: 'Logistics Planner', department: 'Logistics',
+      device: 'NS-LT-0156', cc: '', contactType: 'Chat', createdAt: '2026-09-07T10:15:00Z',
+      status: 'New', assignedTechnician: 'Unassigned',
+      description: 'Since I came back from working at home, websites load fine but I can\'t open the Logistics share or the intranet. It says the network path wasn\'t found.',
+      conversation: [],
+      matrix: true,
+      categoryOptions: ['Account / access', 'File share access', 'Network › DNS', 'Network › IP configuration', 'Network › Wi-Fi', 'Network › Wired connectivity', 'Server outage', 'Software'],
+      labels: { resolutionHint: 'Reported / Tried / Result / Next action', userReply: 'Reply to Carlos' },
+      writing: {
+        keyFinding: { label: 'Key finding', hint: 'One or two sentences: what you found and how the pieces connect.', rows: 3, max: 600 },
+      },
+      // The knowledge base search and a chat with Carlos. Every question gets
+      // a reply in character.
+      console: {
+        kb: true,
+        caller: { name: 'Carlos Diaz', style: 'chat', questions: [
+          { id: 'q1', text: 'Is anyone else in Logistics having this?', reply: 'No, Theo\'s fine. It\'s just me.' },
+          { id: 'q2', text: 'Did anything change on your laptop?', reply: 'I worked from home all last week with the dock plugged in. Today\'s my first day back.' },
+          { id: 'q3', text: 'Can you try the share again now?', reply: 'Same thing: "The network path was not found."',
+            replyWhen: [{ when: { all: [
+              { machine: { computer: 'NS-LT-0156', path: ['network', 'adapters', '0', 'ip', 'dhcp'], value: true } },
+              { machine: { computer: 'NS-LT-0156', path: ['network', 'adapters', '0', 'ip', 'address'], value: '10.20.30.88' } },
+            ] }, reply: 'It opens now. I can see the Logistics folder, and the intranet loads too.' }] },
+          { id: 'q4', text: 'Before I change it: your dock\'s network connection has a fixed setting from home. I\'m writing those values down for you and setting it back to automatic. OK?', reply: 'Sure, go ahead.',
+            // Offered once the dock adapter was read (ipconfig /all, Hardware
+            // properties or Get-NetIPConfiguration) or its Edit IP settings opened.
+            afterSeen: { computer: 'NS-LT-0156', keys: ['net-adapter:Ethernet 2', 'net-edit:Ethernet 2'] } },
+        ] },
+      },
+      diagnosisOptions: ['DNS server outage', 'File server down', 'Connected to the guest Wi-Fi', 'Static IP left from home on the dock adapter'],
+      // Ids are this ticket's own and their order says nothing. Action-level
+      // wording with no names or values, with wrong-direction steps beside the
+      // right ones, so the list isn't a plan of the fix. A step that names a
+      // command earns nothing when ticked: the command history is what counts.
+      pathPool: [
+        { id: 'p1', text: 'Ask whether anyone else in Logistics has the problem' },
+        { id: 'p2', text: 'Run ipconfig /all and read every adapter' },
+        { id: 'p3', text: 'Ping the gateway and the file server' },
+        { id: 'p4', text: 'Look up an internal name with nslookup' },
+        { id: 'p5', text: 'Trace the route to a public website' },
+        { id: 'p6', text: 'Write down the current settings and tell Carlos before changing them' },
+        { id: 'p7', text: 'Change a network adapter\'s IP settings' },
+        { id: 'p8', text: 'Forget a Wi-Fi network' },
+        { id: 'p9', text: 'Renew the IP address' },
+        { id: 'p10', text: 'Confirm with Carlos that the share and the intranet open' },
+        { id: 'p11', text: 'Flush the DNS cache' },
+        { id: 'p12', text: 'Ask Server & Identity to restart the file server' },
+        { id: 'p13', text: 'Turn off Windows Firewall to test' },
+        { id: 'p14', text: 'Reinstall the network adapter driver' },
+        { id: 'p15', text: 'Reset Carlos\'s password' },
+        { id: 'p16', text: 'Rejoin the laptop to the domain' },
+      ],
+    }],
+    computers: [
+      { name:'NS-LT-0156', user:'Carlos Diaz', os:'Windows 11 Enterprise 24H2', ip:'10.20.90.144', ou:'OU=Logistics,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy' },
+    ],
+    machines: {
+      'NS-LT-0156': {
+        computer: { ip:'10.20.90.144', health:'Healthy' },
+        devices: [
+          { id:'dock-nic', category:'Network adapters', name:'Dock USB GbE Adapter', status:'OK', driver:{ provider:'Realtek', date:'2/10/2025', version:'10.68.1003.2025' }, adapter:'Ethernet 2' },
+          { id:'wifi', category:'Network adapters', name:'Intel(R) Wi-Fi 6 AX201 160MHz', status:'OK', driver:{ provider:'Intel Corporation', date:'3/14/2025', version:'22.250.1.2' }, adapter:'Wi-Fi' },
+        ],
+        network: {
+          adapters: [
+            { name:'Ethernet 2', kind:'Dock USB Ethernet', description:'Dock USB GbE Adapter', media:'Connected', speed:'1 Gbps', mac:'3C-52-82-4B-01-56',
+              ip:{ dhcp:false, address:'192.168.1.57', mask:'255.255.255.0', gateway:'192.168.1.1', dnsServers:['192.168.1.1'], dhcpServer:'' },
+              lease:{ address:'10.20.30.88', mask:'255.255.255.0', gateway:'10.20.30.1', dnsServers:['10.20.0.10', '10.20.0.11'], dhcpServer:'10.20.0.20', leaseDays:8 } },
+            { name:'Wi-Fi', kind:'Wi-Fi', description:'Intel(R) Wi-Fi 6 AX201 160MHz', media:'Connected', mac:'3C-52-82-4B-01-57',
+              ip:{ dhcp:true, address:'10.20.90.144', mask:'255.255.255.0', gateway:'10.20.90.1', dnsServers:['10.20.90.1'], dhcpServer:'10.20.90.1', obtained:'2026-09-07T08:02:00Z', expires:'2026-09-08T08:02:00Z' },
+              lease:{ address:'10.20.90.144', mask:'255.255.255.0', gateway:'10.20.90.1', dnsServers:['10.20.90.1'], dhcpServer:'10.20.90.1', leaseDays:1 },
+              wifi:{ ssid:'Northstar-Guest', protocol:'Wi-Fi 5 (802.11ac)', security:'WPA2-Personal', band:'5 GHz', channel:36, signal:76, linkRate:400, known:[{ ssid:'Northstar-Guest', security:'WPA2-Personal' }] } },
+          ],
+          routes: { guest:[{ address:'198.51.100.1', ms:6 }], corp:[{ name:'nsfw01', address:'10.20.255.1' }, { name:'nsrtr-fiber', address:'10.20.255.2' }, { address:'203.0.113.1', ms:9 }] },
+          publicDns: { 'www.example.com':'93.184.215.14' },
+        },
+      },
+    },
+    // END Module 9 Prove It shift.
+  },
 };

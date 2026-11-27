@@ -2335,11 +2335,11 @@ const LABS = [
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
     skills: ['Windows Support', 'Evidence-Based Diagnosis', 'Documentation'], portalEntry: '#/program/it-support/module/5' }),
   // Module 9's guided lab. Students see it as Lab 9.1; the key is older than
-  // that numbering. Until Module 9's Prove It gates completion it stays the
-  // gating lab (course_module_labs), so it has no `phase: 'practice'`: an
-  // instructor still reviews and approves it. Its 180 filed minutes are split
-  // 75 / 70 / 35 across the three labs; ITHD-101.7 keeps all 180.
-  itsLab({ key: 'lab-its-04-connectivity', module: 'its-04', title: 'Lab 9.1 · Guided Lab: the connectivity checklist', difficulty: 'Foundational', minutes: 75,
+  // that numbering. Since 2026-11-27 Module 9's Prove It gates completion (the
+  // its04 Prove It migration) and Lab 9.1 is Practice It. Its 180 filed
+  // minutes are split 75 / 70 / 35 across the three labs; ITHD-101.7 keeps
+  // all 180.
+  itsLab({ key: 'lab-its-04-connectivity', module: 'its-04', title: 'Lab 9.1 · Guided Lab: the connectivity checklist', difficulty: 'Foundational', minutes: 75, phase: 'practice',
     parentAllocations: [allocation('ITHD-101.7', 75)], objective: 'Work the connectivity checklist on two calls and a request: find a dead wall jack and renew the address it left, clear a stale name lookup after a change, and join a new starter’s laptop to the domain in the right OU.',
     description: 'Two coach-guided tickets and a request in the IT Service Desk simulator, each step with a why and what success looks like. Feedback only, no score.',
     skills: ['Networking Fundamentals', 'DHCP', 'DNS', 'Domain Join'], portalEntry: '#/program/it-support/module/9' }),
@@ -2351,9 +2351,9 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.7', 70)], objective: 'Work five tickets on your own: Teams calls that keep breaking up, a whole site on slow internet, a new laptop that won’t join the domain, a phone that won’t connect to the work Wi-Fi, and a remote worker who can’t reach company files.',
     description: 'Five unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all five and a completion record is saved to your account.',
     skills: ['Networking Fundamentals', 'Wi-Fi', 'VPN', 'Escalation Judgment'], portalEntry: '#/program/it-support/module/9' }),
-  // Module 9's Prove It. The page shows "Opens soon" and launches nothing
-  // until its simulator shift, scoring and gating row are built. Coaching
-  // time box: 35 minutes.
+  // Module 9's Prove It: one ticket (?prove=its-04), scored on the server and
+  // graded by the instructor. It gates Module 9's completion. Coaching time
+  // box: 35 minutes.
   itsLab({ key: 'lab-its-04-prove-it', module: 'its-04', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 35,
     parentAllocations: [allocation('ITHD-101.7', 35)], objective: 'Independently work a new connectivity ticket: run the checklist, find the cause from the evidence, fix what is Tier 1’s, verify it, and write for both the next technician and the user.',
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',

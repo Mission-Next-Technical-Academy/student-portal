@@ -372,6 +372,9 @@ const NOT_PASSED_DOT = 'Module not passed yet: complete the module and submit ev
   // Module 8's Lab 8.1 too, since its Prove It moved the gate.
   assert.equal(meta('lab-its-06-identity-access').kind, 'PRACTICE IT');
   assert.equal(meta('lab-its-06-prove-it').kind, 'PROVE IT');
+  // Module 9's Lab 9.1 too, since its Prove It moved the gate.
+  assert.equal(meta('lab-its-04-connectivity').kind, 'PRACTICE IT');
+  assert.equal(meta('lab-its-04-prove-it').kind, 'PROVE IT');
   assert.equal(meta('lab-its-12-capstone').kind, 'PROVE IT');
   assert.equal(meta('lab-soc-environment', 'SOCAN').kind, 'PRACTICE IT');
   assert.equal(meta('lab-soc-escalation', 'SOCAN').kind, 'PROVE IT');

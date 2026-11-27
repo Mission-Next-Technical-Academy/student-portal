@@ -1151,7 +1151,15 @@ function hdConsole(ticket) {
     const caller = config.caller && typeof config.caller === 'object' && Array.isArray(config.caller.questions) ? {
       name:String(config.caller.name || ticket.requester || ''), style:config.caller.style === 'phone' ? 'phone' : 'chat',
       questions:config.caller.questions.filter(item => item && typeof item.id === 'string' && typeof item.text === 'string' && typeof item.reply === 'string' && !item.asksPassword)
-        .map(item => ({ id:item.id, text:item.text, reply:item.reply })),
+        .map(item => {
+          // Module 9: a reply that waits for machine values, and a message
+          // offered once a screen on a computer has been opened.
+          const replyWhen = (Array.isArray(item.replyWhen) ? item.replyWhen : []).filter(entry => entry && typeof entry.reply === 'string' && machineOnly(entry.when))
+            .map(entry => ({ when:machineOnly(entry.when), reply:entry.reply }));
+          const keys = item.afterSeen && Array.isArray(item.afterSeen.keys) ? item.afterSeen.keys.filter(key => typeof key === 'string') : [];
+          const seen = item.afterSeen && typeof item.afterSeen.computer === 'string' && keys.length ? { computer:item.afterSeen.computer, keys } : null;
+          return { id:item.id, text:item.text, reply:item.reply, ...(replyWhen.length ? { replyWhen } : {}), ...(seen ? { afterSeen:seen } : {}) };
+        }),
       ...(Number.isInteger(config.caller.limit) && config.caller.limit > 0 ? { limit:config.caller.limit } : {}),
     } : null;
     // Module 8: a request opened from the ticket (catalog items with an
@@ -1424,7 +1432,20 @@ function hdConsoleAccountLocked(ticket) {
 }
 // A reply that waits: while the account card's user is locked (replyLocked),
 // or until the ticket's action afterAction has been taken (replyBefore).
+// Module 9 (Prove It): replyWhen [{ when:{ machine } | { all }, reply }], the
+// first whose machine values hold gives the reply; until then the plain reply,
+// and the question is offered again once one holds (whileLocked).
+function hdChatReplyWhen(ticket, question) {
+  return Array.isArray(question.replyWhen) ? question.replyWhen.find(entry => entry && typeof entry.reply === 'string' && hdArrivalMet(ticket, entry.when)) || null : null;
+}
+// afterSeen { computer, keys }: offered once that machine has shown any of
+// those screens (a screen and its typed line record the same key).
+function hdChatSeen(rule) {
+  const machine = rule && hdState && hdState.machines ? hdState.machines[rule.computer] : null;
+  return !!(machine && Array.isArray(machine.seen) && Array.isArray(rule.keys) && rule.keys.some(key => machine.seen.includes(key)));
+}
 function hdChatPending(ticket, question) {
+  if (Array.isArray(question.replyWhen) && question.replyWhen.length) return !hdChatReplyWhen(ticket, question);
   if (question.replyLocked && hdConsoleAccountLocked(ticket)) return true;
   return !!question.afterAction && !hdConsoleState(ticket).actions.some(action => action.id === question.afterAction);
 }
@@ -1435,6 +1456,7 @@ function hdChatLimitReached(ticket) {
 }
 function hdChatQuestionOpen(ticket, question) {
   if (hdChatLimitReached(ticket)) return false;
+  if (question.afterSeen && !hdChatSeen(question.afterSeen)) return false;
   const asked = hdConsoleState(ticket).chat.filter(entry => entry.id === question.id);
   if (!asked.length) return true;
   const last = asked[asked.length - 1];
@@ -1453,7 +1475,9 @@ function hdChatAsk(id, questionId) {
     hdRerender(); return;
   }
   const whileLocked = hdChatPending(ticket, question);
-  const reply = whileLocked ? (question.replyLocked && hdConsoleAccountLocked(ticket) ? question.replyLocked : question.replyBefore || question.replyLocked) : question.reply;
+  const when = hdChatReplyWhen(ticket, question);
+  const reply = Array.isArray(question.replyWhen) && question.replyWhen.length ? (when ? when.reply : question.reply)
+    : whileLocked ? (question.replyLocked && hdConsoleAccountLocked(ticket) ? question.replyLocked : question.replyBefore || question.replyLocked) : question.reply;
   state.chat.push({ id:question.id, question:question.text, reply, whileLocked, time:hdConsoleTime(ticket) });
   // Module 09 (console B): the user moves a cable (link), as asked.
   if (!whileLocked) hdNetLinkChange(question.link);
@@ -7708,6 +7732,8 @@ function hdNetPanel(computerName, panel, adapterName) {
   if (panel === 'hardware' && adapter) { hdWinSeen(machine, `net-adapter:${adapter.name}`); hdProveOpened(`net-adapter:${computerName}:${adapter.name}`, `Settings › Network & internet › ${adapter.name} › Hardware properties · ${computerName}`); }
   if (panel === 'wifi' && adapter && hdNetWifiUp(adapter)) { hdWinSeen(machine, 'wifi-properties'); hdProveOpened(`wifi-properties:${computerName}`, `Settings › Network & internet › Wi-Fi › ${adapter.wifi.ssid} › Properties · ${computerName}`); }
   if (panel === 'known' && adapter) { hdWinSeen(machine, 'known-networks'); hdProveOpened(`known-networks:${computerName}`, `Settings › Wi-Fi › Manage known networks · ${computerName}`); }
+  // Module 9's Prove It: Edit IP settings opened (a chat message waits for it).
+  if (panel === 'edit' && adapter && HD_PROVE) hdWinSeen(machine, `net-edit:${adapter.name}`);
   hdSave(); render();
 }
 function hdNetSaveIp(event, computerName, adapterName) {
@@ -11040,7 +11066,8 @@ function hdProvePackage() {
     events:prove.events.map(event => (typeof event.command === 'string' ? { ...event, command:hdRedactCommand(event.command) } : event)),
     machine:shift.printerSummary === true ? hdProvePrinterSummary(shift.selectedComputer)
       : shift.windowsSummary === true ? hdProveWindowsSummary(shift.selectedComputer)
-        : hdClone(hdMachine(shift.selectedComputer) || {}),
+        : shift.networkSummary === true ? hdProveNetworkSummary(shift.selectedComputer)
+          : hdClone(hdMachine(shift.selectedComputer) || {}),
     passwordTyped:prove.passwordTyped === true, passwordWritten:prove.passwordWritten === true,
     // Module 3: the extra writing and the time used (the efficiency band).
     ...hdProveExtraPackage(prove),
@@ -11048,6 +11075,53 @@ function hdProvePackage() {
     // resubmission whose log wasn't (never saved in the row).
     freshFor:prove.freshFor || '',
   };
+}
+// Module 9 (shift networkSummary): each adapter of the selected computer at
+// submit, by name: its IP assignment (dhcp), address, manual IPv4 settings,
+// and any connected or known Wi-Fi networks. Small enough for the course page's 4 KB
+// machine limit. Nothing says which values are right.
+function hdProveNetworkSummary(name) {
+  const net = hdNetState(hdMachine(name) || {});
+  if (!net) return {};
+  return { adapters:Object.fromEntries(hdNetAdapters(net).slice(0, 6).map(adapter => {
+    const ip = hdNetIp(adapter);
+    return [String(adapter.name).slice(0, 40), {
+      dhcp:ip.dhcp !== false, address:String(ip.address || '').slice(0, 40),
+      ...(ip.dhcp === false ? {
+        mask:String(ip.mask || '').slice(0, 15), gateway:String(ip.gateway || '').slice(0, 15),
+        dnsServers:Array.isArray(ip.dnsServers) ? ip.dnsServers.slice(0, 2).map(server => String(server).slice(0, 15)) : [],
+      } : {}),
+      ...(adapter.kind === 'Wi-Fi' ? { ssid:String((adapter.wifi && adapter.wifi.ssid) || '').slice(0, 60), known:hdNetKnown(adapter).slice(0, 10).map(item => String(item.ssid).slice(0, 60)) } : {}),
+    }];
+  })) };
+}
+// A returned attempt's network summary back onto the laptop, as the student
+// left it: restore manual IP settings, retake DHCP leases, and keep forgotten
+// or left Wi-Fi networks forgotten or left. Only restore changes the screens can make.
+function hdProvePrefillNetwork(summary, machine, name) {
+  const saved = summary && summary.adapters && typeof summary.adapters === 'object' ? summary.adapters : null;
+  const net = hdNetState(machine);
+  if (!saved || !net) return;
+  const validAddress = value => typeof value === 'string' && hdNetIsAddress(value);
+  hdNetAdapters(net).forEach(adapter => {
+    const was = saved[adapter.name];
+    if (!was || typeof was !== 'object') return;
+    if (was.dhcp === true && hdNetIp(adapter).dhcp === false) {
+      adapter.ip = { dhcp:true, address:'', mask:'', gateway:'', dnsServers:[], dhcpServer:'' };
+      if (!hdNetTakeLease(adapter, name) && hdNetUp(adapter)) adapter.ip = { dhcp:true, address:hdNetApipaFor(adapter), mask:'255.255.0.0', gateway:'', dnsServers:[], dhcpServer:'' };
+    }
+    if (adapter.kind === 'Wi-Fi' && adapter.wifi && Array.isArray(was.known)) {
+      adapter.wifi.known = hdNetKnown(adapter).filter(item => was.known.includes(item.ssid));
+      if (adapter.wifi.ssid && was.ssid === '') { adapter.wifi.ssid = ''; adapter.ip = { dhcp:hdNetIp(adapter).dhcp !== false, address:'', mask:'', gateway:'', dnsServers:[], dhcpServer:'' }; }
+    }
+    if (was.dhcp === false && adapter.kind !== 'VPN') {
+      const { address, mask, gateway, dnsServers } = was;
+      if (validAddress(address) && validAddress(mask) && (gateway === '' || validAddress(gateway))
+        && Array.isArray(dnsServers) && dnsServers.length <= 2 && dnsServers.every(validAddress)) {
+        adapter.ip = { dhcp:false, address, mask, gateway, dnsServers:dnsServers.slice(), dhcpServer:'' };
+      }
+    }
+  });
 }
 // Module 4 (shift printerSummary): a small summary of the selected computer's
 // print queues instead of the whole machine, so the package stays inside the
@@ -11321,6 +11395,7 @@ function hdProvePrefillActions(work, prove, ticket) {
     });
     if (HD_PROVE.shift.printerSummary === true) hdProvePrefillPrinters(work.machine, machine);
     if (HD_PROVE.shift.windowsSummary === true) hdProvePrefillWindows(work.machine, machine, fixture);
+    if (HD_PROVE.shift.networkSummary === true) hdProvePrefillNetwork(work.machine, machine, name);
     hdState.machines = { ...(hdState.machines || {}), [name]:machine };
   }
   if (work.assignedTo === 'Riley Morgan') {
