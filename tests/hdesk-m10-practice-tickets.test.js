@@ -231,7 +231,7 @@ function testCriticalLines() {
   const action = c.feedback(T10C).areas.find((area) => area.area === 'Action').text;
   assert.match(action, /Desktop Support/);
   const fix = plain(c.run("HD_TICKET_TEMPLATES.find((t) => t.id === 'HD-2225').console.feedback.find((a) => a.area === 'Action').fix"));
-  assert.match(fix, /Critical \(feedback only\): telling him to open the case or reseat parts; carrying on after a reported burning smell\./);
+  assert.match(fix, /Critical \(feedback only\): telling him to open the case or reseat parts inside it; carrying on after a reported burning smell\./);
 }
 
 // A rebuild is not offered; the service start is the one change.

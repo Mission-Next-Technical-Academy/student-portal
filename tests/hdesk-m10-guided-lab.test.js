@@ -365,8 +365,29 @@ function testLab101() {
 function testTypedStepsAnyCase() {
   const tab = startLab();
   partA(tab);
-  partB(tab, { ping: 'PING ns-dc01', lookup: 'Resolve-DnsName northstar.example', status: 'W32TM /query /status', resync: 'w32tm  /RESYNC', trust: 'test-computersecurechannel -Server NS-DC01',
+  partB(tab, { ping: 'PING -n 4 ns-dc01', lookup: 'Resolve-DnsName northstar.example', status: 'W32TM /query /status', resync: 'w32tm  /RESYNC', trust: 'test-computersecurechannel -Server NS-DC01',
     port3389: 'test-netconnection NS-DC01 -port 3389', port22: 'TEST-NETCONNECTION ns-dc01 -Port 22' });
+  // "Check my work" agrees with the coach on the same lines.
+  for (const id of [A, B]) tab.feedback(id).areas.forEach((area) => assert.ok(area.ok, `${id} ${area.area}: ${area.text}`));
+}
+
+// A student who connects before the opening script can't pass step 3 (the
+// opening is said before connecting); the step names the way out.
+function testOpeningAfterConnectingNamesTheWayOut() {
+  const tab = startLab();
+  const steps = tab.coach('hd-m08').steps;
+  tab.open(A);
+  tab.run('hdRemoteQuickAssist()');
+  tab.say(`Your code is ${tab.remote(A).pending.code}.`);
+  tab.run("hdRemoteAskControl('full')");
+  tab.say(OPENING);
+  assert.equal(steps[2].check(), false, 'an opening said during the session is not the opening');
+  assert.match(steps[2].instruction, /<strong>Dashboard<\/strong>, press <strong>Reset shift<\/strong>/);
+  tab.run('hdResetShift()');
+  const again = startLab();
+  again.open(A);
+  again.say(OPENING);
+  assert.equal(again.coach('hd-m08').steps[2].check(), true, 'after Reset shift and a relaunch, the opening counts');
 }
 
 // A line on another computer or in another order does not pass its step.
@@ -598,7 +619,7 @@ function testEveryArticleCheckIsInTheSteps() {
   [...new Set(lab.flatMap(rules))].forEach((id) => assert.ok(labText.includes(id), `hd-m08 names ${id}`));
 }
 
-const tests = [testLabOpensOnItsSet, testLab101, testTypedStepsAnyCase, testTypedStepsNeedTheRightComputer, testCriticalLines, testNoPasswordInASession, testEveryStepText,
+const tests = [testLabOpensOnItsSet, testLab101, testTypedStepsAnyCase, testOpeningAfterConnectingNamesTheWayOut, testTypedStepsNeedTheRightComputer, testCriticalLines, testNoPasswordInASession, testEveryStepText,
   testOpeningAStepsScreenDoesNotPassIt, testEveryClockIsCorrectAndTheCauseIsNeverNamed, testOldTicketsAndOldPath, testAdRowsOnlyWhereSet, testSharedListsUnchanged,
   testOldCoachRunIsForgotten, testSheetMapping, testCiRunsThisFile, testEveryArticleCheckIsInTheSteps];
 let failed = 0;

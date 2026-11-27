@@ -2029,7 +2029,7 @@
       {
         route: '#/helpdesk/remote-support', target: '#hd-remote-say, [data-hd-remote-say]',
         title: 'Say your opening before you connect',
-        instruction: 'In <strong>Say to the user</strong>, type your opening. Say that she’s verified, ask her permission to connect, ask her to close anything personal, and promise to tell her what you’re doing. The checker ticks the four habits and names any that are missing. Say it in your own words.',
+        instruction: 'In <strong>Say to the user</strong>, type your opening. Say that she’s verified, ask her permission to connect, ask her to close anything personal, and promise to tell her what you’re doing. The checker ticks the four habits and names any that are missing. Say it in your own words, before you connect. If you already connected, open the <strong>Dashboard</strong>, press <strong>Reset shift</strong>, then start the lab again from your course page.',
         body: 'Why: The four habits start before you connect (Table 2). Success looks like: The checker ticks all four: <strong>verify · consent · privacy · narration</strong> (and names any missing).',
         waitLabel: 'Next Step: Opening has all four habits',
         check: () => hd2Rule(HD8_A, { remoteOpening: true }),
@@ -2119,7 +2119,7 @@
       {
         route: '#/helpdesk/remote-support', target: '[data-hd-remote-tool="quick-assist"], [data-hd-remote-tool="remote-support"], [data-hd-remote-find], [data-hd-remote-request]',
         title: 'Reach the sign-in screen with Remote Support',
-        instruction: 'In <strong>Remote Support</strong>, try <strong>Quick Assist</strong> first, then switch to <strong>Remote Support › NS-LT-0131 › Request session</strong>. Say: “You’ll see a request on your screen from Riley Morgan, Service Desk. Please choose Allow.” Never use <em>Connect without asking</em> on a person’s PC. If you did, open the <strong>Dashboard</strong>, press <strong>Reset shift</strong>, then start the lab again from your course page.',
+        instruction: 'In <strong>Remote Support</strong>, try <strong>Quick Assist</strong> first, then switch to <strong>Remote Support › NS-LT-0131 › Request session</strong>. Say: “You’ll see a request on your screen from Riley Morgan, Service Desk. Please choose Allow.” Never use <em>Connect without asking</em> on a person’s PC, and never ask for her password: she signs in herself. If you did connect without asking, open the <strong>Dashboard</strong>, press <strong>Reset shift</strong>, then start the lab again from your course page.',
         body: 'Why: Nobody is signed in, so Quick Assist can’t reach her. The company tool’s agent runs at the sign-in screen, and she still chooses. Success looks like: Quick Assist: “Nobody is signed in to NS-LT-0131.” Remote Support: agent <strong>Online</strong>; Sofia allows; <strong>Connected at the sign-in screen 09:23</strong>.',
         waitLabel: 'Next Step: Connected at the sign-in screen, with her Allow',
         check: () => hd2Did(HD8_B, 'quick-assist-refused')
@@ -2171,7 +2171,7 @@
       {
         route: '#/helpdesk/knowledge-base', target: '.hd-kb-search, .hd-related-knowledge, [data-hd-kb-open="KB-0095"]',
         title: 'Find KB-0095 and read its audience',
-        instruction: 'Search the knowledge base for the exact error text and open <strong>KB-0095</strong>. Read its <strong>Audience</strong>.',
+        instruction: 'Search the knowledge base for the exact error text and open <strong>KB-0095</strong>. Read its <strong>Audience</strong>, then attach it to HD-2110.',
         body: 'Why: Theory from approved knowledge, and who owns the fix. Success looks like: KB-0095: <strong>Audience: Desktop Support</strong>. Tier 1 collects the evidence, escalates P3 and offers a hot desk; never rejoins or repairs.',
         waitLabel: 'Next Step: KB-0095 read',
         check: () => hd2Rule(HD8_B, { kb: 'KB-0095' }),
