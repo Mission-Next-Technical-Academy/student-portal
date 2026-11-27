@@ -200,9 +200,9 @@ const MACHINES = {
   'TEST-LT-52': { remote: { agent: 'Online', signedIn: false, lastStart: 'Today 08:41', asks: [{ id: 'what-changed', label: 'What changed?', answer: 'Desktop Support restored it yesterday.' }] },
     signInMessage: TRUST_ERROR, secureChannel: false, clock: { source: 'NS-DC01.northstar.example', lastSyncMinutesAgo: 2 }, network: CORP_NET,
     events: { system: [{ level: 'Error', time: 'Today 08:42', source: 'NETLOGON', id: '3210', message: 'Failed to authenticate with domain controller NS-DC01.' }] } },
-  // A clock years behind, at the sign-in screen; the trust is fine.
-  'TEST-WS-53': { remote: { agent: 'Online', signedIn: false, asks: [{ id: 'try', label: 'Can you try signing in now?', answer: 'Same message.', ifClockCorrect: { answer: "I'm in.", signIn: true } }] },
-    signInMessage: 'TEST sign-in refused.', secureChannel: true, clock: { shown: '2023-01-02T09:14:00Z', source: 'Local CMOS Clock', synced: false } },
+  // A test PC whose clock is far off, at the sign-in screen; the trust is fine.
+  'TEST-WS-53': { remote: { agent: 'Online', signedIn: false, asks: [{ id: 'try', label: 'TEST: try again', answer: 'Same message.', ifClockCorrect: { answer: 'TEST: signed in.', signIn: true } }] },
+    signInMessage: 'TEST sign-in refused.', secureChannel: true, clock: { shown: '2024-03-05T07:30:00Z', source: 'Local CMOS Clock', synced: false } },
   'TEST-WS-54': { remote: { agent: 'Offline', offlineSince: 'Yesterday 17:42' } },
   'TEST-LT-55': { remote: { agent: 'Online', allow: false } },
   // Module 5's machine model only: no new key.
@@ -443,7 +443,7 @@ function testWrongClockAndResync() {
   const tab = onTicket('HD-9953');
   tab.on('TEST-WS-53');
   assert.equal(tab.ps('w32tm /query /status'), ['Leap Indicator: 3(not synchronized)', 'Stratum: 0 (unspecified)', 'Precision: -23 (119.209ns per tick)', 'Root Delay: 0.0000000s', 'Root Dispersion: 0.0000000s', 'ReferenceId: 0x00000000 (unspecified)', 'Last Successful Sync Time: unspecified', 'Source: Local CMOS Clock', 'Poll Interval: 10 (1024s)'].join('\n'));
-  assert.equal(tab.ps('Get-Date'), '\nMonday, January 2, 2023 9:14:00 AM\n');
+  assert.equal(tab.ps('Get-Date'), '\nTuesday, March 5, 2024 7:30:00 AM\n');
   assert.equal(tab.ps('Test-ComputerSecureChannel'), 'True', 'the trust is not time-sensitive');
   assert.equal(tab.run('hdRemoteClockCorrect("TEST-WS-53", hdMachine("TEST-WS-53"))'), false);
   tab.run("hdRemoteAsk('try')");
@@ -451,7 +451,7 @@ function testWrongClockAndResync() {
   // No time source: the resync fails and the clock stays.
   tab.run('hdMachine("TEST-WS-53").clock.reachable = false');
   assert.equal(tab.ps('w32tm /resync'), 'Sending resync command to local computer...\nThe computer did not resync because no time data was available.');
-  assert.match(tab.ps('Get-Date'), /January 2, 2023/);
+  assert.match(tab.ps('Get-Date'), /March 5, 2024/);
   tab.run('delete hdMachine("TEST-WS-53").clock.reachable');
   tab.shell('w32tm /resync');
   assert.match(tab.view('helpdesk/powershell'), /The command completed successfully\./);
@@ -460,7 +460,7 @@ function testWrongClockAndResync() {
   assert.equal(tab.run('hdRemoteClockCorrect("TEST-WS-53", hdMachine("TEST-WS-53"))'), true);
   assert.deepEqual(json(tab, 'hdTicketById("HD-9953").consoleState.actions.filter((a) => a.id === "clock-resync").map((a) => a.result)'), ['failed', 'success']);
   tab.run("hdRemoteAsk('try')");
-  assert.equal(remote(tab, 'HD-9953').asks[1].answer, "I'm in.");
+  assert.equal(remote(tab, 'HD-9953').asks[1].answer, 'TEST: signed in.');
   assert.equal(tab.run('hdMachine("TEST-WS-53").remote.signedIn'), true);
   for (const key of ['w32tm-status', 'w32tm-resync', 'secure-channel', 'clock', 'remote-sysinfo', 'ask:try']) assert.ok(seen(tab, 'TEST-WS-53').includes(key), key);
   assert.match(tab.ps('Get-Help'), /Time and trust: w32tm \/query \/status, w32tm \/resync, Test-ComputerSecureChannel, Get-Date/);
@@ -506,7 +506,7 @@ function testProveShift() {
   assert.deepEqual(events.filter((e) => e.type === 'action_taken').map((e) => e.value), ['remote-request', 'remote-connected', 'clock-resync', 'domain-membership-refused', 'remote-end']);
   const opened = json(tab, 'hdState.prove.opened');
   for (const source of ['clock:TEST-WS-53', 'w32tm-status:TEST-WS-53', 'w32tm-resync:TEST-WS-53', 'secure-channel:TEST-WS-53']) assert.ok(opened.includes(source), source);
-  assert.equal(events.find((e) => e.type === 'remote_ask').answer, "I'm in.");
+  assert.equal(events.find((e) => e.type === 'remote_ask').answer, 'TEST: signed in.');
   assert.match(events.find((e) => e.type === 'remote_session_end').log, /^Remote session · TEST-WS-53 · Remote Support \(attended\) · /);
   assert.ok(json(tab, `hdTicketById(${JSON.stringify(id)}).troubleshootingHistory`).some((h) => /^Remote session · TEST-WS-53/.test(h.action)), 'the log line on the Prove ticket');
   // A Prove It answers a wrong w32tm option as Windows does, with no hint.
