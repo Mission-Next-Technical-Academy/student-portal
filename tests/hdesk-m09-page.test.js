@@ -1,7 +1,7 @@
 // Help Desk Module 9 (key its-04) course page, portal/it-support-module-04.js,
 // on the Module 8 page pattern:
 //
-//   - The catalogue: Lab 9.1 (75 min, still the gating lab), Lab 9.2 (70 min,
+//   - The catalogue: Lab 9.1 (75 min, Practice It since the Prove It moved the gate), Lab 9.2 (70 min,
 //     Practice It) and the Prove It (35 min) from the old 180-minute lab; 480
 //     minutes in all, and ITHD-101.7 keeps all 180 lab minutes. The four filed
 //     lessons keep their keys, titles and 75 minutes.
@@ -24,7 +24,7 @@
 //     HD-2213 are resolved and the request SR-2222 is in the work.
 //   - Lab 9.2: the practice set's message saves one completion record, and
 //     only for the five tickets the simulator's set reports.
-//   - The Prove It card says "Opens soon" and opens nothing.
+//   - The Prove It card opens its shift (?prove=its-04).
 //   - The instructor sheets: the new lab labels and the Lab 9.2 sheet.
 //
 // The portal runs in tests/portal-vm.js. Synthetic data only.
@@ -59,7 +59,8 @@ const TICKETS = ['HD-2214', 'HD-2215', 'HD-2219', 'HD-2220', 'HD-2221'];
 const DAY = new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 const PAGE_FILE = path.join(ROOT, 'portal/it-support-module-04.js');
 // What a student must never see (and the catalogue must never say).
-const BANNED = /Module 0?4\b|lab VM|CompTIA|220-1201|HD-2104|HD-2105|HD-2113|Connected But Nothing Works|\?prove=/i;
+// The Prove It card links ?prove=its-04 since its shift was built.
+const BANNED = /Module 0?4\b|lab VM|CompTIA|220-1201|HD-2104|HD-2105|HD-2113|Connected But Nothing Works/i;
 // Reading 2's taught-only topic. Reading 2 teaches it; nothing else practises it.
 const CAUSE = /static address|from another network|DHCP Enabled: No|192\.168\.0\.20|guest Wi-Fi/i;
 // The practice tickets' causes, which a Coming-up line must not name.
@@ -145,10 +146,10 @@ function testCatalogue() {
     ['its-04-lesson-04', 'Domain Joining & Explaining Network Issues in Plain Language', 75, [['ITHD-101.7', 75]]],
   ], 'the filed lesson keys, titles, minutes and parents');
   const labs = copy(run('LABS').filter((l) => l.module === 'its-04'));
-  // Lab 9.1 keeps no phase: until the Prove It opens it is the gating lab and
-  // an instructor reviews it. Only the practice tickets are Practice It.
+  // Since the Prove It moved the gate, Lab 9.1 is Practice It, like the
+  // practice tickets.
   assert.deepEqual(labs.map((l) => [l.key, l.title, l.instructionalMinutes, l.phase || null, l.parentAllocations.map((a) => [a.code, a.minutes])]), [
-    [GUIDED, 'Lab 9.1 · Guided Lab: the connectivity checklist', 75, null, [['ITHD-101.7', 75]]],
+    [GUIDED, 'Lab 9.1 · Guided Lab: the connectivity checklist', 75, 'practice', [['ITHD-101.7', 75]]],
     [PRACTICE, 'Lab 9.2 · Practice tickets (not graded)', 70, 'practice', [['ITHD-101.7', 70]]],
     [PROVE, 'Prove It: Independent Ticket', 35, null, [['ITHD-101.7', 35]]],
   ]);
@@ -172,7 +173,7 @@ function testPageContent() {
   assert.match(html, /Module 09 · 8 Hours · Week 5/, 'the hero shows Module 09, 480 minutes, week 5');
   assert.match(html, /<dt>Lessons<\/dt><dd>4<\/dd>/, 'the hero counts the four filed lessons');
   const shown = words(html);
-  const banned = /.{0,60}(Module 0?4\b|lab VM|CompTIA|220-1201|HD-2104|HD-2105|HD-2113|Connected But Nothing Works|\?prove=).{0,60}/i.exec(shown);
+  const banned = /.{0,60}(Module 0?4\b|lab VM|CompTIA|220-1201|HD-2104|HD-2105|HD-2113|Connected But Nothing Works).{0,60}/i.exec(shown);
   assert.equal(banned && banned[0], null, 'nothing a student sees names a banned word');
   assert.doesNotMatch(html, BANNED, 'nor does the markup');
   assert.doesNotMatch(html, /comptia\.org|rfc-editor|datatracker|\bRFC\b|Windows Server 20\d\d/i);
@@ -180,7 +181,8 @@ function testPageContent() {
   // The whole file, comments included.
   const source = fs.readFileSync(PAGE_FILE, 'utf8');
   assert.doesNotMatch(source, BANNED);
-  assert.doesNotMatch(source, /Windows Server 20\d\d|comptia\.org|itsRegisterCoachModule|itsProveLaunchHref|itsProveReceiveMessage|its04ProveChanged|its06/i);
+  // The Prove It wiring (itsProveLaunchHref, itsProveReceiveMessage) is in since its shift was built.
+  assert.doesNotMatch(source, /Windows Server 20\d\d|comptia\.org|itsRegisterCoachModule|its06/i);
   // The objective, word for word.
   assert.ok(shown.includes('A+ Core 1: 2.1 TCP and UDP ports and protocols · 2.2 wireless networking technologies · 2.4 network configuration concepts (VPN) · 2.5 networking hardware · 2.6 SOHO network configuration and IP addressing · 2.7 internet connection types and network types · 2.8 networking tools · 3.2 cable types and connectors · 5.5 troubleshoot network issues.'));
   assert.ok(shown.includes('Competencies: 2 Practical networking · 3 Ticketing discipline · 7 Communication under pressure; practised: 9 Triage and escalation judgment.'));
@@ -351,10 +353,10 @@ function testLabCardsAndRail() {
   assert.match(guided, /Jonah Pryce[\s\S]*Farah Qureshi[\s\S]*Kenji Watanabe/);
   assert.match(guided, /A coach guides you through each step\./, 'no step count');
   assert.match(guided, /Show me the command/);
-  assert.ok(words(guided).includes('Feedback only, no score. Your instructor reviews your finished lab.'));
-  // Until the Prove It opens, Lab 9.1 is the gating lab and instructor reviewed.
-  assert.match(guided, /Guided Lab · coached · instructor reviewed/);
-  assert.doesNotMatch(guided, /Practice It|Practice: not graded/);
+  assert.ok(words(guided).includes('Practice: not graded. Feedback only, no score.'));
+  // Since the Prove It moved the gate, Lab 9.1 is Practice It.
+  assert.match(guided, /Practice It · coached/);
+  assert.doesNotMatch(guided, /instructor reviews/i);
   // Module 9 has no optional extension.
   assert.doesNotMatch(guided, /extension|hd-m04-ext/i);
   assert.doesNotMatch(guided, /`/, 'the lab text renders its code, no backticks');
@@ -367,14 +369,12 @@ function testLabCardsAndRail() {
   assert.match(practice, /it arrives with three more tickets about it/);
   assert.match(practice, /“Check my work” feedback and no score/);
   assert.equal(statusLine(html, PRACTICE), 'Finish all five tickets: work each to Resolved, or hand it to the right team, and give it your work note.');
-  // The Prove It opens nothing yet.
+  // The Prove It opens its shift (tests/hdesk-m09-prove.test.js covers the card).
   const prove = section(html, 'its04-prove-it');
   assert.match(prove, /Prove It: Independent Ticket/);
   assert.match(prove, /Prove It · Assessment Lab · instructor reviewed/);
-  assert.match(prove, /data-its04-prove-soon/);
-  assert.match(prove, /Opens soon\. Nothing to do here yet: work Labs 9\.1 and 9\.2 first\./);
-  assert.doesNotMatch(prove, /<a |data-its04-prove-launch|Start the Prove It|Reopen the Prove It|\?prove=/, 'no launch link');
-  assert.doesNotMatch(html, /\?prove=|data-its04-prove-launch/);
+  assert.doesNotMatch(prove, /Opens soon|data-its04-prove-soon/);
+  assert.match(prove, /data-its04-prove-launch href="[^"]*\?prove=its-04&amp;student=/, 'the Prove It card opens ?prove=its-04');
   // The three lab cards show 75 / 70 / 35.
   assert.deepEqual([...html.matchAll(/data-its04-lab-minutes>Time: ([^<]+)</g)].map((m) => m[1]), [GUIDED, PRACTICE, PROVE].map((k) => run(`formatInstructionalMinutes(${run(`LABS.find((l) => l.key === '${k}').instructionalMinutes`)})`)));
   assert.deepEqual([GUIDED, PRACTICE, PROVE].map((k) => run(`LABS.find((l) => l.key === '${k}').instructionalMinutes`)), [75, 70, 35]);
@@ -383,14 +383,13 @@ function testLabCardsAndRail() {
   ['its04-prove-it', 'its04-check-learn', 'its04-check-aplus', 'its04-lab-9-2', 'its04-lab-9-1'].forEach((id) => assert.equal(railRow(html, id).locked, false, `${id} is not locked`));
   assert.doesNotMatch(html, /href="#its04-cardsort"/, 'the card sort has no rail row (it sits inside Reading 1)');
 
-  // Lab 9.1 still gates the module: a saved walkthrough waits for the
-  // instructor, it is not complete at once.
+  // Lab 9.1 is Practice It since the Prove It moved the gate: a saved
+  // walkthrough is complete at once, with no instructor review.
   const saved = hdUser({ [GUIDED]: submitted() });
   fresh(saved);
   const line = statusLine(page().view(saved, HD), GUIDED);
-  assert.match(line, /^Lab 9\.1 submitted /);
-  assert.doesNotMatch(line, /Complete/);
-  assert.match(line, /instructor review/i);
+  assert.match(line, /^Lab 9\.1: Complete · /);
+  assert.doesNotMatch(line, /waiting for instructor review/);
 }
 
 /* ------------------------------------------------------------ card sort */
@@ -669,8 +668,9 @@ async function testGuidedLabSave() {
   assert.deepEqual(row.result.work.tickets.map((t) => [t.id, t.status]), [['HD-2212', 'Resolved'], ['HD-2213', 'Resolved'], ['SR-2222', 'Open']]);
   assert.deepEqual(catcher.replies.map((r) => r.data.saved), [true]);
   const line = statusLine(page().view(user, HD), GUIDED);
-  assert.match(line, /^Lab 9\.1 submitted .*instructor review/);
-  assert.doesNotMatch(line, /Complete/, 'not complete before the instructor reviews it');
+  // Practice It since the Prove It moved the gate: complete once saved.
+  assert.match(line, /^Lab 9\.1: Complete · /);
+  assert.doesNotMatch(line, /waiting for instructor review/);
   await page().onMessage(coachMessage(replyCatcher().source, labWork()));
   assert.equal(inserts().length, 1, 'finishing again sends nothing new');
 
@@ -811,7 +811,8 @@ function testInstructorSheets() {
   assert.match(html, /No: Practice It, no score and no answers saved/);
   assert.equal(copy(run('adminGradingLabMeta')({ lab_key: PRACTICE, track_code: 'HDESK' })).kind, 'PRACTICE IT');
   assert.equal(run('adminNeedsInstructorReview')({ lab_key: PRACTICE, track_code: 'HDESK' }), false, 'Lab 9.2 is never in the review queue');
-  assert.equal(run('adminNeedsInstructorReview')({ lab_key: GUIDED, track_code: 'HDESK' }), true, 'Lab 9.1 still gates the module, so an instructor reviews it');
+  assert.equal(run('adminNeedsInstructorReview')({ lab_key: GUIDED, track_code: 'HDESK' }), false, 'nor is Lab 9.1, now the Prove It gates the module');
+  assert.equal(run('adminNeedsInstructorReview')({ lab_key: PROVE, track_code: 'HDESK' }), true, 'the Prove It is');
   const guided = sheet.render({ ...base, id: 'm09g-1', lab_key: GUIDED, result: { source: 'mnt-coach-complete', work: { version: 1, tickets: [] } } });
   assert.match(guided, /Module 09 · Lab 9\.1 · Guided Lab: the connectivity checklist/);
 }

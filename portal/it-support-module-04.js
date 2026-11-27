@@ -1075,9 +1075,10 @@ const ITS04_SOURCES = [
 // and the card sort's "complete" and its time, and whether the walkthrough was
 // started. Never answers or a score.
 const ITS04_STATE_ID = 'its04-page-v1';
-// Until the Prove It opens, Lab 9.1 is the module's gating lab
-// (course_module_labs) and is instructor reviewed. The practice tickets lab
-// has its own lab key, and so has the Prove It.
+// Since 2026-11-27 Module 9's Prove It gates completion (the its04 Prove It
+// migration) and Lab 9.1 is Practice It. It keeps its course_module_labs
+// row, so its walkthrough record still saves. The practice tickets lab has
+// its own lab key, and so has the Prove It.
 const ITS04_LAB1_KEY = 'lab-its-04-connectivity';
 const ITS04_PRACTICE_KEY = 'lab-its-04-practice-tickets';
 const ITS04_PROVE_KEY = 'lab-its-04-prove-it';
@@ -1344,9 +1345,9 @@ function its04Learn() {
 function its04Lab1() {
   const button = itsWalkthroughButton(its04User, [ITS04_LAB1_KEY]);
   return `<section class="its01-section its01-lab-section" id="its04-lab-9-1" aria-labelledby="its04-lab-9-1-title">
-    <div class="its01-section-heading"><span>1</span><div><p class="its01-kicker">Guided Lab · coached · instructor reviewed</p><h2 id="its04-lab-9-1-title">${esc(itsLabTitle(ITS04_LAB1_KEY))}</h2></div></div>
+    <div class="its01-section-heading"><span>1</span><div><p class="its01-kicker">Practice It · coached</p><h2 id="its04-lab-9-1-title">${esc(itsLabTitle(ITS04_LAB1_KEY))}</h2></div></div>
     <p class="its01-instruction">${its04Text('It is Thursday morning at the Service Desk. In the IT Service Desk simulator you work two calls and a request with the connectivity checklist. Part A is HD-2212: Jonah Pryce started today in Purchasing, and his desk PC says there’s no internet. You find out whether it is one person or many, check the link, read the floor 2 network closet, move him to a working jack, renew his address, test the path and the services, and hand the dead jack to Network Operations. Part B is HD-2213: Farah Qureshi’s docked laptop can’t open the intranet, though the person beside her can. You read both adapters and the Wi-Fi, compare `ping` with `nslookup`, find this morning’s change, clear the old answer and prove the fix. Part C is SR-2222 (RITM0010164): you join Kenji Watanabe’s new laptop to the domain with the provisioning account, in the Logistics OU, and check it in Active Directory. A coach guides you through each step.')}</p>
-    <p class="its01-instruction">The coach names the goal of each typed step; open Show me the command if you need it. Feedback only, no score. Your instructor reviews your finished lab.</p>
+    <p class="its01-instruction">The coach names the goal of each typed step; open Show me the command if you need it. Practice: not graded. Feedback only, no score.</p>
     <p class="its01-instruction" data-its04-lab-minutes>Time: ${formatInstructionalMinutes(its04LabMinutes(ITS04_LAB1_KEY))}</p>
     <a class="itsw-evidence-button" data-its04-console-launch href="${esc(itsCoachLaunchHref(ITS04_COACH_ID, its04User))}" target="_blank" rel="opener">
       <i class="${button.icon}" aria-hidden="true"></i> ${{ redo: 'Redo the walkthrough', review: 'Review the walkthrough', start: ITS04_LAB1_START }[button.mode]}
@@ -1378,14 +1379,30 @@ function its04PracticeTickets() {
   </section>`;
 }
 
-// The Prove It opens nothing yet: its simulator shift isn't built.
+// Module 9's Prove It, on Module 8's pattern: a new ticket in the simulator
+// (the its-04 Prove shift, itsProveLaunchHref), reviewed by the instructor.
+// Practice It is recommended first, never required. A submitted attempt has
+// nothing left to open. What it shows comes from the server's attempt
+// (itsLabStatus); the simulator reports back by message (itsProveReceiveMessage).
 function its04Prove() {
+  const user = its04User;
+  const returned = itsLabReturned(user, ITS04_PROVE_KEY);
   return `<section class="its01-section its01-lab-section" id="its04-prove-it" aria-labelledby="its04-prove-it-title">
     <div class="its01-section-heading"><span>3</span><div><p class="its01-kicker">Prove It · Assessment Lab · instructor reviewed</p><h2 id="its04-prove-it-title">${esc(itsLabTitle(ITS04_PROVE_KEY))}</h2></div></div>
-    <p class="its01-instruction">Work a new ticket on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Your instructor reviews your work.</p>
+    <p class="its01-instruction">Work a new ticket on your own in the IT Service Desk simulator: no coach, no hints and no feedback before you submit. Set the ticket fields, chat with the user, check the laptop with the connectivity checklist, fix what is yours to fix, and write a key finding, a work note and a reply. Type the checklist’s commands in PowerShell: the commands you type are part of your evidence. Plan on about 35 minutes. Your instructor reviews your work.</p>
     <p class="its01-instruction" data-its04-lab-minutes>Time: ${formatInstructionalMinutes(its04LabMinutes(ITS04_PROVE_KEY))}</p>
-    <p class="its01-lab-status its01-status-pending" data-its04-prove-soon role="status"><i class="ri-time-line" aria-hidden="true"></i> Opens soon. Nothing to do here yet: work Labs 9.1 and 9.2 first.</p>
+    ${itsLabRail(user, [ITS04_LAB1_KEY]).isComplete ? '' : '<p class="its01-instruction">Work Lab 9.1, the guided lab, first: it prepares you for this.</p>'}
+    ${itsLabSubmitted(user, ITS04_PROVE_KEY) ? '' : `<a class="itsw-evidence-button" data-its04-prove-launch href="${esc(itsProveLaunchHref('its-04', user))}" target="_blank" rel="opener">
+      <i class="${returned ? 'ri-restart-line' : 'ri-terminal-box-line'}" aria-hidden="true"></i> ${returned ? 'Reopen the Prove It' : 'Start the Prove It'}
+    </a>`}
+    ${itsLabStatusHtml(user, ITS04_PROVE_KEY, { label: 'Prove It', prefix: 'its01', pendingText: 'Press Submit in the simulator when you finish the ticket.' })}
+    ${itsLabStatus(user, ITS04_PROVE_KEY) === 'passed' && typeof markedLabLinkHtml === 'function' ? `<p>${markedLabLinkHtml(ITS04_PROVE_KEY, 'See your score and feedback')}</p>` : ''}
+    ${itsRedoNoticeHtml(user, [{ key: ITS04_PROVE_KEY, action: 'Reopen the Prove It, make your changes, then press Resubmit in the simulator. You can resubmit once for each return.' }])}
   </section>`;
+}
+// A Prove It message changed the attempt: show it if this page is open.
+function its04ProveChanged() {
+  if (document.querySelector('.its04-shell')) render();
 }
 
 function its04Sources() {
@@ -1749,6 +1766,7 @@ async function its04SavedPracticeAttempt(user) {
 }
 
 function its04OnMessage(event) {
+  itsProveReceiveMessage(event, { moduleKey: 'its-04', labKey: ITS04_PROVE_KEY, onChange: its04ProveChanged });
   return Promise.all([its04ReceivePracticeCompletion(event), its04ReceiveCoachCompletion(event)]);
 }
 
