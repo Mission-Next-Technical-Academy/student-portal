@@ -44,7 +44,9 @@ knowledge_base:
   code_guidelines:
     # Added 2026-11-27: CodeRabbit-only review rules. These patterns add to
     # CodeRabbit's defaults (CLAUDE.md, AGENTS.md, .claude/rules/**).
+    # applyTo "**" makes them apply to the whole repo, not just .coderabbit/.
     filePatterns:
-      - ".coderabbit/review-guidelines.md"
+      - files: ".coderabbit/review-guidelines.md"
+        applyTo: "**"
 chat:
   auto_reply: true
