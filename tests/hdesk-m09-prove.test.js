@@ -316,9 +316,10 @@ function testOlderShiftsUnchanged() {
     (shift.tickets || []).forEach((ticket) => ((ticket.console && ticket.console.caller && ticket.console.caller.questions) || [])
       .forEach((q) => assert.ok(!q.afterSeen && !q.replyWhen, `${moduleKey}: no waiting message`)));
   });
-  // Edit IP settings records its screen only in a Prove shift.
+  // Edit IP settings records its screen in Practice It (Lab 9.1 step 8) and in a Prove shift.
   const src = SOURCES.find(([name]) => name === 'helpdesk.js')[1];
-  assert.match(src, /panel === 'edit' && adapter && HD_PROVE\) hdWinSeen/);
+  assert.match(src, /panel === 'edit' && adapter\) hdWinSeen/);
+  assert.doesNotMatch(src, /panel === 'edit' && adapter && HD_PROVE\) hdWinSeen/);
 }
 
 function testPackage() {

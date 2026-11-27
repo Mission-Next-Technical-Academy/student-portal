@@ -1816,7 +1816,8 @@
         body: 'Why: The client-side fix: ask DHCP for a fresh address now there’s a link. Then see what a healthy Northstar PC looks like. Success looks like: IPv4 <strong>10.20.10.141</strong>, mask 255.255.255.0, gateway <strong>10.20.10.1</strong>, DHCP server 10.20.0.20, DNS 10.20.0.10 and 10.20.0.11, lease expires in 8 days. Hardware properties: <strong>IP assignment: Automatic (DHCP) · DNS server assignment: Automatic (DHCP)</strong>; then open Edit IP settings, read <strong>Automatic (DHCP)</strong>, and Cancel.',
         waitLabel: 'Next Step: Address renewed, Hardware properties read',
         check: () => hd2Rule(HD4_A, { actionsAfter: { after: 'ip-release', action: 'ip-renew' } })
-          && hd2Rule(HD4_A, { seen: 'net-adapter:Ethernet', computer: HD4_PC_A, after: 'ip-renew' }),
+          && hd2Rule(HD4_A, { seen: 'net-adapter:Ethernet', computer: HD4_PC_A, after: 'ip-renew' })
+          && hd2Rule(HD4_A, { seen: 'net-edit:Ethernet', computer: HD4_PC_A, after: 'ip-renew' }),
       },
       {
         route: '#/helpdesk/powershell', target: '#hd-ps-input',
