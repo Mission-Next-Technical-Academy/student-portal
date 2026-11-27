@@ -447,11 +447,15 @@ function testNothingFromTheGradedQueue() {
   // word is allowed on that one ticket; every other graded word stays refused.
   // SR-2107 and HD-2118 left the queue then (ownSet) with their older text
   // unchanged: they are no later module's content, so they are not read here.
-  const MODULE_8 = { 'HD-2197': ['re-register'] };
+  // Module 9's (key its-04) ticket 9-B (HD-2215) keeps its approved text: "the
+  // warehouse system ... fine" (Module 9 spec, section 8.4). That one word is
+  // allowed on that one ticket, the same way.
+  const MODULE_8 = { 'HD-2197': ['re-register'], 'HD-2215': ['warehouse'] };
   Object.entries(MODULE_8).forEach(([id, allowed]) => tab.run(`JSON.stringify(HD_TICKET_TEMPLATES.find((t) => t.id === '${id}'))`).toLowerCase()
     .split(/[^a-z0-9-]+/).filter(Boolean).filter((word) => !allowed.includes(word))
     .forEach((word) => assert.ok(!GRADED_WORDS.has(hash(word)), `no other graded story word in ${id}`)));
-  const HIDDEN_OLDER = ['SR-2107', 'HD-2118'];
+  // Module 9 (key its-04) hid HD-2104, HD-2105 and HD-2113 the same way.
+  const HIDDEN_OLDER = ['SR-2107', 'HD-2118', 'HD-2104', 'HD-2105', 'HD-2113'];
   const content = tab.run(`JSON.stringify({
     tickets: HD_TICKET_TEMPLATES.filter((t) => t.ownSet && t.id !== 'HD-2186' && !${JSON.stringify([...MODULE_7, ...Object.keys(MODULE_8), ...HIDDEN_OLDER])}.includes(t.id)),
     kb: HD_KB_ARTICLES.filter((a) => ['KB-0062', 'KB-0063'].includes(a.id)),
@@ -469,7 +473,9 @@ function testNothingFromTheGradedQueue() {
   const REUSED_BY_LATER_MODULES = new Set([...GRADED_NAMES].filter((h) => [hash('grace kim'), hash('dina foster'), hash('evan parker')].includes(h)));
   assert.equal(REUSED_BY_LATER_MODULES.size, 3, 'each reused name is a graded name');
   // Module 7's two names are allowed on their own ticket only.
-  const REUSED_ON_ONE_TICKET = { 'HD-2189': hash('jordan bell'), 'HD-2195': hash('monica hall') };
+  // Module 9's spec section 8.2 Part C names Monica Hall as the requester and
+  // approver of RITM0010164 (SR-2222), on that record only.
+  const REUSED_ON_ONE_TICKET = { 'HD-2189': hash('jordan bell'), 'HD-2195': hash('monica hall'), 'SR-2222': hash('monica hall') };
   Object.values(REUSED_ON_ONE_TICKET).forEach((h) => assert.ok(GRADED_NAMES.has(h), 'each reused name is a graded name'));
   const pairs = (text) => { const list = text.split(/[^a-z0-9-]+/).filter(Boolean); return list.slice(1).map((w, i) => hash(`${list[i]} ${w}`)); };
   const own = JSON.parse(tab.run(`JSON.stringify(HD_TICKET_TEMPLATES.filter((t) => t.ownSet && !${JSON.stringify(HIDDEN_OLDER)}.includes(t.id)))`));

@@ -178,7 +178,9 @@ function testOldTicketsTurnNothingOn() {
   // (tests/hdesk-m07-guided-lab.test.js, tests/hdesk-m07-practice-tickets.test.js).
   // Module 8's sets (its-06, its-06-guided, its-06-extension) reuse the
   // Active Directory panes (tests/hdesk-m08-guided-lab.test.js, tests/hdesk-m08-practice-tickets.test.js).
-  const module5 = (k) => /^its-0[3567](-|$)/.test(k);
+  // Module 9's sets (its-04, its-04-guided) reuse the Active Directory Computers
+  // pane (tests/hdesk-m09-guided-lab.test.js, tests/hdesk-m09-practice-tickets.test.js).
+  const module5 = (k) => /^its-0[34567](-|$)/.test(k);
   for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter((k) => !k.startsWith('test-') && !module5(k))) {
     const set = sim({ url: `https://academy.test/sim/?practice=${key}&student=stu-1#/helpdesk/tickets` });
     assert.doesNotMatch(set.view('helpdesk/event-viewer'), NEW_MARKERS, `${key} event viewer`);

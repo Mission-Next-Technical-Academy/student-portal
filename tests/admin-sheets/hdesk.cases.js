@@ -121,7 +121,9 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
       html: ['Noah Williams', 'HD-2109', 'Corrupt profile', 'Profile service loaded a temporary profile', 'compare the event log before rebuilding'],
     },
   },
-  // Module 9 (its-04): the coach walks HD-2104 and HD-2105; HD-2113 is free practice.
+  // Module 9 (its-04) until 2026-11-26: the coach walked HD-2104 and HD-2105;
+  // HD-2113 was free practice. An attempt saved then keeps this sheet
+  // (EARLIER_TICKETS_BY_LAB); the new Lab 9.1 cases are further down.
   {
     name: 'Module 9 (its-04) grades only the two coached tickets',
     row: coachRow('hdesk-m04-worked', 'lab-its-04-connectivity', [
@@ -337,6 +339,27 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
     name: 'Lab 8.1 older attempt keeps SR-2107 and HD-2118',
     row: coachRow('hdesk-m06-worked', 'lab-its-06-identity-access', [savedTicket('SR-2107', { worked: true }), savedTicket('HD-2118', { worked: true, priority: 'P2' })]),
     expect: { html: ['data-sheet-section="scenario-sr-2107"', 'data-sheet-section="scenario-hd-2118"'], notHtml: ['data-sheet-section="scenario-hd-2196"'] },
+  },
+  // Module 9 from 2026-11-26: Lab 9.1 grades HD-2212, HD-2213 and the request
+  // SR-2222 (RITM0010164), which ends Closed Complete on its request.
+  {
+    name: 'Lab 9.1 new attempt grades HD-2212, HD-2213 and the closed request SR-2222',
+    row: coachRow('hdesk-m04-lab91', 'lab-its-04-connectivity', [
+      savedTicket('HD-2212', { worked: true, priority: 'P3' }),
+      savedTicket('HD-2213', { worked: true, priority: 'P4' }),
+      { ...savedTicket('SR-2222', { worked: true, status: 'In Progress' }), console: { kbOpened: ['KB-0097'], chatAsked: [], resolutionCode: '', noteMissing: [], lastCommentJargon: [], request: { item: 'New starter laptop setup', requestedFor: 'Kenji Watanabe', approval: 'Approved', state: 'Closed Complete', fields: [] } } },
+    ]),
+    expect: {
+      html: ['data-sheet-section="scenario-hd-2212"', 'data-sheet-section="lab-work-hd-2212"', 'data-sheet-section="lab-work-hd-2213"', 'data-sheet-section="lab-work-sr-2222"', 'Closed Complete'],
+      notHtml: ['data-sheet-section="scenario-hd-2104"', 'data-sheet-section="scenario-hd-2105"', 'data-sheet-section="customer-comment-sr-2222"', 'data-sheet-section="context-sr-2222"'],
+    },
+  },
+  // An attempt saved before 2026-11-26 holds HD-2104 and HD-2105 and keeps
+  // the sheet it was worked against.
+  {
+    name: 'Lab 9.1 older attempt keeps HD-2104 and HD-2105',
+    row: coachRow('hdesk-m04-older', 'lab-its-04-connectivity', [savedTicket('HD-2104', { worked: true }), savedTicket('HD-2105', { worked: true })]),
+    expect: { html: ['data-sheet-section="scenario-hd-2104"', 'data-sheet-section="scenario-hd-2105"'], notHtml: ['data-sheet-section="scenario-hd-2212"'] },
   },
   {
     name: 'Lab 4.4 practice completion shows the four tickets, no walkthrough sections',

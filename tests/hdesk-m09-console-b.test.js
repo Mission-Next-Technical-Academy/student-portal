@@ -131,7 +131,9 @@ if (process.argv.includes('--print-pins')) {
   process.exit(0);
 }
 const PINNED = {
-  shared: { screens: '4931eb4c009be7bde58dbb72fb1f3b03267a75d98a24dd171b6a7ab7de3c83b7', commands: '72f5acf046d994a346a9e280448cad1ee2a14c51440d536ae97bd0601bc6b3a9' },
+  // Re-pinned 2026-11-26 by Module 09's sim part: HD-2104, HD-2105 and HD-2113
+  // left the shared shift (ownSet), and the other tickets' seeded created times move.
+  shared: { screens: 'd0abb0acca1bf405d43aa8b2f61740386c56c71200479637030a68e5fef9d8b3', commands: '72f5acf046d994a346a9e280448cad1ee2a14c51440d536ae97bd0601bc6b3a9' },
   'practice:its-01': { screens: 'a2d800d0b2559ec5b9543efe1be0a4578416665de24b0249f0911b79509c2a1d', commands: '72f5acf046d994a346a9e280448cad1ee2a14c51440d536ae97bd0601bc6b3a9' },
   'practice:its-10': { screens: 'f7ae1f63dc2ad72bf738fd73ef41de402410f0b706bf587fcaa8b2b27eb6ac6e', commands: '72f5acf046d994a346a9e280448cad1ee2a14c51440d536ae97bd0601bc6b3a9' },
   'practice:its-11': { screens: '3a84886e39275dd03729d64eca04f6b10919db55878d34f9ca6e8b17ef44a240', commands: '72f5acf046d994a346a9e280448cad1ee2a14c51440d536ae97bd0601bc6b3a9' },

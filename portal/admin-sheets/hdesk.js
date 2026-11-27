@@ -21,7 +21,9 @@
     'lab-its-02-vm-snapshot-server': ['HD-2173'],
     // Module 5 (key its-03), from 2026-11-24: Lab 5.1 is HD-2180.
     'lab-its-03-blank-desktop': ['HD-2180'],
-    'lab-its-04-connectivity': ['HD-2104', 'HD-2105'],
+    // Module 9 (key its-04), from 2026-11-26: Lab 9.1 is HD-2212 (Part A),
+    // HD-2213 (Part B) and SR-2222, the request RITM0010164 (Part C).
+    'lab-its-04-connectivity': ['HD-2212', 'HD-2213', 'SR-2222'],
     // Module 7 (key its-05), from 2026-11-25: Lab 7.1 is HD-2189 and the
     // incident the student raises from it, HD-2190 (the student writes its
     // short description, triage and note, so the instructor sees them).
@@ -40,9 +42,10 @@
   // HD-2101 and no HD-2150, and keeps the sheet it was worked against.
   // Lab 4.3 walked HD-2106 until 2026-11-23, and Module 5's lab walked HD-2109
   // and Module 6's lab HD-2119 until 2026-11-24, the same way. Module 7's lab
-  // walked HD-2108 and HD-2117 until 2026-11-25, and Module 8's lab SR-2107
-  // and HD-2118 until 2026-11-26.
-  const EARLIER_TICKETS_BY_LAB = { 'lab-its-01-ticket-triage': ['HD-2101'], 'lab-its-02-device-manager': ['HD-2106'], 'lab-its-03-blank-desktop': ['HD-2109'], 'lab-its-07-app-cert': ['HD-2119'], 'lab-its-05-server-ad': ['HD-2108', 'HD-2117'], 'lab-its-06-identity-access': ['SR-2107', 'HD-2118'] };
+  // walked HD-2108 and HD-2117 until 2026-11-25, Module 8's lab SR-2107
+  // and HD-2118 until 2026-11-26, and Module 9's lab HD-2104 and HD-2105 until
+  // 2026-11-26.
+  const EARLIER_TICKETS_BY_LAB = { 'lab-its-01-ticket-triage': ['HD-2101'], 'lab-its-02-device-manager': ['HD-2106'], 'lab-its-03-blank-desktop': ['HD-2109'], 'lab-its-07-app-cert': ['HD-2119'], 'lab-its-05-server-ad': ['HD-2108', 'HD-2117'], 'lab-its-06-identity-access': ['SR-2107', 'HD-2118'], 'lab-its-04-connectivity': ['HD-2104', 'HD-2105'] };
   const TITLES = {
     // Retired 2026-11-10; kept so its past attempts still open.
     'lab-its-01-lms-validation': 'Module 01 · LMS & Environment Validation',
@@ -55,7 +58,7 @@
     'lab-its-03-blank-desktop': 'Module 05 · Lab 5.1 · Guided Lab: the slow-computer sequence and system repair',
     'lab-its-03-practice-tickets': 'Module 05 · Lab 5.2 · Practice tickets (not graded)',
     'lab-its-03-prove-it': 'Module 05 · Prove It: Independent Ticket',
-    'lab-its-04-connectivity': 'Module 09 · Connected But Nothing Works',
+    'lab-its-04-connectivity': 'Module 09 · Lab 9.1 · Guided Lab: the connectivity checklist',
     'lab-its-05-server-ad': 'Module 07 · Lab 7.1 · Guided Lab: the morning server check',
     'lab-its-05-practice-tickets': 'Module 07 · Lab 7.2 · Practice tickets (not graded)',
     'lab-its-05-prove-it': 'Module 07 · Prove It: Independent Ticket',
@@ -454,6 +457,16 @@
       prompt: 'Lab 8.1 Part B. Look in the ticket history for: Sam verified in person (KB-0065), the hardware request read, Service health read, MFA re-registration required, Authenticator added on NS-PH-0001 and a test sign-in approved, the phone enrolled in Company Portal and Compliant in Intune, Outlook mail, calendar and contacts on, OneDrive on Wi-Fi only, and the HS-200 headset paired and tested.' },
     'SR-2207': { articles: [], questions: [], comment: false, requestState: 'Closed Complete',
       prompt: 'Lab 8.1 Part B, the request: Send as on support@ for Sam Rivera, approved by the mailbox owner. Look for Send as added (Full Access was already there), a close note that says it can take up to an hour, and the request closed.' },
+    // Module 9 Lab 9.1 (from 2026-11-26). Part A: Jonah's unpatched wall jack on
+    // HD-2212. Part B: Farah's old cached intranet address on HD-2213. Part C:
+    // the approved request SR-2222 (RITM0010164), a domain join that ends
+    // Closed Complete on its request.
+    'HD-2212': { articles: [], questions: ['others', 'light', 'move'],
+      prompt: 'Lab 9.1 Part A. Look in the ticket history and the note for the checklist order: one person (Hannah is fine), no link on Settings › Network & internet, the Floor 2 closet and Network Operations’ card for jack 2F-14, the cable moved to 2F-15, ipconfig and ipconfig /all (APIPA), /release and /renew, the gateway, files and tracert, ports 445 and 53, then the message to Network Operations and the code Workaround provided.' },
+    'HD-2213': { articles: [], questions: ['reload'],
+      prompt: 'Lab 9.1 Part B. Look for: ipconfig /all on both adapters, the Wi-Fi network’s Properties, ping to intranet (10.20.0.45, timed out) and nslookup (10.20.0.50), CHG-7802 and the intranet DNS record, then ipconfig /flushdns, ping and port 443 again, and Farah confirming it opens. The comment should have no internal terms.' },
+    'SR-2222': { articles: ['KB-0097'], questions: [], comment: false, requestState: 'Closed Complete',
+      prompt: 'Lab 9.1 Part C, the request: a new starter’s laptop NS-LT-0416 for Kenji Watanabe, approved by Monica Hall. Look for: company DNS checked (ipconfig /all, nslookup northstar.example), the join with the provisioning account into OU=Logistics,OU=Workstations, the restart, gpupdate /force, the computer object read in Active Directory, a close note and the request closed.' },
   };
   function labConsoleSections(ticket, id) {
     const spec = LAB_CONSOLE[id];

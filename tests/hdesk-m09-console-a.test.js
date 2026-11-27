@@ -85,7 +85,11 @@ const proveUrl = (key) => `https://academy.test/sim/?prove=${key}&student=studen
  * NS-LT-0117: Settings › Network & internet, Device Manager, the Windows
  * Desktop and every command this part adds or changes, typed in order with
  * the machine state after each. Computed on master at 37f671e with
- * `node tests/hdesk-m09-console-a.test.js --print-pins`. */
+ * `node tests/hdesk-m09-console-a.test.js --print-pins`. Re-pinned on
+ * 2026-11-26 by Module 09's sim part for the shared shift (HD-2104, HD-2105
+ * and HD-2113 left it, ownSet), Module 1's practice set and Module 08's
+ * extension set (eleven new templates move the seeded created times by a
+ * minute or two); every other pin is unchanged. */
 const PIN_COMMANDS = [
   'ipconfig', 'ipconfig /all', 'ipconfig /displaydns', 'ping 10.20.10.1', 'ping -n 20 10.20.10.1', 'ping files.northstar.example',
   'ping www.example.com', 'tracert www.example.com', 'tracert 10.20.0.30', 'nslookup files.northstar.example', 'nslookup northstar.example',
@@ -139,8 +143,8 @@ if (process.argv.includes('--print-pins')) {
   process.exit(0);
 }
 const PINNED = {
-  shared: { tickets: 'ea1d19b6a81ce5fe977b3e21d36cb74e37dd0b4e9712674829da680561b48c1e', screens: 'db0589042c823cfaa177c4f0f7b166bac15218c5b6b1cb5e087a0235149204c3', commands: 'a1ea0dd2c104343bce4d5ecbe019f697a705f88a8828e9ac472cdc7ba2aba8cd' },
-  'practice:its-01': { tickets: '78f007a17dffa77f751dd700105585d73dc3d5baff9133abe6b97f8db34564e7', screens: 'db0589042c823cfaa177c4f0f7b166bac15218c5b6b1cb5e087a0235149204c3', commands: 'a1ea0dd2c104343bce4d5ecbe019f697a705f88a8828e9ac472cdc7ba2aba8cd' },
+  shared: { tickets: '28eca56e7c6ab65d221b05a8557a70a3657b0852c368d7df7c6ea3970213f51f', screens: 'db0589042c823cfaa177c4f0f7b166bac15218c5b6b1cb5e087a0235149204c3', commands: 'a1ea0dd2c104343bce4d5ecbe019f697a705f88a8828e9ac472cdc7ba2aba8cd' },
+  'practice:its-01': { tickets: 'aaff637984c4cfab2070026a01cc0117f6bb55cfffb3a72ec5c451365ffff015', screens: 'db0589042c823cfaa177c4f0f7b166bac15218c5b6b1cb5e087a0235149204c3', commands: 'a1ea0dd2c104343bce4d5ecbe019f697a705f88a8828e9ac472cdc7ba2aba8cd' },
   'practice:its-10': { tickets: '7178b6d765756fa666e041bd909834f478902a84792706af0fe1987b478a2aeb', screens: '8debbbdc099f10d0593d507186f6c9b0b749c42847699471a51e949e4b3d1b05', commands: 'a1ea0dd2c104343bce4d5ecbe019f697a705f88a8828e9ac472cdc7ba2aba8cd' },
   'practice:its-11': { tickets: '300e2afc6cc2f22db756f8bee61feb51a29e111adc439d2e96404800d1ee0a04', screens: '8debbbdc099f10d0593d507186f6c9b0b749c42847699471a51e949e4b3d1b05', commands: 'a1ea0dd2c104343bce4d5ecbe019f697a705f88a8828e9ac472cdc7ba2aba8cd' },
   'practice:its-02': { tickets: '52a0ddd18c70923b5f3265fa23c3d93a104c95d4e65fc412bafd684d2f130fac', screens: '119644067e939c8719109cb81dbabd863253ff97978a48bdca56446ef280e475', commands: '61fa527e27e79571da3909aaebbd57fbad5a273980c44ee59537cb28b561b7b9' },
@@ -156,7 +160,7 @@ const PINNED = {
   'coached:its-07-guided': { tickets: '5ac8e1ae952ddf61a7dc76f532d2da9f5b5caf830d04740bbe43a4e810219833', screens: 'c4ec034c14be79b35a8a784e004fc8ad0777f00934d82c2d3592b9bcde6b8c3c', commands: '2202072ce19387203999a8618457b4794cea31c115b3d04ce513196b4ce3698f' },
   'coached:its-05-guided': { tickets: '13eb2965c8e669a0ab73fd51a9eedd5a4d3b6e8ec3de97ad9a77ad40587d8c08', screens: 'ac42afadee96e32c186562a0c87d03ca1134f169213244909f0cda6a4290a799', commands: '576490ecd826088f284d8a0d974501513608720f5417f5bb4e7e397f4e22a458' },
   'coached:its-06-guided': { tickets: '039eb60f1ee5f8d72a7721ae79a56477f56cd1986137a7b82d0baf37a120ebc0', screens: '16a51ed14041a5a8a1980bcdbd2b3013b4d3dbea0bcdb2932ca66a4c99f9cb38', commands: 'b441a933f9d9b897c2c09aae42ecfa41f8ade4b6300e3d0996c347398be38070' },
-  'coached:its-06-extension': { tickets: 'e564ddc81c5fd516ca85c3fbdd43e865fb493f0a3bb3cd27511a6c4c421b4dd5', screens: '142d7dc46603c8471edeae22f1fd67805d8e2404d11720164080781e40ac1fcb', commands: '090acf667af0215fd37ec76f1d2226321730ddff98380c3cc9a8948f6b48b1ae' },
+  'coached:its-06-extension': { tickets: 'bc3ca005d81a671ff29cc64f617def614c36d2e346b87b6f6c88c8f674028cb3', screens: '142d7dc46603c8471edeae22f1fd67805d8e2404d11720164080781e40ac1fcb', commands: '090acf667af0215fd37ec76f1d2226321730ddff98380c3cc9a8948f6b48b1ae' },
   'prove:its-01': { tickets: '4a945206750e062262de2a7c8391df418d18691ab5cf4594f8de109f3d5593f5', screens: '8172b9a1925d6e59cafc3a10f7b86ab46cd4bb174aa52c4d95c6b10ef410abf0', commands: 'fc6226fbbb1a5bcf8b9400475b80a8f33099511902da85cd63ba24980125bb75' },
   'prove:its-10': { tickets: '1477780e26acf888c3b82e7a27fa843b395b0d665d2c43695164410a60c0af57', screens: '8999e9155bc261ac42e1dabd4d01dc1c267495e0945a1f93198134e202316c32', commands: '364cb867b052af29f050f2d8d582401fa33578e88b733010e025a00fd79d2657' },
   'prove:its-11': { tickets: 'edbb61c499c8d3dcf3866d13430bdad4c6997b132afd38370941173d7e8431d2', screens: '5ea757a11a421d4d35a4d1032ae534212652c5bfbd07fe08f9725ab77c0207f5', commands: 'dcf49cd5094920cddd398db32302856865f897d2a2fcfbe0baeb0ba9223d60af' },

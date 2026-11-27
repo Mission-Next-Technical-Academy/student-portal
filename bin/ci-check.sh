@@ -59,6 +59,8 @@ node tests/hdesk-m07-console-b.test.js
 node tests/hdesk-m08-console-a.test.js
 node tests/hdesk-m09-console-a.test.js
 node tests/hdesk-m09-console-b.test.js
+node tests/hdesk-m09-guided-lab.test.js
+node tests/hdesk-m09-practice-tickets.test.js
 node tests/hdesk-m08-console-b.test.js
 node tests/hdesk-m08-guided-lab.test.js
 node tests/hdesk-m08-practice-tickets.test.js

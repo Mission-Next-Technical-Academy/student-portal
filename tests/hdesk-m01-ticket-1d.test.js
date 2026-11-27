@@ -296,8 +296,11 @@ function testNoteNeedsTicksLive() {
   tab.run("hdTicketById('HD-2152').status = 'Escalated'");
   html = tab.open('HD-2152');
   assert.match(html, /○ Next action<\/li>/);
-  // No list on a ticket that doesn't check its notes.
-  assert.doesNotMatch(sim(`${SIM_URL}#/helpdesk/tickets`).open('HD-2104'), /Your note needs/);
+  // No list on a ticket that doesn't check its notes. (HD-2106 stands in for
+  // HD-2104, which left the shared queue with Module 9: ownSet.)
+  const plainTicket = sim(`${SIM_URL}#/helpdesk/tickets`).open('HD-2106');
+  assert.match(plainTicket, /HD-2106/, 'the older ticket is on the shared queue');
+  assert.doesNotMatch(plainTicket, /Your note needs/);
   // The Work notes subtitle on a Module 1 ticket.
   assert.match(tab.open('HD-2151'), /<strong>Work notes<\/strong><span class="muted">Reported \/ Tried \/ Result \(\+ Next action if it stays open or goes to another team\)<\/span>/);
 }
