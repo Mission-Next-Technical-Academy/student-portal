@@ -7367,6 +7367,12 @@ function hdNetIpconfig(command, machine, computerName) {
   const option = (match[1] || '').toLowerCase();
   if (!option || option === 'all') {
     hdWinSeen(machine, option ? 'ipconfig-all' : 'ipconfig');
+    if (!option && hdNetAdapters(net).some(adapter => {
+      const ip = hdNetIp(adapter);
+      return hdNetLinked(adapter) && ip.dhcp !== false && hdNetApipa(ip.address);
+    })) {
+      hdWinSeen(machine, 'ipconfig:apipa');
+    }
     if (option) hdNetAdapters(net).forEach(adapter => hdWinSeen(machine, `net-adapter:${adapter.name}`));
     const active = hdNetActive(net);
     hdLastCommandResult = hdNetAdapters(net).map(adapter => `${adapter.name} ${hdNetUp(adapter) ? hdNetIp(adapter).address || 'no address' : 'disconnected'}`).join(', ').slice(0, 200) || (active ? '' : 'no adapters');
@@ -7436,6 +7442,7 @@ function hdNetPing(command, machine) {
   const resolved = hdNetResolve(net, target);
   hdWinSeen(machine, `ping:${resolved.shown}`);
   if (resolved.failed) { hdLastCommandResult = `could not find host ${resolved.shown}`; return `Ping request could not find host ${target}. Please check the name and try again.`; }
+  if (count === 20) hdWinSeen(machine, `ping20:${resolved.shown}`);
   const address = resolved.address;
   const reach = hdNetReach(net, address);
   const head = resolved.fqdn ? `Pinging ${resolved.shown} [${address}] with 32 bytes of data:` : `Pinging ${address} with 32 bytes of data:`;

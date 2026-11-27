@@ -1796,10 +1796,10 @@
       {
         route: '#/helpdesk/ticket', target: '[data-hd-machines], #hd-ps-input',
         title: 'Read the address on the PC',
-        instruction: 'On NS-WS-0319, open <strong>PowerShell</strong> and show the PC’s address, now that it has a link. <details><summary>Show me the command</summary><code>ipconfig</code></details>',
+        instruction: 'On NS-WS-0319, open <strong>PowerShell</strong> and show the PC’s address, now that it has a link. Read it before renewing the lease. If you already released or renewed the address before reading it, open the <strong>Dashboard</strong>, press <strong>Reset shift</strong> and relaunch the lab to try again. <details><summary>Show me the command</summary><code>ipconfig</code></details>',
         body: 'Why: Link first, then the address. Success looks like: <code>Autoconfiguration IPv4 Address . . : 169.254.33.10</code>, no default gateway. <strong>APIPA</strong>: it gave itself an address while it was unplugged.',
         waitLabel: 'Next Step: APIPA address read',
-        check: () => hd4Run(HD4_A, HD4_PC_A, '^ipconfig(\\.exe)?$', 'ipconfig', 'cable-connected'),
+        check: () => hd2Rule(HD4_A, { seen: 'ipconfig:apipa', computer: HD4_PC_A, after: 'cable-connected' }),
       },
       {
         route: '#/helpdesk/powershell', target: '#hd-ps-input',
