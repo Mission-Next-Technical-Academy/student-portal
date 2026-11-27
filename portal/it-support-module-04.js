@@ -192,6 +192,9 @@ const ITS04_LESSONS = [
             rows: [
               ['`Reply from 10.20.10.1: bytes=32 time=2ms`', 'Reachable; “time” is the **latency**'],
               ['`Request timed out.`', 'No reply. The device is down, unreachable, or a firewall drops ping. Not proof on its own'],
+              ['`ping <address> -n 20`', 'Sends 20 pings instead of the usual 4. Use it when a problem comes and goes: 4 replies can look fine while 20 show the pattern'],
+              ['Times that jump around (2 ms, 95 ms, 4 ms, 180 ms...)', '**Jitter**: the delay keeps changing. On a healthy wired or 5 GHz link, times to the gateway stay steady (about 1-5 ms)'],
+              ['Some `Request timed out.` lines mixed with replies', '**Packet loss**: some data never arrived. Even 1-2 lost out of 20 is enough to break up a call'],
               ['`Destination host unreachable.`', 'Your PC has no route there: usually your own network settings'],
               ['`Ping request could not find host intranet.northstar.example.`', 'The name didn’t resolve: DNS. Try the address'],
               ['`nslookup` → `*** dc01.northstar.example can’t find intranet.northstar.example: Non-existent domain`', 'The DNS server you asked doesn’t know that name; you may be asking the wrong server'],
@@ -200,6 +203,10 @@ const ITS04_LESSONS = [
               ['`TcpTestSucceeded : True`', 'The service is listening on that port: the network and the server are fine'],
               ['`ipconfig /renew` → `unable to contact your DHCP server`', 'No link, or no DHCP on this network: go back to question 2'],
             ],
+          } },
+          { note: {
+            title: 'Why calls break up but email works',
+            text: 'A Teams call sends audio in a steady stream of small packets and can\'t wait for late ones. If packets arrive at uneven times (jitter) or never arrive (packet loss), the voice stutters, freezes or cuts out. Email and web pages just retry, so the user notices nothing there. That\'s why "my calls break up, everything else is fine" points you to the Wi-Fi link: run `ping` to the gateway with `-n 20` and look at how the times change and whether any replies are lost, not just whether it replies.',
           } },
           { table: {
             caption: 'Table 8 · Ports you’ll meet (TCP unless marked)',
@@ -223,7 +230,7 @@ const ITS04_LESSONS = [
               ['`ipconfig /all`', 'Everything: MAC address, DHCP Enabled, DHCP server, DNS servers, lease times'],
               ['`ipconfig /release` then `ipconfig /renew`', 'Give the address back, then ask DHCP for a fresh one'],
               ['`ipconfig /flushdns`', 'Empty the PC’s DNS cache, so the next lookup asks the server'],
-              ['`ping <name or address>`', 'Is it reachable, and how long does the reply take'],
+              ['`ping <name or address>`', 'Is it reachable, and how long does the reply take. Add `-n <count>` to send that many pings instead of 4'],
               ['`tracert <name or address>`', 'Every router on the way, one hop per line'],
               ['`nslookup <name>`', 'Ask the DNS server directly what address a name has'],
               ['`Test-NetConnection <host> -Port <n>`', 'Is that service listening (you met it in Module 07)'],
@@ -862,7 +869,7 @@ function its04Blocks(blocks) {
     if (block.table) return its04Table(block.table);
     if (block.diagram) return its04Diagram(block.diagram);
     if (block.cardsort) return its04CardSort();
-    if (block.note) return `<div class="its01-note"><strong>${esc(block.note.title)}</strong><p>${esc(block.note.text)}</p></div>`;
+    if (block.note) return `<div class="its01-note"><strong>${esc(block.note.title)}</strong><p>${its04Text(block.note.text)}</p></div>`;
     return '';
   }).join('');
 }
