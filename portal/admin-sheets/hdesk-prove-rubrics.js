@@ -236,6 +236,35 @@
       writingAck: 'I have read the student\'s key finding, work note and reply in full.',
       facultyFinal: true,
     },
+    // Module 10: one ticket on Module 3's form (matrixFields) with a key-finding
+    // note, worked in a remote session on one PC (the session's screens, the
+    // command console and the Service Desk PowerShell), the knowledge base and
+    // a chat with the user. The command history, the session log and every
+    // "Say to the user" line are part of the evidence; the sheet shows the
+    // Say lines in full for the narration row.
+    'lab-its-08-prove-it': {
+      version: 'hdesk-its-08-prove-v1',
+      moduleKey: 'its-08',
+      matrixFields: true,
+      writing: { keyFinding: 600 },
+      panelWriting: [['keyFinding', 'Key finding'], ['resolutionNote', 'Work note'], ['userReply', 'Reply']],
+      simulatorWork: true,
+      machineSummary: false,
+      technicalPoints: 100,
+      competencies: [
+        { id: 'triage', label: 'Triage', points: 11 },
+        { id: 'investigation', label: 'Investigation', points: 28 },
+        { id: 'diagnosis', label: 'Diagnosis', points: 17 },
+        { id: 'action', label: 'Action and decision', points: 16 },
+        { id: 'documentation', label: 'Documentation and communication', points: 28 },
+      ],
+      // Feedback only; never adds or removes points.
+      formative: [{ id: 'efficiency', label: 'Efficiency' }],
+      criticalErrorRule: 'A critical error is an automatic zero: the attempt and every competency score 0, and it is returned, never approved. Where the recommendation says "check this", read the student\'s writing and the Say to the user lines, and confirm or clear it.',
+      partialCredit: 'Each competency can earn partial credit, justified in the feedback for that competency. The three typed lines are required typed: they earn credit only from the command history. A screen and its optional PowerShell line count alike for every other step. Criteria marked "check this" read the student\'s writing and the Say to the user lines: confirm or change their points.',
+      writingAck: 'I have read the student\'s key finding, work note, reply and Say to the user lines in full.',
+      facultyFinal: true,
+    },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = { HDESK_PROVE_RUBRICS };
   if (typeof window !== 'undefined') window.HDESK_PROVE_RUBRICS = HDESK_PROVE_RUBRICS;

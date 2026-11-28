@@ -80,7 +80,9 @@ const proveUrl = (key) => `https://academy.test/sim/?prove=${key}&student=studen
  * cc8b7eb (console A) with `node tests/hdesk-m08-console-b.test.js --print-pins`. */
 // Module 09's sets (its-04, its-04-guided) are newer and have their own tests
 // (tests/hdesk-m09-guided-lab.test.js, tests/hdesk-m09-practice-tickets.test.js).
-const MODULE_8_SETS = ['its-06', 'its-06-guided', 'its-06-extension', 'its-04', 'its-04-guided'];
+// Module 10's sets (its-08, its-08-guided) are newer and have their own tests
+// (tests/hdesk-m10-guided-lab.test.js, tests/hdesk-m10-practice-tickets.test.js).
+const MODULE_8_SETS = ['its-06', 'its-06-guided', 'its-06-extension', 'its-04', 'its-04-guided', 'its-08', 'its-08-guided'];
 function shiftsOf(plain) {
   const shifts = [{ name: 'shared', make: () => sim({ withTest: false }) }];
   Object.keys(plain.run('HD_PRACTICE_SETS')).filter((k) => !MODULE_8_SETS.includes(k)).forEach((key) => shifts.push({ name: `practice:${key}`, make: () => sim({ url: `https://academy.test/sim/?practice=${key}&student=stu-1#/helpdesk/tickets`, withTest: false }) }));
@@ -116,8 +118,11 @@ const PINNED = {
   // Re-pinned again 2026-11-26 by Module 09's sim part: HD-2104, HD-2105 and
   // HD-2113 left the shared shift (ownSet), and eleven new templates move the
   // seeded created times (shared and Module 1's practice set).
-  shared: { tickets: '0bac742274d9d603b8ab1956809c4ebc2e0bd6c42ac2a6da2ffaa8f6b7a16812', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
-  'practice:its-01': { tickets: '9ffb14c65305db54e54a62582f05620d17c184fb1dcfa9896521d3e0da1568cf', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
+  // tickets re-pinned 2026-11-27 by Module 10's sim part (shared and
+  // practice:its-01): HD-2110 and HD-2111 left the shared shift (ownSet), and
+  // five new templates move the seeded created times. Screens are unchanged.
+  shared: { tickets: '0e2bfae6d92e03cff526623a98326c56c307b3c00ab38c232bb6e7d82c5ff568', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
+  'practice:its-01': { tickets: '9b757380f1a4aa5131385423096cbfeaf28c2f273278a24b74f77dbf6f21efde', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
   'practice:its-10': { tickets: '97b12acdee3b22d0eb9a3d3360d1aae99262db8b742ece73cb6ffec26747fd87', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
   'practice:its-11': { tickets: '300e2afc6cc2f22db756f8bee61feb51a29e111adc439d2e96404800d1ee0a04', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },
   'practice:its-02': { tickets: '89d579a03def3993a9b27a800510b93840950beb70ef43f76b36097f49e27652', screens: '3bb7b71cc09a1a568ee28f52076c66f2d188cd9a228b59d81cb625a3840707c0' },

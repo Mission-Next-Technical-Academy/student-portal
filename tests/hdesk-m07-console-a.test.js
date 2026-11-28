@@ -165,8 +165,10 @@ function testOldTicketsTurnNothingOn() {
   // (its-06, its-06-guided, its-06-extension) reuse them: tests/hdesk-m08-guided-lab.test.js
   // and tests/hdesk-m08-practice-tickets.test.js. Module 9's sets (its-04,
   // its-04-guided) reuse the servers and change log: tests/hdesk-m09-guided-lab.test.js
-  // and tests/hdesk-m09-practice-tickets.test.js.
-  const MODULE_7_SETS = ['its-05', 'its-05-guided', 'its-06', 'its-06-guided', 'its-06-extension', 'its-04', 'its-04-guided'];
+  // and tests/hdesk-m09-practice-tickets.test.js. Module 10's sets (its-08,
+  // its-08-guided) reuse the servers: tests/hdesk-m10-guided-lab.test.js and
+  // tests/hdesk-m10-practice-tickets.test.js.
+  const MODULE_7_SETS = ['its-05', 'its-05-guided', 'its-06', 'its-06-guided', 'its-06-extension', 'its-04', 'its-04-guided', 'its-08', 'its-08-guided'];
   for (const key of Object.keys(tab.run('HD_PRACTICE_SETS')).filter((k) => !k.startsWith('test-') && !MODULE_7_SETS.includes(k))) {
     const set = sim({ url: `https://academy.test/sim/?practice=${key}&student=stu-1#/helpdesk/tickets` });
     assertFixed(set, key);
@@ -180,8 +182,10 @@ function testOldTicketsTurnNothingOn() {
   // Every older Prove shift. Module 7's own Prove shift turns these screens on
   // (tests/hdesk-m07-prove.test.js), and so does Module 9's, whose server
   // state holds the file share and names its laptop reaches
-  // (tests/hdesk-m09-prove.test.js).
-  for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS')).filter((k) => !['its-05', 'its-04'].includes(k))) {
+  // (tests/hdesk-m09-prove.test.js), and Module 10's, whose server state lets
+  // its PC ping and look up the domain controller
+  // (tests/hdesk-m10-prove.test.js).
+  for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS')).filter((k) => !['its-05', 'its-04', 'its-08'].includes(k))) {
     const prove = sim({ url: `https://academy.test/sim/?prove=${key}&student=student-m07#/helpdesk/tickets` });
     assertFixed(prove, `prove ${key}`);
     // A screen that shows nothing is never recorded as evidence.

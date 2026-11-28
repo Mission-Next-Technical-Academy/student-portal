@@ -158,8 +158,10 @@ function testOldTicketsTurnNothingOn() {
   // tests/hdesk-m08-guided-lab.test.js and tests/hdesk-m08-practice-tickets.test.js.
   // Module 9's sets (its-04, its-04-guided) reuse the DNS, change log and
   // Active Directory screens: tests/hdesk-m09-guided-lab.test.js and
-  // tests/hdesk-m09-practice-tickets.test.js.
-  const MODULE_7_SETS = ['its-05', 'its-05-guided', 'its-06', 'its-06-guided', 'its-06-extension', 'its-04', 'its-04-guided'];
+  // tests/hdesk-m09-practice-tickets.test.js. Module 10's sets (its-08,
+  // its-08-guided) reuse the directory and Active Directory screens:
+  // tests/hdesk-m10-guided-lab.test.js and tests/hdesk-m10-practice-tickets.test.js.
+  const MODULE_7_SETS = ['its-05', 'its-05-guided', 'its-06', 'its-06-guided', 'its-06-extension', 'its-04', 'its-04-guided', 'its-08', 'its-08-guided'];
   const MODULE_7 = ['HD-2189', 'HD-2190', 'HD-2191', 'HD-2192', 'HD-2193', 'HD-2194', 'HD-2195', 'HD-2202', 'HD-2203', 'HD-2204', 'HD-2205', 'HD-2206'];
   for (const key of Object.keys(plain.run('HD_PRACTICE_SETS')).filter((k) => !MODULE_7_SETS.includes(k))) {
     const set = setSim(key); assertOff(set, key);
@@ -173,8 +175,10 @@ function testOldTicketsTurnNothingOn() {
   // Every older Prove shift. Module 7's own Prove shift turns these screens on
   // (tests/hdesk-m07-prove.test.js), and so does Module 8's, with its account
   // controls (tests/hdesk-m08-prove.test.js), and so does Module 9's, whose
-  // directory holds the names its laptop looks up (tests/hdesk-m09-prove.test.js).
-  for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS')).filter((k) => !['its-05', 'its-06', 'its-04'].includes(k))) {
+  // directory holds the names its laptop looks up (tests/hdesk-m09-prove.test.js),
+  // and so does Module 10's, whose directory holds the one account its PC's
+  // user is looked up by (tests/hdesk-m10-prove.test.js).
+  for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS')).filter((k) => !['its-05', 'its-06', 'its-04', 'its-08'].includes(k))) {
     const prove = sim({ url: proveUrl(key) });
     assertOff(prove, `prove ${key}`);
     for (const id of prove.run('hdState.tickets.map((t) => t.id)')) assert.doesNotMatch(prove.open(id), NEW_MARKERS, `prove ${key} ${id}`);

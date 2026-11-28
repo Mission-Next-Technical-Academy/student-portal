@@ -35,7 +35,7 @@ const SIM_ORIGIN = 'http://127.0.0.1:8767';
 const PORTAL_ORIGIN = 'http://127.0.0.1:8768';
 const SOURCES = ['coach-data.js', 'helpdesk-data.js', 'helpdesk.js', 'coach.js', 'helpdesk-coaches.js']
   .map((name) => [name, fs.readFileSync(path.join(ROOT, 'ui', name), 'utf8')]);
-const MODULES = ['its-01', 'its-10', 'its-11', 'its-02', 'its-03', 'its-07', 'its-05', 'its-06', 'its-04'];
+const MODULES = ['its-01', 'its-10', 'its-11', 'its-02', 'its-03', 'its-07', 'its-05', 'its-06', 'its-04', 'its-08'];
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const j = (value) => JSON.stringify(value);
 

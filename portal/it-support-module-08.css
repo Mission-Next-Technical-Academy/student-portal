@@ -1,0 +1,39 @@
+/* Module 10 (IT Help Desk, key its-08). The page reuses Module 1's inner
+ * classes (its01-hero, its01-section, its01-lesson, its01-check, its01-dg) and
+ * Module 2's table classes (its10-table), so it looks the same. Only its shell
+ * and what those modules have no class for live here, scoped with its08-:
+ * inline commands, the diagram markers (the red stop branch, the grey side box,
+ * the red note and the small labels). Loaded after it-support-module-01.css,
+ * -02.css and -10.css. */
+
+.its08-shell { min-height: 100vh; color: #172033; background: rgba(248, 250, 252, .76); overflow-x: clip; }
+.its08-shell :focus-visible { outline: 3px solid var(--its-accent-border); outline-offset: 2px; }
+
+/* The shared rail as a left pane beside main, as on Module 1
+   (module-labs.css does this for .its01-shell). */
+@media (min-width: 961px) {
+  .its08-shell > .munified-nav {
+    float: left;
+    margin: 12px 24px 24px max(20px, calc((100vw - 1180px) / 2));
+  }
+  .its08-shell > .munified-nav ~ main {
+    display: flow-root;
+    width: auto;
+    margin-left: 0;
+    margin-right: max(20px, calc((100vw - 1180px) / 2));
+  }
+}
+
+/* A command or path inside reading text and tables. It may wrap anywhere,
+   so a long command never makes the page scroll sideways. */
+.its08-code { padding: 1px 5px; color: var(--mn-theme-text, #172d42); background: var(--mn-theme-surface-raised, #edf3f8); border: 1px solid var(--mn-theme-border, #cfdae5); border-radius: 5px; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+
+/* Diagrams: a stop branch gets a dashed red outline, so it never relies on
+   colour alone. */
+.its01-dg-box.its08-dg-gone { fill: #fef2f2; stroke: #dc2626; stroke-width: 2; stroke-dasharray: 6 4; }
+/* A side note: grey, with a dashed outline. */
+.its01-dg-box.its08-dg-grey { fill: #e2e8f0; stroke: #94a3b8; stroke-width: 1.5; stroke-dasharray: 6 4; }
+/* The small labels beside an arrow. */
+.its08-dg-label { fill: var(--its-navy); font: 700 13px Inter, sans-serif; }
+/* The red note under the first box of the session diagram. */
+.its08-dg-redtext { fill: #b91c1c; font: 700 13px Inter, sans-serif; }

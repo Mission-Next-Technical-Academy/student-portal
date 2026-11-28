@@ -138,7 +138,13 @@ function testExistingTicketsTurnNothingOn() {
   // left the shared shift then (ownSet); their templates still have no console settings.
   const MODULE_9 = ['HD-2212', 'HD-2213', 'SR-2222', 'HD-2214', 'HD-2215', 'HD-2216', 'HD-2217', 'HD-2218', 'HD-2219', 'HD-2220', 'HD-2221', 'HD-2104', 'HD-2105', 'HD-2113'];
   for (const id of ['HD-2104', 'HD-2105', 'HD-2113']) assert.equal(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === '${id}').console`), undefined, `${id} has no console settings`);
-  for (const id of ids.filter((item) => !MODULE_1.includes(item) && !MODULE_2.includes(item) && !MODULE_3.includes(item) && !MODULE_4.includes(item) && !MODULE_5.includes(item) && !MODULE_6.includes(item) && !MODULE_7.includes(item) && !MODULE_8.includes(item) && !MODULE_9.includes(item))) {
+  // Module 10's (key its-08) tickets, the same way (tests/hdesk-m10-guided-lab.test.js
+  // and tests/hdesk-m10-practice-tickets.test.js). HD-2110 is rewritten as Lab
+  // 10.1 Part B; HD-2111 left the shared shift then (ownSet) and its template
+  // still has no console settings.
+  const MODULE_10 = ['HD-2255', 'HD-2110', 'HD-2223', 'HD-2224', 'HD-2225', 'HD-2111'];
+  assert.equal(tab.run("HD_TICKET_TEMPLATES.find((t) => t.id === 'HD-2111').console"), undefined, 'HD-2111 has no console settings');
+  for (const id of ids.filter((item) => !MODULE_1.includes(item) && !MODULE_2.includes(item) && !MODULE_3.includes(item) && !MODULE_4.includes(item) && !MODULE_5.includes(item) && !MODULE_6.includes(item) && !MODULE_7.includes(item) && !MODULE_8.includes(item) && !MODULE_9.includes(item) && !MODULE_10.includes(item))) {
     assert.equal(tab.run(`HD_TICKET_TEMPLATES.find((t) => t.id === ${JSON.stringify(id)}).console`), undefined, `${id} has no console settings`);
     const html = tab.open(id);
     assert.doesNotMatch(html, NEW_MARKERS, `${id} shows no new feature`);

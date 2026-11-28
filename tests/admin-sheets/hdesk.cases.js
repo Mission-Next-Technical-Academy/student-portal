@@ -361,6 +361,26 @@ module.exports = ({ run, AdminSubmissionSheet: Sheet }) => [
     row: coachRow('hdesk-m04-older', 'lab-its-04-connectivity', [savedTicket('HD-2104', { worked: true }), savedTicket('HD-2105', { worked: true })]),
     expect: { html: ['data-sheet-section="scenario-hd-2104"', 'data-sheet-section="scenario-hd-2105"'], notHtml: ['data-sheet-section="scenario-hd-2212"'] },
   },
+  // Module 10 (its-08) from 2026-11-27: Lab 10.1 grades HD-2255 (Part A,
+  // resolved) and HD-2110 rewritten (Part B, with Desktop Support).
+  {
+    name: 'Lab 10.1 new attempt grades HD-2255 and HD-2110',
+    row: coachRow('hdesk-m08-lab101', 'lab-its-08-unfamiliar-problems', [
+      savedTicket('HD-2255', { worked: true, priority: 'P4' }),
+      savedTicket('HD-2110', { worked: true, priority: 'P3', status: 'In Progress' }),
+    ]),
+    expect: {
+      html: ['Module 10 · Two remote sessions', 'data-sheet-section="lab-work-hd-2255"', 'data-sheet-section="lab-work-hd-2110"'],
+      notHtml: ['data-sheet-section="scenario-hd-2111"'],
+    },
+  },
+  // An attempt saved before 2026-11-27 holds HD-2110 and HD-2111 and keeps the
+  // sheet it was worked against.
+  {
+    name: 'Lab 10.1 older attempt keeps HD-2110 and HD-2111',
+    row: coachRow('hdesk-m08-older', 'lab-its-08-unfamiliar-problems', [savedTicket('HD-2110', { worked: true }), savedTicket('HD-2111', { worked: true })]),
+    expect: { html: ['data-sheet-section="scenario-hd-2110"', 'data-sheet-section="scenario-hd-2111"', 'data-sheet-section="troubleshooting-hd-2110"'], notHtml: ['data-sheet-section="scenario-hd-2255"', 'data-sheet-section="lab-work-hd-2110"'] },
+  },
   {
     name: 'Lab 4.4 practice completion shows the four tickets, no walkthrough sections',
     row: { id: 'hdesk-m04-lab44', lab_key: lab24, track_code: 'HDESK', student_id: 'synthetic-hdesk', completed_at: '2026-11-23T10:00:00Z', result: { source: 'mnt-practice-complete', practiceSet: 'its-02', tickets: ['HD-2169', 'HD-2170', 'HD-2171', 'HD-2172'] } },

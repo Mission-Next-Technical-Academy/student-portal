@@ -173,8 +173,8 @@ function testOldTicketsKeepTheOldClockAndStates() {
   // instructor sheets still read it. Module 7 (key its-05) retired HD-2108 and
   // HD-2117 the same way on 2026-11-25, Module 8 (key its-06) SR-2107 and
   // HD-2118 on 2026-11-26, and Module 9 (key its-04) HD-2104, HD-2105 and
-  // HD-2113 on 2026-11-26.
-  const HIDDEN = ['HD-2109', 'HD-2108', 'HD-2117', 'SR-2107', 'HD-2118', 'HD-2104', 'HD-2105', 'HD-2113'];
+  // HD-2113 on 2026-11-26, and Module 10 (key its-08) HD-2111 on 2026-11-27.
+  const HIDDEN = ['HD-2109', 'HD-2108', 'HD-2117', 'SR-2107', 'HD-2118', 'HD-2104', 'HD-2105', 'HD-2113', 'HD-2111'];
   for (const t of matrixTickets.filter((item) => !HIDDEN.includes(item.id))) {
     assert.equal(t.ownSet, true, `${t.id} needs ownSet: true`);
     assert.ok(realSets.includes(t.id), `${t.id} belongs to no set`);

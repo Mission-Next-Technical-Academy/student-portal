@@ -84,7 +84,9 @@ const proveUrl = (key) => `https://academy.test/sim/?prove=${key}&student=studen
  * the machine state after each. Computed on master at a159e72 with
  * `node tests/hdesk-m09-console-b.test.js --print-pins`. */
 const PIN_COMMANDS = ['Get-ADComputer', 'Get-ADComputer -Filter *', 'Add-Computer -DomainName northstar.example', 'Add-Computer -DomainName northstar.example -OUPath "OU=Sales,OU=Workstations"'];
-const MODULE_9_SETS = ['its-04', 'its-04-guided'];
+// Module 10's sets (its-08, its-08-guided) are newer and have their own tests
+// (tests/hdesk-m10-guided-lab.test.js, tests/hdesk-m10-practice-tickets.test.js).
+const MODULE_9_SETS = ['its-04', 'its-04-guided', 'its-08', 'its-08-guided'];
 function shiftsOf(plain) {
   const shifts = [{ name: 'shared', make: () => sim({ withTest: false }) }];
   Object.keys(plain.run('HD_PRACTICE_SETS')).filter((k) => !MODULE_9_SETS.includes(k)).forEach((key) => shifts.push({ name: `practice:${key}`, make: () => sim({ url: `https://academy.test/sim/?practice=${key}&student=stu-1#/helpdesk/tickets`, withTest: false }) }));
@@ -133,7 +135,10 @@ if (process.argv.includes('--print-pins')) {
 const PINNED = {
   // Re-pinned 2026-11-26 by Module 09's sim part: HD-2104, HD-2105 and HD-2113
   // left the shared shift (ownSet), and the other tickets' seeded created times move.
-  shared: { screens: 'd0abb0acca1bf405d43aa8b2f61740386c56c71200479637030a68e5fef9d8b3', commands: '72f5acf046d994a346a9e280448cad1ee2a14c51440d536ae97bd0601bc6b3a9' },
+  // shared.screens re-pinned 2026-11-27 by Module 10's sim part: one screen per
+  // ticket, and HD-2110 and HD-2111 left the shared shift (ownSet). Every other
+  // shift's screens, and every command hash, are unchanged.
+  shared: { screens: 'bfbd2159b6940468a23b218d448085b4764a826c244337972a7e6c4f5b671130', commands: '72f5acf046d994a346a9e280448cad1ee2a14c51440d536ae97bd0601bc6b3a9' },
   'practice:its-01': { screens: 'a2d800d0b2559ec5b9543efe1be0a4578416665de24b0249f0911b79509c2a1d', commands: '72f5acf046d994a346a9e280448cad1ee2a14c51440d536ae97bd0601bc6b3a9' },
   'practice:its-10': { screens: 'f7ae1f63dc2ad72bf738fd73ef41de402410f0b706bf587fcaa8b2b27eb6ac6e', commands: '72f5acf046d994a346a9e280448cad1ee2a14c51440d536ae97bd0601bc6b3a9' },
   'practice:its-11': { screens: '3a84886e39275dd03729d64eca04f6b10919db55878d34f9ca6e8b17ef44a240', commands: '72f5acf046d994a346a9e280448cad1ee2a14c51440d536ae97bd0601bc6b3a9' },

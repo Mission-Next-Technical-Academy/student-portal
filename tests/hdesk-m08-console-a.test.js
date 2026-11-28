@@ -109,8 +109,10 @@ const PIN_COMMANDS = [
 const PIN_COMPUTERS = ['', 'NS-WS-0277', 'NS-LT-0117'];
 // Module 08's own sets and shift, added by later parts, turn these on.
 // Module 09's sets (its-04, its-04-guided) are newer and have their own tests
-// (tests/hdesk-m09-guided-lab.test.js, tests/hdesk-m09-practice-tickets.test.js).
-const MODULE_8_SETS = ['its-06', 'its-06-guided', 'its-06-extension', 'its-04', 'its-04-guided'];
+// (tests/hdesk-m09-guided-lab.test.js, tests/hdesk-m09-practice-tickets.test.js),
+// and so are Module 10's (its-08, its-08-guided: tests/hdesk-m10-guided-lab.test.js,
+// tests/hdesk-m10-practice-tickets.test.js).
+const MODULE_8_SETS = ['its-06', 'its-06-guided', 'its-06-extension', 'its-04', 'its-04-guided', 'its-08', 'its-08-guided'];
 function shiftsOf(plain) {
   const shifts = [{ name: 'shared', make: () => sim({ withTest: false }) }];
   Object.keys(plain.run('HD_PRACTICE_SETS')).filter((k) => !MODULE_8_SETS.includes(k)).forEach((key) => shifts.push({ name: `practice:${key}`, make: () => sim({ url: `https://academy.test/sim/?practice=${key}&student=stu-1#/helpdesk/tickets`, withTest: false }) }));
@@ -162,7 +164,9 @@ const PINNED = {
   // other hash, and every other shift, is unchanged.
   // Re-pinned 2026-11-26 by Module 09's sim part: HD-2104, HD-2105 and HD-2113
   // left the shared shift (ownSet), and the other tickets' seeded created times move.
-  shared: { views: '54613d82edebe9cd431fdced7a3888a77442c05a42d0386f72e323da2a04d7ed', commands: '3d4576fc8b243b3e8deaf1c897c74a0df28f148a9416b1cb7cde2b06d0438f58', windows: '25eccfc7e4e9ff475759285d5668375961ccb556b1c18a56e6477625f1aedc61' },
+  // Re-pinned 2026-11-27 by Module 10's sim part: HD-2110 and HD-2111 left the
+  // shared shift (ownSet), so its ticket list is two shorter.
+  shared: { views: '5865418ed9e8d561fb177eb21685acb4063532835c94c7969fcb830854053a0c', commands: '3d4576fc8b243b3e8deaf1c897c74a0df28f148a9416b1cb7cde2b06d0438f58', windows: '25eccfc7e4e9ff475759285d5668375961ccb556b1c18a56e6477625f1aedc61' },
   'practice:its-01': { views: '0dbc9c2256774087c447d81ee69477dad4d201131aa6401b3221e7ff2b93f62d', commands: 'a91326a1340ca7389360d56062d784b39f4df8e4ebbcf1928b100292e5c0f636', windows: '25eccfc7e4e9ff475759285d5668375961ccb556b1c18a56e6477625f1aedc61' },
   'practice:its-10': { views: '0ff82e9cef9938a01ce9bb33ec02a979037ed0e3c11d2efcf10c39a6392db322', commands: 'a91326a1340ca7389360d56062d784b39f4df8e4ebbcf1928b100292e5c0f636', windows: '25eccfc7e4e9ff475759285d5668375961ccb556b1c18a56e6477625f1aedc61' },
   'practice:its-11': { views: '7117f29833168d233cbd5ad4aa1252568e3208f3c78bcd741317cd058fcb8235', commands: 'a91326a1340ca7389360d56062d784b39f4df8e4ebbcf1928b100292e5c0f636', windows: '25eccfc7e4e9ff475759285d5668375961ccb556b1c18a56e6477625f1aedc61' },

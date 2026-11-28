@@ -66,6 +66,7 @@ node tests/hdesk-m08-guided-lab.test.js
 node tests/hdesk-m08-practice-tickets.test.js
 node tests/hdesk-m08-page.test.js
 node tests/hdesk-m09-page.test.js
+node tests/hdesk-m10-page.test.js
 node tests/hdesk-m07-guided-lab.test.js
 node tests/hdesk-m07-practice-tickets.test.js
 node tests/hdesk-m07-page.test.js
@@ -74,6 +75,9 @@ node tests/hdesk-m08-prove.test.js
 node tests/hdesk-m09-prove.test.js
 node tests/hdesk-m10-console-a.test.js
 node tests/hdesk-m10-console-b.test.js
+node tests/hdesk-m10-guided-lab.test.js
+node tests/hdesk-m10-practice-tickets.test.js
+node tests/hdesk-m10-prove.test.js
 node tests/hdesk-m05-guided-lab.test.js
 node tests/hdesk-m05-practice-tickets.test.js
 node tests/hdesk-m05-page.test.js
