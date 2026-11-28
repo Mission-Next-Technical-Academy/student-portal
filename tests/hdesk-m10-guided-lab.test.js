@@ -384,7 +384,10 @@ function testOpeningAfterConnectingNamesTheWayOut() {
   assert.equal(steps[2].check(), false, 'an opening said during the session is not the opening');
   assert.match(steps[2].instruction, /<strong>Dashboard<\/strong>, press <strong>Reset shift<\/strong>/);
   tab.run('hdResetShift()');
-  const again = startLab();
+  // Relaunch on the same saved shift (a new tab has a new session store), so
+  // the check proves Reset shift cleared the session, not a fresh store.
+  const again = startLab(null, tab.local, store());
+  assert.deepEqual(again.remote(A).sessions, [], 'Reset shift cleared the earlier session');
   again.open(A);
   again.say(OPENING);
   assert.equal(again.coach('hd-m08').steps[2].check(), true, 'after Reset shift and a relaunch, the opening counts');
@@ -447,6 +450,7 @@ function testNoPasswordInASession() {
 // Every step: a route the coach allows and the simulator draws, "Why:" and
 // "Success looks like", and none of the words the spec rules out. Every
 // command a step asks for sits only behind "Show me the command".
+const COMMAND_LINES = ['ping NS-DC01', 'nslookup northstar.example', 'w32tm /query /status', 'w32tm /resync', 'Test-ComputerSecureChannel', 'Test-NetConnection NS-DC01 -Port 3389', 'Test-NetConnection NS-DC01 -Port 22'];
 function testEveryStepText() {
   const tab = startLab();
   const coach = tab.coach('hd-m08');
@@ -461,16 +465,16 @@ function testEveryStepText() {
     assert.equal(typeof step.check, 'function', `step ${index + 1} has a check`);
     const outside = String(step.instruction).replace(/<details>[\s\S]*?<\/details>/g, '');
     assert.doesNotMatch(outside, /<code>\s*(ping|nslookup|w32tm|Test-ComputerSecureChannel|Test-NetConnection|Get-WinEvent)\b/i, `step ${index + 1} names a command outside Show me the command`);
+    for (const line of COMMAND_LINES) assert.ok(!outside.toLowerCase().includes(line.toLowerCase()), `step ${index + 1} shows "${line}" outside Show me the command`);
   });
   for (const step of coach.steps) {
     const text = `${step.title} ${step.instruction} ${step.body || ''}`;
     assert.doesNotMatch(text, /lab VM|CompTIA|Module 8\b/i, 'wording');
   }
   assert.doesNotMatch(coach.summary, /lab VM|CompTIA|Module 8\b/i);
-  const shown = coach.steps.map((step) => step.instruction).join('\n');
-  for (const line of ['ping NS-DC01', 'nslookup northstar.example', 'w32tm /query /status', 'w32tm /resync', 'Test-ComputerSecureChannel', 'Test-NetConnection NS-DC01 -Port 3389', 'Test-NetConnection NS-DC01 -Port 22']) {
-    assert.match(shown, new RegExp(`<details><summary>Show me the command</summary>[^]*?${line.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}`), line);
-  }
+  // Each command sits inside one complete Show me the command block.
+  const blocks = coach.steps.flatMap((step) => String(step.instruction).match(/<details><summary>Show me the command<\/summary>[\s\S]*?<\/details>/g) || []);
+  for (const line of COMMAND_LINES) assert.ok(blocks.some((block) => block.includes(line)), `${line} is inside Show me the command`);
   const last = coach.steps[LAST];
   assert.ok(last.finish, 'the last step is Finish');
   assert.match(last.finish.href, /coachComplete=hd-m08#\/program\/it-support\/module\/10$/);
