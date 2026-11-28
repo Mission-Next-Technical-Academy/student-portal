@@ -385,16 +385,18 @@ const PROGRAMS = [
             objective: 'Decline an admin-rights request and route it the approved way, tell an unwanted app from malware, and fix the cause of a OneDrive sync error.' }),
         ],
         skills: ['Software Management', 'Least Privilege', 'Endpoint Hygiene', 'OneDrive Sync'] },
-      'its-08': { number: 10, week: 5, title: 'Troubleshooting Methodology & Diagnostics', hours: '2 Hours', durationMinutes: 120, creditMinutes: 120, lessons: 2, labs: 1,
+      // Lessons 10.2 and 10.3 share its-08-lesson-02 on the page; both share
+      // that lesson's filed minutes (it-support-module-08.js).
+      'its-08': { number: 10, week: 5, title: 'Troubleshooting Methodology & Diagnostics', hours: '2 Hours', durationMinutes: 120, creditMinutes: 120, lessons: 2, labs: 3,
         status: 'authored',
-        summary: 'Connect to a user\'s machine responsibly, and apply a consistent method to any problem you haven\'t seen before.',
+        summary: 'Connect to a user\'s machine responsibly with the right remote tool, apply a consistent method to any problem you haven\'t seen before, and handle power, heat and display tickets at Tier 1.',
         curriculumItems: [
           itsItem({ key: 'its-08-lesson-01', title: 'Remote Support Etiquette & Tools', durationMinutes: 45, parentAllocations: [allocation('ITHD-101.8', 45)],
-            objective: 'Obtain proper consent, verify identity, and narrate actions clearly during a remote support session.' }),
+            objective: 'Choose the right remote tool, obtain proper consent, verify identity, and narrate actions clearly during a remote support session.' }),
           itsItem({ key: 'its-08-lesson-02', title: 'Structured Troubleshooting & Stop-and-Escalate Judgment', durationMinutes: 45, parentAllocations: [allocation('ITHD-101.8', 45)],
-            objective: 'Apply the five-step troubleshooting mindset to an unfamiliar problem and recognize the point where escalation is the right call.' }),
+            objective: 'Apply the troubleshooting method one hypothesis at a time to an unfamiliar problem, recognize the point where escalation is the right call, and work power, heat and display tickets at Tier 1.' }),
         ],
-        skills: ['Remote Support', 'Troubleshooting Methodology', 'Escalation Judgment'] },
+        skills: ['Remote Support', 'Troubleshooting Methodology', 'Escalation Judgment', 'Display and Power Troubleshooting'] },
       'its-09': { number: 11, week: 6, title: 'Security Fundamentals for IT Support', hours: '2 Hours', durationMinutes: 120, creditMinutes: 120, lessons: 2, labs: 1,
         status: 'authored',
         summary: 'Build the judgment to recognize when something isn\'t right — and know exactly what to do about it.',
@@ -2427,10 +2429,30 @@ const LABS = [
     parentAllocations: [allocation('ITHD-101.4', 10)], objective: 'Independently work a new software ticket: find the cause from the tool screens, fix it the approved way, verify it, and write for both the next technician and the user.',
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
     skills: ['Endpoint Hygiene', 'Evidence-Based Diagnosis', 'Documentation'], portalEntry: '#/program/it-support/module/6' }),
-  itsLab({ key: 'lab-its-08-unfamiliar-problems', module: 'its-08', title: 'Two Problems You Haven’t Seen Before', difficulty: 'Foundational', minutes: 30,
-    parentAllocations: [allocation('ITHD-101.8', 30)], objective: 'Apply the five-step troubleshooting method to two genuinely unfamiliar-shaped tickets.',
-    description: 'A coach-guided walkthrough of tickets HD-2110 (broken domain trust) and HD-2111 (BitLocker recovery) in the IT Service Desk simulator.',
-    skills: ['Troubleshooting Methodology', 'Domain Trust', 'BitLocker'], portalEntry: '#/program/it-support/module/10' }),
+  // Module 10's guided lab. Students see it as Lab 10.1; the key is older than
+  // that numbering. Until Module 10's Prove It gates completion it stays the
+  // gating lab (course_module_labs), so it has no `phase: 'practice'`: an
+  // instructor still reviews and approves it. Its 30 filed minutes are split
+  // 12 / 8 / 10 across the three labs; ITHD-101.8 keeps all 30.
+  itsLab({ key: 'lab-its-08-unfamiliar-problems', module: 'its-08', title: 'Lab 10.1 · Guided Lab: two remote sessions', difficulty: 'Foundational', minutes: 12,
+    parentAllocations: [allocation('ITHD-101.8', 12)], objective: 'Run two remote sessions: fix a headset that went silent after docking over Quick Assist, then reach a laptop stuck at the sign-in screen with Remote Support, rule things out one at a time and hand it to Desktop Support.',
+    description: 'Two coach-guided tickets in the IT Service Desk simulator, each step with a why and what success looks like. Feedback only, no score.',
+    skills: ['Remote Support', 'Troubleshooting Methodology', 'Escalation Judgment'], portalEntry: '#/program/it-support/module/10' }),
+  // Module 10's three unguided practice tickets: not graded, no score. The
+  // simulator reports when all three are done and the course page saves a
+  // completion record (it-support-module-08.js). No course_module_labs row:
+  // it never gates completion.
+  itsLab({ key: 'lab-its-08-practice-tickets', module: 'its-08', title: 'Lab 10.2 · Practice tickets (not graded)', difficulty: 'Foundational', minutes: 8, phase: 'practice',
+    parentAllocations: [allocation('ITHD-101.8', 8)], objective: 'Work three tickets on your own: an Outlook search that finds nothing before a board meeting, a fuzzy and cropped projector picture, and a PC that beeps and stays black.',
+    description: 'Three unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all three and a completion record is saved to your account.',
+    skills: ['Remote Support', 'Display Troubleshooting', 'Escalation Judgment'], portalEntry: '#/program/it-support/module/10' }),
+  // Module 10's Prove It: one ticket (?prove=its-08), scored on the server and
+  // graded by the instructor. It will gate Module 10's completion (the its08
+  // Prove It migration). Coaching time box: 25 minutes.
+  itsLab({ key: 'lab-its-08-prove-it', module: 'its-08', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 10,
+    parentAllocations: [allocation('ITHD-101.8', 10)], objective: 'Independently work a new remote-support ticket: reach the user the right way, find the cause from the evidence, fix what is Tier 1’s, verify it, and write for both the next technician and the user.',
+    description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
+    skills: ['Remote Support', 'Evidence-Based Diagnosis', 'Documentation'], portalEntry: '#/program/it-support/module/10' }),
   itsLab({ key: 'lab-its-09-security-incidents', module: 'its-09', title: 'Two Calls You Escalate, Not Fix', difficulty: 'Foundational', minutes: 30,
     parentAllocations: [allocation('ITHD-101.8', 30)], objective: 'Recognize two real security incidents and escalate them correctly rather than attempting to resolve them at L1.',
     description: 'A coach-guided walkthrough of tickets SEC-2114 (credential phishing) and SEC-2115 (malware alert) in the IT Service Desk simulator.',
