@@ -219,7 +219,11 @@ function testSetNeedsEachDoneRule() {
     if (skip.a && skip.a.followUp) assert.equal(tab.feedback(T10A).areas.find((area) => area.area === 'Documentation').ok, false, 'feedback asks for 16:00 too');
   }
   const tab = sim();
-  work10A(tab); work10B(tab); work10C(tab);
+  work10A(tab); work10B(tab); work10C(tab, { resolved: true });
+  assert.equal(tab.run('hdPracticeClosed()'), false);
+  // The way out for 10-C: reopen it.
+  tab.run(`hdTransitionTicket('${T10C}', 'In Progress')`);
+  assert.equal(tab.ticket(T10C).status, 'In Progress', tab.toasts.slice(-3).join(' | '));
   assert.equal(tab.run('hdPracticeClosed()'), true);
 }
 

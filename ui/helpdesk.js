@@ -3434,8 +3434,12 @@ function hdCommsRule(ticket, rule) {
   if (rule.warmHandoff) return (state.warmHandoffs || []).length > 0;
   if (rule.followUp) return !!state.followUp;
   // Module 10: followUpAt: 'HH:MM'   the follow-up is at that time on the
-  // shift's day (follow-ups are saved on the shift clock, in UTC).
-  if (rule.followUpAt) return !!state.followUp && hdFollowUpValue(state.followUp) === `${hdShiftNow(ticket).toISOString().slice(0, 10)}T${rule.followUpAt}`;
+  // ticket's own day (its console clock's start, which never moves; follow-ups
+  // are saved on the shift clock, in UTC).
+  if (rule.followUpAt) {
+    const day = new Date(Date.parse(hdConsole(ticket).now) || hdShiftNow(ticket).getTime()).toISOString().slice(0, 10);
+    return !!state.followUp && hdFollowUpValue(state.followUp) === `${day}T${rule.followUpAt}`;
+  }
   if (rule.followUpUpdated) return hdFollowUpUpdated(ticket);
   if (rule.commentTime) return (state.commentChecks || []).some(entry => entry.hasTime && !entry.promise);
   if (rule.teamMessage) return (state.teamMessages || []).some(entry => entry.id === rule.teamMessage);

@@ -463,6 +463,10 @@ function testStepsNeedTheWorkTheyName() {
   c.resolve(B, 'Solution provided', 'Resolved by mistake.');
   assert.equal(c.ticket(B).status, 'Resolved', c.toasts.slice(-3).join(' | '));
   assert.equal(c.coach('hd-m08').steps[22].check(), false, 'B12: a Resolved HD-2110 does not pass');
+  // The way out: reopen it.
+  c.run(`hdTransitionTicket('${B}', 'In Progress')`);
+  assert.equal(c.ticket(B).status, 'In Progress', c.toasts.slice(-3).join(' | '));
+  assert.equal(c.coach('hd-m08').steps[22].check(), true, 'B12: reopened, it passes again');
 }
 
 // Tier 1 never repairs or rejoins, and never connects without asking: each
