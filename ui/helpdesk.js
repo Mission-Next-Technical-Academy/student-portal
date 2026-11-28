@@ -11383,9 +11383,9 @@ function hdRemoteSessionCard(ticket, state, session) {
 function hdRemoteQuickAssistBody(ticket, state, name) {
   const pending = state.pending && state.pending.tool === 'quick-assist' ? state.pending : null;
   const locked = hdProveLocked() ? ' disabled' : '';
-  const start = `<p>Quick Assist is built into Windows. The user must be signed in: they press <strong>Win + Ctrl + Q</strong>, type your code and choose Allow.</p><button type="button" class="btn btn-primary" data-hd-qa-start onclick="hdRemoteQuickAssist()"${locked}>Help someone (make a code)</button>`;
+  const start = `${HD_PROVE ? '' : '<p>Quick Assist is built into Windows. The user must be signed in: they press <strong>Win + Ctrl + Q</strong>, type your code and choose Allow.</p>'}<button type="button" class="btn btn-primary" data-hd-qa-start onclick="hdRemoteQuickAssist()"${locked}>Help someone (make a code)</button>`;
   if (!pending) return start;
-  if (pending.status === 'refused') return `<div class="callout warn" role="status" data-hd-qa-status="refused">Nobody is signed in to ${hdEsc(name)}: Quick Assist needs the user's desktop.</div>${start}`;
+  if (pending.status === 'refused') return `<div class="callout warn" role="status" data-hd-qa-status="refused">Nobody is signed in to ${hdEsc(name)}${HD_PROVE ? '.' : ": Quick Assist needs the user's desktop."}</div>${start}`;
   if (pending.status === 'code-sent') return `<div class="callout info" role="status" data-hd-qa-status="code-sent"><strong>Code sent</strong><p>Security code: <code data-hd-qa-code>${hdEsc(pending.code)}</code> · expires at ${hdEsc(pending.expires)}. Read it to the user in Say to the user.</p></div>`;
   if (pending.status === 'waiting') return `<div class="callout info" role="status" data-hd-qa-status="waiting"><strong>Waiting for permission</strong><p>${hdEsc(hdRemoteFirstName(ticket))} entered the code at ${hdEsc(pending.typedAt)}. Choose how you'll help; the user chooses Allow.</p></div><div style="display:flex;gap:6px"><button type="button" class="btn btn-primary btn-sm" onclick="hdRemoteAskControl('full')"${locked}>Take full control</button><button type="button" class="btn btn-secondary btn-sm" onclick="hdRemoteAskControl('view')"${locked}>View only</button></div>`;
   if (pending.status === 'expired') return `<div class="callout warn" role="status" data-hd-qa-status="expired">The code ${hdEsc(pending.code)} expired at ${hdEsc(pending.expires)}. Make a new code.</div>${start}`;
@@ -11394,7 +11394,7 @@ function hdRemoteQuickAssistBody(ticket, state, name) {
 function hdRemoteSupportBody(ticket, state) {
   const locked = hdProveLocked() ? ' disabled' : '';
   const form = `<form class="filterbar" onsubmit="hdRemoteFind(event)"><label>Find a company PC by name <input id="hd-remote-find" class="ipt" maxlength="40" value="${hdEsc(state.find)}" placeholder="Computer name"${locked}></label><button class="btn btn-primary btn-sm" type="submit"${locked}>Find</button></form>`;
-  const wanted = state.find.toLowerCase(); if (!wanted) return `${form}<p class="muted">The Remote Support agent runs on every company PC, so it can reach a PC at the sign-in screen.</p>`;
+  const wanted = state.find.toLowerCase(); if (!wanted) return `${form}${HD_PROVE ? '' : '<p class="muted">The Remote Support agent runs on every company PC, so it can reach a PC at the sign-in screen.</p>'}`;
   const known = hdComputerByName(hdComputers().map(item => item.name).find(item => item.toLowerCase() === wanted) || '');
   const name = hdRemoteTicketPcs(ticket).find(item => item.toLowerCase() === wanted) || (known && known.name);
   if (!name) return `${form}<p class="muted" data-hd-remote-found="none">No company PC is named ${hdEsc(state.find)}.</p>`;
@@ -11406,7 +11406,8 @@ function hdRemoteSupportBody(ticket, state) {
   return `${form}<div class="card" data-hd-remote-found="${hdEsc(name)}"><div class="card-header"><strong>${hdEsc(name)}</strong>${hdBadge(offline ? `Offline since ${spec.offlineSince || 'an earlier time'}` : 'Online', offline ? 'bad' : 'ok')}</div><div class="card-body"><dl class="hd-dl"><dt>User</dt><dd>${hdEsc(computer.user || '')}</dd><dt>Screen</dt><dd>${spec.signedIn === false ? 'Sign-in screen (nobody signed in)' : 'Desktop (user signed in)'}</dd><dt>Agent version</dt><dd>${hdEsc(spec.agentVersion || '24.3.1')}</dd></dl>${pending && pending.status === 'denied' ? `<div class="callout warn" role="status">${hdEsc(ticket.requester)} chose Deny at ${hdEsc(pending.time)}.</div>` : ''}<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center"><button type="button" class="btn btn-primary btn-sm" data-hd-remote-request onclick="hdRemoteRequest('${hdJsArg(name)}',false)"${off}>Request session (attended)</button><button type="button" class="btn btn-secondary btn-sm" data-hd-remote-unattended onclick="hdRemoteRequest('${hdJsArg(name)}',true)"${off}>Connect without asking</button><span class="muted">Connect without asking: servers, kiosks and room PCs only.</span></div></div></div>`;
 }
 function hdRemoteView() {
-  const header = hdPageHeader('Remote Support', 'Quick Assist for a user who is signed in; Remote Support for any company PC whose agent is online.');
+  // A Prove It names no tool for the case: advice on which tool fits is Practice's.
+  const header = hdPageHeader('Remote Support', HD_PROVE ? 'Start a remote session to a company PC.' : 'Quick Assist for a user who is signed in; Remote Support for any company PC whose agent is online.');
   const ticket = hdRemoteWorkTicket(); const pcs = hdRemoteTicketPcs(ticket);
   if (!ticket || !pcs.length) return hdRemotePlaceholder();
   const state = hdRemoteState(ticket); const session = hdRemoteActive(state);
@@ -12319,6 +12320,9 @@ function hdProveFreshLog(returnedAt) {
   prove.passwordTyped = false;
   prove.passwordWritten = false;
   prove.startedAt = new Date().toISOString();
+  // The typed lines of the earlier attempt are cleared from the shell screen
+  // too (the recorded events were already empty), in every module.
+  hdState.powershell = [{ type:'system', text:'Northstar Enterprise Support Shell · training subset\nType Get-Help to list supported commands.' }];
   hdState.tickets.forEach(ticket => {
     const state = ticket && ticket.consoleState;
     if (!state) return;

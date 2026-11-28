@@ -54,7 +54,9 @@ function element(id) {
   };
 }
 function sim(moduleKey, student, local = store(), session = store()) {
-  const u = new URL(`https://academy.test/sim/?prove=${moduleKey}&student=${student}#/helpdesk/tickets`);
+  // 'practice:<set>' opens a practice set instead of a Prove shift.
+  const query = moduleKey.startsWith('practice:') ? `practice=${moduleKey.slice(9)}` : `prove=${moduleKey}`;
+  const u = new URL(`https://academy.test/sim/?${query}&student=${student}#/helpdesk/tickets`);
   const location = { protocol: u.protocol, hostname: u.hostname, origin: u.origin, pathname: u.pathname, search: u.search, hash: u.hash };
   const byId = new Map();
   const loaded = [];
@@ -295,6 +297,44 @@ function testQuickAssistRefused() {
   assert.match(tab.view('helpdesk/remote-support'), /Nobody is signed in/);
 }
 
+// A Prove It's Remote Support screen advises on no tool for the case: the
+// "which tool fits" lines are Practice's. The tool's own labels stay.
+function testNoToolAdviceInAProveIt() {
+  const tab = sim('its-08', 'stu-advice');
+  const quick = words(tab.view('helpdesk/remote-support'));
+  ['Win + Ctrl + Q', 'built into Windows', 'must be signed in', 'needs the user\'s desktop', 'reach a PC at the sign-in screen'].forEach((text) => assert.ok(!quick.includes(text), `no "${text}" (Quick Assist)`));
+  tab.run('hdRemoteQuickAssist()');
+  assert.ok(!words(tab.view('helpdesk/remote-support')).includes('needs the user\'s desktop'), 'the refusal states the fact only');
+  tab.run("hdRemoteSetTool('remote-support')");
+  const company = words(tab.view('helpdesk/remote-support'));
+  assert.ok(!company.includes('reach a PC at the sign-in screen'), 'no advice before the PC is found');
+  assert.ok(!company.includes('Quick Assist for a user who is signed in'), 'the page subtitle names no tool for the case');
+  tab.run(`hdRemoteState(hdCurrentTicket()).find = ${j(PC)}`);
+  const found = words(tab.view('helpdesk/remote-support'));
+  assert.ok(found.includes('Connect without asking: servers, kiosks and room PCs only.'), 'the tool\'s own label stays');
+  assert.ok(found.includes('Sign-in screen (nobody signed in)'), 'the PC\'s own status stays');
+}
+
+// Practice keeps the advice, and a view-only session blocks command writes
+// there too (the Prove shift can't reach a view-only session: nobody is
+// signed in to its PC).
+function testViewOnlyInPractice() {
+  const tab = sim('practice:its-08', 'stu-practice-view');
+  tab.run("hdState.selectedTicketId = 'HD-2223'");
+  const before = words(tab.view('helpdesk/remote-support'));
+  ['Win + Ctrl + Q', 'must be signed in'].forEach((text) => assert.ok(before.includes(text), `Practice still says "${text}"`));
+  assert.ok(before.includes('Quick Assist for a user who is signed in'), 'and the page subtitle');
+  tab.run('hdRemoteQuickAssist()');
+  const code = remoteState(tab).pending.code;
+  tab.say(`Made-up: the code is ${code}.`);
+  tab.run("hdRemoteAskControl('view')");
+  assert.equal(remoteState(tab).sessions[0].control, 'view');
+  const writes = ['Start-Service -Name WSearch', 'Get-Service WSearch | Restart-Service'];
+  writes.forEach((line) => assert.equal(tab.ps(line), 'This session is view-only, so nothing changed. Reads still work. Ask for full control in Quick Assist, then run it again.', line));
+  assert.doesNotMatch(tab.ps('Get-Service WSearch'), /view-only/, 'a read still answers');
+  assert.equal(tab.run(`hdMachine('NS-LT-0420').services.find((s) => s.name === 'WSearch').status`), 'Stopped', 'nothing started');
+}
+
 function testNoHintsInAProveIt() {
   const tab = sim('its-08', 'stu-help');
   connect(tab);
@@ -390,10 +430,14 @@ function testPasswordsNeverKept() {
 function testReturnedAttemptStartsClean() {
   const tab = sim('its-08', 'stu-return');
   walk(tab);
+  tab.ps('Get-Help');
+  assert.ok(tab.run('hdState.powershell.length') > 1, 'the shell shows the typed lines');
   assert.ok(remoteState(tab).sessions.length === 1 && remoteState(tab).say.length === 3);
   const left = plain(tab.run('hdProvePackage()')).machine;
   tab.run(`hdProveFreshLog(${j(new Date().toISOString())})`);
   same(tab.prove().events, [], 'the log is empty');
+  assert.equal(tab.run('hdState.powershell.length'), 1, 'the shell screen starts again too, with only its banner');
+  assert.match(tab.run('hdState.powershell[0].text'), /Northstar Enterprise Support Shell/);
   const state = remoteState(tab);
   same([state.sessions, state.say, state.asks, state.active, state.pending || null], [[], [], [], null, null], 'no open session, no code, no Say lines');
   assert.equal(tab.run('hdRemoteActive(hdRemoteState(hdCurrentTicket()))'), null, 'the old session can\'t be ended');
@@ -660,8 +704,8 @@ function testCiRunsThisFile() {
   const report = (name, error) => {
     if (error) { failed += 1; console.error(`FAIL ${name}\n${error.stack}`); } else { passed += 1; console.log(`ok   ${name}`); }
   };
-  for (const test of [testFreshShift, testChat, testRemoteWalkAndEvents, testTypedChecks, testConnectingWithoutAsking, testQuickAssistRefused, testNoHintsInAProveIt,
-    testViewOnlySession, testViewOnlyHintStaysInPractice, testPasswordsNeverKept, testReturnedAttemptStartsClean, testClockComesBackInAnotherBrowser,
+  for (const test of [testFreshShift, testChat, testRemoteWalkAndEvents, testTypedChecks, testConnectingWithoutAsking, testQuickAssistRefused, testNoToolAdviceInAProveIt, testNoHintsInAProveIt,
+    testViewOnlySession, testViewOnlyInPractice, testViewOnlyHintStaysInPractice, testPasswordsNeverKept, testReturnedAttemptStartsClean, testClockComesBackInAnotherBrowser,
     testOlderShiftsUnchanged, testPackage, testSayLinesAreNeverCut, testCiRunsThisFile]) {
     try { test(); report(test.name); } catch (error) { report(test.name, error); }
   }
