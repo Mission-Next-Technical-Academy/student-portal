@@ -127,7 +127,7 @@ function work10A(tab, { followUp = true, note = true } = {}) {
   tab.open(T10A);
   if (note) tab.note(T10A, NOTE_10A);
   tab.comment(T10A, COMMENT_10A);
-  if (followUp) tab.type('hd-follow-up-input', '2026-08-24T16:00', `hdFollowUpSet('${T10A}')`);
+  if (followUp) tab.type('hd-follow-up-input', followUp === true ? '2026-08-24T16:00' : followUp, `hdFollowUpSet('${T10A}')`);
   assert.notEqual(tab.ticket(T10A).status, 'Resolved', 'stays open for the 16:00 check');
 }
 function work10B(tab) {
@@ -156,7 +156,7 @@ function work10B(tab) {
   tab.resolve(T10B, 'Solution provided');
   assert.equal(tab.ticket(T10B).status, 'Resolved', tab.toasts.slice(-3).join(' | '));
 }
-function work10C(tab, { group = true, note = true } = {}) {
+function work10C(tab, { group = true, note = true, resolved = false } = {}) {
   tab.open(T10C);
   tab.triage(T10C, 'Hardware', 'Desktop', 'NS-WS-0320', '3', '2');
   assert.equal(tab.ticket(T10C).priority, 'P4');
@@ -176,6 +176,7 @@ function work10C(tab, { group = true, note = true } = {}) {
   if (!group) return;
   tab.run(`hdMatrixAssignGroup('${T10C}', 'Desktop Support (Tier 2)')`);
   assert.equal(tab.ticket(T10C).assignmentGroup, 'Desktop Support (Tier 2)');
+  if (resolved) { tab.resolve(T10C, 'Solution provided'); assert.equal(tab.ticket(T10C).status, 'Resolved', tab.toasts.slice(-3).join(' | ')); }
 }
 
 function testSetShape() {
@@ -205,14 +206,17 @@ function testEachTicketToAllAreasMet() {
 function testSetNeedsEachDoneRule() {
   const cases = [
     ['10-A follow-up', { a: { followUp: false } }],
+    ['10-A follow-up at 16:00 (17:00 set)', { a: { followUp: '2026-08-24T17:00' } }],
     ['10-A note', { a: { note: false } }],
     ['10-C Desktop Support', { c: { group: false } }],
     ['10-C note', { c: { note: false } }],
+    ['10-C left open (Resolved)', { c: { resolved: true } }],
   ];
   for (const [missing, skip] of cases) {
     const tab = sim();
     work10A(tab, skip.a); work10B(tab); work10C(tab, skip.c);
     assert.equal(tab.run('hdPracticeClosed()'), false, `not done without ${missing}`);
+    if (skip.a && skip.a.followUp) assert.equal(tab.feedback(T10A).areas.find((area) => area.area === 'Documentation').ok, false, 'feedback asks for 16:00 too');
   }
   const tab = sim();
   work10A(tab); work10B(tab); work10C(tab);

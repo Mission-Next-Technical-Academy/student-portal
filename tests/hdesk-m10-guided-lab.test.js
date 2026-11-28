@@ -412,6 +412,59 @@ function testTypedStepsNeedTheRightComputer() {
   assert.equal(steps[17].check(), false, 'B7: -Repair is refused and does not pass');
 }
 
+// Each tightened check holds only for the work its step names: the headset
+// still chosen, the Remote Support console (not the Service Desk shell) for
+// Part B's lines, the Service Desk shell (not the console) and NS-DC01 itself
+// for the port tests, KB-0095 attached, and HD-2110 left open.
+function testStepsNeedTheWorkTheyName() {
+  const a = startLab();
+  const steps = a.coach('hd-m08').steps;
+  a.open(A);
+  a.run('hdRemoteQuickAssist()');
+  a.say(`Your code is ${a.remote(A).pending.code}.`);
+  a.run("hdRemoteAskControl('full')");
+  a.run(`hdOpenMachineScreen('${PC_A}', 'settings-sound')`);
+  a.run(`hdSoundSet('${PC_A}', 'output', 'headset')`);
+  a.run(`hdSoundTest('${PC_A}')`);
+  assert.equal(steps[7].check(), true, 'A8: headset chosen and heard');
+  a.run(`hdSoundSet('${PC_A}', 'output', 'monitor')`);
+  assert.equal(steps[7].check(), false, 'A8: the output is back on the monitor');
+
+  const b = startLab();
+  const bSteps = b.coach('hd-m08').steps;
+  b.open(B);
+  b.on(PC_B);
+  b.ps('ping NS-DC01');
+  b.ps('nslookup northstar.example');
+  assert.equal(bSteps[15].check(), false, 'B5: the Service Desk shell is not Remote Support');
+  b.ps('Test-NetConnection NS-DC01X -Port 3389');
+  b.ps('Test-NetConnection NS-DC01X -Port 22');
+  assert.equal(bSteps[23].check(), false, 'B13: NS-DC01X is not NS-DC01');
+  b.run("hdRemoteSetTool('remote-support')");
+  b.run(`hdRemoteRequest('${PC_B}', false)`);
+  b.run("hdRemoteTab('console')");
+  b.cmd('Test-NetConnection NS-DC01 -Port 3389');
+  b.cmd('Test-NetConnection NS-DC01 -Port 22');
+  assert.equal(bSteps[23].check(), false, 'B13: the Remote Support console is not the Service Desk shell');
+  b.ps('Test-NetConnection NS-DC01.northstar.example -Port 3389');
+  b.ps('Test-NetConnection NS-DC01.northstar.example -Port 22');
+  assert.equal(bSteps[23].check(), true, 'B13: NS-DC01 with its domain passes');
+  b.open(B);
+  b.run(`hdKbOpen('${B}', 'KB-0095')`);
+  assert.equal(bSteps[19].check(), false, 'B9: read but not attached');
+  b.attach(B, 'KB-0095');
+  assert.equal(bSteps[19].check(), true, 'B9: read and attached');
+
+  const c = startLab();
+  partA(c);
+  partB(c);
+  assert.equal(c.coach('hd-m08').steps[22].check(), true, 'B12 holds while HD-2110 is open');
+  c.open(B);
+  c.resolve(B, 'Solution provided', 'Resolved by mistake.');
+  assert.equal(c.ticket(B).status, 'Resolved', c.toasts.slice(-3).join(' | '));
+  assert.equal(c.coach('hd-m08').steps[22].check(), false, 'B12: a Resolved HD-2110 does not pass');
+}
+
 // Tier 1 never repairs or rejoins, and never connects without asking: each
 // is a critical feedback line, and B3 stays open after an unattended session.
 function testCriticalLines() {
@@ -623,7 +676,7 @@ function testEveryArticleCheckIsInTheSteps() {
   [...new Set(lab.flatMap(rules))].forEach((id) => assert.ok(labText.includes(id), `hd-m08 names ${id}`));
 }
 
-const tests = [testLabOpensOnItsSet, testLab101, testTypedStepsAnyCase, testOpeningAfterConnectingNamesTheWayOut, testTypedStepsNeedTheRightComputer, testCriticalLines, testNoPasswordInASession, testEveryStepText,
+const tests = [testLabOpensOnItsSet, testLab101, testTypedStepsAnyCase, testOpeningAfterConnectingNamesTheWayOut, testTypedStepsNeedTheRightComputer, testStepsNeedTheWorkTheyName, testCriticalLines, testNoPasswordInASession, testEveryStepText,
   testOpeningAStepsScreenDoesNotPassIt, testEveryClockIsCorrectAndTheCauseIsNeverNamed, testOldTicketsAndOldPath, testAdRowsOnlyWhereSet, testSharedListsUnchanged,
   testOldCoachRunIsForgotten, testSheetMapping, testCiRunsThisFile, testEveryArticleCheckIsInTheSteps];
 let failed = 0;

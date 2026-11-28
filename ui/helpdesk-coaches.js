@@ -1983,18 +1983,21 @@
   const HD8_PC_B = 'NS-LT-0131';
   const HD8_HEADSET = 'Headset Earphone (USB Audio)';
   const hd8Opened = (id) => typeof hdState !== 'undefined' && Boolean(hdState) && hdState.openedTicketId === id;
-  // A typed line on the Service Desk’s own PowerShell: any computer.
+  // A typed line on the Service Desk’s own PowerShell: any computer, but not a
+  // line typed in Remote Support’s console.
   const hd8TypedAnywhere = (pattern) => (typeof hdState !== 'undefined' && Array.isArray(hdState.practiceLog) ? hdState.practiceLog : [])
-    .some((e) => e && e.type === 'command_run' && pattern.test(String(e.command || '').trim()));
-  // The headset was chosen, and a test tone played after that was heard.
+    .some((e) => e && e.type === 'command_run' && e.via !== 'remote-console' && pattern.test(String(e.command || '').trim()));
+  // The headset is the output now (the last output change chose it), and a
+  // test tone played after that was heard.
   const hd8HeadsetFixed = () => {
     const actions = hd2Actions(HD8_A);
-    const at = actions.findIndex((a) => a.id === 'sound-output' && a.to === HD8_HEADSET);
-    return at >= 0 && actions.slice(at + 1).some((a) => a.id === 'sound-test' && a.heard === true);
+    const at = actions.map((a) => a.id).lastIndexOf('sound-output');
+    return at >= 0 && actions[at].to === HD8_HEADSET && actions.slice(at + 1).some((a) => a.id === 'sound-test' && a.heard === true);
   };
   // A line typed in Remote Support’s command console on that PC.
-  const hd8Typed = (typed) => hd2Rule(HD8_B, { typed, computer: HD8_PC_B });
-  const HD8_PORT = (port) => new RegExp(`^test-netconnection\\s+(?:\\S+\\s+)*?ns-dc01\\S*\\s+(?:\\S+\\s+)*?-port\\s+${port}(\\s|$)`, 'i');
+  const hd8Typed = (typed) => hd2Rule(HD8_B, { typed, computer: HD8_PC_B, via: 'remote-console' });
+  // NS-DC01, alone or with its domain (not NS-DC01X).
+  const HD8_PORT = (port) => new RegExp(`^test-netconnection\\s+(?:\\S+\\s+)*?ns-dc01(?:\\.northstar\\.example)?\\s+(?:\\S+\\s+)*?-port\\s+${port}(\\s|$)`, 'i');
   hd2ForgetStale('hd-m08', 'its-08-guided');
 
   MODULE_COACHES.push({
@@ -2174,8 +2177,8 @@
         title: 'Find KB-0095 and read its audience',
         instruction: 'Search the knowledge base for the exact error text and open <strong>KB-0095</strong>. Read its <strong>Audience</strong>, then attach it to HD-2110.',
         body: 'Why: Theory from approved knowledge, and who owns the fix. Success looks like: KB-0095: <strong>Audience: Desktop Support</strong>. Tier 1 collects the evidence, escalates P3 and offers a hot desk; never rejoins or repairs.',
-        waitLabel: 'Next Step: KB-0095 read',
-        check: () => hd2Rule(HD8_B, { kb: 'KB-0095' }),
+        waitLabel: 'Next Step: KB-0095 read and attached',
+        check: () => hd2Rule(HD8_B, { kb: 'KB-0095' }) && hd2Rule(HD8_B, { attached: 'KB-0095' }),
       },
       {
         route: '#/helpdesk/ticket', target: '.hd-team-messages, [data-hd-team]',
@@ -2200,7 +2203,7 @@
         body: 'Why: The note is how Desktop Support starts where you stopped. Success looks like: Note has Reported / Tried / Result / <strong>Next action</strong>; assigned to <strong>Desktop Support</strong>. A model note:<br><strong>Reported:</strong> Can’t sign in to NS-LT-0131: “The trust relationship between this workstation and the primary domain failed.” Desktop Support returned the laptop yesterday after a new drive and a restore (WO-3308). Needs it for the 10:00 shift handover. One user.<br><strong>Tried:</strong> Verified by callback and employee ID. Remote Support (attended) at the sign-in screen; Sofia allowed it 09:23. ping NS-DC01 replies and nslookup northstar.example is correct, so the network and DNS are fine. w32tm /query /status: source NS-DC01, synced 08:58; w32tm /resync OK, so time is fine. Test-ComputerSecureChannel: False; System log NETLOGON 3210. AD: NS-LT-0131 enabled, machine password set 12 days ago; the restored image is 30 days old. KB-0095: a Desktop Support repair. Not tried: repairing the secure channel or rejoining (needs Desktop Support’s account). Session ended 09:31.<br><strong>Result:</strong> Escalated to Desktop Support at P3. Sofia is using the hot desk PC at the end of row 3 for the handover.<br><strong>Next action:</strong> Desktop Support to repair NS-LT-0131’s secure channel and confirm Sofia can sign in; Service Desk to tell Sofia when it’s ready.<br>A model comment: Hi Sofia, thanks for your patience. When your laptop was restored from a backup yesterday, it went back to an older copy of the key it uses to prove it belongs to our network, so the network no longer recognises it. Our desktop team has the details and will fix it. Until then you can sign in on the PC at the end of row 3, and your files will be there. We’ll let you know as soon as your laptop is ready. – Riley',
         waitLabel: 'Next Step: HD-2110 noted and assigned to Desktop Support',
         check: () => hd2Rule(HD8_B, { group: 'Desktop Support (Tier 2)' }) && hd2Rule(HD8_B, { comment: true })
-          && (hd2Rule(HD8_B, { handoffNote: true }) || hd2Rule(HD8_B, { note: true })),
+          && (hd2Rule(HD8_B, { handoffNote: true }) || hd2Rule(HD8_B, { note: true })) && !hd2Rule(HD8_B, { status: 'Resolved' }),
       },
       {
         route: '#/helpdesk/powershell', target: '#hd-ps-input',
