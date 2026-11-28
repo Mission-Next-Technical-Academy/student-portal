@@ -8037,8 +8037,8 @@ function hdNetPanel(computerName, panel, adapterName) {
   if (panel === 'hardware' && adapter) { hdWinSeen(machine, `net-adapter:${adapter.name}`); hdProveOpened(`net-adapter:${computerName}:${adapter.name}`, `Settings › Network & internet › ${adapter.name} › Hardware properties · ${computerName}`); }
   if (panel === 'wifi' && adapter && hdNetWifiUp(adapter)) { hdWinSeen(machine, 'wifi-properties'); hdProveOpened(`wifi-properties:${computerName}`, `Settings › Network & internet › Wi-Fi › ${adapter.wifi.ssid} › Properties · ${computerName}`); }
   if (panel === 'known' && adapter) { hdWinSeen(machine, 'known-networks'); hdProveOpened(`known-networks:${computerName}`, `Settings › Wi-Fi › Manage known networks · ${computerName}`); }
-  // Module 9's Prove It: Edit IP settings opened (a chat message waits for it).
-  if (panel === 'edit' && adapter && HD_PROVE) hdWinSeen(machine, `net-edit:${adapter.name}`);
+  // Edit IP settings opened: Module 9's Lab 9.1 step 8 and its Prove It (a chat message waits for it) read this.
+  if (panel === 'edit' && adapter) hdWinSeen(machine, `net-edit:${adapter.name}`);
   hdSave(); render();
 }
 function hdNetSaveIp(event, computerName, adapterName) {
