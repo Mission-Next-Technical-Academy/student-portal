@@ -4,6 +4,7 @@ Help Desk Module 10 (key `its-08`) now has its own course page, `portal/it-suppo
 - **Shared tests:** Module 10 no longer uses the shared walkthrough page, so the tests that used it as the example now use Module 11 (key `its-09`, coach `hd-m09`). No assertion was weakened.
 - **`portal/index.html` (shared):** the new stylesheet and new cache values for `data.js`, `it-support-module-08.js` and `admin-sheets/hdesk.js`.
 - **Admin sheet (Help Desk file):** titles for the two new lab keys; Lab 10.2 is a completion record only.
+- **How this was checked (2026-11-28):** `node bin/its-curriculum-check.js` exits 0 and reports ITHD-101.8 = 4h and "every lesson matches the hour mapping totals". The only migration that names a Module 10 lab, `supabase/migrations/20260916100000_verified_assessment_progress.sql`, puts only `lab-its-08-unfamiliar-problems` in `course_module_labs`, so Lab 10.1 is still the gate in the repo. Not checked: the `course_module_labs` rows on staging and production.
 
 **2026-11-27 (Megan; branch `shared/coderabbit-review-guidelines`, PR #178 "Add CodeRabbit-only review guidelines"; shared `.coderabbit.yaml` and new `.coderabbit/review-guidelines.md` — please review those):**
 CodeRabbit now also reads `.coderabbit/review-guidelines.md`, six short review rules that only CodeRabbit uses. Claude Code doesn't load this file; build rules stay in `CLAUDE.md` and `.claude/rules/`. The new `knowledge_base.code_guidelines.filePatterns` entry adds to CodeRabbit's defaults, so it still reads `CLAUDE.md`, `AGENTS.md` and `.claude/rules/**`.

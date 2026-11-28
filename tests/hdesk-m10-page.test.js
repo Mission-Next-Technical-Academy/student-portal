@@ -237,7 +237,7 @@ function testPageContent() {
   ].forEach((text) => assert.ok(shown.includes(text), `the page shows: ${text}`));
   assert.ok(shown.includes('Evidence before action.'));
   assert.ok(shown.includes('One hypothesis at a time.'));
-  assert.ok(shown.includes('A burning smell, smoke or sparks: switch off, unplug, keep people away, then escalate.'));
+  assert.ok(shown.includes('A burning smell, smoke or sparks: keep people away, switch off and unplug only if that is safe, then escalate.'));
   // Typed lines render as code, with no stray markers.
   assert.match(html, /<code class="its08-code">w32tm \/query \/status<\/code>/);
   assert.match(html, /<code class="its08-code">w32tm \/resync<\/code>/);
@@ -401,7 +401,7 @@ function testCheckContent() {
     '3389', 'SSH', 'A virtual desktop (VDI)', 'The display resolution: set the projector’s recommended one',
     'It is overheating because the filter or vents are blocked',
     'The PC’s power-on self-test found a hardware fault; record the pattern and escalate',
-    'Switch it off, unplug it and keep people away, then you escalate', 'A failing fan',
+    'Keep people away, switch it off and unplug it only if that’s safe, then you escalate', 'A failing fan',
   ]);
   assert.deepEqual(all.learn.questions.map((q) => q.choices[q.answer]), [
     'Verify the caller, then ask them now whether you may connect, and wait for them to allow it',
