@@ -96,7 +96,7 @@ const COMMENT_10B = 'Hi Naomi, glad it\'s sorted before 2:00. Your laptop was se
 const NOTE_10C = 'Reported: NS-WS-0320 won\'t start since the desk was moved over the weekend: fans run, one long and two short beeps, black screen. Using the PC at the end of the row for now.\nTried: one user. Remote Support: agent offline since Friday 17:42 (Windows not starting). Monitor light orange, "No signal"; cable reseated at both ends, input checked: still black, same beeps. No burning smell, smoke or sparks. Maker\'s beep-code page: 1 long, 2 short = video adapter not detected, or memory error. Asked Victor to leave it switched off.\nResult: assigned to Desktop Support at P4; Victor working at the end-of-row PC.\nNext action: Desktop Support to check NS-WS-0320\'s memory and graphics after the desk move; Service Desk to tell Victor when it\'s back.';
 const COMMENT_10C = 'Hi Victor, thanks for the clear description, it helped a lot. Those beeps are your computer\'s own start-up check telling us it found a hardware problem, probably a part that loosened when the desk was moved. Please leave it switched off; our desktop team will check it, and we\'ll let you know when it\'s ready. The PC at the end of the row has your files. If you ever smell burning from a computer, switch it off at the wall and call us straight away. – Riley';
 
-function work10A(tab) {
+function work10A(tab, { followUp = true, note = true } = {}) {
   const pc = 'NS-LT-0420';
   tab.open(T10A);
   assert.equal(tab.run('hdShiftNow(hdTicketById("HD-2223")).toISOString()'), '2026-08-24T11:40:00.000Z');
@@ -125,9 +125,9 @@ function work10A(tab) {
   tab.say('It will catch up over the next few hours. I\'m disconnecting now.');
   tab.run('hdRemoteEnd()');
   tab.open(T10A);
-  tab.note(T10A, NOTE_10A);
+  if (note) tab.note(T10A, NOTE_10A);
   tab.comment(T10A, COMMENT_10A);
-  tab.type('hd-follow-up-input', '2026-08-24T16:00', `hdFollowUpSet('${T10A}')`);
+  if (followUp) tab.type('hd-follow-up-input', followUp === true ? '2026-08-24T16:00' : followUp, `hdFollowUpSet('${T10A}')`);
   assert.notEqual(tab.ticket(T10A).status, 'Resolved', 'stays open for the 16:00 check');
 }
 function work10B(tab) {
@@ -156,7 +156,7 @@ function work10B(tab) {
   tab.resolve(T10B, 'Solution provided');
   assert.equal(tab.ticket(T10B).status, 'Resolved', tab.toasts.slice(-3).join(' | '));
 }
-function work10C(tab) {
+function work10C(tab, { group = true, note = true, resolved = false } = {}) {
   tab.open(T10C);
   tab.triage(T10C, 'Hardware', 'Desktop', 'NS-WS-0320', '3', '2');
   assert.equal(tab.ticket(T10C).priority, 'P4');
@@ -171,10 +171,12 @@ function work10C(tab) {
   tab.run(`hdEvidenceOpen('${T10C}', 'beep-codes-sd5')`);
   assert.match(tab.open(T10C), /Video adapter not detected, or memory error/);
   tab.run(`hdChatAsk('${T10C}', 'leave-off')`);
-  tab.note(T10C, NOTE_10C);
+  if (note) tab.note(T10C, NOTE_10C);
   tab.comment(T10C, COMMENT_10C);
+  if (!group) return;
   tab.run(`hdMatrixAssignGroup('${T10C}', 'Desktop Support (Tier 2)')`);
   assert.equal(tab.ticket(T10C).assignmentGroup, 'Desktop Support (Tier 2)');
+  if (resolved) { tab.resolve(T10C, 'Solution provided'); assert.equal(tab.ticket(T10C).status, 'Resolved', tab.toasts.slice(-3).join(' | ')); }
 }
 
 function testSetShape() {
@@ -198,14 +200,30 @@ function testEachTicketToAllAreasMet() {
   assert.equal(tab.run('hdPracticeClosed()'), true, 'every ticket counts as done: 10-A by its follow-up and note, 10-C with Desktop Support');
 }
 
-// The set is not done until 10-A has its follow-up and 10-C is with Desktop Support.
+// The set is not done until 10-A has its follow-up and note and 10-C is with
+// Desktop Support with a note. Each case finishes every other ticket and
+// leaves out only the one requirement under test.
 function testSetNeedsEachDoneRule() {
+  const cases = [
+    ['10-A follow-up', { a: { followUp: false } }],
+    ['10-A follow-up at 16:00 (17:00 set)', { a: { followUp: '2026-08-24T17:00' } }],
+    ['10-A note', { a: { note: false } }],
+    ['10-C Desktop Support', { c: { group: false } }],
+    ['10-C note', { c: { note: false } }],
+    ['10-C left open (Resolved)', { c: { resolved: true } }],
+  ];
+  for (const [missing, skip] of cases) {
+    const tab = sim();
+    work10A(tab, skip.a); work10B(tab); work10C(tab, skip.c);
+    assert.equal(tab.run('hdPracticeClosed()'), false, `not done without ${missing}`);
+    if (skip.a && skip.a.followUp) assert.equal(tab.feedback(T10A).areas.find((area) => area.area === 'Documentation').ok, false, 'feedback asks for 16:00 too');
+  }
   const tab = sim();
-  work10B(tab);
+  work10A(tab); work10B(tab); work10C(tab, { resolved: true });
   assert.equal(tab.run('hdPracticeClosed()'), false);
-  work10A(tab);
-  assert.equal(tab.run('hdPracticeClosed()'), false, '10-C still open');
-  work10C(tab);
+  // The way out for 10-C: reopen it.
+  tab.run(`hdTransitionTicket('${T10C}', 'In Progress')`);
+  assert.equal(tab.ticket(T10C).status, 'In Progress', tab.toasts.slice(-3).join(' | '));
   assert.equal(tab.run('hdPracticeClosed()'), true);
 }
 
@@ -240,6 +258,19 @@ function testOneChangeNotARebuild() {
   tab.open(T10A);
   const fix = plain(tab.run("HD_TICKET_TEMPLATES.find((t) => t.id === 'HD-2223').console.feedback.find((a) => a.area === 'Action').fix"));
   assert.match(fix, /Do not rebuild the index/);
+  // The Search settings screen offers no Rebuild, before or after the fix.
+  const pc = 'NS-LT-0420';
+  tab.run(`hdOpenMachineScreen('${pc}', 'settings-search')`);
+  const before = tab.view('helpdesk/settings-search');
+  assert.match(before, /data-hd-indexer="stopped"/);
+  assert.doesNotMatch(before, /rebuild/i, 'no Rebuild before the fix');
+  tab.run(`hdPcServiceStart('${pc}', 'WSearch')`);
+  tab.run(`hdOpenMachineScreen('${pc}', 'pc-services')`);
+  assert.match(tab.view('helpdesk/pc-services'), /data-hd-pc-service="WSearch" data-hd-service-status="Running"/, 'the service start is the change');
+  tab.run(`hdOpenMachineScreen('${pc}', 'settings-search')`);
+  const after = tab.view('helpdesk/settings-search');
+  assert.match(after, /data-hd-indexer="running"/);
+  assert.doesNotMatch(after, /rebuild/i, 'no Rebuild after the fix');
 }
 
 // Each article is found by each of its keywords, only in Module 10's sets.

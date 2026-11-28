@@ -1777,7 +1777,8 @@ function hdConsoleRule(ticket, rule) {
   // Module 5 work on a computer's tool screens (each off unless a ticket uses it):
   //   seen: '<machine.seen key>', computer, after?: '<action id>'   the screen
   //     was opened on that computer (after that action, when given)
-  //   typed: '<regex source>', computer   a command typed on that computer
+  //   typed: '<regex source>', computer, via?   a command typed on that computer
+  //     (via: 'remote-console'   only a line typed in Remote Support's console)
   //   actionsAfter: { after, action, min, without? }   at least min of action
   //     after the last after, and no without after it (three clean dock cycles)
   //   triage: { category, subcategory, ci }   the student's classification
@@ -1800,7 +1801,7 @@ function hdConsoleRule(ticket, rule) {
     // A winget line that found nothing or was mistyped is refused too (Module 6).
     const refused = /^(dism|sfc|chkdsk): (wrong options|volume in use)$|^path not found$|^no folder$|^no log named$|^misspelled|^winget[^:]*: (no |not |more than one|unrecognized|missing value|nothing to)/i;
     return (Array.isArray(hdState.practiceLog) ? hdState.practiceLog : []).some(entry => entry && entry.type === 'command_run' && entry.computer === rule.computer
-      && test(rule.typed, String(entry.command || '').trim()) && !refused.test(String(entry.result || '')));
+      && (!rule.via || entry.via === rule.via) && test(rule.typed, String(entry.command || '').trim()) && !refused.test(String(entry.result || '')));
   }
   // Module 7: serverSeen: '<key>' | [keys]   this ticket's server or directory
   // screen (or the line that earns the same key, hdServerSeen) was read while
@@ -3432,6 +3433,13 @@ function hdCommsRule(ticket, rule) {
   if (rule.handoffNote) { const missing = hdHandoffMissing(ticket); return !!missing && !missing.length; }
   if (rule.warmHandoff) return (state.warmHandoffs || []).length > 0;
   if (rule.followUp) return !!state.followUp;
+  // Module 10: followUpAt: 'HH:MM'   the follow-up is at that time on the
+  // ticket's own day (its console clock's start, which never moves; follow-ups
+  // are saved on the shift clock, in UTC).
+  if (rule.followUpAt) {
+    const day = new Date(Date.parse(hdConsole(ticket).now) || hdShiftNow(ticket).getTime()).toISOString().slice(0, 10);
+    return !!state.followUp && hdFollowUpValue(state.followUp) === `${day}T${rule.followUpAt}`;
+  }
   if (rule.followUpUpdated) return hdFollowUpUpdated(ticket);
   if (rule.commentTime) return (state.commentChecks || []).some(entry => entry.hasTime && !entry.promise);
   if (rule.teamMessage) return (state.teamMessages || []).some(entry => entry.id === rule.teamMessage);

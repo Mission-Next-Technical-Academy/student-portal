@@ -737,7 +737,7 @@ const HD_PRACTICE_SETS = {
   // servers and directory are the set's (HD_ITS08_*).
   'its-08': { title:'Module 10 practice tickets', tickets:['HD-2223', 'HD-2224', 'HD-2225'], complete:['HD-2223', 'HD-2224', 'HD-2225'], queue:true, queueList:'all', kbArticles:HD_ITS08_KB_ARTICLES,
     users:HD_ITS08_USERS, computers:HD_ITS08_COMPUTERS, servers:HD_ITS08_PRACTICE_SERVERS, directory:HD_ITS08_PRACTICE_DIRECTORY,
-    done:{ 'HD-2223':[{ followUp:true }, { note:true }], 'HD-2225':[{ group:'Desktop Support (Tier 2)' }, { note:true }] } },
+    done:{ 'HD-2223':[{ followUpAt:'16:00' }, { note:true }], 'HD-2225':[{ group:'Desktop Support (Tier 2)' }, { note:true }, { not:{ status:'Resolved' } }] } },
 };
 
 // Coached ticket sets: Practice It content for a coach's guided lab, opened by
@@ -3633,7 +3633,7 @@ const HD_TICKET_TEMPLATES = [
         ], good:'You asked for consent even though she is senior and in a hurry, used the workaround first, then made one change: a service start, not a rebuild.', fix:'Ask for consent and privacy, search "auditor" in Outlook on the web so Dana has what she needs, then start Windows Search in Services. Do not rebuild the index. Critical (feedback only): skipping verification or consent because the caller is senior; opening her email without asking.' },
         { area:'Documentation', checks:[
           { note:true, missing:'Write a Reported / Tried / Result / Next action note with the session times.' },
-          { followUp:true, missing:'Set the Follow-up for 16:00 today.' },
+          { followUpAt:'16:00', missing:'Set the Follow-up for 16:00 today.' },
           { notePattern:'16:00|4:00', missing:'Put the 16:00 check in your Next action.' },
           { comment:true, missing:'Write a comment for Dana in plain words, with no internal terms.' },
         ], good:'Session times and a Next action with the follow-up time, and a plain-words comment.', fix:'Write a Reported / Tried / Result / Next action note (Next action: 16:00 check of desktop Outlook search with Dana), set the Follow-up to 16:00 and leave the ticket open. A comment could say: "Hi Dana, you\'ve got the auditor\'s emails for the board meeting. The search on your laptop had stopped updating, so we used Outlook on the web, which searches your mailbox directly. We\'ve restarted the search on your laptop; it will catch up over the next few hours, and I\'ll check with you at 4:00. – Riley"' },
