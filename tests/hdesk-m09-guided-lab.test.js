@@ -211,7 +211,23 @@ function partA(tab, lines = LINES_A) {
   at(tab, 7, 'Part A step 8 waits for Hardware properties');
   tab.run(`hdNetPanel('${PC_A}', 'hardware', 'Ethernet')`);
   assert.match(tab.view('helpdesk/settings-network'), /Automatic \(DHCP\)/);
-  at(tab, 8, 'Part A step 8 done');
+  at(tab, 7, 'Part A step 8 does not pass on Hardware properties alone');
+  // Step 8 also reads Edit IP settings on the healthy PC (spec decision 10),
+  // so the Prove It is not the first time a student sees that screen.
+  const a8 = tab.coach('hd-m04').steps[7];
+  assert.match(a8.instruction, /Hardware properties<\/strong>, then open <strong>Edit IP settings<\/strong>, read <strong>Automatic \(DHCP\)<\/strong>, and <strong>Cancel<\/strong>\./);
+  assert.match(a8.body, /; then open Edit IP settings, read <strong>Automatic \(DHCP\)<\/strong>, and Cancel\.$/);
+  const actionsBefore = tab.run(`hdConsoleState(hdTicketById('${A}')).actions.length`);
+  tab.run(`hdNetPanel('${PC_A}', 'edit', 'Ethernet')`);
+  at(tab, 8, 'Part A step 8 done once Edit IP settings has opened');
+  const edit = tab.view('helpdesk/settings-network');
+  assert.match(edit, /data-hd-net-panel="edit"/);
+  assert.match(edit, /Now: Automatic \(DHCP\)/);
+  assert.match(edit, /<option value="dhcp" selected>Automatic \(DHCP\)<\/option>/);
+  tab.run(`hdNetPanel('${PC_A}', '', '')`);
+  assert.doesNotMatch(tab.view('helpdesk/settings-network'), /data-hd-net-panel="edit"/);
+  assert.equal(tab.run(`hdConsoleState(hdTicketById('${A}')).actions.length`), actionsBefore, 'Cancel changes nothing');
+  assert.equal(tab.coachStep(), 8, 'Edit IP settings and Cancel leave the coach on step 9');
   // Part A step 9: the gateway, a company server, the way out.
   tab.on(PC_A);
   assert.match(tab.ps(lines.pingGw), /Reply from 10\.20\.10\.1/);
@@ -538,7 +554,9 @@ function testOptionalScreenLines() {
   tab.ps('ipconfig /release');
   tab.ps('ipconfig /renew');
   tab.ps('Get-NetIPConfiguration');
-  assert.equal(steps[7].check(), true, 'Part A step 8 passes from Get-NetIPConfiguration');
+  assert.equal(steps[7].check(), false, 'Part A step 8 still waits for Edit IP settings after Get-NetIPConfiguration');
+  tab.run(`hdNetPanel('${PC_A}', 'edit', 'Ethernet')`);
+  assert.equal(steps[7].check(), true, 'Part A step 8 passes from Get-NetIPConfiguration plus Edit IP settings');
   tab.open(B);
   tab.on(PC_B);
   tab.ps('netsh wlan show interfaces');
