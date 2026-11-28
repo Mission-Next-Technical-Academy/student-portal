@@ -131,7 +131,10 @@ if (pinArg) {
   process.exit(0);
 }
 const PINNED = {
-  shared: { screens: '94b30075b2817eab88d56c87cb37f2e9dc2523289c03934f5b1cf5f4527981b0', commands: '5ae15aec4b9553e21b4336533de87fffce1f3ea69c2a2a84ad8b109ab5eedd76' },
+  // shared.commands re-pinned 2026-11-27 by Module 10's sim part: HD-2110 and
+  // HD-2111 left the shared shift (ownSet), so the saved ticket list after each
+  // line is two shorter. Every screen hash and every other shift is unchanged.
+  shared: { screens: '94b30075b2817eab88d56c87cb37f2e9dc2523289c03934f5b1cf5f4527981b0', commands: '13406254b48e3e8325a59d0bb191d1994525cbb18888e93cbba85e29b105a6ea' },
   'practice:its-01': { screens: '94b30075b2817eab88d56c87cb37f2e9dc2523289c03934f5b1cf5f4527981b0', commands: '7a3be893e76706c3fe53a9639fc66e8cb33b011197a522dbf198864784c98484' },
   'practice:its-10': { screens: '36951b6bb17aa2bd222ed356490be9fb3c85ded96623fed49ca41276ce6d3150', commands: '98a971e8848558784333866a2d9cf63bdb2d60351b64f33e73e0d3c82c5218b7' },
   'practice:its-11': { screens: '36951b6bb17aa2bd222ed356490be9fb3c85ded96623fed49ca41276ce6d3150', commands: '73851ed936caad37f11c303811fc2b02ceacd0f6204b3f2a998c9dea65e6e7c0' },

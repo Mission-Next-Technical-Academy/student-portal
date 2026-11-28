@@ -415,11 +415,13 @@ function testEarlyQuestionsCanBeAskedAgain() {
 // The new rule kinds are off for every older ticket: no older ticket uses them.
 // Module 6's tickets (HD-2176 to HD-2179) and Module 7's (HD-2189 to HD-2195)
 // are newer and reuse them, and so are Module 8's (HD-2196 to HD-2201, SR-2207)
-// and Module 9's (HD-2212 to HD-2221, SR-2222).
+// and Module 9's (HD-2212 to HD-2221, SR-2222), and Module 10's (HD-2255,
+// HD-2110 rewritten, HD-2223 to HD-2225).
 function testOlderTicketsUseNoNewRule() {
   const tab = sim();
   const kinds = plain(tab.run(`HD_TICKET_TEMPLATES.filter((t) => !['HD-2180', ...${JSON.stringify(IDS)}, 'HD-2176', 'HD-2177', 'HD-2178', 'HD-2179', 'HD-2189', 'HD-2190', 'HD-2191', 'HD-2192', 'HD-2193', 'HD-2194', 'HD-2195', 'HD-2196', 'HD-2197', 'SR-2207', 'HD-2198', 'HD-2199', 'HD-2200', 'HD-2201',
-    'HD-2212', 'HD-2213', 'SR-2222', 'HD-2214', 'HD-2215', 'HD-2216', 'HD-2217', 'HD-2218', 'HD-2219', 'HD-2220', 'HD-2221'].includes(t.id))
+    'HD-2212', 'HD-2213', 'SR-2222', 'HD-2214', 'HD-2215', 'HD-2216', 'HD-2217', 'HD-2218', 'HD-2219', 'HD-2220', 'HD-2221',
+    'HD-2255', 'HD-2110', 'HD-2223', 'HD-2224', 'HD-2225'].includes(t.id))
     .flatMap((t) => ((t.console || {}).feedback || []).flatMap((a) => a.checks || [])).filter((r) => r.seen || r.typed || r.actionsAfter || r.triage)`));
   assert.deepEqual(kinds, []);
 }

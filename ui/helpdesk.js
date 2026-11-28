@@ -1777,7 +1777,8 @@ function hdConsoleRule(ticket, rule) {
   // Module 5 work on a computer's tool screens (each off unless a ticket uses it):
   //   seen: '<machine.seen key>', computer, after?: '<action id>'   the screen
   //     was opened on that computer (after that action, when given)
-  //   typed: '<regex source>', computer   a command typed on that computer
+  //   typed: '<regex source>', computer, via?   a command typed on that computer
+  //     (via: 'remote-console'   only a line typed in Remote Support's console)
   //   actionsAfter: { after, action, min, without? }   at least min of action
   //     after the last after, and no without after it (three clean dock cycles)
   //   triage: { category, subcategory, ci }   the student's classification
@@ -1800,7 +1801,7 @@ function hdConsoleRule(ticket, rule) {
     // A winget line that found nothing or was mistyped is refused too (Module 6).
     const refused = /^(dism|sfc|chkdsk): (wrong options|volume in use)$|^path not found$|^no folder$|^no log named$|^misspelled|^winget[^:]*: (no |not |more than one|unrecognized|missing value|nothing to)/i;
     return (Array.isArray(hdState.practiceLog) ? hdState.practiceLog : []).some(entry => entry && entry.type === 'command_run' && entry.computer === rule.computer
-      && test(rule.typed, String(entry.command || '').trim()) && !refused.test(String(entry.result || '')));
+      && (!rule.via || entry.via === rule.via) && test(rule.typed, String(entry.command || '').trim()) && !refused.test(String(entry.result || '')));
   }
   // Module 7: serverSeen: '<key>' | [keys]   this ticket's server or directory
   // screen (or the line that earns the same key, hdServerSeen) was read while
@@ -1830,6 +1831,13 @@ function hdConsoleRule(ticket, rule) {
   if (rule.attached) return (state.kbAttached || []).includes(rule.attached);
   if (rule.requestItem) return !!(ticket.request && ticket.request.item === rule.requestItem);
   if (rule.machine) return hdMachineValueIs(rule.machine);
+  // Module 10: remoteOpening: true   the opening script (Say lines before the
+  // first session) has all four habits; sayPattern: '<regex>'   a Say line
+  // matches (in a session, when during: true); remoteFound: '<computer>'   the
+  // student found that PC in Remote Support (its agent status is on screen).
+  if (rule.remoteOpening) return !hdRemoteOpening(ticket).missing.length;
+  if (rule.remoteFound) return hdRemoteState(ticket).find.toLowerCase() === String(rule.remoteFound).toLowerCase();
+  if (rule.sayPattern) return hdRemoteState(ticket).say.some(line => (!rule.during || !!line.during) && test(rule.sayPattern, line.text));
   if (rule.appInstalled) return hdWinIsInstalled(hdMachine(rule.appInstalled.computer), rule.appInstalled.app);
   if (rule.synced) {
     const oneDrive = hdWinOneDrive(hdMachine(rule.synced));
@@ -3425,6 +3433,13 @@ function hdCommsRule(ticket, rule) {
   if (rule.handoffNote) { const missing = hdHandoffMissing(ticket); return !!missing && !missing.length; }
   if (rule.warmHandoff) return (state.warmHandoffs || []).length > 0;
   if (rule.followUp) return !!state.followUp;
+  // Module 10: followUpAt: 'HH:MM'   the follow-up is at that time on the
+  // ticket's own day (its console clock's start, which never moves; follow-ups
+  // are saved on the shift clock, in UTC).
+  if (rule.followUpAt) {
+    const day = new Date(Date.parse(hdConsole(ticket).now) || hdShiftNow(ticket).getTime()).toISOString().slice(0, 10);
+    return !!state.followUp && hdFollowUpValue(state.followUp) === `${day}T${rule.followUpAt}`;
+  }
   if (rule.followUpUpdated) return hdFollowUpUpdated(ticket);
   if (rule.commentTime) return (state.commentChecks || []).some(entry => entry.hasTime && !entry.promise);
   if (rule.teamMessage) return (state.teamMessages || []).some(entry => entry.id === rule.teamMessage);
@@ -6267,11 +6282,19 @@ function hdWinDesktopNotices(name) {
 // when its show() says so. With no tab beyond General to show (no stored keys
 // on any listed computer), the Computers tab looks exactly as before.
 const HD_AD_COMPUTER_TABS = [
-  { id:'general', label:'General', show:() => true, body:(computer) => `<dl class="hd-dl" data-hd-ad-general><dt>Name</dt><dd>${hdEsc(computer.name)}</dd><dt>DNS name</dt><dd>${hdEsc(`${computer.name.toLowerCase()}.${HD_ORG.domain}`)}</dd><dt>Operating system</dt><dd>${hdEsc(computer.os || '')}</dd><dt>Primary user</dt><dd>${hdEsc(computer.user || '')}</dd><dt>OU</dt><dd><code>${hdEsc(computer.ou || '')}</code></dd><dt>BitLocker</dt><dd>${hdEsc(computer.bitlocker || '')}</dd></dl>` },
+  { id:'general', label:'General', show:() => true, body:(computer) => `<dl class="hd-dl" data-hd-ad-general><dt>Name</dt><dd>${hdEsc(computer.name)}</dd><dt>DNS name</dt><dd>${hdEsc(`${computer.name.toLowerCase()}.${HD_ORG.domain}`)}</dd><dt>Operating system</dt><dd>${hdEsc(computer.os || '')}</dd><dt>Primary user</dt><dd>${hdEsc(computer.user || '')}</dd><dt>OU</dt><dd><code>${hdEsc(computer.ou || '')}</code></dd>${hdAdComputerStatusRows(computer)}<dt>BitLocker</dt><dd>${hdEsc(computer.bitlocker || '')}</dd></dl>` },
   // Shown on every computer once any listed computer has stored keys, so the
   // tab never points at one computer.
   { id:'bitlocker', label:'BitLocker Recovery', source:'ad-bitlocker', show:() => hdAdKeysAnywhere(), body:(computer, machine) => hdAdBitlockerTab(computer, machine) },
 ];
+// Module 10: a computer record may say whether the object is enabled
+// (adEnabled) and when its machine password was last set
+// (machinePasswordLastSet). A record without them shows exactly as before.
+function hdAdComputerStatusRows(computer) {
+  const enabled = typeof computer.adEnabled === 'boolean' ? `<dt>Enabled</dt><dd data-hd-ad-enabled>${computer.adEnabled ? 'Yes' : 'No'}</dd>` : '';
+  const password = typeof computer.machinePasswordLastSet === 'string' && computer.machinePasswordLastSet ? `<dt>Machine password last set</dt><dd data-hd-ad-machine-password>${hdEsc(computer.machinePasswordLastSet)}</dd>` : '';
+  return enabled + password;
+}
 function hdAdKeysAnywhere() { return hdComputers().some(computer => hdWinHas(hdFeatureMachine(computer.name), 'ad-computer')); }
 function hdAdComputerState() { return hdState.adComputer && typeof hdState.adComputer === 'object' ? hdState.adComputer : {}; }
 function hdAdComputerTabs(name) {

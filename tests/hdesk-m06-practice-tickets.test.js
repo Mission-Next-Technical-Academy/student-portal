@@ -332,10 +332,12 @@ function testEarlyQuestionsCanBeAskedAgain() {
 // The Module 6 rule kinds are off for every older ticket: no older ticket uses them.
 // Module 7's tickets (HD-2189 to HD-2195) and Module 8's (HD-2196 to HD-2201,
 // SR-2207) are newer and reuse them.
-// Module 9's (HD-2212 to HD-2221, SR-2222) reuse them too.
+// Module 9's (HD-2212 to HD-2221, SR-2222) and Module 10's (HD-2255, HD-2110
+// rewritten, HD-2223 to HD-2225) reuse them too.
 const MODULE_7 = ['HD-2189', 'HD-2190', 'HD-2191', 'HD-2192', 'HD-2193', 'HD-2194', 'HD-2195', 'HD-2202', 'HD-2203', 'HD-2204', 'HD-2205', 'HD-2206',
   'HD-2196', 'HD-2197', 'SR-2207', 'HD-2198', 'HD-2199', 'HD-2200', 'HD-2201',
-  'HD-2212', 'HD-2213', 'SR-2222', 'HD-2214', 'HD-2215', 'HD-2216', 'HD-2217', 'HD-2218', 'HD-2219', 'HD-2220', 'HD-2221'];
+  'HD-2212', 'HD-2213', 'SR-2222', 'HD-2214', 'HD-2215', 'HD-2216', 'HD-2217', 'HD-2218', 'HD-2219', 'HD-2220', 'HD-2221',
+  'HD-2255', 'HD-2110', 'HD-2223', 'HD-2224', 'HD-2225'];
 function testOlderTicketsUseNoNewRule() {
   const tab = sim();
   const mine = ['HD-2176', ...IDS, ...MODULE_7];

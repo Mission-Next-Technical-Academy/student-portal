@@ -55,7 +55,9 @@
     // Module 6 (key its-07) Lab 6.1. Older attempts keep HD-2119 on their
     // sheet (portal/admin-sheets/hdesk.js).
     'hd-m07': ['HD-2176'],
-    'hd-m08': ['HD-2110', 'HD-2111'],
+    // Module 10 (key its-08) Lab 10.1. Older attempts keep HD-2110 and HD-2111
+    // (the instructor sheet's EARLIER_TICKETS_BY_LAB).
+    'hd-m08': ['HD-2255', 'HD-2110'],
     'hd-m09': ['SEC-2114', 'SEC-2115'],
     'hd-m10': ['HD-2158', 'HD-2159', 'HD-2160', 'SR-2161', 'HD-2162', 'SEC-2163'],
     'hd-m11': ['HD-2164'],
@@ -1962,8 +1964,266 @@
     ],
   });
 
-  /* ------------------------------------------------------ hd-m08..hd-m11 -
-   * (hd-m03, hd-m04, hd-m07, hd-m05 and hd-m06 have their own steps above.)
+  /* ---------------------------------------------------------- hd-m08 ---- */
+  /* Module 10 (key its-08) Lab 10.1, two remote sessions (coached set
+   * its-08-guided): Part A on HD-2255 (Marisol Vega, a headset that plays
+   * nothing after docking, fixed over Quick Assist), Part B on HD-2110 (Sofia
+   * Martin, a laptop that won’t sign in after a restore, reached with Remote
+   * Support at the sign-in screen and handed to Desktop Support). Feedback
+   * only, no points. Every check reads saved state (the ticket’s console
+   * state, the computer’s screens and lines it has run, the command history),
+   * never a tick box, so a step done early passes when it comes up. A typed
+   * step passes from the command history on the named computer, in any letter
+   * case, with extra valid options (Resolve-DnsName also earns nslookup). The
+   * clocks in this lab are all correct. The old HD-2110 and HD-2111 coach is
+   * gone; a saved run of it starts fresh. */
+  const HD8_A = 'HD-2255';
+  const HD8_B = 'HD-2110';
+  const HD8_PC_A = 'NS-LT-0421';
+  const HD8_PC_B = 'NS-LT-0131';
+  const HD8_HEADSET = 'Headset Earphone (USB Audio)';
+  const hd8Opened = (id) => typeof hdState !== 'undefined' && Boolean(hdState) && hdState.openedTicketId === id;
+  // A typed line on the Service Desk’s own PowerShell: any computer, but not a
+  // line typed in Remote Support’s console.
+  const hd8TypedAnywhere = (pattern) => (typeof hdState !== 'undefined' && Array.isArray(hdState.practiceLog) ? hdState.practiceLog : [])
+    .some((e) => e && e.type === 'command_run' && e.via !== 'remote-console' && pattern.test(String(e.command || '').trim()));
+  // The headset is the output now (the last output change chose it), and a
+  // test tone played after that was heard.
+  const hd8HeadsetFixed = () => {
+    const actions = hd2Actions(HD8_A);
+    const at = actions.map((a) => a.id).lastIndexOf('sound-output');
+    return at >= 0 && actions[at].to === HD8_HEADSET && actions.slice(at + 1).some((a) => a.id === 'sound-test' && a.heard === true);
+  };
+  // A line typed in Remote Support’s command console on that PC.
+  const hd8Typed = (typed) => hd2Rule(HD8_B, { typed, computer: HD8_PC_B, via: 'remote-console' });
+  // NS-DC01, alone or with its domain (not NS-DC01X).
+  const HD8_PORT = (port) => new RegExp(`^test-netconnection\\s+(?:\\S+\\s+)*?ns-dc01(?:\\.northstar\\.example)?\\s+(?:\\S+\\s+)*?-port\\s+${port}(\\s|$)`, 'i');
+  hd2ForgetStale('hd-m08', 'its-08-guided');
+
+  MODULE_COACHES.push({
+    id: 'hd-m08', module: 10, name: 'Guided Lab: two remote sessions', role: 'Tier 1 Help Desk Technician',
+    summary: 'Two remote sessions. Marisol can’t hear her headset after docking: run the whole session with Quick Assist and fix where Windows sends the sound. Sofia’s laptop won’t sign in after a restore: reach the sign-in screen with Remote Support, rule things out one at a time, and hand it to Desktop Support. Feedback only, no score.',
+    completionToken: 'hd-m08', home: '#/helpdesk/tickets',
+    resetState: () => {
+      if (typeof hdUseTicketSet === 'function') hdUseTicketSet('its-08-guided');
+      // HD-2255 starts open: lookups count only for an opened ticket.
+      if (typeof hdState !== 'undefined' && hdState) { hdState.selectedTicketId = HD8_A; hdState.openedTicketId = HD8_A; }
+    },
+    allow: ['#/helpdesk/dashboard', '#/helpdesk/tickets', '#/helpdesk/ticket', '#/helpdesk/remote-support', '#/helpdesk/settings-sound',
+      '#/helpdesk/event-viewer', '#/helpdesk/powershell', '#/helpdesk/active-directory', '#/helpdesk/knowledge-base',
+      '#/helpdesk/directory', '#/helpdesk/windows'],
+    steps: [
+      /* ---- Part A: HD-2255, Marisol Vega, "I can't hear anything in my headset" ---- */
+      {
+        route: '#/helpdesk/ticket', target: 'select[data-hd-field="category"], select[data-hd-field="impact"], select[data-hd-field="urgency"]',
+        title: 'Part A: triage Marisol’s call',
+        instruction: 'Phone call, 09:05. Marisol Vega in Accounts Payable says: “Hi, it’s Marisol in Accounts Payable. I docked my laptop this morning and now I can’t hear anything in my headset on Teams. People can hear me fine. I’m calling from my desk phone. Can you take a look?” Triage <strong>I can’t hear anything in my headset</strong> (HD-2255): <strong>Category</strong> Hardware › Audio / headset, <strong>Configuration item</strong> NS-LT-0421, <strong>Contact type</strong> Phone, <strong>Impact</strong> 3 and <strong>Urgency</strong> 2.',
+        body: 'Why: One person, her desk phone works and no call is due: the matrix gives P4. Success looks like: Priority shows <strong>P4</strong>.',
+        waitLabel: 'Next Step: Triaged as P4',
+        check: () => hd8Opened(HD8_A) && hd2Triaged(HD8_A, 'Hardware', 'Audio / headset', HD8_PC_A, 'P4'),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '[data-hd-verify], .hd-verify, .hd-caller',
+        title: 'Verify Marisol',
+        instruction: 'Verify Marisol: call her back on her directory number and ask for her employee ID (KB-0024).',
+        body: 'Why: You’re about to see her screen. Verify first, every time. Success looks like: The ticket shows <strong>Caller verified</strong>.',
+        waitLabel: 'Next Step: Marisol verified',
+        check: () => hd2Rule(HD8_A, { verified: true }),
+      },
+      {
+        route: '#/helpdesk/remote-support', target: '#hd-remote-say, [data-hd-remote-say]',
+        title: 'Say your opening before you connect',
+        instruction: 'In <strong>Say to the user</strong>, type your opening. Say that she’s verified, ask her permission to connect, ask her to close anything personal, and promise to tell her what you’re doing. The checker ticks the four habits and names any that are missing. Say it in your own words, before you connect. If you already connected, open the <strong>Dashboard</strong>, press <strong>Reset shift</strong>, then start the lab again from your course page.',
+        body: 'Why: The four habits start before you connect (Table 2). Success looks like: The checker ticks all four: <strong>verify · consent · privacy · narration</strong> (and names any missing).',
+        waitLabel: 'Next Step: Opening has all four habits',
+        check: () => hd2Rule(HD8_A, { remoteOpening: true }),
+      },
+      {
+        route: '#/helpdesk/remote-support', target: '[data-hd-remote-tool="quick-assist"], [data-hd-qa-start], [data-hd-remote-tools]',
+        title: 'Make a Quick Assist code',
+        instruction: 'Open <strong>Remote Support</strong>, choose <strong>Quick Assist</strong> and generate a code. Read the code to Marisol in <strong>Say to the user</strong>. If the code expires, make a new one.',
+        body: 'Why: She’s signed in, so Quick Assist fits (diagram 2). Typing your code is her choosing to let you in. Success looks like: Marisol types it. Status: <strong>Waiting for permission</strong>.',
+        waitLabel: 'Next Step: Code made and entered',
+        check: () => hd2Did(HD8_A, 'remote-code') && hd2Did(HD8_A, 'remote-code-entered'),
+      },
+      {
+        route: '#/helpdesk/remote-support', target: '[data-hd-remote-tools], [data-hd-qa-start]',
+        title: 'Ask for full control',
+        instruction: 'Ask for <strong>full control</strong>. Marisol chooses <strong>Allow</strong>.',
+        body: 'Why: Consent is explicit, and it’s logged. Success looks like: <strong>Connected (full control) 09:08</strong>; the session log line appears on the ticket.',
+        waitLabel: 'Next Step: Connected with full control',
+        check: () => hd2Did(HD8_A, 'remote-connected', (a) => a.tool === 'quick-assist' && a.control === 'full'),
+      },
+      {
+        route: '#/helpdesk/remote-support', target: '[data-hd-remote-asks], [data-hd-remote-ask]',
+        title: 'Ask her to close anything personal',
+        instruction: 'Use <strong>Ask the user</strong>: “Please close anything personal before I look around.”',
+        body: 'Why: Privacy (habit 2). Success looks like: “Done. Just Teams and Excel open now.” Her personal email tab is gone.',
+        waitLabel: 'Next Step: Personal tabs closed',
+        check: () => hd2Rule(HD8_A, { seen: 'ask:close-personal', computer: HD8_PC_A }),
+      },
+      {
+        route: '#/helpdesk/remote-support', target: '#hd-remote-say, [data-hd-remote-pc-tools], [data-hd-tools="settings-sound"]',
+        title: 'Say what you’re opening, then open Sound settings',
+        instruction: 'In <strong>Say to the user</strong>, say what you’re opening. Then, in the session’s PC tools, open <strong>Settings › System › Sound</strong> on her laptop.',
+        body: 'Why: Theory: docking adds devices, and Windows may have moved the sound. Success looks like: <strong>Output: Monitor speakers (DisplayPort Audio)</strong> is chosen; <strong>Headset Earphone (USB Audio)</strong> is listed.',
+        waitLabel: 'Next Step: Narrated, Sound settings read',
+        check: () => hd2Rule(HD8_A, { sayPattern: 'open|settings|sound|look|check', during: true }) && hd2Rule(HD8_A, { seen: 'sound', computer: HD8_PC_A }),
+      },
+      {
+        route: '#/helpdesk/settings-sound', target: '[data-hd-sound-output], [data-hd-sound-outputs], [data-hd-sound-test]',
+        title: 'Say what you’ll change, then choose the headset and test',
+        instruction: 'In <strong>Say to the user</strong>, say what you’ll change. Then choose <strong>Headset Earphone (USB Audio)</strong> as the output and press <strong>Test</strong>.',
+        body: 'Why: One change at a time, and she’s told before it happens. Success looks like: “I can hear the beep!” The change is logged: Monitor speakers → Headset.',
+        waitLabel: 'Next Step: Headset chosen, test tone heard',
+        check: hd8HeadsetFixed,
+      },
+      {
+        route: '#/helpdesk/remote-support', target: '[data-hd-remote-asks], [data-hd-remote-ask]',
+        title: 'Check with a Teams test call',
+        instruction: 'Use <strong>Ask the user</strong> to ask her to make a Teams test call (Teams › Settings › Devices › <strong>Make a test call</strong>).',
+        body: 'Why: Verify with the user, in the app she uses. Success looks like: “I can hear myself back.”',
+        waitLabel: 'Next Step: Teams test call is clear',
+        check: () => hd2Rule(HD8_A, { seen: 'ask:test-call', computer: HD8_PC_A, after: 'sound-output' }),
+      },
+      {
+        route: '#/helpdesk/remote-support', target: '#hd-remote-say, [data-hd-remote-end]',
+        title: 'Say you’re disconnecting, then end the session',
+        instruction: 'In <strong>Say to the user</strong>, say you’re disconnecting. Then press <strong>End session</strong>.',
+        body: 'Why: Close cleanly (habit 4). Success looks like: <strong>Session ended 09:14</strong>; the log line has the start, the end and “allowed by Marisol Vega 09:08”.',
+        waitLabel: 'Next Step: Session ended',
+        check: () => hd2Did(HD8_A, 'remote-end'),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '#hd-note-input, .hd-comments, #hd-resolution-code',
+        title: 'Write the note and the plain-language reply, then resolve',
+        instruction: 'On HD-2255, write the <strong>work note</strong> with the lines Reported:, Tried: and Result:, post a <strong>comment</strong> to Marisol in plain words, set the resolution code to <strong>Solution provided</strong> and resolve the ticket.',
+        body: 'Why: Document so the next technician never starts over. Success looks like: Note has Reported / Tried / Result with the session times; comment is plain language; ticket <strong>Resolved</strong>. A model note:<br><strong>Reported:</strong> No sound in her headset on Teams since she docked this morning; others can hear her. Called from her desk phone.<br><strong>Tried:</strong> Verified by callback and employee ID. Quick Assist with her consent, 09:08 to 09:14; she closed personal tabs first. Settings › Sound: output had switched to Monitor speakers (DisplayPort Audio) on docking; changed it to Headset Earphone (USB Audio); test tone heard; Teams test call clear.<br><strong>Result:</strong> Headset sound working; Marisol confirmed; session ended 09:14.<br>A model comment: Hi Marisol, you can hear your calls again. When you docked, Windows started sending sound to your monitor, which has no speakers, instead of your headset. We’ve switched it back. If it happens again after docking, the sound setting is the place to look, or just call us. – Riley',
+        waitLabel: 'Next Step: HD-2255 noted and resolved',
+        check: () => hd2Rule(HD8_A, { note: true }) && hd2Rule(HD8_A, { comment: true })
+          && hd2Rule(HD8_A, { code: 'Solution provided' }) && hd2Rule(HD8_A, { status: 'Resolved' }),
+      },
+      /* ---- Part B: HD-2110, Sofia Martin, "My laptop won't let me sign in" ---- */
+      {
+        route: '#/helpdesk/ticket', target: 'select[data-hd-field="category"], select[data-hd-field="impact"], select[data-hd-field="urgency"]',
+        title: 'Part B: triage Sofia’s call',
+        instruction: 'Open <strong>My laptop won’t let me sign in</strong> (HD-2110) from <strong>Tickets</strong>. Phone call, 09:20. Sofia Martin in Operations says: “It’s Sofia on the warehouse floor. My laptop won’t let me sign in. It says the trust relationship between this workstation and the primary domain failed. Desktop Support gave it back to me yesterday afternoon; they put in a new drive and restored it from a backup. I need it for the 10:00 shift handover.” Triage it: <strong>Category</strong> Software › Windows sign-in, <strong>Configuration item</strong> NS-LT-0131, <strong>Contact type</strong> Phone, <strong>Impact</strong> 3 and <strong>Urgency</strong> 1.',
+        body: 'Why: One person who can’t work: P3. Success looks like: Priority shows <strong>P3</strong>.',
+        waitLabel: 'Next Step: HD-2110 opened, triaged as P3',
+        check: () => hd8Opened(HD8_B) && hd2Triaged(HD8_B, 'Software', 'Windows sign-in', HD8_PC_B, 'P3'),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '[data-hd-verify], .hd-verify, .hd-caller',
+        title: 'Verify Sofia',
+        instruction: 'Verify Sofia: call her back and ask for her employee ID (KB-0024).',
+        body: 'Why: Same rule, every session. Success looks like: <strong>Caller verified</strong>.',
+        waitLabel: 'Next Step: Sofia verified',
+        check: () => hd2Rule(HD8_B, { verified: true }),
+      },
+      {
+        route: '#/helpdesk/remote-support', target: '[data-hd-remote-tool="quick-assist"], [data-hd-remote-tool="remote-support"], [data-hd-remote-find], [data-hd-remote-request]',
+        title: 'Reach the sign-in screen with Remote Support',
+        instruction: 'In <strong>Remote Support</strong>, try <strong>Quick Assist</strong> first, then switch to <strong>Remote Support › NS-LT-0131 › Request session</strong>. Say: “You’ll see a request on your screen from Riley Morgan, Service Desk. Please choose Allow.” Never use <em>Connect without asking</em> on a person’s PC, and never ask for her password: she signs in herself. If you did connect without asking, open the <strong>Dashboard</strong>, press <strong>Reset shift</strong>, then start the lab again from your course page.',
+        body: 'Why: Nobody is signed in, so Quick Assist can’t reach her. The company tool’s agent runs at the sign-in screen, and she still chooses. Success looks like: Quick Assist: “Nobody is signed in to NS-LT-0131.” Remote Support: agent <strong>Online</strong>; Sofia allows; <strong>Connected at the sign-in screen 09:23</strong>.',
+        waitLabel: 'Next Step: Connected at the sign-in screen, with her Allow',
+        check: () => hd2Did(HD8_B, 'quick-assist-refused')
+          && hd2Did(HD8_B, 'remote-connected', (a) => a.tool === 'remote-support' && a.mode === 'attended')
+          && !hd2Did(HD8_B, 'remote-unattended'),
+      },
+      {
+        route: '#/helpdesk/remote-support', target: '[data-hd-remote-asks], [data-hd-remote-ask], [data-hd-evidence="wo-3308"], .hd-evidence',
+        title: 'Read the words, ask what changed, find the scope',
+        instruction: 'Read the sign-in screen’s exact words. Use <strong>Ask the user</strong> to ask what changed, then go back to HD-2110 and open the work order <strong>WO-3308</strong>. Search the queue for the same error.',
+        body: 'Why: Evidence before action: the words, what changed and the scope. Success looks like: “The trust relationship between this workstation and the primary domain failed.” WO-3308: “Drive replaced; NS-LT-0131 restored from the image taken 30 days ago; returned to user yesterday 16:10.” No other tickets: <strong>one user</strong>.',
+        waitLabel: 'Next Step: What changed asked, WO-3308 read',
+        check: () => hd2Rule(HD8_B, { seen: 'ask:what-changed', computer: HD8_PC_B }) && hd2Rule(HD8_B, { evidence: 'wo-3308' }),
+      },
+      {
+        route: '#/helpdesk/remote-support', target: '[data-hd-remote-tab="console"], #hd-remote-cmd',
+        title: 'Rule out the network and DNS',
+        instruction: 'In the session’s <strong>Command console</strong>, type the two lines and check the domain controller answers and its name resolves. <details><summary>Show me the command</summary><code>ping NS-DC01</code>, then <code>nslookup northstar.example</code> (<code>Resolve-DnsName northstar.example</code> earns the same)</details>',
+        body: 'Why: One hypothesis at a time. Rule out the network and DNS first (Module 09; Table 4). Success looks like: Replies from 10.20.0.10; <code>northstar.example</code> returns 10.20.0.10 and 10.20.0.11. <strong>Network and DNS fine</strong>.',
+        waitLabel: 'Next Step: ping and nslookup typed on NS-LT-0131',
+        check: () => hd8Typed(hd4Ping('ns-dc01(\\.northstar\\.example)?')) && hd8Typed(hd4Lookup('northstar\\.example')),
+      },
+      {
+        route: '#/helpdesk/remote-support', target: '[data-hd-remote-tab="console"], #hd-remote-cmd',
+        title: 'Rule out the clock',
+        instruction: 'In the Command console, check the PC’s clock and its time source, then prove the PC can reach its time source. Type both lines. <details><summary>Show me the command</summary><code>w32tm /query /status</code>, then <code>w32tm /resync</code></details>',
+        body: 'Why: A wrong clock also stops a domain sign-in (Table 4). Check it, and prove the PC can reach its time source. Success looks like: Source <strong>NS-DC01.northstar.example</strong>, Last Successful Sync Time <strong>today 08:58</strong>; resync: “The command completed successfully.” <strong>Time ruled out</strong>.',
+        waitLabel: 'Next Step: Clock checked and resynced',
+        check: () => hd8Typed('^w32tm(\\.exe)?\\s+/query\\s+(?:\\S+\\s+)*/status(\\s|$)') && hd8Typed('^w32tm(\\.exe)?\\s+/resync(\\s|$)')
+          && hd2Did(HD8_B, 'clock-resync', (a) => a.result === 'success'),
+      },
+      {
+        route: '#/helpdesk/remote-support', target: '[data-hd-remote-tab="console"], [data-hd-remote-tab="event-log"], #hd-remote-cmd',
+        title: 'Test the trust itself',
+        instruction: 'In the Command console, test the computer’s trust with the domain. Then open the session’s <strong>Event log</strong> tab and read the System log. Tier 1 only tests; never add <code>-Repair</code>. <details><summary>Show me the command</summary><code>Test-ComputerSecureChannel</code> (optional for the log: <code>Get-WinEvent -LogName System -MaxEvents 20</code>)</details>',
+        body: 'Why: Test the trust itself. Success looks like: <strong>False</strong>. System log: <strong>NETLOGON 3210</strong>, “Failed to authenticate with domain controller NS-DC01.”',
+        waitLabel: 'Next Step: Secure channel tested, System log read',
+        check: () => hd8Typed('^test-computersecurechannel(?!.*-repair)(\\s|$)') && hd2Rule(HD8_B, { seen: 'secure-channel', computer: HD8_PC_B })
+          && hd2Rule(HD8_B, { seen: 'event-log:system', computer: HD8_PC_B }),
+      },
+      {
+        route: '#/helpdesk/active-directory', target: '[data-hd-ad-computer], [data-hd-ad-computers], .hd-ad',
+        title: 'Read the computer object',
+        instruction: 'Open <strong>Active Directory › Computers</strong>, find <strong>NS-LT-0131</strong> and press <strong>Open</strong> on its row. It is read-only.',
+        body: 'Why: Is the computer object missing or disabled, or is it the password? Success looks like: Enabled, in <strong>OU=Operations,OU=Workstations</strong>, machine password last set <strong>12 days ago</strong>. The restored image is 30 days old, so it has an older password than the domain.',
+        waitLabel: 'Next Step: NS-LT-0131’s computer object read',
+        check: () => hd2Rule(HD8_B, { serverSeen: 'ad-computer:' + HD8_PC_B }),
+      },
+      {
+        route: '#/helpdesk/knowledge-base', target: '.hd-kb-search, .hd-related-knowledge, [data-hd-kb-open="KB-0095"]',
+        title: 'Find KB-0095 and read its audience',
+        instruction: 'Search the knowledge base for the exact error text and open <strong>KB-0095</strong>. Read its <strong>Audience</strong>, then attach it to HD-2110.',
+        body: 'Why: Theory from approved knowledge, and who owns the fix. Success looks like: KB-0095: <strong>Audience: Desktop Support</strong>. Tier 1 collects the evidence, escalates P3 and offers a hot desk; never rejoins or repairs.',
+        waitLabel: 'Next Step: KB-0095 read and attached',
+        check: () => hd2Rule(HD8_B, { kb: 'KB-0095' }) && hd2Rule(HD8_B, { attached: 'KB-0095' }),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '.hd-team-messages, [data-hd-team]',
+        title: 'Message Desktop Support',
+        instruction: 'On HD-2110, use <strong>Message another team</strong> and choose <strong>Desktop Support</strong>. Write the handoff: the exact error, WO-3308, one user, the four checks and their results, what you didn’t try and why (no repair or rejoin: that is Desktop Support’s account), and the 10:00 handover.',
+        body: 'Why: Stop and escalate: the fix needs an account you don’t have (Table 3). Success looks like: The handoff names the exact error, WO-3308, one user, the four checks and their results, what you didn’t try and why, and the 10:00 handover.',
+        waitLabel: 'Next Step: Desktop Support messaged',
+        check: () => hd2Rule(HD8_B, { teamMessage: 'desktop-ns-lt-0131' }),
+      },
+      {
+        route: '#/helpdesk/remote-support', target: '#hd-remote-say, [data-hd-remote-end]',
+        title: 'Tell her the plan, then end the session',
+        instruction: 'In <strong>Say to the user</strong>, say what happens next: Desktop Support will fix it, and she can sign in at the hot desk PC at the end of row 3 for the handover. Then press <strong>End session</strong>.',
+        body: 'Why: Close cleanly, with a plan for her. Success looks like: <strong>Session ended 09:31</strong>; she has somewhere to work.',
+        waitLabel: 'Next Step: Plan said, session ended',
+        check: () => hd2Rule(HD8_B, { sayPattern: 'hot desk|row 3', during: true }) && hd2Did(HD8_B, 'remote-end'),
+      },
+      {
+        route: '#/helpdesk/ticket', target: '#hd-note-input, .hd-comments, #hd-assignment-group, [data-hd-field="assignmentGroup"]',
+        title: 'Write the handoff note and assign to Desktop Support',
+        instruction: 'On HD-2110, write the <strong>work note</strong> with the lines Reported:, Tried:, Result: and Next action:. Post a <strong>comment</strong> to Sofia in plain words. Then <strong>assign the ticket to Desktop Support (Tier 2)</strong>. Do not resolve it.',
+        body: 'Why: The note is how Desktop Support starts where you stopped. Success looks like: Note has Reported / Tried / Result / <strong>Next action</strong>; assigned to <strong>Desktop Support</strong>. A model note:<br><strong>Reported:</strong> Can’t sign in to NS-LT-0131: “The trust relationship between this workstation and the primary domain failed.” Desktop Support returned the laptop yesterday after a new drive and a restore (WO-3308). Needs it for the 10:00 shift handover. One user.<br><strong>Tried:</strong> Verified by callback and employee ID. Remote Support (attended) at the sign-in screen; Sofia allowed it 09:23. ping NS-DC01 replies and nslookup northstar.example is correct, so the network and DNS are fine. w32tm /query /status: source NS-DC01, synced 08:58; w32tm /resync OK, so time is fine. Test-ComputerSecureChannel: False; System log NETLOGON 3210. AD: NS-LT-0131 enabled, machine password set 12 days ago; the restored image is 30 days old. KB-0095: a Desktop Support repair. Not tried: repairing the secure channel or rejoining (needs Desktop Support’s account). Session ended 09:31.<br><strong>Result:</strong> Escalated to Desktop Support at P3. Sofia is using the hot desk PC at the end of row 3 for the handover.<br><strong>Next action:</strong> Desktop Support to repair NS-LT-0131’s secure channel and confirm Sofia can sign in; Service Desk to tell Sofia when it’s ready.<br>A model comment: Hi Sofia, thanks for your patience. When your laptop was restored from a backup yesterday, it went back to an older copy of the key it uses to prove it belongs to our network, so the network no longer recognises it. Our desktop team has the details and will fix it. Until then you can sign in on the PC at the end of row 3, and your files will be there. We’ll let you know as soon as your laptop is ready. – Riley',
+        waitLabel: 'Next Step: HD-2110 noted and assigned to Desktop Support',
+        check: () => hd2Rule(HD8_B, { group: 'Desktop Support (Tier 2)' }) && hd2Rule(HD8_B, { comment: true })
+          && (hd2Rule(HD8_B, { handoffNote: true }) || hd2Rule(HD8_B, { note: true })) && !hd2Rule(HD8_B, { status: 'Resolved' }),
+      },
+      {
+        route: '#/helpdesk/powershell', target: '#hd-ps-input',
+        title: 'Know your tools: which remote protocol a server allows',
+        instruction: 'In the Service Desk’s own <strong>PowerShell</strong> (not the remote console), test whether the domain controller NS-DC01 accepts Remote Desktop, then whether it accepts SSH. Then decide what each result means. <details><summary>Show me the command</summary><code>Test-NetConnection NS-DC01 -Port 3389</code>, then <code>Test-NetConnection NS-DC01 -Port 22</code></details>',
+        body: 'Why: Which remote protocol a server allows (Table 1; Module 09’s ports). Success looks like: Port 3389 <strong>True</strong>: Remote Desktop is open, for admins. Port 22 <strong>False</strong>: no SSH on this Windows server.',
+        waitLabel: 'Next Step: Ports 3389 and 22 tested',
+        check: () => hd8TypedAnywhere(HD8_PORT(3389)) && hd8TypedAnywhere(HD8_PORT(22)),
+      },
+      {
+        title: 'Finish the lab',
+        instruction: 'Check worked. Press <strong>Finish</strong> to send your work to your course page.',
+        body: 'Your triage, sessions, screens, commands, tickets, notes and comments count once your course page confirms it saved them. There is no score.',
+        finish: { label: 'Finish', href: itsPortalUrl('#/program/it-support/module/10', 'hd-m08') },
+      },
+    ],
+  });
+
+  /* ------------------------------------------------------ hd-m09..hd-m11 -
+   * (hd-m03, hd-m04, hd-m05, hd-m06, hd-m07 and hd-m08 have their own steps above.)
    * Modules 3-9 each work one or two real tickets through the same generic
    * evidence/path/diagnose/note/resolve flow hd-m01/hd-m02 already proved
    * out — reused here via hdTicketFlowSteps() instead of hand-duplicating
@@ -2079,28 +2339,6 @@
     });
     return MODULE_COACHES[MODULE_COACHES.length - 1];
   }
-
-  /* hd-m08 — Module 10 (key its-08): Troubleshooting Methodology & Diagnostics. Two
-   * tickets, both genuinely unfamiliar-shaped problems worked with the
-   * five-step method rather than a memorized fix. */
-  hdRegisterSimpleCoach('hd-m08', 10, 'Two Problems You Haven’t Seen Before', 'Work two real unfamiliar-shaped tickets end to end — a broken domain trust and a BitLocker recovery — applying the troubleshooting method itself, not a memorized answer.', ['HD-2110', 'HD-2111']).steps =
-    hdTicketFlowSteps('HD-2110', {
-      opening: true, isLast: false, finalStatus: 'Resolved',
-      openBody: 'Sofia’s workstation says the trust relationship with the domain failed — right after a VM snapshot was restored yesterday.',
-      evidenceBody: 'A failed secure-channel test alongside a recent snapshot restore is the clue — snapshots roll back more than just files.',
-      pathBody: 'Validating DNS, time, and the computer object’s state comes before attempting any repair.',
-      diagnosisBody: 'A snapshot restored right before the failure points at a rolled-back machine-account password, not a user password or DNS issue.',
-      noteBody: 'Name the snapshot-timing evidence, the approved repair procedure you used, and that domain sign-in was verified afterward.',
-      resolveBody: 'Resolving is gated on your diagnosis actually being correct.',
-    }).concat(hdTicketFlowSteps('HD-2111', {
-      opening: false, isLast: true, finalStatus: 'Resolved', finishHref: itsPortalUrl('#/program/it-support/module/10', 'hd-m08'),
-      openBody: 'Dina’s laptop is asking for a BitLocker recovery key right after an overnight firmware update.',
-      evidenceBody: 'A completed, approved firmware change logged overnight, right before the recovery prompt, is the clue — not tampering.',
-      pathBody: 'Verifying the user and device identity, and matching the recovery key ID, comes before disclosing anything.',
-      diagnosisBody: 'An approved firmware change immediately before the prompt points at expected TPM measurement changes, not unauthorized tampering.',
-      noteBody: 'Name the firmware-change evidence, that identity was verified before disclosure, and that protection status was confirmed afterward.',
-      resolveBody: 'Resolving is gated on your diagnosis actually being correct.',
-    }));
 
   /* hd-m09 — Module 11 (key its-09): Security Fundamentals for IT Support. Two Security
    * Incident tickets — both correctly end in 'Escalated', not 'Resolved'. */

@@ -449,13 +449,17 @@ function testNothingFromTheGradedQueue() {
   // unchanged: they are no later module's content, so they are not read here.
   // Module 9's (key its-04) ticket 9-B (HD-2215) keeps its approved text: "the
   // warehouse system ... fine" (Module 9 spec, section 8.4). That one word is
-  // allowed on that one ticket, the same way.
-  const MODULE_8 = { 'HD-2197': ['re-register'], 'HD-2215': ['warehouse'] };
+  // allowed on that one ticket, the same way. Module 10's (key its-08) Lab
+  // Part B (HD-2110, "Sofia on the warehouse floor") and ticket 10-C (HD-2225,
+  // "Victor in the warehouse office") keep their approved text (Module 10
+  // spec, sections 8.2 and 8.4), the same way.
+  const MODULE_8 = { 'HD-2197': ['re-register'], 'HD-2215': ['warehouse'], 'HD-2110': ['warehouse'], 'HD-2225': ['warehouse'] };
   Object.entries(MODULE_8).forEach(([id, allowed]) => tab.run(`JSON.stringify(HD_TICKET_TEMPLATES.find((t) => t.id === '${id}'))`).toLowerCase()
     .split(/[^a-z0-9-]+/).filter(Boolean).filter((word) => !allowed.includes(word))
     .forEach((word) => assert.ok(!GRADED_WORDS.has(hash(word)), `no other graded story word in ${id}`)));
-  // Module 9 (key its-04) hid HD-2104, HD-2105 and HD-2113 the same way.
-  const HIDDEN_OLDER = ['SR-2107', 'HD-2118', 'HD-2104', 'HD-2105', 'HD-2113'];
+  // Module 9 (key its-04) hid HD-2104, HD-2105 and HD-2113 the same way, and
+  // Module 10 (key its-08) HD-2111.
+  const HIDDEN_OLDER = ['SR-2107', 'HD-2118', 'HD-2104', 'HD-2105', 'HD-2113', 'HD-2111'];
   const content = tab.run(`JSON.stringify({
     tickets: HD_TICKET_TEMPLATES.filter((t) => t.ownSet && t.id !== 'HD-2186' && !${JSON.stringify([...MODULE_7, ...Object.keys(MODULE_8), ...HIDDEN_OLDER])}.includes(t.id)),
     kb: HD_KB_ARTICLES.filter((a) => ['KB-0062', 'KB-0063'].includes(a.id)),

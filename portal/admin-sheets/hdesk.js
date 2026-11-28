@@ -34,7 +34,9 @@
     'lab-its-06-identity-access': ['HD-2196', 'HD-2197', 'SR-2207'],
     // Module 6 (key its-07), from 2026-11-24: Lab 6.1 is HD-2176.
     'lab-its-07-app-cert': ['HD-2176'],
-    'lab-its-08-unfamiliar-problems': ['HD-2110', 'HD-2111'],
+    // Module 10 (key its-08), from 2026-11-27: Lab 10.1 is HD-2255 (Part A,
+    // Quick Assist) and HD-2110 rewritten (Part B, Remote Support).
+    'lab-its-08-unfamiliar-problems': ['HD-2255', 'HD-2110'],
     'lab-its-09-security-incidents': ['SEC-2114', 'SEC-2115'],
     'lab-its-11-handoff-documentation': ['HD-2113', 'HD-2124'],
   };
@@ -44,8 +46,8 @@
   // and Module 6's lab HD-2119 until 2026-11-24, the same way. Module 7's lab
   // walked HD-2108 and HD-2117 until 2026-11-25, Module 8's lab SR-2107
   // and HD-2118 until 2026-11-26, and Module 9's lab HD-2104 and HD-2105 until
-  // 2026-11-26.
-  const EARLIER_TICKETS_BY_LAB = { 'lab-its-01-ticket-triage': ['HD-2101'], 'lab-its-02-device-manager': ['HD-2106'], 'lab-its-03-blank-desktop': ['HD-2109'], 'lab-its-07-app-cert': ['HD-2119'], 'lab-its-05-server-ad': ['HD-2108', 'HD-2117'], 'lab-its-06-identity-access': ['SR-2107', 'HD-2118'], 'lab-its-04-connectivity': ['HD-2104', 'HD-2105'] };
+  // 2026-11-26. Module 10's lab walked HD-2110 and HD-2111 until 2026-11-27.
+  const EARLIER_TICKETS_BY_LAB = { 'lab-its-01-ticket-triage': ['HD-2101'], 'lab-its-02-device-manager': ['HD-2106'], 'lab-its-03-blank-desktop': ['HD-2109'], 'lab-its-07-app-cert': ['HD-2119'], 'lab-its-05-server-ad': ['HD-2108', 'HD-2117'], 'lab-its-06-identity-access': ['SR-2107', 'HD-2118'], 'lab-its-04-connectivity': ['HD-2104', 'HD-2105'], 'lab-its-08-unfamiliar-problems': ['HD-2110', 'HD-2111'] };
   const TITLES = {
     // Retired 2026-11-10; kept so its past attempts still open.
     'lab-its-01-lms-validation': 'Module 01 · LMS & Environment Validation',
@@ -70,7 +72,7 @@
     'lab-its-07-app-cert': 'Module 06 · Lab 6.1 · Guided Lab: endpoint check',
     'lab-its-07-practice-tickets': 'Module 06 · Lab 6.2 · Practice tickets (not graded)',
     'lab-its-07-prove-it': 'Module 06 · Prove It: Independent Ticket',
-    'lab-its-08-unfamiliar-problems': 'Module 10 · Unfamiliar Problems',
+    'lab-its-08-unfamiliar-problems': 'Module 10 · Two remote sessions',
     'lab-its-09-security-incidents': 'Module 11 · Security Incidents',
     'lab-its-10-priority-queue': 'Module 02 · Lab 2.1 · Guided Lab: queue shift',
     'lab-its-10-practice-tickets': 'Module 02 · Lab 2.2 · Practice tickets (not graded)',
@@ -469,6 +471,15 @@
       prompt: 'Lab 9.1 Part B. Look for: ipconfig /all on both adapters, the Wi-Fi network’s Properties, ping to intranet (10.20.0.45, timed out) and nslookup (10.20.0.50), CHG-7802 and the intranet DNS record, then ipconfig /flushdns, ping and port 443 again, and Farah confirming it opens. The comment should have no internal terms.' },
     'SR-2222': { articles: ['KB-0097'], questions: [], comment: false, requestState: 'Closed Complete',
       prompt: 'Lab 9.1 Part C, the request: a new starter’s laptop NS-LT-0416 for Kenji Watanabe, approved by Monica Hall. Look for: company DNS checked (ipconfig /all, nslookup northstar.example), the join with the provisioning account into OU=Logistics,OU=Workstations, the restart, gpupdate /force, the computer object read in Active Directory, a close note and the request closed.' },
+    // Module 10 Lab 10.1 (from 2026-11-27). Part A: Marisol's headset after
+    // docking, over Quick Assist, on HD-2255. Part B: Sofia's laptop that won't
+    // sign in after a restore, over Remote Support, handed to Desktop Support on
+    // HD-2110 (it ends Escalated, not Resolved). The session asks are not chat
+    // questions, so none is listed.
+    'HD-2255': { articles: [], questions: [],
+      prompt: 'Lab 10.1 Part A. Look in the ticket history for the session: Marisol verified (KB-0024), the Quick Assist code, her Allow for full control, the session log line with its start and end, the sound output changed from Monitor speakers to Headset Earphone, and the end of the session. The note should give the session times; the comment should have no internal terms.' },
+    'HD-2110': { articles: ['KB-0095'], questions: [], expectedStatus: 'Escalated',
+      prompt: 'Lab 10.1 Part B. Look in the ticket history for: Sofia verified, Quick Assist refused (nobody signed in), a Remote Support request she allowed at the sign-in screen (never Connect without asking), the command console lines on NS-LT-0131 in order (ping NS-DC01, nslookup northstar.example, w32tm /query /status, w32tm /resync, Test-ComputerSecureChannel), WO-3308, the computer object read in Active Directory, KB-0095, the message to Desktop Support and the ticket assigned there. No repair or rejoin line. The note should have Reported, Tried, Result and Next action.' },
   };
   function labConsoleSections(ticket, id) {
     const spec = LAB_CONSOLE[id];
@@ -539,11 +550,18 @@
     }
     // A card holding Lab 4.3 and Lab 4.4 grades both labs' tickets, in course order.
     const cardKeys = new Set([key].concat(ctx.rows.map((row) => row && row.lab_key)));
+    // Tickets shown from a lab's earlier list. Module 10 keeps HD-2110 in both
+    // its lists, so only the tickets new to the lab decide which list an
+    // attempt was worked against, and an earlier ticket never gets the new
+    // lab's console sections.
+    const earlierChosen = new Set();
     const ticketsFor = (labKey) => {
       const current = TICKETS_BY_LAB[labKey];
       const earlier = EARLIER_TICKETS_BY_LAB[labKey];
       const saved = (list) => list.some((id) => tickets.some((ticket) => ticket.id === id));
-      return earlier && !saved(current) && saved(earlier) ? earlier : current;
+      const fresh = earlier ? current.filter((id) => !earlier.includes(id)) : current;
+      if (earlier && !saved(fresh) && saved(earlier)) { earlier.forEach((id) => earlierChosen.add(id)); return earlier; }
+      return current;
     };
     // Another lab in the card counts only when its tickets were saved: a
     // newer Lab 4.4 practice record holds none.
@@ -552,6 +570,7 @@
     return ids.flatMap((id) => {
       const ticket = tickets.find((entry) => entry.id === id) || null;
       const saved = Boolean(ticket);
+      const labSpec = earlierChosen.has(id) ? null : LAB_CONSOLE[id];
       const diagnosisCheck = {
         label: 'Diagnosis checkpoint shown to the student',
         expected: 'The student should identify a cause supported by the ticket evidence.',
@@ -563,18 +582,18 @@
       const history = saved ? (ticket.statusHistory || []).map((entry) => `${entry.time}: ${entry.action}`) : null;
       // A lab ticket may name its own end state (HD-2190 ends Escalated).
       // A request record (SR-2207) ends on its request's state, not the ticket's.
-      const requestState = saved && LAB_CONSOLE[id] && LAB_CONSOLE[id].requestState;
-      const expectedStatus = saved ? requestState || (LAB_CONSOLE[id] && LAB_CONSOLE[id].expectedStatus) || ticket.expectedStatus : null;
+      const requestState = saved && labSpec && labSpec.requestState;
+      const expectedStatus = saved ? requestState || (labSpec && labSpec.expectedStatus) || ticket.expectedStatus : null;
       const endState = !saved ? null : requestState ? text(((ticket.console || {}).request || {}).state) || 'Not closed' : ticket.status;
       const worked = id === 'HD-2101' ? investigationSections(saved ? { ...ticket, investigation: result.work && result.work.investigation } : null)
         : id === 'HD-2150' ? consoleSections(saved ? ticket : null)
-          : LAB_CONSOLE[id] ? labConsoleSections(saved ? ticket : null, id) : null;
+          : labSpec ? labConsoleSections(saved ? ticket : null, id) : null;
       // HD-2150's note has three parts (Reported / Tried / Result).
       const noteParts = id === 'HD-2150' ? [{
         label: 'Reported / Tried / Result note', expected: 'All three parts', test: () => (saved && ticket.console && ticket.console.outcomes ? ticket.console.outcomes.note === true : null),
         given: () => (saved && ticket.console ? (ticket.console.outcomes && ticket.console.outcomes.note ? 'All three parts' : `Missing: ${(ticket.console.noteMissing || []).join(', ') || 'a complete note'}`) : null),
         fix: 'Write the note in three parts so the next technician can follow it: Reported, Tried, Result.',
-      }] : LAB_CONSOLE[id] ? [{
+      }] : labSpec ? [{
         // HD-2180 has no outcomes list: its last note's missing parts say it.
         label: 'Reported / Tried / Result note', expected: 'All three parts', test: () => (saved && ticket.console ? !(ticket.console.noteMissing || []).length : null),
         given: () => (saved && ticket.console ? ((ticket.console.noteMissing || []).length ? `Missing: ${ticket.console.noteMissing.join(', ')}` : 'All three parts') : null),

@@ -635,6 +635,45 @@ function hdIts04PracticeCloud() {
 }
 const HD_ITS04_PRACTICE_CLOUD = hdIts04PracticeCloud();
 
+// Module 10 (key its-08): KB-0095, KB-0110 and KB-0111. They are practice-only,
+// so a Prove shift never gets them, and they are never in HD_KB_ARTICLES: only
+// Module 10's two sets carry them (kbArticles, ui/helpdesk.js hdKbArticles).
+// KB-0095 is for Desktop Support: Tier 1 collects the evidence and hands on.
+const HD_ITS08_KB_ARTICLES = [
+  { id:'KB-0095', title:'The trust relationship between this workstation and the primary domain failed', category:'Windows', updated:'2026-08-24', audience:'Desktop Support', practiceOnly:true, keywords:'trust relationship · primary domain failed · domain trust · secure channel · can\'t sign in domain', summary:'What it means: the computer\'s machine account password no longer matches the one the domain holds. It happens most often after a PC is restored from an image or snapshot older than the machine\'s last password change (every 30 days). Desktop Support: sign in with the Desktop Support local account, run Test-ComputerSecureChannel -Repair -Credential <Desktop Support account>, restart, then confirm domain sign-in and gpresult /r. Rejoin only if the repair fails. Tier 1 (Service Desk): 1) Verify the caller. 2) Copy the exact error. 3) Check scope: one PC or many (many: P2 to Server & Identity). 4) Rule out the network (ping the domain controller, nslookup northstar.example) and the clock (w32tm /query /status). 5) Test-ComputerSecureChannel (False confirms it). 6) Check the computer object in Active Directory › Computers: missing or disabled goes to Server & Identity instead. 7) Escalate to Desktop Support with the evidence and any restore or work order; offer a hot desk. Tier 1 never runs -Repair, Remove-Computer or a rejoin.' },
+  { id:'KB-0110', title:'Remote support sessions: consent, privacy and the session log', category:'Remote support', updated:'2026-08-24', audience:'Service Desk', practiceOnly:true, keywords:'remote · remote in · quick assist · remote support · connect to · screen · session', summary:'1) Verify the caller first (KB-0024). 2) Pick the tool: Quick Assist when the user is signed in (they press Win + Ctrl + Q and type your code; it expires in 10 minutes); Remote Support for any company PC whose agent is online, including at the sign-in screen. 3) Ask, every time: "May I connect to your computer? You\'ll see everything I do." A ticket is not consent. 4) Attended only for people\'s PCs. "Connect without asking" (unattended) is for servers, kiosks and room PCs, with the owner\'s approval. 5) Privacy: ask them to close anything personal; open only what the problem needs; never open their files or mail. 6) Narrate each step in plain words. 7) Never ask for or type a password in a session; at a sign-in screen the user signs in themselves. 8) Close cleanly: confirm the fix with them, tell them you\'re disconnecting, End session, and write the start and end times in the work note. 9) A session the user didn\'t ask for, or a prompt they didn\'t expect, is a security incident: stop and follow KB-0024\'s reporting step.' },
+  { id:'KB-0111', title:'Room displays and projectors: Tier 1 checks', category:'Hardware', updated:'2026-08-24', audience:'Service Desk', practiceOnly:true, keywords:'projector · boardroom · meeting room · no signal · fuzzy · cut off · screen sharing room · hdmi', summary:'1) No picture: the projector\'s Input or Source button (the table cable is labelled on the remote); then Win + P › Duplicate. 2) Picture fuzzy or edges cut off: Settings › Display › choose the projector\'s (Recommended) resolution (Northstar\'s room projectors are 1920 × 1080). 3) No sound in the room: Settings › System › Sound › Output › the room\'s HDMI output. 4) Cable: the spare HDMI and USB-C adapter are in the table drawer; not every USB-C port carries video. 5) Dim, flickering, lamp warning, filter warning or the projector switches itself off: the AV team (Facilities); move the meeting to Conference Room B\'s display if it\'s urgent. 6) Never open a projector or touch its lamp.' },
+];
+// Categories for the Module 10 (key its-08) tickets; each ticket adds its own CI list.
+const HD_ITS08_CATEGORIES = {
+  Hardware:['Desktop', 'Laptop', 'Monitor', 'Projector / room display', 'Audio / headset'],
+  Software:['Email (Outlook)', 'Windows sign-in', 'Windows search', 'Browser'],
+  Network:['Wi-Fi', 'Wired port'],
+  Request:['Hardware', 'Software', 'Access'],
+  Access:['Password reset', 'Account unlock'],
+};
+// Module 10 (key its-08): the people and computers of Lab 10.1 and Lab 10.2.
+// Set-level only (a set's users and computers), never in HD_USERS or
+// HD_COMPUTERS, so no older shift sees them. NS-LT-0131 (Sofia Martin) is the
+// shared row in HD_COMPUTERS; it is not repeated here. Every computer's clock
+// is correct, and every one is joined and healthy.
+const HD_ITS08_USERS = [
+  { id:'u-1112', employeeId:'E-71112', phone:'ext. 4910', name:'Dana Whitfield', username:'dwhitfield', email:'dana.whitfield@northstar.example', department:'Executive Office', title:'Chief Operating Officer', ou:'OU=Executive Office,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:14, groups:['GG-Executive-Users'], manager:'Evelyn Reed', mfa:'Registered' },
+  { id:'u-1100', employeeId:'E-71100', phone:'ext. 4911', name:'Marisol Vega', username:'mvega', email:'marisol.vega@northstar.example', department:'Finance', title:'Accounts Payable Specialist', ou:'OU=Finance,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:22, groups:['GG-Finance-Users'], manager:'Ava Robinson', mfa:'Registered' },
+  { id:'u-1101', employeeId:'E-71101', phone:'ext. 4912 · mobile 555-0143', name:'Naomi Fischer', username:'nfischer', email:'naomi.fischer@northstar.example', department:'Executive Office', title:'Executive Assistant to the COO', ou:'OU=Executive Office,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:9, groups:['GG-Executive-Users'], manager:'Dana Whitfield', mfa:'Registered' },
+  { id:'u-1102', employeeId:'E-71102', phone:'ext. 4913', name:'Victor Hale', username:'vhale', email:'victor.hale@northstar.example', department:'Operations', title:'Warehouse Coordinator', ou:'OU=Operations,OU=Users,DC=northstar,DC=example', enabled:true, locked:false, passwordAge:31, groups:['GG-Operations-Users'], manager:'Caleb Wright', mfa:'Registered' },
+];
+const HD_ITS08_COMPUTERS = [
+  { name:'NS-LT-0420', user:'Dana Whitfield', os:'Windows 11 Enterprise 24H2', ip:'10.20.10.221', ou:'OU=Executive Office,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy' },
+  { name:'NS-LT-0421', user:'Marisol Vega', os:'Windows 11 Enterprise 24H2', ip:'10.20.10.222', ou:'OU=Finance,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy' },
+  { name:'NS-LT-0422', user:'Naomi Fischer', os:'Windows 11 Enterprise 24H2', ip:'10.20.10.223', ou:'OU=Executive Office,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy' },
+  { name:'NS-WS-0320', user:'Victor Hale', os:'Windows 11 Enterprise 24H2', ip:'10.20.10.224', ou:'OU=Operations,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'Friday 17:42', health:'Healthy' },
+];
+const HD_ITS08_LAB_SERVERS = hdIts05BaselineServers();
+const HD_ITS08_LAB_DIRECTORY = hdIts05BaselineDirectory();
+const HD_ITS08_PRACTICE_SERVERS = hdIts05BaselineServers();
+const HD_ITS08_PRACTICE_DIRECTORY = hdIts05BaselineDirectory();
+
 // Practice sets: a module's unguided practice tickets (not graded), opened
 // from its course page with ?practice=<key>&student=<id> (ui/helpdesk.js).
 // Only these tickets, no coach, saved apart from the coached lab's shift.
@@ -690,6 +729,15 @@ const HD_PRACTICE_SETS = {
   'its-04': { title:'Module 9 practice tickets', tickets:['HD-2214', 'HD-2215', 'HD-2216', 'HD-2217', 'HD-2218', 'HD-2219', 'HD-2220', 'HD-2221'], complete:['HD-2214', 'HD-2215', 'HD-2219', 'HD-2220', 'HD-2221'], queue:true, queueList:'all', kbArticles:HD_ITS04_KB_ARTICLES,
     users:HD_ITS04_USERS, computers:HD_ITS04_COMPUTERS, servers:HD_ITS04_PRACTICE_SERVERS, directory:HD_ITS04_PRACTICE_DIRECTORY, cloud:HD_ITS04_PRACTICE_CLOUD,
     done:{ 'HD-2215':[{ group:'Network Operations' }, { note:true }] } },
+  // Module 10 Lab 10.2: each ticket runs on its own clock (console.now), so the
+  // set has none. 10-B (HD-2224) counts as done when Resolved. 10-A (HD-2223)
+  // stays open for its 16:00 check, so it counts as done once the follow-up is
+  // set and the note is written. 10-C (HD-2225) counts as done when it is with
+  // Desktop Support (Tier 2) and has a complete note. The people, computers,
+  // servers and directory are the set's (HD_ITS08_*).
+  'its-08': { title:'Module 10 practice tickets', tickets:['HD-2223', 'HD-2224', 'HD-2225'], complete:['HD-2223', 'HD-2224', 'HD-2225'], queue:true, queueList:'all', kbArticles:HD_ITS08_KB_ARTICLES,
+    users:HD_ITS08_USERS, computers:HD_ITS08_COMPUTERS, servers:HD_ITS08_PRACTICE_SERVERS, directory:HD_ITS08_PRACTICE_DIRECTORY,
+    done:{ 'HD-2223':[{ followUpAt:'16:00' }, { note:true }], 'HD-2225':[{ group:'Desktop Support (Tier 2)' }, { note:true }, { not:{ status:'Resolved' } }] } },
 };
 
 // Coached ticket sets: Practice It content for a coach's guided lab, opened by
@@ -726,6 +774,11 @@ const HD_COACHED_SETS = {
   // this set only.
   'its-04-guided': { title:'Lab 9.1 · Guided Lab: the connectivity checklist', tickets:['HD-2212', 'HD-2213', 'SR-2222'], now:'2026-08-20T08:40:00Z', kbArticles:HD_ITS04_KB_ARTICLES,
     users:HD_ITS04_USERS, computers:HD_ITS04_COMPUTERS, servers:HD_ITS04_LAB_SERVERS, directory:HD_ITS04_LAB_DIRECTORY, changes:HD_ITS04_LAB_CHANGES },
+  // Module 10: Lab 10.1 (coach hd-m08) on Monday 09:00. Part A is HD-2255 (its own
+  // clock, 09:05) and Part B is HD-2110 (its own clock, 09:20). hideEventsFrom
+  // hides the shared NETLOGON row of NS-LT-0131 so the set's own row shows.
+  'its-08-guided': { title:'Lab 10.1 · Guided Lab: two remote sessions', tickets:['HD-2255', 'HD-2110'], now:'2026-08-24T09:00:00Z', kbArticles:HD_ITS08_KB_ARTICLES,
+    users:HD_ITS08_USERS, computers:HD_ITS08_COMPUTERS, servers:HD_ITS08_LAB_SERVERS, directory:HD_ITS08_LAB_DIRECTORY, hideEventsFrom:['NS-LT-0131'] },
 };
 
 // VM labs (ui/helpdesk.js "VM screen"): the simulated host, its install
@@ -1084,8 +1137,93 @@ const HD_TICKET_TEMPLATES = [
   hdTicket({ id:'SR-2107', ownSet:true, requester:'Grace Kim', department:'Human Resources', category:'Service Request', subcategory:'Group membership', priority:'P3', businessImpact:'Recruiter cannot upload forms', sla:'2 business days', createdMinutesAgo:188, description:'Approved request: restore contributor access to the HR onboarding folder.', symptoms:['Read access works','Manager approval attached'], logs:['AD group history: removed from GG-HR-Contributors during transfer'], systemState:['Member of GG-HR-Readers','Not member of GG-HR-Contributors'], plausibleCauses:['NTFS ACL issue','Missing group membership'], correctPath:['Validate approval','Add authorized group','Refresh user token','Verify effective access','Document change'], hiddenRootCause:'User was removed from the contributor group during a role transfer.', expectedResolution:'Add GG-HR-Contributors, refresh sign-in token, verify upload, document approval.', escalationCriteria:['No data-owner approval','Requested permission exceeds role'] }),
   hdTicket({ id:'HD-2108', ownSet:true, requester:'Amir Patel', department:'Operations', category:'Incident', subcategory:'Group Policy', priority:'P3', businessImpact:'One user lacks mapped drive', sla:'2 business days', createdMinutesAgo:201, description:'My Operations drive disappeared after my laptop was replaced.', symptoms:['Group membership correct','UNC path works manually'], logs:['gpresult: Operations Drive Mapping absent','Computer DN: CN=NS-LT-0145,CN=Computers'], systemState:['User in GG-Operations-Drive','Computer in default Computers container'], plausibleCauses:['Disconnected drive','GPO scope','File server outage'], correctPath:['Verify authorization','Run gpresult','Check computer OU','Move computer through approved admin task','Refresh policy and verify'], hiddenRootCause:'Replacement computer object was never moved into the Operations workstation OU.', expectedResolution:'Move the computer to the correct OU, run policy refresh, verify O: mapping.', escalationCriteria:['GPO link or security filtering change required','Replication/SYSVOL issue'] }),
   hdTicket({ id:'HD-2109', ownSet:true, requester:'Noah Williams', department:'Sales', category:'Incident', subcategory:'Windows profile', priority:'P3', businessImpact:'Sales user cannot access normal desktop', sla:'2 business days', createdMinutesAgo:167, description:'Windows signed me into a blank desktop and my shortcuts are missing.', symptoms:['Temporary profile notification','Another user signs in normally'], logs:['User Profile Service 1511: logged on with temporary profile'], systemState:['C:\\Users\\nwilliams exists','Profile registry entry ends in .bak'], plausibleCauses:['Cloud sync issue','Corrupt profile mapping','Malware'], correctPath:['Protect user data','Confirm temporary-profile evidence','Repair or rebuild per runbook','Restore data','Verify sign-in'], hiddenRootCause:'Corrupt ProfileList registry mapping after interrupted update.', expectedResolution:'Repair/rebuild the profile using the approved runbook and verify data and application access.', escalationCriteria:['Encrypted data inaccessible','Repeated corruption or compromise indicators'] }),
-  hdTicket({ id:'HD-2110', requester:'Sofia Martin', department:'Operations', category:'Incident', subcategory:'Domain trust', priority:'P2', businessImpact:'Shift supervisor cannot domain sign in', sla:'8 hours', createdMinutesAgo:74, description:'Windows says the trust relationship between this workstation and the domain failed.', symptoms:['Local support account works','Domain sign-in fails'], logs:['Test-ComputerSecureChannel: False','NETLOGON 3210 secure session failed'], systemState:['Computer object enabled','Restored VM snapshot recorded yesterday'], plausibleCauses:['Bad user password','DNS','Machine-account mismatch'], correctPath:['Confirm recovery access','Validate DNS/time/object state','Test secure channel','Repair through approved Tier 2 procedure','Verify sign-in and policy'], hiddenRootCause:'A restored snapshot rolled back the machine-account password.', expectedResolution:'Repair the secure channel, restart if approved, verify domain authentication and gpresult.', escalationCriteria:['Computer object missing or duplicate','Multiple machines lose trust'] }),
-  hdTicket({ id:'HD-2111', requester:'Dina Foster', department:'Executive Office', category:'Incident', subcategory:'BitLocker', priority:'P2', businessImpact:'Executive assistant cannot start laptop', sla:'8 hours', createdMinutesAgo:37, description:'The laptop is asking for a BitLocker recovery key after a firmware update.', symptoms:['Recovery screen shows key ID','Device asset tag verified'], logs:['Firmware change CHG-4471 completed overnight'], systemState:['Recovery key escrowed','User identity not yet verified'], plausibleCauses:['Unauthorized tamper','Expected firmware measurement change'], correctPath:['Verify user and device','Match recovery key ID','Provide key through approved secure channel','Boot and validate protection','Document disclosure'], hiddenRootCause:'Approved firmware update changed TPM measurements.', expectedResolution:'Use escrowed recovery key after identity verification, confirm BitLocker returns to Protected.', escalationCriteria:['Key unavailable or mismatch','Unapproved firmware change or tamper concern'] }),
+  // Module 10 (key its-08) Lab 10.1 Part B (coach hd-m08, HD_COACHED_SETS
+  // 'its-08-guided'): Sofia Martin's laptop after Desktop Support restored it from
+  // an older image. Tier 1 collects the evidence over Remote Support and hands it
+  // to Desktop Support; it never repairs or rejoins. expectedResolution holds the
+  // model work note. Practice feedback only, never points: critical errors are
+  // feedback here, never a score.
+  hdTicket({ id:'HD-2110', ownSet:true, number:'INC0010537', requester:'Sofia Martin', department:'Operations', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-24T09:20:00Z', shortDescription:'My laptop won\'t let me sign in',
+    description:'It\'s Sofia on the warehouse floor. My laptop won\'t let me sign in. It says the trust relationship between this workstation and the primary domain failed. Desktop Support gave it back to me yesterday afternoon; they put in a new drive and restored it from a backup. I need it for the 10:00 shift handover.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: Can\'t sign in to NS-LT-0131: "The trust relationship between this workstation and the primary domain failed." Desktop Support returned the laptop yesterday after a new drive and a restore (WO-3308). Needs it for the 10:00 shift handover. One user. Tried: Verified by callback and employee ID. Remote Support (attended) at the sign-in screen; Sofia allowed it 09:23. ping NS-DC01 replies and nslookup northstar.example is correct, so the network and DNS are fine. w32tm /query /status: source NS-DC01, synced 08:58; w32tm /resync OK, so time is fine. Test-ComputerSecureChannel: False; System log NETLOGON 3210. AD: NS-LT-0131 enabled, machine password set 12 days ago; the restored image is 30 days old. KB-0095: a Desktop Support repair. Not tried: repairing the secure channel or rejoining (needs Desktop Support\'s account). Session ended 09:31. Result: Escalated to Desktop Support at P3. Sofia is using the hot desk PC at the end of row 3 for the handover. Next action: Desktop Support to repair NS-LT-0131\'s secure channel and confirm Sofia can sign in; Service Desk to tell Sofia when it\'s ready.',
+    escalationCriteria:[],
+    console: {
+      now:'2026-08-24T09:20:00Z', matrix:{}, classify:{ categories:HD_ITS08_CATEGORIES, cis:['NS-LT-0131', 'NS-DC01', 'NS-LT-0145', 'Windows sign-in'], preset:{ contactType:'Phone' } },
+      priorityCoach:{ impact:'3', urgency:'1', line:'One person who can\'t work at all (Impact 3 and Urgency 1): P3.' },
+      verification:{ prompt:'Sofia Martin is on the phone, and you are about to see her screen. How do you verify it\'s really Sofia? (KB-0024)', options:[
+        { id:'name', text:'Accept it: Sofia gives her name and department', feedback:'Not verification. Anyone can learn a name and a department. KB-0024: call Sofia back on the number in the User Directory and confirm her employee ID.' },
+        { id:'urgent', text:'Skip it: she is short of time and her laptop is on the ticket', feedback:'A ticket is not verification, and a deadline is not a reason to skip it. KB-0024: call Sofia back on the number in the User Directory and confirm her employee ID.' },
+        { id:'callback', text:'Call Sofia back on the number in the User Directory and confirm her employee ID', pass:true, feedback:'Verified. You called Sofia back on ext. 4750 from the User Directory, and Sofia confirmed employee ID E-37386.', history:'Identity verified per KB-0024: called Sofia back on the User Directory number (ext. 4750); employee ID E-37386 confirmed.' },
+      ] },
+      kb:{ attach:true }, comments:true,
+      criticalActions:[
+        { action:'remote-unattended', text:'Critical error. "Connect without asking" is for servers, kiosks and room PCs. On a person\'s PC, send an attended request and let her choose Allow (KB-0110).' },
+        { action:'domain-membership-refused', text:'Critical error. Tier 1 never repairs a secure channel or rejoins a computer to the domain: that needs a Desktop Support account (KB-0095). Collect the evidence and hand it on.' },
+      ],
+      machines:{ 'NS-LT-0131':{
+        remote:{ agent:'Online', signedIn:false, lastStart:'Today 08:52', asks:[
+          { id:'what-changed', label:'What changed before this started?', answer:'Desktop Support gave it back to me yesterday afternoon. They put in a new drive and restored it from a backup.' },
+          { id:'anyone-else', label:'Is anyone else on the floor having this?', answer:'No, everyone else signed in fine this morning.' },
+        ] },
+        signInMessage:'The trust relationship between this workstation and the primary domain failed.',
+        secureChannel:false,
+        clock:{ source:'NS-DC01.northstar.example', lastSync:'2026-08-24T08:58:00Z' },
+        computer:{ ou:'OU=Operations,OU=Workstations', adEnabled:true, machinePasswordLastSet:'12 days ago' },
+        network:{
+          adapters:[{ name:'Ethernet', kind:'Ethernet', description:'Intel(R) Ethernet Connection I219-LM', media:'Connected', speed:'1 Gbps', mac:'3C-52-82-4B-01-31', ip:hdIts04Ip('10.20.10.131'), lease:hdIts04Lease('10.20.10.131') }],
+          routes:{ corp:[{ name:'nsfw01', address:'10.20.255.1' }, { name:'nsrtr-fiber', address:'10.20.255.2' }, { address:'203.0.113.1', ms:9 }] },
+          publicDns:{ 'www.example.com':'93.184.215.14' } },
+        events:{ system:[{ level:'Error', time:'Today 08:53', source:'NETLOGON', id:'3210', message:'Failed to authenticate with domain controller NS-DC01.' }] } } },
+      evidence:[{ id:'wo-3308', title:'Desktop Support · Work order WO-3308', rows:[
+        { label:'Work order', value:'WO-3308' },
+        { label:'Computer', value:'NS-LT-0131 (Sofia Martin)' },
+        { label:'Work done', value:'Drive replaced; NS-LT-0131 restored from the image taken 30 days ago' },
+        { label:'Returned to user', value:'Yesterday 16:10' },
+        { label:'Team', value:'Desktop Support' },
+      ] }],
+      teamMessages:[{ id:'desktop-ns-lt-0131', to:'Desktop Support (Tier 2)', from:'Desktop Support', text:'Sofia Martin (Operations), NS-LT-0131: she can\'t sign in and sees "The trust relationship between this workstation and the primary domain failed." Your work order WO-3308 (new drive, restored from the image taken 30 days ago) returned the laptop to her yesterday at 16:10. One user. I checked: ping NS-DC01 replies and nslookup northstar.example is correct; w32tm /query /status shows NS-DC01 as the source, synced at 08:58, and w32tm /resync worked; Test-ComputerSecureChannel is False; the System log has NETLOGON 3210; the computer object is enabled, with the machine password set 12 days ago. I did not try repairing the secure channel or rejoining the domain: that needs your account. She needs the laptop for the 10:00 shift handover and is using the hot desk PC at the end of row 3. P3.', reply:'Got it: NS-LT-0131, Sofia Martin, P3. We will repair the secure channel and tell the Service Desk when she can sign in.' }],
+      handoff:{},
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['machine account', 'secure channel', 'NETLOGON', 'domain controller', 'DNS', 'ping', 'nslookup', 'w32tm', 'Test-ComputerSecureChannel', 'NS-LT-0131', 'WO-3308', 'KB-0095', 'Tier 2', 'P3'],
+        needs:[{ label:'Names the exact error (trust relationship)', pattern:'trust relationship' }, { label:'Names the work order (WO-3308)', pattern:'WO-3308' }, { label:'Says the network and DNS checks were fine', pattern:'ping|nslookup|DNS' }, { label:'Says what was not tried (a repair or rejoin)', pattern:'not tried|did not|didn\'t|repair|rejoin' }, { label:'Names the hot desk PC at the end of row 3', pattern:'row 3|hot desk' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Software', subcategory:'Windows sign-in', ci:'NS-LT-0131' }, missing:'Set Category Software › Windows sign-in and CI NS-LT-0131, Sofia\'s laptop.' }, { priority:'P3', missing:'Set Impact 3 (one person) and Urgency 1 (she can\'t work at all). That makes the ticket P3.' }], good:'Software › Windows sign-in on NS-LT-0131, P3: one person who can\'t work at all.', fix:'Set Category Software › Windows sign-in, CI NS-LT-0131, Impact 3 and Urgency 1. One person who can\'t work at all is P3.' },
+        { area:'Investigation', checks:[
+          { verified:true, missing:'Verify Sofia first: call her back on her directory number and confirm her employee ID (KB-0024).' },
+          { any:[{ action:'quick-assist-refused' }, { action:'remote-connected' }], missing:'Try Quick Assist, then open Remote Support, find NS-LT-0131 and request a session. Nobody is signed in, so only the company tool reaches the sign-in screen.' },
+          { seen:'ask:what-changed', computer:'NS-LT-0131', missing:'In the session, Ask the user what changed before this started.' },
+          { evidence:'wo-3308', missing:'Open the work order card WO-3308.' },
+          { typed:'^\\s*ping(\\.exe)?\\s+(?:\\S+\\s+)*NS-DC01(\\.northstar\\.example)?(\\s|$)', computer:'NS-LT-0131', missing:'In the Command console, type ping NS-DC01 to rule out the network.' },
+          { typed:'^\\s*(nslookup(\\.exe)?|resolve-dnsname)\\s+(?:\\S+\\s+)*northstar\\.example(\\s|$)', computer:'NS-LT-0131', missing:'In the Command console, type nslookup northstar.example to rule out DNS.' },
+        ], good:'You verified Sofia, reached the sign-in screen, read the exact words, asked what changed, opened WO-3308 and ruled out the network and DNS.', fix:'Verify Sofia, try Quick Assist (nobody is signed in), then Remote Support › NS-LT-0131 › Request session. Ask what changed, open WO-3308 and, in the Command console, type ping NS-DC01 and nslookup northstar.example. Never choose Connect without asking on a person\'s PC.' },
+        { area:'Diagnosis', checks:[
+          { typed:'^\\s*w32tm(\\.exe)?\\s+/query\\s+(?:\\S+\\s+)*/status(\\s|$)', computer:'NS-LT-0131', missing:'Type w32tm /query /status to check the PC\'s clock source.' },
+          { typed:'^\\s*w32tm(\\.exe)?\\s+/resync(\\s|$)', computer:'NS-LT-0131', missing:'Type w32tm /resync to prove the PC can reach its time source.' },
+          { action:'clock-resync', missing:'Run w32tm /resync in the Command console and read the result.' },
+          { seen:'secure-channel', computer:'NS-LT-0131', missing:'Type Test-ComputerSecureChannel. False confirms the trust is the problem.' },
+          { seen:'event-log:system', computer:'NS-LT-0131', missing:'Open the session\'s Event log tab and find NETLOGON 3210.' },
+          { serverSeen:'ad-computer:NS-LT-0131', missing:'Open Active Directory › Computers › NS-LT-0131 and read Enabled and Machine password last set.' },
+          { kb:'KB-0095', missing:'Search the KB for the exact error text and open KB-0095. Read its Audience.' },
+        ], good:'The network, DNS and clock are fine; the secure channel test is False; NETLOGON 3210 agrees; the computer object is enabled. KB-0095 says Desktop Support owns the fix.', fix:'Type w32tm /query /status and w32tm /resync (time is fine), then Test-ComputerSecureChannel (False), read the Event log (NETLOGON 3210) and the NS-LT-0131 object in Active Directory › Computers (enabled, machine password set 12 days ago; the restored image is 30 days old). Open KB-0095.' },
+        { area:'Action', checks:[
+          { teamMessage:'desktop-ns-lt-0131', missing:'Message Desktop Support with the handoff: the exact error, WO-3308, one user, your four checks and what you did not try.' },
+          { group:'Desktop Support (Tier 2)', missing:'Assign the ticket to Desktop Support (Tier 2).' },
+          { sayPattern:'hot desk|row 3', during:true, missing:'Before you end the session, tell Sofia the plan: Desktop Support will fix it, and she can sign in at the hot desk PC at the end of row 3 for the handover.' },
+          { action:'remote-end', missing:'Say you are disconnecting, then End session.' },
+          { any:[{ typed:'^\\s*Test-NetConnection\\s+(?:\\S+\\s+)*NS-DC01\\b.*-Port\\s+3389\\b', computer:'NS-LT-0131' }, { serverSeen:'port:NS-DC01:3389' }], missing:'In the Service Desk PowerShell, type Test-NetConnection NS-DC01 -Port 3389. True means Remote Desktop is open, for admins.' },
+          { any:[{ typed:'^\\s*Test-NetConnection\\s+(?:\\S+\\s+)*NS-DC01\\b.*-Port\\s+22\\b', computer:'NS-LT-0131' }, { serverSeen:'port:NS-DC01:22' }], missing:'Type Test-NetConnection NS-DC01 -Port 22. False means no SSH on this Windows server.' },
+          { not:{ action:'domain-membership-refused' }, missing:'You tried a repair or a rejoin. Tier 1 never repairs a secure channel or rejoins a computer: that needs a Desktop Support account (KB-0095).' },
+          { not:{ status:'Resolved' }, missing:'Leave the ticket open with Desktop Support: Tier 1 cannot fix this one.' },
+        ], good:'You handed it to Desktop Support with the evidence, gave Sofia a hot desk, closed the session cleanly and checked which remote ports the domain controller allows.', fix:'Message Desktop Support, assign the ticket to Desktop Support (Tier 2), say where Sofia can work (the hot desk PC at the end of row 3) and End session. In the PowerShell, type Test-NetConnection NS-DC01 -Port 3389 (True: Remote Desktop, for admins) and -Port 22 (False: no SSH on a Windows server). Critical (feedback only): choosing Connect without asking, and any repair or rejoin command.' },
+        { area:'Documentation', checks:[
+          { handoffNote:true, missing:'Write a Reported / Tried / Result / Next action note for Desktop Support.' },
+          { note:true, missing:'Write a Reported / Tried / Result / Next action note.' },
+          { comment:true, missing:'Write a comment for Sofia in plain words, with no internal terms.' },
+          { attached:'KB-0095', missing:'Attach KB-0095 to the ticket.' },
+        ], good:'Desktop Support can start where you stopped. Sofia has a plain-words update.', fix:'Write a Reported / Tried / Result / Next action note, attach KB-0095 and leave the ticket with Desktop Support. A comment could say: "Hi Sofia, thanks for your patience. When your laptop was restored from a backup yesterday, it went back to an older copy of the key it uses to prove it belongs to our network, so the network no longer recognises it. Our desktop team has the details and will fix it. Until then you can sign in on the PC at the end of row 3, and your files will be there. We\'ll let you know as soon as your laptop is ready. – Riley"' },
+      ],
+    } }),
+  hdTicket({ id:'HD-2111', ownSet:true, requester:'Dina Foster', department:'Executive Office', category:'Incident', subcategory:'BitLocker', priority:'P2', businessImpact:'Executive assistant cannot start laptop', sla:'8 hours', createdMinutesAgo:37, description:'The laptop is asking for a BitLocker recovery key after a firmware update.', symptoms:['Recovery screen shows key ID','Device asset tag verified'], logs:['Firmware change CHG-4471 completed overnight'], systemState:['Recovery key escrowed','User identity not yet verified'], plausibleCauses:['Unauthorized tamper','Expected firmware measurement change'], correctPath:['Verify user and device','Match recovery key ID','Provide key through approved secure channel','Boot and validate protection','Document disclosure'], hiddenRootCause:'Approved firmware update changed TPM measurements.', expectedResolution:'Use escrowed recovery key after identity verification, confirm BitLocker returns to Protected.', escalationCriteria:['Key unavailable or mismatch','Unapproved firmware change or tamper concern'] }),
   hdTicket({ id:'HD-2112', requester:'IT Monitoring', department:'Information Technology', category:'Incident', subcategory:'Windows service', priority:'P2', businessImpact:'Department print service degraded', sla:'8 hours', createdMinutesAgo:48, description:'Print Spooler stops immediately after it starts on NS-PRINT01.', symptoms:['Service exit code 1067','Issue began after driver package'], logs:['System 7031: Print Spooler terminated unexpectedly','PrintService 808: LabelPro provider fault'], systemState:['Server reachable','Other services healthy'], plausibleCauses:['Service account','Dependency','Faulty driver'], correctPath:['Preserve logs','Check dependency and recent change','Quarantine faulty driver','Use approved rollback','Restart and validate queues'], hiddenRootCause:'Third-party label driver crashes the spooler.', expectedResolution:'Rollback the driver under change control and verify all queues.', escalationCriteria:['Production reboot required','Vendor package or server-wide outage'] }),
   hdTicket({ id:'HD-2113', ownSet:true, requester:'Remote Employee · Kai Ross', department:'Sales', category:'Incident', subcategory:'VPN', priority:'P2', businessImpact:'Remote seller cannot reach internal apps', sla:'8 hours', createdMinutesAgo:95, description:'VPN accepts MFA, connects for a few seconds, then disconnects.', symptoms:['Internet access stable','MFA succeeds'], logs:['VPN client: certificate validation failed · NotAfter 2026-08-16'], systemState:['User certificate valid','Gateway certificate expired'], plausibleCauses:['Password','Home firewall','Gateway certificate'], correctPath:['Capture client log and time','Validate certificate chain and expiry','Correlate other users','Escalate gateway certificate renewal','Communicate workaround only if approved'], hiddenRootCause:'VPN gateway certificate expired.', expectedResolution:'Escalate as shared service incident for approved certificate renewal; validate new chain.', escalationCriteria:['Always: production gateway certificate change required'] }),
   hdTicket({ id:'SEC-2114', requester:'Luis Ortega', department:'Sales', category:'Security Incident', subcategory:'Phishing', priority:'P1', businessImpact:'Possible credential compromise', sla:'15 minutes', createdMinutesAgo:7, description:'I clicked a shipping link and signed in again. Was that real?', symptoms:['Lookalike domain','Unexpected sign-in page'], logs:['Browser history: northstar-shipping.example-login.test','Identity log: unfamiliar sign-in pending review'], systemState:['Email preserved','Endpoint protection has no malware verdict'], plausibleCauses:['Benign vendor portal','Credential phishing'], correctPath:['Verify reporter','Preserve email/URL/time','Protect account within procedure','Escalate immediately','Do not declare endpoint safe'], hiddenRootCause:'Credential-phishing page captured the password.', expectedResolution:'Escalate to cybersecurity, revoke sessions/reset credential per response runbook, preserve evidence.', escalationCriteria:['Always: potential credential compromise'] }),
@@ -3387,6 +3525,233 @@ const HD_TICKET_TEMPLATES = [
           { comment:true, missing:'Write a comment for Gabriel in plain words, with a short "next time" line.' },
           { status:'Resolved', missing:'Resolve the ticket once Gabriel confirms.' },
         ], good:'A short "next time" line.', fix:'Write a Reported / Tried / Result note, attach KB-0109 and resolve the ticket. A comment could say: "Hi Gabriel, you\'re all set. Company drives and the intranet only open inside Northstar\'s network, so from home the laptop needs the Northstar VPN app connected first. We\'ve connected it, and your drive and the intranet are open. I\'ve sent you a short guide for next time: connect the VPN first, then open your files. – Riley"' },
+      ],
+    } }),
+  // Module 10 (key its-08) Practice It. Lab 10.1 (coach hd-m08, HD_COACHED_SETS
+  // 'its-08-guided') is HD-2255 (Part A) and HD-2110 (Part B, above). Lab 10.2
+  // (HD_PRACTICE_SETS 'its-08') is tickets 10-A to 10-C (HD-2223 to HD-2225). The
+  // people and computers are the set's (HD_ITS08_*). expectedResolution holds the
+  // model work note. Practice feedback only, never points: critical errors are
+  // feedback here, never a score.
+  // Part A: a headset plays nothing after docking; Windows moved the sound output
+  // to the monitor. Quick Assist with a signed-in user.
+  hdTicket({ id:'HD-2255', ownSet:true, number:'INC0010533', requester:'Marisol Vega', department:'Finance', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-24T09:05:00Z', shortDescription:'I can\'t hear anything in my headset',
+    description:'Hi, it\'s Marisol in Accounts Payable. I docked my laptop this morning and now I can\'t hear anything in my headset on Teams. People can hear me fine. I\'m calling from my desk phone. Can you take a look?',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: No sound in her headset on Teams since she docked this morning; others can hear her. Called from her desk phone. Tried: Verified by callback and employee ID. Quick Assist with her consent, 09:08 to 09:14; she closed personal tabs first. Settings › Sound: output had switched to Monitor speakers (DisplayPort Audio) on docking; changed it to Headset Earphone (USB Audio); test tone heard; Teams test call clear. Result: Headset sound working; Marisol confirmed; session ended 09:14.',
+    console: {
+      now:'2026-08-24T09:05:00Z', matrix:{}, classify:{ categories:HD_ITS08_CATEGORIES, cis:['NS-LT-0421', 'NS-LT-0420', 'NS-LT-0422', 'Teams'], preset:{ contactType:'Phone' } },
+      priorityCoach:{ impact:'3', urgency:'2', line:'One person (Impact 3). Her desk phone works and no call is due, so she can still work (Urgency 2): P4.' },
+      verification:{ prompt:'Marisol Vega is on the phone, and you are about to see her screen. How do you verify it\'s really Marisol? (KB-0024)', options:[
+        { id:'name', text:'Accept it: Marisol gives her name and department', feedback:'Not verification. Anyone can learn a name and a department. KB-0024: call Marisol back on the number in the User Directory and confirm her employee ID.' },
+        { id:'ticket', text:'Skip it: she called from her own desk phone', feedback:'A phone call is not verification. KB-0024: call Marisol back on the number in the User Directory and confirm her employee ID, every time, before you see her screen.' },
+        { id:'callback', text:'Call Marisol back on the number in the User Directory and confirm her employee ID', pass:true, feedback:'Verified. You called Marisol back on ext. 4911 from the User Directory, and Marisol confirmed employee ID E-71100.', history:'Identity verified per KB-0024: called Marisol back on the User Directory number (ext. 4911); employee ID E-71100 confirmed.' },
+      ] },
+      kb:{ attach:true }, comments:true, resolutionCode:{ required:true },
+      criticalActions:[{ action:'remote-unattended', text:'Critical error. "Connect without asking" is for servers, kiosks and room PCs. On a person\'s PC, ask for her consent and let her choose Allow (KB-0110).' }],
+      machines:{ 'NS-LT-0421':{
+        remote:{ agent:'Online', desktop:'Teams, Excel and a personal email tab are open', lastStart:'Today 08:31', asks:[
+          { id:'close-personal', label:'Please close anything personal before I look around', answer:'Done. Just Teams and Excel open now.', desktop:'Teams and Excel are open' },
+          { id:'test-call', label:'Please make a Teams test call (Teams › Settings › Devices › Make a test call)', answer:'I can hear myself back.' },
+        ] },
+        sound:{ outputs:[{ id:'monitor', name:'Monitor speakers (DisplayPort Audio)' }, { id:'headset', name:'Headset Earphone (USB Audio)' }, { id:'speakers', name:'Speakers (Realtek(R) Audio)' }], output:'monitor',
+          inputs:[{ id:'headset-mic', name:'Headset Microphone (USB Audio)' }, { id:'array', name:'Microphone Array (Realtek(R) Audio)' }], input:'headset-mic', hears:['headset'], heard:'I can hear the beep!' } } },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['DisplayPort', 'USB Audio', 'Quick Assist', 'output device', 'NS-LT-0421', 'KB-0110', 'Tier 2', 'P4'],
+        needs:[{ label:'Gives the session times (start and end)', pattern:'\\d{1,2}:\\d{2}' }, { label:'Names the old output (the monitor speakers)', pattern:'monitor' }, { label:'Names the new output (the headset)', pattern:'headset' }, { label:'Says the test call worked', pattern:'test call|confirmed|clear' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Hardware', subcategory:'Audio / headset', ci:'NS-LT-0421' }, missing:'Set Category Hardware › Audio / headset and CI NS-LT-0421, Marisol\'s laptop.' }, { priority:'P4', missing:'Set Impact 3 (one person) and Urgency 2 (her desk phone works and no call is due). That makes the ticket P4.' }], good:'Hardware › Audio / headset on NS-LT-0421, P4: one person who can still work.', fix:'Set Category Hardware › Audio / headset, CI NS-LT-0421, Impact 3 and Urgency 2. One person with a working phone and no call due is P4.' },
+        { area:'Investigation', checks:[
+          { verified:true, missing:'Verify Marisol first: call her back on her directory number and confirm her employee ID (KB-0024).' },
+          { remoteOpening:true, missing:'In Say to the user, give your opening before you connect: that she is verified, a request to connect, a privacy ask, and a promise to say what you are doing.' },
+          { seen:'sound', computer:'NS-LT-0421', missing:'Open Settings › System › Sound on her laptop and read the output.' },
+        ], good:'You verified Marisol, opened with all four habits (verify, consent, privacy, narration) and read the sound output before changing anything.', fix:'Verify Marisol, then type your opening in Say to the user. Then, in the session, open Settings › System › Sound: Output is Monitor speakers (DisplayPort Audio), and Headset Earphone (USB Audio) is listed.' },
+        { area:'Action', checks:[
+          { action:'remote-connected', missing:'Open Remote Support, choose Quick Assist, generate a code and read it to her in Say. Ask for full control, and she chooses Allow.' },
+          { seen:'ask:close-personal', computer:'NS-LT-0421', missing:'Ask the user to close anything personal before you look around.' },
+          { action:'sound-output', missing:'Choose Headset Earphone (USB Audio) as the output.' },
+          { action:'sound-test', missing:'Press Test and ask whether she hears the beep.' },
+          { seen:'ask:test-call', computer:'NS-LT-0421', after:'sound-output', missing:'After the change, ask her to make a Teams test call.' },
+          { action:'remote-end', missing:'Say you are disconnecting, then End session.' },
+        ], good:'She allowed the session, closed personal tabs, you changed one setting, tested it, confirmed it in Teams and ended the session cleanly.', fix:'Start Quick Assist, ask for full control, ask her to close anything personal, choose Headset Earphone (USB Audio) and press Test, ask for a Teams test call, then End session. Say each step before you do it. Critical (feedback only): choosing Connect without asking on a person\'s PC.' },
+        { area:'Documentation', checks:[
+          { note:true, missing:'Write a Reported / Tried / Result note with the session times.' },
+          { comment:true, missing:'Write a comment for Marisol in plain words, with no internal terms.' },
+          { code:'Solution provided', missing:'Choose the resolution code Solution provided.' },
+          { status:'Resolved', missing:'Resolve the ticket.' },
+        ], good:'A complete note with the session times, a plain-words comment and the ticket resolved.', fix:'Write a Reported / Tried / Result note, choose Solution provided and resolve the ticket. A comment could say: "Hi Marisol, you can hear your calls again. When you docked, Windows started sending sound to your monitor, which has no speakers, instead of your headset. We\'ve switched it back. If it happens again after docking, the sound setting is the place to look, or just call us. – Riley"' },
+      ],
+    } }),
+  // Ticket 10-A: the COO's Outlook search finds nothing before a 14:00 board
+  // meeting. Verify even a senior caller, Quick Assist, Outlook on the web as the
+  // workaround, then start the stopped Windows Search service. The ticket stays
+  // open for its 16:00 check.
+  hdTicket({ id:'HD-2223', ownSet:true, number:'INC0010534', requester:'Dana Whitfield', department:'Executive Office', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-24T11:40:00Z', shortDescription:'Outlook search finds nothing, can you remote in?',
+    description:'This is Dana Whitfield. Outlook search returns nothing. I\'m trying to find the auditor\'s emails from last month and the board meets at 2. Just remote in and fix it, please. I don\'t have time for questions.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: Outlook search returns nothing; needs the auditor\'s emails for the 14:00 board meeting. Tried: verified by callback 11:42; Quick Assist with her consent 11:44 to 12:01, opened only Outlook and search settings. Indexing Status stuck at 34,112 items; Searching Windows: "The search service is not running". Workaround: Outlook on the web search; Dana found the auditor\'s emails. Windows Search service was Stopped (Automatic, Delayed Start); started it; indexing counting down. Result: desktop Outlook search catching up; Dana has what she needs for 14:00; session ended 12:01. Next action: 16:00 check desktop Outlook search with Dana; resolve if it finds mail, otherwise to Desktop Support with this note.',
+    console: {
+      now:'2026-08-24T11:40:00Z', vip:true, matrix:{}, classify:{ categories:HD_ITS08_CATEGORIES, cis:['NS-LT-0420', 'Outlook', 'NS-LT-0421', 'dwhitfield'], preset:{ contactType:'Phone' } },
+      priorityCoach:{ impact:'2', urgency:'1', line:'One VIP, and the work she needs is due at the 14:00 board meeting: Impact 2 and Urgency 1 give P2. The VIP flag gets a faster response, not a higher priority than the facts give.' },
+      verification:{ prompt:'Dana Whitfield, the COO, is on the phone. She is in a hurry and asks you to remote in without questions. How do you verify it\'s really Dana? (KB-0024)', options:[
+        { id:'senior', text:'Skip it: she is the COO and she is in a hurry', critical:true, feedback:'Critical error. Seniority and a deadline are not verification. KB-0024: call Dana back on the number in the User Directory and confirm her employee ID. Be quick and polite about it.' },
+        { id:'name', text:'Accept it: she gives her name and says she is the COO', critical:true, feedback:'Critical error. A name and a job title are not verification. KB-0024: call Dana back on the number in the User Directory and confirm her employee ID.' },
+        { id:'callback', text:'Call Dana back on the number in the User Directory and confirm her employee ID', pass:true, feedback:'Verified. You called Dana back on ext. 4910 from the User Directory, and Dana confirmed employee ID E-71112.', history:'Identity verified per KB-0024: called Dana back on the User Directory number (ext. 4910); employee ID E-71112 confirmed.' },
+      ] },
+      kb:{ attach:true }, comments:true, followUp:{},
+      criticalActions:[{ action:'remote-unattended', text:'Critical error. "Connect without asking" is for servers, kiosks and room PCs. On a person\'s PC, ask for her consent, even when she is senior and in a hurry (KB-0110).' }],
+      machines:{ 'NS-LT-0420':{
+        remote:{ agent:'Online', desktop:'Outlook, Teams and a personal banking tab are open', asks:[
+          { id:'close-personal', label:'Please close anything personal before I look around', answer:'Done. Just Outlook and Teams open now.', desktop:'Outlook and Teams are open' },
+        ] },
+        services:[{ name:'WSearch', displayName:'Windows Search', status:'Stopped', startup:'Automatic (Delayed Start)' }, { name:'Spooler', displayName:'Print Spooler', status:'Running', startup:'Automatic' }, { name:'BITS', displayName:'Background Intelligent Transfer Service', status:'Running', startup:'Manual' }],
+        search:{ remaining:34112, step:1200 },
+        outlookWeb:{ messages:[
+          { from:'Morgan Ellis (external auditor)', subject:'Q2 audit: findings for the board', received:'2026-07-22', keywords:['auditor', 'audit'] },
+          { from:'Morgan Ellis (external auditor)', subject:'Audit sample list', received:'2026-07-29', keywords:['auditor', 'audit'] },
+          { from:'Evelyn Reed', subject:'Lunch on Thursday?', received:'2026-08-21' },
+        ] } } },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['index', 'indexing', 'indexer', 'Windows Search', 'WSearch', 'service', 'Quick Assist', 'NS-LT-0420', 'KB-0110', 'Tier 2', 'P2'],
+        needs:[{ label:'Gives the session times (start and end)', pattern:'\\d{1,2}:\\d{2}' }, { label:'Names the workaround (Outlook on the web)', pattern:'Outlook on the web|web' }, { label:'Says the Windows Search service was stopped and started', pattern:'Windows Search|service' }, { label:'Gives the 16:00 follow-up as the Next action', pattern:'16:00|4:00' }] },
+      feedback:[
+        { area:'Triage', checks:[{ any:[{ triage:{ category:'Software', subcategory:'Email (Outlook)', ci:'NS-LT-0420' } }, { triage:{ category:'Software', subcategory:'Windows search', ci:'NS-LT-0420' } }], missing:'Set Category Software › Email (Outlook) (Windows search also fits) and CI NS-LT-0420, Dana\'s laptop.' },{ priority:'P2', missing:'Set Impact 2 (one VIP) and Urgency 1 (the board meets at 14:00). That makes the ticket P2.' }], good:'One VIP with a deadline today: Impact 2 × Urgency 1, P2.', fix:'Set Category Software › Email (Outlook), CI NS-LT-0420, Impact 2 and Urgency 1. One VIP with a deadline today is P2.' },
+        { area:'Investigation', checks:[
+          { verified:true, missing:'Verify Dana even though she is senior and in a hurry: call her straight back on her directory number and confirm her employee ID (KB-0024).' },
+          { remoteOpening:true, missing:'In Say to the user, give your opening before you connect: verified, a request to connect, a privacy ask (close anything personal) and a promise to say what you are doing.' },
+          { seen:'outlook-indexing', computer:'NS-LT-0420', missing:'In the session, open Outlook › Search › Search Tools › Indexing Status and read the count.' },
+          { seen:'searching-windows', computer:'NS-LT-0420', missing:'Open Settings › Privacy & security › Searching Windows and read what it says.' },
+        ], good:'Indexing Status and Searching Windows were read before any change.', fix:'In the session, read Indexing Status (34,112 items remaining, the same a minute later) and Settings › Privacy & security › Searching Windows ("The search service is not running"). A KB search that finds nothing is still a step: it tells you to use the method.' },
+        { area:'Diagnosis', checks:[
+          { seen:'pc-services', computer:'NS-LT-0420', missing:'Open Services on NS-LT-0420.' },
+          { seen:'service:WSearch', computer:'NS-LT-0420', missing:'Find Windows Search in Services. It is Stopped, with the startup type Automatic (Delayed Start).' },
+        ], good:'The search service had stopped: not her mailbox, and not Outlook itself.', fix:'Open Services on NS-LT-0420 and find Windows Search: Stopped, Automatic (Delayed Start). That is why the count never moves.' },
+        { area:'Action', checks:[
+          { action:'remote-connected', missing:'Start Quick Assist, read the code to Dana in Say, and ask for her consent. She chooses Allow.' },
+          { seen:'ask:close-personal', computer:'NS-LT-0420', missing:'Ask the user to close anything personal before you look around.' },
+          { action:'owa-search', missing:'Workaround first, because of the deadline: have Dana search for "auditor" in Outlook on the web. Do not open her messages.' },
+          { action:'service-start', missing:'Start the Windows Search service in Services. Do not rebuild the index: a rebuild empties search for hours.' },
+          { action:'remote-end', missing:'Tell her it will catch up over the next few hours, then End session.' },
+        ], good:'You asked for consent even though she is senior and in a hurry, used the workaround first, then made one change: a service start, not a rebuild.', fix:'Ask for consent and privacy, search "auditor" in Outlook on the web so Dana has what she needs, then start Windows Search in Services. Do not rebuild the index. Critical (feedback only): skipping verification or consent because the caller is senior; opening her email without asking.' },
+        { area:'Documentation', checks:[
+          { note:true, missing:'Write a Reported / Tried / Result / Next action note with the session times.' },
+          { followUpAt:'16:00', missing:'Set the Follow-up for 16:00 today.' },
+          { notePattern:'16:00|4:00', missing:'Put the 16:00 check in your Next action.' },
+          { comment:true, missing:'Write a comment for Dana in plain words, with no internal terms.' },
+        ], good:'Session times and a Next action with the follow-up time, and a plain-words comment.', fix:'Write a Reported / Tried / Result / Next action note (Next action: 16:00 check of desktop Outlook search with Dana), set the Follow-up to 16:00 and leave the ticket open. A comment could say: "Hi Dana, you\'ve got the auditor\'s emails for the board meeting. The search on your laptop had stopped updating, so we used Outlook on the web, which searches your mailbox directly. We\'ve restarted the search on your laptop; it will catch up over the next few hours, and I\'ll check with you at 4:00. – Riley"' },
+      ],
+    } }),
+  // Ticket 10-B: the Boardroom projector picture is fuzzy and cut off because the
+  // laptop duplicates at its own 2560 × 1600. Set the projector's own 1920 × 1080.
+  hdTicket({ id:'HD-2224', ownSet:true, number:'INC0010535', requester:'Naomi Fischer', department:'Executive Office', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-24T13:45:00Z', shortDescription:'The projector picture is fuzzy, board meeting at 2',
+    description:'Hi, it\'s Naomi, Dana\'s assistant. I\'m in the Boardroom. The slides are on the projector but they\'re fuzzy, and the bottom of every slide is cut off. The board starts at 2:00!',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: Boardroom projector picture fuzzy and the bottom of each slide cut off; board at 14:00. Tried: verified by callback; picture present, so the input is right. Quick Assist with consent 13:47 to 13:53, display settings only. Duplicate at 2560 × 1600 (the laptop\'s resolution); the projector\'s native is 1920 × 1080; set 1920 × 1080. Result: slides sharp and whole on the projector at 13:52; Naomi confirmed; session ended 13:53.',
+    console: {
+      now:'2026-08-24T13:45:00Z', matrix:{}, classify:{ categories:HD_ITS08_CATEGORIES, cis:['NS-RM-PROJ01', 'NS-LT-0422', 'NS-LT-0420', 'Conference Room B display'], preset:{ contactType:'Phone' } },
+      priorityCoach:{ impact:'2', urgency:'1', line:'The board\'s meeting affects more than one person (Impact 2), and it starts in 15 minutes (Urgency 1): P2.' },
+      verification:{ prompt:'Naomi Fischer is on the phone from the Boardroom. You are about to see her laptop, which holds the board papers. How do you verify it\'s really Naomi? (KB-0024)', options:[
+        { id:'name', text:'Accept it: Naomi gives her name and says she is Dana\'s assistant', feedback:'Not verification. Anyone can learn a name and a job. KB-0024: call Naomi back on the number in the User Directory and confirm her employee ID.' },
+        { id:'urgent', text:'Skip it: the board starts in 15 minutes', feedback:'Time pressure is not a reason to skip it. KB-0024: call Naomi back on the number in the User Directory and confirm her employee ID. It takes a minute.' },
+        { id:'callback', text:'Call Naomi back on her mobile number in the User Directory and confirm her employee ID', pass:true, feedback:'Verified. You called Naomi back on her mobile number from the User Directory (555-0143), and Naomi confirmed employee ID E-71101.', history:'Identity verified per KB-0024: called Naomi back on the User Directory mobile number (555-0143); employee ID E-71101 confirmed.' },
+      ] },
+      kb:{ attach:true }, comments:true, resolutionCode:{ required:true },
+      criticalActions:[{ action:'remote-unattended', text:'Critical error. "Connect without asking" is for servers, kiosks and room PCs. Her laptop holds the board papers: ask for her consent and let her choose Allow (KB-0110).' }],
+      machines:{ 'NS-LT-0422':{
+        remote:{ agent:'Online', desktop:'PowerPoint is open with the board papers', asks:[
+          { id:'whole-slide', label:'Is the whole slide there and sharp?', answer:'Yes, the bottom line is back and it\'s crisp.' },
+        ] },
+        projection:'Duplicate',
+        dock:{ name:'Boardroom table HDMI cable', cable:true, docked:true, power:true, monitors:[
+          { id:'proj', name:'NS-RM-PROJ01 · Boardroom projector', input:'HDMI 1', cable:'HDMI 1', inputs:['HDMI 1', 'HDMI 2'],
+            resolution:{ native:'1920 × 1080', current:'2560 × 1600', choices:['2560 × 1600', '1920 × 1200', '1920 × 1080', '1280 × 720'] }, projector:{ lampHours:1840, filter:'Clean' } },
+        ] } } },
+      caller:{ name:'Naomi Fischer', questions:[
+        { id:'picture', text:'Is the picture there, or does the projector say No signal?', reply:'It\'s there, just fuzzy and cropped.' },
+      ] },
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['resolution', '2560', '1920', 'Duplicate', 'HDMI', 'NS-RM-PROJ01', 'NS-LT-0422', 'KB-0111', 'Quick Assist', 'Tier 2', 'P2'],
+        needs:[{ label:'Gives the session times (start and end)', pattern:'\\d{1,2}:\\d{2}' }, { label:'Names the laptop\'s resolution (2560 × 1600)', pattern:'2560' }, { label:'Names the projector\'s own resolution (1920 × 1080)', pattern:'1920' }, { label:'Says Naomi confirmed it', pattern:'confirmed|sharp' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Hardware', subcategory:'Projector / room display', ci:'NS-RM-PROJ01' }, missing:'Set Category Hardware › Projector / room display and CI NS-RM-PROJ01, the Boardroom projector. NS-LT-0422 is her laptop.' }, { priority:'P2', missing:'Set Impact 2 (the board\'s meeting) and Urgency 1 (it starts in 15 minutes). That makes the ticket P2.' }], good:'The board\'s meeting in 15 minutes: Impact 2 × Urgency 1, P2.', fix:'Set Category Hardware › Projector / room display, CI NS-RM-PROJ01, Impact 2 and Urgency 1. The board\'s meeting in 15 minutes is P2.' },
+        { area:'Investigation', checks:[
+          { verified:true, missing:'Verify Naomi quickly: call her back on her mobile directory number and confirm her employee ID (KB-0024).' },
+          { remoteOpening:true, missing:'In Say to the user, give your opening before you connect. Her laptop holds the board papers, so say you will only open the display settings.' },
+          { chat:['picture'], missing:'Ask one question first: is the picture there, or does the projector say No signal?' },
+        ], good:'A picture that is there means the input is fine, so you went to the display mode and the resolution.', fix:'Verify Naomi, ask whether the picture is there or says No signal (it is there, fuzzy and cropped, so the input is right), then give your opening with a privacy line about the board papers.' },
+        { area:'Diagnosis', checks:[
+          { notePattern:'2560', missing:'In your note, name the resolution the laptop is sending (2560 × 1600).' },
+          { notePattern:'1920', missing:'In your note, name the projector\'s own resolution (1920 × 1080).' },
+        ], good:'A resolution mismatch, not a faulty projector or cable.', fix:'In Dock and displays, Display 2 (the Boardroom projector) is Duplicate at 2560 × 1600, the laptop\'s own. The projector\'s (Recommended) is 1920 × 1080. The projector is resizing a picture it does not use natively, so it is soft, and the taller shape is cropped.' },
+        { area:'Action', checks:[
+          { action:'remote-connected', missing:'Start Quick Assist, read the code to Naomi in Say, and ask for her consent. She chooses Allow.' },
+          { action:'display-resolution', missing:'Say what you will change, then set the projector\'s resolution to 1920 × 1080 and press Keep changes.' },
+          { seen:'ask:whole-slide', computer:'NS-LT-0422', after:'display-resolution', missing:'Ask: is the whole slide there and sharp?' },
+          { action:'remote-end', missing:'Say you are disconnecting, then End session.' },
+        ], good:'Consent and privacy on a laptop holding board papers, one change, and checked with her.', fix:'Start Quick Assist with consent, set 1920 × 1080 and press Keep changes, ask her whether the whole slide is there and sharp, then End session. If it were still fuzzy: the spare HDMI cable in the table drawer, then the AV team (KB-0111). Critical (feedback only): declaring the projector broken or moving the meeting before checking the display settings; connecting without consent.' },
+        { area:'Documentation', checks:[
+          { note:true, missing:'Write a Reported / Tried / Result note with the session times and both resolutions.' },
+          { attached:'KB-0111', missing:'Attach KB-0111 to the ticket.' },
+          { comment:true, missing:'Write a comment for Naomi in plain words, with no internal terms.' },
+          { status:'Resolved', missing:'Resolve the ticket.' },
+        ], good:'Both resolutions in Tried, KB-0111 attached and a plain-words comment.', fix:'Write a Reported / Tried / Result note with both resolutions, attach KB-0111 and resolve the ticket. A comment could say: "Hi Naomi, glad it\'s sorted before 2:00. Your laptop was sending the projector a picture size it doesn\'t use, so the projector stretched it and cut the bottom off. We\'ve set your laptop to the projector\'s own size, and the slides are sharp and whole. – Riley"' },
+      ],
+    } }),
+  // Ticket 10-C: a PC beeps and the screen stays black. Remote Support shows it
+  // offline (Windows never starts), so it is phone questions, the maker's beep-code
+  // page, and a handoff to Desktop Support with a hot desk as the workaround.
+  hdTicket({ id:'HD-2225', ownSet:true, number:'INC0010536', requester:'Victor Hale', department:'Operations', category:'Incident', subcategory:'General', priority:'', businessImpact:'', sla:'', createdAt:'2026-08-24T09:40:00Z', shortDescription:'My computer beeps and the screen stays black',
+    description:'Hi, Victor in the warehouse office. My computer won\'t start. I press the button, the fans come on, and it beeps: one long beep, then two short ones. The screen stays black. The cleaners moved my desk over the weekend. I can use the PC at the end of the row for now.',
+    symptoms:[], logs:[], systemState:[], correctPath:[], plausibleCauses:[],
+    expectedResolution:'Reported: NS-WS-0320 won\'t start since the desk was moved over the weekend: fans run, one long and two short beeps, black screen. Using the PC at the end of the row for now. Tried: one user. Remote Support: agent offline since Friday 17:42 (Windows not starting). Monitor light orange, "No signal"; cable reseated at both ends, input checked: still black, same beeps. No burning smell, smoke or sparks. Maker\'s beep-code page: 1 long, 2 short = video adapter not detected, or memory error. Asked Victor to leave it switched off. Result: assigned to Desktop Support at P4; Victor working at the end-of-row PC. Next action: Desktop Support to check NS-WS-0320\'s memory and graphics after the desk move; Service Desk to tell Victor when it\'s back.',
+    console: {
+      now:'2026-08-24T09:40:00Z', matrix:{}, classify:{ categories:HD_ITS08_CATEGORIES, cis:['NS-WS-0320', 'NS-WS-0319', 'NS-WS-0318', 'NS-WS-0233'], preset:{ contactType:'Phone' } },
+      priorityCoach:{ impact:'3', urgency:'2', line:'One person (Impact 3). A working PC is nearby, so he can still work (Urgency 2): P4.' },
+      kb:{ attach:true }, comments:true, handoff:{},
+      machines:{ 'NS-WS-0320':{ remote:{ agent:'Offline', offlineSince:'Friday 17:42' } } },
+      caller:{ name:'Victor Hale', questions:[
+        { id:'light', text:'Is the light on your monitor on? What colour?', reply:'Orange, and it says No signal.' },
+        { id:'reseat-cable', text:'Please reseat the monitor cable at both ends and press the monitor\'s Input button. What happens?', reply:'Done, both ends. I pressed the Input button too. Still black, same beeps.' },
+        { id:'burning', text:'Can you smell burning, or see smoke or sparks?', reply:'No, nothing like that.' },
+        { id:'pattern', text:'Is it the same beep pattern every time?', reply:'Yes, one long, two short.' },
+        { id:'leave-off', text:'Please leave the PC switched off for now. Our desktop team will look at it.', reply:'OK, I\'ll leave it off.' },
+      ] },
+      evidence:[
+        { id:'asset-ns-ws-0320', title:'Asset record · NS-WS-0320', rows:[
+          { label:'Model', value:'Northstar Standard Desktop SD-5' },
+          { label:'Warranty', value:'Active' },
+          { label:'Location', value:'Warehouse office' },
+          { label:'Assigned', value:'Victor Hale' },
+        ] },
+        { id:'beep-codes-sd5', title:'Maker\'s beep-code page · Northstar Standard Desktop SD-5', rows:[
+          { label:'1 long, 2 short', value:'Video adapter not detected, or memory error' },
+          { label:'1 long, 3 short', value:'Memory not detected' },
+          { label:'3 short', value:'System board error' },
+          { label:'Note', value:'Tier 1: record the pattern. Desktop Support opens the case.' },
+        ] },
+      ],
+      notes:{ parts:['reported', 'tried', 'result'], nextAction:true, jargon:['POST', 'power-on self-test', 'beep code', 'memory', 'video adapter', 'NS-WS-0320', 'Tier 2', 'P4'],
+        needs:[{ label:'Gives the exact beep pattern (one long, two short)', pattern:'1 long|one long' }, { label:'Says Remote Support showed the PC offline', pattern:'offline' }, { label:'Says there was no burning smell', pattern:'burning|smell' }, { label:'Says Desktop Support has it next', pattern:'Desktop Support' }] },
+      feedback:[
+        { area:'Triage', checks:[{ triage:{ category:'Hardware', subcategory:'Desktop', ci:'NS-WS-0320' }, missing:'Set Category Hardware › Desktop and CI NS-WS-0320, Victor\'s desk PC.' }, { priority:'P4', missing:'Set Impact 3 (one person) and Urgency 2 (a working PC is nearby). That makes the ticket P4.' }], good:'One person with a working PC nearby: Impact 3 × Urgency 2, P4.', fix:'Set Category Hardware › Desktop, CI NS-WS-0320, Impact 3 and Urgency 2. One person with a working PC nearby is P4.' },
+        { area:'Investigation', checks:[
+          { chat:['light', 'reseat-cable'], missing:'Check the display first: ask about the monitor light, then ask him to reseat the cable at both ends and press the monitor\'s Input button.' },
+          { chat:['burning'], missing:'Ask the safety question: can he smell burning, or see smoke or sparks?' },
+          { chat:['pattern'], missing:'Ask whether it is the same beep pattern every time.' },
+          { remoteFound:'NS-WS-0320', missing:'Open Remote Support and find NS-WS-0320. Its agent is Offline since Friday 17:42: Windows isn\'t starting, so no remote tool can reach it.' },
+          { evidence:'asset-ns-ws-0320', missing:'Open the asset record card for NS-WS-0320.' },
+          { evidence:'beep-codes-sd5', missing:'Open the maker\'s beep-code page.' },
+        ], good:'The display first, the safety question, the exact pattern and the maker\'s page.', fix:'Ask about the monitor light and the cable first (a PC that won\'t start, or no picture?), ask the safety question, ask for the exact pattern, then open the asset record and the beep-code page. Remote Support shows the agent Offline since Friday 17:42: Windows isn\'t starting, so no remote tool can help. Trying to start a remote session is harmless but wrong.' },
+        { area:'Diagnosis', checks:[
+          { notePattern:'1 long|one long', missing:'Put the exact beep pattern (one long, two short) in Tried.' },
+        ], good:'A failed power-on self-test after the PC was moved, not a monitor fault.', fix:'One long and two short beeps with the monitor reseated and still black: the PC\'s own start-up check found a hardware problem after the desk was moved. The maker\'s page says video adapter not detected, or memory error.' },
+        { area:'Action', checks:[
+          { chat:['leave-off'], missing:'Ask Victor to leave the PC switched off.' },
+          { group:'Desktop Support (Tier 2)', missing:'Assign the ticket to Desktop Support (Tier 2).' },
+          { not:{ status:'Resolved' }, missing:'Leave the ticket open with Desktop Support: Tier 1 cannot fix this one.' },
+        ], good:'No case opened, the PC left off, escalated with the pattern and what was ruled out, and Victor has a workaround.', fix:'Ask Victor to leave the PC off, and assign the ticket to Desktop Support (Tier 2) at P4. He works at the end-of-row PC meanwhile: his sign-in and OneDrive files follow him. Critical (feedback only): telling him to open the case or reseat parts inside it; carrying on after a reported burning smell.' },
+        { area:'Documentation', checks:[
+          { note:true, missing:'Write a Reported / Tried / Result / Next action note.' },
+          { handoffNote:true, missing:'The note for Desktop Support needs Reported, Tried, Result and Next action.' },
+          { comment:true, missing:'Write a comment for Victor in plain words, with no internal terms.' },
+        ], good:'The exact pattern is in Tried, and Desktop Support can start where you stopped.', fix:'Write a Reported / Tried / Result / Next action note with the exact pattern in Tried. A comment could say: "Hi Victor, thanks for the clear description, it helped a lot. Those beeps are your computer\'s own start-up check telling us it found a hardware problem, probably a part that loosened when the desk was moved. Please leave it switched off; our desktop team will check it, and we\'ll let you know when it\'s ready. The PC at the end of the row has your files. If you ever smell burning from a computer, switch it off at the wall and call us straight away. – Riley"' },
       ],
     } }),
 ];
