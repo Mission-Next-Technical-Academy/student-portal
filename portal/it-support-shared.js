@@ -783,8 +783,18 @@ const ITS_PROVE_MAX_BYTES = 96 * 1024;
 // Module 3 adds warm_handoff: a call to the assignment group (value) logged
 // on the ticket (label). Module 6 adds caller_question: a question asked in
 // the chat with the user (value: its neutral id; label: its text).
+// Module 10 adds the remote session's records: remote_say (a "Say to the user"
+// line: text and time), remote_ask (a prompt and the user's answer),
+// remote_session (the tool, the mode, who allowed it and when) and
+// remote_session_end (the session log line). Their text is student writing or
+// the session log, so it is kept in full (ITS_PROVE_REMOTE_FIELDS) and these
+// events are the last to be trimmed (itsCleanProveWork).
 const ITS_PROVE_EVENT_TYPES = ['evidence_opened', 'command_run', 'diagnosis_chosen', 'step_chosen', 'step_cleared', 'decision_chosen', 'kb_search', 'action_taken',
-  'field_set', 'order_changed', 'ticket_arrived', 'warm_handoff', 'caller_question'];
+  'field_set', 'order_changed', 'ticket_arrived', 'warm_handoff', 'caller_question',
+  'remote_say', 'remote_ask', 'remote_session', 'remote_session_end'];
+const ITS_PROVE_REMOTE_TYPES = ['remote_say', 'remote_ask', 'remote_session', 'remote_session_end'];
+// Field name and its longest kept text.
+const ITS_PROVE_REMOTE_FIELDS = { id: 40, text: 500, time: 20, answer: 400, log: 300, tool: 24, mode: 16, control: 8, start: 20, end: 20, allowedBy: 60, screen: 16 };
 // The assignment groups a Prove ticket can go to (ui/helpdesk.js HD_ASSIGNMENT_GROUPS).
 const ITS_PROVE_GROUPS = ['Service Desk (Tier 1)', 'Desktop Support (Tier 2)', 'Network Operations', 'Server & Identity', 'Messaging & Collaboration', 'Security Operations (SOC)', 'Facilities'];
 // Seconds since the attempt started, as the simulator counted them; never
@@ -802,6 +812,8 @@ function itsProveCleanEvents(value) {
   return (Array.isArray(value) ? value : []).filter((entry) => entry && typeof entry === 'object').slice(-400).filter((entry) => ITS_PROVE_EVENT_TYPES.includes(entry.type)).map((entry) => ({
     type: entry.type, at: short(entry.at, 40), source: short(entry.source, 80), label: short(entry.label, 120), command: short(entry.command, 200),
     computer: short(entry.computer, 40), value: short(entry.value, 300), step: short(entry.step, 16),
+    // A remote session's records keep their own fields, in full.
+    ...(ITS_PROVE_REMOTE_TYPES.includes(entry.type) ? Object.fromEntries(Object.entries(ITS_PROVE_REMOTE_FIELDS).map(([field, max]) => [field, short(entry[field], max)])) : {}),
   }));
 }
 function itsProveCleanMachine(value) {
@@ -875,9 +887,13 @@ function itsCleanProveWork(input, moduleKey, labKey) {
     assignedTo: short(input.assignedTo, 40), ticketState: short(input.ticketState, 40), resolutionCode: short(input.resolutionCode, 80),
     commands, events, machine, logTrimmed: false, passwordTyped: input.passwordTyped === true, passwordWritten: input.passwordWritten === true,
   };
+  // Trims the oldest actions first. The remote session's Say lines and log are
+  // student writing and the session record: they go last, never cut, and an
+  // attempt that still doesn't fit is refused (too-large).
   while (JSON.stringify(work).length > ITS_PROVE_MAX_BYTES && (work.events.length || work.commands.length)) {
     work.logTrimmed = true;
-    if (work.events.length) work.events.shift(); else work.commands.shift();
+    const trimmable = work.events.findIndex((entry) => !ITS_PROVE_REMOTE_TYPES.includes(entry.type));
+    if (trimmable >= 0) work.events.splice(trimmable, 1); else if (work.commands.length) work.commands.shift(); else break;
   }
   return JSON.stringify(work).length > ITS_PROVE_MAX_BYTES ? tooLarge : { work };
 }
@@ -1217,6 +1233,14 @@ function itsProveMatrixReviewPanel(row, work, { text, writing, fact, items, open
   // Module 6: each question asked in the chat, in order. A ticket with no
   // chat shows no section.
   const questions = events.filter((entry) => entry.type === 'caller_question').map((entry) => entry.label || entry.value || 'A question');
+  // Module 10: the remote session. Every "Say to the user" line with its time
+  // (student writing, untruncated), the prompts asked and answered, and the
+  // session log the tool wrote. A ticket with no session shows no section.
+  const says = events.filter((entry) => entry.type === 'remote_say').map((entry) => `${entry.time ? `${entry.time} · ` : ''}${entry.text || ''}${entry.computer ? ` (during the session on ${entry.computer})` : ' (before the session)'}`);
+  const remoteAsks = events.filter((entry) => entry.type === 'remote_ask').map((entry) => `${entry.time ? `${entry.time} · ` : ''}Asked: ${entry.label || entry.id || ''} → “${entry.answer || ''}”`);
+  const sessions = events.filter((entry) => entry.type === 'remote_session' || entry.type === 'remote_session_end').map((entry) => (entry.type === 'remote_session'
+    ? `Started ${entry.start || ''} · ${entry.computer || ''} · ${entry.tool === 'quick-assist' ? 'Quick Assist' : 'Remote Support'} (${entry.mode || ''}, ${entry.control === 'view' ? 'view only' : 'full control'})${entry.mode === 'unattended' ? ' · nobody was asked' : entry.allowedBy ? ` · allowed by ${entry.allowedBy}` : ''}${entry.screen === 'sign-in' ? ' · at the sign-in screen' : ''}`
+    : entry.log || `Ended ${entry.end || ''} · ${entry.computer || ''}`));
   const minutes = Number.isFinite(Number(work.elapsedSeconds)) ? Math.round(Number(work.elapsedSeconds) / 60) : null;
   return `<div class="mb-3 rounded-lg border border-[#bfdbfe] bg-[#f0f7ff] p-4" data-its-prove-panel="${esc(row.id)}" data-its-prove-shape="matrix">
     <h3 class="text-sm font-semibold text-[#1e3a5f]">Student Analyst Response · ${text(work.ticketId)}</h3>
@@ -1232,6 +1256,12 @@ function itsProveMatrixReviewPanel(row, work, { text, writing, fact, items, open
     ${simulator ? `<div data-its-prove-simulator>
     ${questions.length ? `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Questions asked in the chat</h4>
     <div data-its-prove-questions>${items(questions, 'None asked.')}</div>` : ''}
+    ${says.length || sessions.length || remoteAsks.length ? `<h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Say to the user (the student's words, in order)</h4>
+    <div data-its-prove-say>${items(says, 'Nothing said.')}</div>
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Prompts asked in the session</h4>
+    <div data-its-prove-remote-asks>${items(remoteAsks, 'None asked.')}</div>
+    <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Remote session log</h4>
+    <div data-its-prove-session-log>${items(sessions, 'No session was started.')}</div>` : ''}
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Knowledge base searches</h4>
     ${items(searches, 'None recorded.')}
     <h4 class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-600">Actions in the simulator</h4>

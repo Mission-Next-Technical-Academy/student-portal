@@ -439,14 +439,29 @@ function hdFreshProveState() {
 // space, a colon or both (-Password secret, -Password:secret, /RP:secret).
 // -Path and /RU don't match.
 const HD_PASSWORD_ARG = '(^|\\s)(-pa(?:s(?:s(?:w(?:o(?:r(?:d)?)?)?)?)?)?|\\/rp)(\\s*:\\s*|\\s+)("[^"]*"|\'[^\']*\'|\\S+)';
-function hdHasPasswordArg(command) { return new RegExp(HD_PASSWORD_ARG, 'i').test(String(command)); }
+// A password typed as a literal value: ConvertTo-SecureString with a quoted
+// value (also after -String or before -AsPlainText), or -NewPassword and
+// -AccountPassword with a quoted value. A bare ConvertTo-SecureString or
+// Read-Host -AsSecureString has no literal and is fine.
+const HD_PASSWORD_LITERAL = '(convertto-securestring\\b[^|;)]*?|-(?:newpassword|accountpassword)(?:\\s*:\\s*|\\s+)(?:\\(\\s*)?)("[^"]*"|\'[^\']*\'|“[^”]*”)';
+// Unquoted: the value after -String, or the first bare word after the cmdlet.
+const HD_PASSWORD_BARE = ['(convertto-securestring\\b[^|;)]*?-string(?:\\s*:\\s*|\\s+))(?!["\'“])([^\\s|;)]+)', '(convertto-securestring\\s+)(?![-"\'“$])([^\\s|;)]+)'];
+function hdHasPasswordArg(command) {
+  const text = String(command);
+  return new RegExp(HD_PASSWORD_ARG, 'i').test(text) || new RegExp(HD_PASSWORD_LITERAL, 'i').test(text)
+    || HD_PASSWORD_BARE.some(source => new RegExp(source, 'i').test(text)) || /convertto-securestring\b[^|;]*-asplaintext/i.test(text);
+}
 // A password typed on the command line is never echoed or recorded. Everything
 // from the first password argument to the end is masked, so no quoting or
 // escaping (`" or '') can leave part of it behind. Such a command never runs.
+// A literal for ConvertTo-SecureString, -NewPassword or -AccountPassword,
+// quoted or bare, is masked wherever it stands.
 function hdRedactCommand(command) {
   const text = String(command);
   const match = new RegExp(HD_PASSWORD_ARG, 'i').exec(text);
-  return match ? `${text.slice(0, match.index)}${match[1]}${match[2]}${match[3]}********` : text;
+  const masked = match ? `${text.slice(0, match.index)}${match[1]}${match[2]}${match[3]}********` : text;
+  return HD_PASSWORD_BARE.reduce((value, source) => value.replace(new RegExp(source, 'ig'), '$1********'),
+    masked.replace(new RegExp(HD_PASSWORD_LITERAL, 'ig'), '$1********'));
 }
 // A password written into a ticket field (work note, customer comment, Prove
 // resolution note or reply): a label (password, passwd, pwd, pw, passcode)
@@ -4236,7 +4251,9 @@ function hdMachineChange(computerName, change) {
   if (hdProveLocked()) return;
   const machine = hdFeatureMachine(computerName); if (!machine) return;
   // Module 10 (console B): a PC in a view-only remote session can't be changed.
-  if (hdRemoteViewOnly(computerName, machine)) { if (typeof toast === 'function') toast(`View only: ask for full control to change ${computerName}.`); render(); return; }
+  // A Prove It says only that the session is view-only and nothing changed:
+  // asking for full control is a hint, and stays in Practice.
+  if (hdRemoteViewOnly(computerName, machine)) { if (typeof toast === 'function') toast(HD_PROVE ? `This session is view-only. Nothing changed on ${computerName}.` : `View only: ask for full control to change ${computerName}.`); render(); return; }
   const result = change(machine);
   if (result === false) { hdSave(); render(); return; }
   const printed = hdMachineSettle(machine);
@@ -8461,6 +8478,28 @@ function hdJoinCommand(command, normalized, computer) {
   return restart ? '' : `WARNING: The changes will take effect after you restart the computer ${name}.`;
 }
 
+// A command that changes the PC: a state-changing verb, a resync, a renew or a
+// service or task change. Reads (Get-*, ping, nslookup, w32tm /query, ...) are not.
+const HD_WRITE_VERB = /^(start|stop|restart|set|new|remove|enable|disable|clear|add|unlock|reset|install|uninstall|register|unregister|suspend|resume|invoke|move|rename|update)-[a-z]/;
+function hdCommandChangesPc(normalized) {
+  // A pipeline or a line of several commands: any part that writes counts.
+  const parts = normalized.split(/[|;]/).map(part => part.trim()).filter(Boolean);
+  if (parts.length > 1) return parts.some(hdCommandChangesPc);
+  if (normalized === 'clear-host') return false;
+  if (HD_WRITE_VERB.test(normalized)) return true;
+  return /^w32tm(\.exe)? \/(resync|register|unregister)\b/.test(normalized) || /^ipconfig(\.exe)? [\/-](renew|release|flushdns|registerdns)\b/.test(normalized)
+    || /^(gpupdate|shutdown|taskkill|restart-computer)\b/.test(normalized) || /^net(\.exe)? (start|stop)\b/.test(normalized) || /^sc(\.exe)? (start|stop|config)\b/.test(normalized)
+    || /^schtasks(\.exe)? \/(change|run|create|delete|end)\b/.test(normalized) || /^cmdkey(\.exe)? \/(delete|add)\b/.test(normalized);
+}
+// Null unless the computer's active remote session is view only and the
+// command would change it. The message says nothing changed; only Practice
+// says how to get full control.
+function hdViewOnlyWriteBlocked(normalized, computer) {
+  const machine = computer && hdFeatureMachine(computer.name);
+  if (!machine || !hdRemoteViewOnly(computer.name, machine) || !hdCommandChangesPc(normalized)) return null;
+  hdLastCommandResult = 'blocked: the session is view only';
+  return HD_PROVE ? 'This session is view-only. Nothing changed.' : 'This session is view-only, so nothing changed. Reads still work. Ask for full control in Quick Assist, then run it again.';
+}
 // computerName: the Remote Support command console runs on its remote PC;
 // every other caller leaves it out and gets the selected computer, as before.
 function hdPowerShellOutput(command, computerName) {
@@ -8470,6 +8509,10 @@ Sessions: Enter-PSSession -ComputerName <name>, Exit-PSSession
 Scheduled tasks: Get-ScheduledTask [-TaskName <name>], Get-ScheduledTaskInfo -TaskName <name>, Start-ScheduledTask -TaskName <name>, ${hdM01Tier2() ? '' : 'Set-ScheduledTask -TaskName <name> -User <DOMAIN\\user>, '}schtasks /Query [/TN <name> /V /FO LIST], ${hdM01Tier2() ? '' : 'schtasks /Change /TN <name> /RU <DOMAIN\\user>, '}schtasks /Run /TN <name>
 ${hdDirectoryReadOnly() ? '' : `Accounts: Get-ADUser <user> -Properties *, Search-ADAccount -LockedOut, Unlock-ADAccount -Identity <user>
 `}Events: Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4740}`}${hdFeatureHelp(computer)}${hdDirectoryHelp()}`;
+  // Module 10: a view-only Quick Assist session can't change the PC from the
+  // command line either. Reads still answer.
+  const viewOnly = hdViewOnlyWriteBlocked(normalized, computer);
+  if(viewOnly !== null) return viewOnly;
   const practiceOutput = hdPracticeCommand(command, normalized, computer);
   if(practiceOutput !== null) return practiceOutput;
   // Module 10 (console A): the clock, the secure channel and the refused
@@ -11302,7 +11345,7 @@ function hdRemoteSayCard(ticket, state, name) {
 }
 function hdRemoteScreenHtml(ticket, name, machine, control) {
   const spec = hdRemoteSpec(machine) || {}; const computer = hdComputerByName(name) || { user:'' };
-  if (spec.signedIn === false) return `<div class="hd-windows-screen" data-hd-remote-screen="sign-in"><div class="hd-window-bar"><span>${hdEsc(name)} · Sign-in screen</span><span>${hdEsc(hdRemoteHhmm(hdRemotePcNow(name, machine)))}</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows sign-in</strong><span>Other user</span></div>${machine.signInMessage ? `<div class="callout warn" data-hd-sign-in-message>${hdEsc(machine.signInMessage)}</div>` : ''}<p class="muted">The user signs in here themselves. Nobody types a password in a session.</p></div></div>`;
+  if (spec.signedIn === false) return `<div class="hd-windows-screen" data-hd-remote-screen="sign-in"><div class="hd-window-bar"><span>${hdEsc(name)} · Sign-in screen</span><span>${hdEsc(hdRemoteHhmm(hdRemotePcNow(name, machine)))}</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows sign-in</strong><span>Other user</span></div>${machine.signInMessage ? `<div class="callout warn" data-hd-sign-in-message>${hdEsc(machine.signInMessage)}</div>` : ''}${HD_PROVE ? '' : '<p class="muted">The user signs in here themselves. Nobody types a password in a session.</p>'}</div></div>`;
   return `<div class="hd-windows-screen" data-hd-remote-screen="desktop"><div class="hd-window-bar"><span>${hdEsc(name)} · ${hdEsc(computer.user || ticket.requester || '')}'s desktop</span><span>${hdEsc(hdRemoteHhmm(hdRemotePcNow(name, machine)))}</span></div><div class="hd-window-body"><div class="hd-desktop-hero"><strong>Windows 11 Enterprise</strong><span>${hdEsc(spec.desktop || 'The user\'s desktop')}</span></div>${control === 'view' ? '' : hdRemoteToolsHtml(name)}</div></div>`;
 }
 // Module 10 (console B): true while this PC's active remote session is view
@@ -11876,7 +11919,8 @@ function hdProvePackage() {
     machine:shift.printerSummary === true ? hdProvePrinterSummary(shift.selectedComputer)
       : shift.windowsSummary === true ? hdProveWindowsSummary(shift.selectedComputer)
         : shift.networkSummary === true ? hdProveNetworkSummary(shift.selectedComputer)
-          : hdClone(hdMachine(shift.selectedComputer) || {}),
+          : shift.remoteSummary === true ? hdProveRemoteSummary(shift.selectedComputer)
+            : hdClone(hdMachine(shift.selectedComputer) || {}),
     passwordTyped:prove.passwordTyped === true, passwordWritten:prove.passwordWritten === true,
     // Module 3: the extra writing and the time used (the efficiency band).
     ...hdProveExtraPackage(prove),
@@ -11884,6 +11928,44 @@ function hdProvePackage() {
     // resubmission whose log wasn't (never saved in the row).
     freshFor:prove.freshFor || '',
   };
+}
+// Module 10 (shift remoteSummary): the PC's clock and trust at submit, the
+// part of a remote session's work that stays on the computer: whether the
+// clock is still the reset one (shown) or has an offset, its source and last
+// sync, the secure channel and who is signed in. Small enough for the course
+// page's 4 KB machine limit, and nothing says which values are right.
+function hdProveRemoteSummary(name) {
+  const machine = hdMachine(name) || {};
+  const clock = hdRemoteClock(machine) || {};
+  const spec = hdRemoteSpec(machine) || {};
+  return {
+    clock: {
+      ...(typeof clock.shown === 'string' ? { shown:clock.shown.slice(0, 30) } : {}),
+      ...(typeof clock.offsetMinutes === 'number' ? { offsetMinutes:clock.offsetMinutes } : {}),
+      synced:clock.synced !== false, source:String(clock.source || '').slice(0, 60),
+      ...(typeof clock.lastSync === 'string' ? { lastSync:clock.lastSync.slice(0, 30) } : {}),
+    },
+    secureChannel:machine.secureChannel !== false,
+    remote: { signedIn:spec.signedIn !== false },
+  };
+}
+// A returned attempt's clock and sign-in back onto the PC, as the student left
+// them, also in another browser: only the clock's own fields, each with the
+// fixture's type.
+function hdProvePrefillRemote(summary, machine) {
+  const saved = summary && typeof summary === 'object' && !Array.isArray(summary) ? summary : null;
+  if (!saved || !machine) return;
+  const clock = saved.clock && typeof saved.clock === 'object' && !Array.isArray(saved.clock) ? saved.clock : null;
+  if (clock) {
+    const next = { ...(machine.clock && typeof machine.clock === 'object' ? machine.clock : {}) };
+    if (typeof clock.shown === 'string' && !Number.isNaN(Date.parse(clock.shown))) next.shown = clock.shown; else delete next.shown;
+    if (typeof clock.offsetMinutes === 'number' && Number.isFinite(clock.offsetMinutes)) next.offsetMinutes = clock.offsetMinutes; else delete next.offsetMinutes;
+    if (typeof clock.synced === 'boolean') next.synced = clock.synced;
+    if (typeof clock.source === 'string' && clock.source) next.source = clock.source.slice(0, 60);
+    if (typeof clock.lastSync === 'string' && !Number.isNaN(Date.parse(clock.lastSync))) { next.lastSync = clock.lastSync; delete next.lastSyncMinutesAgo; }
+    machine.clock = next;
+  }
+  if (typeof saved.secureChannel === 'boolean') machine.secureChannel = saved.secureChannel;
 }
 // Module 9 (shift networkSummary): each adapter of the selected computer at
 // submit, by name: its IP assignment (dhcp), address, manual IPv4 settings,
@@ -12205,6 +12287,7 @@ function hdProvePrefillActions(work, prove, ticket) {
     if (HD_PROVE.shift.printerSummary === true) hdProvePrefillPrinters(work.machine, machine);
     if (HD_PROVE.shift.windowsSummary === true) hdProvePrefillWindows(work.machine, machine, fixture);
     if (HD_PROVE.shift.networkSummary === true) hdProvePrefillNetwork(work.machine, machine, name);
+    if (HD_PROVE.shift.remoteSummary === true) hdProvePrefillRemote(work.machine, machine);
     hdState.machines = { ...(hdState.machines || {}), [name]:machine };
   }
   if (work.assignedTo === 'Riley Morgan') {
@@ -12242,7 +12325,20 @@ function hdProveFreshLog(returnedAt) {
     state.chat = []; state.kbQuery = ''; state.kbOpen = ''; state.kbSearches = []; state.kbOpened = [];
     // Module 8: a request and the team messages are actions, earned again.
     state.teamMessages = []; delete state.convert; delete ticket.request;
+    // Module 10: a remote session is an action too. The active session, a
+    // pending code, the Say lines, the answers and the session list are
+    // cleared, so the retry reconnects and asks permission again.
+    delete state.remote;
   });
+  // The PC's remote block (who is signed in, the desktop) starts as the shift
+  // began; its clock and trust stay as the student left them (hdProvePrefillActions).
+  const remoteShift = HD_PROVE && HD_PROVE.shift;
+  if (remoteShift && remoteShift.machines && hdState.machines) {
+    Object.keys(remoteShift.machines).forEach(name => {
+      const fixture = remoteShift.machines[name];
+      if (fixture && fixture.remote && hdState.machines[name]) hdState.machines[name].remote = hdClone(fixture.remote);
+    });
+  }
   // Module 8: account and Entra changes are actions on the accounts, not the
   // laptop, so the accounts start as the shift began, as in another browser.
   const shift = HD_PROVE && HD_PROVE.shift;

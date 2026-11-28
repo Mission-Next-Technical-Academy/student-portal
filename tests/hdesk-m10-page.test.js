@@ -18,7 +18,8 @@
 //     Resolved and HD-2110 is not Resolved and has at least one note.
 //   - Lab 10.2: the practice set's message saves one completion record, and
 //     only for the three tickets the simulator's set reports.
-//   - The Prove It card says it opens soon and has no launch button.
+//   - The Prove It card launches the Prove shift (it gates completion since the
+//     Prove It migration).
 //
 // The portal runs in tests/portal-vm.js. Synthetic data only.
 const assert = require('node:assert/strict');
@@ -144,9 +145,9 @@ function testCatalogue() {
     ['its-08-lesson-02', 'Structured Troubleshooting & Stop-and-Escalate Judgment', 45, [['ITHD-101.8', 45]]],
   ], 'the filed lesson keys, titles, minutes and parents');
   const labs = copy(run('LABS').filter((l) => l.module === 'its-08'));
-  // Lab 10.1 is still the gating lab, so it has no practice phase.
+  // Since the Prove It moved the gate, Lab 10.1 is Practice It, like Lab 10.2.
   assert.deepEqual(labs.map((l) => [l.key, l.title, l.instructionalMinutes, l.phase || null, l.parentAllocations.map((a) => [a.code, a.minutes])]), [
-    [GUIDED, 'Lab 10.1 · Guided Lab: two remote sessions', 12, null, [['ITHD-101.8', 12]]],
+    [GUIDED, 'Lab 10.1 · Guided Lab: two remote sessions', 12, 'practice', [['ITHD-101.8', 12]]],
     [PRACTICE, 'Lab 10.2 · Practice tickets (not graded)', 8, 'practice', [['ITHD-101.8', 8]]],
     [PROVE, 'Prove It: Independent Ticket', 10, null, [['ITHD-101.8', 10]]],
   ]);
@@ -353,13 +354,14 @@ function testLabCardsAndRail() {
   assert.match(practice, /“Check my work” feedback and no score/);
   assert.match(practice, /Three tickets/);
   assert.equal(statusLine(html, PRACTICE), 'Finish all three tickets: work each to Resolved, or hand it to the right team, and give it your work note.');
-  // The Prove It says it opens soon: no launch button yet.
-  assert.equal(run('ITS08_PROVE_OPEN'), false);
+  // The Prove It is open: its card launches the Prove shift.
+  assert.equal(run('ITS08_PROVE_OPEN'), true);
   const prove = section(html, 'its08-prove-it');
   assert.match(prove, /Prove It: Independent Ticket/);
   assert.match(prove, /Prove It · Assessment Lab · instructor reviewed/);
-  assert.match(words(prove), /The Prove It opens soon\./);
-  assert.doesNotMatch(prove, /data-its08-prove-launch|Start the Prove It|Reopen the Prove It|\?prove=/, 'no launch button while it is closed');
+  assert.doesNotMatch(words(prove), /opens soon/i, 'the card no longer says it opens soon');
+  assert.match(prove, /data-its08-prove-launch[^>]*href="[^"]*\?prove=its-08&amp;student=/, 'the launch button opens the its-08 Prove shift');
+  assert.match(prove, /Start the Prove It/);
   assert.match(words(prove), /Work Lab 10\.1, the guided lab, first/, 'Lab 10.1 first, until it is done');
   // The lab cards' exact labels and minutes: 12 / 8 / 10.
   assert.deepEqual([GUIDED, PRACTICE, PROVE].map((k) => run(`LABS.find((l) => l.key === '${k}').title`)), [
@@ -375,12 +377,13 @@ function testLabCardsAndRail() {
   ['its08-prove-it', 'its08-check-learn', 'its08-check-aplus', 'its08-lab-10-2', 'its08-lab-10-1'].forEach((id) => assert.equal(railRow(html, id).locked, false, `${id} is not locked`));
   assert.doesNotMatch(html, /href="#its08-cardsort"/);
 
-  // Lab 10.1 is still the gating lab: a saved walkthrough waits for the instructor.
+  // Lab 10.1 is Practice It since the Prove It moved the gate: a saved
+  // walkthrough is complete at once, with no instructor review.
   const saved = hdUser({ [GUIDED]: submitted() });
   fresh(saved);
   const line = statusLine(page().view(saved, HD), GUIDED);
-  assert.match(line, /^Lab 10\.1 submitted /);
-  assert.match(line, /waiting for instructor review/, 'Lab 10.1 still gates the module');
+  assert.match(line, /^Lab 10\.1: Complete · /);
+  assert.doesNotMatch(line, /waiting for instructor review/);
 }
 
 /* --------------------------------------------------------------- checks */
@@ -641,8 +644,9 @@ async function testGuidedLabSave() {
   const after = LabRuntime.load(STATE_ID, user, {});
   assert.deepEqual([after.consoleStarted, after.consoleCompleted], [true, true], 'the page records the walkthrough');
   const line = statusLine(page().view(user, HD), GUIDED);
-  assert.match(line, /^Lab 10\.1 submitted /);
-  assert.match(line, /waiting for instructor review/, 'Lab 10.1 still gates: the instructor reviews it');
+  // Practice It since the Prove It moved the gate: complete once saved.
+  assert.match(line, /^Lab 10\.1: Complete · /);
+  assert.doesNotMatch(line, /waiting for instructor review/);
   await page().onMessage(coachMessage(replyCatcher().source, labWork()));
   assert.equal(inserts().length, 1, 'finishing again sends nothing new');
 
@@ -794,7 +798,7 @@ function testInstructorSheets() {
   assert.match(html, /No: Practice It, no score and no answers saved/);
   assert.equal(copy(run('adminGradingLabMeta')({ lab_key: PRACTICE, track_code: 'HDESK' })).kind, 'PRACTICE IT');
   assert.equal(run('adminNeedsInstructorReview')({ lab_key: PRACTICE, track_code: 'HDESK' }), false, 'Lab 10.2 is never in the review queue');
-  assert.equal(run('adminNeedsInstructorReview')({ lab_key: GUIDED, track_code: 'HDESK' }), true, 'Lab 10.1 still gates, so it is reviewed');
+  assert.equal(run('adminNeedsInstructorReview')({ lab_key: GUIDED, track_code: 'HDESK' }), false, 'nor is Lab 10.1, now the Prove It gates the module');
   assert.equal(run('adminNeedsInstructorReview')({ lab_key: PROVE, track_code: 'HDESK' }), true, 'the Prove It is');
   const guided = sheet.render({ ...base, score: 82, id: 'm10g-1', lab_key: GUIDED, result: { source: 'mnt-coach-complete', work: { version: 1, tickets: [] } } });
   assert.match(guided, /Module 10 · Two remote sessions/);

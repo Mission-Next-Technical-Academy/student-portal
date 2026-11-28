@@ -744,9 +744,10 @@ const ITS08_PROVE_KEY = 'lab-its-08-prove-it';
 const ITS08_LAB_KEYS = [ITS08_LAB1_KEY, ITS08_PRACTICE_KEY, ITS08_PROVE_KEY];
 const ITS08_COACH_ID = 'hd-m08';
 const ITS08_LAB1_START = 'Start Lab 10.1 walkthrough';
-// The Prove It part is built later. Until it is, its card says it opens soon
-// and has no launch button; the message wiring below is already in place.
-const ITS08_PROVE_OPEN = false;
+// Since 2026-11-27 the Prove It is open: its card launches the its-08 Prove
+// shift and the message wiring below saves the attempt. It gates completion
+// (the its08 Prove It migration); Lab 10.1 is Practice It.
+const ITS08_PROVE_OPEN = true;
 
 const ITS08_DEFAULT_STATE = {
   consoleStarted: false, consoleCompleted: false,
@@ -984,7 +985,8 @@ function its08PracticeTickets() {
 // Practice It is recommended first, never required. A submitted attempt has
 // nothing left to open. What it shows comes from the server's attempt
 // (itsLabStatus); the simulator reports back by message (itsProveReceiveMessage).
-// While ITS08_PROVE_OPEN is false the card has no launch button.
+// While ITS08_PROVE_OPEN is false the card has no launch button (the flag
+// stays so a page test can pin that the card opens).
 function its08Prove() {
   const user = its08User;
   const returned = itsLabReturned(user, ITS08_PROVE_KEY);

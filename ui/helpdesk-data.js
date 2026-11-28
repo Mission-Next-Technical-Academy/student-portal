@@ -4656,4 +4656,111 @@ const HD_PROVE_SHIFTS = {
     },
     // END Module 9 Prove It shift.
   },
+  // BEGIN Module 10 Prove It shift (tests/hdesk-m10-prove.test.js reads it; no
+  // practice ticket, coach or set names what this block holds).
+  /* Module 10 (key its-08): one ticket on a fixed Monday 09:12 shift clock, on
+   * Module 3's one-ticket form (matrix fields and a key-finding note), worked
+   * in a remote session on one desk PC (the session's screens, the command
+   * console and the Service Desk PowerShell), the knowledge base, one evidence
+   * card and a phone call with the user. servers and directory are this shift's
+   * own (Module 7's healthy baseline; the one account is read-only). The PC's
+   * machine carries the Remote Support state (ui/helpdesk.js "Remote
+   * sessions"); remoteSummary: the package carries the PC's clock and trust at
+   * submit, not the whole machine. Only what the student sees lives here: no
+   * expected values. */
+  'its-08': {
+    title: 'Prove It: Independent Ticket',
+    labKey: 'lab-its-08-prove-it',
+    rubricVersion: 'hdesk-its-08-prove-v1',
+    now: '2026-09-14T09:12:00Z',
+    timeBoxMinutes: 25,
+    selectedComputer: 'NS-WS-0211',
+    machineTools: true,
+    remoteSummary: true,
+    servers: hdIts05BaselineServers(),
+    directory: { ...hdIts05BaselineDirectory(), accounts: {
+      'u-1004': { locked:false, accountExpires:'Never', passwordExpired:false, passwordLastSet:'12 days ago', passwordAge:12, lastBadPassword:'None', sspr:'Registered' },
+    } },
+    // No kbArticles: Module 10's practice articles stay in Practice
+    // (tests/hdesk-m10-practice-tickets.test.js); the search reads the shared
+    // knowledge base.
+    tickets: [{
+      id: 'HD-2131', number: 'INC0012131', title: 'Every website warns her, and Windows won\'t take her password',
+      requester: 'Priya Shah', requesterTitle: 'HR Generalist', department: 'Human Resources',
+      device: 'NS-WS-0211', cc: '', contactType: 'Phone', createdAt: '2026-09-14T09:10:00Z',
+      status: 'New', assignedTechnician: 'Unassigned',
+      description: 'Every website gives me a security warning, and now Windows won\'t take my normal password. It says something about the domain. Desk support worked on my PC yesterday.',
+      conversation: [],
+      matrix: true,
+      categoryOptions: ['Account / access', 'Hardware › Desktop', 'Hardware › Laptop', 'Network › Wi-Fi', 'Network › Wired connectivity', 'Security incident', 'Software › Browser', 'Software › Email (Outlook)', 'Software › Windows sign-in'],
+      labels: { resolutionHint: 'Reported / Tried / Result (+ Next action if it stays open or goes to another team)', userReply: 'Reply to Priya' },
+      writing: {
+        keyFinding: { label: 'Key finding', hint: 'One or two sentences: what you found and how the pieces connect.', rows: 3, max: 600 },
+      },
+      evidence: [
+        { id: 'wo-3307', title: 'Desktop Support · Work order WO-3307', lines: ['WO-3307 · Desktop Support · yesterday 13:20', 'NS-WS-0211: CMOS (clock) battery replaced after a start-up warning. PC returned to user 14:05.'], notes: ['Desktop Support records the work it does on a PC.'] },
+      ],
+      // The knowledge base search and a phone call with Priya. Every question
+      // gets a reply in character; the last two wait for the PC's clock.
+      console: {
+        kb: true,
+        caller: { name: 'Priya Shah', style: 'phone', questions: [
+          { id: 'v1', text: 'Can I call you back on your directory number and confirm your employee ID?', reply: 'Of course. I\'m at my desk on ext. 4426, and my employee ID is E-33091.' },
+          { id: 'q1', text: 'Is anyone else in HR having this?', reply: 'No, everyone else is fine.' },
+          { id: 'q2', text: 'Is it every website, or just one?', reply: 'Every single one, even the news sites. It started yesterday afternoon when I got the PC back.' },
+          { id: 'q3', text: 'What did desk support do yesterday?', reply: 'They changed a little battery inside it, I think. They left a sticker with WO-3307 on it.' },
+          { id: 'q4', text: 'When did the password stop working?', reply: 'This morning, after I restarted it. Yesterday it let me in.' },
+          { id: 't1', text: 'I\'m going to connect to your computer with our remote support tool so I can see the sign-in screen. You\'ll see a request from Riley Morgan, Service Desk; please choose Allow. I\'ll tell you what I\'m doing as I go.', reply: 'OK, I see it. I\'ve pressed Allow.' },
+          { id: 'q5', text: 'Can you try signing in now?', reply: 'It still says there is a time and/or date difference between the client and server.',
+            replyWhen: [{ when: { machine: { computer: 'NS-WS-0211', path: ['clock', 'offsetMinutes'], value: 0 } }, reply: 'I\'m in!' }] },
+          { id: 'q6', text: 'Can you open a website and tell me what you see?', reply: 'I can\'t get that far: it won\'t let me sign in.',
+            replyWhen: [{ when: { machine: { computer: 'NS-WS-0211', path: ['clock', 'offsetMinutes'], value: 0 } }, reply: 'No warning now. It looks normal.' }] },
+        ] },
+      },
+      diagnosisOptions: ['Broken domain trust', 'Expired certificate on NS-APP01', 'System clock wrong after the CMOS battery swap', 'Malware intercepting HTTPS'],
+      // Ids are this ticket's own and their order says nothing. A step that
+      // names a command earns nothing when ticked: the command history is what
+      // counts.
+      pathPool: [
+        { id: 'p1', text: 'Clear the browser cache' },
+        { id: 'p2', text: 'Verify Priya by callback' },
+        { id: 'p3', text: 'Resync the clock with the domain\'s time source' },
+        { id: 'p4', text: 'Remove and rejoin the domain' },
+        { id: 'p5', text: 'Tell her what she\'ll see and get her Allow before connecting' },
+        { id: 'p6', text: 'Escalate as a domain trust failure' },
+        { id: 'p7', text: 'Connect with Remote Support (attended)' },
+        { id: 'p8', text: 'Tell her to click through the certificate warnings' },
+        { id: 'p9', text: 'Check the date and time' },
+        { id: 'p10', text: 'Test one hypothesis at a time and note each' },
+        { id: 'p11', text: 'Repair the secure channel' },
+        { id: 'p12', text: 'Ask her to sign in and open a site' },
+        { id: 'p13', text: 'Start a Quick Assist session (nobody is signed in)' },
+        { id: 'p14', text: 'Narrate, end the session, document' },
+      ],
+    }],
+    computers: [
+      { name:'NS-WS-0211', user:'Priya Shah', os:'Windows 11 Enterprise 24H2', ip:'10.20.20.211', ou:'OU=Human Resources,OU=Workstations', trust:'Healthy', bitlocker:'Protected', lastSeen:'1 minute ago', health:'Healthy' },
+    ],
+    machines: {
+      'NS-WS-0211': {
+        computer: { ip:'10.20.20.211', health:'Healthy' },
+        // Remote Support's agent is online; nobody is signed in (the PC is at
+        // the sign-in screen with the time-difference message).
+        remote: { agent:'Online', signedIn:false, lastStart:'Today 08:41', asks:[] },
+        signInMessage: 'There is a time and/or date difference between the client and server.',
+        secureChannel: true,
+        clock: { shown:'2023-01-02T09:14:00Z', synced:false, source:'Local CMOS Clock' },
+        network: {
+          adapters: [{ name:'Ethernet', kind:'Ethernet', description:'Intel(R) Ethernet Connection I219-LM', media:'Connected', speed:'1 Gbps', mac:'3C-52-82-4B-02-11', ip:hdIts04Ip('10.20.20.211', '10.20.20.1'), lease:hdIts04Lease('10.20.20.211', '10.20.20.1') }],
+          routes: { corp:[{ name:'nsfw01', address:'10.20.255.1' }, { name:'nsrtr-fiber', address:'10.20.255.2' }, { address:'203.0.113.1', ms:9 }] },
+          publicDns: { 'www.example.com':'93.184.215.14' },
+        },
+        events: { system: [
+          { level:'Warning', time:'Yesterday 14:07', source:'Microsoft-Windows-Time-Service', id:'36', message:'The time service has not synchronized the system time for 86400 seconds because none of the time service providers provided a usable time stamp.' },
+          { level:'Error', time:'Today 08:43', source:'Microsoft-Windows-Security-Kerberos', id:'4', message:'The Kerberos client received a KRB_AP_ERR_SKEW error from the server NS-DC01$. This indicates that the time difference between the client and the server is too great.' },
+        ] },
+      },
+    },
+    // END Module 10 Prove It shift.
+  },
 };

@@ -182,8 +182,10 @@ function testOldTicketsTurnNothingOn() {
   // Every older Prove shift. Module 7's own Prove shift turns these screens on
   // (tests/hdesk-m07-prove.test.js), and so does Module 9's, whose server
   // state holds the file share and names its laptop reaches
-  // (tests/hdesk-m09-prove.test.js).
-  for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS')).filter((k) => !['its-05', 'its-04'].includes(k))) {
+  // (tests/hdesk-m09-prove.test.js), and Module 10's, whose server state lets
+  // its PC ping and look up the domain controller
+  // (tests/hdesk-m10-prove.test.js).
+  for (const key of Object.keys(plain.run('HD_PROVE_SHIFTS')).filter((k) => !['its-05', 'its-04', 'its-08'].includes(k))) {
     const prove = sim({ url: `https://academy.test/sim/?prove=${key}&student=student-m07#/helpdesk/tickets` });
     assertFixed(prove, `prove ${key}`);
     // A screen that shows nothing is never recorded as evidence.

@@ -2430,11 +2430,10 @@ const LABS = [
     description: 'An independent Prove It on a ticket you have not seen in practice, with no coach, hints or feedback before you submit. Your instructor reviews it.',
     skills: ['Endpoint Hygiene', 'Evidence-Based Diagnosis', 'Documentation'], portalEntry: '#/program/it-support/module/6' }),
   // Module 10's guided lab. Students see it as Lab 10.1; the key is older than
-  // that numbering. Until Module 10's Prove It gates completion it stays the
-  // gating lab (course_module_labs), so it has no `phase: 'practice'`: an
-  // instructor still reviews and approves it. Its 30 filed minutes are split
-  // 12 / 8 / 10 across the three labs; ITHD-101.8 keeps all 30.
-  itsLab({ key: 'lab-its-08-unfamiliar-problems', module: 'its-08', title: 'Lab 10.1 · Guided Lab: two remote sessions', difficulty: 'Foundational', minutes: 12,
+  // that numbering. Since 2026-11-27 Module 10's Prove It gates completion (the
+  // its08 Prove It migration) and Lab 10.1 is Practice It. Its 30 filed
+  // minutes are split 12 / 8 / 10 across the three labs; ITHD-101.8 keeps all 30.
+  itsLab({ key: 'lab-its-08-unfamiliar-problems', module: 'its-08', title: 'Lab 10.1 · Guided Lab: two remote sessions', difficulty: 'Foundational', minutes: 12, phase: 'practice',
     parentAllocations: [allocation('ITHD-101.8', 12)], objective: 'Run two remote sessions: fix a headset that went silent after docking over Quick Assist, then reach a laptop stuck at the sign-in screen with Remote Support, rule things out one at a time and hand it to Desktop Support.',
     description: 'Two coach-guided tickets in the IT Service Desk simulator, each step with a why and what success looks like. Feedback only, no score.',
     skills: ['Remote Support', 'Troubleshooting Methodology', 'Escalation Judgment'], portalEntry: '#/program/it-support/module/10' }),
@@ -2447,7 +2446,7 @@ const LABS = [
     description: 'Three unguided tickets in the IT Service Desk simulator, with "Check my work" feedback and no score. Finish all three and a completion record is saved to your account.',
     skills: ['Remote Support', 'Display Troubleshooting', 'Escalation Judgment'], portalEntry: '#/program/it-support/module/10' }),
   // Module 10's Prove It: one ticket (?prove=its-08), scored on the server and
-  // graded by the instructor. It will gate Module 10's completion (the its08
+  // graded by the instructor. It gates Module 10's completion (the its08
   // Prove It migration). Coaching time box: 25 minutes.
   itsLab({ key: 'lab-its-08-prove-it', module: 'its-08', title: 'Prove It: Independent Ticket', difficulty: 'Foundational', minutes: 10,
     parentAllocations: [allocation('ITHD-101.8', 10)], objective: 'Independently work a new remote-support ticket: reach the user the right way, find the cause from the evidence, fix what is Tier 1’s, verify it, and write for both the next technician and the user.',

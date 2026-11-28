@@ -1,7 +1,7 @@
 -- Regression test for 20261030175603_course_module_labs_gates_completion.sql.
 -- Help Desk Module 1 gates on lab-its-01-prove-it only; every module of every
--- track except Help Desk Modules 1 to 9 (its-01, its-10, its-11, its-02,
--- its-03, its-07, its-05, its-06, its-04, which gate on their Prove It) computes exactly what the previous view
+-- track except Help Desk Modules 1 to 10 (its-01, its-10, its-11, its-02,
+-- its-03, its-07, its-05, its-06, its-04, its-08, which gate on their Prove It) computes exactly what the previous view
 -- (20261017130000_module_one_completion_case_console.sql) computed. Practice
 -- It rows stay in course_module_labs for the one-pending rule and evidence
 -- storage. Rolls everything back.
@@ -49,9 +49,9 @@ $$;
 select pg_temp.check((select array_agg(lab_key order by lab_key) from public.course_module_labs where not gates_completion)
     = array['lab-its-01-lms-validation', 'lab-its-01-ticket-triage',
             'lab-its-02-device-manager', 'lab-its-02-print-spooler', 'lab-its-02-vm-build', 'lab-its-02-vm-snapshot-server',
-            'lab-its-03-blank-desktop', 'lab-its-04-connectivity', 'lab-its-05-server-ad', 'lab-its-06-identity-access', 'lab-its-07-app-cert',
+            'lab-its-03-blank-desktop', 'lab-its-04-connectivity', 'lab-its-05-server-ad', 'lab-its-06-identity-access', 'lab-its-07-app-cert', 'lab-its-08-unfamiliar-problems',
             'lab-its-10-priority-queue', 'lab-its-11-handoff-documentation'],
-  'only the Practice It labs (Module 1''s two, Module 2''s Lab 2.1 since 20261120213000, Module 3''s handoff lab since 20261123022947, Module 4''s four older labs since 20261123190000, Module 5''s Lab 5.1 since 20261124200131, Module 6''s Lab 6.1 since 20261125052435, Module 7''s Lab 7.1 since 20261126021451, Module 8''s Lab 8.1 since 20261126162912, Module 9''s Lab 9.1 since 20261127060125) have gates_completion = false');
+  'only the Practice It labs (Module 1''s two, Module 2''s Lab 2.1 since 20261120213000, Module 3''s handoff lab since 20261123022947, Module 4''s four older labs since 20261123190000, Module 5''s Lab 5.1 since 20261124200131, Module 6''s Lab 6.1 since 20261125052435, Module 7''s Lab 7.1 since 20261126021451, Module 8''s Lab 8.1 since 20261126162912, Module 9''s Lab 9.1 since 20261127060125, Module 10''s Lab 10.1 since 20261127220000) have gates_completion = false');
 select pg_temp.check((select array_agg(lab_key) from public.course_module_labs where track_code = 'HDESK' and module_key = 'its-01' and gates_completion)
     = array['lab-its-01-prove-it'],
   'Module 1 gates on lab-its-01-prove-it only');
@@ -101,15 +101,15 @@ group by s.user_id, r.track_code, r.module_key, mp.detail, mp.admin_override;
 
 select pg_temp.check(not exists (
     (select user_id, track_code, module_key, complete from old_view
-       where not (track_code = 'HDESK' and module_key in ('its-01', 'its-10', 'its-11', 'its-02', 'its-03', 'its-07', 'its-05', 'its-06', 'its-04'))
+       where not (track_code = 'HDESK' and module_key in ('its-01', 'its-10', 'its-11', 'its-02', 'its-03', 'its-07', 'its-05', 'its-06', 'its-04', 'its-08'))
      except
      select user_id, track_code, module_key, complete from public.student_verified_module_progress)
     union all
     (select user_id, track_code, module_key, complete from public.student_verified_module_progress
-       where not (track_code = 'HDESK' and module_key in ('its-01', 'its-10', 'its-11', 'its-02', 'its-03', 'its-07', 'its-05', 'its-06', 'its-04'))
+       where not (track_code = 'HDESK' and module_key in ('its-01', 'its-10', 'its-11', 'its-02', 'its-03', 'its-07', 'its-05', 'its-06', 'its-04', 'its-08'))
      except
      select user_id, track_code, module_key, complete from old_view)),
-  'every module except Help Desk Modules 1 to 9 computes exactly what the previous view did');
+  'every module except Help Desk Modules 1 to 10 computes exactly what the previous view did');
 select pg_temp.check((select complete from public.student_verified_module_progress
     where user_id = 'b0000000-0000-0000-0000-000000000001' and module_key = 'soc-02'),
   'SOC soc-02 still verifies on its approved lab');
