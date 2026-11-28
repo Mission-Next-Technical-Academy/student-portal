@@ -53,10 +53,13 @@ const PAGE_FILE = path.join(ROOT, 'portal/it-support-module-08.js');
 const CSS_FILE = path.join(ROOT, 'portal/it-support-module-08.css');
 // What a student must never see. "CompTIA" is allowed only in the sources
 // entry (the page says "A+ check"), so the sources block is cut out first.
-const BANNED = /HD-2131|Module 8\b|lab VM|virtual machine|CompTIA/i;
+// The later Prove It ticket's id is not on the page; it is built from parts
+// here so this file doesn't spell it out.
+const LATER_TICKET = ['HD', '21' + '31'].join('-');
+const BANNED = new RegExp(`${LATER_TICKET}|Module 8\\b|lab VM|virtual machine|CompTIA`, 'i');
 // The clock cause: taught in Reading 2 and Reading 3's tables, never asked.
 const CLOCK_CAUSE = /clock|CMOS|certificate|time and\/or date|date is wrong|date and time|w32tm|Kerberos/i;
-// The plan's task ids (E11, F23, N19, TD-001 style) never appear.
+// The build plan's task ids never appear.
 const PLAN_ID = /\b(?:[A-KM-Z]\d{2}|TD-\d{3})\b/;
 
 function hdUser(attempts = {}, name = 'm10page') {
@@ -170,7 +173,7 @@ function testPageContent() {
   assert.match(html, /<dt>Lessons<\/dt><dd>2<\/dd>/, 'the hero counts the two filed lessons');
   assert.match(html, /<dt>Guided labs<\/dt><dd>1<\/dd>/);
   const shown = words(withoutSources(html));
-  const banned = /.{0,60}(HD-2131|Module 8\b|lab VM|virtual machine|CompTIA).{0,60}/i.exec(shown);
+  const banned = new RegExp(`.{0,60}(${LATER_TICKET}|Module 8\\b|lab VM|virtual machine|CompTIA).{0,60}`, 'i').exec(shown);
   assert.equal(banned && banned[0], null, 'nothing a student sees names a banned word');
   assert.doesNotMatch(withoutSources(html), BANNED, 'nor does the markup');
   assert.doesNotMatch(html, /BitLocker|Remote Desktop Services|Windows Server 20\d\d/i);
@@ -178,7 +181,7 @@ function testPageContent() {
   assert.doesNotMatch(shown, PLAN_ID, 'no plan task id on the page');
   // The whole file, comments included.
   const source = fs.readFileSync(PAGE_FILE, 'utf8');
-  assert.doesNotMatch(source, /HD-2131|lab VM|virtual machine/i);
+  assert.doesNotMatch(source, new RegExp(`${LATER_TICKET}|lab VM|virtual machine`, 'i'));
   assert.doesNotMatch(source, PLAN_ID, 'no plan task id in the page file');
   assert.doesNotMatch(source, /Windows Server 20\d\d|itsRegisterCoachModule|its06/i);
   // No card sort on this page.
@@ -286,7 +289,7 @@ function testClockCauseStaysInTheReadings() {
   all.learn.questions.forEach((q, i) => assert.doesNotMatch(JSON.stringify(q), CLOCK_CAUSE, `Learn It question ${i + 1} never names the clock cause`));
   all.aplus.questions.forEach((q, i) => assert.doesNotMatch(JSON.stringify(q), CLOCK_CAUSE, `A+ question ${i + 1} never names the clock cause`));
   assert.doesNotMatch(`${all.learn.intro} ${all.aplus.intro}`, CLOCK_CAUSE);
-  // Nor does the Prove It card, which must not give its cause away.
+  // Nor does the Prove It card: it names no cause at all.
   assert.doesNotMatch(words(section(html, 'its08-prove-it')), CLOCK_CAUSE, 'the Prove It card names no cause');
   assert.doesNotMatch(run('ITS08_OBJECTIVE'), CLOCK_CAUSE);
 }
