@@ -11414,7 +11414,7 @@ function hdRemoteView() {
   if (session) return `${header}<div class="two-col">${hdRemoteSessionCard(ticket, state, session)}${hdRemoteSayCard(ticket, state, name)}</div>`;
   const tools = [['quick-assist', 'Quick Assist'], ['remote-support', 'Remote Support']].map(([id, label]) => `<button type="button" class="btn ${state.tool === id ? 'btn-primary' : 'btn-secondary'} btn-sm" role="tab" aria-selected="${state.tool === id}" data-hd-remote-tool="${id}" onclick="hdRemoteSetTool('${id}')">${label}</button>`).join('');
   const body = state.tool === 'quick-assist' ? hdRemoteQuickAssistBody(ticket, state, name) : hdRemoteSupportBody(ticket, state);
-  return `${header}<div class="two-col"><div class="card" data-hd-remote-tools><div class="card-header"><strong>${hdEsc(ticket.id)} · ${hdEsc(ticket.requester || '')}</strong><div style="display:flex;gap:6px" role="tablist">${tools}</div></div><div class="card-body">${body}</div></div>${hdRemoteSayCard(ticket, state, name)}</div>`;
+  return `${header}<div class="two-col"><div class="card" data-hd-remote-tools><div class="card-header"><strong>${hdEsc(HD_PROVE ? hdTicketLabel(ticket) : ticket.id)} · ${hdEsc(ticket.requester || '')}</strong><div style="display:flex;gap:6px" role="tablist">${tools}</div></div><div class="card-body">${body}</div></div>${hdRemoteSayCard(ticket, state, name)}</div>`;
 }
 
 // The screen every older shift sees (no PC in the shift has remote state).

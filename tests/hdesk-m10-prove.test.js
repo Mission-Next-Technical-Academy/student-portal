@@ -183,6 +183,8 @@ function testFreshShift() {
   assert.ok(!tab.run('hdKbArticles().some((a) => a.practiceOnly)'), 'no practice-only article in a Prove It');
   assert.ok(tab.run('hdKbArticles().length') > 0, 'the shared knowledge base is there to search');
   assert.equal(tab.run('hdRemoteOn()'), true, 'the Remote Support screen is the real one');
+  assert.ok(!words(tab.view('helpdesk/remote-support')).includes(TID), 'the Remote Support screen never shows the internal id either');
+  assert.ok(words(tab.view('helpdesk/remote-support')).includes(SPEC.number), 'it shows the INC number');
   assert.deepEqual([...tab.toasts], [], 'no toast');
   // The evidence card, the chat and the sign-in screen's message.
   assert.match(html, /data-hd-prove-open="card:wo-3307"/);
